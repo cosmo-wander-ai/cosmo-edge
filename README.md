@@ -125,8 +125,7 @@ CosmoEdge is built around a C++17 runtime rather than a Python service loop. Thi
 
 Build video AI workflows in a browser. Connect video sources, AI models, post-processing nodes, OSD rendering, alarm rules, and output channels with a visual pipeline editor.
 
-<!-- TODO: Replace with real 8-10s GIF. -->
-<!-- ![Pipeline editor workflow](docs/assets/pipeline-editor.gif) -->
+![Pipeline editor workflow](docs/assets/pipeline-editor.gif)
 
 ### Complete Application Loop
 
