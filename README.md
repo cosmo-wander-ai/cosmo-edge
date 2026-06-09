@@ -44,8 +44,7 @@ TODO before public launch:
 
 <div align="center">
 
-<!-- TODO: Replace with real 8-12s GIF. -->
-<!-- ![CosmoEdge running multiple edge AI pipelines](docs/assets/hero.gif) -->
+![CosmoEdge running multiple edge AI pipelines](docs/assets/hero.gif)
 
 *Multiple AI pipelines, real-time OSD, and live event output on one edge device.*
 
