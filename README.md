@@ -169,15 +169,19 @@ The C++ engine is designed for multi-channel video analytics on edge hardware. O
 
 > TODO: Publish the exact benchmark setup before launch: device model, SDK version, resolution, codec, input source, model version, duration, and whether OSD/streaming are included.
 
-### On-device VLM and Open-vocabulary Detection
+### Prompt-driven AI: GroundingDINO + VLM
 
-CosmoEdge supports large-model style visual reasoning on edge devices:
+CosmoEdge supports prompt-driven visual intelligence on edge devices. GroundingDINO and VLM are part of the same capability family, but they solve different problems:
 
 | Capability | How it works | Typical use |
 | --- | --- | --- |
-| Edge VLM | Ask a closed question and map the answer to YES/NO/Enum events | "Is there debris on the floor?" -> alarm on YES |
-| VLM Image Analysis | Upload images and run structured visual checks | Quality inspection, compliance review |
-| GroundingDINO | Text prompt to open-vocabulary detection | Long-tail objects without task-specific training |
+| GroundingDINO | Text prompt -> open-vocabulary object detection | Find long-tail objects without task-specific training |
+| Edge VLM | Closed question -> YES/NO/Enum state judgment | "Is the cabinet door open?" -> alarm on YES |
+| VLM Image Analysis | Image upload -> structured visual check | Quality inspection, compliance review |
+
+![Prompt-driven AI with GroundingDINO and VLM](docs/assets/prompt-driven-ai.gif)
+
+GroundingDINO finds what and where. VLM judges whether a visual state is true. Both can be used as asynchronous pipeline nodes alongside traditional CV pipelines.
 
 Certified device packages can include a fine-tuned 0.8B edge VLM and production-ready CV models. The open-source engine can also run user-provided models through the same workflow.
 
@@ -276,33 +280,15 @@ make -j$(nproc)
 
 ## Showcases
 
-<!-- TODO: Replace each placeholder with GIF or screenshot. -->
+Representative application pipelines built with the same engine, UI, and event system:
 
-<table>
-<tr>
-<td align="center" width="33%">
+| Scenario | Pipeline | What it demonstrates |
+| --- | --- | --- |
+| Pedestrian Flow Analysis | Detection -> tracking -> line crossing -> counting -> MQTT | Multi-stage CV pipeline with real-time statistics |
+| Construction Site Safety | Person/PPE detection -> zone rule -> alarm -> snapshot -> OSD | Compliance monitoring with semantic overlays and alarms |
+| Visual Inspection | DINO object localization -> VLM state judgment -> event mapping | Prompt-driven long-tail inspection without retraining |
 
-<!-- ![People counting](docs/assets/showcase-counting.gif) -->
-<b>Pedestrian Flow Analysis</b><br>
-<sub>Detection + tracking + line crossing + counting + MQTT.</sub>
-
-</td>
-<td align="center" width="33%">
-
-<!-- ![Safety monitoring](docs/assets/showcase-safety.gif) -->
-<b>Construction Site Safety</b><br>
-<sub>Hardhat and vest compliance with semantic OSD and alarms.</sub>
-
-</td>
-<td align="center" width="33%">
-
-![VLM inspection](docs/assets/showcase-vlm.gif)
-<b>VLM Smart Inspection</b><br>
-<sub>Prompt-driven state judgment for long-tail inspection rules.</sub>
-
-</td>
-</tr>
-</table>
+Additional scene GIFs can be added here later. The three launch GIFs are intentionally used for the three strongest README proof points: live edge runtime, visual orchestration, and prompt-driven AI.
 
 ## Validation
 
