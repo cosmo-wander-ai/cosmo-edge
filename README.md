@@ -183,7 +183,11 @@ CosmoEdge supports prompt-driven visual intelligence on edge devices. GroundingD
 | Edge VLM | Closed question -> YES/NO/Enum state judgment | "Is the cabinet door open?" -> alarm on YES |
 | VLM Image Analysis | Image upload -> structured visual check | Quality inspection, compliance review |
 
+<div align="center">
+
 ![Prompt-driven AI with GroundingDINO and VLM](docs/assets/prompt-driven-ai.gif)
+
+</div>
 
 GroundingDINO finds what and where. VLM judges whether a visual state is true. Both can be used as asynchronous pipeline nodes alongside traditional CV pipelines.
 
