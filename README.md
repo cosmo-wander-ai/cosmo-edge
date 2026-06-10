@@ -296,7 +296,7 @@ make -j$(nproc)
 </td>
 <td align="center" width="33%">
 
-<!-- ![VLM inspection](docs/assets/showcase-vlm.gif) -->
+![VLM inspection](docs/assets/showcase-vlm.gif)
 <b>VLM Smart Inspection</b><br>
 <sub>Prompt-driven state judgment for long-tail inspection rules.</sub>
 
