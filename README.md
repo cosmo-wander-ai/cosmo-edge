@@ -314,15 +314,15 @@ CosmoEdge is built from a commercial codebase and has gone through internal syst
 
 ### Performance Benchmarks
 
-The numbers below are representative system-level combinations based on internal records. A video channel means one decoded input stream; multiple scenario tasks can share the same decoded stream.
+The numbers below are representative system-level combinations based on internal records. A video channel means one decoded input stream; multiple scenario tasks can share the same decoded stream. E2E latency means frame-to-OSD or frame-to-event latency under the listed workload, not single-model inference time.
 
-| Workload | Video channels | Scenario task num | FPS target | Hardware | Notes |
-| --- | ---: | ---: | ---: | --- | --- |
-| Full-stream YOLOv8n detection | 16 | 16 | 25/channel | BM1688 | Decode + inference + OSD enabled; stable upper-limit case |
-| Shared-codec dense CV tasks | 4 | 30+ | 25/channel | BM1688 | Multiple scenario tasks share decoded streams; demonstrates task concurrency |
-| Safety compliance pipeline | TODO | TODO | 25/channel | BM1688 | Detection + tracking + attribute/rule + alarm; representative business pipeline |
-| Prompt-driven AI pipeline | TODO | TODO | Async | BM1688 | GroundingDINO + VLM async nodes; event-driven slow path, not frame-synchronous OSD |
-| x86 developer mode | 1 | 1 | TODO | x86 CPU | YOLOv8n development and evaluation workload |
+| Workload | Video channels | Scenario task num | FPS target | E2E latency | Hardware | Notes |
+| --- | ---: | ---: | ---: | ---: | --- | --- |
+| Full-stream YOLOv8n detection | 16 | 16 | 25/channel | TODO | BM1688 | Decode + inference + OSD enabled; stable upper-limit case |
+| Shared-codec dense CV tasks | 4 | 30+ | 25/channel | TODO | BM1688 | Multiple scenario tasks share decoded streams; demonstrates task concurrency |
+| Safety compliance pipeline | TODO | TODO | 25/channel | TODO | BM1688 | Detection + tracking + attribute/rule + alarm; representative business pipeline |
+| Prompt-driven AI pipeline | TODO | TODO | Async | TODO | BM1688 | GroundingDINO + VLM async nodes; event-driven slow path, not frame-synchronous OSD |
+| x86 developer mode | 1 | 1 | TODO | TODO | x86 CPU | YOLOv8n development and evaluation workload |
 
 ## Architecture
 
