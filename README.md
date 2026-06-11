@@ -306,15 +306,15 @@ CosmoEdge is built from a commercial codebase and has gone through internal syst
 
 ### Performance Benchmarks
 
-The numbers below are release-candidate benchmark targets based on internal records. Confirm and replace them with reproducible measurements before public launch.
+The numbers below are representative system-level combinations based on internal records. A video channel means one decoded input stream; multiple scenario tasks can share the same decoded stream.
 
-| Workload | Channels | FPS per channel | Inference latency | Hardware | Notes |
+| Workload | Video channels | Scenario task num | FPS target | Hardware | Notes |
 | --- | ---: | ---: | ---: | --- | --- |
-| YOLOv8n detection | 16 | 25 | TODO | BM1688 | Include decode, inference, and OSD in final report |
-| Hardhat and vest detection | 8 | 25 | TODO | BM1688 | Multi-class safety scenario |
-| GroundingDINO | 1 | TODO | TODO | BM1688 | Text-prompted detection |
-| VLM state judgment | 1 | TODO | TODO | BM1688 | Async slow path, not frame-synchronous OSD |
-| YOLOv8n dev mode | 1 | TODO | TODO | x86 CPU | Development and evaluation only |
+| Full-stream YOLOv8n detection | 16 | 16 | 25/channel | BM1688 | Decode + inference + OSD enabled; stable upper-limit case |
+| Shared-codec dense CV tasks | 4 | 30+ | 25/channel | BM1688 | Multiple scenario tasks share decoded streams; demonstrates task concurrency |
+| Safety compliance pipeline | TODO | TODO | 25/channel | BM1688 | Detection + tracking + attribute/rule + alarm; representative business pipeline |
+| Prompt-driven AI pipeline | TODO | TODO | Async | BM1688 | GroundingDINO + VLM async nodes; event-driven slow path, not frame-synchronous OSD |
+| x86 developer mode | 1 | 1 | TODO | x86 CPU | YOLOv8n development and evaluation workload |
 
 ## Architecture
 
