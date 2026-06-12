@@ -14,6 +14,7 @@ vision-language-model, vlm, sophon, bm1688, real-time
 <div align="center">
 
 <!-- TODO: Replace with final logo asset. -->
+
 <!-- <img src="docs/assets/cosmoedge-logo.png" width="320" alt="CosmoEdge"> -->
 
 # CosmoEdge
@@ -75,41 +76,6 @@ Recommended set:
 4. VLM Visual Inspection
 -->
 
-<table>
-<tr>
-<td align="center" width="50%">
-
-<!-- ![Visual Pipeline Orchestrator](docs/assets/screenshot-orchestrator.png) -->
-<b>Visual Pipeline Orchestrator</b><br>
-<sub>Drag-and-drop AI workflow builder powered by Vue Flow.</sub>
-
-</td>
-<td align="center" width="50%">
-
-<!-- ![Real-time AI Analytics](docs/assets/screenshot-realtime.png) -->
-<b>Real-time AI Analytics</b><br>
-<sub>Multi-channel video with live AI overlays and status indicators.</sub>
-
-</td>
-</tr>
-<tr>
-<td align="center" width="50%">
-
-<!-- ![Web Management Console](docs/assets/screenshot-dashboard.png) -->
-<b>Web Management Console</b><br>
-<sub>Scenario tasks, model repository, event center, and system monitoring.</sub>
-
-</td>
-<td align="center" width="50%">
-
-<!-- ![VLM Visual Inspection](docs/assets/screenshot-vlm.png) -->
-<b>VLM Visual Inspection</b><br>
-<sub>Change the prompt, change the inspection rule, no retraining required.</sub>
-
-</td>
-</tr>
-</table>
-
 ## Key Features
 
 ### C++ Native Runtime
@@ -146,15 +112,15 @@ Model Repository -> Scenario Task -> Real-time Analysis -> Alarm Management -> D
 <details>
 <summary><b>Full capability list</b></summary>
 
-| Module | Capabilities |
-| --- | --- |
-| Model Repository | Model upload, metadata management, version management, hot-swap workflow |
-| Scenario Tasks | Pipeline binding, camera binding, scheduling, scene-level configuration |
-| Real-time Analysis | RTSP, video files, USB cameras, WebRTC live view, HTTP-FLV fallback |
-| Image Analysis | Batch image upload, VLM analysis, structured results |
-| Alarm Management | Rule-based alarms, severity levels, snapshots, filtering, event history |
-| Data Integration | MQTT push, HTTP webhook, structured JSON event format |
-| System Management | Dashboard, device status, user auth, i18n, configuration management |
+| Module             | Capabilities                                                             |
+| ------------------ | ------------------------------------------------------------------------ |
+| Model Repository   | Model upload, metadata management, version management, hot-swap workflow |
+| Scenario Tasks     | Pipeline binding, camera binding, scheduling, scene-level configuration  |
+| Real-time Analysis | RTSP, video files, USB cameras, WebRTC live view, HTTP-FLV fallback      |
+| Image Analysis     | Batch image upload, VLM analysis, structured results                     |
+| Alarm Management   | Rule-based alarms, severity levels, snapshots, filtering, event history  |
+| Data Integration   | MQTT push, HTTP webhook, structured JSON event format                    |
+| System Management  | Dashboard, device status, user auth, i18n, configuration management      |
 
 </details>
 
@@ -177,11 +143,11 @@ The C++ engine is designed for multi-channel video analytics on edge hardware. O
 
 CosmoEdge supports prompt-driven visual intelligence on edge devices. GroundingDINO and VLM are part of the same capability family, but they solve different problems:
 
-| Capability | How it works | Typical use |
-| --- | --- | --- |
-| GroundingDINO | Text prompt -> open-vocabulary object detection | Find long-tail objects without task-specific training |
-| Edge VLM | Closed question -> YES/NO/Enum state judgment | "Is the cabinet door open?" -> alarm on YES |
-| VLM Image Analysis | Image upload -> structured visual check | Quality inspection, compliance review |
+| Capability         | How it works                                    | Typical use                                           |
+| ------------------ | ----------------------------------------------- | ----------------------------------------------------- |
+| GroundingDINO      | Text prompt -> open-vocabulary object detection | Find long-tail objects without task-specific training |
+| Edge VLM           | Closed question -> YES/NO/Enum state judgment   | "Is the cabinet door open?" -> alarm on YES           |
+| VLM Image Analysis | Image upload -> structured visual check         | Quality inspection, compliance review                 |
 
 <div align="center">
 
@@ -209,15 +175,15 @@ Try the full UI and workflow on standard x86 hardware:
 
 Models listed below have full pipeline support — detection, OSD rendering, tracking, alarm rules, and event output work out of the box.
 
-| Category | Verified Architectures | Pipeline Support |
-|:---|:---|:---|
-| Object Detection | YOLOv5, YOLOv8, YOLOv10, YOLOv11 | Full pipeline |
-| Object Tracking | ByteTrack | Full pipeline |
-| Attribute Classification | Safety helmet, vest, uniform classifiers | Full pipeline |
-| Counting & Statistics | Line crossing, zone counting, directional flow | Full pipeline |
-| Open-vocabulary Detection | GroundingDINO | Async pipeline node |
-| Visual State Judgment | Edge VLM (text prompt → YES/NO/Enum) | Async pipeline node |
-| Image Analysis | VLM batch analysis | Standalone task |
+| Category                  | Verified Architectures                         | Pipeline Support    |
+| :------------------------ | :--------------------------------------------- | :------------------ |
+| Object Detection          | YOLOv5, YOLOv8, YOLOv10, YOLOv11               | Full pipeline       |
+| Object Tracking           | ByteTrack                                      | Full pipeline       |
+| Attribute Classification  | Safety helmet, vest, uniform classifiers       | Full pipeline       |
+| Counting & Statistics     | Line crossing, zone counting, directional flow | Full pipeline       |
+| Open-vocabulary Detection | GroundingDINO                                  | Async pipeline node |
+| Visual State Judgment     | Edge VLM (text prompt → YES/NO/Enum)          | Async pipeline node |
+| Image Analysis            | VLM batch analysis                             | Standalone task     |
 
 **Model ecosystem compatibility:**
 
@@ -231,7 +197,7 @@ CosmoEdge uses ONNX as the model interchange format. Models from major CV traini
 
 CosmoEdge runs on the Sophon BM1688 inference stack. Models from SOPHGO's official model zoo can be integrated through the model porting guide, which covers post-processing adaptation and pipeline node registration.
 
-→ [SOPHGO Model Zoo (sophon-demo)](https://github.com/sophgo/sophon-demo)  
+→ [SOPHGO Model Zoo (sophon-demo)](https://github.com/sophgo/sophon-demo)
 → [CosmoEdge Model Porting Guide](docs/model-porting.md)
 
 ## Quick Start
@@ -290,11 +256,11 @@ make -j$(nproc)
 
 Representative application pipelines built with the same engine, UI, and event system:
 
-| Scenario | Pipeline | What it demonstrates |
-| --- | --- | --- |
-| Pedestrian Flow Analysis | Detection -> tracking -> line crossing -> counting -> MQTT | Multi-stage CV pipeline with real-time statistics |
-| Construction Site Safety | Person/PPE detection -> zone rule -> alarm -> snapshot -> OSD | Compliance monitoring with semantic overlays and alarms |
-| Visual Inspection | DINO object localization -> VLM state judgment -> event mapping | Prompt-driven long-tail inspection without retraining |
+| Scenario                 | Pipeline                                                        | What it demonstrates                                    |
+| ------------------------ | --------------------------------------------------------------- | ------------------------------------------------------- |
+| Pedestrian Flow Analysis | Detection -> tracking -> line crossing -> counting -> MQTT      | Multi-stage CV pipeline with real-time statistics       |
+| Construction Site Safety | Person/PPE detection -> zone rule -> alarm -> snapshot -> OSD   | Compliance monitoring with semantic overlays and alarms |
+| Visual Inspection        | DINO object localization -> VLM state judgment -> event mapping | Prompt-driven long-tail inspection without retraining   |
 
 Additional scene GIFs can be added here later. The three launch GIFs are intentionally used for the three strongest README proof points: live edge runtime, visual orchestration, and prompt-driven AI.
 
@@ -302,13 +268,13 @@ Additional scene GIFs can be added here later. The three launch GIFs are intenti
 
 CosmoEdge is built from a commercial codebase and has gone through internal system validation before open-source release.
 
-| Area | Current validation status |
-| --- | --- |
-| Video stress test | 200 video samples used in continuous playback testing, with no memory leak or crash observed during the test |
-| CV pipeline validation | 18/18 CV pipelines precision-aligned against internal industry baselines |
-| Concurrent CV workload | 16-channel CV inference verified on a single BM1688 device |
-| Regression testing | Multi-round system regression with dedicated QA |
-| Pilot deployments | Validated in de-identified pilot scenarios across education, smart campus, and industrial safety |
+| Area                   | Current validation status                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Video stress test      | 200 video samples used in continuous playback testing, with no memory leak or crash observed during the test |
+| CV pipeline validation | 18/18 CV pipelines precision-aligned against internal industry baselines                                     |
+| Concurrent CV workload | 16-channel CV inference verified on a single BM1688 device                                                   |
+| Regression testing     | Multi-round system regression with dedicated QA                                                              |
+| Pilot deployments      | Validated in de-identified pilot scenarios across education, smart campus, and industrial safety             |
 
 > TODO: Link to a public validation report before formal v1.0 release. The report should include test duration, device configuration, input resolution, model versions, and known limitations.
 
@@ -316,13 +282,13 @@ CosmoEdge is built from a commercial codebase and has gone through internal syst
 
 The numbers below are representative system-level combinations based on internal records. A video channel means one decoded input stream; multiple scenario tasks can share the same decoded stream. E2E latency means frame-to-OSD or frame-to-event latency under the listed workload, not single-model inference time.
 
-| Workload | Video channels | Scenario task num | FPS target | E2E latency | Hardware | Notes |
-| --- | ---: | ---: | ---: | ---: | --- | --- |
-| Full-stream YOLOv8n detection | 16 | 16 | 25/channel | TODO | BM1688 | Decode + inference + OSD enabled; stable upper-limit case |
-| Shared-codec dense CV tasks | 4 | 30+ | 25/channel | TODO | BM1688 | Multiple scenario tasks share decoded streams; demonstrates task concurrency |
-| Safety compliance pipeline | TODO | TODO | 25/channel | TODO | BM1688 | Detection + tracking + attribute/rule + alarm; representative business pipeline |
-| Prompt-driven AI pipeline | TODO | TODO | Async | TODO | BM1688 | GroundingDINO + VLM async nodes; event-driven slow path, not frame-synchronous OSD |
-| x86 developer mode | 1 | 1 | TODO | TODO | x86 CPU | YOLOv8n development and evaluation workload |
+| Workload                      | Video channels | Scenario task num |  FPS target |   E2E latency | Hardware | Notes                                                                           |
+| ----------------------------- | -------------: | ----------------: | ----------: | ------------: | -------- | ------------------------------------------------------------------------------- |
+| Full-stream YOLOv8n detection |             16 |                16 |   3/channel |     32-68(ms) | BM1688   | Decode + inference + OSD enabled; stable upper-limit case                       |
+| Shared-codec dense CV tasks   |              4 |                20 |   3/channel |    84-141(ms) | BM1688   | Multiple scenario tasks share decoded streams; demonstrates task concurrency    |
+| Safety compliance pipeline    |             16 |                16 |   3/channel |   182-314(ms) | BM1688   | Detection + tracking + attribute/rule + alarm; representative business pipeline |
+| Prompt-driven AI pipeline     |              8 |                 8 | 0.2/channel | 3154-4128(ms) | BM1688   | VLM async nodes; event-driven slow path, not frame-synchronous OSD（QW3.5 0.8b) |
+| x86 developer mode            |              1 |                 1 |        TODO |          TODO | x86 CPU  | YOLOv8n development and evaluation workload                                     |
 
 ## Architecture
 
@@ -348,22 +314,22 @@ The numbers below are representative system-level combinations based on internal
 
 ### Tech Stack
 
-| Layer | Technology |
-| --- | --- |
-| Engine | C++17, CMake, FFmpeg, OpenCV, SQLiteCpp |
-| Inference | Sophon BMRT/SAIL, ONNX Runtime for x86 mode |
-| Frontend | Vue.js, Vue Flow, Element Plus |
-| Streaming | SRS 6.0, WebRTC, HTTP-FLV |
-| Integration | REST API, WebSocket, MQTT, HTTP webhook |
+| Layer       | Technology                                  |
+| ----------- | ------------------------------------------- |
+| Engine      | C++17, CMake, FFmpeg, OpenCV, SQLiteCpp     |
+| Inference   | Sophon BMRT/SAIL, ONNX Runtime for x86 mode |
+| Frontend    | Vue.js, Vue Flow, Element Plus              |
+| Streaming   | SRS 6.0, WebRTC, HTTP-FLV                   |
+| Integration | REST API, WebSocket, MQTT, HTTP webhook     |
 
 ## Supported Platforms
 
-| Platform | Status | Intended use |
-| --- | :---: | --- |
-| Sophon BM1688 | Primary | NPU-accelerated production deployment |
-| x86 Linux | Supported | Development, evaluation, integration testing |
-| x86 Windows | Supported | Development and evaluation |
-| Sophon BM1684X | Planned | NPU-accelerated deployment |
+| Platform       |  Status  | Intended use                                 |
+| -------------- | :-------: | -------------------------------------------- |
+| Sophon BM1688  |  Primary  | NPU-accelerated production deployment        |
+| x86 Linux      | Supported | Development, evaluation, integration testing |
+| x86 Windows    | Supported | Development and evaluation                   |
+| Sophon BM1684X |  Planned  | NPU-accelerated deployment                   |
 
 ## CosmoEdge-ready Devices
 
@@ -371,46 +337,47 @@ CosmoEdge is open source. The repository provides the same engine, web UI, and w
 
 Certified devices are for teams that want to skip hardware bring-up and model packaging. They add preconfigured NPU acceleration, production model packages, and dedicated support.
 
-| Capability | Open-source repository | Certified device package |
-| --- | :---: | :---: |
-| C++ engine | Included | Included |
-| Visual pipeline orchestrator | Included | Included |
-| Web management console | Included | Included |
-| x86 developer mode | Included | Included |
-| Sophon NPU runtime support | Source support, hardware required | Preconfigured |
-| CV model package | Bring your own models | Pre-installed |
-| 0.8B edge VLM | Bring your own or custom package | Pre-installed |
-| GroundingDINO package | Bring your own or custom package | Pre-installed |
-| Deployment support | Community | Dedicated |
+| Capability                   |      Open-source repository      | Certified device package |
+| ---------------------------- | :-------------------------------: | :----------------------: |
+| C++ engine                   |             Included             |         Included         |
+| Visual pipeline orchestrator |             Included             |         Included         |
+| Web management console       |             Included             |         Included         |
+| x86 developer mode           |             Included             |         Included         |
+| Sophon NPU runtime support   | Source support, hardware required |      Preconfigured      |
+| CV model package             |       Bring your own models       |      Pre-installed      |
+| 0.8B edge VLM                | Bring your own or custom package |      Pre-installed      |
+| GroundingDINO package        | Bring your own or custom package |      Pre-installed      |
+| Deployment support           |             Community             |        Dedicated        |
 
 Certified devices add deployment readiness, not locked software features.
 
 <!-- TODO: Replace with final hardware page URL. -->
+
 [Get a certified device](https://cosmoedge.dev/hardware)
 
 ## Documentation
 
-| Document | Audience | Description |
-| --- | --- | --- |
-| Quick Start Guide | Everyone | First working experience in minutes |
-| Scenario Configuration | Integrators | Build scene-level AI workflows |
-| VLM Guide | Developers | Use visual state judgment with prompts |
-| Pipeline Orchestration | Advanced users | Compose custom pipelines visually |
-| Model Porting Guide | ML engineers | Bring your own ONNX or target model |
-| API Reference | Developers | REST API, MQTT events, configuration schema |
-| Architecture Overview | Contributors | Engine internals and extension points |
-| Deployment Guide | DevOps | Production deployment and troubleshooting |
+| Document               | Audience       | Description                                 |
+| ---------------------- | -------------- | ------------------------------------------- |
+| Quick Start Guide      | Everyone       | First working experience in minutes         |
+| Scenario Configuration | Integrators    | Build scene-level AI workflows              |
+| VLM Guide              | Developers     | Use visual state judgment with prompts      |
+| Pipeline Orchestration | Advanced users | Compose custom pipelines visually           |
+| Model Porting Guide    | ML engineers   | Bring your own ONNX or target model         |
+| API Reference          | Developers     | REST API, MQTT events, configuration schema |
+| Architecture Overview  | Contributors   | Engine internals and extension points       |
+| Deployment Guide       | DevOps         | Production deployment and troubleshooting   |
 
 <!-- TODO: Replace rows above with real links after docs paths are finalized. -->
 
 ## Roadmap
 
-- [x] C++17 edge inference engine
-- [x] Visual pipeline orchestrator
-- [x] Web management console
-- [x] x86 developer mode for Linux and Windows
-- [x] VLM and GroundingDINO integration
-- [x] 18 CV pipelines internally validated
+- [X] C++17 edge inference engine
+- [X] Visual pipeline orchestrator
+- [X] Web management console
+- [X] x86 developer mode for Linux and Windows
+- [X] VLM and GroundingDINO integration
+- [X] 18 CV pipelines internally validated
 - [ ] Public x86 one-command startup
 - [ ] Public validation report
 - [ ] Release packaging for v1.0
