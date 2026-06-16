@@ -30,6 +30,8 @@ vision-language-model, vlm, sophon, bm1688, real-time
 
 [Quick Start](#quick-start) | [Features](#key-features) | [Showcases](#showcases) | [Validation](#validation) | [Docs](#documentation) | [Hardware](#cosmoedge-ready-devices)
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 </div>
 
 ---
