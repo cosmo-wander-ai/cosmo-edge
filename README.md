@@ -2,7 +2,7 @@
 Repository metadata suggestion:
 
 Description:
-C++ native industrial edge AI engine with visual pipeline orchestration, on-device VLM support, and real-time OSD for video analytics.
+Production-grade C++ edge AI engine for video analytics, with visual pipeline orchestration and on-device VLM support.
 
 Topics:
 cpp, c-plus-plus, computer-vision, video-analytics, edge-ai, edge-computing,
@@ -19,7 +19,7 @@ vision-language-model, vlm, sophon, bm1688, real-time
 
 # CosmoEdge
 
-**C++ Native Industrial Edge AI Engine with Visual Pipeline Orchestration**
+**Production-grade C++ edge AI engine for video analytics, with visual pipeline orchestration and on-device VLM support**
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)](LICENSE)
 [![Runtime](https://img.shields.io/badge/runtime-C%2B%2B17-orange?style=flat-square)](#cpp-native-runtime)
