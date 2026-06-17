@@ -24,7 +24,7 @@ vision-language-model, vlm, sophon, bm1688, real-time
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)](LICENSE)
 [![Runtime](https://img.shields.io/badge/runtime-C%2B%2B17-orange?style=flat-square)](#cpp-native-runtime)
 [![Platform](https://img.shields.io/badge/platform-Sophon%20BM1688%20%2F%20x86%20Linux%20%2F%20Windows-purple?style=flat-square)](#supported-platforms)
-[![Release](https://img.shields.io/badge/release-v0.1.0-green?style=flat-square)](https://github.com/cosmoedge/cosmoedge/releases)
+[![Release](https://img.shields.io/badge/release-v0.1.0-green?style=flat-square)](https://github.com/cosmo-wander-ai/cosmo-edge/releases)
 [![Stress Test](https://img.shields.io/badge/stress%20test-200%20video%20samples-brightgreen?style=flat-square)](#validation)
 [![Pipelines](https://img.shields.io/badge/pipelines-18%2F18%20validated-brightgreen?style=flat-square)](#validation)
 
@@ -41,7 +41,7 @@ TODO before public launch:
 - Replace all placeholder image paths with real assets.
 - Confirm Quick Start commands.
 - Confirm benchmark values and attach a reproducible test report.
-- Confirm the exact public repo URL.
+- Confirm final public release assets and URLs.
 - Confirm certified hardware URL.
 -->
 
@@ -210,7 +210,7 @@ No edge hardware is required for the first experience.
 
 ```bash
 # 1. Clone
-git clone https://github.com/cosmoedge/cosmoedge.git
+git clone https://github.com/cosmo-wander-ai/cosmo-edge.git
 cd cosmoedge
 
 # 2. Start in x86 mode
@@ -237,7 +237,7 @@ Use this path for NPU-accelerated deployment.
 
 ```bash
 # 1. Clone
-git clone https://github.com/cosmoedge/cosmoedge.git
+git clone https://github.com/cosmo-wander-ai/cosmo-edge.git
 cd cosmoedge
 
 # 2. Build for Sophon
@@ -436,7 +436,7 @@ The codebase comes from production-oriented commercial development and has passe
 
 ## Contact
 
-- 💬 Community: [GitHub Discussions](https://github.com/cosmoedge/cosmoedge/discussions)
+- 💬 Community: [GitHub Discussions](https://github.com/cosmo-wander-ai/cosmo-edge/discussions)
 - 📧 Partnership & Enterprise: hello@cosmowander.ai
 
 ## License

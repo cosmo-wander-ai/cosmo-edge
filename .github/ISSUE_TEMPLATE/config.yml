@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Community discussions
+    url: https://github.com/cosmo-wander-ai/cosmo-edge/discussions
+    about: Ask questions, share ideas, and discuss usage patterns with the community.
+  - name: Security reports
+    url: mailto:cosmoedge@cosmowanderer.com
+    about: Please report potential security vulnerabilities privately by email.

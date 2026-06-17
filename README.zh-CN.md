@@ -24,7 +24,7 @@ vision-language-model, vlm, sophon, bm1688, real-time
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)](LICENSE)
 [![Runtime](https://img.shields.io/badge/runtime-C%2B%2B17-orange?style=flat-square)](#c-原生运行时)
 [![Platform](https://img.shields.io/badge/platform-Sophon%20BM1688%20%2F%20x86%20Linux%20%2F%20Windows-purple?style=flat-square)](#支持平台)
-[![Release](https://img.shields.io/badge/release-v0.1.0-green?style=flat-square)](https://github.com/cosmoedge/cosmoedge/releases)
+[![Release](https://img.shields.io/badge/release-v0.1.0-green?style=flat-square)](https://github.com/cosmo-wander-ai/cosmo-edge/releases)
 [![Stress Test](https://img.shields.io/badge/stress%20test-200%20video%20samples-brightgreen?style=flat-square)](#验证与性能)
 [![Pipelines](https://img.shields.io/badge/pipelines-18%2F18%20validated-brightgreen?style=flat-square)](#验证与性能)
 
@@ -212,7 +212,7 @@ CosmoEdge 运行在 Sophon BM1688 推理栈上。SOPHGO 官方模型仓库中的
 
 ```bash
 # 1. Clone
-git clone https://github.com/cosmoedge/cosmoedge.git
+git clone https://github.com/cosmo-wander-ai/cosmo-edge.git
 cd cosmoedge
 
 # 2. 启动 x86 模式
@@ -239,7 +239,7 @@ docker compose -f docker-compose.x86.yml up -d
 
 ```bash
 # 1. Clone
-git clone https://github.com/cosmoedge/cosmoedge.git
+git clone https://github.com/cosmo-wander-ai/cosmo-edge.git
 cd cosmoedge
 
 # 2. 针对 Sophon 构建
@@ -438,7 +438,7 @@ CosmoEdge 把三层能力组合在一个边缘系统中：C++ 视频 AI 运行�
 
 ## 联系方式
 
-- Community: [GitHub Discussions](https://github.com/cosmoedge/cosmoedge/discussions)
+- Community: [GitHub Discussions](https://github.com/cosmo-wander-ai/cosmo-edge/discussions)
 - Partnership & Enterprise: hello@cosmowander.ai
 
 ## License

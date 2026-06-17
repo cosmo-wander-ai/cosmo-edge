@@ -1,0 +1,65 @@
+name: Feature request
+description: Suggest a new capability or improvement for CosmoEdge.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for sharing an idea. Please describe the user problem first so maintainers can evaluate the fit.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What workflow, deployment, or integration problem should this solve?
+      placeholder: As a user/integrator, I want to...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior or API you would like to see.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Target area
+      multiple: true
+      options:
+        - Runtime / engine
+        - Web UI
+        - Pipeline orchestration
+        - Model porting
+        - Documentation
+        - Build / packaging
+        - Deployment
+        - Community / governance
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What workarounds or different designs have you considered?
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add diagrams, links, screenshots, or deployment constraints if helpful.
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched existing issues and discussions.
+          required: true
+        - label: I am willing to help test or review this feature.
+          required: false

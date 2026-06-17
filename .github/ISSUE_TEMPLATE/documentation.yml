@@ -1,0 +1,49 @@
+name: Documentation issue
+description: Report missing, unclear, or incorrect documentation.
+title: "[Docs]: "
+labels:
+  - documentation
+body:
+  - type: textarea
+    id: page
+    attributes:
+      label: Page or section
+      description: Link to the affected page or name the document and section.
+      placeholder: https://github.com/cosmo-wander-ai/cosmo-edge/...
+    validations:
+      required: true
+  - type: dropdown
+    id: issue_type
+    attributes:
+      label: Issue type
+      options:
+        - Incorrect information
+        - Missing information
+        - Broken link
+        - Unclear wording
+        - Translation mismatch
+        - Screenshot or media issue
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: What should be fixed, clarified, or added?
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested wording or fix
+      description: Optional, but very helpful for documentation changes.
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I have checked the latest documentation in this repository.
+          required: true
