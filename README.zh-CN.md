@@ -439,7 +439,7 @@ CosmoEdge 把三层能力组合在一个边缘系统中：C++ 视频 AI 运行�
 ## 联系方式
 
 - Community: [GitHub Discussions](https://github.com/cosmoedge/cosmoedge/discussions)
-- Partnership & Enterprise: cosmoedge@cosmowanderer.com
+- Partnership & Enterprise: hello@cosmowander.ai
 
 ## License
 

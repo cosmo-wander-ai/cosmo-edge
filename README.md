@@ -437,7 +437,7 @@ The codebase comes from production-oriented commercial development and has passe
 ## Contact
 
 - 💬 Community: [GitHub Discussions](https://github.com/cosmoedge/cosmoedge/discussions)
-- 📧 Partnership & Enterprise: cosmoedge@cosmowanderer.com
+- 📧 Partnership & Enterprise: hello@cosmowander.ai
 
 ## License
 
