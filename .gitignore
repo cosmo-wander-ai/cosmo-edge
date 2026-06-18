@@ -235,6 +235,7 @@ _deps
 
 # Prerequisites
 *.d
+!3rd/srs-6.0-r0/trunk/etc/init.d/
 
 # Compiled Object files
 *.slo
@@ -289,7 +290,7 @@ eggs/
 .eggs/
 lib/
 !prebuild/**/lib/
-!3rd/srs-6.0-r0/trunk/3rdparty/openssl-1.1-fit/external/perl/Text-Template-1.46/lib/
+!3rd/**/lib/
 lib64/
 parts/
 sdist/
