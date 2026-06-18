@@ -206,9 +206,9 @@ bool TaskBase::ModifyTaskParam(TaskElementPtr task, MsgTaskConfig& taskConfig) {
     }
 
     // Key: ModifyParam relies on param.keys (e.g. param.faceSet => ["param","faceSet"]).
-    // CameraTaskUnit currently only expands keys for aiParam.xxx.confidence; other params
-    // (like param.faceSet) may have empty keys. Backfill keys here before entering actions
-    // to avoid AiRecognizer etc. failing due to empty param.keys.
+    // CameraTaskUnit (service/camera/impl/) currently only expands keys for aiParam.xxx.confidence; other
+    // params (like param.faceSet) may have empty keys. Backfill keys here before entering actions to avoid
+    // AiRecognizer etc. failing due to empty param.keys.
     for (auto& kv : taskConfig.params) {
         if (kv.keys.empty() && !kv.key.empty()) {
             auto parts = util::Split(kv.key.ToRefString(), ".");

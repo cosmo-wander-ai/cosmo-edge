@@ -1,12 +1,12 @@
 // CameraDeviceCrud.cc — Camera device CRUD operations.
 // Split from CameraServiceImpl.cc to reduce file size.
+// CameraTaskMng calls are inlined — accesses CameraEntity directly.
 
 #include <algorithm>
 #include <filesystem>
 #include <iomanip>  // std::setw, std::setfill
 #include <sstream>  // std::ostringstream
 
-#include "flow/task/CameraTaskMng.h"
 #include "service/camera/impl/CameraServiceImpl.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/task/ITaskChannel.h"
@@ -100,11 +100,11 @@ util::ErrorEnum CameraServiceImpl::Add(MsgCameraInfo& config, std::string& id) {
         }
 
         camera->channelType = static_cast<int>(config.channelType);
-        MakeTaskMng(camera);
+        InitCameraChannel(camera);
         cameras_.push_back(camera);
 
         // Immediately trigger a health probe to quickly update channel status to online
-        camera->taskMng->ProbeOnlineStatusNow();
+        ProbeCameraOnlineStatusNow(camera);
     }
     SaveConfig();
     return util::ErrorEnum::Success;
@@ -126,11 +126,16 @@ util::ErrorEnum CameraServiceImpl::Update(MsgCameraInfo& config) {
         if (MsgCameraType::MsgCameraTypeLocalVideo != static_cast<MsgCameraType>(camera->channelType)) {
             camera->url = config.url;
         }
-        camera->taskMng->SetChannelUrl(camera->url);
+        // Update channel URL directly (inlined from CameraTaskMng::SetChannelUrl)
+        if (camera->channel_url_ != camera->url) {
+            ServiceRegistry::Instance().Get<ITaskChannel>().TaskChannelSetUrl(camera->videoChannelId,
+                                                                              camera->url);
+        }
+        camera->channel_url_ = camera->url;
         LOG_INFO("{}/{} Update", config.videoChannelId, config.channelName);
 
         // Editing channel may have changed URL; trigger immediate probe to update status
-        camera->taskMng->ProbeOnlineStatusNow();
+        ProbeCameraOnlineStatusNow(camera);
     }
     SaveConfig();
     return util::ErrorEnum::Success;
@@ -169,6 +174,9 @@ util::ErrorEnum CameraServiceImpl::Delete(const std::string& videoChannelId) {
         LOG_DEBUG("{}", "Camera removed from container");
     }  // Lock released here
 
+    // Destroy channel tasks (stop algo tasks + channel task)
+    DestroyCameraChannel(target);
+
     // Perform potentially slow file operations (lockless)
     if (need_remove_file) {
         LOG_INFO("Removing associated file: {}", file_to_remove);
@@ -203,7 +211,7 @@ std::vector<MsgCameraInfo> CameraServiceImpl::Query(const std::string& channelNa
                 if (info.dataStatus == static_cast<int>(camera::AlgDemuxStatus::AlgDemuxInit) ||
                     info.dataStatus == static_cast<int>(camera::AlgDemuxStatus::AlgDemuxClosed) ||
                     info.channelStatus == ChannelStatus::ChannelStatusOffline) {
-                    auto probed_status = info_cfg->taskMng->GetProbedStatus();
+                    auto probed_status = info_cfg->probed_status_.load();
                     if (probed_status == ChannelStatus::ChannelStatusOnline ||
                         probed_status == ChannelStatus::ChannelStatusOffline) {
                         info.channelStatus = probed_status;
@@ -230,7 +238,7 @@ std::vector<MsgCameraInfo> CameraServiceImpl::Query(const std::string& channelNa
             if (info.dataStatus == static_cast<int>(camera::AlgDemuxStatus::AlgDemuxInit) ||
                 info.dataStatus == static_cast<int>(camera::AlgDemuxStatus::AlgDemuxClosed) ||
                 info.channelStatus == ChannelStatus::ChannelStatusOffline) {
-                auto probed_status = info_cfg->taskMng->GetProbedStatus();
+                auto probed_status = info_cfg->probed_status_.load();
                 if (probed_status == ChannelStatus::ChannelStatusOnline ||
                     probed_status == ChannelStatus::ChannelStatusOffline) {
                     info.channelStatus = probed_status;
@@ -239,7 +247,11 @@ std::vector<MsgCameraInfo> CameraServiceImpl::Query(const std::string& channelNa
 
             // Channel not started; fill resolution/encoding/fps from cached video attrs
             if (info.width == 0 || info.height == 0) {
-                auto cached_attr = info_cfg->taskMng->GetCachedAttr();
+                MsgCameraAttr cached_attr;
+                {
+                    std::lock_guard<std::mutex> alock(info_cfg->attr_mtx_);
+                    cached_attr = info_cfg->cached_attr_;
+                }
                 if (cached_attr.width > 0 && cached_attr.height > 0) {
                     info.width  = cached_attr.width;
                     info.height = cached_attr.height;
@@ -248,8 +260,24 @@ std::vector<MsgCameraInfo> CameraServiceImpl::Query(const std::string& channelNa
                 }
             }
 
+            // Build task list directly from CameraEntity tasks
             size_t total_task = 0;
-            info.taskList     = info_cfg->taskMng->Query(1, 100, total_task);
+            {
+                std::shared_lock<std::shared_mutex> tlock(info_cfg->task_mtx_);
+                total_task    = info_cfg->tasks_.size();
+                info.taskList = util::PaginationHelper::PaginateKnownTotal(
+                    info_cfg->tasks_.begin(), info_cfg->tasks_.end(), 1, 100, total_task,
+                    [](const auto& taskPtr) {
+                        MsgCameraTask taskInfo;
+                        taskInfo.algorithmId   = taskPtr->algorithm_code_;
+                        taskInfo.algorithmName = taskPtr->algorithm_name_;
+                        taskInfo.scheduleName  = taskPtr->schedule_name_;
+                        taskInfo.scheduleId    = taskPtr->schedule_id_;
+                        taskInfo.enable        = taskPtr->is_enabled_;
+                        taskInfo.status        = static_cast<int>(taskPtr->status_);
+                        return taskInfo;
+                    });
+            }
             if (info.dataStatus != static_cast<int>(camera::AlgDemuxStatus::AlgDemuxReading)) {
                 for (auto& task : info.taskList) {
                     task.status = DetermineTaskStatus(task.status, info.dataStatus, info.channelType);

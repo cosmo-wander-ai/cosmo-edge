@@ -1,6 +1,6 @@
 // Per-algorithm task unit — config persistence, parameter merge and confidence calculation.
 
-#include "flow/task/CameraTaskUnit.h"
+#include "service/camera/impl/CameraTaskUnit.h"
 
 #include <algorithm>
 #include <filesystem>

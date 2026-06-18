@@ -1,36 +1,86 @@
-// Camera service implementation — device CRUD, task configuration proxy,
+// Camera service implementation — device CRUD, task lifecycle,
 // image encoding, USB camera enumeration and periodic monitoring.
+// CameraTaskMng logic is inlined directly into CameraServiceImpl.
 #pragma once
 
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
-// Forward declaration — full definition in flow/task/CameraTaskMng.h (included in .cc)
-namespace cosmo {
-class CameraTaskMng;
-using CameraTaskMngPtr = std::shared_ptr<CameraTaskMng>;
-}  // namespace cosmo
 #include "service/camera/ICameraService.h"
+#include "service/camera/impl/CameraTaskTypes.h"
 #include "util/Log.h"
 #include "util/PeriodicTimer.h"
+#include "util/dto/CameraMsgTypes.h"
+#include "util/dto/ChannelStatusDto.h"
 
 namespace cosmo::service {
 
-struct CameraEntity {
+// Per-camera runtime entity — holds device config and per-camera task state.
+// Previously split across CameraEntity (config only) + CameraTaskMng (runtime state).
+// Non-copyable, non-movable; always held via shared_ptr.
+class CameraEntity {
+public:
+    CameraEntity() = default;
+    ~CameraEntity();
+
+    CameraEntity(const CameraEntity&)            = delete;
+    CameraEntity& operator=(const CameraEntity&) = delete;
+    CameraEntity& operator=(CameraEntity&&)      = delete;
+
+    // Move constructor — transfers only config fields; runtime state (mutex, atomic, thread)
+    // is default-initialized. Only used by nlohmann JSON deserialization during LoadConfig.
+    CameraEntity(CameraEntity&& o) noexcept
+        : videoChannelId(std::move(o.videoChannelId)),
+          channelCode(std::move(o.channelCode)),
+          channelName(std::move(o.channelName)),
+          url(std::move(o.url)),
+          channelType(o.channelType),
+          tasks_(std::move(o.tasks_)),
+          conf_file_path_(std::move(o.conf_file_path_)),
+          conf_task_list_(std::move(o.conf_task_list_)),
+          channel_task_(std::move(o.channel_task_)),
+          channel_url_(std::move(o.channel_url_)) {}
+
+    // ---- Device config (persisted to JSON) ----
     std::string videoChannelId;
     std::string channelCode;
     std::string channelName;
     std::string url;
     int channelType{0};
-    CameraTaskMngPtr taskMng;
 
+    // ---- Per-camera task runtime state (not persisted) ----
+    mutable std::shared_mutex task_mtx_;  // Protects tasks_
+    std::vector<CameraTaskPtr> tasks_;    // Max 5 algorithm tasks per channel
+    size_t max_task_count_{5};
+
+    std::string conf_file_path_{};  // ${cameraCfgPath}/${cameraId}
+    std::string conf_task_list_{"taskList.json"};
+    std::string channel_task_{};  // channelId + "-ChannelTask"
+    std::string channel_url_{};   // Stream URL
+
+    std::atomic<bool> is_capturing_image_{false};
+    std::atomic<ChannelStatus> probed_status_{ChannelStatus::ChannelStatusOffline};
+
+    mutable std::mutex attr_mtx_;
+    MsgCameraAttr cached_attr_{};  // Cached resolution/codec/fps
+    std::thread switch_thread_;    // Background switch thread (joinable, replaces detach)
+
+    // Wait for background switch thread to finish
+    void WaitForSwitchThread();
+
+    // JSON serialization (only device config fields are serialized)
     friend void to_json(nlohmann::json& j, const CameraEntity& v);
     friend void from_json(const nlohmann::json& j, CameraEntity& v);
 };
 using CameraEntityPtr = std::shared_ptr<CameraEntity>;
+
+// Custom JSON deserialization for shared_ptr<CameraEntity> (CameraEntity is non-movable)
+void from_json(const nlohmann::json& j, CameraEntityPtr& v);
 
 class CameraServiceImpl : public ICameraService {
 public:
@@ -99,12 +149,12 @@ public:
     void InitCameraEntities() override;
 
 private:
+    // ---- Config persistence ----
     void LoadConfig();
     void SaveConfig();
-    void MakeTaskMng(CameraEntityPtr camera);
+
+    // ---- Camera lookup ----
     std::string GetVideoFileName(const std::string& id, const std::string& url);
-    void CameraTaskMonitor();
-    void MemGc();
     CameraEntityPtr GetCamera(const std::string& cameraId);
     CameraEntityPtr GetCamera(const std::string& cameraId) const;
     template <typename Func>
@@ -116,6 +166,31 @@ private:
         }
         return fn(camera);
     }
+
+    // ---- Per-camera task lifecycle (inlined from CameraTaskMng) ----
+    void InitCameraChannel(CameraEntityPtr camera);
+    void DestroyCameraChannel(CameraEntityPtr camera);
+    void LoadCameraTaskList(CameraEntityPtr camera);
+    void SaveCameraTaskList(const CameraEntityPtr& camera);
+    util::ErrorEnum MakeCameraTask(const CameraEntityPtr& camera, CameraTaskPtr task);
+    void PrepareCameraTaskOverview(const CameraEntityPtr& camera, CameraTaskPtr task);
+    void SwitchCameraTask(const CameraEntityPtr& camera, CameraTaskPtr task);
+    void SwitchCameraTaskAsync(CameraEntityPtr camera, CameraTaskPtr task);
+
+    // ---- Per-camera monitoring (inlined from CameraTaskMngMonitor) ----
+    void CameraTaskMonitor();
+    void MonitorCameraEntity(const CameraEntityPtr& camera, bool isAuthed);
+    void UpdateChannelState(const CameraEntityPtr& camera);
+    void ProbeCameraOnlineStatus(const CameraEntityPtr& camera);
+    void ProbeCameraOnlineStatusNow(const CameraEntityPtr& camera);
+    void MemGc();
+
+    // ---- Per-camera algorithm notification (inlined from CameraTaskMngNotify) ----
+    std::vector<std::string> StopAlgorithmForReload(const CameraEntityPtr& camera,
+                                                    const std::string& algorithmCode);
+    void RebuildAlgorithmForReload(const CameraEntityPtr& camera, const std::string& algorithmCode);
+    void StartTasksAfterReload(const CameraEntityPtr& camera, const std::vector<std::string>& taskIds);
+    CameraTaskPtr GetCameraTask(const CameraEntityPtr& camera, const std::string& algorithmCode) const;
 
 private:
     mutable std::shared_mutex mtx_;

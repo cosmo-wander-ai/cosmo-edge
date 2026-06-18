@@ -1,7 +1,7 @@
 /// @file IModelQuery.h
 /// @brief Model query and validation interface.
 ///        ISP split from IModelService.
-///        Consumed by AlgorithmValidator, CameraTaskMng, MessageModelHandler.
+///        Consumed by AlgorithmValidator, CameraServiceImpl, MessageModelHandler.
 #pragma once
 
 #include <cstdint>
