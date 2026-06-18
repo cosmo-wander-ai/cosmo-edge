@@ -3,6 +3,10 @@ description: Suggest an improvement or new capability.
 title: "[Feature]: "
 labels: ["enhancement"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for sharing an idea. Please describe the user problem first so maintainers can evaluate the fit.
   - type: textarea
     id: problem
     attributes:
@@ -41,3 +45,12 @@ body:
     attributes:
       label: Additional context
       description: Add screenshots, diagrams, or references if useful. Remove sensitive information before submitting.
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched existing issues and discussions.
+          required: true
+        - label: I am willing to help test or review this feature.
+          required: false

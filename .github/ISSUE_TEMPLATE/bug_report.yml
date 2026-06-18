@@ -78,7 +78,7 @@ body:
     attributes:
       label: Checklist
       options:
-        - label: I searched existing issues.
+        - label: I searched existing issues and discussions.
           required: true
         - label: I removed secrets, private IPs, device SN values, and customer data.
           required: true

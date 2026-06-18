@@ -11,6 +11,20 @@ body:
       placeholder: docs/guide/build.md
     validations:
       required: true
+  - type: dropdown
+    id: issue_type
+    attributes:
+      label: Issue type
+      options:
+        - Incorrect information
+        - Missing information
+        - Broken link
+        - Unclear wording
+        - Translation mismatch
+        - Screenshot or media issue
+        - Other
+    validations:
+      required: true
   - type: textarea
     id: issue
     attributes:
