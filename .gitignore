@@ -511,3 +511,7 @@ docs/.vitepress/dist/
 !3rd/pcap/lib64/
 !3rd/pcap/lib64/*.a
 
+# Allow 3rd/sophon libraries
+!3rd/libsophon-0.4.11/lib/
+!3rd/libsophon-0.4.11/lib/*
+
