@@ -51,7 +51,6 @@ System::MsgQueryDeviceInfoSend MessageSystemHandler::Handle(System::MsgQueryDevi
     retData.resData.devInfoList.push_back({"hardwareVersion", "固件版本", info.devVersion});
     retData.resData.devInfoList.push_back({"softwareVersion", "软件版本", info.softwareVersion});
     retData.resData.devInfoList.push_back({"deviceSn", "设备SN", info.devSn});
-    retData.resData.devInfoList.push_back({"aiAuthorization", "授权状态", info.licenseStatus});
     retData.resData.devInfoList.push_back({"devRunTimeSec", "运行时间", std::to_string(info.appRuntime)});
     return retData;
 }

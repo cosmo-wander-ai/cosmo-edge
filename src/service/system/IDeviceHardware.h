@@ -14,7 +14,7 @@ namespace cosmo::service {
 /// Read-only access to device hardware identity information.
 ///
 /// Provides serial number, model name, firmware version, specification,
-/// license serial number, MAC addresses, device ID, and IPv4 address.
+/// MAC addresses, device ID, and IPv4 address.
 class IDeviceHardware {
 public:
     virtual ~IDeviceHardware() = default;
@@ -30,9 +30,6 @@ public:
 
     /// Get the device hardware specification string.
     virtual std::string GetDevSpec() = 0;
-
-    /// Get the license serial number.
-    virtual std::string GetLicenseSn() = 0;
 
     /// Get all MAC addresses as (interface name, MAC address) pairs.
     /// @return Vector of (interface name, MAC) pairs.

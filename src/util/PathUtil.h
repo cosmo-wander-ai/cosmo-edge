@@ -128,14 +128,6 @@ std::string GetModelComponentsJsonPath();
 /// Path to the linkageStorages.json definition file.
 std::string GetLinkageStoragesJsonPath();
 
-// ── Media / license paths (formerly IPathMedia) ───────────────────────────────
-
-/// License file storage directory.
-std::string GetLicensePath();
-
-/// Temporary license staging directory.
-std::string GetLicenseTmpPath();
-
 /// File export staging directory.
 std::string GetExportFileDir();
 

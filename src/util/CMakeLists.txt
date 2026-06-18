@@ -11,7 +11,6 @@ add_library(cosmo_util OBJECT
     FpsCtrl.cc           FpsCtrl.h
     GeometricPos.cc      GeometricPos.h
     JsonFileUtil.cc      JsonFileUtil.h
-    LicenseManager.cc    LicenseManager.h
     Log.cc               Log.h
     NToL.cc              NToL.h
     PeriodicTimer.cc     PeriodicTimer.h

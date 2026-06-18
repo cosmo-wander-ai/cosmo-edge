@@ -7,15 +7,10 @@
 
 #include "service/detail/ServiceRegistry.h"
 #include "service/system/IAppInfoService.h"
-#include "service/system/dto/SystemDeviceDto.h"
 #include "service/system/impl/HardwareQueryUtil.h"
 #include "service/task/ITaskQuery.h"
-#include "util/CipherUtil.h"
 #include "util/ErrorCode.h"
-#include "util/FileUtil.h"
 #include "util/FormatString.h"
-#include "util/JsonStructUtil.h"
-#include "util/LicenseManager.h"
 #include "util/Log.h"
 #include "util/PathUtil.h"
 #include "util/ScoreCalc.h"
@@ -33,14 +28,11 @@ struct DeviceInfoServiceImpl::HwInfoState {
     std::string device_model_{"CWAI-AIBOX"};
     std::string hw_revision_;
     std::string hw_spec_;
-    std::string license_sn_;
 
     HwInfoState() {
         detail::HardwareQueryUtil::ReadDeviceSnAndModel(&device_sn_, &device_model_);
         hw_spec_     = detail::HardwareQueryUtil::ReadHardwareSpec();
-        license_sn_  = cosmo::util::EncBase64(device_sn_ + hw_spec_);
         hw_revision_ = detail::HardwareQueryUtil::ReadKernelRevision();
-        LOG_INFO("licenseSn:{}", license_sn_);
     }
 };
 
@@ -136,13 +128,9 @@ struct DeviceInfoServiceImpl::HwResState {
 };
 
 DeviceInfoServiceImpl::DeviceInfoServiceImpl()
-    : hw_info_state_(std::make_unique<HwInfoState>()),
-      hw_res_state_(std::make_unique<HwResState>()),
-      license_mgr_(std::make_unique<cosmo::util::LicenseManager>(hw_info_state_->license_sn_,
-                                                                 cosmo::path::GetLicensePath())) {}
+    : hw_info_state_(std::make_unique<HwInfoState>()), hw_res_state_(std::make_unique<HwResState>()) {}
 
 DeviceInfoServiceImpl::~DeviceInfoServiceImpl() {
-    license_mgr_.reset();
     hw_res_state_.reset();
 }
 
@@ -152,7 +140,6 @@ DeviceBasicInfo DeviceInfoServiceImpl::GetDeviceInfo() {
     info.devVersion      = hw_info_state_->hw_revision_;
     info.softwareVersion = cosmo::util::GetAbbrVersion();
     info.devSn           = hw_info_state_->device_sn_;
-    info.licenseStatus   = license_mgr_->StatusString();
     info.appRuntime = service::ServiceRegistry::Instance().Get<service::IAppInfoService>().GetAppRuntime();
     return info;
 }
@@ -168,9 +155,6 @@ std::string DeviceInfoServiceImpl::GetDevVersion() {
 }
 std::string DeviceInfoServiceImpl::GetDevSpec() {
     return hw_info_state_->hw_spec_;
-}
-std::string DeviceInfoServiceImpl::GetLicenseSn() {
-    return hw_info_state_->license_sn_;
 }
 
 std::vector<HwResourceItem> DeviceInfoServiceImpl::GetHardwareResource(double& custom_score) {
@@ -256,60 +240,6 @@ std::vector<HwResourceItem> DeviceInfoServiceImpl::GetHardwareResource(double& c
     custom_score = cosmo::CalcCustomScore(gpu_utl.gpuusage, gpu_utl.gpumemtotal, gpu_utl.gpumemavailable,
                                           devs, used_percent, continues_discard_sec);
     return items;
-}
-
-cosmo::util::ErrorEnum DeviceInfoServiceImpl::DownloadDeviceInfo(std::string& fileName,
-                                                                 std::string& fileUrl) {
-    auto web_local_path   = cosmo::path::GetWebLocalPath();
-    fileName              = "cwai_device_info.txt";
-    std::string save_path = (fs::path(web_local_path) / fileName).string();
-
-    cosmo::System::LicenseDeviceInfo devInfo;
-    devInfo.deviceSn = hw_info_state_->license_sn_;
-    std::string dev_info_str;
-    if (!cosmo::util::EncodeJson(devInfo, dev_info_str)) {
-        return cosmo::util::ErrorEnum::SysErr;
-    }
-    if (!cosmo::util::WriteFile(save_path, dev_info_str)) {
-        return cosmo::util::ErrorEnum::FileOpenFailed;
-    }
-    fileUrl = (fs::path(cosmo::path::GetWebAcessPath()) / fileName).string();
-    return {};
-}
-
-cosmo::util::ErrorEnum DeviceInfoServiceImpl::UploadLicense(std::string filePath) {
-    cosmo::util::LicenseServiceInfo info;
-    auto errc = license_mgr_->ReadLicFile(filePath, &info);
-    if (cosmo::util::ErrorEnum::Success != errc) {
-        return errc;
-    }
-
-    if (!cosmo::util::FileMove(filePath, cosmo::path::GetLicenseTmpPath())) {
-        LOG_WARN("{}->{} Failed", filePath, cosmo::path::GetLicenseTmpPath());
-        return cosmo::util::ErrorEnum::FileMoveFailed;
-    }
-
-    auto f_name         = cosmo::util::GetFileName(filePath);
-    auto file_name_path = (fs::path(cosmo::path::GetLicenseTmpPath()) / f_name).string();
-    auto lic_file_name =
-        (fs::path(cosmo::path::GetLicensePath()) / license_mgr_->GetLicenseFileName()).string();
-    if (!cosmo::util::FileMoveWithRename(file_name_path, lic_file_name)) {
-        LOG_WARN("{}->{} Failed", file_name_path, lic_file_name);
-        return cosmo::util::ErrorEnum::FileMoveFailed;
-    }
-    errc = license_mgr_->LicLoad();
-    LOG_INFO("authDate:{} authCount:{} authDay:{}", info.auth_date_, info.auth_count_, info.auth_day_);
-    return errc;
-}
-
-LicenseAuthInfo DeviceInfoServiceImpl::GetAuthServiceStatus() {
-    LicenseAuthInfo result;
-    auto info        = license_mgr_->GetAuthInfo();
-    result.bValid    = info.is_valid_;
-    result.authDay   = info.auth_day_;
-    result.authDate  = info.auth_date_;
-    result.validDate = info.valid_date_;
-    return result;
 }
 
 double DeviceInfoServiceImpl::GetCpuUtilization() {

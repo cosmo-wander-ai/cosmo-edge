@@ -9,7 +9,6 @@
 #include "platform/NetCardOp.h"
 #include "serialization/x2struct.hpp"
 #include "util/JsonStructUtil.h"
-#include "util/LicenseManager.h"
 #include "util/MsgBaseTypes.h"
 #include "util/MsgDynamicElement.h"
 #include "util/dto/ServerMsgTypes.h"
@@ -324,376 +323,318 @@ TEST_CASE("x2struct A(): alias field names", "[json][baseline]") {
         CHECK(restored.gateway == "192.168.1.1");
     }
 
-    SECTION("ServiceDetail — all A() alias fields") {
-        cosmo::util::ServiceDetail original;
-        original.auth_count_            = 10;
-        original.auth_day_              = 365;
-        original.service_category_type_ = 1;
-        original.sub_service_type_      = 10000;
-        original.sub_service_name_      = "detection";
+    // ===========================================================================
+    // Pattern 5: CC() — Conditional serialization (2 core uses + MsgDynamicElement)
+    // ===========================================================================
+    TEST_CASE("x2struct CC(): conditional serialization", "[json][baseline]") {
+        SECTION("MsgSendHead — CC(CWAI): resCode/resMsg present") {
+            cosmo::MsgSendHead original;
+            original.msgSendType = cosmo::MsgSendType::CWAI;
+            original.resCode     = 1;
+            cosmo::MsgResBase res;
+            res.msgCode = "0";
+            res.msgText = "OK";
+            original.resMsg.push_back(res);
 
-        std::string json;
-        REQUIRE(cosmo::util::EncodeJson(original, json));
+            std::string json;
+            REQUIRE(cosmo::util::EncodeJson(original, json));
 
-        auto doc = ParseJson(json);
-        REQUIRE(doc.HasMember("authCount"));
-        REQUIRE(doc.HasMember("authDay"));
-        REQUIRE(doc.HasMember("serviceCategoryType"));
-        REQUIRE(doc.HasMember("subServiceType"));
-        REQUIRE(doc.HasMember("subServiceName"));
+            auto doc = ParseJson(json);
+            REQUIRE(doc.HasMember("resCode"));
+            REQUIRE(doc.HasMember("resMsg"));
+            CHECK(doc["resCode"].GetInt() == 1);
+            // ChinaMobile fields should NOT be present
+            CHECK_FALSE(doc.HasMember("resultCode"));
+            CHECK_FALSE(doc.HasMember("resultMsg"));
+        }
 
-        cosmo::util::ServiceDetail restored;
-        REQUIRE(cosmo::util::DecodeJson(json, restored));
-        CHECK(restored.auth_count_ == 10);
-        CHECK(restored.auth_day_ == 365);
-        CHECK(restored.sub_service_type_ == 10000);
-        CHECK(restored.sub_service_name_ == "detection");
+        SECTION("MsgSendHead — CC(ChinaMobile): resultCode/resultMsg present") {
+            cosmo::MsgSendHead original;
+            original.msgSendType = cosmo::MsgSendType::ChinaMobile;
+            original.resultCode  = "200";
+            original.resultMsg   = "success";
+
+            std::string json;
+            REQUIRE(cosmo::util::EncodeJson(original, json));
+
+            auto doc = ParseJson(json);
+            REQUIRE(doc.HasMember("resultCode"));
+            REQUIRE(doc.HasMember("resultMsg"));
+            CHECK(std::string(doc["resultCode"].GetString()) == "200");
+            // CWAI fields should NOT be present
+            CHECK_FALSE(doc.HasMember("resCode"));
+            CHECK_FALSE(doc.HasMember("resMsg"));
+        }
+
+        SECTION("MsgSendHead — round-trip preserves mode") {
+            // CWAI mode
+            cosmo::MsgSendHead mv;
+            mv.msgSendType = cosmo::MsgSendType::CWAI;
+            mv.resCode     = 1;
+
+            std::string json_mv;
+            REQUIRE(cosmo::util::EncodeJson(mv, json_mv));
+
+            cosmo::MsgSendHead restored_mv;
+            restored_mv.msgSendType = cosmo::MsgSendType::CWAI;
+            REQUIRE(cosmo::util::DecodeJson(json_mv, restored_mv));
+            CHECK(restored_mv.resCode == 1);
+        }
+
+        SECTION("MsgPTaskTarget — CC with boolean and empty-check conditions") {
+            cosmo::MsgPTaskTarget original;
+            original.box.x      = 100;
+            original.box.y      = 200;
+            original.box.width  = 50;
+            original.box.height = 60;
+
+            // bHaveLogicResult = false → bLogicResult should NOT be serialized
+            original.bHaveLogicResult = false;
+            original.bLogicResult     = true;
+
+            // confidence empty → should NOT be serialized
+            // groupEls empty → should NOT be serialized
+
+            // bHaveMatchInfo = true → matchInfo SHOULD be serialized
+            original.bHaveMatchInfo      = true;
+            original.matchInfo.matchId   = "match-001";
+            original.matchInfo.matched   = true;
+            original.matchInfo.groupId   = "group-1";
+            original.matchInfo.groupName = "VIP";
+
+            std::string json;
+            REQUIRE(cosmo::util::EncodeJson(original, json));
+
+            auto doc = ParseJson(json);
+            // box is always O() — should be present
+            REQUIRE(doc.HasMember("box"));
+
+            // CC(bHaveLogicResult, bLogicResult) — false, so bLogicResult absent
+            CHECK_FALSE(doc.HasMember("bLogicResult"));
+
+            // CC(!confidence.empty(), confidence) — empty, so absent
+            CHECK_FALSE(doc.HasMember("confidence"));
+
+            // CC(!groupEls.empty(), groupEls) — empty, so absent
+            CHECK_FALSE(doc.HasMember("groupEls"));
+
+            // CC(bHaveMatchInfo, matchInfo) — true, so present
+            REQUIRE(doc.HasMember("matchInfo"));
+            CHECK(doc["matchInfo"].HasMember("matchId"));
+
+            // Now test with conditions enabled
+            original.bHaveLogicResult = true;
+            original.confidence.push_back({"person", 0.9f});
+            original.groupEls.push_back(1);
+            original.groupEls.push_back(2);
+
+            std::string json2;
+            REQUIRE(cosmo::util::EncodeJson(original, json2));
+
+            auto doc2 = ParseJson(json2);
+            REQUIRE(doc2.HasMember("bLogicResult"));
+            REQUIRE(doc2.HasMember("confidence"));
+            REQUIRE(doc2.HasMember("groupEls"));
+            CHECK(doc2["bLogicResult"].GetBool() == true);
+            CHECK(doc2["confidence"].IsArray());
+            CHECK(doc2["confidence"].Size() == 1);
+            CHECK(doc2["groupEls"].IsArray());
+            CHECK(doc2["groupEls"].Size() == 2);
+        }
+
+        SECTION("MsgDynamicElement — CC with type-based conditionals") {
+            // type == "slider" → min, max present; options absent
+            cosmo::MsgDynamicElement slider;
+            slider.key  = "thresh";
+            slider.type = "slider";
+            slider.min  = 0.0f;
+            slider.max  = 100.0f;
+
+            std::string json_slider;
+            REQUIRE(cosmo::util::EncodeJson(slider, json_slider));
+
+            auto doc_slider = ParseJson(json_slider);
+            REQUIRE(doc_slider.HasMember("min"));
+            REQUIRE(doc_slider.HasMember("max"));
+            CHECK_FALSE(doc_slider.HasMember("options"));
+            CHECK_FALSE(doc_slider.HasMember("regexpr"));
+
+            // type == "radio" → options present; min, max absent
+            cosmo::MsgDynamicElement radio;
+            radio.key  = "mode";
+            radio.type = "radio";
+            cosmo::MsgDynamicElement::Option opt;
+            opt.name  = "Fast";
+            opt.value = "fast";
+            radio.options.push_back(opt);
+
+            std::string json_radio;
+            REQUIRE(cosmo::util::EncodeJson(radio, json_radio));
+
+            auto doc_radio = ParseJson(json_radio);
+            REQUIRE(doc_radio.HasMember("options"));
+            CHECK_FALSE(doc_radio.HasMember("min"));
+            CHECK_FALSE(doc_radio.HasMember("max"));
+
+            // type == "text" → regexpr, failedTip present
+            cosmo::MsgDynamicElement text;
+            text.key       = "name";
+            text.type      = "text";
+            text.regexpr   = "^[a-zA-Z]+$";
+            text.failedTip = "Letters only";
+
+            std::string json_text;
+            REQUIRE(cosmo::util::EncodeJson(text, json_text));
+
+            auto doc_text = ParseJson(json_text);
+            REQUIRE(doc_text.HasMember("regexpr"));
+            REQUIRE(doc_text.HasMember("failedTip"));
+            CHECK_FALSE(doc_text.HasMember("min"));
+            CHECK_FALSE(doc_text.HasMember("options"));
+        }
     }
 
-    SECTION("LicenseContent — A() with nested vector of aliased structs") {
-        cosmo::util::LicenseContent original;
-        original.auth_date_ = "2026-01-01";
-        original.device_sn_ = "SN-12345";
-
-        cosmo::util::ServiceDetail svc;
-        svc.auth_count_       = 5;
-        svc.auth_day_         = 90;
-        svc.sub_service_type_ = 10000;
-        svc.sub_service_name_ = "face_detect";
-        original.service_detail_.push_back(svc);
-
-        std::string json;
-        REQUIRE(cosmo::util::EncodeJson(original, json));
-
-        auto doc = ParseJson(json);
-        REQUIRE(doc.HasMember("authDate"));
-        REQUIRE(doc.HasMember("deviceSn"));
-        REQUIRE(doc.HasMember("serviceDetail"));
-        REQUIRE(doc["serviceDetail"].IsArray());
-        REQUIRE(doc["serviceDetail"].Size() == 1);
-        CHECK(doc["serviceDetail"][0].HasMember("authCount"));
-
-        cosmo::util::LicenseContent restored;
-        REQUIRE(cosmo::util::DecodeJson(json, restored));
-        CHECK(restored.auth_date_ == "2026-01-01");
-        CHECK(restored.device_sn_ == "SN-12345");
-        REQUIRE(restored.service_detail_.size() == 1);
-        CHECK(restored.service_detail_[0].auth_count_ == 5);
-    }
-}
-
-// ===========================================================================
-// Pattern 5: CC() — Conditional serialization (2 core uses + MsgDynamicElement)
-// ===========================================================================
-TEST_CASE("x2struct CC(): conditional serialization", "[json][baseline]") {
-    SECTION("MsgSendHead — CC(CWAI): resCode/resMsg present") {
-        cosmo::MsgSendHead original;
-        original.msgSendType = cosmo::MsgSendType::CWAI;
-        original.resCode     = 1;
-        cosmo::MsgResBase res;
-        res.msgCode = "0";
-        res.msgText = "OK";
-        original.resMsg.push_back(res);
-
-        std::string json;
-        REQUIRE(cosmo::util::EncodeJson(original, json));
-
-        auto doc = ParseJson(json);
-        REQUIRE(doc.HasMember("resCode"));
-        REQUIRE(doc.HasMember("resMsg"));
-        CHECK(doc["resCode"].GetInt() == 1);
-        // ChinaMobile fields should NOT be present
-        CHECK_FALSE(doc.HasMember("resultCode"));
-        CHECK_FALSE(doc.HasMember("resultMsg"));
+    // ===========================================================================
+    // Pattern 6: E() — Empty base marker
+    // ===========================================================================
+    TEST_CASE("x2struct E(): empty struct marker", "[json][baseline]") {
+        SECTION("MsgRecvHead — E() produces empty JSON") {
+            cosmo::MsgRecvHead original;
+            std::string json;
+            REQUIRE(cosmo::util::EncodeJson(original, json));
+            // E() should produce a valid but empty JSON object
+            auto doc = ParseJson(json);
+            CHECK(doc.IsObject());
+        }
     }
 
-    SECTION("MsgSendHead — CC(ChinaMobile): resultCode/resultMsg present") {
-        cosmo::MsgSendHead original;
-        original.msgSendType = cosmo::MsgSendType::ChinaMobile;
-        original.resultCode  = "200";
-        original.resultMsg   = "success";
+    // ===========================================================================
+    // Complex integration: nested structs with multiple patterns
+    // ===========================================================================
+    TEST_CASE("x2struct complex: nested struct round-trip", "[json][baseline]") {
+        SECTION("MsgTaskCreateRecv — I + M + O with nested MsgTaskConfig") {
+            cosmo::MsgTaskCreateRecv original;
+            original.taskId              = "task-integration-001";
+            original.videoChannelId      = "ch-01";
+            original.algorithmCode       = "det_person_v2";
+            original.algorithmUpdateTime = "1716883200000";
+            original.taskDesc            = "integration test";
+            original.streamUrl           = "rtsp://192.168.1.10/stream1";
 
-        std::string json;
-        REQUIRE(cosmo::util::EncodeJson(original, json));
+            // Nested MsgTaskConfig with areas containing MsgPoint (aliased)
+            cosmo::MsgTaskArea area;
+            area.areaId = "area-01";
+            area.name   = "entrance";
+            cosmo::MsgPoint p1, p2, p3;
+            p1.x = 0.1;
+            p1.y = 0.1;
+            p2.x = 0.9;
+            p2.y = 0.1;
+            p3.x = 0.5;
+            p3.y = 0.9;
+            area.points.push_back(p1);
+            area.points.push_back(p2);
+            area.points.push_back(p3);
+            original.taskConfig.areas.push_back(area);
 
-        auto doc = ParseJson(json);
-        REQUIRE(doc.HasMember("resultCode"));
-        REQUIRE(doc.HasMember("resultMsg"));
-        CHECK(std::string(doc["resultCode"].GetString()) == "200");
-        // CWAI fields should NOT be present
-        CHECK_FALSE(doc.HasMember("resCode"));
-        CHECK_FALSE(doc.HasMember("resMsg"));
+            std::string json;
+            REQUIRE(cosmo::util::EncodeJson(original, json));
+
+            cosmo::MsgTaskCreateRecv restored;
+            REQUIRE(cosmo::util::DecodeJson(json, restored));
+
+            // Top-level mandatory fields
+            CHECK(restored.taskId == "task-integration-001");
+            CHECK(restored.algorithmCode == "det_person_v2");
+
+            // Nested config
+            REQUIRE(restored.taskConfig.areas.size() == 1);
+            CHECK(restored.taskConfig.areas[0].areaId == "area-01");
+
+            // Deeply nested aliased points
+            REQUIRE(restored.taskConfig.areas[0].points.size() == 3);
+            CHECK(restored.taskConfig.areas[0].points[0].x == Catch::Approx(0.1));
+            CHECK(restored.taskConfig.areas[0].points[2].y == Catch::Approx(0.9));
+
+            // Verify alias in nested JSON
+            auto doc                = ParseJson(json);
+            const auto& json_points = doc["taskConfig"]["areas"][0]["points"];
+            REQUIRE(json_points.IsArray());
+            REQUIRE(json_points.Size() == 3);
+            CHECK(json_points[0].HasMember("xRatio"));
+            CHECK(json_points[0].HasMember("yRatio"));
+            CHECK_FALSE(json_points[0].HasMember("x"));
+        }
+
+        SECTION("MsgPTaskDetectPicSend — I + O with anonymous nested struct") {
+            cosmo::MsgPTaskDetectPicSend original;
+            original.msgSendType           = cosmo::MsgSendType::CWAI;
+            original.resCode               = 1;
+            original.resData.algorithmCode = "face_detect";
+            original.resData.timestamp     = "1716883200000";
+
+            cosmo::MsgPTaskArea area;
+            area.areaId    = "a1";
+            area.bDetected = true;
+            cosmo::MsgPTaskTarget target;
+            target.box.x      = 10;
+            target.box.y      = 20;
+            target.box.width  = 30;
+            target.box.height = 40;
+            area.targetList.push_back(target);
+            original.resData.areaList.push_back(area);
+
+            std::string json;
+            REQUIRE(cosmo::util::EncodeJson(original, json));
+
+            cosmo::MsgPTaskDetectPicSend restored;
+            restored.msgSendType = cosmo::MsgSendType::CWAI;
+            REQUIRE(cosmo::util::DecodeJson(json, restored));
+
+            CHECK(restored.resData.algorithmCode == "face_detect");
+            REQUIRE(restored.resData.areaList.size() == 1);
+            CHECK(restored.resData.areaList[0].areaId == "a1");
+            CHECK(restored.resData.areaList[0].bDetected == true);
+            REQUIRE(restored.resData.areaList[0].targetList.size() == 1);
+            CHECK(restored.resData.areaList[0].targetList[0].box.x == 10);
+        }
     }
 
-    SECTION("MsgSendHead — round-trip preserves mode") {
-        // CWAI mode
-        cosmo::MsgSendHead mv;
-        mv.msgSendType = cosmo::MsgSendType::CWAI;
-        mv.resCode     = 1;
+    // ===========================================================================
+    // JsonStructUtil wrapper functions
+    // ===========================================================================
+    TEST_CASE("JsonStructUtil: EncodeJson/DecodeJson wrappers", "[json][baseline]") {
+        SECTION("EncodeJson produces valid JSON") {
+            cosmo::MsgResBase msg;
+            msg.msgCode = "100";
+            msg.msgText = "test";
+            std::string json;
+            REQUIRE(cosmo::util::EncodeJson(msg, json));
+            CHECK_FALSE(json.empty());
 
-        std::string json_mv;
-        REQUIRE(cosmo::util::EncodeJson(mv, json_mv));
+            auto doc = ParseJson(json);
+            CHECK(doc.IsObject());
+        }
 
-        cosmo::MsgSendHead restored_mv;
-        restored_mv.msgSendType = cosmo::MsgSendType::CWAI;
-        REQUIRE(cosmo::util::DecodeJson(json_mv, restored_mv));
-        CHECK(restored_mv.resCode == 1);
+        SECTION("DecodeJson handles malformed JSON gracefully") {
+            cosmo::MsgResBase restored;
+            CHECK_FALSE(cosmo::util::DecodeJson("{invalid json}", restored));
+        }
+
+        SECTION("DecodeJson handles empty string gracefully") {
+            cosmo::MsgResBase restored;
+            CHECK_FALSE(cosmo::util::DecodeJson("", restored));
+        }
+
+        SECTION("EncodeJson with custom indent") {
+            cosmo::MsgResBase msg;
+            msg.msgCode = "0";
+            std::string compact;
+            REQUIRE(cosmo::util::EncodeJson(msg, compact, -1));  // no indent
+            CHECK(compact.find('\n') == std::string::npos);
+
+            std::string pretty;
+            REQUIRE(cosmo::util::EncodeJson(msg, pretty, 2));  // 2-space indent
+            CHECK(pretty.find('\n') != std::string::npos);
+        }
     }
-
-    SECTION("MsgPTaskTarget — CC with boolean and empty-check conditions") {
-        cosmo::MsgPTaskTarget original;
-        original.box.x      = 100;
-        original.box.y      = 200;
-        original.box.width  = 50;
-        original.box.height = 60;
-
-        // bHaveLogicResult = false → bLogicResult should NOT be serialized
-        original.bHaveLogicResult = false;
-        original.bLogicResult     = true;
-
-        // confidence empty → should NOT be serialized
-        // groupEls empty → should NOT be serialized
-
-        // bHaveMatchInfo = true → matchInfo SHOULD be serialized
-        original.bHaveMatchInfo      = true;
-        original.matchInfo.matchId   = "match-001";
-        original.matchInfo.matched   = true;
-        original.matchInfo.groupId   = "group-1";
-        original.matchInfo.groupName = "VIP";
-
-        std::string json;
-        REQUIRE(cosmo::util::EncodeJson(original, json));
-
-        auto doc = ParseJson(json);
-        // box is always O() — should be present
-        REQUIRE(doc.HasMember("box"));
-
-        // CC(bHaveLogicResult, bLogicResult) — false, so bLogicResult absent
-        CHECK_FALSE(doc.HasMember("bLogicResult"));
-
-        // CC(!confidence.empty(), confidence) — empty, so absent
-        CHECK_FALSE(doc.HasMember("confidence"));
-
-        // CC(!groupEls.empty(), groupEls) — empty, so absent
-        CHECK_FALSE(doc.HasMember("groupEls"));
-
-        // CC(bHaveMatchInfo, matchInfo) — true, so present
-        REQUIRE(doc.HasMember("matchInfo"));
-        CHECK(doc["matchInfo"].HasMember("matchId"));
-
-        // Now test with conditions enabled
-        original.bHaveLogicResult = true;
-        original.confidence.push_back({"person", 0.9f});
-        original.groupEls.push_back(1);
-        original.groupEls.push_back(2);
-
-        std::string json2;
-        REQUIRE(cosmo::util::EncodeJson(original, json2));
-
-        auto doc2 = ParseJson(json2);
-        REQUIRE(doc2.HasMember("bLogicResult"));
-        REQUIRE(doc2.HasMember("confidence"));
-        REQUIRE(doc2.HasMember("groupEls"));
-        CHECK(doc2["bLogicResult"].GetBool() == true);
-        CHECK(doc2["confidence"].IsArray());
-        CHECK(doc2["confidence"].Size() == 1);
-        CHECK(doc2["groupEls"].IsArray());
-        CHECK(doc2["groupEls"].Size() == 2);
-    }
-
-    SECTION("MsgDynamicElement — CC with type-based conditionals") {
-        // type == "slider" → min, max present; options absent
-        cosmo::MsgDynamicElement slider;
-        slider.key  = "thresh";
-        slider.type = "slider";
-        slider.min  = 0.0f;
-        slider.max  = 100.0f;
-
-        std::string json_slider;
-        REQUIRE(cosmo::util::EncodeJson(slider, json_slider));
-
-        auto doc_slider = ParseJson(json_slider);
-        REQUIRE(doc_slider.HasMember("min"));
-        REQUIRE(doc_slider.HasMember("max"));
-        CHECK_FALSE(doc_slider.HasMember("options"));
-        CHECK_FALSE(doc_slider.HasMember("regexpr"));
-
-        // type == "radio" → options present; min, max absent
-        cosmo::MsgDynamicElement radio;
-        radio.key  = "mode";
-        radio.type = "radio";
-        cosmo::MsgDynamicElement::Option opt;
-        opt.name  = "Fast";
-        opt.value = "fast";
-        radio.options.push_back(opt);
-
-        std::string json_radio;
-        REQUIRE(cosmo::util::EncodeJson(radio, json_radio));
-
-        auto doc_radio = ParseJson(json_radio);
-        REQUIRE(doc_radio.HasMember("options"));
-        CHECK_FALSE(doc_radio.HasMember("min"));
-        CHECK_FALSE(doc_radio.HasMember("max"));
-
-        // type == "text" → regexpr, failedTip present
-        cosmo::MsgDynamicElement text;
-        text.key       = "name";
-        text.type      = "text";
-        text.regexpr   = "^[a-zA-Z]+$";
-        text.failedTip = "Letters only";
-
-        std::string json_text;
-        REQUIRE(cosmo::util::EncodeJson(text, json_text));
-
-        auto doc_text = ParseJson(json_text);
-        REQUIRE(doc_text.HasMember("regexpr"));
-        REQUIRE(doc_text.HasMember("failedTip"));
-        CHECK_FALSE(doc_text.HasMember("min"));
-        CHECK_FALSE(doc_text.HasMember("options"));
-    }
-}
-
-// ===========================================================================
-// Pattern 6: E() — Empty base marker
-// ===========================================================================
-TEST_CASE("x2struct E(): empty struct marker", "[json][baseline]") {
-    SECTION("MsgRecvHead — E() produces empty JSON") {
-        cosmo::MsgRecvHead original;
-        std::string json;
-        REQUIRE(cosmo::util::EncodeJson(original, json));
-        // E() should produce a valid but empty JSON object
-        auto doc = ParseJson(json);
-        CHECK(doc.IsObject());
-    }
-}
-
-// ===========================================================================
-// Complex integration: nested structs with multiple patterns
-// ===========================================================================
-TEST_CASE("x2struct complex: nested struct round-trip", "[json][baseline]") {
-    SECTION("MsgTaskCreateRecv — I + M + O with nested MsgTaskConfig") {
-        cosmo::MsgTaskCreateRecv original;
-        original.taskId              = "task-integration-001";
-        original.videoChannelId      = "ch-01";
-        original.algorithmCode       = "det_person_v2";
-        original.algorithmUpdateTime = "1716883200000";
-        original.taskDesc            = "integration test";
-        original.streamUrl           = "rtsp://192.168.1.10/stream1";
-
-        // Nested MsgTaskConfig with areas containing MsgPoint (aliased)
-        cosmo::MsgTaskArea area;
-        area.areaId = "area-01";
-        area.name   = "entrance";
-        cosmo::MsgPoint p1, p2, p3;
-        p1.x = 0.1;
-        p1.y = 0.1;
-        p2.x = 0.9;
-        p2.y = 0.1;
-        p3.x = 0.5;
-        p3.y = 0.9;
-        area.points.push_back(p1);
-        area.points.push_back(p2);
-        area.points.push_back(p3);
-        original.taskConfig.areas.push_back(area);
-
-        std::string json;
-        REQUIRE(cosmo::util::EncodeJson(original, json));
-
-        cosmo::MsgTaskCreateRecv restored;
-        REQUIRE(cosmo::util::DecodeJson(json, restored));
-
-        // Top-level mandatory fields
-        CHECK(restored.taskId == "task-integration-001");
-        CHECK(restored.algorithmCode == "det_person_v2");
-
-        // Nested config
-        REQUIRE(restored.taskConfig.areas.size() == 1);
-        CHECK(restored.taskConfig.areas[0].areaId == "area-01");
-
-        // Deeply nested aliased points
-        REQUIRE(restored.taskConfig.areas[0].points.size() == 3);
-        CHECK(restored.taskConfig.areas[0].points[0].x == Catch::Approx(0.1));
-        CHECK(restored.taskConfig.areas[0].points[2].y == Catch::Approx(0.9));
-
-        // Verify alias in nested JSON
-        auto doc                = ParseJson(json);
-        const auto& json_points = doc["taskConfig"]["areas"][0]["points"];
-        REQUIRE(json_points.IsArray());
-        REQUIRE(json_points.Size() == 3);
-        CHECK(json_points[0].HasMember("xRatio"));
-        CHECK(json_points[0].HasMember("yRatio"));
-        CHECK_FALSE(json_points[0].HasMember("x"));
-    }
-
-    SECTION("MsgPTaskDetectPicSend — I + O with anonymous nested struct") {
-        cosmo::MsgPTaskDetectPicSend original;
-        original.msgSendType           = cosmo::MsgSendType::CWAI;
-        original.resCode               = 1;
-        original.resData.algorithmCode = "face_detect";
-        original.resData.timestamp     = "1716883200000";
-
-        cosmo::MsgPTaskArea area;
-        area.areaId    = "a1";
-        area.bDetected = true;
-        cosmo::MsgPTaskTarget target;
-        target.box.x      = 10;
-        target.box.y      = 20;
-        target.box.width  = 30;
-        target.box.height = 40;
-        area.targetList.push_back(target);
-        original.resData.areaList.push_back(area);
-
-        std::string json;
-        REQUIRE(cosmo::util::EncodeJson(original, json));
-
-        cosmo::MsgPTaskDetectPicSend restored;
-        restored.msgSendType = cosmo::MsgSendType::CWAI;
-        REQUIRE(cosmo::util::DecodeJson(json, restored));
-
-        CHECK(restored.resData.algorithmCode == "face_detect");
-        REQUIRE(restored.resData.areaList.size() == 1);
-        CHECK(restored.resData.areaList[0].areaId == "a1");
-        CHECK(restored.resData.areaList[0].bDetected == true);
-        REQUIRE(restored.resData.areaList[0].targetList.size() == 1);
-        CHECK(restored.resData.areaList[0].targetList[0].box.x == 10);
-    }
-}
-
-// ===========================================================================
-// JsonStructUtil wrapper functions
-// ===========================================================================
-TEST_CASE("JsonStructUtil: EncodeJson/DecodeJson wrappers", "[json][baseline]") {
-    SECTION("EncodeJson produces valid JSON") {
-        cosmo::MsgResBase msg;
-        msg.msgCode = "100";
-        msg.msgText = "test";
-        std::string json;
-        REQUIRE(cosmo::util::EncodeJson(msg, json));
-        CHECK_FALSE(json.empty());
-
-        auto doc = ParseJson(json);
-        CHECK(doc.IsObject());
-    }
-
-    SECTION("DecodeJson handles malformed JSON gracefully") {
-        cosmo::MsgResBase restored;
-        CHECK_FALSE(cosmo::util::DecodeJson("{invalid json}", restored));
-    }
-
-    SECTION("DecodeJson handles empty string gracefully") {
-        cosmo::MsgResBase restored;
-        CHECK_FALSE(cosmo::util::DecodeJson("", restored));
-    }
-
-    SECTION("EncodeJson with custom indent") {
-        cosmo::MsgResBase msg;
-        msg.msgCode = "0";
-        std::string compact;
-        REQUIRE(cosmo::util::EncodeJson(msg, compact, -1));  // no indent
-        CHECK(compact.find('\n') == std::string::npos);
-
-        std::string pretty;
-        REQUIRE(cosmo::util::EncodeJson(msg, pretty, 2));  // 2-space indent
-        CHECK(pretty.find('\n') != std::string::npos);
-    }
-}

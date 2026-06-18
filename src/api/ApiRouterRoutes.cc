@@ -113,9 +113,6 @@ void ApiRouter::RegisterSystemRoutes() {
     ROUTE("/gtw/cwai/System/", kAuth, system_handler_, System, ModifyShiledActions);
     ROUTE("/gtw/cwai/System/", kAuth, system_handler_, System, QueryShiledActions);
     ROUTE("/gtw/cwai/System/", kAuth, system_handler_, System, ThreadDebugInfo);
-    ROUTE("/gtw/cwai/System/", kAuth, system_handler_, System, DownloadDeviceInfo);
-    ROUTE("/gtw/cwai/System/", kAuth, system_handler_, System, LicenseUpload);
-    ROUTE("/gtw/cwai/System/", kAuth, system_handler_, System, QueryAuthServiceStatus);
     ROUTE("/gtw/cwai/System/", kAuth, system_handler_, System, QueryPopUpParam);
     ROUTE("/gtw/cwai/System/", kAuth, system_handler_, System, SetPopUpParam);
     ROUTE("/gtw/cwai/System/", kAuth, system_handler_, System, QueryHttpInterfaceParam);

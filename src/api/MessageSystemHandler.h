@@ -89,12 +89,6 @@ public:
     System::MsgThreadDebugInfoSend Handle(System::MsgThreadDebugInfoRecv&& data,
                                           std::error_condition& errc);  //
 
-    System::MsgDownloadDeviceInfoSend Handle(System::MsgDownloadDeviceInfoRecv&& data,
-                                             std::error_condition& errc);                                  //
-    System::MsgLicenseUploadSend Handle(System::MsgLicenseUploadRecv&& data, std::error_condition& errc);  //
-    System::MsgQueryAuthServiceStatusSend Handle(System::MsgQueryAuthServiceStatusRecv&& data,
-                                                 std::error_condition& errc);  //
-
     System::MsgQueryPopUpParamSend Handle(System::MsgQueryPopUpParamRecv&& data,
                                           std::error_condition& errc);                                     //
     System::MsgSetPopUpParamSend Handle(System::MsgSetPopUpParamRecv&& data, std::error_condition& errc);  //

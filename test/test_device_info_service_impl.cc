@@ -36,11 +36,6 @@ TEST_CASE("DeviceInfoServiceImpl: GetDevSn and GetDevModel", "[DeviceInfoService
         auto model = sut.GetDevModel();
         REQUIRE(!model.empty());
     }
-
-    SECTION("GetLicenseSn returns non-empty") {
-        auto sn = sut.GetLicenseSn();
-        REQUIRE(!sn.empty());
-    }
 }
 
 TEST_CASE("DeviceInfoServiceImpl: GetCpuUtilization returns valid range", "[DeviceInfoService][.device]") {
@@ -60,14 +55,4 @@ TEST_CASE("DeviceInfoServiceImpl: GetGpuNum returns at least 1", "[DeviceInfoSer
     DeviceInfoServiceImpl sut;
 
     REQUIRE(sut.GetGpuNum() >= 1);
-}
-
-TEST_CASE("DeviceInfoServiceImpl: GetAuthServiceStatus", "[DeviceInfoService][.device]") {
-    cosmo::test::MockServiceRegistry mocks;
-    DeviceInfoServiceImpl sut;
-
-    auto status = sut.GetAuthServiceStatus();
-    // Just verify it doesn't crash and returns a struct
-    (void)status.bValid;
-    (void)status.authDay;
 }

@@ -1,6 +1,6 @@
 /// @file IDeviceInfoService.h
-/// @brief Aggregate device info service interface — inherits all ISP
-///        sub-interfaces (IDeviceHardware, ILicenseManagement).
+/// @brief Aggregate device info service interface — inherits
+///        IDeviceHardware sub-interface.
 ///        Callers should prefer the narrow sub-interfaces for new code.
 #pragma once
 
@@ -9,7 +9,6 @@
 #include <string>
 
 #include "service/system/IDeviceHardware.h"
-#include "service/system/ILicenseManagement.h"
 #include "service/system/dto/SystemMsgTypes.h"
 #include "util/MsgBaseTypes.h"
 
@@ -21,8 +20,8 @@ struct DeviceBasicInfo {
     std::string devVersion;       ///< Firmware version.
     std::string softwareVersion;  ///< Software application version.
     std::string devSn;            ///< Device serial number.
-    std::string licenseStatus;    ///< License activation status.
-    int64_t appRuntime{0};        ///< Application uptime in seconds.
+
+    int64_t appRuntime{0};  ///< Application uptime in seconds.
 };
 
 /// Hardware resource utilization item for dashboard display.
@@ -35,9 +34,9 @@ struct HwResourceItem {
     int available{0};        ///< Available units.
 };
 
-/// Aggregate device info service providing device identity, license
-/// management, and hardware resource monitoring.
-class IDeviceInfoService : public IDeviceHardware, public ILicenseManagement {
+/// Aggregate device info service providing device identity
+/// and hardware resource monitoring.
+class IDeviceInfoService : public IDeviceHardware {
 public:
     virtual ~IDeviceInfoService() = default;
 

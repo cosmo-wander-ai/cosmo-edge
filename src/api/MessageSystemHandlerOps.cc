@@ -102,41 +102,6 @@ System::MsgThreadDebugInfoSend MessageSystemHandler::Handle(System::MsgThreadDeb
     return retData;
 }
 
-// Download device information
-System::MsgDownloadDeviceInfoSend MessageSystemHandler::Handle(System::MsgDownloadDeviceInfoRecv&& /*data*/,
-                                                               std::error_condition& errc) {
-    System::MsgDownloadDeviceInfoSend retData{};
-    errc = device_info_.DownloadDeviceInfo(retData.resData.fileName, retData.resData.fileUrl);
-    return retData;
-}
-
-// License upload
-System::MsgLicenseUploadSend MessageSystemHandler::Handle(System::MsgLicenseUploadRecv&& data,
-                                                          std::error_condition& errc) {
-    System::MsgLicenseUploadSend retData{};
-    errc = device_info_.UploadLicense(data.filePath);
-    return retData;
-}
-
-// Authorization status query
-System::MsgQueryAuthServiceStatusSend MessageSystemHandler::Handle(
-    System::MsgQueryAuthServiceStatusRecv&& /*data*/, std::error_condition& /*errc*/) {
-    System::MsgQueryAuthServiceStatusSend retData{};
-    auto info = device_info_.GetAuthServiceStatus();
-    if (info.bValid) {
-        retData.resData.infoList.push_back({"authServiceStatus", "授权状态", "已授权"});
-        if (info.authDay >= 36500) {
-            retData.resData.infoList.push_back({"authDay", "许可时长", "永久"});
-        } else {
-            retData.resData.infoList.push_back({"authDay", "许可时长", std::to_string(info.authDay) + "天"});
-        }
-        retData.resData.infoList.push_back({"vilidDate", "有效期限", info.authDate + "~" + info.validDate});
-    } else {
-        retData.resData.infoList.push_back({"authServiceStatus", "授权状态", "未授权"});
-    }
-    return retData;
-}
-
 // Popup parameter query
 System::MsgQueryPopUpParamSend MessageSystemHandler::Handle(System::MsgQueryPopUpParamRecv&& /*data*/,
                                                             std::error_condition& /*errc*/) {

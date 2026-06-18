@@ -91,9 +91,6 @@ namespace {
     std::string DbBackupPath() {
         return g_dataPath + "/db2";
     }
-    std::string LicensePath() {
-        return "/recovery/license";
-    }
 
     // Relative path tokens used to build event / web paths
     const std::string kAtEvent{"event"};
@@ -328,19 +325,7 @@ std::string GetLinkageStoragesJsonPath() {
     return (fs::path(GetLayoutPath()) / "linkageStorages.json").string();
 }
 
-// ── Media / license paths ─────────────────────────────────────────────────────
-
-std::string GetLicensePath() {
-    auto p = LicensePath();
-    EnsureDir(p);
-    return p;
-}
-
-std::string GetLicenseTmpPath() {
-    std::string p = (fs::path(LicensePath()) / "tmp").string();
-    EnsureDir(p);
-    return p;
-}
+// ── Media paths ───────────────────────────────────────────────────────────────
 
 std::string GetExportFileDir() {
     auto p = FileDir();

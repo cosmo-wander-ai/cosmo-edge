@@ -623,7 +623,6 @@ public:
     MAKE_MOCK0(GetDevModel, std::string(), override);
     MAKE_MOCK0(GetDevVersion, std::string(), override);
     MAKE_MOCK0(GetDevSpec, std::string(), override);
-    MAKE_MOCK0(GetLicenseSn, std::string(), override);
     MAKE_MOCK0(GetCpuUtilization, double(), override);
     MAKE_MOCK0(GetGpuUtilization, cosmo::MsgGpuInfo(), override);
     MAKE_MOCK0(GetMemoryUtilization, cosmo::MsgMemoryInfo(), override);
@@ -634,9 +633,6 @@ public:
     MAKE_MOCK0(GetIPV4, std::string(), override);
     MAKE_MOCK0(GetAvailableGpuMemoryMB, int64_t(), override);
     MAKE_MOCK0(GetGpuNum, size_t(), override);
-    MAKE_MOCK2(DownloadDeviceInfo, cosmo::util::ErrorEnum(std::string&, std::string&), override);
-    MAKE_MOCK1(UploadLicense, cosmo::util::ErrorEnum(std::string), override);
-    MAKE_MOCK0(GetAuthServiceStatus, cosmo::service::LicenseAuthInfo(), override);
 };
 
 class MockTimeService : public cosmo::service::ITimeService {

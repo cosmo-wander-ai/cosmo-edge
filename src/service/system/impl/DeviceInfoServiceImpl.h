@@ -6,10 +6,6 @@
 
 #include "service/system/IDeviceInfoService.h"
 
-namespace cosmo::util {
-class LicenseManager;
-}
-
 namespace cosmo::service {
 
 class DeviceInfoServiceImpl : public IDeviceInfoService {
@@ -20,16 +16,12 @@ public:
     // ---- IDeviceInfoService ----
     DeviceBasicInfo GetDeviceInfo() override;
     std::vector<HwResourceItem> GetHardwareResource(double& customScore) override;
-    cosmo::util::ErrorEnum DownloadDeviceInfo(std::string& fileName, std::string& fileUrl) override;
-    cosmo::util::ErrorEnum UploadLicense(std::string filePath) override;
-    LicenseAuthInfo GetAuthServiceStatus() override;
 
     // ---- IDeviceInfoService: HwInfo ----
     std::string GetDevSn() override;
     std::string GetDevModel() override;
     std::string GetDevVersion() override;
     std::string GetDevSpec() override;
-    std::string GetLicenseSn() override;
 
     // ---- IDeviceInfoService: HwResUtilization ----
     double GetCpuUtilization() override;
@@ -49,8 +41,6 @@ private:
 
     struct HwResState;
     std::unique_ptr<HwResState> hw_res_state_;
-
-    std::unique_ptr<cosmo::util::LicenseManager> license_mgr_;
 };
 
 }  // namespace cosmo::service
