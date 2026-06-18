@@ -1,0 +1,14 @@
+.git
+.antigravitycli
+.vscode
+/build
+/build_cpu
+/build_cpu_verify
+/build_cpu_windows
+/cmake-build-*
+/node_modules
+/src/web/node_modules
+/src/web/dist
+/release
+/tags
+/compile_commands.json

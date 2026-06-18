@@ -1,0 +1,27 @@
+// Suppress findings from third-party and generated code
+*:*3rd/*
+*:*build/*
+*:*test/catch_amalgamated.*
+*:*test/trompeloeil.hpp
+
+// Suppress system include warnings (cross-compilation headers not available on host)
+missingIncludeSystem
+unmatchedSuppression
+
+// cppcheck cannot track struct member usage across translation units.
+// Our DTOs are populated in one .cc and consumed in another, or serialized
+// via XTOSTRUCT macros, causing ~88% false positive rate for this check.
+unusedStructMember
+
+// Eigen comma-initializer syntax (operator<< with comma-separated values)
+// triggers false positive constStatement warnings in nn code.
+constStatement:*src/nn/utils/net_utils.cc
+constStatement:*src/nn/utils/tracker/eigen_kalman_tracker.cc
+
+// Pre-existing uninitMemberVar warnings in the nn inference SDK.
+// Members are initialized in LoadParam() after construction, not in constructors.
+uninitMemberVar:*src/nn/*
+
+// Pre-existing raw pointer ownership in nn Blob and FireFilter (legacy SDK code).
+noCopyConstructor:*src/nn/*
+noOperatorEq:*src/nn/*

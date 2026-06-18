@@ -1,0 +1,46 @@
+CosmoEdge
+Copyright 2026 CosmoEdge Contributors
+
+This product includes software developed by CosmoEdge Contributors.
+
+CosmoEdge is licensed under the Apache License, Version 2.0.
+See the LICENSE file in this repository for the full license text.
+
+Third-party software
+--------------------
+
+This repository may include third-party open-source software,
+vendored source code, build scripts, generated artifacts, frontend
+dependencies, documentation tooling, and optional runtime components.
+Third-party components remain subject to their own license terms.
+
+Third-party dependency review is tracked in:
+
+  docs/project/third-party-licenses.md
+
+Maintainers should complete the third-party license audit before a
+formal public release and expand this NOTICE file with required
+third-party attribution notices.
+
+Initial components identified for release review include, but are not
+limited to:
+
+  - FFmpeg
+  - OpenH264
+  - OpenSSL
+  - curl
+  - Paho MQTT C
+  - SRS
+  - ONNX Runtime
+  - Sophon SDK/runtime components
+  - Vue/Vite/VitePress and frontend npm dependencies
+
+Codec and binary distribution notice
+------------------------------------
+
+Public release builds should document whether GPL codec support is
+disabled or enabled. Enabling GPL codec components can change
+redistribution obligations.
+
+Prebuilt binaries, model packages, tokenizer resources, and sample
+media must be reviewed separately before publication.

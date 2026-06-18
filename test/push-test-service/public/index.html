@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Box 可视化测试平台</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>AI Box 可视化测试平台</h1>
+            <nav>
+                <button class="nav-btn active" data-tab="http-alerts">HTTP 告警可视化</button>
+                <button class="nav-btn" data-tab="mqtt-test">MQTT 接口测试</button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- HTTP Alerts Tab -->
+        <section id="http-alerts" class="tab-content active">
+            <div class="section-header">
+                <h2>HTTP 实时告警</h2>
+                <button id="clear-alerts" class="btn btn-secondary">清空列表</button>
+            </div>
+            <div id="alerts-list" class="alerts-grid">
+                <!-- Alerts will be injected here -->
+            </div>
+        </section>
+
+        <!-- MQTT Test Tab -->
+        <section id="mqtt-test" class="tab-content">
+            <div class="mqtt-layout">
+                <div class="mqtt-sidebar">
+                    <h3>在线设备</h3>
+                    <ul id="device-list" class="device-list">
+                        <!-- Devices will be injected here -->
+                    </ul>
+                </div>
+                <div class="mqtt-main">
+                    <div class="card">
+                        <h3>发送 MQTT 指令</h3>
+                        <div class="form-group">
+                            <label for="target-device">目标设备 (SN):</label>
+                            <input type="text" id="target-device" placeholder="选择或输入设备 SN">
+                        </div>
+                        <div class="form-group">
+                            <label for="mqtt-action">业务动作 (Action):</label>
+                            <select id="mqtt-action">
+                                <optgroup label="核心任务">
+                                    <option value="/v1/cwai/aihost/TaskCreate">创建任务 (TaskCreate)</option>
+                                    <option value="/v1/cwai/aihost/TaskCancle">取消任务 (TaskCancle)</option>
+                                    <option value="/v1/cwai/aihost/Info">核心信息 (Info)</option>
+                                </optgroup>
+                                <optgroup label="系统">
+                                    <option value="/gtw/cwai/System/QueryDeviceInfo">查询设备信息</option>
+                                    <option value="/gtw/cwai/System/QueryHardwareResource">查询硬件资源</option>
+                                    <option value="/gtw/cwai/System/QueryMqttAdapterParam">查询 MQTT 参数</option>
+                                    <option value="/gtw/cwai/System/SetMqttAdapterParam">设置 MQTT 参数</option>
+                                    <option value="/gtw/cwai/System/QueryRunModeParam">查询运行模式</option>
+                                    <option value="/gtw/cwai/System/ModifyRunModeParam">修改运行模式</option>
+                                    <option value="/gtw/cwai/System/QueryIotNetworkParam">查询 IoT 网络参数</option>
+                                    <option value="/gtw/cwai/System/ModifyIotNetworkParam">修改 IoT 网络参数</option>
+                                </optgroup>
+                                <optgroup label="任务配置">
+                                    <option value="/gtw/cwai/Task/SaveOrUpdate">保存任务配置并启用</option>
+                                    <option value="/gtw/cwai/Task/ModifyParam">修改任务参数</option>
+                                    <option value="/gtw/cwai/Task/QueryParam">查询任务参数</option>
+                                    <option value="/gtw/cwai/Task/SwitchTask">切换任务状态</option>
+                                    <option value="/gtw/cwai/Task/Delete">删除任务配置</option>
+                                    <option value="/gtw/cwai/Task/SelectAllAlgorithmInfo">查询通道可配算法</option>
+                                    <option value="/gtw/cwai/Task/SelectConfigByAlgorithmId">查询指定算法配置</option>
+                                </optgroup>
+                                <optgroup label="摄像机">
+                                    <option value="/gtw/cwai/Camera/Add">添加通道</option>
+                                    <option value="/gtw/cwai/Camera/Update">更新通道</option>
+                                    <option value="/gtw/cwai/Camera/Page">分页查询通道</option>
+                                    <option value="/gtw/cwai/Camera/Delete">删除通道</option>
+                                    <option value="/gtw/cwai/Camera/BatchDelete">批量删除通道</option>
+                                    <option value="/gtw/cwai/Camera/GetPicture">通道抓图</option>
+                                    <option value="/gtw/cwai/Camera/AddVideo">添加本地视频通道</option>
+                                </optgroup>
+                                <optgroup label="算法">
+                                    <option value="/gtw/cwai/Algorithm/Page">分页查询算法</option>
+                                    <option value="/gtw/cwai/Algorithm/Add">添加算法配置</option>
+                                    <option value="/gtw/cwai/Algorithm/Update">编辑算法配置</option>
+                                    <option value="/gtw/cwai/Algorithm/Delete">删除算法配置</option>
+                                    <option value="/gtw/cwai/algorithm/layout/save">保存算法布控</option>
+                                    <option value="/gtw/cwai/algorithm/layout/list">查询编排算法列表</option>
+                                    <option value="/gtw/cwai/algorithm/layout/detail">查询编排算法详情</option>
+                                    <option value="/gtw/cwai/atomic/action/list">查询原子动作列表</option>
+                                </optgroup>
+                                <option value="custom">自定义...</option>
+                            </select>
+                            <input type="text" id="custom-action" class="hidden" placeholder="输入自定义 Action">
+                        </div>
+                        <div class="form-group">
+                            <label for="mqtt-payload">指令内容 (JSON Body):</label>
+                            <textarea id="mqtt-payload" rows="10">{
+  "resCode": 1,
+  "resMsg": []
+}</textarea>
+                        </div>
+                        <div id="mqtt-help" class="mqtt-help"></div>
+                        <button id="send-mqtt" class="btn btn-primary">发送指令</button>
+                    </div>
+
+                    <div class="card mt-20">
+                        <h3>MQTT 日志</h3>
+                        <div id="mqtt-logs" class="log-viewer">
+                            <!-- Logs will be injected here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal for Video/Image Details -->
+    <div id="detail-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

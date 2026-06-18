@@ -1,0 +1,6 @@
+
+# The module to parse mp4 file.
+SRS_MODULE_NAME=("srs_mp4_parser")
+SRS_MODULE_MAIN=("srs_main_mp4_parser")
+SRS_MODULE_APP=()
+SRS_MODULE_DEFINES=""

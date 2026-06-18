@@ -1,0 +1,17 @@
+services:
+  cosmo-sophon-package:
+    build:
+      context: .
+      dockerfile: Dockerfile.sophon
+      args:
+        BASE_IMAGE: ${SOPHON_BASE_IMAGE:-stream_dev:0.2}
+        APT_MIRROR: ${SOPHON_APT_MIRROR:-https://mirrors.aliyun.com/debian}
+        NODE_DIST_BASE_URL: ${SOPHON_NODE_DIST_BASE_URL:-https://npmmirror.com/mirrors/node}
+        RUSTUP_INIT_URL: ${SOPHON_RUSTUP_INIT_URL:-https://rsproxy.cn/rustup-init.sh}
+        RUSTUP_DIST_SERVER: ${SOPHON_RUSTUP_DIST_SERVER:-https://rsproxy.cn}
+        RUSTUP_UPDATE_ROOT: ${SOPHON_RUSTUP_UPDATE_ROOT:-https://rsproxy.cn/rustup}
+        RESOURCE_DIR: data/resource/aiboxresource
+    image: cosmo:sophon-package
+    container_name: cosmo-sophon-package
+    volumes:
+      - ./build_output:/build_output

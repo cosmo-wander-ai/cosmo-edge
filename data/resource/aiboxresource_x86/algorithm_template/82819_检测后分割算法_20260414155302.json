@@ -1,0 +1,30 @@
+{
+  "algorithmId": "82819",
+  "algorithmCode": 82819,
+  "algorithmName": "检测后分割算法",
+  "algorithmCategory": 2,
+  "algorithmUsage": 2,
+  "checkType": 90738,
+  "createTime": 1776153182000,
+  "updateTime": 1776153182000,
+  "confVersionId": "default-82819",
+  "algorithmMetadata": "{\"params\":[],\"region\":{\"heads\":[{\"defaultValue\":\"\",\"description\":\"区域名称：必填，限制32字符\",\"failedTip\":\"请输入长度小于32位且不包含空格的字符串\",\"isColumn\":true,\"key\":\"name\",\"name\":\"区域名称\",\"options\":null,\"range\":\"\",\"regexpr\":\"/^\\\\S{1,32}$/\",\"step\":null,\"type\":\"text\",\"descriptionI18nKey\":\"resource.param.82819.82819.name.description\",\"failedTipI18nKey\":\"resource.param.82819.82819.name.failedtip\",\"nameI18nKey\":\"resource.param.82819.82819.name.name\"}],\"areasTitle\":null},\"regionType\":\"hexagon\",\"scheduleSupport\":false,\"enableShieldedRegion\":false,\"maxAreaCount\":4,\"defaultFullScreen\":false}",
+  "configVersionList": [
+    {
+      "id": "default-82819",
+      "name": "默认",
+      "algorithmCode": "82819",
+      "algorithmMetadata": "{\"params\":[],\"region\":{\"heads\":[{\"defaultValue\":\"\",\"description\":\"区域名称：必填，限制32字符\",\"failedTip\":\"请输入长度小于32位且不包含空格的字符串\",\"isColumn\":true,\"key\":\"name\",\"name\":\"区域名称\",\"options\":null,\"range\":\"\",\"regexpr\":\"/^\\\\S{1,32}$/\",\"step\":null,\"type\":\"text\",\"descriptionI18nKey\":\"resource.param.82819.82819.name.description\",\"failedTipI18nKey\":\"resource.param.82819.82819.name.failedtip\",\"nameI18nKey\":\"resource.param.82819.82819.name.name\"}],\"areasTitle\":null},\"regionType\":\"hexagon\",\"scheduleSupport\":false,\"enableShieldedRegion\":false,\"maxAreaCount\":4,\"defaultFullScreen\":false}",
+      "algorithmProcessdata": "[{\"actionId\":\"PDA_00001\",\"actionName\":\"检测视觉大模型\",\"remark\":\"\",\"flowActionId\":\"f15b0a07\",\"preFlowActionId\":\"-1\",\"configObject\":{\"webConfig\":{\"labelList\":[],\"labelFilterList\":[],\"metaDataParams\":[],\"atomic\":{\"atomicCode\":\"8888890\",\"atomicName\":\"dino2\",\"position\":\"f15b0a07\",\"labelList\":[]}},\"params\":[{\"key\":\"atomicCode\",\"value\":\"8888890\"},{\"key\":\"keywords\",\"value\":\"person\"},{\"key\":\"aiParam.box.confidence\",\"value\":\"0.25\"},{\"key\":\"aiParam.text.confidence\",\"value\":\"0.3\"}]},\"actionNameI18nKey\":\"resource.action.82819.pda_00001.f15b0a07.actionname\"},{\"actionId\":\"PDA_00002\",\"actionName\":\"分割视觉大模型\",\"remark\":\"\",\"flowActionId\":\"ff07761f\",\"preFlowActionId\":\"f15b0a07\",\"configObject\":{\"webConfig\":{\"labelList\":[],\"labelFilterList\":[],\"metaDataParams\":[],\"atomic\":{\"atomicCode\":\"6666688\",\"atomicName\":\"SAM2ImageEncoder\",\"position\":\"ff07761f\",\"labelList\":[]}},\"params\":[{\"key\":\"atomicCode\",\"value\":\"6666688\"},{\"key\":\"inputType\",\"value\":\"box\"}]},\"actionNameI18nKey\":\"resource.action.82819.pda_00002.ff07761f.actionname\"}]",
+      "atomicList": "[{\"position\":\"f15b0a07\",\"atomicCode\":\"8888890\",\"atomicName\":\"dino2\",\"labelList\":[]},{\"position\":\"ff07761f\",\"atomicCode\":\"6666688\",\"atomicName\":\"SAM2ImageEncoder\",\"labelList\":[]}]",
+      "algorithmUpdateTime": 1776153215000,
+      "remark": "",
+      "nameI18nKey": "resource.param.82819.82819.0.name"
+    }
+  ],
+  "algorithmProcessdata": "[{\"actionId\":\"PDA_00001\",\"actionName\":\"检测视觉大模型\",\"remark\":\"\",\"flowActionId\":\"f15b0a07\",\"preFlowActionId\":\"-1\",\"configObject\":{\"webConfig\":{\"labelList\":[],\"labelFilterList\":[],\"metaDataParams\":[],\"atomic\":{\"atomicCode\":\"8888890\",\"atomicName\":\"dino2\",\"position\":\"f15b0a07\",\"labelList\":[]}},\"params\":[{\"key\":\"atomicCode\",\"value\":\"8888890\"},{\"key\":\"keywords\",\"value\":\"person\"},{\"key\":\"aiParam.box.confidence\",\"value\":\"0.25\"},{\"key\":\"aiParam.text.confidence\",\"value\":\"0.3\"}]},\"actionNameI18nKey\":\"resource.action.82819.pda_00001.f15b0a07.actionname\"},{\"actionId\":\"PDA_00002\",\"actionName\":\"分割视觉大模型\",\"remark\":\"\",\"flowActionId\":\"ff07761f\",\"preFlowActionId\":\"f15b0a07\",\"configObject\":{\"webConfig\":{\"labelList\":[],\"labelFilterList\":[],\"metaDataParams\":[],\"atomic\":{\"atomicCode\":\"6666688\",\"atomicName\":\"SAM2ImageEncoder\",\"position\":\"ff07761f\",\"labelList\":[]}},\"params\":[{\"key\":\"atomicCode\",\"value\":\"6666688\"},{\"key\":\"inputType\",\"value\":\"box\"}]},\"actionNameI18nKey\":\"resource.action.82819.pda_00002.ff07761f.actionname\"}]",
+  "atomicList": "[{\"position\":\"f15b0a07\",\"atomicCode\":\"8888890\",\"atomicName\":\"dino2\",\"labelList\":[]},{\"position\":\"ff07761f\",\"atomicCode\":\"6666688\",\"atomicName\":\"SAM2ImageEncoder\",\"labelList\":[]}]",
+  "remark": "",
+  "description": "",
+  "algorithmNameI18nKey": "resource.algorithm.82819.algorithmname"
+}

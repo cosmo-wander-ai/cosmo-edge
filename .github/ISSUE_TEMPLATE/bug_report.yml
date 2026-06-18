@@ -1,59 +1,33 @@
 name: Bug report
-description: Report a reproducible problem in CosmoEdge.
+description: Report a reproducible bug in CosmoEdge.
 title: "[Bug]: "
-labels:
-  - bug
+labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for helping improve CosmoEdge. Please search existing issues before filing a new one.
+        Thanks for reporting a bug. Please remove secrets, device SN values, customer names, private IPs, and private model links before submitting.
   - type: textarea
     id: summary
     attributes:
       label: Summary
-      description: What went wrong?
-      placeholder: Describe the observed problem in one or two sentences.
-    validations:
-      required: true
-  - type: textarea
-    id: reproduce
-    attributes:
-      label: Steps to reproduce
-      description: Provide the smallest set of steps that reproduces the issue.
-      placeholder: |
-        1. ...
-        2. ...
-        3. ...
-    validations:
-      required: true
-  - type: textarea
-    id: expected
-    attributes:
-      label: Expected behavior
-      description: What did you expect to happen?
-    validations:
-      required: true
-  - type: textarea
-    id: actual
-    attributes:
-      label: Actual behavior
-      description: What happened instead? Include logs, screenshots, or error messages when possible.
+      description: What happened?
+      placeholder: Describe the bug clearly.
     validations:
       required: true
   - type: dropdown
     id: area
     attributes:
-      label: Affected area
-      multiple: true
+      label: Area
       options:
-        - Runtime / engine
-        - Web UI
-        - Pipeline orchestration
-        - Model porting
+        - x86 Docker runtime
+        - Sophon package build
+        - Backend service
+        - Frontend web console
+        - API / MQTT / WebSocket
+        - Model import / model runtime
+        - Media / streaming
         - Documentation
-        - Build / packaging
-        - Deployment
         - Other
     validations:
       required: true
@@ -61,30 +35,50 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: Share the platform and versions involved.
-      value: |
-        - CosmoEdge version or commit:
-        - OS:
-        - Hardware:
-        - Browser:
-        - Docker version:
-        - Sophon SDK version:
+      description: OS, Docker version, hardware, branch/commit, and build path.
+      placeholder: |
+        OS:
+        Docker:
+        Hardware:
+        Branch/commit:
+        Build path: x86 Docker / Sophon package / other
     validations:
-      required: false
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide exact commands or UI steps.
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
   - type: textarea
     id: logs
     attributes:
-      label: Relevant logs or attachments
-      description: Paste logs as text or attach screenshots/videos. Remove secrets, tokens, private URLs, and personal data first.
+      label: Logs
+      description: Paste relevant logs after redacting sensitive information.
       render: shell
-    validations:
-      required: false
   - type: checkboxes
-    id: checks
+    id: checklist
     attributes:
       label: Checklist
       options:
-        - label: I have searched existing issues and discussions.
+        - label: I searched existing issues.
           required: true
-        - label: I have removed secrets, private URLs, and personal data from the report.
+        - label: I removed secrets, private IPs, device SN values, and customer data.
           required: true

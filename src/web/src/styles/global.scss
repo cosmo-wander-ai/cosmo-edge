@@ -1,0 +1,282 @@
+// 全局主题变量
+:root {
+  --primary-color: #3182ce;
+  --primary-light: #4299e1;
+  --primary-dark: #2b6cb0;
+  --secondary-color: #2c5282;
+  --accent-color: #63b3ed;
+  
+  --text-primary: #1a202c;
+  --text-secondary: #64748B;
+  --text-muted: #94A3B8;
+  
+  --bg-primary: #F8FAFC;
+  --bg-secondary: #F1F5F9;
+  --bg-white: #FFFFFF;
+  
+  --border-color: #E2E8F0;
+  --border-light: #F1F5F9;
+  
+  --success-color: #10B981;
+  --warning-color: #F59E0B;
+  --danger-color: #EF4444;
+  --info-color: #3B82F6;
+  
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
+  
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+}
+
+// Element Plus 主题定制
+.el-table {
+  --el-table-border-color: var(--border-color);
+  --el-table-header-bg-color: #F8FAFC;
+  --el-table-row-hover-bg-color: #F1F5F9;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  
+  .el-table__header-wrapper {
+    th {
+      background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
+      color: var(--text-primary);
+      font-weight: 600;
+      font-size: 0.875rem;
+      padding: 16px 12px;
+      border-bottom: 2px solid var(--border-color);
+    }
+  }
+  
+  .el-table__body-wrapper {
+    .el-table__row {
+      transition: all 0.2s ease;
+      
+      &:hover {
+        background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
+      }
+      
+      td {
+        padding: 14px 12px;
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+      }
+    }
+  }
+}
+
+// 分页样式优化
+.el-pagination {
+  --el-pagination-button-color: var(--text-secondary);
+  --el-pagination-hover-color: var(--primary-color);
+  --el-pagination-bg-color: var(--bg-white);
+  --el-pagination-button-disabled-color: var(--text-muted);
+  
+  .el-pager {
+    li {
+      border-radius: var(--radius-sm);
+      margin: 0 4px;
+      transition: all 0.2s ease;
+      font-weight: 500;
+      
+      &:hover {
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+        color: white;
+      }
+      
+      &.is-active {
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+        color: white;
+        box-shadow: 0 2px 8px rgba(49, 130, 206, 0.3);
+      }
+    }
+  }
+  
+  .btn-prev,
+  .btn-next {
+    border-radius: var(--radius-sm);
+    transition: all 0.2s ease;
+    
+    &:hover:not(:disabled) {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+      color: white;
+    }
+  }
+  
+  .el-pagination__sizes {
+    .el-select {
+      .el-input__wrapper {
+        border-radius: var(--radius-sm);
+        transition: all 0.2s ease;
+        
+        &:hover {
+          border-color: var(--primary-color);
+        }
+      }
+    }
+  }
+}
+
+// 按钮样式优化
+.el-button {
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+  transition: all 0.2s ease;
+  
+  &.el-button--primary {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+    border: none;
+    box-shadow: 0 2px 8px rgba(49, 130, 206, 0.3);
+    
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(49, 130, 206, 0.4);
+    }
+    
+    &:active {
+      transform: translateY(0);
+    }
+  }
+  
+  &.el-button--success {
+    background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+    border: none;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+    
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    }
+  }
+  
+  &.el-button--danger {
+    background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+    border: none;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+    
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+    }
+  }
+  
+  &.el-button--small {
+    padding: 6px 12px;
+    font-size: 0.875rem;
+  }
+}
+
+// Tag 样式优化
+.el-tag {
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+  border: none;
+  
+  &.el-tag--success {
+    background: linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%);
+    color: #065F46;
+  }
+  
+  &.el-tag--info {
+    background: linear-gradient(135deg, #ebf8ff 0%, #90cdf4 100%);
+    color: #2c5282;
+  }
+  
+  &.el-tag--warning {
+    background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+    color: #92400E;
+  }
+  
+  &.el-tag--danger {
+    background: linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%);
+    color: #991B1B;
+  }
+}
+
+// 卡片样式
+.page-card {
+  background: var(--bg-white);
+  border-radius: var(--radius-lg);
+  padding: 10px 20px 20px 20px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-light);
+  transition: all 0.3s ease;
+  
+  &:hover {
+    box-shadow: var(--shadow-md);
+  }
+}
+
+// 页面容器
+.page-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
+}
+
+// 页面标题
+.page-header {
+  margin-bottom: 24px;
+  
+  .page-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 8px;
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .page-subtitle {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+}
+
+// 工具栏
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 16px;
+  background: var(--bg-white);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+// 响应式
+@media (max-width: 768px) {
+  .page-container {
+    padding: 16px;
+  }
+  
+  .page-card {
+    padding: 16px;
+  }
+  
+  .toolbar {
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+
+/* 分页容器统一右对齐 */
+.pagination-container {
+  padding: 15px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  background-color: transparent;
+}
+
+.topBar-wrap {
+  margin: 0 !important;
+}

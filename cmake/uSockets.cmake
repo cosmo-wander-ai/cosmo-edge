@@ -1,0 +1,39 @@
+set(USOCKETS_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rd/uSockets)
+set(USOCKETS_INSTALL_DIR ${THIRDPARTY_INSTALL_PREFIX}/uSockets)
+set(USOCKETS_HEADERS ${USOCKETS_INSTALL_DIR}/include)
+set(USOCKETS_LIB ${USOCKETS_INSTALL_DIR}/lib/libusockets.so)
+
+ExternalProject_Add(
+    usockets_external
+
+    SOURCE_DIR ${USOCKETS_SOURCE_DIR}
+
+    CMAKE_ARGS
+        -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
+        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+        -DCMAKE_INSTALL_PREFIX=${USOCKETS_INSTALL_DIR}
+    
+    INSTALL_COMMAND ${CMAKE_COMMAND} --build . --target install
+
+    UPDATE_COMMAND ""
+    BUILD_ALWAYS OFF
+
+    LOG_CONFIGURE ON
+    LOG_BUILD ON
+    LOG_INSTALL ON
+    LOG_OUTPUT_ON_FAILURE ON
+)
+add_dependencies(third_build usockets_external)
+
+add_library(uSockets SHARED IMPORTED)
+set_target_properties(uSockets PROPERTIES
+    IMPORTED_LOCATION ${USOCKETS_LIB}
+    INTERFACE_INCLUDE_DIRECTORIES "${USOCKETS_HEADERS}"
+)
+add_dependencies(uSockets usockets_external)
+
+install(DIRECTORY ${USOCKETS_INSTALL_DIR}/lib/
+    DESTINATION lib
+    FILES_MATCHING
+        PATTERN "*so*"
+)

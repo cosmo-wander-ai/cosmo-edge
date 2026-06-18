@@ -1,0 +1,64 @@
+{
+  "model_type": "keypoints",
+  "chip_type": "BM1688",
+  "algorithm_code": "1000016",
+  "version": "V1",
+  "reduce": "",
+  "models": [
+    {
+      "name": "FaceLandmark",
+      "file_name": "modified_ONet_landmark_2020-03-01-03-05-13_onet_epoch_42_v2.onnx",
+      "file_md5": "",
+      "max_batch": 1,
+      "inputs": [
+        {
+          "name": "actual_input_1",
+          "shape": [
+            -1,
+            3,
+            48,
+            48
+          ],
+          "data_type": 0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "landmark",
+          "shape": [
+            -1,
+            10
+          ],
+          "data_type": 0
+        }
+      ],
+      "params": {
+        "crop": true,
+        "crop_h_top": 0.0,
+        "crop_h_bottom": 0.0,
+        "crop_w_left": 0.0,
+        "crop_w_right": 0.0,
+        "square": false,
+        "square_mode": 0,
+        "input_size": [
+          48,
+          48
+        ],
+        "padding_color": [
+          0,
+          0,
+          0
+        ],
+        "normalize_mean": [
+          127.5,
+          127.5,
+          127.5
+        ],
+        "normalize_scale": 0.0078125,
+        "is_bgr": true,
+        "gravity": 0
+      }
+    }
+  ],
+  "labels": []
+}

@@ -1,0 +1,70 @@
+{
+  "model_type": "qwen3_5",
+  "chip_type": "BM1688",
+  "algorithm_code": "7000001",
+  "version": "V1",
+  "reduce": "",
+  "models": [
+    {
+      "name": "Qwen3_5",
+      "file_name": "qwen3_5.bmodel",
+      "file_md5": "",
+      "max_batch": 1,
+      "inputs": [
+        {
+          "name": "image",
+          "shape": [
+            1,
+            3,
+            224,
+            224
+          ],
+          "data_type": 0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "shape": [
+            1,
+            1
+          ],
+          "data_type": 0
+        }
+      ],
+      "params": {}
+    }
+  ],
+  "labels": [],
+  "config": {
+    "face_info": null,
+    "instruction": null,
+    "config_dir": "",
+    "tokenizer_file": "tokenizer.json",
+    "model_params": {
+      "image_token_id": 248056,
+      "video_token_id": 248057,
+      "vision_start_token_id": 248053,
+      "vision_end_token_id": 248054,
+      "patch_size": 16,
+      "spatial_merge_size": 2,
+      "temporal_patch_size": 2,
+      "max_pixels": 301056
+    },
+    "generation": {
+      "do_sample": false,
+      "top_k": 20,
+      "top_p": 0.8,
+      "temperature": 0.7,
+      "repetition_penalty": 1.0,
+      "eos_token_id": [
+        248046,
+        248044
+      ],
+      "bos_token_id": 248044,
+      "pad_token_id": 248044,
+      "stop_strings": [],
+      "transformers_version": "4.57.0.dev0"
+    }
+  }
+}

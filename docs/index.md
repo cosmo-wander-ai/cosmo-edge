@@ -13,26 +13,29 @@ hero:
       text: 开始五卷教程
       link: /tutorials/
     - theme: alt
-      text: GitHub 仓库
-      link: https://github.com/cosmo-wander-ai/cosmo-edge
+      text: 构建指南
+      link: /guide/build
 
 features:
   - title: 教程
     details: 按卷组织，从设备上手、场景配置、VLM / DINO、Pipeline 编排到第三方模型移植。
-  - title: 对接文档（规划中）
-    details: 后续承载 REST API、MQTT、HTTP webhook、事件结构和配置 schema 等接口契约。
-  - title: 开源文档（规划中）
-    details: README、贡献指南、行为准则、协议和安全说明作为开源项目入口材料。
+  - title: 构建、部署与排障
+    details: 记录当前确认的 x86 Docker、Sophon 发布包、运行目录、端口、服务进程、运行配置和故障排查。
+  - title: 参考与开发
+    details: 覆盖 API 类别、模型资源、前端工程、C++ 后端开发和 CI 质量检查入口。
 ---
 
 ## 当前内容
 
-第一版文档站先接入现有五卷教程，保持内容可读、可搜索、可通过 GitHub Pages 发布。对接文档、API 参考、部署指南和开源治理文档会在后续版本逐步补齐。
+第一版文档站接入现有五卷教程，并补充当前项目可确认的构建、部署、架构、API、模型资源和开发入口。教程中部分内容会随着公开仓库整合继续完善；构建和部署类文档以当前仓库脚本为准。
 
 ## 阅读路径
 
-1. 第一次体验 CosmoEdge，请从[卷一：快速上手](/tutorials/01-quickstart/quickstart)开始。
-2. 已经能进入系统并看到检测结果，请继续阅读[卷二：场景配置](/tutorials/02-scenario-config/scenario-config)。
-3. 需要使用 VLM 或 DINO 能力，请阅读[卷三：VLM / DINO 指南](/tutorials/03-vlm-guide/vlm-guide)。
-4. 需要自定义算法链路，请阅读[卷四：Pipeline 编排](/tutorials/04-pipeline-orchestration/pipeline-orchestration)。
-5. 需要接入第三方模型，请阅读[卷五：模型移植](/tutorials/05-model-porting/model-porting)。
+1. 第一次体验 CosmoEdge，请从[卷一：快速上手](tutorials/01-quickstart/quickstart.md)开始。
+2. 需要确认当前构建命令，请阅读[构建指南](guide/build.md)。
+3. 需要了解运行目录、端口和服务进程，请阅读[部署指南](guide/deployment.md)。
+4. 需要理解项目结构，请阅读[架构概览](guide/architecture.md)。
+5. 需要排查运行问题，请阅读[故障排查](guide/troubleshooting.md)。
+6. 需要对接接口或模型资源，请阅读[API 概览](reference/api.md)、[字段级 API 参考](reference/api-fields.md)、[MQTT 接入参考](reference/mqtt.md)、[HTTP Webhook 参考](reference/webhook.md)和[模型与资源](reference/models.md)。
+7. 需要参与开发，请阅读[前端工程](development/frontend.md)、[后端开发](development/backend.md)和[CI 与质量检查](development/ci.md)。
+8. 准备公开发布前，请阅读[开源发布清单](project/open-source-checklist.md)、[敏感信息公开前检查](project/sensitive-data-review.md)、[安全说明](project/security.md)、[第三方依赖与许可证](project/third-party-licenses.md)、[发布说明](project/release-notes.md)、[仓库元数据](project/repository-metadata.md)、[公开验证报告](project/validation.md)和[性能基准复现说明](project/benchmarks.md)。

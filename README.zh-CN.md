@@ -2,7 +2,7 @@
 Repository metadata suggestion:
 
 Description:
-Production-grade C++ edge AI engine for video analytics, with visual pipeline orchestration and on-device VLM support.
+C++ native industrial edge AI engine with visual pipeline orchestration, on-device VLM support, and real-time OSD for video analytics.
 
 Topics:
 cpp, c-plus-plus, computer-vision, video-analytics, edge-ai, edge-computing,
@@ -19,7 +19,7 @@ vision-language-model, vlm, sophon, bm1688, real-time
 
 # CosmoEdge
 
-**面向视频智能分析的生产级 C++ 边缘 AI 引擎，支持可视化流水线编排与端侧 VLM**
+**C++ 原生工业边缘 AI 引擎，支持可视化流水线编排**
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)](LICENSE)
 [![Runtime](https://img.shields.io/badge/runtime-C%2B%2B17-orange?style=flat-square)](#c-原生运行时)
@@ -201,8 +201,8 @@ CosmoEdge 使用 ONNX 作为模型交换格式。来自主流 CV 训练框架的
 
 CosmoEdge 运行在 Sophon BM1688 推理栈上。SOPHGO 官方模型仓库中的模型可以通过模型适配指南接入，指南会覆盖后处理适配和流水线节点注册。
 
--> [SOPHGO Model Zoo (sophon-demo)](https://github.com/sophgo/sophon-demo)  
--> [CosmoEdge Model Porting Guide](docs/model-porting.md)
+-> [SOPHGO Model Zoo (sophon-demo)](https://github.com/sophgo/sophon-demo)
+-> [CosmoEdge Model Porting Guide](docs/tutorials/05-model-porting/model-porting.md)
 
 ## 快速开始
 
@@ -213,15 +213,12 @@ CosmoEdge 运行在 Sophon BM1688 推理栈上。SOPHGO 官方模型仓库中的
 ```bash
 # 1. Clone
 git clone https://github.com/cosmo-wander-ai/cosmo-edge.git
-cd cosmoedge
+cd cosmo-edge
 
 # 2. 启动 x86 模式
 # TODO: 确认最终公开启动命令。
 # 首选发布目标：
-docker compose -f docker-compose.x86.yml up -d
-
-# 如果 Docker 方案尚未就绪，可使用备选脚本：
-# ./scripts/start_x86.sh
+docker compose -f docker-compose.x86.yml up -d --build
 
 # 3. 打开 Web 控制台
 # http://localhost:8080
@@ -240,21 +237,22 @@ docker compose -f docker-compose.x86.yml up -d
 ```bash
 # 1. Clone
 git clone https://github.com/cosmo-wander-ai/cosmo-edge.git
-cd cosmoedge
+cd cosmo-edge
 
-# 2. 针对 Sophon 构建
-mkdir build && cd build
-cmake .. -DPLATFORM=SOPHON -DCMAKE_TOOLCHAIN_FILE=../cmake/sophon.toolchain.cmake
-make -j$(nproc)
+# 2. 构建 Sophon/aarch64 发布包
+bash scripts/build_sophon_package.sh
 
-# 3. 部署
-./scripts/deploy.sh --target <device-ip>
-
-# 4. 打开 Web 控制台
-# http://<device-ip>:8080
+# 3. 查看导出的发布包
+ls -lh build_output/
 ```
 
-> 准备用于生产硬件？认证 CosmoEdge 设备提供预配置 Sophon 加速、生产模型包和部署支持。参见 [CosmoEdge-ready 设备](#cosmoedge-ready-设备)。
+Windows PowerShell：
+
+```powershell
+.\scripts\build_sophon_package.ps1
+```
+
+该路径用于构建并导出发布包，不会直接启动服务。准备用于生产硬件？认证 CosmoEdge 设备提供预配置 Sophon 加速、生产模型包和部署支持。参见 [CosmoEdge-ready 设备](#cosmoedge-ready-设备)。
 
 ## 典型场景
 
@@ -363,16 +361,34 @@ CosmoEdge 是开源项目。仓库提供认证设备包所使用的同一套引�
 
 | 文档 | 读者 | 说明 |
 | --- | --- | --- |
-| Quick Start Guide | 所有用户 | 几分钟内完成首次体验 |
-| Scenario Configuration | 集成商 | 构建场景级 AI 工作流 |
-| VLM Guide | 开发者 | 使用提示词完成视觉状态判断 |
-| Pipeline Orchestration | 高级用户 | 可视化编排自定义流水线 |
-| Model Porting Guide | 算法工程师 | 接入自有 ONNX 或目标格式模型 |
-| API Reference | 开发者 | REST API、MQTT 事件、配置 schema |
-| Architecture Overview | 贡献者 | 引擎内部结构和扩展点 |
-| Deployment Guide | DevOps | 生产部署和故障排查 |
-
-<!-- TODO: 文档路径确定后，将上表替换为真实链接。 -->
+| [Quick Start Guide](docs/tutorials/01-quickstart/quickstart.md) | 所有用户 | 几分钟内完成首次体验 |
+| [Scenario Configuration](docs/tutorials/02-scenario-config/scenario-config.md) | 集成商 | 构建场景级 AI 工作流 |
+| [VLM Guide](docs/tutorials/03-vlm-guide/vlm-guide.md) | 开发者 | 使用提示词完成视觉状态判断 |
+| [Pipeline Orchestration](docs/tutorials/04-pipeline-orchestration/pipeline-orchestration.md) | 高级用户 | 可视化编排自定义流水线 |
+| [Model Porting Guide](docs/tutorials/05-model-porting/model-porting.md) | 算法工程师 | 接入自有 ONNX 或目标格式模型 |
+| [构建指南](docs/guide/build.md) | 开发者 | 当前确认的 x86 Docker 和 Sophon 发布包构建路径 |
+| [部署指南](docs/guide/deployment.md) | DevOps | 运行目录、端口、进程、发布包和 systemd |
+| [运行配置](docs/guide/configuration.md) | 运维人员 | 环境变量、资源路径、端口、日志和运行默认值 |
+| [故障排查](docs/guide/troubleshooting.md) | 运维人员 | 构建、运行、端口、Sophon 镜像和文档站常见问题 |
+| [API 概览](docs/reference/api.md) | 开发者 | 当前 REST/WebSocket/MQTT-facing API 类别 |
+| [字段级 API 参考](docs/reference/api-fields.md) | 集成商 | 通用响应、事件、HTTP 推送、MQTT 和 IoT 网络字段 |
+| [MQTT 接入参考](docs/reference/mqtt.md) | 集成商 | MQTT topic、外层消息、注册、心跳、下发请求和响应 |
+| [HTTP Webhook 参考](docs/reference/webhook.md) | 集成商 | 事件推送配置、负载字段和接收端建议 |
+| [架构概览](docs/guide/architecture.md) | 贡献者 | 引擎内部结构和扩展点 |
+| [前端工程](docs/development/frontend.md) | 前端开发者 | Vue 3 前端结构和脚本 |
+| [后端开发](docs/development/backend.md) | C++ 开发者 | 后端模块、CMake 选项和测试 |
+| [CI 与质量检查](docs/development/ci.md) | 贡献者 | 文档站、前端、C++ 格式、静态分析和发布检查入口 |
+| [开源发布清单](docs/project/open-source-checklist.md) | 维护者 | GitHub 发布前的就绪检查 |
+| [敏感信息公开前检查](docs/project/sensitive-data-review.md) | 维护者 | 发布前扫描流程、复核表和资源公开清单 |
+| [安全说明](docs/project/security.md) | 维护者 | 敏感信息、运行暴露、依赖和漏洞披露说明 |
+| [第三方依赖与许可证](docs/project/third-party-licenses.md) | 维护者 | 依赖来源、codec 风险、二进制风险和许可证审计清单 |
+| [Security Policy](SECURITY.md) | 维护者 | 漏洞报告和部署安全说明 |
+| [Notice](NOTICE) | 维护者 | 项目 notice 和第三方 attribution 占位说明 |
+| [Changelog](CHANGELOG.md) | 维护者 | 公开变更历史和发布准备说明 |
+| [发布说明](docs/project/release-notes.md) | 维护者 | 发布检查、已知限制和 v0.1.0 准备说明 |
+| [仓库元数据](docs/project/repository-metadata.md) | 维护者 | GitHub description、topics、homepage、Pages 和 release 配置 |
+| [公开验证报告](docs/project/validation.md) | 维护者 | 公开验证范围、内部验证边界和证据清单 |
+| [性能基准复现说明](docs/project/benchmarks.md) | 维护者 | 基准测试环境、指标、负载和结果模板 |
 
 ## 路线图
 
@@ -382,8 +398,9 @@ CosmoEdge 是开源项目。仓库提供认证设备包所使用的同一套引�
 - [X] x86 Linux 和 Windows 开发模式
 - [X] VLM 与 GroundingDINO 集成
 - [X] 18 条 CV 流水线完成内部验证
+- [X] 公开验证和性能基准文档框架
 - [ ] 公开 x86 一键启动方案
-- [ ] 公开验证报告
+- [ ] 公开可复现基准数据集和报告
 - [ ] v1.0 发布打包
 - [ ] 社区模型和场景示例
 - [ ] GB28181 协议支持
@@ -439,7 +456,7 @@ CosmoEdge 把三层能力组合在一个边缘系统中：C++ 视频 AI 运行�
 ## 联系方式
 
 - Community: [GitHub Discussions](https://github.com/cosmo-wander-ai/cosmo-edge/discussions)
-- Partnership & Enterprise: hello@cosmowander.ai
+- Partnership & Enterprise: cosmoedge@cosmowanderer.com
 
 ## License
 

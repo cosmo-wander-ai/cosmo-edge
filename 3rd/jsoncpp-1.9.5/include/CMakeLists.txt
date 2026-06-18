@@ -1,0 +1,7 @@
+file(GLOB INCLUDE_FILES "json/*.h")
+
+if(BUILD_STATIC_LIBS OR BUILD_SHARED_LIBS)
+    install(FILES
+        ${INCLUDE_FILES}
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/json)
+endif()

@@ -1,0 +1,30 @@
+{
+  "algorithmId": "2935",
+  "algorithmCode": 2935,
+  "algorithmName": "检测大模型",
+  "algorithmCategory": 2,
+  "algorithmUsage": 2,
+  "checkType": 10854,
+  "createTime": 1776073102000,
+  "updateTime": 1776073102000,
+  "confVersionId": "default-2935",
+  "algorithmMetadata": "{\"params\":[],\"region\":{\"heads\":[{\"defaultValue\":\"\",\"description\":\"区域名称：必填，限制32字符\",\"failedTip\":\"请输入长度小于32位且不包含空格的字符串\",\"isColumn\":true,\"key\":\"name\",\"name\":\"区域名称\",\"options\":null,\"range\":\"\",\"regexpr\":\"/^\\\\S{1,32}$/\",\"step\":null,\"type\":\"text\",\"descriptionI18nKey\":\"resource.param.2935.2935.name.description\",\"failedTipI18nKey\":\"resource.param.2935.2935.name.failedtip\",\"nameI18nKey\":\"resource.param.2935.2935.name.name\"}],\"areasTitle\":null},\"regionType\":\"hexagon\",\"scheduleSupport\":false,\"enableShieldedRegion\":false,\"maxAreaCount\":4,\"defaultFullScreen\":false}",
+  "configVersionList": [
+    {
+      "id": "default-2935",
+      "name": "默认",
+      "algorithmCode": "2935",
+      "algorithmMetadata": "{\"params\":[],\"region\":{\"heads\":[{\"defaultValue\":\"\",\"description\":\"区域名称：必填，限制32字符\",\"failedTip\":\"请输入长度小于32位且不包含空格的字符串\",\"isColumn\":true,\"key\":\"name\",\"name\":\"区域名称\",\"options\":null,\"range\":\"\",\"regexpr\":\"/^\\\\S{1,32}$/\",\"step\":null,\"type\":\"text\",\"descriptionI18nKey\":\"resource.param.2935.2935.name.description\",\"failedTipI18nKey\":\"resource.param.2935.2935.name.failedtip\",\"nameI18nKey\":\"resource.param.2935.2935.name.name\"}],\"areasTitle\":null},\"regionType\":\"hexagon\",\"scheduleSupport\":false,\"enableShieldedRegion\":false,\"maxAreaCount\":4,\"defaultFullScreen\":false}",
+      "algorithmProcessdata": "[{\"actionId\":\"PDA_00001\",\"actionName\":\"检测视觉大模型\",\"remark\":\"\",\"flowActionId\":\"0c349519\",\"preFlowActionId\":\"-1\",\"configObject\":{\"webConfig\":{\"labelList\":[],\"labelFilterList\":[],\"metaDataParams\":[],\"atomic\":{\"atomicCode\":\"8888890\",\"atomicName\":\"dino2\",\"position\":\"0c349519\",\"labelList\":[]}},\"params\":[{\"key\":\"atomicCode\",\"value\":\"8888890\"},{\"key\":\"keywords\",\"value\":\"person\"},{\"key\":\"aiParam.box.confidence\",\"value\":\"0.25\"},{\"key\":\"aiParam.text.confidence\",\"value\":\"0.3\"}]},\"actionNameI18nKey\":\"resource.action.2935.pda_00001.0c349519.actionname\"}]",
+      "atomicList": "[{\"position\":\"0c349519\",\"atomicCode\":\"8888890\",\"atomicName\":\"dino2\",\"labelList\":[]}]",
+      "algorithmUpdateTime": 1776073620000,
+      "remark": "",
+      "nameI18nKey": "resource.param.2935.2935.0.name"
+    }
+  ],
+  "algorithmProcessdata": "[{\"actionId\":\"PDA_00001\",\"actionName\":\"检测视觉大模型\",\"remark\":\"\",\"flowActionId\":\"0c349519\",\"preFlowActionId\":\"-1\",\"configObject\":{\"webConfig\":{\"labelList\":[],\"labelFilterList\":[],\"metaDataParams\":[],\"atomic\":{\"atomicCode\":\"8888890\",\"atomicName\":\"dino2\",\"position\":\"0c349519\",\"labelList\":[]}},\"params\":[{\"key\":\"atomicCode\",\"value\":\"8888890\"},{\"key\":\"keywords\",\"value\":\"person\"},{\"key\":\"aiParam.box.confidence\",\"value\":\"0.25\"},{\"key\":\"aiParam.text.confidence\",\"value\":\"0.3\"}]},\"actionNameI18nKey\":\"resource.action.2935.pda_00001.0c349519.actionname\"}]",
+  "atomicList": "[{\"position\":\"0c349519\",\"atomicCode\":\"8888890\",\"atomicName\":\"dino2\",\"labelList\":[]}]",
+  "remark": "",
+  "description": "",
+  "algorithmNameI18nKey": "resource.algorithm.2935.algorithmname"
+}

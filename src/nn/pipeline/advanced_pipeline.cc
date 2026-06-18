@@ -1,0 +1,728 @@
+#include "nn/pipeline/advanced_pipeline.h"
+
+#include <algorithm>
+#include <fstream>
+
+#include "json/json.h"
+#include "nn/core/shared_resource.h"
+#include "nn/pipeline/pipeline_utils.h"
+
+#ifdef COSMO_NN_USE_SOPHON_BACKEND
+#include "nn/device/sophon/qwen3vl/qwen3vl_runner_factory.h"
+#endif
+
+namespace cosmo::nn {
+
+// ========================= SAM2 ===========================================
+
+Status SAM2Pipeline::Init(const PipelineConfig& config, const std::string& model_path, DeviceType device_type,
+                          int device_id, IProfiler* profiler, const std::string& tokenizer_path,
+                          const std::string& word_table_path, bool use_skip) {
+    model_info_.algorithmcode = config.algorithm_code;
+    model_info_.reduce        = "sequential";
+    model_info_.type          = "SAM2";
+
+    if (config.models.size() < 2)
+        return Status(COSMO_NN_ERR_PARAM, "SAM2 requires at least 2 models (encoder + decoder)");
+
+    // --- Encoder ---
+    {
+        auto& mc = config.models[0];
+        Json::Value p(Json::objectValue);
+        if (!mc.params_json.empty()) {
+            Json::Reader r;
+            r.parse(mc.params_json, p);
+        }
+
+        ModelInfo model;
+        model.name      = mc.name;
+        model.filename  = mc.file_name;
+        model.file_md5  = mc.file_md5;
+        model.max_batch = mc.max_batch;
+        max_batch_      = mc.max_batch;
+
+        std::vector<int> enc_size = {1024, 1024};
+        if (p.isMember("input_size") && p["input_size"].isArray()) {
+            enc_size.clear();
+            for (unsigned i = 0; i < p["input_size"].size(); i++)
+                enc_size.push_back(p["input_size"][i].asInt());
+        }
+        std::vector<float> mean = {123.675f, 116.28f, 103.53f};
+        if (p.isMember("normalize_mean") && p["normalize_mean"].isArray()) {
+            mean.clear();
+            for (unsigned i = 0; i < p["normalize_mean"].size(); i++)
+                mean.push_back(p["normalize_mean"][i].asFloat());
+        }
+        std::vector<float> std_dev = {58.395f, 57.12f, 57.375f};
+        if (p.isMember("normalize_std") && p["normalize_std"].isArray()) {
+            std_dev.clear();
+            for (unsigned i = 0; i < p["normalize_std"].size(); i++)
+                std_dev.push_back(p["normalize_std"][i].asFloat());
+        }
+        bool is_bgr = p.get("is_bgr", false).asBool();
+
+        std::vector<Op*> preprocess;
+        preprocess.push_back(pipeline_utils::MakeResizeOp(enc_size, 0, {0, 0, 0}));
+        preprocess.push_back(pipeline_utils::MakeNormalizeOp(mean, 0.0f, is_bgr, std_dev));
+
+        for (auto& in_def : mc.inputs) {
+            InputNodeInfo input;
+            input.name      = in_def.name;
+            input.shape     = in_def.shape;
+            input.data_type = in_def.data_type;
+            input.ops       = preprocess;
+            model.input_node_infos.push_back(input);
+        }
+        for (auto& out_def : mc.outputs) {
+            OutputNodeInfo output;
+            output.name      = out_def.name;
+            output.shape     = out_def.shape;
+            output.data_type = out_def.data_type;
+            output.op        = nullptr;
+            model.output_node_infos.push_back(output);
+        }
+        model_info_.models.push_back(model);
+    }
+
+    // --- Decoder ---
+    {
+        auto& mc = config.models[1];
+        Json::Value p(Json::objectValue);
+        if (!mc.params_json.empty()) {
+            Json::Reader r;
+            r.parse(mc.params_json, p);
+        }
+
+        ModelInfo model;
+        model.name      = mc.name;
+        model.filename  = mc.file_name;
+        model.file_md5  = mc.file_md5;
+        model.max_batch = mc.max_batch;
+
+        std::string prompt_type = p.get("prompt_type", "point").asString();
+        bool normalize_prompt   = p.get("normalize_prompt", true).asBool();
+        int encoder_size        = p.get("encoder_size", 1024).asInt();
+        int max_points          = p.get("max_points", 6).asInt();
+
+        for (auto& in_def : mc.inputs) {
+            InputNodeInfo input;
+            input.name      = in_def.name;
+            input.shape     = in_def.shape;
+            input.data_type = in_def.data_type;
+            if (in_def.name == "point_coords" || in_def.name.find("prompt") != std::string::npos) {
+                input.ops.push_back(pipeline_utils::MakeSAMPromptEncodeOp(prompt_type, normalize_prompt,
+                                                                          encoder_size, max_points));
+            }
+            model.input_node_infos.push_back(input);
+        }
+
+        float sam_threshold          = p.get("threshold", 0.0f).asFloat();
+        std::vector<int> output_size = {1024, 1024};
+        if (p.isMember("output_size") && p["output_size"].isArray()) {
+            output_size.clear();
+            for (unsigned i = 0; i < p["output_size"].size(); i++)
+                output_size.push_back(p["output_size"][i].asInt());
+        }
+
+        for (auto& out_def : mc.outputs) {
+            OutputNodeInfo output;
+            output.name      = out_def.name;
+            output.shape     = out_def.shape;
+            output.data_type = out_def.data_type;
+            if (out_def.name.find("mask") != std::string::npos ||
+                out_def.name.find("Clip") != std::string::npos) {
+                output.op = pipeline_utils::MakeSAMDecodeOp(sam_threshold, output_size);
+            }
+            model.output_node_infos.push_back(output);
+        }
+        model_info_.models.push_back(model);
+    }
+
+    if (!config.labels.empty()) {
+        pipeline_utils::BuildInstructionsFromLabels(config.labels, "masks", {-1, -1, -1}, model_info_.config);
+    }
+
+    InitThresholdsAndLabels();
+    InitNetInputSize();
+    return InitGraph(model_path, device_type, device_id, profiler, tokenizer_path, use_skip);
+}
+
+Status SAM2Pipeline::Forward(std::initializer_list<std::vector<std::shared_ptr<Blob>>> inputs) {
+    RETURN_ON_FAIL(RunGraph(inputs));
+
+    auto iter = inputs.begin();
+    image_sizes_.clear();
+    for (size_t i = 0; i < iter->size(); i++) {
+        auto dims   = iter->at(i)->GetBlobDesc().dims;
+        auto layout = iter->at(i)->GetBlobDesc().data_format;
+        Size size;
+        RETURN_ON_FAIL(NetUtils::GetImageSize(dims, layout, size));
+        image_sizes_.push_back(size);
+    }
+
+    if (inputs.size() == 2) {
+        iter++;
+        rects_.clear();
+        for (size_t i = 0; i < iter->size(); i++) {
+            auto blob     = iter->at(i);
+            auto dims     = blob->GetBlobDesc().dims;
+            const int n   = dims.at(0);
+            int32_t* data = (int32_t*)blob->GetHandle().base;
+            for (int j = 0; j < n; j++) {
+                Rect2i r;
+                r.x      = data[j * 4];
+                r.y      = data[j * 4 + 1];
+                r.width  = data[j * 4 + 2];
+                r.height = data[j * 4 + 3];
+                rects_.push_back(r);
+            }
+        }
+    }
+    return COSMO_NN_OK;
+}
+
+Status SAM2Pipeline::ParseSegmentationOutput(std::vector<std::vector<uint8_t>>& outputs) {
+    outputs.clear();
+    auto output_blobs = GetGraphOutput();
+    if (output_blobs.size() != 1)
+        return COSMO_NN_OK;
+
+    auto blob       = output_blobs.at(0);
+    auto desc       = blob->GetBlobDesc();
+    auto dims       = desc.dims;
+    auto handle     = blob->GetHandle();
+    const int batch = dims.at(0);
+
+    if (dims.size() == 3) {
+        int h = dims[1], w = dims[2];
+        uint8_t* data = reinterpret_cast<uint8_t*>(handle.base);
+        for (int b = 0; b < batch; b++) {
+            auto origin = image_sizes_.at(b);
+            std::vector<uint8_t> resized(origin.width * origin.height);
+            NetUtils::MaskScale(data + b * h * w, w, h, resized.data(), origin.width, origin.height, 1);
+            outputs.push_back(resized);
+        }
+    } else if (dims.size() == 4) {
+        float* data  = reinterpret_cast<float*>(handle.base);
+        size_t plane = dims[1] * dims[2] * dims[3];
+        size_t hw    = dims[2] * dims[3];
+        for (int b = 0; b < batch; b++) {
+            float* cur = data + b * plane;
+            std::vector<uint8_t> mask;
+            for (size_t i = 0; i < hw; i++) {
+                std::vector<float> tmp;
+                for (size_t c = 0; c < static_cast<size_t>(dims[1]); c++)
+                    tmp.push_back(cur[c * hw + i]);
+                mask.push_back(static_cast<uint8_t>(
+                    std::distance(tmp.begin(), std::max_element(tmp.begin(), tmp.end()))));
+            }
+            auto origin = image_sizes_.at(b);
+            std::vector<uint8_t> resized(origin.width * origin.height * dims[1]);
+            NetUtils::MaskScale(mask.data(), dims[3], dims[2], resized.data(), origin.width, origin.height,
+                                dims[1]);
+            outputs.push_back(resized);
+        }
+    }
+    return COSMO_NN_OK;
+}
+
+// ========================= GroundingDINO ==================================
+
+Status DinoPipeline::Init(const PipelineConfig& config, const std::string& model_path, DeviceType device_type,
+                          int device_id, IProfiler* profiler, const std::string& tokenizer_path,
+                          const std::string& word_table_path, bool use_skip) {
+    model_info_.algorithmcode = config.algorithm_code;
+    model_info_.reduce        = config.reduce;
+    model_info_.type          = "dino";
+
+    for (auto& mc : config.models) {
+        Json::Value p(Json::objectValue);
+        if (!mc.params_json.empty()) {
+            Json::Reader r;
+            r.parse(mc.params_json, p);
+        }
+
+        ModelInfo model;
+        model.name      = mc.name;
+        model.filename  = mc.file_name;
+        model.file_md5  = mc.file_md5;
+        model.max_batch = mc.max_batch;
+        max_batch_      = mc.max_batch;
+
+        int dst_w   = p.get("input_width", 800).asInt();
+        int dst_h   = p.get("input_height", 800).asInt();
+        bool is_bgr = p.get("is_bgr", false).asBool();
+
+        std::vector<float> mean = {0.485f, 0.456f, 0.406f};
+        if (p.isMember("normalize_mean") && p["normalize_mean"].isArray()) {
+            mean.clear();
+            for (unsigned i = 0; i < p["normalize_mean"].size(); i++)
+                mean.push_back(p["normalize_mean"][i].asFloat());
+        }
+        std::vector<float> std_dev = {0.229f, 0.224f, 0.225f};
+        if (p.isMember("normalize_std") && p["normalize_std"].isArray()) {
+            std_dev.clear();
+            for (unsigned i = 0; i < p["normalize_std"].size(); i++)
+                std_dev.push_back(p["normalize_std"][i].asFloat());
+        }
+        float text_threshold = p.get("text_threshold", 0.25f).asFloat();
+        float box_threshold  = p.get("box_threshold", 0.3f).asFloat();
+
+        bool first_input = true;
+        for (auto& in_def : mc.inputs) {
+            InputNodeInfo input;
+            input.name      = in_def.name;
+            input.shape     = in_def.shape;
+            input.data_type = in_def.data_type;
+            if (first_input) {
+                input.ops.push_back(pipeline_utils::MakeDinoEncoderOp(dst_w, dst_h, is_bgr, mean, std_dev));
+                first_input = false;
+            }
+            model.input_node_infos.push_back(input);
+        }
+        bool first_output = true;
+        for (auto& out_def : mc.outputs) {
+            OutputNodeInfo output;
+            output.name      = out_def.name;
+            output.shape     = out_def.shape;
+            output.data_type = out_def.data_type;
+            if (first_output) {
+                output.op    = pipeline_utils::MakeDinoDecodeOp(text_threshold, box_threshold);
+                first_output = false;
+            }
+            model.output_node_infos.push_back(output);
+        }
+        model_info_.models.push_back(model);
+    }
+
+    InitThresholdsAndLabels();
+    InitNetInputSize();
+    return InitGraph(model_path, device_type, device_id, profiler, tokenizer_path, use_skip);
+}
+
+Status DinoPipeline::Forward(std::initializer_list<std::vector<std::shared_ptr<Blob>>> inputs) {
+    RETURN_ON_FAIL(RunGraph(inputs));
+
+    auto iter = inputs.begin();
+    image_sizes_.clear();
+    for (size_t i = 0; i < iter->size(); i++) {
+        auto dims   = iter->at(i)->GetBlobDesc().dims;
+        auto layout = iter->at(i)->GetBlobDesc().data_format;
+        Size size;
+        RETURN_ON_FAIL(NetUtils::GetImageSize(dims, layout, size));
+        image_sizes_.push_back(size);
+    }
+    return COSMO_NN_OK;
+}
+
+Status DinoPipeline::ParseDetectionOutput(std::vector<std::vector<ObjectInfoV1>>& outputs) {
+    outputs.clear();
+    auto shared = reinterpret_cast<SharedResource*>(GetSharedResource());
+    if (!shared)
+        return Status(COSMO_NN_ERR_NET, "SharedResource is null");
+    std::vector<std::shared_ptr<Blob>> output_blobs = GetGraphOutput();
+    return NetUtils::ParseDINOOutput(output_blobs, shared->tokenizer_handle, image_sizes_,
+                                     shared->prompt_token_ids, shared->text_threshold, shared->box_threshold,
+                                     outputs);
+}
+
+// ========================= Qwen3VL =======================================
+
+Qwen3VLPipeline::~Qwen3VLPipeline() {
+#ifdef COSMO_NN_USE_SOPHON_BACKEND
+    if (runner_) {
+        Qwen3VLRunner_Destroy(reinterpret_cast<Qwen3VLRunner*>(runner_));
+        runner_ = nullptr;
+    }
+#endif
+}
+
+Status Qwen3VLPipeline::Init(const PipelineConfig& config, const std::string& model_path,
+                             DeviceType device_type, int device_id, IProfiler* profiler,
+                             const std::string& tokenizer_path, const std::string& word_table_path,
+                             bool use_skip) {
+#ifdef COSMO_NN_USE_SOPHON_BACKEND
+    model_info_.type  = "qwen3vl";
+    auto* qwen_runner = Qwen3VLRunner_Create();
+    std::string mp    = model_path;
+    std::string tp    = tokenizer_path;
+    auto status       = Qwen3VLRunner_Init(qwen_runner, mp, tp, device_id, config.extra_config_json);
+    if (!bool(status)) {
+        Qwen3VLRunner_Destroy(qwen_runner);
+        return status;
+    }
+    runner_ = qwen_runner;
+    return COSMO_NN_OK;
+#else
+    return Status(COSMO_NN_ERR_NET, "Qwen3VL requires COSMO_NN_USE_SOPHON_BACKEND");
+#endif
+}
+
+Status Qwen3VLPipeline::Forward(std::initializer_list<std::vector<std::shared_ptr<Blob>>> inputs) {
+#ifdef COSMO_NN_USE_SOPHON_BACKEND
+    std::vector<std::vector<std::shared_ptr<Blob>>> inputs_vec(inputs);
+    return Qwen3VLRunner_Run(reinterpret_cast<Qwen3VLRunner*>(runner_), inputs_vec);
+#else
+    return Status(COSMO_NN_ERR_NET, "Qwen3VL requires COSMO_NN_USE_SOPHON_BACKEND");
+#endif
+}
+
+int Qwen3VLPipeline::GetMaxBatchSize() const {
+#ifdef COSMO_NN_USE_SOPHON_BACKEND
+    if (runner_)
+        return Qwen3VLRunner_GetMaxBatchSize(reinterpret_cast<Qwen3VLRunner*>(runner_));
+#endif
+    return 1;
+}
+
+Status Qwen3VLPipeline::ParseTextOutput(std::vector<std::vector<std::string>>& outputs) {
+#ifdef COSMO_NN_USE_SOPHON_BACKEND
+    outputs = Qwen3VLRunner_GetTextOutputs(reinterpret_cast<Qwen3VLRunner*>(runner_));
+    return COSMO_NN_OK;
+#else
+    return Status(COSMO_NN_ERR_NET, "Qwen3VL requires COSMO_NN_USE_SOPHON_BACKEND");
+#endif
+}
+
+// ========================= Qwen3_5 =======================================
+
+Qwen3_5Pipeline::~Qwen3_5Pipeline() {
+#ifdef COSMO_NN_USE_SOPHON_BACKEND
+    if (runner_) {
+        Qwen3VLRunner_Destroy(reinterpret_cast<Qwen3VLRunner*>(runner_));
+        runner_ = nullptr;
+    }
+#endif
+}
+
+Status Qwen3_5Pipeline::Init(const PipelineConfig& config, const std::string& model_path,
+                             DeviceType device_type, int device_id, IProfiler* profiler,
+                             const std::string& tokenizer_path, const std::string& word_table_path,
+                             bool use_skip) {
+#ifdef COSMO_NN_USE_SOPHON_BACKEND
+    model_info_.type  = "qwen3_5";
+    auto* qwen_runner = Qwen3VLRunner_Create();
+    std::string mp    = model_path;
+    std::string tp    = tokenizer_path;
+    auto status = Qwen3VLRunner_Init(qwen_runner, mp, tp, device_id, config.extra_config_json, "qwen3_5");
+    if (!bool(status)) {
+        Qwen3VLRunner_Destroy(qwen_runner);
+        return status;
+    }
+    runner_ = qwen_runner;
+    return COSMO_NN_OK;
+#else
+    return Status(COSMO_NN_ERR_NET, "Qwen3_5 requires COSMO_NN_USE_SOPHON_BACKEND");
+#endif
+}
+
+Status Qwen3_5Pipeline::Forward(std::initializer_list<std::vector<std::shared_ptr<Blob>>> inputs) {
+#ifdef COSMO_NN_USE_SOPHON_BACKEND
+    std::vector<std::vector<std::shared_ptr<Blob>>> inputs_vec(inputs);
+    return Qwen3VLRunner_Run(reinterpret_cast<Qwen3VLRunner*>(runner_), inputs_vec);
+#else
+    return Status(COSMO_NN_ERR_NET, "Qwen3_5 requires COSMO_NN_USE_SOPHON_BACKEND");
+#endif
+}
+
+int Qwen3_5Pipeline::GetMaxBatchSize() const {
+#ifdef COSMO_NN_USE_SOPHON_BACKEND
+    if (runner_)
+        return Qwen3VLRunner_GetMaxBatchSize(reinterpret_cast<Qwen3VLRunner*>(runner_));
+#endif
+    return 1;
+}
+
+Status Qwen3_5Pipeline::ParseTextOutput(std::vector<std::vector<std::string>>& outputs) {
+#ifdef COSMO_NN_USE_SOPHON_BACKEND
+    outputs = Qwen3VLRunner_GetTextOutputs(reinterpret_cast<Qwen3VLRunner*>(runner_));
+    return COSMO_NN_OK;
+#else
+    return Status(COSMO_NN_ERR_NET, "Qwen3_5 requires COSMO_NN_USE_SOPHON_BACKEND");
+#endif
+}
+
+// ========================= Segmentation ==================================
+
+Status SegmentationPipeline::Init(const PipelineConfig& config, const std::string& model_path,
+                                  DeviceType device_type, int device_id, IProfiler* profiler,
+                                  const std::string& tokenizer_path, const std::string& word_table_path,
+                                  bool use_skip) {
+    model_info_.algorithmcode = config.algorithm_code;
+    model_info_.reduce        = config.reduce;
+    model_info_.type          = "segmentation";
+
+    for (auto& mc : config.models) {
+        Json::Value p(Json::objectValue);
+        if (!mc.params_json.empty()) {
+            Json::Reader r;
+            r.parse(mc.params_json, p);
+        }
+
+        ModelInfo model;
+        model.name      = mc.name;
+        model.filename  = mc.file_name;
+        model.file_md5  = mc.file_md5;
+        model.max_batch = mc.max_batch;
+        max_batch_      = mc.max_batch;
+
+        std::vector<int> dsize = {512, 512};
+        if (p.isMember("input_size") && p["input_size"].isArray()) {
+            dsize.clear();
+            for (unsigned i = 0; i < p["input_size"].size(); i++)
+                dsize.push_back(p["input_size"][i].asInt());
+        }
+        std::vector<float> mean = {0.f, 0.f, 0.f};
+        if (p.isMember("normalize_mean") && p["normalize_mean"].isArray()) {
+            mean.clear();
+            for (unsigned i = 0; i < p["normalize_mean"].size(); i++)
+                mean.push_back(p["normalize_mean"][i].asFloat());
+        }
+        float scale = p.get("normalize_scale", 0.00392157f).asFloat();
+        bool is_bgr = p.get("is_bgr", false).asBool();
+        std::vector<float> std_dev;
+        if (p.isMember("normalize_std") && p["normalize_std"].isArray())
+            for (unsigned i = 0; i < p["normalize_std"].size(); i++)
+                std_dev.push_back(p["normalize_std"][i].asFloat());
+
+        std::vector<Op*> preprocess;
+        preprocess.push_back(pipeline_utils::MakeResizeOp(dsize, 0, {0, 0, 0}));
+        preprocess.push_back(pipeline_utils::MakeNormalizeOp(mean, scale, is_bgr, std_dev));
+
+        for (auto& in_def : mc.inputs) {
+            InputNodeInfo input;
+            input.name      = in_def.name;
+            input.shape     = in_def.shape;
+            input.data_type = in_def.data_type;
+            input.ops       = preprocess;
+            model.input_node_infos.push_back(input);
+        }
+        for (auto& out_def : mc.outputs) {
+            OutputNodeInfo output;
+            output.name      = out_def.name;
+            output.shape     = out_def.shape;
+            output.data_type = out_def.data_type;
+            output.op        = nullptr;
+            model.output_node_infos.push_back(output);
+        }
+        model_info_.models.push_back(model);
+    }
+
+    InitThresholdsAndLabels();
+    InitNetInputSize();
+    return InitGraph(model_path, device_type, device_id, profiler, tokenizer_path, use_skip);
+}
+
+Status SegmentationPipeline::Forward(std::initializer_list<std::vector<std::shared_ptr<Blob>>> inputs) {
+    RETURN_ON_FAIL(RunGraph(inputs));
+
+    auto iter = inputs.begin();
+    image_sizes_.clear();
+    for (size_t i = 0; i < iter->size(); i++) {
+        auto dims   = iter->at(i)->GetBlobDesc().dims;
+        auto layout = iter->at(i)->GetBlobDesc().data_format;
+        Size size;
+        RETURN_ON_FAIL(NetUtils::GetImageSize(dims, layout, size));
+        image_sizes_.push_back(size);
+    }
+
+    if (inputs.size() == 2) {
+        iter++;
+        rects_.clear();
+        for (size_t i = 0; i < iter->size(); i++) {
+            auto blob     = iter->at(i);
+            auto dims     = blob->GetBlobDesc().dims;
+            const int n   = dims.at(0);
+            int32_t* data = (int32_t*)blob->GetHandle().base;
+            for (int j = 0; j < n; j++) {
+                Rect2i r;
+                r.x      = data[j * 4];
+                r.y      = data[j * 4 + 1];
+                r.width  = data[j * 4 + 2];
+                r.height = data[j * 4 + 3];
+                rects_.push_back(r);
+            }
+        }
+    }
+    return COSMO_NN_OK;
+}
+
+Status SegmentationPipeline::ParseSegmentationOutput(std::vector<std::vector<uint8_t>>& outputs) {
+    outputs.clear();
+    auto output_blobs = GetGraphOutput();
+    if (output_blobs.size() != 1)
+        return COSMO_NN_OK;
+
+    auto blob       = output_blobs.at(0);
+    auto desc       = blob->GetBlobDesc();
+    auto dims       = desc.dims;
+    auto handle     = blob->GetHandle();
+    const int batch = dims.at(0);
+
+    if (dims.size() == 3) {
+        int h = dims[1], w = dims[2];
+        uint8_t* data = reinterpret_cast<uint8_t*>(handle.base);
+        for (int b = 0; b < batch; b++) {
+            auto origin = image_sizes_.at(b);
+            std::vector<uint8_t> resized(origin.width * origin.height);
+            NetUtils::MaskScale(data + b * h * w, w, h, resized.data(), origin.width, origin.height, 1);
+            outputs.push_back(resized);
+        }
+    } else if (dims.size() == 4) {
+        float* data  = reinterpret_cast<float*>(handle.base);
+        size_t plane = dims[1] * dims[2] * dims[3];
+        size_t hw    = dims[2] * dims[3];
+        for (int b = 0; b < batch; b++) {
+            float* cur = data + b * plane;
+            std::vector<uint8_t> mask;
+            for (size_t i = 0; i < hw; i++) {
+                std::vector<float> tmp;
+                for (size_t c = 0; c < static_cast<size_t>(dims[1]); c++)
+                    tmp.push_back(cur[c * hw + i]);
+                mask.push_back(static_cast<uint8_t>(
+                    std::distance(tmp.begin(), std::max_element(tmp.begin(), tmp.end()))));
+            }
+            auto origin = image_sizes_.at(b);
+            std::vector<uint8_t> resized(origin.width * origin.height * dims[1]);
+            NetUtils::MaskScale(mask.data(), dims[3], dims[2], resized.data(), origin.width, origin.height,
+                                dims[1]);
+            outputs.push_back(resized);
+        }
+    }
+    return COSMO_NN_OK;
+}
+
+// ========================= OCR ============================================
+
+Status OcrPipeline::Init(const PipelineConfig& config, const std::string& model_path, DeviceType device_type,
+                         int device_id, IProfiler* profiler, const std::string& tokenizer_path,
+                         const std::string& word_table_path, bool use_skip) {
+    model_info_.algorithmcode = config.algorithm_code;
+    model_info_.reduce        = config.reduce;
+    model_info_.type          = "ocr";
+
+    for (auto& mc : config.models) {
+        Json::Value p(Json::objectValue);
+        if (!mc.params_json.empty()) {
+            Json::Reader r;
+            r.parse(mc.params_json, p);
+        }
+
+        ModelInfo model;
+        model.name      = mc.name;
+        model.filename  = mc.file_name;
+        model.file_md5  = mc.file_md5;
+        model.max_batch = mc.max_batch;
+        max_batch_      = mc.max_batch;
+
+        std::vector<int> dsize = {32, 320};
+        if (p.isMember("input_size") && p["input_size"].isArray()) {
+            dsize.clear();
+            for (unsigned i = 0; i < p["input_size"].size(); i++)
+                dsize.push_back(p["input_size"][i].asInt());
+        }
+        std::vector<float> mean = {127.5f, 127.5f, 127.5f};
+        if (p.isMember("normalize_mean") && p["normalize_mean"].isArray()) {
+            mean.clear();
+            for (unsigned i = 0; i < p["normalize_mean"].size(); i++)
+                mean.push_back(p["normalize_mean"][i].asFloat());
+        }
+        float scale = p.get("normalize_scale", 0.00784314f).asFloat();
+        bool is_bgr = p.get("is_bgr", true).asBool();
+
+        std::vector<Op*> preprocess;
+        preprocess.push_back(pipeline_utils::MakeResizeOp(dsize, 0, {0, 0, 0}));
+        preprocess.push_back(pipeline_utils::MakeNormalizeOp(mean, scale, is_bgr));
+
+        for (auto& in_def : mc.inputs) {
+            InputNodeInfo input;
+            input.name      = in_def.name;
+            input.shape     = in_def.shape;
+            input.data_type = in_def.data_type;
+            input.ops       = preprocess;
+            model.input_node_infos.push_back(input);
+        }
+        for (auto& out_def : mc.outputs) {
+            OutputNodeInfo output;
+            output.name      = out_def.name;
+            output.shape     = out_def.shape;
+            output.data_type = out_def.data_type;
+            output.op        = nullptr;
+            model.output_node_infos.push_back(output);
+        }
+        model_info_.models.push_back(model);
+    }
+
+    if (!word_table_path.empty()) {
+        std::ifstream ifs(word_table_path);
+        if (ifs.is_open()) {
+            std::string line;
+            while (std::getline(ifs, line))
+                ocr_words_.push_back(line);
+        }
+    }
+
+    InitThresholdsAndLabels();
+    InitNetInputSize();
+    return InitGraph(model_path, device_type, device_id, profiler, tokenizer_path, use_skip);
+}
+
+Status OcrPipeline::Forward(std::initializer_list<std::vector<std::shared_ptr<Blob>>> inputs) {
+    return RunGraph(inputs);
+}
+
+Status OcrPipeline::ParseOcrOutput(std::vector<std::vector<char>>& results) {
+    results.clear();
+    auto output_blobs = GetGraphOutput();
+    if (output_blobs.size() != 1)
+        return Status(COSMO_NN_ERR_NET, "OCR model output size should be 1");
+
+    auto blob   = output_blobs.at(0);
+    auto desc   = blob->GetBlobDesc();
+    auto handle = blob->GetHandle();
+    float* data = reinterpret_cast<float*>(handle.base);
+
+    const int batch = desc.dims.at(0);
+    const int H     = desc.dims.at(1);
+    const int W     = desc.dims.at(2);
+
+    results.resize(batch);
+    for (int i = 0; i < batch; i++) {
+        std::vector<int> indexes;
+        for (int j = 0; j < H; j++) {
+            auto row   = data + j * W;
+            int maxIdx = static_cast<int>(std::distance(row, std::max_element(row, row + W)));
+            indexes.push_back(maxIdx);
+        }
+        std::vector<int> filtered;
+        int prev = -1;
+        for (int idx : indexes) {
+            if (idx == 0) {
+                prev = 0;
+                continue;
+            }
+            if (idx == prev)
+                continue;
+            prev = idx;
+            filtered.push_back(idx);
+        }
+        std::string str;
+        for (int idx : filtered)
+            if (static_cast<size_t>(idx) < ocr_words_.size())
+                str.append(ocr_words_[idx]);
+        results[i] = std::vector<char>(str.begin(), str.end());
+        data += H * W;
+    }
+    return COSMO_NN_OK;
+}
+
+// ===================== Auto-Registration ==================================
+
+REGISTER_MODEL_PIPELINE("SAM2", SAM2Pipeline);
+REGISTER_MODEL_PIPELINE("dino", DinoPipeline);
+REGISTER_MODEL_PIPELINE("qwen3vl", Qwen3VLPipeline);
+REGISTER_MODEL_PIPELINE("qwen3_5", Qwen3_5Pipeline);
+REGISTER_MODEL_PIPELINE("segmentation", SegmentationPipeline);
+REGISTER_MODEL_PIPELINE("ocr", OcrPipeline);
+
+}  // namespace cosmo::nn

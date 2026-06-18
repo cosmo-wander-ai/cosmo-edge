@@ -1,0 +1,30 @@
+{
+  "algorithmId": "89336",
+  "algorithmCode": 89336,
+  "algorithmName": "视觉语言大模型",
+  "algorithmCategory": 2,
+  "algorithmUsage": 2,
+  "checkType": 97255,
+  "createTime": 1776073089000,
+  "updateTime": 1776073089000,
+  "confVersionId": "default-89336",
+  "algorithmMetadata": "{\"params\":[],\"region\":{\"heads\":[{\"defaultValue\":\"\",\"description\":\"区域名称：必填，限制32字符\",\"failedTip\":\"请输入长度小于32位且不包含空格的字符串\",\"isColumn\":true,\"key\":\"name\",\"name\":\"区域名称\",\"options\":null,\"range\":\"\",\"regexpr\":\"/^\\\\S{1,32}$/\",\"step\":null,\"type\":\"text\",\"descriptionI18nKey\":\"resource.param.89336.89336.name.description\",\"failedTipI18nKey\":\"resource.param.89336.89336.name.failedtip\",\"nameI18nKey\":\"resource.param.89336.89336.name.name\"}],\"areasTitle\":null},\"regionType\":\"hexagon\",\"scheduleSupport\":false,\"enableShieldedRegion\":false,\"maxAreaCount\":4,\"defaultFullScreen\":false}",
+  "configVersionList": [
+    {
+      "id": "default-89336",
+      "name": "默认",
+      "algorithmCode": "89336",
+      "algorithmMetadata": "{\"params\":[],\"region\":{\"heads\":[{\"defaultValue\":\"\",\"description\":\"区域名称：必填，限制32字符\",\"failedTip\":\"请输入长度小于32位且不包含空格的字符串\",\"isColumn\":true,\"key\":\"name\",\"name\":\"区域名称\",\"options\":null,\"range\":\"\",\"regexpr\":\"/^\\\\S{1,32}$/\",\"step\":null,\"type\":\"text\",\"descriptionI18nKey\":\"resource.param.89336.89336.name.description\",\"failedTipI18nKey\":\"resource.param.89336.89336.name.failedtip\",\"nameI18nKey\":\"resource.param.89336.89336.name.name\"}],\"areasTitle\":null},\"regionType\":\"hexagon\",\"scheduleSupport\":false,\"enableShieldedRegion\":false,\"maxAreaCount\":4,\"defaultFullScreen\":false}",
+      "algorithmProcessdata": "[{\"actionId\":\"PDA_00003\",\"actionName\":\"语言视觉大模型\",\"remark\":\"\",\"flowActionId\":\"da2e695d\",\"preFlowActionId\":\"-1\",\"configObject\":{\"webConfig\":{\"labelList\":[],\"labelFilterList\":[],\"metaDataParams\":[],\"atomic\":{\"atomicCode\":\"8888999\",\"atomicName\":\"Qwen3VL\",\"position\":\"da2e695d\",\"labelList\":[]}},\"params\":[{\"key\":\"atomicCode\",\"value\":\"8888999\"},{\"key\":\"advanced_mode\",\"value\":\"0\"},{\"key\":\"keywords\",\"value\":\"穿红色衣服的人\"},{\"key\":\"generationStyle\",\"value\":\"standard\"}]},\"actionNameI18nKey\":\"resource.action.89336.pda_00003.da2e695d.actionname\"}]",
+      "atomicList": "[{\"position\":\"da2e695d\",\"atomicCode\":\"8888999\",\"atomicName\":\"Qwen3VL\",\"labelList\":[]}]",
+      "algorithmUpdateTime": 1776866297000,
+      "remark": "",
+      "nameI18nKey": "resource.param.89336.89336.0.name"
+    }
+  ],
+  "algorithmProcessdata": "[{\"actionId\":\"PDA_00003\",\"actionName\":\"语言视觉大模型\",\"remark\":\"\",\"flowActionId\":\"da2e695d\",\"preFlowActionId\":\"-1\",\"configObject\":{\"webConfig\":{\"labelList\":[],\"labelFilterList\":[],\"metaDataParams\":[],\"atomic\":{\"atomicCode\":\"8888999\",\"atomicName\":\"Qwen3VL\",\"position\":\"da2e695d\",\"labelList\":[]}},\"params\":[{\"key\":\"atomicCode\",\"value\":\"8888999\"},{\"key\":\"advanced_mode\",\"value\":\"0\"},{\"key\":\"keywords\",\"value\":\"穿红色衣服的人\"},{\"key\":\"generationStyle\",\"value\":\"standard\"}]},\"actionNameI18nKey\":\"resource.action.89336.pda_00003.da2e695d.actionname\"}]",
+  "atomicList": "[{\"position\":\"da2e695d\",\"atomicCode\":\"8888999\",\"atomicName\":\"Qwen3VL\",\"labelList\":[]}]",
+  "remark": "",
+  "description": "",
+  "algorithmNameI18nKey": "resource.algorithm.89336.algorithmname"
+}
