@@ -504,3 +504,10 @@ i18n-inventory/
 # VitePress docs site
 docs/.vitepress/cache/
 docs/.vitepress/dist/
+
+# Allow 3rd/pcap static libraries
+!3rd/pcap/lib/
+!3rd/pcap/lib/*.a
+!3rd/pcap/lib64/
+!3rd/pcap/lib64/*.a
+
