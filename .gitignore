@@ -515,3 +515,6 @@ docs/.vitepress/dist/
 !3rd/libsophon-0.4.11/lib/
 !3rd/libsophon-0.4.11/lib/*
 
+# Allow 3rd/onnxruntime libraries
+!3rd/onnxruntime-linux-x64-1.26.0/lib/
+!3rd/onnxruntime-linux-x64-1.26.0/lib/*
