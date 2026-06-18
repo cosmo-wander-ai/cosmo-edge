@@ -376,19 +376,13 @@ CosmoEdge 是开源项目。仓库提供认证设备包所使用的同一套引�
 | [HTTP Webhook 参考](docs/reference/webhook.md) | 集成商 | 事件推送配置、负载字段和接收端建议 |
 | [架构概览](docs/guide/architecture.md) | 贡献者 | 引擎内部结构和扩展点 |
 | [前端工程](docs/development/frontend.md) | 前端开发者 | Vue 3 前端结构和脚本 |
+| [I18N 术语表](docs/i18n/GLOSSARY.md) | 前端开发者 | UI 术语、默认英文文案和 short label 规则 |
+| [I18N Short Scope 规则](docs/i18n/SHORT-SCOPES.md) | 前端开发者 | 受控紧凑文案场景 ID |
 | [后端开发](docs/development/backend.md) | C++ 开发者 | 后端模块、CMake 选项和测试 |
 | [CI 与质量检查](docs/development/ci.md) | 贡献者 | 文档站、前端、C++ 格式、静态分析和发布检查入口 |
-| [开源发布清单](docs/project/open-source-checklist.md) | 维护者 | GitHub 发布前的就绪检查 |
-| [敏感信息公开前检查](docs/project/sensitive-data-review.md) | 维护者 | 发布前扫描流程、复核表和资源公开清单 |
-| [安全说明](docs/project/security.md) | 维护者 | 敏感信息、运行暴露、依赖和漏洞披露说明 |
-| [第三方依赖与许可证](docs/project/third-party-licenses.md) | 维护者 | 依赖来源、codec 风险、二进制风险和许可证审计清单 |
 | [Security Policy](SECURITY.md) | 维护者 | 漏洞报告和部署安全说明 |
-| [Notice](NOTICE) | 维护者 | 项目 notice 和第三方 attribution 占位说明 |
-| [Changelog](CHANGELOG.md) | 维护者 | 公开变更历史和发布准备说明 |
-| [发布说明](docs/project/release-notes.md) | 维护者 | 发布检查、已知限制和 v0.1.0 准备说明 |
-| [仓库元数据](docs/project/repository-metadata.md) | 维护者 | GitHub description、topics、homepage、Pages 和 release 配置 |
-| [公开验证报告](docs/project/validation.md) | 维护者 | 公开验证范围、内部验证边界和证据清单 |
-| [性能基准复现说明](docs/project/benchmarks.md) | 维护者 | 基准测试环境、指标、负载和结果模板 |
+| [Notice](NOTICE) | 维护者 | 项目 notice 和第三方 attribution 信息 |
+| [Changelog](CHANGELOG.md) | 维护者 | 公开变更历史 |
 
 ## 路线图
 
@@ -398,7 +392,6 @@ CosmoEdge 是开源项目。仓库提供认证设备包所使用的同一套引�
 - [X] x86 Linux 和 Windows 开发模式
 - [X] VLM 与 GroundingDINO 集成
 - [X] 18 条 CV 流水线完成内部验证
-- [X] 公开验证和性能基准文档框架
 - [ ] 公开 x86 一键启动方案
 - [ ] 公开可复现基准数据集和报告
 - [ ] v1.0 发布打包

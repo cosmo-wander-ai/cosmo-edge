@@ -22,15 +22,9 @@ const developmentZh = [
   { text: 'CI 与质量检查', link: '/development/ci' }
 ]
 
-const projectZh = [
-  { text: '开源发布清单', link: '/project/open-source-checklist' },
-  { text: '敏感信息公开前检查', link: '/project/sensitive-data-review' },
-  { text: '安全说明', link: '/project/security' },
-  { text: '第三方依赖与许可证', link: '/project/third-party-licenses' },
-  { text: '发布说明', link: '/project/release-notes' },
-  { text: '仓库元数据', link: '/project/repository-metadata' },
-  { text: '公开验证报告', link: '/project/validation' },
-  { text: '性能基准复现说明', link: '/project/benchmarks' }
+const i18nZh = [
+  { text: 'I18N Glossary', link: '/i18n/GLOSSARY' },
+  { text: 'Short Scope Rules', link: '/i18n/SHORT-SCOPES' }
 ]
 
 const tutorialsZh = [
@@ -64,17 +58,6 @@ const developmentEn = [
   { text: 'CI and Quality Checks', link: '/en/development/ci' }
 ]
 
-const projectEn = [
-  { text: 'Open Source Checklist', link: '/en/project/open-source-checklist' },
-  { text: 'Sensitive Data Review', link: '/en/project/sensitive-data-review' },
-  { text: 'Security Notes', link: '/en/project/security' },
-  { text: 'Third-Party Licenses', link: '/en/project/third-party-licenses' },
-  { text: 'Release Notes', link: '/en/project/release-notes' },
-  { text: 'Repository Metadata', link: '/en/project/repository-metadata' },
-  { text: 'Public Validation Report', link: '/en/project/validation' },
-  { text: 'Benchmark Reproduction Guide', link: '/en/project/benchmarks' }
-]
-
 const tutorialsEn = [
   { text: 'Tutorials Overview', link: '/en/tutorials/' },
   { text: 'Volume 1: Quick Start', link: '/en/tutorials/01-quickstart/quickstart' },
@@ -103,21 +86,20 @@ export default defineConfig({
           { text: '指南', link: '/guide/build' },
           { text: '参考', link: '/reference/api' },
           { text: '开发', link: '/development/frontend' },
-          { text: '项目', link: '/project/open-source-checklist' },
           { text: 'GitHub', link: 'https://github.com/cosmo-wander-ai/cosmo-edge' }
         ],
         sidebar: {
           '/guide/': [{ text: '指南', items: guideZh }],
           '/reference/': [{ text: '参考', items: referenceZh }],
           '/development/': [{ text: '开发', items: developmentZh }],
-          '/project/': [{ text: '项目', items: projectZh }],
+          '/i18n/': [{ text: 'I18N', items: i18nZh }],
           '/tutorials/': [{ text: '教程', items: tutorialsZh }],
           '/': [
             { text: '开始', items: [{ text: '文档首页', link: '/' }, ...guideZh] },
             { text: '五卷教程', items: tutorialsZh },
             { text: '参考', items: referenceZh },
             { text: '开发', items: developmentZh },
-            { text: '项目', items: projectZh }
+            { text: 'I18N', items: i18nZh }
           ]
         },
         outline: { label: '本页目录' },
@@ -146,21 +128,18 @@ export default defineConfig({
           { text: 'Guide', link: '/en/guide/build' },
           { text: 'Reference', link: '/en/reference/api' },
           { text: 'Development', link: '/en/development/frontend' },
-          { text: 'Project', link: '/en/project/open-source-checklist' },
           { text: 'GitHub', link: 'https://github.com/cosmo-wander-ai/cosmo-edge' }
         ],
         sidebar: {
           '/en/guide/': [{ text: 'Guide', items: guideEn }],
           '/en/reference/': [{ text: 'Reference', items: referenceEn }],
           '/en/development/': [{ text: 'Development', items: developmentEn }],
-          '/en/project/': [{ text: 'Project', items: projectEn }],
           '/en/tutorials/': [{ text: 'Tutorials', items: tutorialsEn }],
           '/en/': [
             { text: 'Start', items: [{ text: 'Documentation Home', link: '/en/' }, ...guideEn] },
             { text: 'Tutorials', items: tutorialsEn },
             { text: 'Reference', items: referenceEn },
-            { text: 'Development', items: developmentEn },
-            { text: 'Project', items: projectEn }
+            { text: 'Development', items: developmentEn }
           ]
         },
         outline: { label: 'On This Page' },

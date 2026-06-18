@@ -374,19 +374,13 @@ Certified devices add deployment readiness, not locked software features.
 | [HTTP Webhook Reference](docs/en/reference/webhook.md) | Integrators | Event push configuration, payload fields, and receiver guidance |
 | [Architecture Overview](docs/en/guide/architecture.md) | Contributors | Engine internals and extension points |
 | [Frontend Development](docs/en/development/frontend.md) | Frontend developers | Vue 3 frontend structure and scripts |
+| [I18N Glossary](docs/i18n/GLOSSARY.md) | Frontend developers | UI terminology, default English labels, and short-label rules |
+| [I18N Short Scope Rules](docs/i18n/SHORT-SCOPES.md) | Frontend developers | Controlled compact-label scope IDs |
 | [Backend Development](docs/en/development/backend.md) | C++ developers | Backend modules, CMake options, and tests |
 | [CI and Quality Checks](docs/en/development/ci.md) | Contributors | Documentation, frontend, C++ formatting, static analysis, and release checks |
-| [Open Source Checklist](docs/en/project/open-source-checklist.md) | Maintainers | Release readiness checklist for GitHub publication |
-| [Sensitive Data Review](docs/en/project/sensitive-data-review.md) | Maintainers | Pre-release scan workflow, review table, and resource disclosure checklist |
-| [Security Notes](docs/en/project/security.md) | Maintainers | Sensitive data, runtime exposure, dependency, and disclosure notes |
-| [Third-Party Licenses](docs/en/project/third-party-licenses.md) | Maintainers | Dependency sources, codec risk, binary risk, and license-audit checklist |
 | [Security Policy](SECURITY.md) | Maintainers | Vulnerability reporting and deployment security notes |
-| [Notice](NOTICE) | Maintainers | Project notice and third-party attribution placeholder |
-| [Changelog](CHANGELOG.md) | Maintainers | Public change history and release preparation notes |
-| [Release Notes](docs/en/project/release-notes.md) | Maintainers | Release checklist, known limitations, and v0.1.0 preparation notes |
-| [Repository Metadata](docs/en/project/repository-metadata.md) | Maintainers | GitHub description, topics, homepage, Pages, and release settings |
-| [Validation Report](docs/en/project/validation.md) | Maintainers | Public validation scope, internal-validation boundary, and evidence checklist |
-| [Benchmark Reproduction](docs/en/project/benchmarks.md) | Maintainers | Benchmark environment, metrics, workloads, and result templates |
+| [Notice](NOTICE) | Maintainers | Project notice and third-party attribution information |
+| [Changelog](CHANGELOG.md) | Maintainers | Public change history |
 
 ## Roadmap
 
@@ -396,7 +390,6 @@ Certified devices add deployment readiness, not locked software features.
 - [X] x86 developer mode for Linux and Windows
 - [X] VLM and GroundingDINO integration
 - [X] 18 CV pipelines internally validated
-- [X] Public validation and benchmark documentation framework
 - [ ] Public x86 one-command startup
 - [ ] Public reproducible benchmark dataset and reports
 - [ ] Release packaging for v1.0

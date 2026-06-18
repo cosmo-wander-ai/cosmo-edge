@@ -5,7 +5,7 @@ import { findI18nRepoRoot } from './i18n_repo_root.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const workspaceRoot = findI18nRepoRoot(__dirname)
-const glossaryPath = path.join(workspaceRoot, 'i18n', 'GLOSSARY.md')
+const glossaryPath = path.join(workspaceRoot, 'docs', 'i18n', 'GLOSSARY.md')
 const glossaryModulePath = path.resolve(__dirname, '..', 'src', 'i18n', 'glossary.js')
 
 const keyOverrides = new Map([

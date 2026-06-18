@@ -38,4 +38,4 @@ features:
 5. 需要排查运行问题，请阅读[故障排查](guide/troubleshooting.md)。
 6. 需要对接接口或模型资源，请阅读[API 概览](reference/api.md)、[字段级 API 参考](reference/api-fields.md)、[MQTT 接入参考](reference/mqtt.md)、[HTTP Webhook 参考](reference/webhook.md)和[模型与资源](reference/models.md)。
 7. 需要参与开发，请阅读[前端工程](development/frontend.md)、[后端开发](development/backend.md)和[CI 与质量检查](development/ci.md)。
-8. 准备公开发布前，请阅读[开源发布清单](project/open-source-checklist.md)、[敏感信息公开前检查](project/sensitive-data-review.md)、[安全说明](project/security.md)、[第三方依赖与许可证](project/third-party-licenses.md)、[发布说明](project/release-notes.md)、[仓库元数据](project/repository-metadata.md)、[公开验证报告](project/validation.md)和[性能基准复现说明](project/benchmarks.md)。
+8. 需要维护前端术语和紧凑文案，请阅读[I18N Glossary](i18n/GLOSSARY.md)和[Short Scope Rules](i18n/SHORT-SCOPES.md)。

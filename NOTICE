@@ -14,10 +14,6 @@ vendored source code, build scripts, generated artifacts, frontend
 dependencies, documentation tooling, and optional runtime components.
 Third-party components remain subject to their own license terms.
 
-Third-party dependency review is tracked in:
-
-  docs/project/third-party-licenses.md
-
 Maintainers should complete the third-party license audit before a
 formal public release and expand this NOTICE file with required
 third-party attribution notices.

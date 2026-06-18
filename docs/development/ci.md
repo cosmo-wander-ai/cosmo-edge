@@ -4,9 +4,7 @@ description: 面向开源协作的文档站、前端、C++ 后端、静态分析
 prev:
   text: 后端开发
   link: /development/backend
-next:
-  text: 开源发布清单
-  link: /project/open-source-checklist
+next: false
 ---
 
 # CI 与质量检查

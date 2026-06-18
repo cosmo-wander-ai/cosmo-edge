@@ -2,8 +2,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const requiredFiles = [
-  path.join('i18n', 'GLOSSARY.md'),
-  path.join('i18n', 'SHORT-SCOPES.md')
+  path.join('docs', 'i18n', 'GLOSSARY.md'),
+  path.join('docs', 'i18n', 'SHORT-SCOPES.md')
 ]
 
 const hasI18nDocs = (dir) =>

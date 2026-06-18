@@ -1,16 +1,18 @@
-# I18N Glossary v0.5 (draft - pending product/business review)
+# I18N Glossary
 
-> 数据来源: `i18n-inventory/terms-by-frequency.csv` (基于 `origin/dev` 实测)。
-> 本文档列出出现频次 >= 3 的代码侧 term 中值得术语化的项,并额外保留少量低频但业务关键的待补项。
+This glossary defines the public UI terminology used by CosmoEdge. It is both a
+documentation reference and an input to the frontend i18n validation scripts.
+Entries in the `Short` and `Short scope` columns control where compact labels
+may be used.
 
 ## 原则
 
 1. **默认只维护一份专业英文 EN**。它是产品标准文案,优先用于页面、弹窗、toast、详情、表单等位置。
-2. **Short 只是布局例外,不是第二套翻译**。只有 `i18n/SHORT-SCOPES.md` 中受控枚举的紧凑场景才允许使用。
+2. **Short 只是布局例外,不是第二套翻译**。只有 `SHORT-SCOPES.md` 中受控枚举的紧凑场景才允许使用。
 3. **Short 必须绑定 Short scope**。Short scope 列只能填 SHORT-SCOPES.md 中的 ID,CI 会校验。
-4. **不要为了短牺牲理解**。`DL`、`Ops`、`Def`、`F&B` 这类内部感强或有歧义的缩写不进入 v1。
+4. **不要为了短牺牲理解**。`DL`、`Ops`、`Def`、`F&B` 这类内部感强或有歧义的缩写不进入 UI 文案。
 5. **能通过布局解决的,不通过硬缩写解决**。例如按钮可改 icon + tooltip,表格可给列宽或 tooltip。
-6. **Phase 2 强制规则(见 §9)优先于本表**:GLOSSARY 不能保护错误的设计。
+6. **实施规则优先于单条术语偏好**:GLOSSARY 不能保护错误的设计。
 
 ## 列说明
 
@@ -19,18 +21,17 @@
 | **中文** | 源语言 |
 | **EN** | 默认英文,产品标准文案 |
 | **Short** | 仅紧凑 UI 使用的短形式。`-` 表示不维护短形式 |
-| **Short scope** | Short 允许出现的场景 ID (来自 `i18n/SHORT-SCOPES.md`) |
-| **频次** | 在 `terms-by-frequency.csv` 的出现次数 |
+| **Short scope** | Short 允许出现的场景 ID (来自 `SHORT-SCOPES.md`) |
+| **频次** | 术语在当前 Web UI 中的参考出现次数 |
 | **风险** | 英文膨胀导致布局问题的风险: 高/中/低 |
 | **备注** | 翻译/落地注意事项 |
 
-## Review 流程
+## 维护规则
 
-1. 产品/业务先审 **高风险术语汇总** 和 §5 业务术语,确认 EN 与必要 Short。
-2. 开发审 §1、§2 的 Element Plus locale 复用项,并定自定义 key 命名。
-3. 开发审 §3 模板字符串,统一 `{placeholder}` 语法。
-4. §7 碎片必须回到 `inventory.json` 看上下文,不得按 term 本身直接翻译。
-5. v1 锁定后迁移到 `i18n/zh-CN.json` + `i18n/en-US.json`,本文件作为只读参考和 reviewer checklist。
+1. 新增或修改带 Short 的术语时,必须同时确认 `Short scope` 是否属于 `SHORT-SCOPES.md`。
+2. 模板字符串统一使用 `{placeholder}` 风格的命名占位符。
+3. 同一中文短语在不同语义下需要不同英文时,必须拆分为不同 i18n key。
+4. 表格中的 `EN` 是默认显示文案;`Short` 只用于声明的紧凑 UI scope。
 
 ---
 
@@ -41,8 +42,8 @@
 | 中文 | EN | Short | Short scope | 频次 | 风险 | 备注 |
 |---|---|---|---|---|---|---|
 | 取消 | Cancel | - | - | 48 | 低 | EP popconfirm/button 类文案 |
-| 确定 | OK | - | - | 31 | 低 | **仅信息弹窗**用 OK,见 §9 第 9 条 |
-| 确认 | Confirm | - | - | 6 | 低 | **兜底用**,危险/业务动作必须用具体动词,见 §9 第 9 条 |
+| 确定 | OK | - | - | 31 | 低 | 仅信息弹窗使用 OK,见 §9 |
+| 确认 | Confirm | - | - | 6 | 低 | 仅作兜底;危险或业务动作必须使用具体动词,见 §9 |
 | 保存 | Save | - | - | 25 | 低 | `action.save` |
 | 删除 | Delete | - | - | 20 | 低 | 不用 `Del`;极窄处用 trash icon + tooltip |
 | 批量删除 | Bulk Delete | Delete | `btn.compact` | 11 | 中 | 短形式仅在"已选多项"语境下使用,避免 `Del All` |
@@ -66,7 +67,7 @@
 
 | 中文 | EN | Short | Short scope | 频次 | 风险 | 备注 |
 |---|---|---|---|---|---|---|
-| 操作成功 | Operation succeeded | - | - | 68 | 低 | **Legacy only**. Phase 2 只允许迁移旧代码,禁止新增引用;见 §9 |
+| 操作成功 | Operation succeeded | - | - | 68 | 低 | 通用成功提示仅作兼容保留;新增文案应绑定具体动作,见 §9 |
 | 提示 | Notice | - | - | 44 | 低 | Dialog 标题可接受;也可按语境用 Tip/Warning |
 | 错误 | Error | - | - | 6 | 低 | |
 | 成功 | Success | - | - | 5 | 低 | badge/toast |
@@ -110,7 +111,7 @@
 
 ## 4. 状态/枚举
 
-> 状态必须全工程一致。单字碎片不放在本节,统一进入 §7 待查上下文。
+> 状态必须全工程一致。无法独立确定含义的单字或碎片统一放入 §7。
 
 | 中文 | EN | Short | Short scope | 频次 | 风险 | 备注 |
 |---|---|---|---|---|---|---|
@@ -120,7 +121,7 @@
 | 已停止 | Stopped | - | - | 4 | 低 | badge |
 | 已暂停 | Paused | - | - | 4 | 低 | badge |
 | 已上传 | Uploaded | - | - | 9 | 低 | 文件状态 |
-| 未上传 | Not uploaded | - | - | 9 | 低 | **与 Pending 是不同状态**,不要混用;Pending 单列见 §低频补充 |
+| 未上传 | Not uploaded | - | - | 9 | 低 | 与 Pending 是不同状态,不要混用;Pending 单列见补充术语 |
 | 等于 | Equals | = | `flow.node` | 5 | 低 | 流程图条件操作符 |
 | 或 | Or | - | - | 4 | 低 | 流程图条件操作符 |
 | 除外 | Except | - | - | 6 | 低 | 流程图条件操作符 |
@@ -128,23 +129,23 @@
 | 授权失败 | Authorization failed | Auth failed | `tag.badge` | 3 | 高 | toast/dialog 用完整形式 |
 | 模型状态 | Model Status | Status | `table.header` | 7 | 中 | 仅在表格上下文已明确是模型时使用 |
 
-## 5. 业务领域术语
+## 5. 领域术语
 
-> 以下仍是草案。产品/业务必须确认后才能进入 v1。Short 只在 scope 指定位置允许使用。
+> Short 只在 scope 指定位置允许使用。
 
 ### 5.1 顶层业务概念
 
 | 中文 | EN | Short | Short scope | 频次 | 风险 | 备注 |
 |---|---|---|---|---|---|---|
-| 计数统计 | Counting Analytics | Counting | `sidebar.menu, dashboard.card` | 20 | 高 | 比 Count Statistics 更自然;产品定调 |
+| 计数统计 | Counting Analytics | Counting | `sidebar.menu, dashboard.card` | 20 | 高 | 用于分析类模块名 |
 | 单机版 | Standalone Edition | Standalone | `tag.badge` | 6 | 高 | 产品版本名 |
-| 联网版 | Connected Edition | Connected | `tag.badge` | 6 | 高 | 比 Networked 更像产品文案;产品确认是否符合"接入云"语义 |
-| 场景任务 | Scenario Task | Scenario | `sidebar.menu, table.header` | 5 | 中 | 如果业务实际是 Scene Task,需产品定调 |
+| 联网版 | Connected Edition | Connected | `tag.badge` | 6 | 高 | 用于联网/云侧接入版本 |
+| 场景任务 | Scenario Task | Scenario | `sidebar.menu, table.header` | 5 | 中 | 表示面向具体场景的任务配置 |
 | 算法服务 | Algorithm Service | Algo Service | `table.header, dashboard.card` | 6 | 高 | 不建议短成 Algorithm,会丢失 service |
 | 模型 | Model | - | - | 6 | 低 | |
 | 模型文件 | Model File | - | - | 5 | 低 | |
 | 参数设置 | Parameter Settings | Settings | `sidebar.menu, flow.node` | 4 | 高 | 技术型界面可用 Params,但默认不推荐 |
-| 灵敏度计算 | Sensitivity Calculation | Sensitivity | `sidebar.menu, flow.node` | 4 | 高 | 产品定调 |
+| 灵敏度计算 | Sensitivity Calculation | Sensitivity | `sidebar.menu, flow.node` | 4 | 高 | 用于规则/流程中的灵敏度计算节点 |
 
 ### 5.2 检测/分析能力
 
@@ -181,29 +182,29 @@
 
 ### 5.4 告警 / 抓拍 / 事件
 
-> **底库 / 脸库 / Library 概念家族(待产品 review)**:
+> **底库 / 脸库 / Library 概念家族**:
 >
 > | 中文 | 拟用 EN | 备注 |
 > |---|---|---|
 > | 底库 (总称) | Reference Library | 顶层概念 |
 > | 脸库 / 人脸库 | Face Library | "Face Library" 即"人脸底库",不需要带 Reference 字样 |
-> | 工服库 | Uniform Library | "工服" = 工作服,产品确认 |
+> | 工服库 | Uniform Library | "工服" = 工作服 |
 > | 底库照 | Reference Photo | 底库中的单张照片 |
 > | 人脸底库照 | Face Library Photo | Face Library 中的单张照片 |
 >
-> 这套关系必须先定,§5.4 中所有相关条目按此映射。
+> §5.4 中所有相关条目按此映射。
 
 | 中文 | EN | Short | Short scope | 频次 | 风险 | 备注 |
 |---|---|---|---|---|---|---|
 | 告警时间 | Alarm Time | Time | `table.header` | 7 | 中 | |
 | 告警类型 | Alarm Type | Type | `table.header` | 5 | 低 | |
-| 事件类型 | Event Type | Type | `table.header` | 6 | 低 | 需确认 Alarm/Event 是否区分 |
-| 前端大屏展示告警音 | Dashboard Alarm Sound | Alarm Sound | `dashboard.card` | 4 | 高 | 不用 Wall-screen;**建议中文也重命名** |
+| 事件类型 | Event Type | Type | `table.header` | 6 | 低 | 与 Alarm Type 保持语义区分 |
+| 前端大屏展示告警音 | Dashboard Alarm Sound | Alarm Sound | `dashboard.card` | 4 | 高 | 不用 Wall-screen |
 | 抓拍照 | Snapshot | - | - | 10 | 低 | 与 Capture 的边界需统一 |
 | 抓拍时间 | Snapshot Time | Time | `table.header` | 6 | 中 | 不用 Snap Time,除非空间极窄且有 tooltip |
 | 抓拍添加 | Add from Snapshot | Snapshot | `tab.compact, btn.compact` | 4 | 中 | 与 Manual 对应 |
 | 手动添加 | Add Manually | Manual | `tab.compact, btn.compact` | 4 | 中 | |
-| 全景照 | Panorama | - | - | 10 | 低 | 产品确认是否用 Panorama Photo |
+| 全景照 | Panorama | - | - | 10 | 低 | 如语境强调照片,可使用 Panorama Photo |
 | 底库照 | Reference Photo | Reference | `table.header, dashboard.card` | 6 | 高 | 见上方"底库家族" |
 | 检测照 | Detection Photo | Detection | `table.header, dashboard.card` | 4 | 高 | 不用 Detected (动词时态错位) |
 | 人脸底库照 | Face Library Photo | Face Photo | `table.header, dashboard.card` | 4 | 高 | 与"脸库 = Face Library"保持一致 |
@@ -226,9 +227,9 @@
 |---|---|---|---|---|---|---|
 | 姓名 | Name | - | - | 6 | 低 | |
 | 人员编号 | Person ID | ID | `table.header` | 11 | 低 | |
-| 人员姓名 | Person Name | Name | `table.header` | 5 | 低 | 建议与"姓名"统一为 Name |
+| 人员姓名 | Person Name | Name | `table.header` | 5 | 低 | 与"姓名"统一为 Name |
 | 新增人员 | Add Person | - | - | 4 | 低 | |
-| 请选择工服库 | Please select uniform library | Select library | `placeholder` | 5 | 中 | "工服库" = Uniform Library,产品确认 |
+| 请选择工服库 | Please select uniform library | Select library | `placeholder` | 5 | 中 | "工服库" = Uniform Library |
 
 ### 5.7 系统资源
 
@@ -240,7 +241,7 @@
 
 ## 6. LLM 协议字符串 (不译)
 
-> 来源 `i18n-inventory/protocol-strings.csv`。这些是发送给 Qwen3VL 等 LLM 的 prompt 或解析其响应的固定词,任何翻译都会改变模型行为。
+这些字符串用于发送给 VLM/LLM 或解析模型响应,属于协议语义,不作为 UI 文案翻译。任何改写都必须经过模型行为验证。
 
 涉及文件:
 - `src/flow/alarm/TaskAlarmLlmReview.cc`
@@ -251,11 +252,11 @@
 
 典型字符串: `"是"` `"否"` `"判断图片中是否存在【...】"` `"不要换行,不要其他内容。"` 等。
 
-如果未来要让 LLM 也英文化,这是独立专题: 需要 prompt 重写 + A/B 评测,与 UI i18n 解耦。
+如需本地化模型 prompt,应作为独立任务处理,与 UI i18n 解耦。
 
-## 7. 还需要再看的碎片
+## 7. 不独立翻译的碎片
 
-下列 term 看起来是字符串拼接碎片或单字,靠 term 本身决定不了翻译,reviewer 必须看 `inventory.json` 里的 context 行才能定。
+下列 term 是字符串拼接碎片或单字,不能按字面单独翻译。处理时必须回到完整上下文,并优先改成完整 i18n key。
 
 | 中文 | 频次 | 怀疑 |
 |---|---|---|
@@ -269,7 +270,7 @@
 
 ## 8. 格式与本地化约定
 
-> 这一节不是术语,但属于翻译时的并行决策。Phase 1 落实时全 locale 共用一套格式,不按 locale 切换 (除非产品明确要求美式日期)。
+以下格式约定用于 Web UI 的默认显示。除非明确需要本地化格式,否则各 locale 共享同一格式。
 
 | 维度 | 约定 | 说明 |
 |---|---|---|
@@ -278,34 +279,34 @@
 | 文件大小 | `1.23 MB` (二进制单位) | 不用 `MiB`,与产品已有显示保持一致 |
 | 时区 | UTC 偏移 `+08:00` | **不写 CST**(与 US Central 时间撞名);不写时区缩写 |
 | 百分比 | `87%` | 无空格 |
-| 货币 | (本工程暂无) | v2 出海时再定 |
+| 货币 | 当前不定义 | 如新增货币展示,单独定义格式 |
 
-## 9. Phase 2 强制规则
+## 9. I18N 实施规则
 
-> Phase 2 的文案提取 PR 必须遵守。CI 在 Phase 1 末尾上栅栏,违规直接 fail。
+新增或修改 UI 文案时必须遵守以下规则。
 
-1. **禁止泛化 success toast**:新代码禁止使用 `message.success.operation`、`message.toast.ok` 这类与具体动作无关的 key。每个成功 toast 必须绑定动词:`message.task.created` / `message.user.deleted` 等。**"操作成功"作为过渡 key 保留,迁移完毕从字典删除**。
-2. **禁止 Vue 模板直接含 CJK 字面量**:lint 规则在 Phase 1 加。
+1. **禁止泛化 success toast**:新代码禁止使用 `message.success.operation`、`message.toast.ok` 这类与具体动作无关的 key。每个成功 toast 必须绑定动词:`message.task.created` / `message.user.deleted` 等。**"操作成功"作为兼容 key 保留,不应用于新增文案**。
+2. **禁止 Vue 模板直接含 CJK 字面量**:可见文案必须走 i18n key。
 3. **禁止 i18n key 含 CJK 或拼音**:全部点分英文小写。
-4. **新 Short 必须先进 GLOSSARY**:不能在 PR 中临时发明 Short 形式,即使 reviewer 同意。
-5. **Short scope 必须是受控值**:见 `i18n/SHORT-SCOPES.md`;CI 校验。**调用 Short 的唯一 API 是 `tShort(key, scope)`**:scope 必须在 `i18n/SHORT-SCOPES.md` 受控集中且与 GLOSSARY 中该 key 的 scope 列匹配。`t(key)` 永远返回当前 locale 全形式,不得通过 `t('key.short')` 之类的 key 路径绕开校验。scope 不匹配时,dev 模式抛错;prod 模式回落当前 locale 全形式 + 上报埋点。
+4. **新 Short 必须先进 GLOSSARY**:不能在 PR 中临时发明 Short 形式。
+5. **Short scope 必须是受控值**:见 `SHORT-SCOPES.md`;CI 校验。**调用 Short 的唯一 API 是 `tShort(key, scope)`**:scope 必须在 `SHORT-SCOPES.md` 受控集中且与 GLOSSARY 中该 key 的 scope 列匹配。`t(key)` 永远返回当前 locale 全形式,不得通过 `t('key.short')` 之类的 key 路径绕开校验。scope 不匹配时,dev 模式抛错;prod 模式回落当前 locale 全形式 + 上报埋点。
 6. **每个 Web UI PR 必须附 zh-CN / en-US / xx-pseudo 三套截图**:截图覆盖该 PR 修改的所有页面/对话框。
 7. **API 改 messageKey 必须保留 message 兜底字段** 至少一个 release,前端先迁移再删字段。
 8. **同一中文 term 对应多个英文语境必须拆 key**:如果同一个中文短语在不同业务/技术语境下要翻成不同英文,**必须拆成多个 i18n key**,不得用同一 key 在运行时按上下文选词。
    - **示例**:`类别` → `field.category`(业务分组,值为 "Category")+ `model.class`(分类器输出类别,值为 "Class")
    - **示例**:`登录` → `auth.button.signIn`(动作按钮,值为 "Sign in")+ `auth.label.login`(名词/技术上下文,值为 "Login")
    - **理由**:同 key 多义会让 i18n JSON 失去单源真相;翻译人员看 key 无法判断该填哪种英文;CI 也无法校验。**i18n 层不能藏语义模型问题**。
-   - **触发判定**:GLOSSARY 正式术语表或"低频补充"中,一个中文条目的 `EN` / `建议 EN` 列出现 `A / B` 形式且备注里写明"按 X 语境用 A、按 Y 语境用 B"时,Phase 2 落地必须拆 key。高风险汇总中的 `EN / Short` 展示不触发本规则。
+   - **触发判定**:GLOSSARY 或补充术语中,一个中文条目的 `EN` / `建议 EN` 列出现 `A / B` 形式且备注里写明"按 X 语境用 A、按 Y 语境用 B"时,必须拆 key。高风险汇总中的 `EN / Short` 展示不触发本规则。
 9. **确认按钮文案三级政策**:
    - **信息弹窗**(纯通知/操作完成提示):按钮用 `OK`(对应中文`确定`),key 统一 `action.ok`
    - **危险/业务动作**(删除、发布、提交、保存、放弃修改等):**必须用具体动词**,严禁泛化为 "Confirm"。如 `Delete this item?` 按钮为 `Delete`、`Discard changes?` 按钮为 `Discard`、`Publish task?` 按钮为 `Publish`。每个动作单独命名 key(`action.delete`/`action.discard`/`action.publish`),不复用 `action.confirm`
    - **兜底**:仅当确实没有合适动词时(如多步向导的中间步骤),才用 `Confirm`,key 统一 `action.confirm`
-   - **CI 检测**:Phase 2 任何 dialog/confirm 类组件,若按钮 key 为 `action.confirm` 而 dialog 的 `type` 为 `warning`/`error` 或文案含 "delete"/"discard"/"publish" 等动词,lint fail
-   - **CI 检测补充**:Phase 2 任何 `warning`/`error` 类型 dialog/confirm,若确认按钮 key 为 `action.ok`,lint fail;危险/业务动作必须使用具体动词 key。
+   - **校验要求**:dialog/confirm 类组件中,若按钮 key 为 `action.confirm` 而 dialog 的 `type` 为 `warning`/`error` 或文案含 "delete"/"discard"/"publish" 等动词,应视为违规。
+   - **校验补充**:`warning`/`error` 类型 dialog/confirm 中,确认按钮不得使用 `action.ok`;危险/业务动作必须使用具体动词 key。
 
 ## 10. 测试 locale: `xx-pseudo`
 
-> Phase 1 落地的伪 locale。开发本地切到 `xx-pseudo` 时所有可见文案自动加重音 + 方括号 + 30-50% 长度膨胀,可一眼看出哪条文案未走 i18n、哪个布局会被英文撑爆。
+`xx-pseudo` 是用于本地化测试的伪 locale。启用后,所有可见文案自动加重音、方括号和 30-50% 长度膨胀,用于发现漏提取文案和英文布局溢出。
 
 ### 规则
 
@@ -330,9 +331,9 @@
 ### 用途与 CI 钩子
 
 - **本地开发**:看到非方括号文本 = 漏 i18n;看到布局错位 = 真实英文会撑爆
-- **Phase 2 PR 截图三选一必含**:`zh-CN` / `en-US` / **`xx-pseudo`**(见 §9 第 6 条)
+- **PR 截图建议**:`zh-CN` / `en-US` / **`xx-pseudo`** 至少覆盖一种受影响界面
 - **构建排除**:production 构建不包含 `xx-pseudo` locale 文件
-- **失效检查**:如果发现某文案在 pseudo locale 下不带方括号,说明该文案是硬编码字符串,Phase 2 视为 missed extract,必须修
+- **失效检查**:如果发现某文案在 pseudo locale 下不带方括号,说明该文案可能是硬编码字符串,必须修复
 
 ## 11. 菜单项
 
@@ -344,11 +345,11 @@
 | 实时展示 | Live Display | Live | `sidebar.menu` | - | 中 | |
 | 图片分析 | Image Analysis | Images | `sidebar.menu` | - | 中 | |
 | 视频接入 | Video Access | Video | `sidebar.menu` | - | 中 | |
-| 场景任务 | Scene Tasks | Tasks | `sidebar.menu` | - | 中 | 菜单沿用现有 nav.sceneTasks key;业务术语仍按 §5.1 Scenario Task review |
+| 场景任务 | Scene Tasks | Tasks | `sidebar.menu` | - | 中 | 菜单沿用现有 nav.sceneTasks key |
 | 事件中心 | Event Center | Events | `sidebar.menu` | - | 中 | |
 | 检测/分析 | Detection / Analysis | Detection | `sidebar.menu` | - | 中 | |
 | 人脸人体 | Face and Body | Faces | `sidebar.menu` | - | 中 | |
-| 计数统计 | Counting Statistics | Counts | `sidebar.menu` | - | 中 | 菜单显示与 §5.1 Counting Analytics 待产品统一 |
+| 计数统计 | Counting Statistics | Counts | `sidebar.menu` | - | 中 | 菜单显示使用 Counting Statistics |
 | 模型仓库 | Model Repository | Models | `sidebar.menu` | - | 中 | |
 | 底库管理 | Base Library | Libraries | `sidebar.menu` | - | 中 | |
 | 人脸底库 | Face Library | Faces | `sidebar.menu` | - | 中 | |
@@ -365,30 +366,30 @@
 | 系统维护 | System Maintenance | Maintenance | `sidebar.menu` | - | 中 | |
 | 个性化设置 | Personalization | Personalize | `sidebar.menu` | - | 中 | |
 
-## 高风险术语汇总 (必须产品 review)
+## 布局高风险术语
 
-以下 term 风险=高,必须在 v1 锁定前确认 EN、Short 或同意 layout 改造。
+以下术语在英文界面中更容易造成布局膨胀。实现时应优先调整布局;只有 glossary 中提供 Short 且 scope 匹配时才使用短形式。
 
-| 中文 | 当前建议 | 必须 review 内容 |
+| 中文 | EN / Short | 处理要求 |
 |---|---|---|
-| 计数统计 | Counting Analytics / Counting | 模块名是否接受 Counting Analytics |
-| 单机版 | Standalone Edition / Standalone | 版本名 |
-| 联网版 | Connected Edition / Connected | 是否比 Networked 更符合产品 |
-| 算法服务 | Algorithm Service / Algo Service | Algo Service 是否可接受 |
-| 参数设置 | Parameter Settings / Settings | 是否允许菜单短成 Settings |
-| 灵敏度计算 | Sensitivity Calculation / Sensitivity | 是否会与普通 Sensitivity 混淆 |
-| 前端大屏展示告警音 | Dashboard Alarm Sound / Alarm Sound | 建议中文也重命名 |
-| 底库照 | Reference Photo / Reference | 与"底库家族"映射一致 |
-| 检测照 | Detection Photo / Detection | 是否与检测动作混淆 |
-| 人脸底库照 | Face Library Photo / Face Photo | 是否接受 |
-| 授权失败 | Authorization failed / Auth failed | badge 短形式 |
-| 丢包率 | Packet Loss Rate / Loss Rate | dashboard 短形式 |
-| 说明 | Description / Desc. | 是否接受表头短形式 |
-| 默认 | Default | 不设短形式,是否接受 layout 让步 |
+| 计数统计 | Counting Analytics / Counting | 完整标题使用 Counting Analytics;紧凑菜单或卡片可使用 Counting |
+| 单机版 | Standalone Edition / Standalone | 状态徽标可使用 Standalone |
+| 联网版 | Connected Edition / Connected | 状态徽标可使用 Connected |
+| 算法服务 | Algorithm Service / Algo Service | 避免短成 Algorithm |
+| 参数设置 | Parameter Settings / Settings | 仅在侧栏菜单或流程节点中使用 Settings |
+| 灵敏度计算 | Sensitivity Calculation / Sensitivity | 紧凑流程节点可使用 Sensitivity |
+| 前端大屏展示告警音 | Dashboard Alarm Sound / Alarm Sound | 大屏卡片可使用 Alarm Sound |
+| 底库照 | Reference Photo / Reference | 与底库概念家族保持一致 |
+| 检测照 | Detection Photo / Detection | 仅在表头或卡片中使用短形式 |
+| 人脸底库照 | Face Library Photo / Face Photo | 仅在表头或卡片中使用短形式 |
+| 授权失败 | Authorization failed / Auth failed | badge 可使用 Auth failed |
+| 丢包率 | Packet Loss Rate / Loss Rate | dashboard 或表头可使用 Loss Rate |
+| 说明 | Description / Desc. | 表头可使用 Desc. + tooltip |
+| 默认 | Default | 不设短形式,通过布局或 tooltip 处理 |
 
-## 低频但需要补充锁定的业务词
+## 补充术语
 
-这些词在 `terms-by-frequency.csv` 中频次低 (0-2 次),但业务含义强或会被 AI 在 Phase 2 反复碰到。下一版应补进正式 glossary,否则 AI 容易自由发挥。
+以下术语出现频次较低,但语义需要统一。新增 UI 文案时应复用这些译法。
 
 ### 业务实体
 
@@ -397,7 +398,7 @@
 | 任务名称 | Task Name | |
 | 算法版本 | Algorithm Version | |
 | 导入任务 | Import Task | |
-| 运行策略 | Run Policy | 也可能是 Execution Policy,产品确认 |
+| 运行策略 | Run Policy | 如强调执行策略,可使用 Execution Policy |
 | 时间模板 | Time Template | |
 | 脸库 | Face Library | 与"底库家族"一致 |
 | 照片地址 | Photo URL | 如果是本地路径可用 Photo Path |
@@ -412,7 +413,7 @@
 | 车牌颜色 | Plate Color | |
 | 车身颜色 | Vehicle Color | |
 | 车辆朝向 | Vehicle Direction | |
-| 运煤车类型 | Coal Truck Type | 行业词,产品确认 |
+| 运煤车类型 | Coal Truck Type | 行业词 |
 
 ### AI/算法术语
 
@@ -421,7 +422,7 @@
 | 类别 | Category / Class | 业务分组用 Category;模型输出类别用 Class |
 | 置信度 | Confidence | 通用术语 |
 | 分类 | Classification | |
-| 原子追踪 | Atomic Tracking | 算法名,产品确认 |
+| 原子追踪 | Atomic Tracking | 算法名 |
 | 人体人脸检测 | Face and Body Detection | **与 §5.2"人脸人体"统一为 Face and Body 顺序** |
 | 检测视觉大模型 | Detection Model | **不暴露 VLM 缩写到用户界面** |
 | 语言视觉大模型 | Vision-Language Model | 同上,如用于用户界面避免缩写 |
@@ -442,41 +443,3 @@
 | 节点 | 2 | Node | 流程图节点,与"新节点"一致 |
 | 区域 | 1 | Area | 与"检测区域/区域名称"一致 |
 | 登录 | 2 | Sign in / Login | 动作按钮用 Sign in;名词或技术上下文用 Login |
-
----
-
-## 下一步
-
-1. 产品/业务优先审 §"高风险术语汇总",锁 EN 与必要 Short。
-2. 产品/业务确认 §5.4 上方"底库 / 脸库 / Library 家族"映射。
-3. 产品/业务补审 §"低频但需要补充锁定的业务词"。
-4. 开发把 Short 的使用限制落实到组件/API,加 CI 校验 `i18n/SHORT-SCOPES.md`。
-5. 开发实现 §9 全部强制规则的 lint/CI 栅栏。
-6. Phase 1 示例模块验证: 默认 EN 是否能撑住布局;只有真实溢出的地方才启用 Short。
-
-## 变更历史
-
-- v0.5 (2026-05-29):
-  - §9 第 5 条明确 `tShort` 异常兜底为当前 locale 全形式,不再固定 EN。
-  - §9 第 9 条补充 warning/error dialog 禁用 `action.ok` 的 CI 策略。
-  - §10 pseudo 字符表升级到实现中的全字母 accent 映射。
-  - 新增 §11 菜单项,将 `nav.*` short scope 纳入 GLOSSARY 与 CI 同步 gate。
-- v0.4 (2026-05-29):
-  - §1 `确定`/`确认` 备注收紧,指向 §9 第 9 条
-  - §9 第 5 条收紧:调用 Short 的唯一 API 是 `tShort(key, scope)`,禁止通过 key 路径 (`.short`) 绕开校验
-  - §9 新增第 9 条:确认按钮文案三级政策(信息弹窗 OK / 危险动作具体动词 / 兜底 Confirm)
-  - 新增 §10:测试 locale `xx-pseudo` 规则与 CI 钩子(accent + [brackets] + 30-50% 均匀膨胀,保留占位符)
-- v0.3 (2026-05-29):
-  - §9 新增第 8 条:同一中文 term 对应多个英文语境必须拆 key(配合 SHORT-SCOPES v1.1)
-  - SHORT-SCOPES.md 同步升 v1.1:tooltip 规则按 A/B 组覆盖全部 9 个 scope
-- v0.2 (2026-05-29):
-  - Short scope 改为受控枚举,引用 `i18n/SHORT-SCOPES.md`
-  - 修 `未上传 / Pending` 双义,Pending 独立到低频补充
-  - 统一 "Face and Body" 顺序 (§5.2 + 低频"人体人脸检测")
-  - 移除 VLM 缩写双重标准
-  - 新增 §5.4 "底库 / 脸库 / Library 家族" 映射前置说明
-  - 新增 §8 格式与本地化约定
-  - 新增 §9 Phase 2 强制规则 (含 "操作成功" 迁移要求)
-  - 补 AI/算法低频词(类别、置信度、分类)及其他实测低频
-- v0.1: 原则与 Short scope 设计
-- v0: 初始草案

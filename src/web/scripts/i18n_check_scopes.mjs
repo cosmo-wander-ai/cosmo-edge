@@ -5,8 +5,8 @@ import { findI18nRepoRoot } from './i18n_repo_root.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = findI18nRepoRoot(__dirname)
-const glossaryPath = path.join(repoRoot, 'i18n', 'GLOSSARY.md')
-const scopesPath = path.join(repoRoot, 'i18n', 'SHORT-SCOPES.md')
+const glossaryPath = path.join(repoRoot, 'docs', 'i18n', 'GLOSSARY.md')
+const scopesPath = path.join(repoRoot, 'docs', 'i18n', 'SHORT-SCOPES.md')
 
 const readFile = (file) => fs.readFileSync(file, 'utf8')
 

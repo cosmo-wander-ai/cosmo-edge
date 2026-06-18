@@ -4,9 +4,7 @@ description: Recommended quality gates for docs, frontend, C++ formatting, stati
 prev:
   text: Backend Development
   link: /en/development/backend
-next:
-  text: Open Source Checklist
-  link: /en/project/open-source-checklist
+next: false
 ---
 
 # CI and Quality Checks
