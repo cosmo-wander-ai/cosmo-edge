@@ -218,7 +218,7 @@ cd cosmo-edge
 # 2. 启动 x86 模式
 # TODO: 确认最终公开启动命令。
 # 首选发布目标：
-docker compose -f docker-compose.x86.yml up -d --build
+sudo docker compose -f docker-compose.x86.yml up -d --build
 
 # 3. 打开 Web 控制台
 # http://localhost:8080
@@ -240,19 +240,38 @@ git clone https://github.com/cosmo-wander-ai/cosmo-edge.git
 cd cosmo-edge
 
 # 2. 构建 Sophon/aarch64 发布包
-bash scripts/build_sophon_package.sh
+sudo bash scripts/build_sophon_package.sh
 
 # 3. 查看导出的发布包
 ls -lh build_output/
+# 输出的包名格式如：cosmo-V<version>-<hash>.tar.gz
+
+# 4. 将安装包拷贝到 Sophon 边缘设备上（将 <device_ip> 替换为设备的实际 IP，默认是 192.168.100.1）
+scp build_output/cosmo-V*.tar.gz root@<device_ip>:/tmp/
+
+# 5. SSH 登录设备，解压并执行 install.sh 安装脚本
+ssh root@<device_ip>
+cd /tmp
+tar -zxvf cosmo-V*.tar.gz
+sudo bash scripts/install.sh
+
+# 6. 重启设备以启动服务
+sudo reboot
 ```
 
-Windows PowerShell：
+在 Windows PowerShell 下构建发布包：
 
 ```powershell
 .\scripts\build_sophon_package.ps1
 ```
 
-该路径用于构建并导出发布包，不会直接启动服务。准备用于生产硬件？认证 CosmoEdge 设备提供预配置 Sophon 加速、生产模型包和部署支持。参见 [CosmoEdge-ready 设备](#cosmoedge-ready-设备)。
+安装完成并重启设备后：
+- **默认 IP**：`192.168.100.1`（需确保您的电脑与设备处于同一网段，例如配置静态 IP 为 `192.168.100.x`）
+- **登录地址**：`http://192.168.100.1`
+- **默认用户名**：`admin`
+- **默认密码**：`admin`（首次登录后建议修改）
+
+该路径用于构建、导出并安装发布包。准备用于生产硬件？认证 CosmoEdge 设备提供预配置 Sophon 加速、生产模型包和部署支持。参见 [CosmoEdge-ready 设备](#cosmoedge-ready-设备)。
 
 ## 典型场景
 

@@ -216,7 +216,7 @@ cd cosmo-edge
 # 2. Start in x86 mode
 # TODO: Confirm the final public launch command.
 # Preferred release target:
-docker compose -f docker-compose.x86.yml up -d --build
+sudo docker compose -f docker-compose.x86.yml up -d --build
 
 # 3. Open the web console
 # http://localhost:8080
@@ -238,19 +238,38 @@ git clone https://github.com/cosmo-wander-ai/cosmo-edge.git
 cd cosmo-edge
 
 # 2. Build the Sophon/aarch64 package
-bash scripts/build_sophon_package.sh
+sudo bash scripts/build_sophon_package.sh
 
 # 3. View exported release packages
 ls -lh build_output/
+# The output package will be named like: cosmo-V<version>-<hash>.tar.gz
+
+# 4. Copy the package to the Sophon edge device (replace <device_ip> with actual IP, default is 192.168.100.1)
+scp build_output/cosmo-V*.tar.gz root@<device_ip>:/tmp/
+
+# 5. SSH to the device, extract the package, and run the installation script
+ssh root@<device_ip>
+cd /tmp
+tar -zxvf cosmo-V*.tar.gz
+sudo bash scripts/install.sh
+
+# 6. Reboot the device to start the services
+sudo reboot
 ```
 
-On Windows PowerShell:
+On Windows PowerShell to build the package:
 
 ```powershell
 .\scripts\build_sophon_package.ps1
 ```
 
-This path builds and exports release packages. It does not start the service directly. Ready for production hardware? Certified CosmoEdge devices provide preconfigured Sophon acceleration, production model packages, and deployment support. See [CosmoEdge-ready devices](#cosmoedge-ready-devices).
+After installing the package and rebooting the device:
+- **Default IP**: `192.168.100.1` (ensure your computer is configured with a static IP in the `192.168.100.x` subnet to connect directly)
+- **Web Console URL**: `http://192.168.100.1`
+- **Default Username**: `admin`
+- **Default Password**: `admin` (it is highly recommended to change this password after your first login)
+
+This path builds, exports, and installs release packages. Ready for production hardware? Certified CosmoEdge devices provide preconfigured Sophon acceleration, production model packages, and deployment support. See [CosmoEdge-ready devices](#cosmoedge-ready-devices).
 
 ## Showcases
 
