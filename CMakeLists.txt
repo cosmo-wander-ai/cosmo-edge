@@ -163,9 +163,6 @@ if(COSMO_NN_USE_CPU_BACKEND)
 endif()
 include(cmake/pcap.cmake)
 include(cmake/srs.cmake)
-if(COSMO_TARGET_ARCH STREQUAL "x86_64")
-    include(cmake/nginx.cmake)
-endif()
 
 #Header - only third - party libraries
 add_library(nlohmann INTERFACE)
@@ -361,13 +358,7 @@ install(TARGETS ${EXECUTABLE_NAME}
     PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_WRITE GROUP_READ GROUP_EXECUTE
 )
 
-# Nginx
-if(NOT COSMO_TARGET_ARCH STREQUAL "x86_64")
-    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/nginx/bin/nginx
-        DESTINATION bin
-        PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_WRITE GROUP_READ GROUP_EXECUTE
-    )
-endif()
+# Nginx configuration (uses system nginx, no custom binary)
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/nginx/conf
     DESTINATION bin/nginx_conf
     FILE_PERMISSIONS OWNER_WRITE OWNER_READ GROUP_WRITE GROUP_READ
