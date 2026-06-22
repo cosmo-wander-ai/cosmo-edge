@@ -67,6 +67,7 @@ RUN sed -i 's|http://deb.debian.org/debian|https://mirrors.aliyun.com/debian|g' 
     sed -i 's|http://deb.debian.org/debian|https://mirrors.aliyun.com/debian|g' /etc/apt/sources.list
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    nginx \
     iproute2 \
     libatomic1 \
     libbrotli1 \
