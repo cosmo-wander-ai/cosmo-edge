@@ -8,6 +8,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Automatically restore Linux .so symlinks to local binary copies on Windows before building
+Write-Host "Restoring shared library symlinks for Windows host..."
+& (Join-Path $PSScriptRoot "restore_symlinks.ps1")
+
+
 function Test-Command {
     param([string]$Name)
     return $null -ne (Get-Command $Name -ErrorAction SilentlyContinue)
