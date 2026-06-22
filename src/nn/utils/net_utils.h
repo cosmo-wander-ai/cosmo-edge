@@ -141,7 +141,7 @@ public:
     static Status GenerateCropResizeParam(CropResize* crop_resize, int left, int top, int right, int bottom,
                                           Size size, CropResizeParam& param);
 
-    static Status OptimizePreOps(std::vector<Op*>& ops, bool use_skip = false);
+    static Status OptimizePreOps(std::vector<std::unique_ptr<Op>>& ops, bool use_skip = false);
 
     static Status ParseDetectionOutput(std::vector<std::shared_ptr<Blob>>& blobs,
                                        std::vector<Size>& image_sizes, Size net_input_size,

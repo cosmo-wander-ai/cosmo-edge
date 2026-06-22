@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -22,14 +23,14 @@ struct PUBLIC InputNodeInfo {
      */
     int data_type = 0;
 
-    std::vector<Op*> ops = {};
+    std::vector<std::unique_ptr<Op>> ops = {};
 };
 
 struct PUBLIC OutputNodeInfo {
-    std::string name = {};
-    DimsVector shape = {};
-    int data_type    = 0;
-    Op* op           = nullptr;
+    std::string name       = {};
+    DimsVector shape       = {};
+    int data_type          = 0;
+    std::unique_ptr<Op> op = nullptr;
 };
 
 struct PUBLIC ModelInfo {

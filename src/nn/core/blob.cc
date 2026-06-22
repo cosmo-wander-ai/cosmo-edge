@@ -25,21 +25,18 @@ std::string BlobDesc::description() {
 }
 
 Blob::Blob(BlobDesc desc) {
-    impl = new BlobImpl(desc);
+    impl = std::make_unique<BlobImpl>(desc);
 }
 
 Blob::Blob(BlobDesc desc, bool alloc_memory) {
-    impl = new BlobImpl(desc, alloc_memory);
+    impl = std::make_unique<BlobImpl>(desc, alloc_memory);
 }
 
 Blob::Blob(BlobDesc desc, BlobHandle handle) {
-    impl = new BlobImpl(desc, handle);
+    impl = std::make_unique<BlobImpl>(desc, handle);
 }
 
-Blob::~Blob() {
-    delete impl;
-    impl = nullptr;
-}
+Blob::~Blob() = default;
 
 BlobDesc& Blob::GetBlobDesc() {
     return impl->GetBlobDesc();

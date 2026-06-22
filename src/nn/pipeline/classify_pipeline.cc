@@ -51,7 +51,7 @@ Status ClassifyPipeline::Init(const PipelineConfig& config, const std::string& m
         float scale = p.get("normalize_scale", 0.00392157f).asFloat();
         bool is_bgr = p.get("is_bgr", false).asBool();
 
-        std::vector<Op*> preprocess;
+        std::vector<std::unique_ptr<Op>> preprocess;
         bool has_crop = p.isMember("crop") && p["crop"].isBool() && p["crop"].asBool();
         if (has_crop) {
             // Only new format supported: four directions each as a single float
@@ -80,8 +80,8 @@ Status ClassifyPipeline::Init(const PipelineConfig& config, const std::string& m
             input.name      = in_def.name;
             input.shape     = in_def.shape;
             input.data_type = in_def.data_type;
-            input.ops       = preprocess;
-            model.input_node_infos.push_back(input);
+            input.ops       = std::move(preprocess);
+            model.input_node_infos.push_back(std::move(input));
         }
         for (auto& out_def : mc.outputs) {
             OutputNodeInfo output;
@@ -89,9 +89,9 @@ Status ClassifyPipeline::Init(const PipelineConfig& config, const std::string& m
             output.shape     = out_def.shape;
             output.data_type = out_def.data_type;
             output.op        = nullptr;
-            model.output_node_infos.push_back(output);
+            model.output_node_infos.push_back(std::move(output));
         }
-        model_info_.models.push_back(model);
+        model_info_.models.push_back(std::move(model));
     }
 
     if (!config.labels.empty() && !model_info_.models.empty()) {

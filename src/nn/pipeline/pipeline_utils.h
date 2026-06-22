@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -11,44 +12,50 @@
 namespace cosmo::nn {
 namespace pipeline_utils {
 
-    Resize* MakeResizeOp(const std::vector<int>& dsize, int gravity = 0,
-                         const std::vector<int>& color = {114, 114, 114});
+    std::unique_ptr<Resize> MakeResizeOp(const std::vector<int>& dsize, int gravity = 0,
+                                         const std::vector<int>& color = {114, 114, 114});
 
-    Normalize* MakeNormalizeOp(const std::vector<float>& mean, float scale, bool is_bgr = true,
-                               const std::vector<float>& std_dev = {});
+    std::unique_ptr<Normalize> MakeNormalizeOp(const std::vector<float>& mean, float scale,
+                                               bool is_bgr = true, const std::vector<float>& std_dev = {});
 
-    AffineCrop* MakeAffineCropOp(float norm_ratio, int norm_mode, const std::vector<int>& output_hw,
-                                 const std::vector<int>& center_index);
+    std::unique_ptr<AffineCrop> MakeAffineCropOp(float norm_ratio, int norm_mode,
+                                                 const std::vector<int>& output_hw,
+                                                 const std::vector<int>& center_index);
 
-    CropResize* MakeCropResizeOp(const std::string& type, const std::vector<float>& h_top_crop,
-                                 const std::vector<float>& h_bottom_crop,
-                                 const std::vector<float>& w_left_crop,
-                                 const std::vector<float>& w_right_crop, bool square, int square_mode,
-                                 const std::vector<int>& dsize, int gravity, const std::vector<int>& color);
+    std::unique_ptr<CropResize> MakeCropResizeOp(const std::string& type,
+                                                 const std::vector<float>& h_top_crop,
+                                                 const std::vector<float>& h_bottom_crop,
+                                                 const std::vector<float>& w_left_crop,
+                                                 const std::vector<float>& w_right_crop, bool square,
+                                                 int square_mode, const std::vector<int>& dsize, int gravity,
+                                                 const std::vector<int>& color);
 
-    Sequence* MakeSequenceOp(int size, float scale, const std::vector<int>& dsize, bool is_bgr);
+    std::unique_ptr<Sequence> MakeSequenceOp(int size, float scale, const std::vector<int>& dsize,
+                                             bool is_bgr);
 
-    YoloPost* MakeYoloPostOp(float nms_threshold, float nms_detection_conf, int top_k, int input_width = 0,
-                             int input_height = 0);
+    std::unique_ptr<YoloPost> MakeYoloPostOp(float nms_threshold, float nms_detection_conf, int top_k,
+                                             int input_width = 0, int input_height = 0);
 
-    YoloNpuPost* MakeYoloNpuPostOp(float nms_threshold, float nms_detection_conf, int top_k,
-                                   const std::vector<std::vector<std::vector<float>>>& anchors,
-                                   const std::vector<float>& stride);
+    std::unique_ptr<YoloNpuPost> MakeYoloNpuPostOp(
+        float nms_threshold, float nms_detection_conf, int top_k,
+        const std::vector<std::vector<std::vector<float>>>& anchors, const std::vector<float>& stride);
 
-    YoloPost* MakeYoloV8PostOp(float nms_threshold, float nms_detection_conf, int top_k, int input_width = 0,
-                               int input_height = 0);
+    std::unique_ptr<YoloPost> MakeYoloV8PostOp(float nms_threshold, float nms_detection_conf, int top_k,
+                                               int input_width = 0, int input_height = 0);
 
-    YoloPost* MakeYoloE2EPostOp(float conf_threshold, int top_k, int input_width = 0, int input_height = 0);
+    std::unique_ptr<YoloPost> MakeYoloE2EPostOp(float conf_threshold, int top_k, int input_width = 0,
+                                                int input_height = 0);
 
-    DinoEncoder* MakeDinoEncoderOp(int dst_width, int dst_height, bool is_bgr, const std::vector<float>& mean,
-                                   const std::vector<float>& std_dev);
+    std::unique_ptr<DinoEncoder> MakeDinoEncoderOp(int dst_width, int dst_height, bool is_bgr,
+                                                   const std::vector<float>& mean,
+                                                   const std::vector<float>& std_dev);
 
-    DinoDecode* MakeDinoDecodeOp(float text_threshold, float box_threshold);
+    std::unique_ptr<DinoDecode> MakeDinoDecodeOp(float text_threshold, float box_threshold);
 
-    SAMPromptEncode* MakeSAMPromptEncodeOp(const std::string& prompt_type, bool normalize, int encoder_size,
-                                           int max_points);
+    std::unique_ptr<SAMPromptEncode> MakeSAMPromptEncodeOp(const std::string& prompt_type, bool normalize,
+                                                           int encoder_size, int max_points);
 
-    SAMDecode* MakeSAMDecodeOp(float threshold, const std::vector<int>& output_size);
+    std::unique_ptr<SAMDecode> MakeSAMDecodeOp(float threshold, const std::vector<int>& output_size);
 
     void BuildInstructionsFromLabels(const std::vector<PipelineLabelInfo>& labels,
                                      const std::string& output_node_name, const DimsVector& output_shape,

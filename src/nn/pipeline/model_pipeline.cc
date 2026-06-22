@@ -11,26 +11,10 @@ namespace cosmo::nn {
 
 // ─── Pipeline Base Class Default Implementation ─────────────────────
 
+ModelPipeline::ModelPipeline() = default;
+
 ModelPipeline::~ModelPipeline() {
-    std::unordered_set<Op*> input_ops_deleted;
-    for (auto& model : model_info_.models) {
-        for (auto& input : model.input_node_infos) {
-            for (auto op : input.ops) {
-                if (op && input_ops_deleted.find(op) == input_ops_deleted.end()) {
-                    input_ops_deleted.insert(op);
-                    delete op;
-                }
-            }
-        }
-        for (auto& output : model.output_node_infos) {
-            if (output.op) {
-                delete output.op;
-                output.op = nullptr;
-            }
-        }
-    }
-    delete graph_;
-    graph_ = nullptr;
+    // unique_ptr members (graph_, Op pointers in model_info_) auto-destruct
 }
 
 Status ModelPipeline::ParseDetectionOutput(std::vector<std::vector<ObjectInfoV1>>& outputs) {
@@ -150,7 +134,7 @@ std::vector<std::string> ModelPipeline::GetSelectedClassnames() const {
 
 Status ModelPipeline::InitGraph(const std::string& model_path, DeviceType device_type, int device_id,
                                 IProfiler* profiler, const std::string& tokenizer_path, bool use_skip) {
-    graph_ = new Graph();
+    graph_ = std::make_unique<Graph>();
     if (profiler)
         graph_->SetProfiler(profiler);
 

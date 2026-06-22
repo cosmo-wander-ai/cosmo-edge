@@ -19,8 +19,8 @@ static Json::Value SafeParams(const PipelineModelConfig& mc) {
     return val;
 }
 
-static std::vector<Op*> MakeDetPreprocess(const Json::Value& p) {
-    std::vector<Op*> ops;
+static std::vector<std::unique_ptr<Op>> MakeDetPreprocess(const Json::Value& p) {
+    std::vector<std::unique_ptr<Op>> ops;
 
     std::vector<int> dsize = {640, 640};
     if (p.isMember("input_size") && p["input_size"].isArray()) {
@@ -116,14 +116,13 @@ Status YoloV5DetPipeline::Init(const PipelineConfig& config, const std::string& 
         model.max_batch = mc.max_batch;
         max_batch_      = mc.max_batch;
 
-        auto preprocess = MakeDetPreprocess(p);
         for (auto& in_def : mc.inputs) {
             InputNodeInfo input;
             input.name      = in_def.name;
             input.shape     = in_def.shape;
             input.data_type = in_def.data_type;
-            input.ops       = preprocess;
-            model.input_node_infos.push_back(input);
+            input.ops       = MakeDetPreprocess(p);
+            model.input_node_infos.push_back(std::move(input));
         }
 
         float nms_thresh  = p.get("nms_threshold", 0.35f).asFloat();
@@ -171,9 +170,9 @@ Status YoloV5DetPipeline::Init(const PipelineConfig& config, const std::string& 
                                                                v5_input_h);
                 }
             }
-            model.output_node_infos.push_back(output);
+            model.output_node_infos.push_back(std::move(output));
         }
-        model_info_.models.push_back(model);
+        model_info_.models.push_back(std::move(model));
     }
 
     if (!config.labels.empty() && !model_info_.models.empty()) {
@@ -220,14 +219,13 @@ Status YoloV8DetPipeline::Init(const PipelineConfig& config, const std::string& 
         model.max_batch = mc.max_batch;
         max_batch_      = mc.max_batch;
 
-        auto preprocess = MakeDetPreprocess(p);
         for (auto& in_def : mc.inputs) {
             InputNodeInfo input;
             input.name      = in_def.name;
             input.shape     = in_def.shape;
             input.data_type = in_def.data_type;
-            input.ops       = preprocess;
-            model.input_node_infos.push_back(input);
+            input.ops       = MakeDetPreprocess(p);
+            model.input_node_infos.push_back(std::move(input));
         }
 
         float nms_thresh  = p.get("nms_threshold", 0.7f).asFloat();
@@ -250,9 +248,9 @@ Status YoloV8DetPipeline::Init(const PipelineConfig& config, const std::string& 
             if (i == 0)
                 output.op = pipeline_utils::MakeYoloV8PostOp(nms_thresh, conf_thresh, top_k, post_input_w,
                                                              post_input_h);
-            model.output_node_infos.push_back(output);
+            model.output_node_infos.push_back(std::move(output));
         }
-        model_info_.models.push_back(model);
+        model_info_.models.push_back(std::move(model));
     }
 
     if (!config.labels.empty() && !model_info_.models.empty()) {
@@ -299,14 +297,13 @@ Status Yolo26DetPipeline::Init(const PipelineConfig& config, const std::string& 
         model.max_batch = mc.max_batch;
         max_batch_      = mc.max_batch;
 
-        auto preprocess = MakeDetPreprocess(p);
         for (auto& in_def : mc.inputs) {
             InputNodeInfo input;
             input.name      = in_def.name;
             input.shape     = in_def.shape;
             input.data_type = in_def.data_type;
-            input.ops       = preprocess;
-            model.input_node_infos.push_back(input);
+            input.ops       = MakeDetPreprocess(p);
+            model.input_node_infos.push_back(std::move(input));
         }
 
         float conf_thresh = p.get("confidence_threshold", 0.25f).asFloat();
@@ -327,9 +324,9 @@ Status Yolo26DetPipeline::Init(const PipelineConfig& config, const std::string& 
             output.data_type = out_def.data_type;
             if (i == 0)
                 output.op = pipeline_utils::MakeYoloE2EPostOp(conf_thresh, top_k, e2e_input_w, e2e_input_h);
-            model.output_node_infos.push_back(output);
+            model.output_node_infos.push_back(std::move(output));
         }
-        model_info_.models.push_back(model);
+        model_info_.models.push_back(std::move(model));
     }
 
     if (!config.labels.empty() && !model_info_.models.empty()) {
@@ -376,14 +373,13 @@ Status GenericDetectorPipeline::Init(const PipelineConfig& config, const std::st
         model.max_batch = mc.max_batch;
         max_batch_      = mc.max_batch;
 
-        auto preprocess = MakeDetPreprocess(p);
         for (auto& in_def : mc.inputs) {
             InputNodeInfo input;
             input.name      = in_def.name;
             input.shape     = in_def.shape;
             input.data_type = in_def.data_type;
-            input.ops       = preprocess;
-            model.input_node_infos.push_back(input);
+            input.ops       = MakeDetPreprocess(p);
+            model.input_node_infos.push_back(std::move(input));
         }
 
         std::string post_type = p.get("post_type", "yolo").asString();
@@ -434,9 +430,9 @@ Status GenericDetectorPipeline::Init(const PipelineConfig& config, const std::st
                                                                gd_input_h);
                 }
             }
-            model.output_node_infos.push_back(output);
+            model.output_node_infos.push_back(std::move(output));
         }
-        model_info_.models.push_back(model);
+        model_info_.models.push_back(std::move(model));
     }
 
     if (!config.labels.empty() && !model_info_.models.empty()) {

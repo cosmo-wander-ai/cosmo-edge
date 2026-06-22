@@ -477,23 +477,23 @@ Status NetUtils::GenerateCropResizeParam(CropResize* crop_resize, int left, int 
     return COSMO_NN_OK;
 }
 
-Status NetUtils::OptimizePreOps(std::vector<Op*>& ops, bool use_skip) {
+Status NetUtils::OptimizePreOps(std::vector<std::unique_ptr<Op>>& ops, bool use_skip) {
     auto begin = ops.begin();
     auto end   = ops.end();
-    ops.erase(std::remove_if(begin, end, [](Op* op) { return !op; }), end);
+    ops.erase(std::remove_if(begin, end, [](const std::unique_ptr<Op>& op) { return !op; }), end);
 
     if (use_skip) {
         begin = ops.begin();
         end   = ops.end();
-        ops.erase(std::remove_if(begin, end, [](Op* op) { return op->skip; }), end);
+        ops.erase(std::remove_if(begin, end, [](const std::unique_ptr<Op>& op) { return op->skip; }), end);
     }
 
     // fuse crop and resize
     if (ops.at(0)->name == "rect_crop" && ops.at(1)->name == "resize") {
-        auto crop   = dynamic_cast<RectCrop*>(ops.at(0));
-        auto resize = dynamic_cast<Resize*>(ops.at(1));
+        auto* crop   = dynamic_cast<RectCrop*>(ops.at(0).get());
+        auto* resize = dynamic_cast<Resize*>(ops.at(1).get());
 
-        CropResize* crop_resize           = new CropResize("crop_resize");
+        auto crop_resize                  = std::make_unique<CropResize>("crop_resize");
         crop_resize->type                 = crop->type;
         crop_resize->bbox_hw_ratio_levels = crop->bbox_hw_ratio_levels;
         crop_resize->h_top_crop           = crop->h_top_crop;
@@ -506,10 +506,9 @@ Status NetUtils::OptimizePreOps(std::vector<Op*>& ops, bool use_skip) {
         crop_resize->gravity              = resize->gravity;
         crop_resize->color                = resize->color;
 
-        delete crop;
-        delete resize;
+        // erase auto-deletes the old crop and resize via unique_ptr
         ops.erase(ops.begin(), ops.begin() + 2);
-        ops.insert(ops.begin(), crop_resize);
+        ops.insert(ops.begin(), std::move(crop_resize));
     }
 
     return COSMO_NN_OK;

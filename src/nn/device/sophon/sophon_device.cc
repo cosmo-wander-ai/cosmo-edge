@@ -40,14 +40,13 @@ Status SophonDevice::Allocate(void** handle, unsigned long* phy, BlobMemorySizeI
         return Status(COSMO_NN_ERR_PARAM, "SophonDevice::Allocate invalid blob size (negative or > 512MB)");
     }
 
-    bm_device_mem_t* tensor_mem = new bm_device_mem_t;
-    ret = bm_malloc_device_byte_heap_mask(bm_handle, tensor_mem, 3, static_cast<size_t>(bytes_size));
+    auto tensor_mem = std::make_unique<bm_device_mem_t>();
+    ret = bm_malloc_device_byte_heap_mask(bm_handle, tensor_mem.get(), 3, static_cast<size_t>(bytes_size));
     if (ret != BM_SUCCESS) {
-        delete tensor_mem;
         return Status(COSMO_NN_ERR_SOPHON_ALLOC_MEM_FAILED, "sophon malloc device mem failed.");
     }
 
-    *handle = static_cast<void*>(tensor_mem);
+    *handle = static_cast<void*>(tensor_mem.release());  // transfer ownership to caller
     return COSMO_NN_OK;
 }
 

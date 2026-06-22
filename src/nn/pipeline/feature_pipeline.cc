@@ -30,7 +30,7 @@ Status FeaturePipeline::Init(const PipelineConfig& config, const std::string& mo
         model.max_batch = mc.max_batch;
         max_batch_      = mc.max_batch;
 
-        std::vector<Op*> preprocess;
+        std::vector<std::unique_ptr<Op>> preprocess;
         bool use_affine = false;
         if (p.isMember("use_affine_crop")) {
             use_affine = p["use_affine_crop"].asBool();
@@ -119,8 +119,8 @@ Status FeaturePipeline::Init(const PipelineConfig& config, const std::string& mo
             input.name      = in_def.name;
             input.shape     = in_def.shape;
             input.data_type = in_def.data_type;
-            input.ops       = preprocess;
-            model.input_node_infos.push_back(input);
+            input.ops       = std::move(preprocess);
+            model.input_node_infos.push_back(std::move(input));
         }
         for (auto& out_def : mc.outputs) {
             OutputNodeInfo output;
@@ -128,9 +128,9 @@ Status FeaturePipeline::Init(const PipelineConfig& config, const std::string& mo
             output.shape     = out_def.shape;
             output.data_type = out_def.data_type;
             output.op        = nullptr;
-            model.output_node_infos.push_back(output);
+            model.output_node_infos.push_back(std::move(output));
         }
-        model_info_.models.push_back(model);
+        model_info_.models.push_back(std::move(model));
     }
 
     Json::Value extra_cfg;

@@ -44,7 +44,7 @@ Status KeypointsPipeline::Init(const PipelineConfig& config, const std::string& 
         bool is_bgr = p.get("is_bgr", true).asBool();
 
         bool has_crop = p.get("crop", false).asBool();
-        std::vector<Op*> preprocess;
+        std::vector<std::unique_ptr<Op>> preprocess;
         if (has_crop) {
             float top    = p.get("crop_h_top", 0.0f).asFloat();
             float bottom = p.get("crop_h_bottom", 0.0f).asFloat();
@@ -68,8 +68,8 @@ Status KeypointsPipeline::Init(const PipelineConfig& config, const std::string& 
             input.name      = in_def.name;
             input.shape     = in_def.shape;
             input.data_type = in_def.data_type;
-            input.ops       = preprocess;
-            model.input_node_infos.push_back(input);
+            input.ops       = std::move(preprocess);
+            model.input_node_infos.push_back(std::move(input));
         }
         for (auto& out_def : mc.outputs) {
             OutputNodeInfo output;
@@ -77,9 +77,9 @@ Status KeypointsPipeline::Init(const PipelineConfig& config, const std::string& 
             output.shape     = out_def.shape;
             output.data_type = out_def.data_type;
             output.op        = nullptr;
-            model.output_node_infos.push_back(output);
+            model.output_node_infos.push_back(std::move(output));
         }
-        model_info_.models.push_back(model);
+        model_info_.models.push_back(std::move(model));
     }
 
     InitThresholdsAndLabels();
