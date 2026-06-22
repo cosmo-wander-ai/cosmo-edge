@@ -47,7 +47,9 @@ TODO before public launch:
 
 <div align="center">
 
-https://github.com/cosmo-wander-ai/cosmo-edge/raw/main/docs/assets/hero.mp4
+[![CosmoEdge running multiple edge AI pipelines](docs/assets/hero-thumb.jpg)](docs/assets/hero.mp4)
+
+</div>
 
 *Multiple AI pipelines, real-time OSD, and live event output on one edge device.*
 
@@ -93,7 +95,11 @@ CosmoEdge is built around a C++17 runtime rather than a Python service loop. Thi
 
 Build video AI workflows in a browser. Connect video sources, AI models, post-processing nodes, OSD rendering, alarm rules, and output channels with a visual pipeline editor.
 
-https://github.com/cosmo-wander-ai/cosmo-edge/raw/main/docs/assets/pipeline.mp4
+<div align="center">
+
+[![Pipeline editor workflow](docs/assets/pipeline-thumb.jpg)](docs/assets/pipeline.mp4)
+
+</div>
 
 ### Complete Application Loop
 
@@ -147,7 +153,11 @@ CosmoEdge supports prompt-driven visual intelligence on edge devices. GroundingD
 | Edge VLM           | Closed question -> YES/NO/Enum state judgment   | "Is the cabinet door open?" -> alarm on YES           |
 | VLM Image Analysis | Image upload -> structured visual check         | Quality inspection, compliance review                 |
 
-https://github.com/cosmo-wander-ai/cosmo-edge/raw/main/docs/assets/prompt-driven-ai.mp4
+<div align="center">
+
+[![Prompt-driven AI](docs/assets/prompt-driven-ai-thumb.jpg)](docs/assets/prompt-driven-ai.mp4)
+
+</div>
 
 GroundingDINO finds what and where. VLM judges whether a visual state is true. Both can be used as asynchronous pipeline nodes alongside traditional CV pipelines.
 
