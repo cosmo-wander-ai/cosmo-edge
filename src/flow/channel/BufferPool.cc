@@ -1,3 +1,5 @@
+// BufferPool — Buffer Pool implementation.
+
 #include "flow/channel/BufferPool.h"
 
 namespace cosmo::flow {

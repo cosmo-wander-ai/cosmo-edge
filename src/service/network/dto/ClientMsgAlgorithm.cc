@@ -1,3 +1,5 @@
+// ClientMsgAlgorithm — Client-side algorithm orchestration message types.
+
 #include "ClientMsgAlgorithm.h"
 
 #include <nlohmann/json.hpp>

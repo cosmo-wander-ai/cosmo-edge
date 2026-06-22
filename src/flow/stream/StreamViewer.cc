@@ -1,3 +1,5 @@
+// StreamViewer — Stream Viewer implementation.
+
 #include "flow/stream/StreamViewer.h"
 
 #include <cstdlib>

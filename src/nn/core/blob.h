@@ -40,7 +40,7 @@ public:
 
     Blob(BlobDesc desc, BlobHandle handle);
 
-    virtual ~Blob();
+    ~Blob();
 
     BlobDesc& GetBlobDesc();
 
@@ -51,7 +51,7 @@ public:
     void SetHandle(BlobHandle handle);
 
 private:
-    BlobImpl* impl = nullptr;
+    std::unique_ptr<BlobImpl> impl;
 };
 
 using BlobMap = std::map<std::string, std::shared_ptr<Blob>>;

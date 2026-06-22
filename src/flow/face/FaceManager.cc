@@ -1,3 +1,5 @@
+// FaceManager — Face Manager implementation.
+
 #include "flow/face/FaceManager.h"
 
 #include <algorithm>

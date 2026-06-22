@@ -61,7 +61,7 @@ Status SAM2Pipeline::Init(const PipelineConfig& config, const std::string& model
         }
         bool is_bgr = p.get("is_bgr", false).asBool();
 
-        std::vector<Op*> preprocess;
+        std::vector<std::unique_ptr<Op>> preprocess;
         preprocess.push_back(pipeline_utils::MakeResizeOp(enc_size, 0, {0, 0, 0}));
         preprocess.push_back(pipeline_utils::MakeNormalizeOp(mean, 0.0f, is_bgr, std_dev));
 
@@ -70,8 +70,8 @@ Status SAM2Pipeline::Init(const PipelineConfig& config, const std::string& model
             input.name      = in_def.name;
             input.shape     = in_def.shape;
             input.data_type = in_def.data_type;
-            input.ops       = preprocess;
-            model.input_node_infos.push_back(input);
+            input.ops       = std::move(preprocess);
+            model.input_node_infos.push_back(std::move(input));
         }
         for (auto& out_def : mc.outputs) {
             OutputNodeInfo output;
@@ -79,9 +79,9 @@ Status SAM2Pipeline::Init(const PipelineConfig& config, const std::string& model
             output.shape     = out_def.shape;
             output.data_type = out_def.data_type;
             output.op        = nullptr;
-            model.output_node_infos.push_back(output);
+            model.output_node_infos.push_back(std::move(output));
         }
-        model_info_.models.push_back(model);
+        model_info_.models.push_back(std::move(model));
     }
 
     // --- Decoder ---
@@ -113,7 +113,7 @@ Status SAM2Pipeline::Init(const PipelineConfig& config, const std::string& model
                 input.ops.push_back(pipeline_utils::MakeSAMPromptEncodeOp(prompt_type, normalize_prompt,
                                                                           encoder_size, max_points));
             }
-            model.input_node_infos.push_back(input);
+            model.input_node_infos.push_back(std::move(input));
         }
 
         float sam_threshold          = p.get("threshold", 0.0f).asFloat();
@@ -133,9 +133,9 @@ Status SAM2Pipeline::Init(const PipelineConfig& config, const std::string& model
                 out_def.name.find("Clip") != std::string::npos) {
                 output.op = pipeline_utils::MakeSAMDecodeOp(sam_threshold, output_size);
             }
-            model.output_node_infos.push_back(output);
+            model.output_node_infos.push_back(std::move(output));
         }
-        model_info_.models.push_back(model);
+        model_info_.models.push_back(std::move(model));
     }
 
     if (!config.labels.empty()) {
@@ -278,7 +278,7 @@ Status DinoPipeline::Init(const PipelineConfig& config, const std::string& model
                 input.ops.push_back(pipeline_utils::MakeDinoEncoderOp(dst_w, dst_h, is_bgr, mean, std_dev));
                 first_input = false;
             }
-            model.input_node_infos.push_back(input);
+            model.input_node_infos.push_back(std::move(input));
         }
         bool first_output = true;
         for (auto& out_def : mc.outputs) {
@@ -290,9 +290,9 @@ Status DinoPipeline::Init(const PipelineConfig& config, const std::string& model
                 output.op    = pipeline_utils::MakeDinoDecodeOp(text_threshold, box_threshold);
                 first_output = false;
             }
-            model.output_node_infos.push_back(output);
+            model.output_node_infos.push_back(std::move(output));
         }
-        model_info_.models.push_back(model);
+        model_info_.models.push_back(std::move(model));
     }
 
     InitThresholdsAndLabels();
@@ -485,7 +485,7 @@ Status SegmentationPipeline::Init(const PipelineConfig& config, const std::strin
             for (unsigned i = 0; i < p["normalize_std"].size(); i++)
                 std_dev.push_back(p["normalize_std"][i].asFloat());
 
-        std::vector<Op*> preprocess;
+        std::vector<std::unique_ptr<Op>> preprocess;
         preprocess.push_back(pipeline_utils::MakeResizeOp(dsize, 0, {0, 0, 0}));
         preprocess.push_back(pipeline_utils::MakeNormalizeOp(mean, scale, is_bgr, std_dev));
 
@@ -494,8 +494,8 @@ Status SegmentationPipeline::Init(const PipelineConfig& config, const std::strin
             input.name      = in_def.name;
             input.shape     = in_def.shape;
             input.data_type = in_def.data_type;
-            input.ops       = preprocess;
-            model.input_node_infos.push_back(input);
+            input.ops       = std::move(preprocess);
+            model.input_node_infos.push_back(std::move(input));
         }
         for (auto& out_def : mc.outputs) {
             OutputNodeInfo output;
@@ -503,9 +503,9 @@ Status SegmentationPipeline::Init(const PipelineConfig& config, const std::strin
             output.shape     = out_def.shape;
             output.data_type = out_def.data_type;
             output.op        = nullptr;
-            model.output_node_infos.push_back(output);
+            model.output_node_infos.push_back(std::move(output));
         }
-        model_info_.models.push_back(model);
+        model_info_.models.push_back(std::move(model));
     }
 
     InitThresholdsAndLabels();
@@ -630,7 +630,7 @@ Status OcrPipeline::Init(const PipelineConfig& config, const std::string& model_
         float scale = p.get("normalize_scale", 0.00784314f).asFloat();
         bool is_bgr = p.get("is_bgr", true).asBool();
 
-        std::vector<Op*> preprocess;
+        std::vector<std::unique_ptr<Op>> preprocess;
         preprocess.push_back(pipeline_utils::MakeResizeOp(dsize, 0, {0, 0, 0}));
         preprocess.push_back(pipeline_utils::MakeNormalizeOp(mean, scale, is_bgr));
 
@@ -639,8 +639,8 @@ Status OcrPipeline::Init(const PipelineConfig& config, const std::string& model_
             input.name      = in_def.name;
             input.shape     = in_def.shape;
             input.data_type = in_def.data_type;
-            input.ops       = preprocess;
-            model.input_node_infos.push_back(input);
+            input.ops       = std::move(preprocess);
+            model.input_node_infos.push_back(std::move(input));
         }
         for (auto& out_def : mc.outputs) {
             OutputNodeInfo output;
@@ -648,9 +648,9 @@ Status OcrPipeline::Init(const PipelineConfig& config, const std::string& model_
             output.shape     = out_def.shape;
             output.data_type = out_def.data_type;
             output.op        = nullptr;
-            model.output_node_infos.push_back(output);
+            model.output_node_infos.push_back(std::move(output));
         }
-        model_info_.models.push_back(model);
+        model_info_.models.push_back(std::move(model));
     }
 
     if (!word_table_path.empty()) {

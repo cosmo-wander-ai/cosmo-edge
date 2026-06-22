@@ -47,7 +47,9 @@ TODO before public launch:
 
 <div align="center">
 
-![CosmoEdge running multiple edge AI pipelines](docs/assets/hero.gif)
+https://github.com/user-attachments/assets/155d4b04-904b-430f-897f-81f0daed40c9
+
+</div>
 
 *Multiple AI pipelines, real-time OSD, and live event output on one edge device.*
 
@@ -95,7 +97,7 @@ Build video AI workflows in a browser. Connect video sources, AI models, post-pr
 
 <div align="center">
 
-![Pipeline editor workflow](docs/assets/pipeline-editor.gif)
+https://github.com/user-attachments/assets/87b35736-72dc-4d0c-980d-334131d41816
 
 </div>
 
@@ -153,7 +155,7 @@ CosmoEdge supports prompt-driven visual intelligence on edge devices. GroundingD
 
 <div align="center">
 
-![Prompt-driven AI with GroundingDINO and VLM](docs/assets/prompt-driven-ai.gif)
+https://github.com/user-attachments/assets/b9cbd944-8cd1-48e6-86d0-cb1969404d72
 
 </div>
 

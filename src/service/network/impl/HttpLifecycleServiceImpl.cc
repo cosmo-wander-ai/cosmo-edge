@@ -1,3 +1,5 @@
+// HttpLifecycleServiceImpl — Http Lifecycle Service Impl implementation.
+
 #include "service/network/impl/HttpLifecycleServiceImpl.h"
 
 #include "network/http/HttpServer.h"

@@ -1,3 +1,5 @@
+// AiRecognizerMng — AiRecognizerMng — Instance manager for AiRecognizer actions.
+
 #include "flow/recognizer/AiRecognizerMng.h"
 
 #include "util/Log.h"

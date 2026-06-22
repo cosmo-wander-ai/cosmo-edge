@@ -1,4 +1,4 @@
-
+// MessageAlgorithmHandler — Algorithm message handler.
 
 #pragma once
 

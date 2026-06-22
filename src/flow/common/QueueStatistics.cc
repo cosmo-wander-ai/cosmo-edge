@@ -1,3 +1,5 @@
+// QueueStatistics — Queue Statistics implementation.
+
 #include "flow/common/QueueStatistics.h"
 
 namespace cosmo {

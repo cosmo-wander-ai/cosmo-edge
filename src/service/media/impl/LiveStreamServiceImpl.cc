@@ -140,11 +140,11 @@ cosmo::util::ErrorEnum LiveStreamServiceImpl::ViewerCreate(const std::string& ch
 
     // Release lock before waiting — stream readiness is handled asynchronously.
     // The frontend flv.js player has exponential backoff retry to handle the case
-    // where nginx hasn't received the first I-frame yet.
+    // where the media server hasn't received the first I-frame yet.
     lock.unlock();
 
     // Wait for the RTMP stream header to be pushed (first I-frame)
-    // so that nginx-http-flv-module can serve the stream to the browser.
+    // so that SRS can serve the stream to the browser.
     constexpr auto kRawStreamReadyTimeout = std::chrono::milliseconds(5000);
     constexpr auto kAlgStreamReadyTimeout = std::chrono::milliseconds(15000);
     const auto stream_ready_timeout       = algCode.empty() ? kRawStreamReadyTimeout : kAlgStreamReadyTimeout;

@@ -1,3 +1,5 @@
+// application — application implementation.
+
 #include "app/application.h"
 
 #include <csignal>

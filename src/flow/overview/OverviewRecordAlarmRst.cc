@@ -1,3 +1,5 @@
+// OverviewRecordAlarmRst — Overview Record Alarm Rst implementation.
+
 #include "flow/overview/OverviewRecordAlarmRst.h"
 
 #include <filesystem>

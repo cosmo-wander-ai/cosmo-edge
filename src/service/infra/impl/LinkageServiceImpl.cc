@@ -1,3 +1,5 @@
+// LinkageServiceImpl — Linkage service implementation — manages alarm output device
+
 #include "service/infra/impl/LinkageServiceImpl.h"
 
 #include <filesystem>

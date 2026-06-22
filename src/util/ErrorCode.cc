@@ -1,3 +1,5 @@
+// ErrorCode — Segmented error codes. E.g. generic error codes are 0x0-0x10000. Other types ...
+
 #include "util/ErrorCode.h"
 
 namespace cosmo::util {

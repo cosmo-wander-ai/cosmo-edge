@@ -1,3 +1,5 @@
+// ArticlesReidDao — Articles Reid Dao implementation.
+
 #include "db/ArticlesReidDao.h"
 
 #include <SQLiteCpp/SQLiteCpp.h>

@@ -1,3 +1,5 @@
+// LinkAgeTask — Link Age Task implementation.
+
 #include "linkage/LinkAgeTask.h"
 
 #include "linkage/LinkAgeAlarm.h"

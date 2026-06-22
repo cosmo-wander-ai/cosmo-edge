@@ -1,3 +1,5 @@
+// TimerRestartServiceImpl — Timer Restart Service Impl implementation.
+
 #include "service/system/impl/TimerRestartServiceImpl.h"
 
 #include <sys/reboot.h>

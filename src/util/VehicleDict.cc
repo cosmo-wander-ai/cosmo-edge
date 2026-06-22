@@ -1,3 +1,5 @@
+// VehicleDict — Vehicle Dict implementation.
+
 #include "util/VehicleDict.h"
 
 #include "util/AiTypes.h"

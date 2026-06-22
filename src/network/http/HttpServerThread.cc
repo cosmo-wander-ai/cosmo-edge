@@ -1,3 +1,5 @@
+// HttpServerThread — HTTP request handler thread
+
 #include "network/http/HttpServerThread.h"
 
 #include <event2/keyvalq_struct.h>

@@ -1,3 +1,5 @@
+// FaceLogic — Face Logic implementation.
+
 #include "flow/logical/FaceLogic.h"
 
 #include <algorithm>

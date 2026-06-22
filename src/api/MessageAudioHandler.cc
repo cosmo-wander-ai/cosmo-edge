@@ -1,3 +1,5 @@
+// MessageAudioHandler — Message Audio Handler implementation.
+
 #include "api/MessageAudioHandler.h"
 
 #include <future>

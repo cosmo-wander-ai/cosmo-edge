@@ -1,3 +1,5 @@
+// DateTimeFormat — Date Time Format implementation.
+
 #include "util/DateTimeFormat.h"
 
 #include <string>

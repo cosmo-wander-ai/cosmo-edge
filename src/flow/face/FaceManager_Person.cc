@@ -1,3 +1,5 @@
+// FaceManager_Person — Face Manager_ Person implementation.
+
 #include <algorithm>
 #include <iterator>
 

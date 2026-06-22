@@ -1,3 +1,5 @@
+// LiveStreamDto — LiveStream DTO definitions (extracted from MessageLiveStreamHandler.h)
+
 #include "LiveStreamDto.h"
 
 #include <nlohmann/json.hpp>

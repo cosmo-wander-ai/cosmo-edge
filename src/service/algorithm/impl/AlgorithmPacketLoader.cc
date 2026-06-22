@@ -1,3 +1,5 @@
+// AlgorithmPacketLoader — Algorithm packet loading and parsing — extracted from AlgorithmServiceImpl.
+
 #include "service/algorithm/impl/AlgorithmPacketLoader.h"
 
 #include <algorithm>

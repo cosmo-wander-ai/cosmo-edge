@@ -6,7 +6,7 @@ hero:
   text: Documentation Center
   tagline: Project documentation for the edge AI engine, scenario configuration, model integration, deployment, and development.
   image:
-    src: /hero.gif
+    src: ../assets/hero.gif
     alt: CosmoEdge running multiple edge AI pipelines
   actions:
     - theme: brand

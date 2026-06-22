@@ -1,3 +1,5 @@
+// HttpFileServerCli — HTTP client for file-server upload / download operations.
+
 #include "service/path/impl/file/HttpFileServerCli.h"
 
 #include <chrono>

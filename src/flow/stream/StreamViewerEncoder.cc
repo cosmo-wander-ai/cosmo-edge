@@ -1,3 +1,5 @@
+// StreamViewerEncoder — Stream Viewer Encoder implementation.
+
 #include "flow/stream/StreamViewerEncoder.h"
 
 #include <algorithm>

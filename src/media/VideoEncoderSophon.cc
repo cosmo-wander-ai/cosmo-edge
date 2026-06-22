@@ -1,3 +1,5 @@
+// VideoEncoderSophon — Video Encoder Sophon implementation.
+
 #include "media/VideoEncoderSophon.h"
 
 #include <chrono>

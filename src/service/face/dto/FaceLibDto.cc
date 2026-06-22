@@ -1,3 +1,5 @@
+// FaceLibDto — FaceLib DTO definitions (extracted from MessageFaceLibHandler.h)
+
 #include "FaceLibDto.h"
 
 #include <nlohmann/json.hpp>

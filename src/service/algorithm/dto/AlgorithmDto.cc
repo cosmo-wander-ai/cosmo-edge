@@ -1,3 +1,5 @@
+// AlgorithmDto — Algorithm DTO definitions (extracted from MessageAlgorithmHandler.h)
+
 #include "AlgorithmDto.h"
 
 #include <nlohmann/json.hpp>

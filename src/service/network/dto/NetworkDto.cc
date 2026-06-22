@@ -1,3 +1,5 @@
+// NetworkDto — Network DTO definitions (extracted from MessageNetworkHandler.h)
+
 #include "NetworkDto.h"
 
 #include <nlohmann/json.hpp>

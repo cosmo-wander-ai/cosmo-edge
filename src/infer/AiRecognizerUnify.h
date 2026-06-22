@@ -1,3 +1,4 @@
+// AiRecognizerUnify — Unified recognizer model wrapper.
 
 #pragma once
 

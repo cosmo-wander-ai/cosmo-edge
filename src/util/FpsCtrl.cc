@@ -1,3 +1,5 @@
+// FpsCtrl — Frame rate control utility.
+
 #include "util/FpsCtrl.h"
 
 #include <cmath>

@@ -1,3 +1,5 @@
+// OverviewRecordBehaviorNoneSenRst — Overview Record Behavior None Sen Rst implementation.
+
 #include "flow/overview/OverviewRecordBehaviorNoneSenRst.h"
 
 #include <filesystem>

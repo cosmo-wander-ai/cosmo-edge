@@ -1,3 +1,4 @@
+// AiLandmarkInterface — Landmark model interface.
 
 #pragma once
 

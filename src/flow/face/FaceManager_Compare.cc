@@ -1,3 +1,5 @@
+// FaceManager_Compare — Face Manager_ Compare implementation.
+
 #include <algorithm>
 #include <filesystem>
 

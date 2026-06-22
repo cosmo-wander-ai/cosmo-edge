@@ -1,3 +1,5 @@
+// StorageCleanServiceImpl — IStorageCleanService implementation — owns StorageSpace + PeriodicTimer lifec...
+
 #include "service/infra/impl/StorageCleanServiceImpl.h"
 
 #include "service/detail/ServiceRegistry.h"

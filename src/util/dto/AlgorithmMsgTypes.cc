@@ -1,3 +1,5 @@
+// AlgorithmMsgTypes — Algorithm types — ActionBase, ActionAlg, ActionAlgPtr.
+
 #include "AlgorithmMsgTypes.h"
 
 #include <nlohmann/json.hpp>

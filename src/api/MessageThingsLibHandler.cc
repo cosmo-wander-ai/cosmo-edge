@@ -1,3 +1,5 @@
+// MessageThingsLibHandler — Message Things Lib Handler implementation.
+
 #include "api/MessageThingsLibHandler.h"
 
 #include <algorithm>

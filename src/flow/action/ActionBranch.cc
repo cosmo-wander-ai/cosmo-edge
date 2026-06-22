@@ -1,3 +1,5 @@
+// ActionBranch — Action Branch implementation.
+
 #include "flow/action/ActionBranch.h"
 
 #include <algorithm>

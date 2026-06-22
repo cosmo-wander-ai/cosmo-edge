@@ -1,3 +1,4 @@
+// AiDetectInterface — Ai Detect Interface implementation.
 
 #include "infer/AiDetectInterface.h"
 

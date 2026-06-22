@@ -1,3 +1,5 @@
+// ConditionBuilder — ConditionBuilder: type-safe parameterized SQL WHERE clause builder.
+
 #include "db/ConditionBuilder.h"
 
 #include <SQLiteCpp/SQLiteCpp.h>

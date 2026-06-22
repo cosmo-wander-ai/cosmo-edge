@@ -6,7 +6,7 @@ hero:
   text: 文档中心
   tagline: 面向边缘 AI 引擎、场景配置、模型接入和系统集成的项目文档。
   image:
-    src: /hero.gif
+    src: ./assets/hero.gif
     alt: CosmoEdge running multiple edge AI pipelines
   actions:
     - theme: brand

@@ -75,6 +75,7 @@ enum class OutputCategory { DETECTION, CLASSIFICATION, FEATURE, KEYPOINTS, SEGME
 //
 class PUBLIC ModelPipeline {
 public:
+    ModelPipeline();
     virtual ~ModelPipeline();
 
     virtual Status Init(const PipelineConfig& config, const std::string& model_path, DeviceType device_type,
@@ -144,7 +145,7 @@ protected:
     void InitNetInputSize();
 
 private:
-    Graph* graph_ = nullptr;
+    std::unique_ptr<Graph> graph_;
 };
 
 // ─── Registry ─────────────────────────────────────────────────

@@ -1,3 +1,5 @@
+// VideoFrame — Legacy global alias — kept for backward compatibility.
+
 #include "media/VideoFrame.h"
 
 #include <thread>

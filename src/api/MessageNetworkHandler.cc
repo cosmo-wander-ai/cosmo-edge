@@ -1,3 +1,5 @@
+// MessageNetworkHandler — Message Network Handler implementation.
+
 #include "api/MessageNetworkHandler.h"
 
 #include "service/network/INetworkConfig.h"

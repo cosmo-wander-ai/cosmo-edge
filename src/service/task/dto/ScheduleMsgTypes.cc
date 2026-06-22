@@ -1,3 +1,5 @@
+// ScheduleMsgTypes — Schedule types — MsgScheduleTemplate.
+
 #include "service/task/dto/ScheduleMsgTypes.h"
 
 #include <nlohmann/json.hpp>

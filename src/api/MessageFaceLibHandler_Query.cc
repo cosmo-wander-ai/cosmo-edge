@@ -1,3 +1,5 @@
+// MessageFaceLibHandler_Query — Message Face Lib Handler_ Query implementation.
+
 #include <algorithm>
 #include <filesystem>
 #include <numeric>

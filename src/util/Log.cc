@@ -1,3 +1,5 @@
+// Log — Callback invoked after each log message is written.
+
 #include "Log.h"
 
 #include <algorithm>

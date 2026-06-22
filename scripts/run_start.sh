@@ -94,7 +94,7 @@ if [ "$1" = "start" ]; then
     killall nginx 2>/dev/null || true
     sleep 1
     echo "${logTag} Starting nginx..." >> "$logFile"
-    ./nginx -p "${NGINX_PREFIX}" -c "${NGINX_CONF}"
+    nginx -p "${NGINX_PREFIX}" -c "${NGINX_CONF}"
 
     # Start SRS media server (for srs/webrtc/srs-flv/httpflv-srs play modes)
     PLAY_MODE="${COSMO_STREAM_PLAY_MODE:-srs}"

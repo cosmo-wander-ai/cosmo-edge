@@ -1,3 +1,5 @@
+// UuidUtil — Uuid Util implementation.
+
 #include "util/UuidUtil.h"
 
 #include "uuid.h"

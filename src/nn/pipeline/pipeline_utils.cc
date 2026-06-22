@@ -5,17 +5,18 @@
 namespace cosmo::nn {
 namespace pipeline_utils {
 
-    Resize* MakeResizeOp(const std::vector<int>& dsize, int gravity, const std::vector<int>& color) {
-        auto* op    = new Resize("resize");
+    std::unique_ptr<Resize> MakeResizeOp(const std::vector<int>& dsize, int gravity,
+                                         const std::vector<int>& color) {
+        auto op     = std::make_unique<Resize>("resize");
         op->dsize   = dsize;
         op->gravity = gravity;
         op->color   = color;
         return op;
     }
 
-    Normalize* MakeNormalizeOp(const std::vector<float>& mean, float scale, bool is_bgr,
-                               const std::vector<float>& std_dev) {
-        auto* op   = new Normalize("normalize");
+    std::unique_ptr<Normalize> MakeNormalizeOp(const std::vector<float>& mean, float scale, bool is_bgr,
+                                               const std::vector<float>& std_dev) {
+        auto op    = std::make_unique<Normalize>("normalize");
         op->mean   = mean;
         op->scale  = scale;
         op->is_bgr = is_bgr;
@@ -24,9 +25,10 @@ namespace pipeline_utils {
         return op;
     }
 
-    AffineCrop* MakeAffineCropOp(float norm_ratio, int norm_mode, const std::vector<int>& output_hw,
-                                 const std::vector<int>& center_index) {
-        auto* op         = new AffineCrop("affine_crop");
+    std::unique_ptr<AffineCrop> MakeAffineCropOp(float norm_ratio, int norm_mode,
+                                                 const std::vector<int>& output_hw,
+                                                 const std::vector<int>& center_index) {
+        auto op          = std::make_unique<AffineCrop>("affine_crop");
         op->norm_ratio   = norm_ratio;
         op->norm_mode    = norm_mode;
         op->output_hw    = output_hw;
@@ -34,12 +36,14 @@ namespace pipeline_utils {
         return op;
     }
 
-    CropResize* MakeCropResizeOp(const std::string& type, const std::vector<float>& h_top_crop,
-                                 const std::vector<float>& h_bottom_crop,
-                                 const std::vector<float>& w_left_crop,
-                                 const std::vector<float>& w_right_crop, bool square, int square_mode,
-                                 const std::vector<int>& dsize, int gravity, const std::vector<int>& color) {
-        auto* op          = new CropResize("crop_resize");
+    std::unique_ptr<CropResize> MakeCropResizeOp(const std::string& type,
+                                                 const std::vector<float>& h_top_crop,
+                                                 const std::vector<float>& h_bottom_crop,
+                                                 const std::vector<float>& w_left_crop,
+                                                 const std::vector<float>& w_right_crop, bool square,
+                                                 int square_mode, const std::vector<int>& dsize, int gravity,
+                                                 const std::vector<int>& color) {
+        auto op           = std::make_unique<CropResize>("crop_resize");
         op->type          = type;
         op->h_top_crop    = h_top_crop;
         op->h_bottom_crop = h_bottom_crop;
@@ -53,8 +57,9 @@ namespace pipeline_utils {
         return op;
     }
 
-    Sequence* MakeSequenceOp(int size, float scale, const std::vector<int>& dsize, bool is_bgr) {
-        auto* op   = new Sequence("sequence");
+    std::unique_ptr<Sequence> MakeSequenceOp(int size, float scale, const std::vector<int>& dsize,
+                                             bool is_bgr) {
+        auto op    = std::make_unique<Sequence>("sequence");
         op->size   = size;
         op->scale  = scale;
         op->dsize  = dsize;
@@ -62,9 +67,9 @@ namespace pipeline_utils {
         return op;
     }
 
-    YoloPost* MakeYoloPostOp(float nms_threshold, float nms_detection_conf, int top_k, int input_width,
-                             int input_height) {
-        auto* op               = new YoloPost("yolo_postprocess");
+    std::unique_ptr<YoloPost> MakeYoloPostOp(float nms_threshold, float nms_detection_conf, int top_k,
+                                             int input_width, int input_height) {
+        auto op                = std::make_unique<YoloPost>("yolo_postprocess");
         op->nms_threshold      = nms_threshold;
         op->nms_detection_conf = nms_detection_conf;
         op->top_k              = top_k;
@@ -73,10 +78,10 @@ namespace pipeline_utils {
         return op;
     }
 
-    YoloNpuPost* MakeYoloNpuPostOp(float nms_threshold, float nms_detection_conf, int top_k,
-                                   const std::vector<std::vector<std::vector<float>>>& anchors,
-                                   const std::vector<float>& stride) {
-        auto* op               = new YoloNpuPost("yolo_npu_postprocess");
+    std::unique_ptr<YoloNpuPost> MakeYoloNpuPostOp(
+        float nms_threshold, float nms_detection_conf, int top_k,
+        const std::vector<std::vector<std::vector<float>>>& anchors, const std::vector<float>& stride) {
+        auto op                = std::make_unique<YoloNpuPost>("yolo_npu_postprocess");
         op->nms_threshold      = nms_threshold;
         op->nms_detection_conf = nms_detection_conf;
         op->top_k              = top_k;
@@ -85,9 +90,9 @@ namespace pipeline_utils {
         return op;
     }
 
-    YoloPost* MakeYoloV8PostOp(float nms_threshold, float nms_detection_conf, int top_k, int input_width,
-                               int input_height) {
-        auto* op               = new YoloPost("yolov8_postprocess");
+    std::unique_ptr<YoloPost> MakeYoloV8PostOp(float nms_threshold, float nms_detection_conf, int top_k,
+                                               int input_width, int input_height) {
+        auto op                = std::make_unique<YoloPost>("yolov8_postprocess");
         op->nms_threshold      = nms_threshold;
         op->nms_detection_conf = nms_detection_conf;
         op->top_k              = top_k;
@@ -96,8 +101,9 @@ namespace pipeline_utils {
         return op;
     }
 
-    YoloPost* MakeYoloE2EPostOp(float conf_threshold, int top_k, int input_width, int input_height) {
-        auto* op               = new YoloPost("yolo_e2e_postprocess");
+    std::unique_ptr<YoloPost> MakeYoloE2EPostOp(float conf_threshold, int top_k, int input_width,
+                                                int input_height) {
+        auto op                = std::make_unique<YoloPost>("yolo_e2e_postprocess");
         op->nms_threshold      = 0;
         op->nms_detection_conf = conf_threshold;
         op->top_k              = top_k;
@@ -106,9 +112,10 @@ namespace pipeline_utils {
         return op;
     }
 
-    DinoEncoder* MakeDinoEncoderOp(int dst_width, int dst_height, bool is_bgr, const std::vector<float>& mean,
-                                   const std::vector<float>& std_dev) {
-        auto* op       = new DinoEncoder("dino_encode");
+    std::unique_ptr<DinoEncoder> MakeDinoEncoderOp(int dst_width, int dst_height, bool is_bgr,
+                                                   const std::vector<float>& mean,
+                                                   const std::vector<float>& std_dev) {
+        auto op        = std::make_unique<DinoEncoder>("dino_encode");
         op->dst_width  = dst_width;
         op->dst_height = dst_height;
         op->is_bgr     = is_bgr;
@@ -117,16 +124,16 @@ namespace pipeline_utils {
         return op;
     }
 
-    DinoDecode* MakeDinoDecodeOp(float text_threshold, float box_threshold) {
-        auto* op           = new DinoDecode("dino_decode");
+    std::unique_ptr<DinoDecode> MakeDinoDecodeOp(float text_threshold, float box_threshold) {
+        auto op            = std::make_unique<DinoDecode>("dino_decode");
         op->text_threshold = text_threshold;
         op->box_threshold  = box_threshold;
         return op;
     }
 
-    SAMPromptEncode* MakeSAMPromptEncodeOp(const std::string& prompt_type, bool normalize, int encoder_size,
-                                           int max_points) {
-        auto* op         = new SAMPromptEncode("sam_prompt_encode");
+    std::unique_ptr<SAMPromptEncode> MakeSAMPromptEncodeOp(const std::string& prompt_type, bool normalize,
+                                                           int encoder_size, int max_points) {
+        auto op          = std::make_unique<SAMPromptEncode>("sam_prompt_encode");
         op->prompt_type  = prompt_type;
         op->normalize    = normalize;
         op->encoder_size = encoder_size;
@@ -134,8 +141,8 @@ namespace pipeline_utils {
         return op;
     }
 
-    SAMDecode* MakeSAMDecodeOp(float threshold, const std::vector<int>& output_size) {
-        auto* op        = new SAMDecode("sam_decode");
+    std::unique_ptr<SAMDecode> MakeSAMDecodeOp(float threshold, const std::vector<int>& output_size) {
+        auto op         = std::make_unique<SAMDecode>("sam_decode");
         op->threshold   = threshold;
         op->output_size = output_size;
         return op;

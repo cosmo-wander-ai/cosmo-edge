@@ -1,3 +1,5 @@
+// VideoFrameServiceImpl — Video Frame Service Impl implementation.
+
 #include "service/media/impl/VideoFrameServiceImpl.h"
 
 #include <mutex>

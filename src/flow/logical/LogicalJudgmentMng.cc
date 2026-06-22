@@ -1,3 +1,5 @@
+// LogicalJudgmentMng — Logical Judgment Mng implementation.
+
 #include "flow/logical/LogicalJudgmentMng.h"
 
 #include "util/Log.h"

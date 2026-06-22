@@ -1,3 +1,5 @@
+// MessageImportFileHandler — Message Import File Handler implementation.
+
 #include "api/MessageImportFileHandler.h"
 
 #include <charconv>

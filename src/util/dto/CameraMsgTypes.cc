@@ -1,3 +1,5 @@
+// CameraMsgTypes — Camera types — MsgCameraAttr, MsgCameraInfo, ChannelStatus, MsgBaseCameraTask.
+
 #include "CameraMsgTypes.h"
 
 #include <nlohmann/json.hpp>

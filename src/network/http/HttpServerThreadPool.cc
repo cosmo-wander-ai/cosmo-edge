@@ -1,3 +1,5 @@
+// HttpServerThreadPool — Http Server Thread Pool implementation.
+
 #include "network/http/HttpServerThreadPool.h"
 
 #include <limits>

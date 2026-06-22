@@ -1,3 +1,5 @@
+// DbServiceImpl — Db Service Impl implementation.
+
 #include "service/infra/impl/DbServiceImpl.h"
 
 #include <SQLiteCpp/SQLiteCpp.h>

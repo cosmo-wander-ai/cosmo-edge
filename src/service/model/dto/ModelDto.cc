@@ -1,3 +1,5 @@
+// ModelDto — Model DTO definitions (extracted from MessageModelHandler.h)
+
 #include "ModelDto.h"
 
 #include <nlohmann/json.hpp>

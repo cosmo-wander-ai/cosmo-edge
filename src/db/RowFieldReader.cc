@@ -1,3 +1,5 @@
+// RowFieldReader — Sequential column reader for SQLiteCpp Statement results.
+
 #include "db/RowFieldReader.h"
 
 #include <SQLiteCpp/SQLiteCpp.h>

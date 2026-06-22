@@ -1,3 +1,5 @@
+// HardwareQueryUtil — Static utility for querying hardware and OS-level system information.
+
 #include "service/system/impl/HardwareQueryUtil.h"
 
 #include <arpa/inet.h>

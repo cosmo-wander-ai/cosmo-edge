@@ -1,3 +1,5 @@
+// AuthDto — Auth DTO definitions (extracted from MessageAuthHandler.h)
+
 #include "AuthDto.h"
 
 #include <nlohmann/json.hpp>

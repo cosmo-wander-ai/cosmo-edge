@@ -1,3 +1,5 @@
+// FaceManager_Lib — Face Manager_ Lib implementation.
+
 #include <algorithm>
 
 #include "flow/face/FaceManager.h"

@@ -1,3 +1,5 @@
+// AlgDataQueueDistributor — Alg Data Queue Distributor implementation.
+
 #include "flow/common/AlgDataQueueDistributor.h"
 
 #include <algorithm>

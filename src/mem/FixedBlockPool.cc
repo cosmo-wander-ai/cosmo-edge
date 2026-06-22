@@ -1,3 +1,5 @@
+// FixedBlockPool — Fixed Block Pool implementation.
+
 #include "mem/FixedBlockPool.h"
 
 #include <syscall.h>

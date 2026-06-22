@@ -1,3 +1,5 @@
+// FilePost — File Post implementation.
+
 #include "service/path/impl/file/FilePost.h"
 
 #include <ctime>

@@ -1,3 +1,5 @@
+// TaskMsgTypes_PicTask — Task Msg Types_ Pic Task implementation.
+
 #include <nlohmann/json.hpp>
 
 #include "TaskCreateTypes.h"

@@ -1,3 +1,5 @@
+// MessageFaceLibHandler — Message Face Lib Handler implementation.
+
 #include "api/MessageFaceLibHandler.h"
 
 #include <algorithm>

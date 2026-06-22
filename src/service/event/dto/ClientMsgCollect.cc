@@ -1,3 +1,5 @@
+// ClientMsgCollect — Client-side collection event message types.
+
 #include "service/event/dto/ClientMsgCollect.h"
 
 #include <nlohmann/json.hpp>

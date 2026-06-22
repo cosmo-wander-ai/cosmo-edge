@@ -1,3 +1,5 @@
+// PacketUpgrade — Packet Upgrade implementation.
+
 #include "service/system/impl/PacketUpgrade.h"
 
 #include <unistd.h>

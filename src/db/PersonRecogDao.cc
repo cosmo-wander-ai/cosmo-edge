@@ -1,3 +1,5 @@
+// PersonRecogDao — Person Recog Dao implementation.
+
 #include "db/PersonRecogDao.h"
 
 #include <SQLiteCpp/SQLiteCpp.h>

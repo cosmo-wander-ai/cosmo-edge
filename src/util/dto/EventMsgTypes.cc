@@ -1,3 +1,5 @@
+// EventMsgTypes — Event/FaceLib types — MsgConditionEvent, MsgEventUnit, MsgBaseFaceLibInfo, etc.
+
 #include "EventMsgTypes.h"
 
 #include <nlohmann/json.hpp>

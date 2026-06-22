@@ -1,3 +1,5 @@
+// EventDto — Event DTO definitions (extracted from MessageEventHandler.h)
+
 #include "EventDto.h"
 
 #include <nlohmann/json.hpp>

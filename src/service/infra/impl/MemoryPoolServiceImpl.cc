@@ -1,3 +1,5 @@
+// MemoryPoolServiceImpl — IMemoryPoolService implementation — owns MemoryPoolMng lifecycle.
+
 #include "service/infra/impl/MemoryPoolServiceImpl.h"
 
 #include "mem/IDeviceContext.h"

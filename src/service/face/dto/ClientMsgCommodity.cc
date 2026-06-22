@@ -1,3 +1,5 @@
+// ClientMsgCommodity — Client-side commodity/things lib message types.
+
 #include "ClientMsgCommodity.h"
 
 #include <nlohmann/json.hpp>

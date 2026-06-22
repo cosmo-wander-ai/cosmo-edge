@@ -1,3 +1,5 @@
+// RtmpStreamPusher — Rtmp Stream Pusher implementation.
+
 #include "flow/stream/RtmpStreamPusher.h"
 
 #include <algorithm>

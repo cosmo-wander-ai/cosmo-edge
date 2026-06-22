@@ -13,7 +13,7 @@
 #include <thread>
 #include <vector>
 
-#include "flow/task/CameraTaskMng.h"
+#include "service/camera/impl/CameraServiceImpl.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/system/impl/SystemServiceImpl.h"
 #include "service/task/ITaskService.h"
@@ -134,56 +134,56 @@ struct GlobalMockInit {
 }  // namespace
 
 // ============================================================
-// CameraTaskMng: NotifyAlgorithmDeleted 状态一致性
+// CameraServiceImpl: NotifyAlgorithmsDeleted state consistency
 // ============================================================
 
-TEST_CASE("CameraTaskMng: NotifyAlgorithmDeleted marks all matching tasks atomically",
-          "[CameraTaskMng][concurrency]") {
+TEST_CASE("CameraServiceImpl: NotifyAlgorithmsDeleted marks all matching tasks atomically",
+          "[CameraServiceImpl][concurrency]") {
     (void)!system("rm -rf /tmp/test_conc*");
     cosmo::test::MockServiceRegistry mocks;
-    CameraTaskMng mng("/tmp/test_conc", "ch_conc_01", "rtsp://test");
+    cosmo::service::CameraServiceImpl svc;
 
-    // 验证: 删除不存在的算法不会崩溃
+    // Verify: deleting non-existent algorithm does not crash
     SECTION("Deleting non-existent algorithm does not crash") {
-        REQUIRE_NOTHROW(mng.NotifyAlgorithmDeleted("non_existent_alg"));
+        REQUIRE_NOTHROW(svc.NotifyAlgorithmsDeleted({"non_existent_alg"}));
     }
 
-    // 验证: GetTasks 在无任务时返回空
-    SECTION("GetTasks returns empty when no tasks exist") {
-        auto tasks = mng.GetTasks();
+    // Verify: GetTasks on non-existent camera returns empty
+    SECTION("GetTasks returns empty when camera does not exist") {
+        auto tasks = svc.GetTasks("non_existent_camera");
         REQUIRE(tasks.empty());
     }
 }
 
 // ============================================================
-// CameraTaskMng: 并发读安全性
+// CameraServiceImpl: concurrent read safety
 // ============================================================
 
-TEST_CASE("CameraTaskMng: concurrent GetTasks reads are safe", "[CameraTaskMng][concurrency]") {
+TEST_CASE("CameraServiceImpl: concurrent GetTasks reads are safe", "[CameraServiceImpl][concurrency]") {
     (void)!system("rm -rf /tmp/test_conc*");
     cosmo::test::MockServiceRegistry mocks;
-    CameraTaskMng mng("/tmp/test_conc_read", "ch_conc_02", "rtsp://test");
+    cosmo::service::CameraServiceImpl svc;
 
     std::atomic<bool> stop{false};
     std::atomic<int> readCount{0};
     constexpr int kReaderCount = 4;
 
-    // 启动多个读线程并发调用 GetTasks
+    // Start multiple reader threads concurrently calling GetTasks
     std::vector<std::thread> readers;
     for (int i = 0; i < kReaderCount; i++) {
         readers.emplace_back([&]() {
             while (!stop.load(std::memory_order_relaxed)) {
-                auto tasks = mng.GetTasks();
-                // tasks 可以是空的，但不应崩溃
+                auto tasks = svc.GetTasks("non_existent_camera");
+                // tasks should be empty but not crash
                 (void)tasks;
                 readCount.fetch_add(1, std::memory_order_relaxed);
             }
         });
     }
 
-    // 同时在主线程做写操作
+    // Simultaneously do writes on the main thread
     for (int i = 0; i < 100; i++) {
-        mng.NotifyAlgorithmDeleted("alg_" + std::to_string(i));
+        svc.NotifyAlgorithmsDeleted({"alg_" + std::to_string(i)});
     }
 
     stop.store(true);
@@ -191,22 +191,22 @@ TEST_CASE("CameraTaskMng: concurrent GetTasks reads are safe", "[CameraTaskMng][
         t.join();
     }
 
-    // 验证: 读线程确实执行了多次
+    // Verify: reader threads actually ran
     REQUIRE(readCount.load() > 0);
 }
 
 // ============================================================
-// CameraTaskMng: NotifyAlgorithmChanged 对不存在算法的安全性
+// CameraServiceImpl: NotifyAlgorithmsChanged safety for non-existent algorithm
 // ============================================================
 
-TEST_CASE("CameraTaskMng: NotifyAlgorithmChanged with non-existent alg does not crash",
-          "[CameraTaskMng][concurrency]") {
+TEST_CASE("CameraServiceImpl: NotifyAlgorithmsChanged with non-existent alg does not crash",
+          "[CameraServiceImpl][concurrency]") {
     (void)!system("rm -rf /tmp/test_conc*");
     cosmo::test::MockServiceRegistry mocks;
-    CameraTaskMng mng("/tmp/test_conc_changed", "ch_conc_03", "rtsp://test");
+    cosmo::service::CameraServiceImpl svc;
 
-    REQUIRE_NOTHROW(mng.NotifyAlgorithmChanged("non_existent_alg", false));
-    REQUIRE_NOTHROW(mng.NotifyAlgorithmChanged("non_existent_alg", true));
+    REQUIRE_NOTHROW(svc.NotifyAlgorithmsChanged({"non_existent_alg"}, false));
+    REQUIRE_NOTHROW(svc.NotifyAlgorithmsChanged({"non_existent_alg"}, true));
 }
 
 // ============================================================

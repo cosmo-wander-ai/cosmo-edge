@@ -1,3 +1,5 @@
+// FileDemuxStrategy — File Demux Strategy implementation.
+
 #include "media/FileDemuxStrategy.h"
 
 #include "util/Log.h"

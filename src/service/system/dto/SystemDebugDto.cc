@@ -1,3 +1,5 @@
+// SystemDebugDto — Thread debug info
+
 #include "SystemDebugDto.h"
 
 #include <nlohmann/json.hpp>

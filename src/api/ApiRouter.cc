@@ -1,3 +1,5 @@
+// ApiRouter — API route dispatcher.
+
 #include "api/ApiRouter.h"
 
 #include <filesystem>

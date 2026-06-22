@@ -1,3 +1,5 @@
+// MqttProtocol — MQTT protocol message structures for IoT platform communication.
+
 #include "network/mqtt/MqttProtocol.h"
 
 #include <nlohmann/json.hpp>

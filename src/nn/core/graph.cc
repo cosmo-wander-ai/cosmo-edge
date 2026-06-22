@@ -179,7 +179,7 @@ Status Graph::BuildPreprocessChain(ModelInfo& model, size_t input_idx, bool use_
                                    std::vector<std::string>& preprocess_output_blobs, size_t& skip_count) {
     auto& input_node_infos = model.input_node_infos;
     auto input_name        = input_node_infos.at(input_idx).name;
-    auto ops               = input_node_infos.at(input_idx).ops;
+    auto& ops              = input_node_infos.at(input_idx).ops;
 
     // Check if this input should come from previous model's output
     if (!prev_output_blobs.empty() && ops.empty()) {
@@ -211,7 +211,6 @@ Status Graph::BuildPreprocessChain(ModelInfo& model, size_t input_idx, bool use_
     }
 
     NetUtils::OptimizePreOps(ops, use_skip);
-    model.input_node_infos.at(input_idx).ops = ops;
 
     // After optimization, ops might become empty (e.g., all ops were skipped)
     // In this case, treat it as no preprocess and create an IdentityNode
@@ -232,7 +231,7 @@ Status Graph::BuildPreprocessChain(ModelInfo& model, size_t input_idx, bool use_
     bool first_calculate_node  = true;
     Node* last_preprocess_node = nullptr;
     for (size_t k = 0; k < ops.size(); k++) {
-        Op* op = ops.at(k);
+        Op* op = ops.at(k).get();
 
         NodeType node_type = NodeTypeUtils::NodeTypeFromStr(op->name);
         int count          = NodeTypeUtils::TypedNodeCount(nodes, node_type);
@@ -485,7 +484,7 @@ Status Graph::BuildPostprocessChain(const ModelInfo& model,
     // Postprocess nodes should only use current model's outputs, not all previous models' outputs
     std::vector<std::string> postprocess_input_blobs = current_model_output_blobs;
     for (size_t j = 0; j < net_output_num; j++) {
-        auto op = output_node_infos.at(j).op;
+        auto* op = output_node_infos.at(j).op.get();
         if (!op)
             continue;
 
@@ -510,7 +509,6 @@ Status Graph::BuildPostprocessChain(const ModelInfo& model,
 }
 
 Status Graph::MakeUp(CombinedModelInfo& info, bool use_skip) {
-    model_infos_ = info.models;
 
     // add one input node to graph first
     auto input = std::make_unique<InputNode>();
@@ -573,7 +571,9 @@ Status Graph::MakeUp(CombinedModelInfo& info, bool use_skip) {
         RETURN_ON_FAIL(BuildPostprocessChain(model, current_model_output_blobs));
     }
 
-    return AddCombinedModelNode(info);
+    Status status = AddCombinedModelNode(info);
+    model_infos_ = std::move(info.models);
+    return status;
 }
 
 Status Graph::AddCombinedModelNode(CombinedModelInfo& info) {
@@ -1004,7 +1004,7 @@ std::vector<std::vector<std::string>> Graph::GetModelInputNames(CombinedModelInf
     std::vector<std::vector<std::string>> input_names;
     const int num_models = info.models.size();
     for (int i = 0; i < num_models; ++i) {
-        auto input_node_infos = info.models.at(i).input_node_infos;
+        auto& input_node_infos = info.models.at(i).input_node_infos;
         std::vector<std::string> names;
         for (int j = 0; j < input_node_infos.size(); ++j) {
             names.push_back(input_node_infos.at(j).name);
@@ -1019,7 +1019,7 @@ std::vector<std::vector<std::string>> Graph::GetModelOutputNames(CombinedModelIn
     std::vector<std::vector<std::string>> output_names;
     const int num_models = info.models.size();
     for (int i = 0; i < num_models; ++i) {
-        auto output_node_infos = info.models.at(i).output_node_infos;
+        auto& output_node_infos = info.models.at(i).output_node_infos;
         std::vector<std::string> names;
         for (int j = 0; j < output_node_infos.size(); ++j) {
             names.push_back(output_node_infos.at(j).name);

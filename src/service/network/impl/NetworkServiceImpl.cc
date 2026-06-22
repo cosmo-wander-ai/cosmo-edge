@@ -1,3 +1,5 @@
+// NetworkServiceImpl — Network Service Impl implementation.
+
 #include "service/network/impl/NetworkServiceImpl.h"
 
 #include "service/network/impl/HttpLifecycleServiceImpl.h"

@@ -1,3 +1,5 @@
+// HttpRequest — Http Request implementation.
+
 #include "network/http/HttpRequest.h"
 
 #include <memory>

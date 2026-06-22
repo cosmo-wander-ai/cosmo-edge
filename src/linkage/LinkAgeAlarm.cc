@@ -1,3 +1,5 @@
+// LinkAgeAlarm — Link Age Alarm implementation.
+
 #include "linkage/LinkAgeAlarm.h"
 
 #include <nlohmann/json.hpp>

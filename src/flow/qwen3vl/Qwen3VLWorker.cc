@@ -1,4 +1,4 @@
-
+// Qwen3VLWorker — Qwen3VLWorker — Qwen3VL vision-language model worker for video stream inference.
 
 #include "flow/qwen3vl/Qwen3VLWorker.h"
 

@@ -1,3 +1,5 @@
+// OverviewTypes — Media/overview types — MsgOverviewMem, MsgOverviewFile, MsgOverviewDebugInfo,...
+
 #include "OverviewTypes.h"
 
 #include <nlohmann/json.hpp>

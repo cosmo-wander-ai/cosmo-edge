@@ -1,3 +1,5 @@
+// VideoEncoderCpu — Video Encoder Cpu implementation.
+
 #include "media/VideoEncoderCpu.h"
 
 #include <cstring>

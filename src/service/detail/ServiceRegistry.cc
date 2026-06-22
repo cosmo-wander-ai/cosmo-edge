@@ -1,3 +1,5 @@
+// ServiceRegistry — Service Registry implementation.
+
 #include "service/detail/ServiceRegistry.h"
 
 namespace cosmo::service {

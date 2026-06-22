@@ -1,3 +1,5 @@
+// LogicCalc — Dynamic logic expression types for task configuration.
+
 #include "LogicCalc.h"
 
 #include <nlohmann/json.hpp>

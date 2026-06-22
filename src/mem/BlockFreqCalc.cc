@@ -1,3 +1,5 @@
+// BlockFreqCalc — Block Freq Calc implementation.
+
 #include "mem/BlockFreqCalc.h"
 
 #include "util/Log.h"

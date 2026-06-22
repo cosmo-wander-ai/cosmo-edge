@@ -1,3 +1,5 @@
+// AiRecognizer — AiRecognizer — Face/body recognition action with feature comparison.
+
 #include "flow/recognizer/AiRecognizer.h"
 
 #include <unistd.h>

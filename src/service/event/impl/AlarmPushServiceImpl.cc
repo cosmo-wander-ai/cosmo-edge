@@ -1,3 +1,5 @@
+// AlarmPushServiceImpl — Alarm push service — pushes alarm events to an external HTTP
+
 #include "service/event/impl/AlarmPushServiceImpl.h"
 
 #include <unistd.h>

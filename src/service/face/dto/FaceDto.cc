@@ -1,3 +1,5 @@
+// FaceDto — Value-type DTOs for FaceLib, Person, and FacePic entities.
+
 #include "service/face/dto/FaceDto.h"
 
 #include "flow/face/FaceLib.h"

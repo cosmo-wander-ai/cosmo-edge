@@ -1,3 +1,5 @@
+// MessageScheduleHandler — Message Schedule Handler implementation.
+
 #include "api/MessageScheduleHandler.h"
 
 #include "service/camera/ICameraTaskConfig.h"

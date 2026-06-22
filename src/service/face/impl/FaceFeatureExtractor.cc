@@ -1,3 +1,5 @@
+// FaceFeatureExtractor — FaceFeatureExtractor — Face feature extraction service.
+
 #include "service/face/impl/FaceFeatureExtractor.h"
 
 #include <chrono>

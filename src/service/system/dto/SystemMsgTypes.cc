@@ -1,3 +1,5 @@
+// SystemMsgTypes — System info types — MsgMemoryInfo, MsgGpuInfo, MsgDiskInfo, MsgNetInfo, MsgHw...
+
 #include "SystemMsgTypes.h"
 
 #include <nlohmann/json.hpp>

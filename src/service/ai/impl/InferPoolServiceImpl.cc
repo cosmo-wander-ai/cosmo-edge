@@ -1,3 +1,5 @@
+// InferPoolServiceImpl — Unified inference pool service implementation — merges the
+
 #include "service/ai/impl/InferPoolServiceImpl.h"
 
 // Include concrete Unify headers — required for template instantiation of

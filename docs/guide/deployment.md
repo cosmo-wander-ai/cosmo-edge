@@ -67,14 +67,14 @@ next:
 
 启动脚本会拉起：
 
-- `nginx`
+- `nginx` (system, `/usr/sbin/nginx`)
 - `srs`
 - `cosmo-engine`
 
 对应路径：
 
 ```text
-${INSTALLPATH}/bin/nginx
+/usr/sbin/nginx  (system nginx)
 ${INSTALLPATH}/bin/srs
 ${INSTALLPATH}/bin/cosmo-engine
 ```

@@ -1,3 +1,4 @@
+// Person — Person implementation.
 
 #include "flow/face/Person.h"
 

@@ -1,3 +1,5 @@
+// ThingsLibDto — ThingsLib DTO definitions (extracted from MessageThingsLibHandler.h)
+
 #include "ThingsLibDto.h"
 
 #include <nlohmann/json.hpp>

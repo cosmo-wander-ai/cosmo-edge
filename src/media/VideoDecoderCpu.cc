@@ -1,3 +1,5 @@
+// VideoDecoderCpu — Video Decoder Cpu implementation.
+
 #include "media/VideoDecoderCpu.h"
 
 #include <cstring>

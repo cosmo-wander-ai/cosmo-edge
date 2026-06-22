@@ -1,3 +1,4 @@
+// AiRecognizerInterface — Ai Recognizer Interface implementation.
 
 #include "infer/AiRecognizerInterface.h"
 

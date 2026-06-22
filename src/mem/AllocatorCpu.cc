@@ -1,3 +1,5 @@
+// AllocatorCpu — Allocator Cpu implementation.
+
 #include "mem/AllocatorCpu.h"
 
 #include <cstdlib>

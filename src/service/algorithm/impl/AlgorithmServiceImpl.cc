@@ -1,3 +1,5 @@
+// AlgorithmServiceImpl — Algorithm Service Impl implementation.
+
 #include "service/algorithm/impl/AlgorithmServiceImpl.h"
 
 #include <algorithm>

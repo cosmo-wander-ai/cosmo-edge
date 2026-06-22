@@ -1,3 +1,5 @@
+// DaoBase — Dao Base implementation.
+
 #include "db/DaoBase.h"
 
 #include <SQLiteCpp/SQLiteCpp.h>

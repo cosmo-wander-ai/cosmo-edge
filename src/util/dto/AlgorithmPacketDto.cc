@@ -1,3 +1,5 @@
+// AlgorithmPacketDto — Algorithm packet data types — extracted from flow/action/AlgorithmPacketMng.h
+
 #include "AlgorithmPacketDto.h"
 
 #include <nlohmann/json.hpp>

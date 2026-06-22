@@ -1,3 +1,5 @@
+// VideoTaskDto_Query — Video Task Dto_ Query implementation.
+
 #include <nlohmann/json.hpp>
 
 #include "VideoTaskDto.h"

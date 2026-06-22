@@ -1,3 +1,5 @@
+// ServerMsgTypes — Create task response
+
 #include "ServerMsgTypes.h"
 
 #include <nlohmann/json.hpp>

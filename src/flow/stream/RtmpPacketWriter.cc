@@ -1,3 +1,5 @@
+// RtmpPacketWriter — Rtmp Packet Writer implementation.
+
 #include "flow/stream/RtmpPacketWriter.h"
 
 #include "util/Log.h"

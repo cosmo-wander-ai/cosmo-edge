@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <vector>
 
 #include "json/json.h"
 #include "nn/core/macros.h"
@@ -311,12 +312,11 @@ Status ModelInfoUtils::LoadJson(const std::string& json_path, std::string& file_
         file.close();
         return Status(COSMO_NN_ERR_JSON_PARSE, "LoadJson: invalid file size (<=0 or >10MB)");
     }
-    char* content = new char[size];
+    std::vector<char> content(static_cast<size_t>(size));
     file.seekg(0, file.beg);
-    file.read(content, size);
+    file.read(content.data(), size);
     file.close();
-    file_content.assign(content, size);
-    delete[] content;
+    file_content.assign(content.data(), static_cast<size_t>(size));
     return COSMO_NN_OK;
 }
 
@@ -399,32 +399,32 @@ Status ParseModelsConfig(Json::Value& config_value, CombinedModelConfig& config)
     return COSMO_NN_OK;
 }
 
-Status ParseModelInputOp(Json::Value& op_value, Op** op_ptr) {
+Status ParseModelInputOp(Json::Value& op_value, std::unique_ptr<Op>& op_out) {
     try {
         auto op_name = Get<std::string>(op_value, Json::StaticString("op"));
         // todo: add more ops
         if (op_name == "resize") {
-            Resize* resize  = new Resize();
+            auto resize     = std::make_unique<Resize>();
             resize->dsize   = Get<std::vector<int>>(op_value, Json::StaticString("dsize"));
             resize->gravity = Get<int>(op_value, Json::StaticString("gravity"),
                                        Get<int>(op_value, Json::StaticString("padding_gravity"), 0));
             resize->color   = Get<std::vector<int>>(op_value, Json::StaticString("color"));
             resize->skip    = Get<bool>(op_value, Json::StaticString("skip"), false);
-            *op_ptr         = resize;
+            op_out          = std::move(resize);
             return COSMO_NN_OK;
         } else if (op_name == "normalize") {
-            Normalize* normalize = new Normalize();
-            normalize->mean      = Get<std::vector<float>>(op_value, Json::StaticString("mean"));
+            auto normalize  = std::make_unique<Normalize>();
+            normalize->mean = Get<std::vector<float>>(op_value, Json::StaticString("mean"));
             normalize->std =
                 Get<std::vector<float>>(op_value, Json::StaticString("std"), std::vector<float>());
             normalize->scale  = Get<float>(op_value, Json::StaticString("scale"));
             normalize->is_bgr = Get<bool>(op_value, Json::StaticString("is_bgr"));
             normalize->skip   = Get<bool>(op_value, Json::StaticString("skip"), false);
-            *op_ptr           = normalize;
+            op_out            = std::move(normalize);
             return COSMO_NN_OK;
         } else if (op_name == "crop" || op_name == "expand") {
-            RectCrop* rect_crop = new RectCrop();
-            rect_crop->type     = op_name;
+            auto rect_crop  = std::make_unique<RectCrop>();
+            rect_crop->type = op_name;
 
             // Unified signed ratio [-1, 1]: negative or 0 means crop on that side, positive means expand
             // (computed by sign at runtime)
@@ -443,11 +443,11 @@ Status ParseModelInputOp(Json::Value& op_value, Op** op_ptr) {
             rect_crop->square_mode = Get<int>(op_value, Json::StaticString("square_mode"), 0);
             rect_crop->skip        = Get<bool>(op_value, Json::StaticString("skip"), false);
 
-            *op_ptr = rect_crop;
+            op_out = std::move(rect_crop);
             return COSMO_NN_OK;
         } else if (op_name == "affine_crop") {
-            AffineCrop* affine = new AffineCrop();
-            affine->norm_mode  = Get<int>(op_value, Json::StaticString("NormMode"));
+            auto affine       = std::make_unique<AffineCrop>();
+            affine->norm_mode = Get<int>(op_value, Json::StaticString("NormMode"));
             if (affine->norm_mode < 0 || affine->norm_mode > 2)
                 return Status(COSMO_NN_ERR_JSON_PARSE, "affine NormMode tag must be in [0, 2].");
 
@@ -455,44 +455,44 @@ Status ParseModelInputOp(Json::Value& op_value, Op** op_ptr) {
             affine->output_hw    = Get<std::vector<int>>(op_value, Json::StaticString("output_hw"));
             affine->center_index = Get<std::vector<int>>(op_value, Json::StaticString("center_index"));
             affine->skip         = Get<bool>(op_value, Json::StaticString("skip"), false);
-            *op_ptr              = affine;
+            op_out               = std::move(affine);
             return COSMO_NN_OK;
         } else if (op_name == "sequence") {
-            Sequence* sequence = new Sequence();
-            sequence->size     = Get<int>(op_value, Json::StaticString("size"));
-            sequence->scale    = Get<float>(op_value, Json::StaticString("scale"));
-            sequence->dsize    = Get<std::vector<int>>(op_value, Json::StaticString("dsize"));
-            sequence->is_bgr   = Get<bool>(op_value, Json::StaticString("is_bgr"));
-            sequence->skip     = Get<bool>(op_value, Json::StaticString("skip"), false);
-            *op_ptr            = sequence;
+            auto sequence    = std::make_unique<Sequence>();
+            sequence->size   = Get<int>(op_value, Json::StaticString("size"));
+            sequence->scale  = Get<float>(op_value, Json::StaticString("scale"));
+            sequence->dsize  = Get<std::vector<int>>(op_value, Json::StaticString("dsize"));
+            sequence->is_bgr = Get<bool>(op_value, Json::StaticString("is_bgr"));
+            sequence->skip   = Get<bool>(op_value, Json::StaticString("skip"), false);
+            op_out           = std::move(sequence);
             return COSMO_NN_OK;
         } else if (op_name == "combine_image") {
-            auto combine_image        = new CombineImage();
+            auto combine_image        = std::make_unique<CombineImage>();
             combine_image->count      = Get<int>(op_value, Json::StaticString("count"));
             combine_image->dst_height = Get<int>(op_value, Json::StaticString("dst_height"));
             combine_image->dst_width  = Get<int>(op_value, Json::StaticString("dst_width"));
             combine_image->skip       = Get<bool>(op_value, Json::StaticString("skip"), false);
-            *op_ptr                   = combine_image;
+            op_out                    = std::move(combine_image);
             return COSMO_NN_OK;
         } else if (op_name == "dino_encode") {
-            auto dino_encode        = new DinoEncoder();
+            auto dino_encode        = std::make_unique<DinoEncoder>();
             dino_encode->dst_height = Get<int>(op_value, Json::StaticString("dst_height"));
             dino_encode->dst_width  = Get<int>(op_value, Json::StaticString("dst_width"));
             dino_encode->is_bgr     = Get<bool>(op_value, Json::StaticString("is_bgr"));
             dino_encode->mean       = Get<std::vector<float>>(op_value, Json::StaticString("mean"));
             dino_encode->std        = Get<std::vector<float>>(op_value, Json::StaticString("std"));
             dino_encode->skip       = Get<bool>(op_value, Json::StaticString("skip"), false);
-            *op_ptr                 = dino_encode;
+            op_out                  = std::move(dino_encode);
             return COSMO_NN_OK;
         } else if (op_name == "sam_prompt_encode") {
-            auto sam_prompt_encode = new SAMPromptEncode();
+            auto sam_prompt_encode = std::make_unique<SAMPromptEncode>();
             sam_prompt_encode->prompt_type =
                 Get<std::string>(op_value, Json::StaticString("prompt_type"), "point");
             sam_prompt_encode->normalize    = Get<bool>(op_value, Json::StaticString("normalize"), true);
             sam_prompt_encode->encoder_size = Get<int>(op_value, Json::StaticString("encoder_size"), 1024);
             sam_prompt_encode->max_points   = Get<int>(op_value, Json::StaticString("max_points"), 6);
             sam_prompt_encode->skip         = Get<bool>(op_value, Json::StaticString("skip"), false);
-            *op_ptr                         = sam_prompt_encode;
+            op_out                          = std::move(sam_prompt_encode);
             return COSMO_NN_OK;
         } else {
             return Status(COSMO_NN_ERR_JSON_PARSE, "Unsupport input op.");
@@ -503,20 +503,20 @@ Status ParseModelInputOp(Json::Value& op_value, Op** op_ptr) {
     return COSMO_NN_OK;
 }
 
-Status ParseModelOutputOp(Json::Value& op_value, Op** op_ptr) {
+Status ParseModelOutputOp(Json::Value& op_value, std::unique_ptr<Op>& op_out) {
     try {
         CheckObject(op_value, "output post_process node must be Object.");
         auto op_name = Get<std::string>(op_value, Json::StaticString("op"));
         // todo: add more post process op
         if (op_name == "yolo_postprocess") {
-            YoloPost* yolo_post           = new YoloPost();
+            auto yolo_post                = std::make_unique<YoloPost>();
             yolo_post->nms_threshold      = Get<float>(op_value, Json::StaticString("nms_threshold"));
             yolo_post->nms_detection_conf = Get<float>(op_value, Json::StaticString("nms_detection_conf"));
             yolo_post->top_k              = Get<int>(op_value, Json::StaticString("top_k"));
-            *op_ptr                       = yolo_post;
+            op_out                        = std::move(yolo_post);
             return COSMO_NN_OK;
         } else if (op_name == "yolo_npu_postprocess") {
-            YoloNpuPost* yolo_npu_post   = new YoloNpuPost();
+            auto yolo_npu_post           = std::make_unique<YoloNpuPost>();
             yolo_npu_post->nms_threshold = Get<float>(op_value, Json::StaticString("nms_threshold"));
             yolo_npu_post->nms_detection_conf =
                 Get<float>(op_value, Json::StaticString("nms_detection_conf"));
@@ -525,49 +525,48 @@ Status ParseModelOutputOp(Json::Value& op_value, Op** op_ptr) {
                 Get<std::vector<std::vector<std::vector<float>>>>(op_value, Json::StaticString("anchors"));
             yolo_npu_post->stride = Get<std::vector<float>>(op_value, Json::StaticString("stride"));
             std::string des       = yolo_npu_post->Description();
-            *op_ptr               = yolo_npu_post;
+            op_out                = std::move(yolo_npu_post);
             return COSMO_NN_OK;
         } else if (op_name == "yolov8_postprocess") {
             // YOLOv8 uses the same output format as YOLOv5 when anchor decoding is in the model
-            YoloPost* yolov8_post           = new YoloPost("yolov8_postprocess");
+            auto yolov8_post                = std::make_unique<YoloPost>("yolov8_postprocess");
             yolov8_post->nms_threshold      = Get<float>(op_value, Json::StaticString("nms_threshold"));
             yolov8_post->nms_detection_conf = Get<float>(op_value, Json::StaticString("nms_detection_conf"));
             yolov8_post->top_k              = Get<int>(op_value, Json::StaticString("top_k"));
-            *op_ptr                         = yolov8_post;
+            op_out                          = std::move(yolov8_post);
             return COSMO_NN_OK;
         } else if (op_name == "sum") {
-            Sum* s  = new Sum();
-            *op_ptr = s;
+            op_out = std::make_unique<Sum>();
             return COSMO_NN_OK;
         } else if (op_name == "arg_max") {
-            ArgMax* arg_max = new ArgMax();
-            arg_max->axis   = Get<int>(op_value, Json::StaticString("axis"));
-            *op_ptr         = arg_max;
+            auto arg_max  = std::make_unique<ArgMax>();
+            arg_max->axis = Get<int>(op_value, Json::StaticString("axis"));
+            op_out        = std::move(arg_max);
             return COSMO_NN_OK;
         } else if (op_name == "split") {
-            Split* split = new Split();
-            split->axis  = Get<int>(op_value, Json::StaticString("axis"));
-            split->split = Get<std::vector<int>>(op_value, Json::StaticString("split"));
-            *op_ptr      = split;
+            auto split_op   = std::make_unique<Split>();
+            split_op->axis  = Get<int>(op_value, Json::StaticString("axis"));
+            split_op->split = Get<std::vector<int>>(op_value, Json::StaticString("split"));
+            op_out          = std::move(split_op);
             return COSMO_NN_OK;
         } else if (op_name == "split_arg_max") {
-            SplitArgMax* split_arg_max = new SplitArgMax();
-            split_arg_max->split       = Get<DimsVector>(op_value, Json::StaticString("split"));
-            *op_ptr                    = split_arg_max;
+            auto split_arg_max   = std::make_unique<SplitArgMax>();
+            split_arg_max->split = Get<DimsVector>(op_value, Json::StaticString("split"));
+            op_out               = std::move(split_arg_max);
             return COSMO_NN_OK;
         } else if (op_name == "dino_decode") {
-            DinoDecode* dino_decode     = new DinoDecode();
+            auto dino_decode            = std::make_unique<DinoDecode>();
             dino_decode->text_threshold = Get<float>(op_value, Json::StaticString("text_threshold"));
             dino_decode->box_threshold  = Get<float>(op_value, Json::StaticString("box_threshold"));
-            *op_ptr                     = dino_decode;
+            op_out                      = std::move(dino_decode);
             return COSMO_NN_OK;
         } else if (op_name == "sam_decode") {
-            SAMDecode* sam_decode = new SAMDecode();
+            auto sam_decode       = std::make_unique<SAMDecode>();
             sam_decode->threshold = Get<float>(op_value, Json::StaticString("threshold"), 0.0f);
             sam_decode->output_size =
                 Get<std::vector<int>>(op_value, Json::StaticString("output_size"), std::vector<int>());
             sam_decode->skip = Get<bool>(op_value, Json::StaticString("skip"), false);
-            *op_ptr          = sam_decode;
+            op_out           = std::move(sam_decode);
             return COSMO_NN_OK;
         } else {
             return Status(COSMO_NN_ERR_JSON_PARSE, "Unsupport output op");
@@ -578,7 +577,7 @@ Status ParseModelOutputOp(Json::Value& op_value, Op** op_ptr) {
     return COSMO_NN_OK;
 }
 
-Status ParseModelInputOps(Json::Value& ops_value, std::vector<Op*>& ops) {
+Status ParseModelInputOps(Json::Value& ops_value, std::vector<std::unique_ptr<Op>>& ops) {
     try {
         auto input_node_ops_size = ops_value.size();
         if (input_node_ops_size < 1)
@@ -588,7 +587,7 @@ Status ParseModelInputOps(Json::Value& ops_value, std::vector<Op*>& ops) {
         for (unsigned int i = 0; i < input_node_ops_size; i++) {
             Json::Value op_value = ops_value[i];
             CheckNullAndObject(op_value, "preprocess element must not be null and must be Object.");
-            RETURN_ON_FAIL(ParseModelInputOp(op_value, &(ops.at(i))));
+            RETURN_ON_FAIL(ParseModelInputOp(op_value, ops.at(i)));
         }
     } catch (std::exception& e) {
         return Status(COSMO_NN_ERR_JSON_PARSE, e.what());
@@ -642,7 +641,7 @@ Status ParseModelOutputNode(Json::Value& output_node_value, OutputNodeInfo& outp
         auto output_node_post_process_value = Get<Json::Value>(
             output_node_value, Json::StaticString("post_process"), Json::Value::nullSingleton());
         if (!output_node_post_process_value.isNull())
-            RETURN_ON_FAIL(ParseModelOutputOp(output_node_post_process_value, &(output_node.op)));
+            RETURN_ON_FAIL(ParseModelOutputOp(output_node_post_process_value, output_node.op));
     } catch (std::exception& e) {
         return Status(COSMO_NN_ERR_JSON_PARSE, e.what());
     }
@@ -783,7 +782,7 @@ Status ModelInfoUtils::ParseModelInfo(const std::string& info_content_, Combined
 }
 
 Status ModelInfoUtils::GetInputShapesMap(const ModelInfo& model_info_, ShapesMap& shapes) {
-    auto inputs_node_info = model_info_.input_node_infos;
+    const auto& inputs_node_info = model_info_.input_node_infos;
     if (inputs_node_info.empty())
         return Status(COSMO_NN_ERR_JSON_INVALID_INPUT, "Json must hava input node info");
 

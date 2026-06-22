@@ -1,3 +1,5 @@
+// MessageBodyLibHandler — Message Body Lib Handler implementation.
+
 #include "api/MessageBodyLibHandler.h"
 
 #include <algorithm>

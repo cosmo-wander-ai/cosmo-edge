@@ -1,3 +1,5 @@
+// MessageAuthHandler — Message Auth Handler implementation.
+
 #include "api/MessageAuthHandler.h"
 
 #include "service/network/IAuthService.h"

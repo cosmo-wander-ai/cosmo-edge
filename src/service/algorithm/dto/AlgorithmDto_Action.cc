@@ -1,3 +1,5 @@
+// AlgorithmDto_Action — Algorithm Dto_ Action implementation.
+
 #include <nlohmann/json.hpp>
 
 #include "AlgorithmDto.h"

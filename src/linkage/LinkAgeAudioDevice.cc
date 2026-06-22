@@ -1,3 +1,5 @@
+// LinkAgeAudioDevice — Link Age Audio Device implementation.
+
 #include "linkage/LinkAgeAudioDevice.h"
 
 #include "service/detail/ServiceRegistry.h"

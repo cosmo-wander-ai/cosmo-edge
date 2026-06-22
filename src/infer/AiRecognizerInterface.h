@@ -1,3 +1,4 @@
+// AiRecognizerInterface — Recognizer model interface.
 
 #pragma once
 

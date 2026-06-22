@@ -1,3 +1,5 @@
+// VideoDecoder — Video Decoder implementation.
+
 #include "media/VideoDecoder.h"
 
 #include "util/Log.h"

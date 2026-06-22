@@ -1,3 +1,5 @@
+// PicTaskServiceImpl — Forward declarations — full definitions in flow/task/PTaskBase.h (included in...
+
 #include "service/media/impl/PicTaskServiceImpl.h"
 
 #include <cstdlib>

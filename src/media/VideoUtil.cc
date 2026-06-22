@@ -1,3 +1,5 @@
+// VideoUtil — Video Util implementation.
+
 #include "media/VideoUtil.h"
 
 namespace cosmo {

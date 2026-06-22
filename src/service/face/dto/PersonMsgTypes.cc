@@ -1,3 +1,5 @@
+// PersonMsgTypes — Person lib types — MsgBasePersonLibInfo, MsgQueryPersonInfoRecv, etc.
+
 #include "PersonMsgTypes.h"
 
 #include <nlohmann/json.hpp>

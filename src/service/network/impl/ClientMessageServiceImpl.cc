@@ -1,3 +1,5 @@
+// ClientMessageServiceImpl — ClientMessageService implementation — handles platform HTTP API calls
+
 #include "service/network/impl/ClientMessageServiceImpl.h"
 
 #include "util/Log.h"

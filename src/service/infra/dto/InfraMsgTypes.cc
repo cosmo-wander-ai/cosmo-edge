@@ -1,3 +1,5 @@
+// InfraMsgTypes — Infrastructure msg types — MsgNetCardInfo, StorageList
+
 #include "InfraMsgTypes.h"
 
 #include <nlohmann/json.hpp>

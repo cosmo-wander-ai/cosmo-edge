@@ -17,7 +17,7 @@ clean_external_project() {
 }
 
 clean_external_project openssl_external
-clean_external_project nginx_external
+
 
 
 

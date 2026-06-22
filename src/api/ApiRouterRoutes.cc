@@ -263,7 +263,7 @@ bool ApiRouter::MtkValid(const std::string& mtk, InterfaceMsgAuthType interfaceA
     if (InterfaceMsgAuthType::Mtk != interfaceAuthType) {
         return true;
     }
-    // In restricted mode, IAuthService is not registered — reject all auth-required requests.
+    // If IAuthService is not registered, we cannot authenticate the request.
     if (!service::ServiceRegistry::Instance().Has<service::IAuthService>()) {
         return false;
     }

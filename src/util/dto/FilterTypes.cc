@@ -1,3 +1,5 @@
+// FilterTypes — Filter/alarm types — MsgAiDetFrame, MsgFilterArea, MsgRecAlarm, etc.
+
 #include "FilterTypes.h"
 
 #include <nlohmann/json.hpp>

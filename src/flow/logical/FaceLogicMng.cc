@@ -1,3 +1,5 @@
+// FaceLogicMng — Face Logic Mng implementation.
+
 #include "flow/logical/FaceLogicMng.h"
 
 #include "util/Log.h"

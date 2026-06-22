@@ -1,3 +1,5 @@
+// ScheduleServiceImpl — ScheduleService implementation - time template configuration management
+
 #include "service/task/impl/ScheduleServiceImpl.h"
 
 #include <algorithm>

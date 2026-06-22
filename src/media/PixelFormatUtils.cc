@@ -1,3 +1,5 @@
+// PixelFormatUtils — Pixel Format Utils implementation.
+
 #include "media/PixelFormatUtils.h"
 
 #include <cstdint>

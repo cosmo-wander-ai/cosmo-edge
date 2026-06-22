@@ -1,3 +1,5 @@
+// FpsCalc — Frame rate calculator based on a sliding interval.
+
 #include "util/FpsCalc.h"
 
 namespace cosmo::util {

@@ -1,3 +1,5 @@
+// CameraConfigPersistence — Persistence utility for camera configuration.
+
 #include "service/camera/impl/CameraConfigPersistence.h"
 
 #include <algorithm>

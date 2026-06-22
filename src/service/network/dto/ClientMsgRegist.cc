@@ -1,3 +1,5 @@
+// ClientMsgRegist — Client-side registration message types.
+
 #include "ClientMsgRegist.h"
 
 #include <nlohmann/json.hpp>
