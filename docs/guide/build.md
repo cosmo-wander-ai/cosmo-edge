@@ -23,13 +23,20 @@ next:
 
 ## x86 Docker 开发运行环境
 
+Linux:
 ```bash
 docker compose -f docker-compose.x86.yml up -d --build
 ```
 
+Windows (PowerShell/CMD):
+```powershell
+docker compose -f docker-compose.x86.windows.yml up -d --build
+```
+
 该路径来自：
 
-- `docker-compose.x86.yml`
+- `docker-compose.x86.yml` (Linux)
+- `docker-compose.x86.windows.yml` (Windows)
 - `Dockerfile.x86`
 - `scripts/build_cpu.sh`
 

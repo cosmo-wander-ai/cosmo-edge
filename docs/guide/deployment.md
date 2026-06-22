@@ -22,21 +22,36 @@ next:
 
 启动：
 
-```bash
-docker compose -f docker-compose.x86.yml up -d --build
-```
+- **Linux**:
+  ```bash
+  docker compose -f docker-compose.x86.yml up -d --build
+  ```
+- **Windows (PowerShell/CMD)**:
+  ```powershell
+  docker compose -f docker-compose.x86.windows.yml up -d --build
+  ```
 
 停止：
 
-```bash
-docker compose -f docker-compose.x86.yml down
-```
+- **Linux**:
+  ```bash
+  docker compose -f docker-compose.x86.yml down
+  ```
+- **Windows (PowerShell/CMD)**:
+  ```powershell
+  docker compose -f docker-compose.x86.windows.yml down
+  ```
 
 查看日志：
 
-```bash
-docker compose -f docker-compose.x86.yml logs -f
-```
+- **Linux**:
+  ```bash
+  docker compose -f docker-compose.x86.yml logs -f
+  ```
+- **Windows (PowerShell/CMD)**:
+  ```powershell
+  docker compose -f docker-compose.x86.windows.yml logs -f
+  ```
 
 ## 运行目录
 
@@ -68,10 +83,10 @@ ${INSTALLPATH}/bin/cosmo-engine
 
 | 端口 | 来源 | 用途 |
 | --- | --- | --- |
-| `8080 -> 80` | `docker-compose.x86.yml` | x86 Docker Web 控制台 |
-| `1936` | `docker-compose.x86.yml` / SRS | RTMP |
-| `1985` | `docker-compose.x86.yml` / SRS | SRS API |
-| `18088` | `docker-compose.x86.yml` / SRS | HTTP stream |
+| `8080 -> 80` | `docker-compose.x86.yml` / `docker-compose.x86.windows.yml` | x86 Docker Web 控制台 |
+| `1936` | `docker-compose.x86.yml` / `docker-compose.x86.windows.yml` / SRS | RTMP |
+| `1985` | `docker-compose.x86.yml` / `docker-compose.x86.windows.yml` / SRS | SRS API |
+| `18088` | `docker-compose.x86.yml` / `docker-compose.x86.windows.yml` / SRS | HTTP stream |
 | `8000` | `src/app/AppConstants.h` | 后端 HTTP |
 | `9000` | `src/app/AppConstants.h` | 后端 WebSocket |
 

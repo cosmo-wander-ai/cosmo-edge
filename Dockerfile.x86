@@ -39,6 +39,8 @@ RUN mkdir -p /root/.cargo && \
     echo '[source.aliyun]' >> /root/.cargo/config.toml && \
     echo 'registry = "sparse+https://mirrors.aliyun.com/crates.io-index/"' >> /root/.cargo/config.toml
 
+RUN npm config set registry https://registry.npmmirror.com
+
 WORKDIR /src
 COPY . .
 

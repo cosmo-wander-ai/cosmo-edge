@@ -17,9 +17,8 @@ next:
 
 x86 开发运行环境：
 
-```text
-docker-compose.x86.yml
-```
+- Linux: `docker-compose.x86.yml`
+- Windows: `docker-compose.x86.windows.yml`
 
 Sophon 发布包构建：
 

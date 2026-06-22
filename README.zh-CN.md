@@ -217,8 +217,11 @@ cd cosmo-edge
 
 # 2. 启动 x86 模式
 # TODO: 确认最终公开启动命令。
-# 首选发布目标：
+# 首选发布目标 (Linux)：
 sudo docker compose -f docker-compose.x86.yml up -d --build
+
+# Windows (PowerShell/CMD)：
+docker compose -f docker-compose.x86.windows.yml up -d --build
 
 # 3. 打开 Web 控制台
 # http://localhost:8080

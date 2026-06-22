@@ -17,19 +17,26 @@ This page documents build paths that are visible in the repository. Commands mar
 
 | Target | Entry Point | Notes |
 | --- | --- | --- |
-| x86 Docker runtime | `docker-compose.yml` | Starts the containerized development/runtime environment. |
+| x86 Docker runtime | `docker-compose.x86.yml` / `docker-compose.x86.windows.yml` | Starts the containerized development/runtime environment. |
 | Sophon release package | `scripts/build_sophon_package.sh` | Creates the target-device release package. |
 | Windows CPU build | `scripts/build_cpu_windows.ps1` | Local build path used during validation. |
 | Documentation site | `npm ci` and `npm run docs:build` | Builds this VitePress site. |
 
 ## x86 Docker Development Runtime
 
+Linux:
 ```bash
-docker compose up -d
-docker compose ps
+docker compose -f docker-compose.x86.yml up -d --build
+docker compose -f docker-compose.x86.yml ps
 ```
 
-If ports or mounted paths differ in your environment, update `docker-compose.yml` and document the final values in the deployment guide.
+Windows (PowerShell/CMD):
+```powershell
+docker compose -f docker-compose.x86.windows.yml up -d --build
+docker compose -f docker-compose.x86.windows.yml ps
+```
+
+If ports or mounted paths differ in your environment, update `docker-compose.x86.yml` (or `docker-compose.x86.windows.yml` on Windows) and document the final values in the deployment guide.
 
 ## Sophon Release Package
 

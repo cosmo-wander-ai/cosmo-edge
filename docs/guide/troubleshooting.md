@@ -23,15 +23,25 @@ http://127.0.0.1:8080
 
 检查容器状态：
 
-```bash
-docker compose -f docker-compose.x86.yml ps
-```
+- **Linux**:
+  ```bash
+  docker compose -f docker-compose.x86.yml ps
+  ```
+- **Windows (PowerShell/CMD)**:
+  ```powershell
+  docker compose -f docker-compose.x86.windows.yml ps
+  ```
 
 查看日志：
 
-```bash
-docker compose -f docker-compose.x86.yml logs -f
-```
+- **Linux**:
+  ```bash
+  docker compose -f docker-compose.x86.yml logs -f
+  ```
+- **Windows (PowerShell/CMD)**:
+  ```powershell
+  docker compose -f docker-compose.x86.windows.yml logs -f
+  ```
 
 ## 端口冲突
 
@@ -43,15 +53,20 @@ x86 Compose 会发布：
 - `18088`
 - `8000/udp`
 
-如果端口被占用，可以修改 `docker-compose.x86.yml` 的主机端口，或停止占用端口的服务。
+如果端口被占用，可以修改 `docker-compose.x86.yml` (或 Windows 上的 `docker-compose.x86.windows.yml`) 的主机端口，或停止占用端口的服务。
 
 ## `build_output/` 没有发布包
 
 使用完整运行命令：
 
-```bash
-docker compose -f docker-compose.x86.yml up -d --build
-```
+- **Linux**:
+  ```bash
+  docker compose -f docker-compose.x86.yml up -d --build
+  ```
+- **Windows (PowerShell/CMD)**:
+  ```powershell
+  docker compose -f docker-compose.x86.windows.yml up -d --build
+  ```
 
 Sophon 路径使用：
 

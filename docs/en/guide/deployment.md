@@ -15,10 +15,18 @@ CosmoEdge is deployed as a runtime package that includes the native backend, web
 
 ## x86 Docker Runtime
 
+Linux:
 ```bash
-docker compose up -d
-docker compose ps
-docker compose logs --tail=100
+docker compose -f docker-compose.x86.yml up -d --build
+docker compose -f docker-compose.x86.yml ps
+docker compose -f docker-compose.x86.yml logs --tail=100
+```
+
+Windows (PowerShell/CMD):
+```powershell
+docker compose -f docker-compose.x86.windows.yml up -d --build
+docker compose -f docker-compose.x86.windows.yml ps
+docker compose -f docker-compose.x86.windows.yml logs --tail=100
 ```
 
 Use this path for local validation and integration work before preparing target-device packages.

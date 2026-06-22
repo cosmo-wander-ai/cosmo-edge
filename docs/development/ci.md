@@ -20,7 +20,7 @@ next: false
 | C++ 格式 | `scripts/format_check.sh --check` | Pull request / push |
 | C++ 静态分析 | `scripts/static_analysis.sh --cppcheck`、`scripts/static_analysis.sh --clang-tidy` | 定期 / 手动 / self-hosted |
 | CPU 测试构建 | `scripts/build_cpu_test.sh`、`build_cpu/cosmo-tests` | Pull request / 手动 |
-| x86 Docker | `docker compose -f docker-compose.x86.yml up -d --build` | 手动 / release 前 |
+| x86 Docker | `docker compose -f docker-compose.x86.yml up -d --build` (Windows 下为 `docker-compose.x86.windows.yml`) | 手动 / release 前 |
 | Sophon 发布包 | `scripts/build_sophon_package.sh` | 手动 / self-hosted |
 
 ## 文档站检查
@@ -133,11 +133,18 @@ build_cpu/cosmo-tests
 
 x86 开发模式可用于集成级验证：
 
-```bash
-docker compose -f docker-compose.x86.yml up -d --build
-docker compose -f docker-compose.x86.yml logs -f
-docker compose -f docker-compose.x86.yml down
-```
+- **Linux**:
+  ```bash
+  docker compose -f docker-compose.x86.yml up -d --build
+  docker compose -f docker-compose.x86.yml logs -f
+  docker compose -f docker-compose.x86.yml down
+  ```
+- **Windows (PowerShell/CMD)**:
+  ```powershell
+  docker compose -f docker-compose.x86.windows.yml up -d --build
+  docker compose -f docker-compose.x86.windows.yml logs -f
+  docker compose -f docker-compose.x86.windows.yml down
+  ```
 
 建议在 release 前至少确认：
 
@@ -191,7 +198,7 @@ This page lists the quality gates that already exist in the repository and can b
 | C++ formatting | `scripts/format_check.sh --check` | Pull request / push |
 | C++ static analysis | `scripts/static_analysis.sh --cppcheck`, `scripts/static_analysis.sh --clang-tidy` | Scheduled / manual / self-hosted |
 | CPU test build | `scripts/build_cpu_test.sh`, `build_cpu/cosmo-tests` | Pull request / manual |
-| x86 Docker | `docker compose -f docker-compose.x86.yml up -d --build` | Manual / pre-release |
+| x86 Docker | `docker compose -f docker-compose.x86.yml up -d --build` (or `docker-compose.x86.windows.yml` on Windows) | Manual / pre-release |
 | Sophon package | `scripts/build_sophon_package.sh` | Manual / self-hosted |
 
 ### Documentation
@@ -249,11 +256,18 @@ The script enables `BUILD_TESTS=ON`, uses the x86 CPU backend, and builds `build
 
 Use x86 Docker validation before a public release:
 
-```bash
-docker compose -f docker-compose.x86.yml up -d --build
-docker compose -f docker-compose.x86.yml logs -f
-docker compose -f docker-compose.x86.yml down
-```
+- **Linux**:
+  ```bash
+  docker compose -f docker-compose.x86.yml up -d --build
+  docker compose -f docker-compose.x86.yml logs -f
+  docker compose -f docker-compose.x86.yml down
+  ```
+- **Windows (PowerShell/CMD)**:
+  ```powershell
+  docker compose -f docker-compose.x86.windows.yml up -d --build
+  docker compose -f docker-compose.x86.windows.yml logs -f
+  docker compose -f docker-compose.x86.windows.yml down
+  ```
 
 Use the Sophon package scripts on a properly configured builder:
 

@@ -215,8 +215,11 @@ cd cosmo-edge
 
 # 2. Start in x86 mode
 # TODO: Confirm the final public launch command.
-# Preferred release target:
+# Preferred release target (Linux):
 sudo docker compose -f docker-compose.x86.yml up -d --build
+
+# Windows (PowerShell/CMD):
+docker compose -f docker-compose.x86.windows.yml up -d --build
 
 # 3. Open the web console
 # http://localhost:8080

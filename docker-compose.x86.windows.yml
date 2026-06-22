@@ -1,0 +1,29 @@
+services:
+  cosmo-x86:
+    build:
+      context: .
+      dockerfile: Dockerfile.x86
+      args:
+        RESOURCE_DIR: data/resource/aiboxresource_x86
+    image: cosmo:x86-dev
+    container_name: cosmo-x86
+    init: true
+    restart: unless-stopped
+    ports:
+      - "8080:80"  # Use port 8080 to avoid conflicts with host port 80.
+      - "1936:1936"
+      - "1985:1985"
+      - "18088:18088"
+      - "8000:8000/udp"
+    volumes:
+      - cosmo-x86-data:/data/cwaiuserdata
+      - cosmo-x86-app-resource:/appfs/cosmo_wander/cwai_data/resource
+      - ./build_output:/build_output
+    cap_add:
+      - NET_ADMIN
+    sysctls:
+      net.ipv4.igmp_max_memberships: "20"
+
+volumes:
+  cosmo-x86-data:
+  cosmo-x86-app-resource:

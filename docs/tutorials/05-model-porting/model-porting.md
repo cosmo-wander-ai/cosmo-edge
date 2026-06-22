@@ -94,7 +94,7 @@ visdrone_yolov8s.onnx
 | --- | --- |
 | Ubuntu / Debian | `sudo apt-get install docker.io` |
 | CentOS | `sudo yum install docker` |
-| Windows / macOS | 安装 [Docker Desktop](https://www.docker.com/products/docker-desktop/) |
+| Windows | 安装 [Docker Desktop](https://www.docker.com/products/docker-desktop/) |
 
 
 <!-- 这是一张图片，ocr 内容为： -->

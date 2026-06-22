@@ -15,7 +15,7 @@ This page summarizes configuration surfaces visible in the repository.
 
 ## Docker Compose
 
-`docker-compose.yml` defines the x86 runtime container setup. Before release, verify mounted paths, exposed ports, image names, persistent data directories, and whether private registries or mirrors are referenced.
+`docker-compose.x86.yml` (Linux) and `docker-compose.x86.windows.yml` (Windows) define the x86 runtime container setup. Before release, verify mounted paths, exposed ports, image names, persistent data directories, and whether private registries or mirrors are referenced.
 
 ## Sophon Build Variables
 
