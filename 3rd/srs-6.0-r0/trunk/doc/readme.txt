@@ -1,0 +1,1 @@
+Moved to https://github.com/ossrs/srs/blob/develop/trunk/doc/README.md

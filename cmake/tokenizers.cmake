@@ -1,0 +1,58 @@
+set(TOKENIZERS_ORIGINAL_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rd/tokenizers-cpp)
+set(TOKENIZERS_SOURCE_DIR ${TOKENIZERS_ORIGINAL_SOURCE_DIR})
+set(TOKENIZERS_INSTALL_DIR ${THIRDPARTY_INSTALL_PREFIX}/tokenizers)
+set(TOKENIZERS_HEADERS ${TOKENIZERS_INSTALL_DIR}/include)
+set(TOKENIZERS_CPP_LIB ${TOKENIZERS_INSTALL_DIR}/lib/libtokenizers_cpp.a)
+set(TOKENIZERS_C_LIB ${TOKENIZERS_INSTALL_DIR}/lib/libtokenizers_c.a)
+
+if(COSMO_TARGET_ARCH STREQUAL "x86_64")
+    set(TOKENIZERS_SOURCE_DIR ${CMAKE_BINARY_DIR}/tokenizers_source)
+    set(TOKENIZERS_DOWNLOAD_COMMAND
+        ${CMAKE_COMMAND} -E rm -rf <SOURCE_DIR>
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${TOKENIZERS_ORIGINAL_SOURCE_DIR} <SOURCE_DIR>
+    )
+    set(TOKENIZERS_PATCH_COMMAND ${CMAKE_COMMAND} -E true)
+else()
+    set(TOKENIZERS_DOWNLOAD_COMMAND "")
+    set(TOKENIZERS_PATCH_COMMAND ${CMAKE_COMMAND} -E true)
+endif()
+
+ExternalProject_Add(
+    tokenizers_external
+
+    SOURCE_DIR ${TOKENIZERS_SOURCE_DIR}
+    DOWNLOAD_COMMAND ${TOKENIZERS_DOWNLOAD_COMMAND}
+    PATCH_COMMAND ${TOKENIZERS_PATCH_COMMAND}
+
+    CMAKE_ARGS
+        -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
+        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+        -DCMAKE_INSTALL_PREFIX=${TOKENIZERS_INSTALL_DIR}
+
+    INSTALL_COMMAND ${CMAKE_COMMAND} --build . --target install
+
+    UPDATE_COMMAND ""
+    BUILD_ALWAYS OFF
+
+    LOG_CONFIGURE ON
+    LOG_BUILD ON
+    LOG_INSTALL ON
+    LOG_OUTPUT_ON_FAILURE ON
+)
+
+add_dependencies(third_build tokenizers_external)
+
+add_library(tokenizers_cpp STATIC IMPORTED)
+set_target_properties(tokenizers_cpp PROPERTIES
+    IMPORTED_LOCATION ${TOKENIZERS_CPP_LIB}
+    INTERFACE_INCLUDE_DIRECTORIES "${TOKENIZERS_HEADERS}"
+)
+add_dependencies(tokenizers_cpp tokenizers_external)
+
+add_library(tokenizers_c STATIC IMPORTED)
+set_target_properties(tokenizers_c PROPERTIES
+    IMPORTED_LOCATION ${TOKENIZERS_C_LIB}
+    INTERFACE_INCLUDE_DIRECTORIES "${TOKENIZERS_HEADERS}"
+)
+add_dependencies(tokenizers_c tokenizers_external)
+target_link_libraries(tokenizers_c INTERFACE ${CMAKE_DL_LIBS} pthread)

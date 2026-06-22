@@ -1,0 +1,49 @@
+{
+  "name": "vue3-vite-project",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "i18n:check-scopes": "node scripts/i18n_check_scopes.mjs",
+    "i18n:check-locales": "node scripts/i18n_check_locales.mjs",
+    "i18n:check-glossary": "node scripts/i18n_check_glossary_sync.mjs",
+    "i18n:check-dialogs": "node scripts/i18n_check_dialog_actions.mjs",
+    "i18n:check-used-keys": "node scripts/i18n_check_used_keys.mjs",
+    "i18n:check": "npm run i18n:check-scopes && npm run i18n:check-glossary && npm run i18n:check-locales && npm run i18n:check-dialogs && npm run i18n:check-used-keys",
+    "prebuild": "npm run i18n:check",
+    "build": "vite build",
+    "preview": "vite preview",
+    "resource-i18n:check": "node scripts/resource_i18n_sync.mjs --check",
+    "resource-i18n:sync": "node scripts/resource_i18n_sync.mjs --sync"
+  },
+  "dependencies": {
+    "@vue-flow/background": "^1.3.2",
+    "@vue-flow/controls": "^1.1.3",
+    "@vue-flow/core": "^1.48.2",
+    "@vue-flow/minimap": "^1.5.4",
+    "axios": "^1.7.0",
+    "dagre": "^0.8.5",
+    "echarts": "^6.0.0",
+    "element-plus": "2.13.2",
+    "flv.js": "^1.6.2",
+    "js-md5": "^0.8.3",
+    "lodash": "^4.17.21",
+    "mitt": "^3.0.1",
+    "moment": "^2.30.1",
+    "tree-transfer-vue3": "^1.2.2",
+    "uuid": "^13.0.2",
+    "vue": "^3.5.35",
+    "vue-i18n": "^9.14.5",
+    "vue-router": "^4.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "5.2.4",
+    "sass": "^1.100.0",
+    "sass-embedded": "^1.100.0",
+    "vite": "6.3.5"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "^4.0.0"
+  }
+}

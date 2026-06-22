@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "declaration": true,
+    "outDir": "lib",
+    "declarationMap": true
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "build", "dist", "rollup.config.js"]
+}

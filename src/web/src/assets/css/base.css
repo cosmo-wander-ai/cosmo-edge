@@ -1,0 +1,24 @@
+/* 隐藏滚动条上下箭头 */
+::-webkit-scrollbar-button {
+    display: none;
+}
+
+/* 自定义滚动条整体宽度 */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+/* 自定义滚动条轨道样式 */
+::-webkit-scrollbar-track {
+    background-color: transparent;
+    /* border-radius: 6px; */
+}
+
+/* 自定义滚动条滑块样式 */
+::-webkit-scrollbar-thumb {
+    background-color: #c1c1c1;
+    border-radius: 6px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+}

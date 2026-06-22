@@ -1,0 +1,95 @@
+#!/bin/bash
+# Git pre-commit hook for Cosmo.
+# Checks staged .h/.cc files against:
+#   1. clang-format rules (code style)
+#   2. cppcheck static analysis (if available)
+# Install via: scripts/install-hooks.sh
+
+set -euo pipefail
+
+# ── Resolve project root (works for both direct and symlinked hooks) ──
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [[ -L "$0" ]]; then
+    # Symlinked hook: resolve to the real script location
+    REAL_SCRIPT="$(readlink -f "$0")"
+    PROJECT_ROOT="$(cd "$(dirname "$REAL_SCRIPT")/.." && pwd)"
+else
+    # Direct hook in .git/hooks/
+    PROJECT_ROOT="$(cd "$HOOK_DIR/../.." && pwd)"
+fi
+
+FORMAT_CHECK="$PROJECT_ROOT/scripts/format_check.sh"
+
+# ── Quick bail-out: skip if no staged .h/.cc files ──────────────────
+STAGED_CPP=$(git diff --cached --name-only --diff-filter=ACMR | grep -cE '\.(h|cc)$' || true)
+
+if [[ "$STAGED_CPP" -eq 0 ]]; then
+    exit 0
+fi
+
+# ── Verify format_check.sh exists ───────────────────────────────────
+if [[ ! -x "$FORMAT_CHECK" ]]; then
+    echo "⚠️  scripts/format_check.sh not found or not executable, skipping format check."
+    exit 0
+fi
+
+# ── Run format check on staged files ────────────────────────────────
+echo "🔍 Pre-commit: checking $STAGED_CPP staged C++ file(s)..."
+echo ""
+
+if ! "$FORMAT_CHECK" --staged --check; then
+    echo ""
+    echo "╔══════════════════════════════════════════════════════════╗"
+    echo "║  Commit blocked: code formatting issues detected.       ║"
+    echo "║                                                         ║"
+    echo "║  To fix automatically, run:                             ║"
+    echo "║    scripts/format_check.sh --staged --fix               ║"
+    echo "║                                                         ║"
+    echo "║  Then re-stage the fixed files:                         ║"
+    echo "║    git add -u                                           ║"
+    echo "╚══════════════════════════════════════════════════════════╝"
+    exit 1
+fi
+
+# ── Run cppcheck on staged files (if available) ────────────────────
+if command -v cppcheck &> /dev/null; then
+    echo ""
+    echo "🔍 Pre-commit: running cppcheck on staged file(s)..."
+
+    STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR \
+        | grep -E '\.(h|cc)$' \
+        | while read -r f; do echo "$PROJECT_ROOT/$f"; done)
+
+    SUPPRESSION_FILE="$PROJECT_ROOT/.cppcheck-suppressions"
+    SUPPRESSION_ARG=""
+    if [[ -f "$SUPPRESSION_FILE" ]]; then
+        SUPPRESSION_ARG="--suppressions-list=$SUPPRESSION_FILE"
+    fi
+
+    if [[ -n "$STAGED_FILES" ]]; then
+        # Only block on error-level findings, not style/warning
+        if ! echo "$STAGED_FILES" | xargs cppcheck \
+                --std=c++17 \
+                --language=c++ \
+                --error-exitcode=1 \
+                --enable=warning \
+                --inline-suppr \
+                $SUPPRESSION_ARG \
+                --quiet \
+                -I "$PROJECT_ROOT/src" \
+                2>&1; then
+            echo ""
+            echo "╔══════════════════════════════════════════════════════════╗"
+            echo "║  Commit blocked: cppcheck found error-level issues.     ║"
+            echo "║                                                         ║"
+            echo "║  Review and fix the issues above, then retry.           ║"
+            echo "║                                                         ║"
+            echo "║  For full analysis, run:                                ║"
+            echo "║    scripts/static_analysis.sh --cppcheck                ║"
+            echo "╚══════════════════════════════════════════════════════════╝"
+            exit 1
+        fi
+        echo "✅ cppcheck: no error-level issues found."
+    fi
+fi
+

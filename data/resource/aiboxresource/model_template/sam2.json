@@ -1,0 +1,187 @@
+{
+  "model_type": "SAM2",
+  "chip_type": "BM1688",
+  "algorithm_code": "6000001",
+  "version": "V1",
+  "reduce": "sequential",
+  "models": [
+    {
+      "name": "SAM2ImageEncoder",
+      "file_name": "sam2_encoder_f16_1b.bmodel",
+      "file_md5": "",
+      "max_batch": 1,
+      "inputs": [
+        {
+          "name": "image",
+          "shape": [
+            1,
+            3,
+            1024,
+            1024
+          ],
+          "data_type": 0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "high_res_feats_0",
+          "shape": [
+            1,
+            32,
+            256,
+            256
+          ],
+          "data_type": 0
+        },
+        {
+          "name": "high_res_feats_1",
+          "shape": [
+            1,
+            64,
+            128,
+            128
+          ],
+          "data_type": 0
+        },
+        {
+          "name": "image_embed",
+          "shape": [
+            1,
+            256,
+            64,
+            64
+          ],
+          "data_type": 0
+        }
+      ],
+      "params": {
+        "input_size": [
+          1024,
+          1024
+        ],
+        "padding_color": [
+          0,
+          0,
+          0
+        ],
+        "normalize_mean": [
+          123.675,
+          116.28,
+          103.53
+        ],
+        "normalize_scale": 0.0,
+        "is_bgr": false,
+        "normalize_std": [
+          58.395,
+          57.12,
+          57.375
+        ],
+        "gravity": 0
+      }
+    },
+    {
+      "name": "SAM2MaskDecoder",
+      "file_name": "sam2_decoder_f16_1b.bmodel",
+      "file_md5": "",
+      "max_batch": 1,
+      "inputs": [
+        {
+          "name": "point_coords",
+          "shape": [
+            1,
+            6,
+            2
+          ],
+          "data_type": 0
+        },
+        {
+          "name": "image_embed",
+          "shape": [
+            1,
+            256,
+            64,
+            64
+          ],
+          "data_type": 0
+        },
+        {
+          "name": "high_res_feats_0",
+          "shape": [
+            1,
+            32,
+            256,
+            256
+          ],
+          "data_type": 0
+        },
+        {
+          "name": "high_res_feats_1",
+          "shape": [
+            1,
+            64,
+            128,
+            128
+          ],
+          "data_type": 0
+        },
+        {
+          "name": "point_labels",
+          "shape": [
+            1,
+            6
+          ],
+          "data_type": 0
+        },
+        {
+          "name": "mask_input",
+          "shape": [
+            1,
+            1,
+            256,
+            256
+          ],
+          "data_type": 0
+        },
+        {
+          "name": "has_mask_input",
+          "shape": [
+            1
+          ],
+          "data_type": 0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "masks_Clip_f32",
+          "shape": [
+            1,
+            3,
+            256,
+            256
+          ],
+          "data_type": 0
+        },
+        {
+          "name": "iou_predictions_Slice_f32",
+          "shape": [
+            1,
+            3
+          ],
+          "data_type": 0
+        }
+      ],
+      "params": {
+        "prompt_type": "point",
+        "normalize_prompt": true,
+        "encoder_size": 1024,
+        "max_points": 6,
+        "threshold": 0.0,
+        "output_size": [
+          1024,
+          1024
+        ]
+      }
+    }
+  ],
+  "labels": []
+}

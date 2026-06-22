@@ -1,0 +1,72 @@
+# Language: None Cpp CSharp Java JavaScript Json ObjC Proto TableGen TextProto Verilog
+Language: Cpp
+
+# LLVM Google Chromium Mozilla WebKit Microsoft GNU
+BasedOnStyle: Google
+
+# Access modifier offset (public, private)
+AccessModifierOffset: -4
+
+# Align parameters after open bracket: Align DontAlign AlwaysBreak
+AlignAfterOpenBracket: Align
+
+# Align all equals signs in consecutive assignments
+AlignConsecutiveAssignments: true
+
+# Right-align escaped newlines (backslash continuations)
+AlignEscapedNewlines: Right
+
+# Horizontally align operands of binary and ternary expressions
+AlignOperands: true
+
+# Allow all parameters of a declaration on the next line
+AllowAllParametersOfDeclarationOnNextLine: false
+
+#AllowAllArgumentsOnNextLine: false
+
+# Allow short blocks on a single line
+AllowShortBlocksOnASingleLine: false
+
+# Allow short case labels on a single line
+AllowShortCaseLabelsOnASingleLine: false
+
+# Allow short functions on a single line: None, InlineOnly, Empty, Inline, All
+AllowShortFunctionsOnASingleLine: Empty
+
+# Allow short if statements on a single line
+AllowShortIfStatementsOnASingleLine: false
+
+# Allow short loops on a single line
+AllowShortLoopsOnASingleLine: false
+
+# Column limit per line (0 = no limit)
+ColumnLimit: 110
+
+# Regex for comments with special meaning that should not be split or changed
+CommentPragmas: '^ IWYU pragma:'
+
+# Pointer alignment: Left, Right, Middle
+PointerAlignment: Left
+
+# Indentation width
+IndentWidth: 4
+
+# Tab width
+TabWidth: 4
+
+Standard: c++17
+
+UseTab: Never
+
+CompactNamespaces: false
+
+# Namespace indentation
+NamespaceIndentation: Inner
+
+# Fix namespace end comments
+FixNamespaceComments: true
+
+---
+Language: Proto
+# Do not format .proto files
+DisableFormat: true

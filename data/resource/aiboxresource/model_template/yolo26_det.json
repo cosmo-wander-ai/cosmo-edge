@@ -1,0 +1,70 @@
+{
+  "model_type": "yolo26_det",
+  "chip_type": "BM1688",
+  "algorithm_code": "4000001",
+  "version": "V1.0.0",
+  "reduce": "",
+  "models": [
+    {
+      "name": "yolo26检测",
+      "file_name": "",
+      "file_md5": "",
+      "max_batch": 1,
+      "inputs": [
+        {
+          "name": "images",
+          "shape": [
+            1,
+            3,
+            640,
+            640
+          ],
+          "data_type": 0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output0_Concat",
+          "shape": [
+            1,
+            300,
+            6
+          ],
+          "data_type": 0
+        }
+      ],
+      "params": {
+        "input_size": [
+          640,
+          640
+        ],
+        "padding_color": [
+          114,
+          114,
+          114
+        ],
+        "normalize_mean": [
+          0,
+          0,
+          0
+        ],
+        "normalize_scale": 0.00392157,
+        "is_bgr": false,
+        "confidence_threshold": 0.25,
+        "top_k": 300,
+        "gravity": 1
+      },
+      "nameI18nKey": "resource.model.4000001.yolo26_det.name"
+    }
+  ],
+  "labels": [
+    {
+      "id": "0",
+      "name": "pedestrian",
+      "threshold": [
+        0.25,
+        0.25
+      ]
+    }
+  ]
+}

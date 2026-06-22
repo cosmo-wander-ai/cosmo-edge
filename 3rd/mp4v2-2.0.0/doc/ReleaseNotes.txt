@@ -1,0 +1,127 @@
+MP4v2 2.0.0 Release Notes
+*************************
+
+Table of Contents
+*****************
+
+1 What's New?
+2 Breaking Changes
+  2.1 Removed deprecated metadata/free-form API.
+Appendix A Changelog
+  A.1 Version 2.0
+  A.2 Version 1.9
+  A.3 Version 1.6
+Appendix B SCM repository details
+
+
+1 What's New?
+*************
+
+[TODO]
+
+2 Breaking Changes
+******************
+
+2.1 Removed deprecated metadata/free-form API.
+==============================================
+
+The following functions have been removed and replaced with iTMF
+Generic and Tags API. Detailed documentation can be found under API
+modules section.
+
+DeleteMetadataAtom(), DeleteMetadataFreeForm(), DeleteMetadataGenre(),
+GetMetadataByIndex(), GetMetadataCoverArt(), GetMetadataCoverArtCount(),
+GetMetadataDisk(), GetMetadataFreeForm(), GetMetadataGenre(),
+GetMetadataString(), GetMetadataTrack(), GetMetadataUint16(),
+GetMetadataUint8(), MetadataDelete(), SetMetadataCoverArt(),
+SetMetadataDisk(), SetMetadataFreeForm(), SetMetadataGenre(),
+SetMetadataString(), SetMetadataTrack(), SetMetadataUint16(),
+SetMetadataUint8().
+
+Appendix A Changelog
+********************
+
+A.1 Version 2.0
+===============
+
+  1. Removed deprecated metadata/free-form API and replaced with iTMF
+     Generic and Tags API.
+
+  2. Added new public-API: MP4SetLogCallback().
+
+
+A.2 Version 1.9
+===============
+
+  1. Renamed public API top-level header to `<mp4v2/mp4v2.h>' and added
+     namespaces for implementation (private) symbols. Only public API
+     symbols are exported for dynamic (shared) or DLL libraries. All
+     other symbols are now private, notwithstanding static-library
+     usage.
+
+  2. Added initial AC3 support.
+
+  3. Added native Windows port. The port targets `WINVER 0x0500' which
+     is Windows 2000 or higher.
+
+  4. Added QuickTime and Nero chapter support. See `mp4chaps'
+     command-line utility.
+     Contributed by Ullrich Pollähne <u.pollaehne@gmail.com>.
+
+  5. Enhanced `mp4art' to support multiple cover-art atoms.
+
+  6. Dropped `mp4dump' and replaced with `mp4file' which supports
+     general file operations.
+
+  7. Added `mp4track' with colr-box and pasp-box support.
+
+  8. Fixed corruption of udta.name atom during read-in.
+
+  9. Enhanced `mp4file --dump' to show hexdump-style canonical
+     hex+ASCII data.
+
+ 10. Enhanced `mp4file --dump' to show human-readble value for tag
+     typeCode values.
+
+ 11. Enhanced `mp4file --dump' to show human-readble value for
+     ISO-639-2/T language codes.
+
+ 12. Added new public-API: MP4GetTrackLanguage().
+
+ 13. Added new public-API: MP4SetTrackLanguage().
+
+ 14. Added support for GCC precompiled-headers on various *nix
+     platforms to speed up builds as we are using quite a few C++
+     headers.
+
+ 15. Enhanced `mp4track' to facilitate modification of { enabled,
+     inmovie, inpreview, altgroup, volume, width, height, language,
+     hdlrname, udtaname } properties.
+
+ 16. Added new public-API: MP4GetTrackDurationPerChunk().
+
+ 17. Added new public-API: MP4SetTrackDurationPerChunk() to override
+     default per-track chunk duration.
+
+ 18. Added new public-API: MP4WriteSampleDependency().
+
+ 19. Replaced (undocumented) public-API: MP4CreateEx() with
+     MP4CreateProvider().
+
+ 20. Added new public-API for iTMF Generic functionality.
+
+A.3 Version 1.6
+===============
+
+  1. Branched libmp4v2 module from mpeg4ip project version 1.6.1.
+
+Appendix B SCM repository details
+*********************************
+
+     url:  https://mp4v2.googlecode.com/svn/releases/2.0.0
+     root: https://mp4v2.googlecode.com/svn
+     uuid: 6e6572fa-98a6-11dd-ad9f-f77439c74b79
+     rev:  493
+     date: 2012-05-20 15:16:54 -0700 (Sun, 20 May 2012)
+     type: stable
+

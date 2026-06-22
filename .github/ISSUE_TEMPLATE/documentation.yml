@@ -1,0 +1,46 @@
+name: Documentation issue
+description: Report missing, outdated, or unclear documentation.
+title: "[Docs]: "
+labels: ["documentation"]
+body:
+  - type: textarea
+    id: location
+    attributes:
+      label: Document location
+      description: Link or path to the affected document.
+      placeholder: docs/guide/build.md
+    validations:
+      required: true
+  - type: dropdown
+    id: issue_type
+    attributes:
+      label: Issue type
+      options:
+        - Incorrect information
+        - Missing information
+        - Broken link
+        - Unclear wording
+        - Translation mismatch
+        - Screenshot or media issue
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: issue
+    attributes:
+      label: What should be changed?
+    validations:
+      required: true
+  - type: textarea
+    id: suggested
+    attributes:
+      label: Suggested wording or fix
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I checked whether the current code or scripts already document the behavior.
+          required: false
+        - label: I removed private paths, credentials, customer data, and internal-only details.
+          required: true

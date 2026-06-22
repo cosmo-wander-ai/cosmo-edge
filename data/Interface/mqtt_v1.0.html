@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Box MQTT 接口文档</title>
+  <style>
+    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;color:#1f2933;line-height:1.65;background:#fff}main{max-width:1040px;margin:0 auto;padding:32px 24px 56px}h1{margin:0 0 18px;font-size:30px;border-bottom:1px solid #d9e2ec;padding-bottom:16px}h2{font-size:22px;border-left:4px solid #2563eb;padding-left:10px;margin:28px 0 12px}h3{font-size:18px;margin:24px 0 10px}table{width:100%;border-collapse:collapse;margin:12px 0 22px;font-size:14px}th,td{border:1px solid #d9e2ec;padding:8px 10px;text-align:left;vertical-align:top}th{background:#f8fafc;white-space:nowrap}code{background:#f5f7fa;border-radius:4px;padding:1px 4px;font-family:Consolas,monospace;font-size:13px}pre{background:#f5f7fa;border:1px solid #d9e2ec;border-radius:6px;padding:14px;overflow:auto;font-size:13px;line-height:1.5}.note{background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:10px 12px;margin:12px 0 20px}.muted{color:#65758b}
+  </style>
+</head>
+<body><main>
+<h1>AI Box MQTT 协议接入</h1>
+<p class="muted">适用于盒子通过 MQTT 与平台进行注册、心跳和业务透传交互。</p>
+
+<h2>连接认证</h2>
+<table><thead><tr><th>模式</th><th>字段</th><th>说明</th></tr></thead><tbody>
+<tr><td>默认 IoT 认证</td><td><code>clientId</code></td><td>设备 SN</td></tr>
+<tr><td>默认 IoT 认证</td><td><code>username</code></td><td><code>aibox::{设备SN}</code></td></tr>
+<tr><td>默认 IoT 认证</td><td><code>password</code></td><td>由 MQTT 客户端按 IoT 认证参数生成/校验。</td></tr>
+<tr><td>普通账号密码</td><td><code>clientId</code>、<code>username</code>、<code>password</code></td><td>使用页面或配置中设置的值。</td></tr>
+</tbody></table>
+
+<h2>Topic</h2>
+<table><thead><tr><th>方向</th><th>topic</th><th>说明</th></tr></thead><tbody>
+<tr><td>平台到设备</td><td><code>/p2d/aibox/{设备SN}</code></td><td>设备订阅，接收业务请求和注册响应。</td></tr>
+<tr><td>设备到平台</td><td><code>/d2p/aibox</code></td><td>平台注册，接收设备注册和业务响应。</td></tr>
+<tr><td>平台到设备</td><td><code>/p2d/aibox/heartbeat/{设备SN}</code></td><td>设备订阅，接收心跳响应。</td></tr>
+<tr><td>设备到平台</td><td><code>/d2p/aibox/heartbeat</code></td><td>平台订阅，接收设备心跳。</td></tr>
+</tbody></table>
+
+<h2>通用消息头</h2>
+<table><thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead><tbody>
+<tr><td><code>requestId</code></td><td>string</td><td>请求 ID，用于响应关联。</td></tr>
+<tr><td><code>action</code></td><td>string</td><td>业务动作。注册和心跳可为空；业务透传必须是完整接口路径。</td></tr>
+<tr><td><code>deviceSn</code></td><td>string</td><td>设备 SN。</td></tr>
+<tr><td><code>msgType</code></td><td>string</td><td><code>register</code>、<code>heartbeat</code>、<code>request</code>、<code>response</code>。</td></tr>
+</tbody></table>
+
+<h2>整体流程</h2>
+<p>设备连接 MQTT Broker 后，先订阅 <code>/p2d/aibox/{设备SN}</code> 和 <code>/p2d/aibox/heartbeat/{设备SN}</code>，然后向 <code>/d2p/aibox</code> 发送注册消息。注册成功后开始心跳，每 30 秒向 <code>/d2p/aibox/heartbeat</code> 上报一次。注册失败时当前实现每 10 秒重试。</p>
+
+<h2>设备注册</h2>
+<h3>设备到平台</h3>
+<p>topic：<code>/d2p/aibox</code></p>
+<pre><code>{
+  "head": {"requestId":"b5e5035f-9b1e-4578-b3ac-1bed11272c49","action":"","deviceSn":"ai-123123123123","msgType":"response"},
+  "body": {"devId":"ai-123123123123","supplier":"CWAI","aiHostVersion":"1.0.0","engineType":"CWNN","deviceModel":"CWAI-AIBOX","devType":2}
+}</code></pre>
+<table><thead><tr><th>body 字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>说明</th></tr></thead><tbody>
+<tr><td><code>devId</code></td><td>string</td><td>是</td><td><code>ai-123123123123</code></td><td>设备 ID，通常与设备 SN 一致。</td></tr>
+<tr><td><code>supplier</code></td><td>string</td><td>否</td><td><code>CWAI</code></td><td>供应商标识。</td></tr>
+<tr><td><code>aiHostVersion</code></td><td>string</td><td>否</td><td><code>1.0.0</code></td><td>AI 核心版本号。</td></tr>
+<tr><td><code>engineType</code></td><td>string</td><td>否</td><td><code>CWNN</code></td><td>算法引擎类型。</td></tr>
+<tr><td><code>deviceModel</code></td><td>string</td><td>否</td><td><code>CWAI-AIBOX</code></td><td>设备型号。</td></tr>
+<tr><td><code>devType</code></td><td>number</td><td>否</td><td><code>2</code></td><td>设备类型，按平台枚举填写。</td></tr>
+</tbody></table>
+<h3>平台到设备</h3>
+<p>topic：<code>/p2d/aibox/{设备SN}</code></p>
+<pre><code>{
+  "head": {"requestId":"b5e5035f-9b1e-4578-b3ac-1bed11272c49","action":"","deviceSn":"ai-123123123123","msgType":"register"},
+  "body": {"resCode":1,"resMsg":[],"resData":{}}
+}</code></pre>
+<table><thead><tr><th>body 字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>说明</th></tr></thead><tbody>
+<tr><td><code>resCode</code></td><td>number</td><td>是</td><td><code>1</code></td><td>注册结果：1 成功，0 失败。</td></tr>
+<tr><td><code>resMsg</code></td><td>object[]</td><td>否</td><td><code>[]</code></td><td>返回消息列表。</td></tr>
+<tr><td><code>resData</code></td><td>object</td><td>否</td><td><code>{}</code></td><td>返回数据，注册响应通常为空对象。</td></tr>
+</tbody></table>
+
+<h2>心跳</h2>
+<h3>设备到平台</h3>
+<p>topic：<code>/d2p/aibox/heartbeat</code></p>
+<pre><code>{
+  "head": {"requestId":"84d92164-3f32-4c91-8c03-69b41f7b21db","action":"","deviceSn":"ai-123123123123","msgType":"response"},
+  "body": {
+    "devId":"ai-123123123123",
+    "hostStatus":0,
+    "customScore":70,
+    "cpuUsage":0.8105,
+    "memTotal":1024,
+    "memAvailable":1024,
+    "gpuUsage":0.8105,
+    "gpuMemTotal":1024,
+    "gpuMemAvailable":501,
+    "diskTotal":10240,
+    "diskAvailable":1024
+  }
+}</code></pre>
+<table><thead><tr><th>body 字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>说明</th></tr></thead><tbody>
+<tr><td><code>devId</code></td><td>string</td><td>是</td><td><code>ai-123123123123</code></td><td>设备 ID，通常与设备 SN 一致。</td></tr>
+<tr><td><code>hostStatus</code></td><td>number</td><td>否</td><td><code>0</code></td><td>设备或 AI 核心运行状态，按设备枚举上报。</td></tr>
+<tr><td><code>customScore</code></td><td>number</td><td>否</td><td><code>70</code></td><td>设备自定义健康分。</td></tr>
+<tr><td><code>cpuUsage</code></td><td>number</td><td>否</td><td><code>0.8105</code></td><td>CPU 使用率。</td></tr>
+<tr><td><code>memTotal</code></td><td>number</td><td>否</td><td><code>1024</code></td><td>内存总量。</td></tr>
+<tr><td><code>memAvailable</code></td><td>number</td><td>否</td><td><code>1024</code></td><td>可用内存。</td></tr>
+<tr><td><code>gpuUsage</code></td><td>number</td><td>否</td><td><code>0.8105</code></td><td>GPU 使用率。</td></tr>
+<tr><td><code>gpuMemTotal</code></td><td>number</td><td>否</td><td><code>1024</code></td><td>GPU 显存总量。</td></tr>
+<tr><td><code>gpuMemAvailable</code></td><td>number</td><td>否</td><td><code>501</code></td><td>GPU 可用显存。</td></tr>
+<tr><td><code>diskTotal</code></td><td>number</td><td>否</td><td><code>10240</code></td><td>磁盘总量。</td></tr>
+<tr><td><code>diskAvailable</code></td><td>number</td><td>否</td><td><code>1024</code></td><td>可用磁盘空间。</td></tr>
+</tbody></table>
+<h3>平台到设备</h3>
+<p>topic：<code>/p2d/aibox/heartbeat/{设备SN}</code></p>
+<pre><code>{
+  "head": {"requestId":"84d92164-3f32-4c91-8c03-69b41f7b21db","action":"","deviceSn":"ai-123123123123","msgType":"heartbeat"},
+  "body": {"resCode":1}
+}</code></pre>
+<table><thead><tr><th>body 字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>说明</th></tr></thead><tbody>
+<tr><td><code>resCode</code></td><td>number</td><td>是</td><td><code>1</code></td><td>心跳接收结果：1 成功，0 失败。</td></tr>
+</tbody></table>
+
+<h2>业务透传</h2>
+<p>平台下发业务请求时，设备只处理 <code>head.deviceSn</code> 与本机一致且 <code>head.msgType</code> 为 <code>request</code> 的消息。设备处理后向 <code>/d2p/aibox</code> 返回 <code>response</code>。<code>body</code> 是字符串，内部为业务请求或响应 JSON。</p>
+<h3>平台到设备请求</h3>
+<p>topic：<code>/p2d/aibox/{设备SN}</code></p>
+<pre><code>{
+  "head": {"requestId":"3ee38537-e0ba-42b6-b909-feb7d6bfcaf3","action":"/gtw/cwai/System/QueryDeviceInfo","deviceSn":"ai-123123123123","msgType":"request"},
+  "body": "{}"
+}</code></pre>
+<h3>设备到平台响应</h3>
+<p>topic：<code>/d2p/aibox</code></p>
+<pre><code>{
+  "head": {"requestId":"3ee38537-e0ba-42b6-b909-feb7d6bfcaf3","action":"/gtw/cwai/System/QueryDeviceInfo","deviceSn":"ai-123123123123","msgType":"response"},
+  "body": "{\"resCode\":1,\"resMsg\":[{\"msgCode\":\"0\",\"msgText\":\"操作成功\"}]}"
+}</code></pre>
+
+<h2>常用业务接口说明</h2>
+<p>本节中的“发送消息”展示的是 MQTT 外层 <code>body</code> 字符串内部的业务 JSON。实际 MQTT 下发时，请将该业务 JSON 执行 <code>JSON.stringify</code> 后放入外层 <code>body</code> 字段。</p>
+<div class="note">
+  <p>通道相关接口当前使用 <code>channelName</code>、<code>url</code>、<code>videoChannelId</code>。旧字段 <code>cameraName</code>、<code>rtspUrl</code>、<code>cameraId</code> 不会被当前 DTO 正确接收。</p>
+  <p><code>Camera/Add</code> 成功响应中的 <code>resData.id</code> 就是通道 ID，后续删除、更新、抓图和任务配置接口分别填入 <code>videoChannelId</code> 或 <code>channelId</code>。</p>
+</div>
+
+<h3>B01-通道创建</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/Camera/Add</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>创建实时流、点播、ONVIF、本地视频或 USB 通道。实时 RTSP 接入时必须填写 <code>channelName</code>、<code>url</code>、<code>channelType</code>。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "channelType": 0,
+  "channelName": "测试实时通道",
+  "url": "rtsp://admin:a1234567@192.168.23.113:554/h264/ch1/main/av_stream",
+  "channelCode": "",
+  "channelPic": ""
+}</code></pre>
+<p>完整 MQTT 下发示例</p>
+<pre><code>{
+  "head": {
+    "requestId": "7b1d570f-eb9a-4668-91ff-cd04b939eab9",
+    "action": "/gtw/cwai/Camera/Add",
+    "deviceSn": "CA16T012605060002",
+    "msgType": "request"
+  },
+  "body": "{\"channelType\":0,\"channelName\":\"测试实时通道\",\"url\":\"rtsp://admin:a1234567@192.168.23.113:554/h264/ch1/main/av_stream\",\"channelCode\":\"\",\"channelPic\":\"\"}"
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}],
+  "resData": {"id": "RT0000000002"}
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>channelType</code></td><td>number</td><td>是</td><td><code>0</code></td><td>通道类型：0 直播通道；1 点播通道；2 ONVIF；3 本地视频；6 USB。</td></tr>
+<tr><td><code>channelName</code></td><td>string</td><td>建议必填</td><td><code>测试实时通道</code></td><td>通道名称，页面展示用。</td></tr>
+<tr><td><code>url</code></td><td>string</td><td>实时流必填</td><td><code>rtsp://...</code></td><td>视频流地址。旧字段 <code>rtspUrl</code> 无效。</td></tr>
+<tr><td><code>channelCode</code></td><td>string</td><td>否</td><td><code>CAM-001</code></td><td>外部通道号，可为空。</td></tr>
+<tr><td><code>channelPic</code></td><td>string</td><td>否</td><td><code>/data/pic/1.jpg</code></td><td>通道封面或抓图路径，可为空。</td></tr>
+</tbody></table>
+<table><thead><tr><th>返回字段</th><th>类型</th><th>说明</th></tr></thead><tbody>
+<tr><td><code>resCode</code></td><td>number</td><td>1 成功，0 失败。</td></tr>
+<tr><td><code>resMsg[].msgCode</code></td><td>string</td><td>业务消息编码。</td></tr>
+<tr><td><code>resMsg[].msgText</code></td><td>string</td><td>业务消息文本。</td></tr>
+<tr><td><code>resData.id</code></td><td>string</td><td>新增通道 ID，例如 <code>RT0000000002</code>。后续接口使用该值。</td></tr>
+</tbody></table>
+
+<h3>B02-通道删除</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/Camera/Delete</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>删除单个视频通道。这里填写的是 <code>videoChannelId</code>，不是 <code>cameraId</code>。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "videoChannelId": "RT0000000002"
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}]
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>videoChannelId</code></td><td>string</td><td>是</td><td><code>RT0000000002</code></td><td>通道 ID，取自创建通道响应 <code>resData.id</code> 或通道列表返回。</td></tr>
+</tbody></table>
+
+<h3>B03-通道更新</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/Camera/Update</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>更新已有通道的名称、流地址、类型等信息。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "videoChannelId": "RT0000000002",
+  "channelType": 0,
+  "channelName": "测试实时通道-修改",
+  "url": "rtsp://admin:a1234567@192.168.23.113:554/h264/ch1/main/av_stream",
+  "channelCode": "CAM-001"
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}]
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>videoChannelId</code></td><td>string</td><td>是</td><td><code>RT0000000002</code></td><td>需要更新的通道 ID。</td></tr>
+<tr><td><code>channelType</code></td><td>number</td><td>是</td><td><code>0</code></td><td>通道类型，枚举同通道创建。</td></tr>
+<tr><td><code>channelName</code></td><td>string</td><td>否</td><td><code>测试实时通道-修改</code></td><td>通道名称。</td></tr>
+<tr><td><code>url</code></td><td>string</td><td>否</td><td><code>rtsp://...</code></td><td>视频流地址。</td></tr>
+<tr><td><code>channelCode</code></td><td>string</td><td>否</td><td><code>CAM-001</code></td><td>外部通道号。</td></tr>
+</tbody></table>
+
+<h3>B04-通道分页查询</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/Camera/Page</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>分页查询视频通道列表，可按名称和状态过滤。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "pageNum": 1,
+  "pageSize": 10,
+  "channelName": "测试",
+  "channelStatus": 1
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}],
+  "resData": {
+    "total": 1,
+    "list": [{"videoChannelId": "RT0000000002", "channelName": "测试实时通道", "url": "rtsp://..."}]
+  }
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>pageNum</code></td><td>number</td><td>是</td><td><code>1</code></td><td>页码，从 1 开始。</td></tr>
+<tr><td><code>pageSize</code></td><td>number</td><td>是</td><td><code>10</code></td><td>每页数量。</td></tr>
+<tr><td><code>channelName</code></td><td>string</td><td>否</td><td><code>测试</code></td><td>按通道名称模糊查询。</td></tr>
+<tr><td><code>channelStatus</code></td><td>number</td><td>否</td><td><code>1</code></td><td>通道状态过滤，按设备实际返回枚举使用。</td></tr>
+</tbody></table>
+
+<h3>B05-通道批量删除</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/Camera/BatchDelete</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>批量删除多个视频通道。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "videoChannelIds": ["RT0000000002", "RT0000000003"]
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}]
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>videoChannelIds</code></td><td>string[]</td><td>是</td><td><code>["RT0000000002"]</code></td><td>需要删除的通道 ID 数组。</td></tr>
+</tbody></table>
+
+<h3>B06-通道抓图</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/Camera/GetPicture</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>对指定通道进行抓图。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "videoChannelId": "RT0000000002"
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}],
+  "resData": {"picUrl": "/data/picture/RT0000000002.jpg"}
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>videoChannelId</code></td><td>string</td><td>是</td><td><code>RT0000000002</code></td><td>需要抓图的通道 ID。</td></tr>
+</tbody></table>
+
+<h3>B07-本地视频通道创建</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/Camera/AddVideo</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>根据已上传到设备的本地视频文件创建点播/本地视频通道。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "contentLength": "10485760",
+  "fileName": "sample.mp4",
+  "filePath": "/data/video/sample.mp4",
+  "channelName": "离线视频"
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}],
+  "resData": {"id": "VD0000000001"}
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>contentLength</code></td><td>string</td><td>是</td><td><code>10485760</code></td><td>视频文件大小，单位字节。</td></tr>
+<tr><td><code>fileName</code></td><td>string</td><td>是</td><td><code>sample.mp4</code></td><td>视频文件名。</td></tr>
+<tr><td><code>filePath</code></td><td>string</td><td>是</td><td><code>/data/video/sample.mp4</code></td><td>设备上的视频文件路径。</td></tr>
+<tr><td><code>channelName</code></td><td>string</td><td>是</td><td><code>离线视频</code></td><td>通道名称。</td></tr>
+</tbody></table>
+
+<h3>C01-保存任务配置并启用</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/Task/SaveOrUpdate</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>给指定通道保存算法任务配置，并启用或更新该任务。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "channelId": "RT0000000002",
+  "algorithmId": "ALG0000000001",
+  "scheduleId": "",
+  "taskConfig": {
+    "params": [{"key": "alarmInterval", "value": "60"}],
+    "areas": [],
+    "shieldedAreas": [],
+    "facesetConfig": []
+  }
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}]
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>channelId</code></td><td>string</td><td>是</td><td><code>RT0000000002</code></td><td>通道 ID，取自通道创建或列表查询。</td></tr>
+<tr><td><code>algorithmId</code></td><td>string</td><td>是</td><td><code>ALG0000000001</code></td><td>算法 ID，取自算法列表或通道可配算法接口。</td></tr>
+<tr><td><code>scheduleId</code></td><td>string</td><td>否</td><td><code></code></td><td>时间模板 ID，不使用模板时传空字符串或不传。</td></tr>
+<tr><td><code>taskConfig</code></td><td>object</td><td>是</td><td><code>{"params":[]}</code></td><td>算法运行配置，结构由算法元数据决定。</td></tr>
+<tr><td><code>taskConfig.params</code></td><td>object[]</td><td>否</td><td><code>[{"key":"alarmInterval","value":"60"}]</code></td><td>算法参数列表。</td></tr>
+<tr><td><code>taskConfig.areas</code></td><td>object[]</td><td>否</td><td><code>[]</code></td><td>检测区域列表。</td></tr>
+<tr><td><code>taskConfig.shieldedAreas</code></td><td>object[]</td><td>否</td><td><code>[]</code></td><td>屏蔽区域列表。</td></tr>
+<tr><td><code>taskConfig.facesetConfig</code></td><td>object[]</td><td>否</td><td><code>[]</code></td><td>人脸库相关配置。</td></tr>
+</tbody></table>
+
+<h3>C02-修改任务参数</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/Task/ModifyParam</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>修改已配置任务的算法参数。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "channelId": "RT0000000002",
+  "algorithmId": "ALG0000000001",
+  "taskConfig": {
+    "params": [{"key": "alarmInterval", "value": "30"}],
+    "areas": [],
+    "shieldedAreas": [],
+    "facesetConfig": []
+  }
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}]
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>channelId</code></td><td>string</td><td>是</td><td><code>RT0000000002</code></td><td>通道 ID。</td></tr>
+<tr><td><code>algorithmId</code></td><td>string</td><td>是</td><td><code>ALG0000000001</code></td><td>算法 ID。</td></tr>
+<tr><td><code>taskConfig</code></td><td>object</td><td>是</td><td><code>{"params":[]}</code></td><td>新的任务配置。</td></tr>
+</tbody></table>
+
+<h3>C03-查询任务参数</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/Task/QueryParam</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>查询指定通道指定算法的当前任务配置。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "channelId": "RT0000000002",
+  "algorithmId": "ALG0000000001"
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}],
+  "resData": {"taskConfig": {"params": [], "areas": [], "shieldedAreas": [], "facesetConfig": []}}
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>channelId</code></td><td>string</td><td>是</td><td><code>RT0000000002</code></td><td>通道 ID。</td></tr>
+<tr><td><code>algorithmId</code></td><td>string</td><td>是</td><td><code>ALG0000000001</code></td><td>算法 ID。</td></tr>
+</tbody></table>
+
+<h3>C04-启停任务</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/Task/SwitchTask</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>启用或停止指定通道上的指定算法任务。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "channelId": "RT0000000002",
+  "algorithmId": "ALG0000000001",
+  "switch": 1
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}]
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>channelId</code></td><td>string</td><td>是</td><td><code>RT0000000002</code></td><td>通道 ID。</td></tr>
+<tr><td><code>algorithmId</code></td><td>string</td><td>是</td><td><code>ALG0000000001</code></td><td>算法 ID。</td></tr>
+<tr><td><code>switch</code></td><td>number</td><td>是</td><td><code>1</code></td><td>1 启用，0 停止。</td></tr>
+</tbody></table>
+
+<h3>C05-删除任务配置</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/Task/Delete</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>删除指定通道和算法的任务配置。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "channelId": "RT0000000002",
+  "algorithmId": "ALG0000000001"
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}]
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>channelId</code></td><td>string</td><td>是</td><td><code>RT0000000002</code></td><td>通道 ID。</td></tr>
+<tr><td><code>algorithmId</code></td><td>string</td><td>是</td><td><code>ALG0000000001</code></td><td>算法 ID。</td></tr>
+</tbody></table>
+
+<h3>C06-查询通道可配算法</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/Task/SelectAllAlgorithmInfo</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>查询指定通道可以配置的算法列表。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "channelId": "RT0000000002"
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}],
+  "resData": [{"algorithmId": "ALG0000000001", "algorithmName": "安全帽检测"}]
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>channelId</code></td><td>string</td><td>是</td><td><code>RT0000000002</code></td><td>通道 ID。</td></tr>
+</tbody></table>
+
+<h3>C07-查询指定算法配置</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/Task/SelectConfigByAlgorithmId</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>查询指定通道、指定算法的配置详情。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "channelId": "RT0000000002",
+  "algorithmId": "ALG0000000001"
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}],
+  "resData": {"algorithmId": "ALG0000000001", "taskConfig": {"params": []}}
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>channelId</code></td><td>string</td><td>是</td><td><code>RT0000000002</code></td><td>通道 ID。</td></tr>
+<tr><td><code>algorithmId</code></td><td>string</td><td>是</td><td><code>ALG0000000001</code></td><td>算法 ID。</td></tr>
+</tbody></table>
+
+<h3>D01-创建核心视频任务</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/v1/cwai/aihost/TaskCreate</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>向 AI 核心创建视频分析任务，通常由平台或业务层根据通道和算法配置下发。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "taskId": "task-RT0000000002-ALG0000000001",
+  "videoChannelId": "RT0000000002",
+  "videoChannelName": "测试实时通道",
+  "streamUrl": "rtsp://admin:a1234567@192.168.23.113:554/h264/ch1/main/av_stream",
+  "algorithmCode": "helmet_detect",
+  "algorithmUpdateTime": "1716172800000",
+  "algorithmId": "ALG0000000001",
+  "algorithmName": "安全帽检测",
+  "taskConfig": {"params": [], "areas": [], "shieldedAreas": [], "facesetConfig": []}
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}]
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>taskId</code></td><td>string</td><td>是</td><td><code>task-RT0000000002-ALG0000000001</code></td><td>任务唯一 ID。</td></tr>
+<tr><td><code>videoChannelId</code></td><td>string</td><td>是</td><td><code>RT0000000002</code></td><td>视频通道 ID。</td></tr>
+<tr><td><code>videoChannelName</code></td><td>string</td><td>否</td><td><code>测试实时通道</code></td><td>视频通道名称。</td></tr>
+<tr><td><code>streamUrl</code></td><td>string</td><td>否</td><td><code>rtsp://...</code></td><td>视频流地址。</td></tr>
+<tr><td><code>algorithmCode</code></td><td>string</td><td>是</td><td><code>helmet_detect</code></td><td>算法编码。</td></tr>
+<tr><td><code>algorithmUpdateTime</code></td><td>string</td><td>是</td><td><code>1716172800000</code></td><td>算法更新时间或版本时间戳，按算法包元数据填写。</td></tr>
+<tr><td><code>algorithmId</code></td><td>string</td><td>否</td><td><code>ALG0000000001</code></td><td>平台算法 ID。</td></tr>
+<tr><td><code>algorithmName</code></td><td>string</td><td>否</td><td><code>安全帽检测</code></td><td>算法名称。</td></tr>
+<tr><td><code>taskConfig</code></td><td>object</td><td>否</td><td><code>{"params":[]}</code></td><td>算法运行配置。</td></tr>
+</tbody></table>
+
+<h3>D02-取消核心视频任务</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/v1/cwai/aihost/TaskCancle</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>取消指定核心视频任务。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "taskId": "task-RT0000000002-ALG0000000001"
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}]
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>taskId</code></td><td>string</td><td>是</td><td><code>task-RT0000000002-ALG0000000001</code></td><td>需要取消的任务 ID。</td></tr>
+</tbody></table>
+
+<h3>D03-查询核心信息</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/v1/cwai/aihost/Info</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>查询 AI 核心运行信息。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "devId": "CA16T012605060002"
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}],
+  "resData": {"devId": "CA16T012605060002", "hostStatus": 0}
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>devId</code></td><td>string</td><td>是</td><td><code>CA16T012605060002</code></td><td>设备 SN 或设备 ID。</td></tr>
+</tbody></table>
+
+<h3>E01-查询 MQTT 参数</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/System/QueryMqttAdapterParam</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>查询设备 MQTT 适配参数。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}],
+  "resData": {"switch": true, "url": "192.168.0.10", "port": 1883, "authMode": 0}
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td colspan="5">无请求参数，发送空对象 <code>{}</code>。</td></tr>
+</tbody></table>
+
+<h3>E02-设置 MQTT 参数</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/System/SetMqttAdapterParam</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>设置设备 MQTT 连接参数。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "switch": true,
+  "url": "192.168.0.10",
+  "port": 1883,
+  "authMode": 0,
+  "clientId": "CA16T012605060002",
+  "userName": "aibox::CA16T012605060002",
+  "passwd": "******"
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}]
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>switch</code></td><td>boolean</td><td>是</td><td><code>true</code></td><td>是否启用 MQTT 适配。</td></tr>
+<tr><td><code>url</code></td><td>string</td><td>是</td><td><code>192.168.0.10</code></td><td>MQTT Broker 地址。</td></tr>
+<tr><td><code>port</code></td><td>number</td><td>是</td><td><code>1883</code></td><td>MQTT Broker 端口。</td></tr>
+<tr><td><code>authMode</code></td><td>number</td><td>是</td><td><code>0</code></td><td>认证模式，按设备配置枚举填写。</td></tr>
+<tr><td><code>clientId</code></td><td>string</td><td>否</td><td><code>CA16T012605060002</code></td><td>客户端 ID。</td></tr>
+<tr><td><code>userName</code></td><td>string</td><td>否</td><td><code>aibox::CA16T012605060002</code></td><td>MQTT 用户名。</td></tr>
+<tr><td><code>passwd</code></td><td>string</td><td>否</td><td><code>******</code></td><td>MQTT 密码。</td></tr>
+</tbody></table>
+
+<h3>E03-查询/修改运行模式</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/System/QueryRunModeParam</code>、<code>/gtw/cwai/System/ModifyRunModeParam</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>查询或修改设备运行模式。</td></tr>
+</tbody></table>
+<p>查询发送消息</p>
+<pre><code>{}</code></pre>
+<p>修改发送消息</p>
+<pre><code>{
+  "runMode": 1
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}]
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>runMode</code></td><td>number</td><td>修改时必填</td><td><code>1</code></td><td>运行模式值，按设备支持的枚举填写。</td></tr>
+</tbody></table>
+
+<h3>E04-查询/修改 IoT 网络参数</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/System/QueryIotNetworkParam</code>、<code>/gtw/cwai/System/ModifyIotNetworkParam</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>查询或修改 IoT 网络参数。</td></tr>
+</tbody></table>
+<p>查询发送消息</p>
+<pre><code>{}</code></pre>
+<p>修改发送消息</p>
+<pre><code>{
+  "mqttIp": "192.168.0.10",
+  "mqttPort": 1883,
+  "httpUrl": "http://192.168.0.10:18080",
+  "status": true
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}]
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>mqttIp</code></td><td>string</td><td>修改时必填</td><td><code>192.168.0.10</code></td><td>MQTT 服务地址。</td></tr>
+<tr><td><code>mqttPort</code></td><td>number</td><td>修改时必填</td><td><code>1883</code></td><td>MQTT 服务端口。</td></tr>
+<tr><td><code>httpUrl</code></td><td>string</td><td>修改时必填</td><td><code>http://192.168.0.10:18080</code></td><td>HTTP 服务地址。</td></tr>
+<tr><td><code>status</code></td><td>boolean</td><td>修改时必填</td><td><code>true</code></td><td>是否启用该网络配置。</td></tr>
+</tbody></table>
+
+<h3>F01-算法分页查询</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/Algorithm/Page</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>分页查询算法列表。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "pageNum": 1,
+  "pageSize": 10,
+  "algorithmName": "安全帽",
+  "algorithmId": ""
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}],
+  "resData": {"total": 1, "list": [{"algorithmId": "ALG0000000001", "algorithmName": "安全帽检测"}]}
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>pageNum</code></td><td>number</td><td>是</td><td><code>1</code></td><td>页码，从 1 开始。</td></tr>
+<tr><td><code>pageSize</code></td><td>number</td><td>是</td><td><code>10</code></td><td>每页数量。</td></tr>
+<tr><td><code>algorithmName</code></td><td>string</td><td>否</td><td><code>安全帽</code></td><td>算法名称过滤。</td></tr>
+<tr><td><code>algorithmId</code></td><td>string</td><td>否</td><td><code>ALG0000000001</code></td><td>算法 ID 过滤。</td></tr>
+</tbody></table>
+
+<h3>F02-添加算法配置</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/Algorithm/Add</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>新增算法配置记录。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "algorithmCode": "helmet_detect",
+  "algorithmName": "安全帽检测",
+  "algorithmCategory": 1,
+  "algorithmUsage": 0,
+  "checkType": 0,
+  "remark": "工地安全检测",
+  "eventType": "helmet_alarm",
+  "filePath": "/data/algorithm/helmet.zip"
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}],
+  "resData": {"algorithmId": "ALG0000000001"}
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>algorithmCode</code></td><td>string</td><td>否</td><td><code>helmet_detect</code></td><td>算法编码。</td></tr>
+<tr><td><code>algorithmName</code></td><td>string</td><td>是</td><td><code>安全帽检测</code></td><td>算法名称。</td></tr>
+<tr><td><code>algorithmCategory</code></td><td>number</td><td>是</td><td><code>1</code></td><td>算法分类，按平台枚举填写。</td></tr>
+<tr><td><code>algorithmUsage</code></td><td>number</td><td>是</td><td><code>0</code></td><td>算法用途，按平台枚举填写。</td></tr>
+<tr><td><code>checkType</code></td><td>number</td><td>否</td><td><code>0</code></td><td>检测类型。</td></tr>
+<tr><td><code>remark</code></td><td>string</td><td>否</td><td><code>工地安全检测</code></td><td>备注。</td></tr>
+<tr><td><code>eventType</code></td><td>string</td><td>否</td><td><code>helmet_alarm</code></td><td>事件类型编码。</td></tr>
+<tr><td><code>filePath</code></td><td>string</td><td>否</td><td><code>/data/algorithm/helmet.zip</code></td><td>算法文件路径。</td></tr>
+</tbody></table>
+
+<h3>F03-编辑算法配置</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/Algorithm/Update</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>编辑已有算法配置。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "algorithmId": "ALG0000000001",
+  "algorithmName": "安全帽检测-新版",
+  "algorithmCategory": 1,
+  "remark": "更新参数"
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}]
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>algorithmId</code></td><td>string</td><td>是</td><td><code>ALG0000000001</code></td><td>算法 ID。</td></tr>
+<tr><td><code>algorithmName</code></td><td>string</td><td>否</td><td><code>安全帽检测-新版</code></td><td>算法名称。</td></tr>
+<tr><td><code>algorithmCategory</code></td><td>number</td><td>否</td><td><code>1</code></td><td>算法分类。</td></tr>
+<tr><td><code>remark</code></td><td>string</td><td>否</td><td><code>更新参数</code></td><td>备注。</td></tr>
+</tbody></table>
+
+<h3>F04-删除算法配置</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/Algorithm/Delete</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>删除指定算法配置。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "algorithmId": "ALG0000000001"
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}]
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>algorithmId</code></td><td>string</td><td>是</td><td><code>ALG0000000001</code></td><td>算法 ID。</td></tr>
+</tbody></table>
+
+<h3>F05-保存算法编排</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/algorithm/layout/save</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>保存编排算法版本和元数据。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "confVersionId": "CONF0000000001",
+  "configVersionName": "安全帽编排-v1",
+  "algorithmId": "ALG0000000001",
+  "algorithmCategory": "1",
+  "algorithmUsage": "0",
+  "remark": "编排测试",
+  "atomicList": "[]",
+  "algorithmProcessdata": "{}",
+  "algorithmMetadata": "{}",
+  "filePath": "/data/algorithm/layout/helmet.json"
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}]
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>confVersionId</code></td><td>string</td><td>是</td><td><code>CONF0000000001</code></td><td>编排配置版本 ID。</td></tr>
+<tr><td><code>configVersionName</code></td><td>string</td><td>否</td><td><code>安全帽编排-v1</code></td><td>编排配置版本名称。</td></tr>
+<tr><td><code>algorithmId</code></td><td>string</td><td>是</td><td><code>ALG0000000001</code></td><td>算法 ID。</td></tr>
+<tr><td><code>algorithmCategory</code></td><td>string</td><td>否</td><td><code>1</code></td><td>算法分类。</td></tr>
+<tr><td><code>algorithmUsage</code></td><td>string</td><td>否</td><td><code>0</code></td><td>算法用途。</td></tr>
+<tr><td><code>remark</code></td><td>string</td><td>否</td><td><code>编排测试</code></td><td>备注。</td></tr>
+<tr><td><code>atomicList</code></td><td>string</td><td>否</td><td><code>[]</code></td><td>原子能力列表，当前 DTO 为字符串，传 JSON 字符串。</td></tr>
+<tr><td><code>algorithmProcessdata</code></td><td>string</td><td>否</td><td><code>{}</code></td><td>算法流程数据，当前 DTO 为字符串，传 JSON 字符串。</td></tr>
+<tr><td><code>algorithmMetadata</code></td><td>string</td><td>否</td><td><code>{}</code></td><td>算法元数据，当前 DTO 为字符串，传 JSON 字符串。</td></tr>
+<tr><td><code>filePath</code></td><td>string</td><td>否</td><td><code>/data/algorithm/layout/helmet.json</code></td><td>编排文件路径。</td></tr>
+</tbody></table>
+
+<h3>F06-查询编排算法列表</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/algorithm/layout/list</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>查询编排算法列表。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "supplier": "CWAI",
+  "algorithmUsage": -1,
+  "filePath": ""
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}],
+  "resData": []
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>supplier</code></td><td>string</td><td>否</td><td><code>CWAI</code></td><td>供应商标识。</td></tr>
+<tr><td><code>algorithmUsage</code></td><td>number</td><td>否</td><td><code>-1</code></td><td>算法用途过滤，-1 表示不过滤。</td></tr>
+<tr><td><code>filePath</code></td><td>string</td><td>否</td><td><code></code></td><td>文件路径过滤。</td></tr>
+</tbody></table>
+
+<h3>F07-查询编排算法详情</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/algorithm/layout/detail</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>查询指定编排算法详情。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "id": "ALG0000000001",
+  "filePath": "/data/algorithm/layout/helmet.json"
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}],
+  "resData": {"id": "ALG0000000001"}
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>id</code></td><td>string</td><td>是</td><td><code>ALG0000000001</code></td><td>编排算法 ID。</td></tr>
+<tr><td><code>filePath</code></td><td>string</td><td>否</td><td><code>/data/algorithm/layout/helmet.json</code></td><td>编排文件路径。</td></tr>
+</tbody></table>
+
+<h3>F08-查询原子动作列表</h3>
+<table><tbody>
+<tr><th>Path</th><td><code>/gtw/cwai/atomic/action/list</code></td></tr>
+<tr><th>Method</th><td>POST</td></tr>
+<tr><th>接口描述</th><td>查询原子动作列表。</td></tr>
+</tbody></table>
+<p>发送消息</p>
+<pre><code>{
+  "actionUsage": 0,
+  "filePath": ""
+}</code></pre>
+<p>响应消息</p>
+<pre><code>{
+  "resCode": 1,
+  "resMsg": [{"msgCode": "0", "msgText": "操作成功"}],
+  "resData": []
+}</code></pre>
+<table><thead><tr><th>请求字段</th><th>类型</th><th>是否必须</th><th>示例</th><th>备注</th></tr></thead><tbody>
+<tr><td><code>actionUsage</code></td><td>number</td><td>否</td><td><code>0</code></td><td>动作用途，按平台枚举填写。</td></tr>
+<tr><td><code>filePath</code></td><td>string</td><td>否</td><td><code></code></td><td>动作定义文件路径。</td></tr>
+</tbody></table>
+
+<h2>常用业务 action</h2>
+<table><thead><tr><th>模块</th><th>action 示例</th></tr></thead><tbody>
+<tr><td>核心任务</td><td><code>/v1/cwai/aihost/TaskCreate</code>、<code>/v1/cwai/aihost/TaskCancle</code>、<code>/v1/cwai/aihost/Info</code></td></tr>
+<tr><td>系统</td><td><code>/gtw/cwai/System/QueryDeviceInfo</code>、<code>/gtw/cwai/System/QueryHardwareResource</code>、<code>/gtw/cwai/System/QueryMqttAdapterParam</code>、<code>/gtw/cwai/System/SetMqttAdapterParam</code></td></tr>
+<tr><td>任务配置</td><td><code>/gtw/cwai/Task/ModifyParam</code>、<code>/gtw/cwai/Task/QueryParam</code>、<code>/gtw/cwai/Task/SwitchTask</code>、<code>/gtw/cwai/Task/SaveOrUpdate</code>、<code>/gtw/cwai/Task/Delete</code></td></tr>
+<tr><td>摄像机</td><td><code>/gtw/cwai/Camera/Add</code>、<code>/gtw/cwai/Camera/Update</code>、<code>/gtw/cwai/Camera/Page</code>、<code>/gtw/cwai/Camera/Delete</code>、<code>/gtw/cwai/Camera/GetPicture</code></td></tr>
+<tr><td>算法</td><td><code>/gtw/cwai/Algorithm/Page</code>、<code>/gtw/cwai/Algorithm/Add</code>、<code>/gtw/cwai/Algorithm/Update</code>、<code>/gtw/cwai/Algorithm/Delete</code>、<code>/gtw/cwai/algorithm/layout/save</code></td></tr>
+</tbody></table>
+</main></body></html>

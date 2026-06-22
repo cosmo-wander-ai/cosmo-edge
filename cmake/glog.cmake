@@ -1,0 +1,43 @@
+set(GLOG_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rd/glog)
+set(GLOG_INSTALL_DIR ${THIRDPARTY_INSTALL_PREFIX}/glog)
+set(GLOG_HEADERS ${GLOG_INSTALL_DIR}/include)
+set(GLOG_LIB ${GLOG_INSTALL_DIR}/lib/libglog.so)
+
+ExternalProject_Add(
+    glog_external
+
+    SOURCE_DIR ${GLOG_SOURCE_DIR}
+
+    CMAKE_ARGS
+        -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
+        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+        -DCMAKE_INSTALL_PREFIX=${GLOG_INSTALL_DIR}
+        -DBUILD_SHARED_LIBS=ON
+        -DWITH_GFLAGS=OFF
+        -DBUILD_TESTING=OFF
+    
+    INSTALL_COMMAND ${CMAKE_COMMAND} --build . --target install
+
+    UPDATE_COMMAND ""
+    BUILD_ALWAYS OFF
+
+    LOG_CONFIGURE ON
+    LOG_BUILD ON
+    LOG_INSTALL ON
+    LOG_OUTPUT_ON_FAILURE ON
+)
+
+add_dependencies(third_build glog_external)
+
+add_library(glog SHARED IMPORTED)
+set_target_properties(glog PROPERTIES
+    IMPORTED_LOCATION ${GLOG_LIB}
+    INTERFACE_INCLUDE_DIRECTORIES "${GLOG_HEADERS}"
+)
+add_dependencies(glog glog_external)
+
+install(DIRECTORY ${GLOG_INSTALL_DIR}/lib/
+    DESTINATION lib
+    FILES_MATCHING
+        PATTERN "*so*"
+)

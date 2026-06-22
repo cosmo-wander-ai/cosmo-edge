@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>边缘智能中枢</title>
+    <script>
+      // Set title from localStorage if available, with i18n fallback
+      const _locale = localStorage.getItem('cosmo.locale') || 'zh-CN'
+      const _defaultName = _locale === 'en-US' ? 'Edge Intelligence Hub' : '边缘智能中枢'
+      const normalizePlatformName = (name) => {
+        if (!name || name === '智能终端管理平台' || name === '智能终端管理系统' || name === '智能盒子' || name === '边缘智能中枢') {
+          return _defaultName
+        }
+        return name
+      }
+      const platformName = normalizePlatformName(localStorage.getItem('platformName'))
+      if (platformName) {
+        document.title = platformName
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script>
+      // Global config object
+      window.globalConfig = {
+        platformName: normalizePlatformName(localStorage.getItem('platformName')),
+        copyRight: '© 2026 All Rights Reserved'
+      }
+      
+      // Global config getter function
+      window.getGlobalConfig = function() {
+        return window.globalConfig
+      }
+    </script>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

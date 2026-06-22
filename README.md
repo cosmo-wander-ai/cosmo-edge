@@ -2,7 +2,7 @@
 Repository metadata suggestion:
 
 Description:
-C++ native industrial edge AI engine with visual pipeline orchestration, on-device VLM support, and real-time OSD for video analytics.
+Production-grade C++ edge AI engine for video analytics, with visual pipeline orchestration and on-device VLM support.
 
 Topics:
 cpp, c-plus-plus, computer-vision, video-analytics, edge-ai, edge-computing,
@@ -19,16 +19,18 @@ vision-language-model, vlm, sophon, bm1688, real-time
 
 # CosmoEdge
 
-**C++ Native Industrial Edge AI Engine with Visual Pipeline Orchestration**
+**Production-grade C++ edge AI engine for video analytics, with visual pipeline orchestration and on-device VLM support**
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)](LICENSE)
 [![Runtime](https://img.shields.io/badge/runtime-C%2B%2B17-orange?style=flat-square)](#cpp-native-runtime)
 [![Platform](https://img.shields.io/badge/platform-Sophon%20BM1688%20%2F%20x86%20Linux%20%2F%20Windows-purple?style=flat-square)](#supported-platforms)
-[![Release](https://img.shields.io/badge/release-v0.1.0-green?style=flat-square)](https://github.com/cosmoedge/cosmoedge/releases)
+[![Release](https://img.shields.io/badge/release-v0.1.0-green?style=flat-square)](https://github.com/cosmo-wander-ai/cosmo-edge/releases)
 [![Stress Test](https://img.shields.io/badge/stress%20test-200%20video%20samples-brightgreen?style=flat-square)](#validation)
 [![Pipelines](https://img.shields.io/badge/pipelines-18%2F18%20validated-brightgreen?style=flat-square)](#validation)
 
 [Quick Start](#quick-start) | [Features](#key-features) | [Showcases](#showcases) | [Validation](#validation) | [Docs](#documentation) | [Hardware](#cosmoedge-ready-devices)
+
+[English](README.md) | [简体中文](README.zh-CN.md)
 
 </div>
 
@@ -39,7 +41,7 @@ TODO before public launch:
 - Replace all placeholder image paths with real assets.
 - Confirm Quick Start commands.
 - Confirm benchmark values and attach a reproducible test report.
-- Confirm the exact public repo URL.
+- Confirm final public release assets and URLs.
 - Confirm certified hardware URL.
 -->
 
@@ -198,7 +200,7 @@ CosmoEdge uses ONNX as the model interchange format. Models from major CV traini
 CosmoEdge runs on the Sophon BM1688 inference stack. Models from SOPHGO's official model zoo can be integrated through the model porting guide, which covers post-processing adaptation and pipeline node registration.
 
 → [SOPHGO Model Zoo (sophon-demo)](https://github.com/sophgo/sophon-demo)
-→ [CosmoEdge Model Porting Guide](docs/model-porting.md)
+→ [CosmoEdge Model Porting Guide](docs/en/tutorials/05-model-porting/model-porting.md)
 
 ## Quick Start
 
@@ -208,16 +210,13 @@ No edge hardware is required for the first experience.
 
 ```bash
 # 1. Clone
-git clone https://github.com/cosmoedge/cosmoedge.git
-cd cosmoedge
+git clone https://github.com/cosmo-wander-ai/cosmo-edge.git
+cd cosmo-edge
 
 # 2. Start in x86 mode
 # TODO: Confirm the final public launch command.
 # Preferred release target:
-docker compose -f docker-compose.x86.yml up -d
-
-# Alternative if Docker is not ready:
-# ./scripts/start_x86.sh
+sudo docker compose -f docker-compose.x86.yml up -d --build
 
 # 3. Open the web console
 # http://localhost:8080
@@ -235,22 +234,42 @@ Use this path for NPU-accelerated deployment.
 
 ```bash
 # 1. Clone
-git clone https://github.com/cosmoedge/cosmoedge.git
-cd cosmoedge
+git clone https://github.com/cosmo-wander-ai/cosmo-edge.git
+cd cosmo-edge
 
-# 2. Build for Sophon
-mkdir build && cd build
-cmake .. -DPLATFORM=SOPHON -DCMAKE_TOOLCHAIN_FILE=../cmake/sophon.toolchain.cmake
-make -j$(nproc)
+# 2. Build the Sophon/aarch64 package
+sudo bash scripts/build_sophon_package.sh
 
-# 3. Deploy
-./scripts/deploy.sh --target <device-ip>
+# 3. View exported release packages
+ls -lh build_output/
+# The output package will be named like: cosmo-V<version>-<hash>.tar.gz
 
-# 4. Open the web console
-# http://<device-ip>:8080
+# 4. Copy the package to the Sophon edge device (replace <device_ip> with actual IP, default is 192.168.100.1)
+scp build_output/cosmo-V*.tar.gz root@<device_ip>:/tmp/
+
+# 5. SSH to the device, extract the package, and run the installation script
+ssh root@<device_ip>
+cd /tmp
+tar -zxvf cosmo-V*.tar.gz
+sudo bash scripts/install.sh
+
+# 6. Reboot the device to start the services
+sudo reboot
 ```
 
-> Ready for production hardware? Certified CosmoEdge devices provide preconfigured Sophon acceleration, production model packages, and deployment support. See [CosmoEdge-ready devices](#cosmoedge-ready-devices).
+On Windows PowerShell to build the package:
+
+```powershell
+.\scripts\build_sophon_package.ps1
+```
+
+After installing the package and rebooting the device:
+- **Default IP**: `192.168.100.1` (ensure your computer is configured with a static IP in the `192.168.100.x` subnet to connect directly)
+- **Web Console URL**: `http://192.168.100.1`
+- **Default Username**: `admin`
+- **Default Password**: `admin` (it is highly recommended to change this password after your first login)
+
+This path builds, exports, and installs release packages. Ready for production hardware? Certified CosmoEdge devices provide preconfigured Sophon acceleration, production model packages, and deployment support. See [CosmoEdge-ready devices](#cosmoedge-ready-devices).
 
 ## Showcases
 
@@ -359,16 +378,28 @@ Certified devices add deployment readiness, not locked software features.
 
 | Document               | Audience       | Description                                 |
 | ---------------------- | -------------- | ------------------------------------------- |
-| Quick Start Guide      | Everyone       | First working experience in minutes         |
-| Scenario Configuration | Integrators    | Build scene-level AI workflows              |
-| VLM Guide              | Developers     | Use visual state judgment with prompts      |
-| Pipeline Orchestration | Advanced users | Compose custom pipelines visually           |
-| Model Porting Guide    | ML engineers   | Bring your own ONNX or target model         |
-| API Reference          | Developers     | REST API, MQTT events, configuration schema |
-| Architecture Overview  | Contributors   | Engine internals and extension points       |
-| Deployment Guide       | DevOps         | Production deployment and troubleshooting   |
-
-<!-- TODO: Replace rows above with real links after docs paths are finalized. -->
+| [Quick Start Guide](docs/en/tutorials/01-quickstart/quickstart.md) | Everyone | First working experience in minutes |
+| [Scenario Configuration](docs/en/tutorials/02-scenario-config/scenario-config.md) | Integrators | Build scene-level AI workflows |
+| [VLM Guide](docs/en/tutorials/03-vlm-guide/vlm-guide.md) | Developers | Use visual state judgment with prompts |
+| [Pipeline Orchestration](docs/en/tutorials/04-pipeline-orchestration/pipeline-orchestration.md) | Advanced users | Compose custom pipelines visually |
+| [Model Porting Guide](docs/en/tutorials/05-model-porting/model-porting.md) | ML engineers | Bring your own ONNX or target model |
+| [Build Guide](docs/en/guide/build.md) | Developers | Confirmed x86 Docker and Sophon package build paths |
+| [Deployment Guide](docs/en/guide/deployment.md) | DevOps | Runtime paths, ports, processes, packages, and systemd |
+| [Configuration](docs/en/guide/configuration.md) | Operators | Environment variables, resource paths, ports, logs, and runtime defaults |
+| [Troubleshooting](docs/en/guide/troubleshooting.md) | Operators | Common build, runtime, port, Sophon image, and docs-site issues |
+| [API Overview](docs/en/reference/api.md) | Developers | Current REST/WebSocket/MQTT-facing API categories |
+| [API Fields](docs/en/reference/api-fields.md) | Integrators | Common response, event, HTTP push, MQTT, and IoT network fields |
+| [MQTT Reference](docs/en/reference/mqtt.md) | Integrators | MQTT topics, envelope format, registration, heartbeat, requests, and responses |
+| [HTTP Webhook Reference](docs/en/reference/webhook.md) | Integrators | Event push configuration, payload fields, and receiver guidance |
+| [Architecture Overview](docs/en/guide/architecture.md) | Contributors | Engine internals and extension points |
+| [Frontend Development](docs/en/development/frontend.md) | Frontend developers | Vue 3 frontend structure and scripts |
+| [I18N Glossary](docs/i18n/GLOSSARY.md) | Frontend developers | UI terminology, default English labels, and short-label rules |
+| [I18N Short Scope Rules](docs/i18n/SHORT-SCOPES.md) | Frontend developers | Controlled compact-label scope IDs |
+| [Backend Development](docs/en/development/backend.md) | C++ developers | Backend modules, CMake options, and tests |
+| [CI and Quality Checks](docs/en/development/ci.md) | Contributors | Documentation, frontend, C++ formatting, static analysis, and release checks |
+| [Security Policy](SECURITY.md) | Maintainers | Vulnerability reporting and deployment security notes |
+| [Notice](NOTICE) | Maintainers | Project notice and third-party attribution information |
+| [Changelog](CHANGELOG.md) | Maintainers | Public change history |
 
 ## Roadmap
 
@@ -379,7 +410,7 @@ Certified devices add deployment readiness, not locked software features.
 - [X] VLM and GroundingDINO integration
 - [X] 18 CV pipelines internally validated
 - [ ] Public x86 one-command startup
-- [ ] Public validation report
+- [ ] Public reproducible benchmark dataset and reports
 - [ ] Release packaging for v1.0
 - [ ] Community model and scenario examples
 - [ ] GB28181 protocol support
@@ -434,8 +465,8 @@ The codebase comes from production-oriented commercial development and has passe
 
 ## Contact
 
-- 💬 Community: [GitHub Discussions](https://github.com/cosmoedge/cosmoedge/discussions)
-- 📧 Partnership & Enterprise: cosmoedge@cosmowanderer.com
+- 💬 Community: [GitHub Discussions](https://github.com/cosmo-wander-ai/cosmo-edge/discussions)
+- 📧 Partnership & Enterprise: hello@cosmowander.ai
 
 ## License
 

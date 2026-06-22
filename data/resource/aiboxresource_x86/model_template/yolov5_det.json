@@ -1,0 +1,70 @@
+{
+  "model_type": "yolov5_det",
+  "chip_type": "X86",
+  "algorithm_code": "1001003",
+  "version": "V1",
+  "reduce": "",
+  "models": [
+    {
+      "name": "PedestrianDetection",
+      "file_name": "",
+      "file_md5": "",
+      "max_batch": 1,
+      "inputs": [
+        {
+          "name": "images",
+          "shape": [
+            1,
+            3,
+            640,
+            640
+          ],
+          "data_type": 0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output0",
+          "shape": [
+            1,
+            25200,
+            85
+          ],
+          "data_type": 0
+        }
+      ],
+      "params": {
+        "input_size": [
+          640,
+          640
+        ],
+        "padding_color": [
+          114,
+          114,
+          114
+        ],
+        "normalize_mean": [
+          0,
+          0,
+          0
+        ],
+        "normalize_scale": 0.00392157,
+        "is_bgr": false,
+        "nms_threshold": 0.35,
+        "confidence_threshold": 0.1,
+        "top_k": 1000,
+        "gravity": 1
+      }
+    }
+  ],
+  "labels": [
+    {
+      "id": "0",
+      "name": "pedestrian",
+      "threshold": [
+        0.63,
+        0.63
+      ]
+    }
+  ]
+}

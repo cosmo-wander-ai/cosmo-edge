@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Box HTTP 接口文档</title>
+  <style>
+    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;color:#1f2933;line-height:1.65;background:#fff}main{max-width:1040px;margin:0 auto;padding:32px 24px 56px}h1{margin:0 0 18px;font-size:30px;border-bottom:1px solid #d9e2ec;padding-bottom:16px}h2{font-size:22px;border-left:4px solid #2563eb;padding-left:10px;margin:28px 0 12px}h3{font-size:18px;margin:24px 0 10px}table{width:100%;border-collapse:collapse;margin:12px 0 22px;font-size:14px}th,td{border:1px solid #d9e2ec;padding:8px 10px;text-align:left;vertical-align:top}th{background:#f8fafc;white-space:nowrap}code{background:#f5f7fa;border-radius:4px;padding:1px 4px;font-family:Consolas,monospace;font-size:13px}pre{background:#f5f7fa;border:1px solid #d9e2ec;border-radius:6px;padding:14px;overflow:auto;font-size:13px;line-height:1.5}.note{background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:10px 12px;margin:12px 0 20px}.muted{color:#65758b}
+  </style>
+</head>
+<body><main>
+<h1 data-i18n="http.hero.title">AI Box HTTP 事件推送接口</h1>
+<p class="muted" data-i18n="http.hero.subtitle">适用于平台配置第三方 HTTP 地址后，由盒子向第三方系统推送算法事件。</p>
+
+<h2 data-i18n="http.section.basicInfo">基本信息</h2>
+<table><tbody>
+<tr><th data-i18n="http.basic.requestUrl">请求地址</th><td data-i18n="http.basic.requestUrl.desc">用户在平台页面配置的 URL</td></tr>
+<tr><th data-i18n="http.basic.requestMethod">请求方法</th><td>POST</td></tr>
+<tr><th>Content-Type</th><td>application/json</td></tr>
+<tr><th data-i18n="http.basic.successCriteria">成功判定</th><td data-i18n-html="http.basic.successCriteria.desc">HTTP 状态码为 200，且响应体建议为合法 JSON，例如 <code>{"resCode":1}</code>。</td></tr>
+</tbody></table>
+<p data-i18n="http.basic.note">HTTP 推送时，图片字段会转为 base64 字符串；视频字段为盒子本地文件路径。事件产生后视频文件可能还在生成，第三方系统收到事件后建议延迟几秒再读取视频。</p>
+
+<h2 data-i18n="http.section.requestSample">请求样例</h2>
+<pre><code>{
+  "messageId": "b5e5035f-9b1e-4578-b3ac-1bed11272c49",
+  "devId": "ai-123123123123",
+  "taskId": "8683cf0705f14913a0a5cc6877ce6dc3",
+  "videoChannelId": "RT0000000837",
+  "channelName": "东门口1号相机",
+  "timestamp": "1681123739000",
+  "algorithmId": "3",
+  "algorithmCode": "3",
+  "algorithmName": "安全帽检测",
+  "areaId": "bf514b5c-b4bb-4bea-8c05-2e0d5367ac64",
+  "areaName": "区域1",
+  "orignalPicture": "/9j/4AAQSkZJRgABAQ...",
+  "fullPicture": "/9j/4AAQSkZJRgABAQ...",
+  "detectedPicture": "/9j/4AAQSkZJRgABAQ...",
+  "video": "/data/event/20260519/b5e5035f_video.mp4",
+  "videostructured": "/data/event/20260519/b5e5035f.json",
+  "overviewFile": "/data/event/20260519/b5e5035f_overview.json",
+  "recordId": "1",
+  "isRetryMessage": false,
+  "category": "behavior",
+  "property": {
+    "behavior": {
+      "targetId": "qsddf123",
+      "duration": 300,
+      "count": 10
+    }
+  }
+}</code></pre>
+
+<h2 data-i18n="http.section.rootFields">根字段</h2>
+<table><thead><tr><th data-i18n="http.rootTable.field">字段</th><th data-i18n="http.rootTable.type">类型</th><th data-i18n="http.rootTable.desc">说明</th></tr></thead><tbody>
+<tr><td><code>messageId</code></td><td>string</td><td data-i18n="http.field.messageId.desc">事件唯一 ID，用于链路追踪和重推去重。</td></tr>
+<tr><td><code>devId</code></td><td>string</td><td data-i18n="http.field.devId.desc">设备 ID。</td></tr>
+<tr><td><code>taskId</code></td><td>string</td><td data-i18n="http.field.taskId.desc">任务 ID。</td></tr>
+<tr><td><code>videoChannelId</code></td><td>string</td><td data-i18n="http.field.videoChannelId.desc">通道 ID。</td></tr>
+<tr><td><code>channelName</code></td><td>string</td><td data-i18n="http.field.channelName.desc">通道名称。</td></tr>
+<tr><td><code>timestamp</code></td><td>string</td><td data-i18n="http.field.timestamp.desc">13 位毫秒时间戳。</td></tr>
+<tr><td><code>algorithmId</code></td><td>string</td><td data-i18n="http.field.algorithmId.desc">算法 ID。</td></tr>
+<tr><td><code>algorithmCode</code></td><td>string</td><td data-i18n-html="http.field.algorithmCode.desc">算法编码。当前实现通常与 <code>algorithmId</code> 相同。</td></tr>
+<tr><td><code>algorithmName</code></td><td>string</td><td data-i18n="http.field.algorithmName.desc">算法名称。</td></tr>
+<tr><td><code>areaId</code></td><td>string</td><td data-i18n="http.field.areaId.desc">事件发生区域 ID。</td></tr>
+<tr><td><code>areaName</code></td><td>string</td><td data-i18n="http.field.areaName.desc">事件发生区域名称。</td></tr>
+<tr><td><code>orignalPicture</code></td><td>string</td><td data-i18n-html="http.field.orignalPicture.desc">原始全景图。字段名历史拼写为 <code>orignalPicture</code>，保持兼容。</td></tr>
+<tr><td><code>fullPicture</code></td><td>string</td><td data-i18n="http.field.fullPicture.desc">带叠加框的全景图。</td></tr>
+<tr><td><code>detectedPicture</code></td><td>string</td><td data-i18n="http.field.detectedPicture.desc">检测目标小图，可为空。</td></tr>
+<tr><td><code>video</code></td><td>string</td><td data-i18n="http.field.video.desc">告警视频路径，可为空。</td></tr>
+<tr><td><code>videostructured</code></td><td>string</td><td data-i18n="http.field.videostructured.desc">视频对应的目标、区域结构化信息文件路径，可为空。</td></tr>
+<tr><td><code>overviewFile</code></td><td>string</td><td data-i18n="http.field.overviewFile.desc">事件过程概览文件路径，可为空。</td></tr>
+<tr><td><code>recordId</code></td><td>string</td><td data-i18n="http.field.recordId.desc">目标或告警记录 ID。开启跟踪时，同一目标通常保持不变。</td></tr>
+<tr><td><code>isRetryMessage</code></td><td>boolean</td><td data-i18n="http.field.isRetryMessage.desc">是否为离线重推消息。</td></tr>
+<tr><td><code>category</code></td><td>string</td><td data-i18n="http.field.category.desc">算法类别。</td></tr>
+<tr><td><code>property</code></td><td>object</td><td data-i18n="http.field.property.desc">算法扩展属性。仅在对应算法有扩展属性时出现。</td></tr>
+</tbody></table>
+
+<h2 data-i18n="http.section.propertyRules">property 输出规则</h2>
+<p data-i18n-html="http.propertyRules.desc"><code>property</code> 会按算法类型输出对应子对象，不表示所有子对象都会同时出现。</p>
+<h3 data-i18n="http.sub.faceDetection">人脸检测与识别</h3>
+<pre><code>{
+  "property": {
+    "face": {"quality":92.5,"age":25,"gender":0,"wearMask":0,"wearGlasses":0,"featureUrl":"","image":"/9j/4AAQ..."},
+    "recognition": {"matchDegree":95.5,"matchLibName":"人脸库","matchId":"001","LibImage":"/9j/4AAQ...","matchName":"张三","personCode":"10002","personId":"10002"}
+  }
+}</code></pre>
+<h3 data-i18n="http.sub.bodyAttributes">人体属性或人体特征</h3>
+<pre><code>{
+  "property": {
+    "body": {
+      "image":"/9j/4AAQ...",
+      "topLength":1,
+      "topColor":1,
+      "bottomLength":1,
+      "bottomColor":1,
+      "inhand":1,
+      "quality":0.98,
+      "inAreaTime":"1681123739000",
+      "inAreaFullImageUrl":"",
+      "outAreaTime":"1681123749000",
+      "outAreaFullImageUrl":"",
+      "featureUrl":"",
+      "feature":""
+    }
+  }
+}</code></pre>
+<h3 data-i18n="http.sub.vehicleAttributes">车辆属性</h3>
+<pre><code>{
+  "property": {
+    "vehicle": {
+      "plateColor":"0",
+      "vehicleColor":"5",
+      "vehicleClass":"K33",
+      "orientation":"1",
+      "plate":"苏A88888",
+      "plateSrc":"苏A88888",
+      "attrs":[{"category":"vehicleColor","label":"白色","atomicCode":"white","confidence":0.93}]
+    }
+  }
+}</code></pre>
+<h3 data-i18n="http.sub.behaviorAttributes">行为类属性</h3>
+<pre><code>{"property":{"behavior":{"targetId":"qsddf123","duration":300,"count":10}}}</code></pre>
+<h3 data-i18n="http.sub.machineWorkClothes">机物与工服比对</h3>
+<pre><code>{
+  "property": {
+    "machineMaterial": {"runningStatus":"1","matchId":"1","matchDegree":85,"groupId":"group-1","groupName":"物品库","baseImageUrl":"http://example.com/base.jpg"}
+  }
+}</code></pre>
+<pre><code>{
+  "property": {
+    "workClothesRecognition": {"matchId":"1","matchDegree":85,"groupId":"group-1","groupName":"工服库","baseImageUrl":"http://example.com/base.jpg"}
+  }
+}</code></pre>
+<h3 data-i18n="http.sub.peopleCounting">人数、车流、单帧计数与聚众</h3>
+<pre><code>{"property":{"people":{"enterNumber":20,"leaveNumber":10,"enterOrgNum":3,"leaveOrgNum":1,"time":"20260519101215"}}}</code></pre>
+<pre><code>{"property":{"car":{"enterNumber":20,"leaveNumber":10,"enterOrgNum":3,"leaveOrgNum":1,"time":"20260519101215"}}}</code></pre>
+<pre><code>{"property":{"countNumber":20}}</code></pre>
+<pre><code>{
+  "property": {
+    "personCount": 3,
+    "persons": [{"orignalPicture":"","fullPicture":"","targetPicture":"","box":{"x":100,"y":120,"width":80,"height":160}}]
+  }
+}</code></pre>
+
+<h2 data-i18n="http.section.responseSample">响应样例</h2>
+<pre><code>{"resCode":1,"resMsg":[]}</code></pre>
+</main>
+<script src="i18n/static-docs.js"></script>
+</body></html>

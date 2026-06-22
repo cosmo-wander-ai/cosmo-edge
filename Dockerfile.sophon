@@ -1,0 +1,70 @@
+ARG BASE_IMAGE=stream_dev:0.2
+FROM ${BASE_IMAGE} AS builder
+
+ARG APT_MIRROR=https://mirrors.aliyun.com/debian
+ARG NODE_DIST_BASE_URL=https://npmmirror.com/mirrors/node
+ARG RUSTUP_INIT_URL=https://rsproxy.cn/rustup-init.sh
+ARG RUSTUP_DIST_SERVER=https://rsproxy.cn
+ARG RUSTUP_UPDATE_ROOT=https://rsproxy.cn/rustup
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV NODE_VERSION=v20.11.0 \
+    RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    RUST_CROSS_TARGET=aarch64-unknown-linux-gnu \
+    RUSTUP_DIST_SERVER=${RUSTUP_DIST_SERVER} \
+    RUSTUP_UPDATE_ROOT=${RUSTUP_UPDATE_ROOT} \
+    PATH=/usr/local/cargo/bin:/usr/local/node/bin:$PATH
+
+RUN set -eux; \
+    if [ -n "${APT_MIRROR}" ]; then \
+        sed -i "s|http://deb.debian.org/debian|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources 2>/dev/null || true; \
+        sed -i "s|https://deb.debian.org/debian|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources 2>/dev/null || true; \
+        sed -i "s|http://deb.debian.org/debian|${APT_MIRROR}|g" /etc/apt/sources.list 2>/dev/null || true; \
+        sed -i "s|https://deb.debian.org/debian|${APT_MIRROR}|g" /etc/apt/sources.list 2>/dev/null || true; \
+    fi; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        git \
+        xz-utils; \
+    dpkg_arch="$(dpkg --print-architecture)"; \
+    case "${dpkg_arch}" in \
+        amd64) node_arch='x64' ;; \
+        arm64) node_arch='arm64' ;; \
+        *) echo "Unsupported architecture: ${dpkg_arch}"; exit 1 ;; \
+    esac; \
+    curl -fsSL "${NODE_DIST_BASE_URL}/${NODE_VERSION}/node-${NODE_VERSION}-linux-${node_arch}.tar.xz" -o node.tar.xz; \
+    mkdir -p /usr/local/node; \
+    tar -xJf node.tar.xz -C /usr/local/node --strip-components=1; \
+    rm node.tar.xz; \
+    curl -fsSL "${RUSTUP_INIT_URL}" | sh -s -- -y --no-modify-path --profile minimal; \
+    rustup target add "${RUST_CROSS_TARGET}"; \
+    mkdir -p /usr/local/cargo; \
+    printf '[source.crates-io]\nreplace-with = "rsproxy-sparse"\n\n[source.rsproxy-sparse]\nregistry = "sparse+https://rsproxy.cn/index/"\n\n[target.%s]\nlinker = "aarch64-linux-gnu-gcc"\n' "${RUST_CROSS_TARGET}" > /usr/local/cargo/config.toml; \
+    npm config set registry https://registry.npmmirror.com; \
+    apt-get purge -y curl xz-utils; \
+    apt-get autoremove -y; \
+    rm -rf /var/lib/apt/lists/*; \
+    rm -rf "${RUSTUP_HOME}/downloads" "${RUSTUP_HOME}/tmp"
+
+RUN set -eux; \
+    aarch64-linux-gnu-g++ --version; \
+    node -v; \
+    npm -v; \
+    cargo --version; \
+    rustup target list --installed | grep "${RUST_CROSS_TARGET}"; \
+    git --version
+
+WORKDIR /src
+COPY . .
+
+ARG RESOURCE_DIR=data/resource/aiboxresource
+RUN if [ -n "${RESOURCE_DIR}" ]; then \
+        bash ./scripts/build.sh -t -m "${RESOURCE_DIR}"; \
+    else \
+        bash ./scripts/build.sh -t; \
+    fi
+
+CMD ["bash", "-lc", "set -e; mkdir -p /build_output; cp -f /src/build/packages/* /build_output/; ls -lh /build_output"]
