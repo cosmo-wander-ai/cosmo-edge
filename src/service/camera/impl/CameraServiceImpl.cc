@@ -242,24 +242,6 @@ namespace {
         return false;
     }
 
-    std::vector<ModelInfo> CollectModelsForAlgorithm(const ActionAlgPtr& algData) {
-        std::vector<ModelInfo> models;
-        if (!algData) {
-            return models;
-        }
-
-        auto& modelSvc = ServiceRegistry::Instance().Get<IModelService>();
-        for (const auto& workFlow : algData->workFlow) {
-            if (workFlow.atomicCode.empty()) {
-                continue;
-            }
-            auto modelInfo = modelSvc.GetModelInfo(workFlow.atomicCode);
-            if (modelInfo.id == workFlow.atomicCode) {
-                models.push_back(modelInfo);
-            }
-        }
-        return models;
-    }
 }  // namespace
 
 // ============================================================
