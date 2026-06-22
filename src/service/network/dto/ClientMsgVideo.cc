@@ -1,3 +1,5 @@
+// ClientMsgVideo — Client-side video playback message types.
+
 #include "ClientMsgVideo.h"
 
 #include <nlohmann/json.hpp>

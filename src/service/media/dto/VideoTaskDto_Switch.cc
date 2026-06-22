@@ -1,3 +1,5 @@
+// VideoTaskDto_Switch — Video Task Dto_ Switch implementation.
+
 #include <nlohmann/json.hpp>
 
 #include "VideoTaskDto.h"

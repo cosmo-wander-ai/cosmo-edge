@@ -1,3 +1,5 @@
+// PeriodicTimer — Opaque handle returned by Schedule(), used to cancel a task.
+
 #include "util/PeriodicTimer.h"
 
 #include <vector>

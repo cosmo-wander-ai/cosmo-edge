@@ -1,3 +1,4 @@
+// AiDetectInterface — Detection model interface.
 
 #pragma once
 

@@ -1,3 +1,5 @@
+// ScheduleDto — Schedule DTO definitions (extracted from MessageScheduleHandler.h)
+
 #include "service/task/dto/ScheduleDto.h"
 
 #include <nlohmann/json.hpp>

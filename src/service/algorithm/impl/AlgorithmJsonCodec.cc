@@ -1,3 +1,5 @@
+// AlgorithmJsonCodec — Algorithm JSON serialization/deserialization utilities
+
 #include "service/algorithm/impl/AlgorithmJsonCodec.h"
 
 #include <algorithm>

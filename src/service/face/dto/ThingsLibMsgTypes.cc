@@ -1,3 +1,5 @@
+// ThingsLibMsgTypes — ThingsLib and FaceLib types.
+
 #include "ThingsLibMsgTypes.h"
 
 #include <nlohmann/json.hpp>

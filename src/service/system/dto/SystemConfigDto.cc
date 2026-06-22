@@ -1,3 +1,5 @@
+// SystemConfigDto — System config data types — extracted from util/config/CfgAlarmParam.h,
+
 #include "SystemConfigDto.h"
 
 #include <nlohmann/json.hpp>

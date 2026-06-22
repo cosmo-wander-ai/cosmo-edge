@@ -1,3 +1,5 @@
+// RtspDemuxStrategy — Rtsp Demux Strategy implementation.
+
 #include "media/RtspDemuxStrategy.h"
 
 #include "util/Log.h"

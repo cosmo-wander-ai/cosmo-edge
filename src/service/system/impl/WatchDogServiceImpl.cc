@@ -1,3 +1,5 @@
+// WatchDogServiceImpl — IWatchDogService implementation — owns platform::WatchDog lifecycle.
+
 #include "service/system/impl/WatchDogServiceImpl.h"
 
 #include "platform/WatchDog.h"

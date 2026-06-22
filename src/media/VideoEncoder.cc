@@ -1,3 +1,5 @@
+// VideoEncoder — Video Encoder implementation.
+
 #include "media/VideoEncoder.h"
 
 #include "util/Log.h"

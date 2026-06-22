@@ -1,3 +1,5 @@
+// ClientMsgEvent — Message types acting as client
+
 #include "ClientMsgEvent.h"
 
 #include <nlohmann/json.hpp>

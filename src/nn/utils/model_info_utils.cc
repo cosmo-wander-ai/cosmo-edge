@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <vector>
 
 #include "json/json.h"
 #include "nn/core/macros.h"
@@ -311,12 +312,11 @@ Status ModelInfoUtils::LoadJson(const std::string& json_path, std::string& file_
         file.close();
         return Status(COSMO_NN_ERR_JSON_PARSE, "LoadJson: invalid file size (<=0 or >10MB)");
     }
-    char* content = new char[size];
+    std::vector<char> content(static_cast<size_t>(size));
     file.seekg(0, file.beg);
-    file.read(content, size);
+    file.read(content.data(), size);
     file.close();
-    file_content.assign(content, size);
-    delete[] content;
+    file_content.assign(content.data(), static_cast<size_t>(size));
     return COSMO_NN_OK;
 }
 

@@ -1,3 +1,5 @@
+// AllocatorSophon — Allocator Sophon implementation.
+
 #include "mem/AllocatorSophon.h"
 
 #include <limits>

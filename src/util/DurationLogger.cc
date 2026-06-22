@@ -1,3 +1,5 @@
+// DurationLogger — Duration logger for performance profiling.
+
 #include "util/DurationLogger.h"
 
 #include <utility>

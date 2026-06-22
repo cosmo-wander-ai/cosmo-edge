@@ -1,3 +1,5 @@
+// AudioDto — Audio DTO definitions (extracted from MessageAudioHandler.h)
+
 #include "AudioDto.h"
 
 #include <nlohmann/json.hpp>

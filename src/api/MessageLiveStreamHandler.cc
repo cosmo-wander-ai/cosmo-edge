@@ -1,3 +1,5 @@
+// MessageLiveStreamHandler — Message Live Stream Handler implementation.
+
 #include "api/MessageLiveStreamHandler.h"
 
 #include "service/detail/ServiceRegistry.h"

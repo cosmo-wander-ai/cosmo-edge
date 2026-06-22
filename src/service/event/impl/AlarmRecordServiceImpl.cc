@@ -1,3 +1,5 @@
+// AlarmRecordServiceImpl — Alarm record service — manages task event, face event, and
+
 #include "service/event/impl/AlarmRecordServiceImpl.h"
 
 #include <SQLiteCpp/Exception.h>

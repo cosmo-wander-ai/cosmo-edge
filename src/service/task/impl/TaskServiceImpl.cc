@@ -1,3 +1,5 @@
+// TaskServiceImpl — Task service implementation — lifecycle, orchestration, query,
+
 #include "service/task/impl/TaskServiceImpl.h"
 
 #include <algorithm>

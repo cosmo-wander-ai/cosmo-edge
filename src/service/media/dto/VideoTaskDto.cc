@@ -1,3 +1,5 @@
+// VideoTaskDto — VideoTask DTO definitions (extracted from MessageVideoTaskHandler.h)
+
 #include "VideoTaskDto.h"
 
 #include <nlohmann/json.hpp>

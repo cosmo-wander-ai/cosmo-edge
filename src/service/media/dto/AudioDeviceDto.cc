@@ -1,3 +1,5 @@
+// AudioDeviceDto — Audio domain data types — extracted from device/AudioMng.h and AudioDeviceMng.h
+
 #include "AudioDeviceDto.h"
 
 #include <nlohmann/json.hpp>

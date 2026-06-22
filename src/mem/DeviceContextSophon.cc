@@ -1,3 +1,5 @@
+// DeviceContextSophon — Device Context Sophon implementation.
+
 #include "bmlib_runtime.h"
 #include "mem/DeviceContext.h"
 

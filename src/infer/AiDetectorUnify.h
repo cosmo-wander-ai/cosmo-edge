@@ -1,3 +1,4 @@
+// AiDetectorUnify — Unified detector model wrapper.
 
 #pragma once
 

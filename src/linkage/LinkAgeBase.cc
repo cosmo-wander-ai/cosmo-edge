@@ -1,3 +1,5 @@
+// LinkAgeBase — Link Age Base implementation.
+
 #include "linkage/LinkAgeBase.h"
 
 #include "util/Log.h"

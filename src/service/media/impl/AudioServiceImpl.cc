@@ -1,3 +1,5 @@
+// AudioServiceImpl — Audio Service Impl implementation.
+
 #include "service/media/impl/AudioServiceImpl.h"
 
 #include <algorithm>

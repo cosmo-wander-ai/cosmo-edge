@@ -1,3 +1,5 @@
+// PActionBase — Image algorithm
+
 #include "flow/action/PActionBase.h"
 
 #include "util/Log.h"

@@ -1,3 +1,5 @@
+// HttpRequestHandler — Http Request Handler implementation.
+
 #include "network/http/HttpRequestHandler.h"
 
 #include "util/Log.h"

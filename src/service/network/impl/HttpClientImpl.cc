@@ -1,3 +1,5 @@
+// HttpClientImpl — Concrete IHttpClient implementation that delegates to cosmo::network::http::H...
+
 #include "service/network/impl/HttpClientImpl.h"
 
 #include "network/http/HttpRequest.h"

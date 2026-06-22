@@ -1,3 +1,5 @@
+// ModelDto_Component — Model Dto_ Component implementation.
+
 #include <nlohmann/json.hpp>
 
 #include "ModelDto.h"

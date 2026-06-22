@@ -1,3 +1,5 @@
+// PersonRecogDaoServiceImpl — Implementation of IPersonRecogDaoService — delegates to PersonRecogDao.
+
 #include "service/face/impl/PersonRecogDaoServiceImpl.h"
 
 #include "service/detail/ServiceRegistry.h"

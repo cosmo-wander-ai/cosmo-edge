@@ -1,3 +1,5 @@
+// MessageCameraHandler — Message Camera Handler implementation.
+
 #include "api/MessageCameraHandler.h"
 
 #include <filesystem>

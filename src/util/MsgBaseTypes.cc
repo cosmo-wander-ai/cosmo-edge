@@ -1,3 +1,5 @@
+// MsgBaseTypes — Base message types — MsgRecvHead, MsgSendHead, geometry types, enums.
+
 #include "MsgBaseTypes.h"
 
 #include <nlohmann/json.hpp>

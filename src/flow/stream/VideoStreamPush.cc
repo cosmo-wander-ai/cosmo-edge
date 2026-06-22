@@ -1,3 +1,5 @@
+// VideoStreamPush — Video stream push base class
+
 #include "flow/stream/VideoStreamPush.h"
 
 #include "util/Log.h"

@@ -1,3 +1,5 @@
+// SystemTimeDto — Time fetch request
+
 #include "SystemTimeDto.h"
 
 #include <nlohmann/json.hpp>

@@ -1,3 +1,4 @@
+// FaceLib — Face Lib implementation.
 
 #include "flow/face/FaceLib.h"
 

@@ -1,3 +1,5 @@
+// VideoDemuxer — Video Demuxer implementation.
+
 #include "media/VideoDemuxer.h"
 
 #include <thread>

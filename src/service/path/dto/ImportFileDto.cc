@@ -1,3 +1,5 @@
+// ImportFileDto — ImportFile DTO definitions (extracted from MessageImportFileHandler.h)
+
 #include "service/path/dto/ImportFileDto.h"
 
 #include <nlohmann/json.hpp>

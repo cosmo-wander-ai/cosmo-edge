@@ -1,3 +1,5 @@
+// EventNotifierImpl — Concrete IEventNotifier implementation — owns the uWebSocket
+
 #include "service/event/impl/EventNotifierImpl.h"
 
 #include "App.h"

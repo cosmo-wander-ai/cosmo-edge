@@ -1,3 +1,5 @@
+// TaskMsgTypes — Task Msg Types implementation.
+
 #include <nlohmann/json.hpp>
 
 #include "HeartbeatTypes.h"

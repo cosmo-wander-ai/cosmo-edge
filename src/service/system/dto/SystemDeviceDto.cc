@@ -1,3 +1,5 @@
+// SystemDeviceDto — Query device info status request
+
 #include "SystemDeviceDto.h"
 
 #include <nlohmann/json.hpp>

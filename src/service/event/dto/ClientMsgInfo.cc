@@ -1,3 +1,5 @@
+// ClientMsgInfo — Client-side info event message types.
+
 #include "service/event/dto/ClientMsgInfo.h"
 
 #include <nlohmann/json.hpp>

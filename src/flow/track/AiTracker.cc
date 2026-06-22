@@ -1,3 +1,5 @@
+// AiTracker — Deformation filtering
+
 #include "flow/track/AiTracker.h"
 
 #include <algorithm>

@@ -1,3 +1,4 @@
+// AiClassifierUnify — Unified classifier model wrapper.
 
 #pragma once
 

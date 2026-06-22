@@ -1,3 +1,5 @@
+// MessageSystemHandler — System message handler.
+
 #include "api/MessageSystemHandler.h"
 
 #include "service/system/IConfigReadService.h"

@@ -1,3 +1,5 @@
+// DeviceDiscoveryTypes — DTO types for device discovery multicast protocol.
+
 #include "DeviceDiscoveryTypes.h"
 
 #include <nlohmann/json.hpp>

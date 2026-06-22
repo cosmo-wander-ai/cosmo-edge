@@ -1,3 +1,4 @@
+// PersonDao — Person and face library data access object.
 
 #include "db/PersonDao.h"
 

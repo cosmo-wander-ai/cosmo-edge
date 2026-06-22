@@ -1,3 +1,5 @@
+// FileUtil — File Util implementation.
+
 #include "util/FileUtil.h"
 
 #include <algorithm>

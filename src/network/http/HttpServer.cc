@@ -1,3 +1,5 @@
+// HttpServer — Http Server implementation.
+
 #include "network/http/HttpServer.h"
 
 #include <event2/keyvalq_struct.h>

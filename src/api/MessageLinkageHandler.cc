@@ -1,3 +1,5 @@
+// MessageLinkageHandler — Message Linkage Handler implementation.
+
 #include "api/MessageLinkageHandler.h"
 
 #include "service/infra/ILinkageService.h"

@@ -1,3 +1,5 @@
+// CipherUtil — Append 16-byte MAC after encrypted content
+
 #define CRYPTOPP_ENABLE_NAMESPACE_WEAK 1
 #include "util/CipherUtil.h"
 

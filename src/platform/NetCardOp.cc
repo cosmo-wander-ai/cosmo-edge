@@ -1,3 +1,5 @@
+// NetCardOp — Network card configuration utilities.
+
 #include "platform/NetCardOp.h"
 
 #include <arpa/inet.h>

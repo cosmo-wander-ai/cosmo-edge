@@ -1,3 +1,5 @@
+// SystemMaintainDto — Restart/Reset request
+
 #include "SystemMaintainDto.h"
 
 #include <nlohmann/json.hpp>

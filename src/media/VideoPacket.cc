@@ -1,3 +1,5 @@
+// VideoPacket — Legacy global alias — kept for backward compatibility.
+
 #include "media/VideoPacket.h"
 
 namespace cosmo::media {

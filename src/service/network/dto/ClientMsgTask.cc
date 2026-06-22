@@ -1,3 +1,5 @@
+// ClientMsgTask — Client-side task query message types.
+
 #include "ClientMsgTask.h"
 
 #include <nlohmann/json.hpp>

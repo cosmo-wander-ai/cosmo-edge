@@ -1,3 +1,5 @@
+// RtmpCodecConfig — Rtmp Codec Config implementation.
+
 #include "flow/stream/RtmpCodecConfig.h"
 
 #include "util/Log.h"

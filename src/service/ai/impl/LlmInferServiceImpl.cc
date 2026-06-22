@@ -1,3 +1,5 @@
+// LlmInferServiceImpl — LLM inference service implementation — wraps the Qwen3VL model
+
 #include "service/ai/impl/LlmInferServiceImpl.h"
 
 #include "service/detail/ServiceRegistry.h"

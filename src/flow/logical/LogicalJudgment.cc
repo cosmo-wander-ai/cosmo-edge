@@ -1,3 +1,5 @@
+// LogicalJudgment — Logical Judgment implementation.
+
 #include "flow/logical/LogicalJudgment.h"
 
 #include "flow/common/AlgDataRecord.h"

@@ -1,3 +1,5 @@
+// ArticlesReidDaoServiceImpl — Implementation of IArticlesReidDaoService — delegates to ArticlesReidDao.
+
 #include "service/face/impl/ArticlesReidDaoServiceImpl.h"
 
 #include "service/detail/ServiceRegistry.h"

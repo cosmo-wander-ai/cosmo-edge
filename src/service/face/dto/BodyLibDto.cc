@@ -1,3 +1,5 @@
+// BodyLibDto — BodyLib DTO definitions (extracted from MessageBodyLibHandler.h)
+
 #include "BodyLibDto.h"
 
 #include <nlohmann/json.hpp>

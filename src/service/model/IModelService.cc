@@ -1,3 +1,5 @@
+// IModelService — Model service interface — full CRUD, import/export, chunked upload,
+
 #include "IModelService.h"
 
 #include <nlohmann/json.hpp>

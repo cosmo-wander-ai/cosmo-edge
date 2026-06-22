@@ -1,3 +1,5 @@
+// MessageHandler — Message router for dispatching HTTP/MQTT requests to appro...
+
 #include "api/MessageHandler.h"
 
 #include <unistd.h>

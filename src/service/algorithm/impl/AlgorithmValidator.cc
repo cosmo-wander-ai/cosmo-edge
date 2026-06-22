@@ -1,3 +1,5 @@
+// AlgorithmValidator — Validate algorithm name
+
 #include "service/algorithm/impl/AlgorithmValidator.h"
 
 #include "service/detail/ServiceRegistry.h"

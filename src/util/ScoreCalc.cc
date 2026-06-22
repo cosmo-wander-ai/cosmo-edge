@@ -1,3 +1,5 @@
+// ScoreCalc — Lightweight snapshot of a single GPU device's memory usage.
+
 #include "util/ScoreCalc.h"
 
 #include <algorithm>

@@ -1,3 +1,5 @@
+// SystemParamDto — Picture quality set request
+
 #include "SystemParamDto.h"
 
 #include <nlohmann/json.hpp>

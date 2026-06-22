@@ -1,3 +1,5 @@
+// OsdTextRenderer — Osd Text Renderer implementation.
+
 #include "media/OsdTextRenderer.h"
 
 #include <cmath>

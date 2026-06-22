@@ -1,3 +1,5 @@
+// DeviceInfoServiceImpl — Device Info Service Impl implementation.
+
 #include "service/system/impl/DeviceInfoServiceImpl.h"
 
 #include <atomic>

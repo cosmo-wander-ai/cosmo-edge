@@ -1,3 +1,5 @@
+// MsgDynamicElement — Dynamic element types and logic expression types for task configuration.
+
 #include "MsgDynamicElement.h"
 
 #include <nlohmann/json.hpp>

@@ -1,3 +1,5 @@
+// MessageFaceLibHandler_ModifyPic — Message Face Lib Handler_ Modify Pic implementation.
+
 #include <algorithm>
 #include <filesystem>
 

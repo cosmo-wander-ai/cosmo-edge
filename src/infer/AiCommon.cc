@@ -1,3 +1,4 @@
+// AiCommon — Common AI detection/tracking/classification data types.
 
 #include "infer/AiCommon.h"
 
@@ -55,9 +56,9 @@ bool GetFaceAngleType(const AiConfidence& faceAngle, FaceAngle& angle) {
     return false;
 }
 
-constexpr std::string_view kLabelFaceBlur0 = "face_blur0";
-constexpr std::string_view kLabelFaceBlur1 = "face_blur1";
-constexpr std::string_view kLabelFaceBlur2 = "face_blur2";
+constexpr std::string_view kLabelFaceBlur0      = "face_blur0";
+constexpr std::string_view kLabelFaceBlur1      = "face_blur1";
+constexpr std::string_view kLabelFaceBlur2      = "face_blur2";
 constexpr std::string_view kLabelFaceBlur0Camel = "faceBlur0";
 constexpr std::string_view kLabelFaceBlur1Camel = "faceBlur1";
 constexpr std::string_view kLabelFaceBlur2Camel = "faceBlur2";

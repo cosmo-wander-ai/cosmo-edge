@@ -1,3 +1,5 @@
+// ClientMsgFile — Client-side message types
+
 #include "service/path/dto/ClientMsgFile.h"
 
 #include <nlohmann/json.hpp>

@@ -1,3 +1,5 @@
+// UsbDemuxStrategy — Usb Demux Strategy implementation.
+
 #include "media/UsbDemuxStrategy.h"
 
 #include "util/Log.h"

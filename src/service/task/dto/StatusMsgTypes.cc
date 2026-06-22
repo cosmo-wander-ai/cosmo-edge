@@ -1,3 +1,5 @@
+// StatusMsgTypes — Status/query types — MsgTaskStatus, DeviceMemStatus, MsgQueryLogs*.
+
 #include "service/task/dto/StatusMsgTypes.h"
 
 #include <nlohmann/json.hpp>

@@ -1,3 +1,5 @@
+// SystemTime — System time
+
 #include "platform/SystemTime.h"
 
 #include <sys/time.h>

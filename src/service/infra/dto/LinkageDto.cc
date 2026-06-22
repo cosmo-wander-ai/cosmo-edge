@@ -1,3 +1,5 @@
+// LinkageDto — Linkage DTO definitions
+
 #include "LinkageDto.h"
 
 #include <nlohmann/json.hpp>

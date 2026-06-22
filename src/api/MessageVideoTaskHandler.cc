@@ -1,3 +1,5 @@
+// MessageVideoTaskHandler — Message Video Task Handler implementation.
+
 #include "api/MessageVideoTaskHandler.h"
 
 #include <algorithm>

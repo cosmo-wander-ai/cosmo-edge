@@ -1,3 +1,5 @@
+// AlgActionBase — Alg Action Base implementation.
+
 #include "flow/action/AlgActionBase.h"
 
 #include "service/detail/ServiceRegistry.h"

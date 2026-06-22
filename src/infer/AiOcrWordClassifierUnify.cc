@@ -1,3 +1,4 @@
+// AiOcrWordClassifierUnify — OCR word classifier model wrapper.
 
 #include "infer/AiOcrWordClassifierUnify.h"
 

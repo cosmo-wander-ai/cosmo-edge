@@ -1,3 +1,5 @@
+// MessageEventHandler — Message Event Handler implementation.
+
 #include "api/MessageEventHandler.h"
 
 #include "service/algorithm/IAlgorithmQuery.h"

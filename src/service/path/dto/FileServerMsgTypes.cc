@@ -1,3 +1,5 @@
+// FileServerMsgTypes — File-server message types for upload/download URL management.
+
 #include "service/path/dto/FileServerMsgTypes.h"
 
 #include <nlohmann/json.hpp>

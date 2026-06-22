@@ -1,3 +1,5 @@
+// MessageAlgorithmHandler — Route requests to appropriate handler methods based on message type
+
 #include "api/MessageAlgorithmHandler.h"
 
 #include "service/algorithm/AlgorithmMapper.h"

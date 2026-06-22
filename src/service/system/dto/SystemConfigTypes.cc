@@ -1,3 +1,5 @@
+// SystemConfigTypes — Data structures for system configuration (extracted from CfgSystemParam.h).
+
 #include "SystemConfigTypes.h"
 
 #include <nlohmann/json.hpp>

@@ -1,3 +1,5 @@
+// PersonImport — Person Import implementation.
+
 #include "flow/face/PersonImport.h"
 
 #include <iconv.h>

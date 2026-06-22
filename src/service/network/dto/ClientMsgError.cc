@@ -1,3 +1,5 @@
+// ClientMsgError — Client-side error event message types.
+
 #include "ClientMsgError.h"
 
 #include <nlohmann/json.hpp>

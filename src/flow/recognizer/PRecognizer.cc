@@ -1,3 +1,5 @@
+// PRecognizer — P Recognizer implementation.
+
 #include "flow/recognizer/PRecognizer.h"
 
 #include "service/ai/IInferPoolService.h"

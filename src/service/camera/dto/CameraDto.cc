@@ -1,3 +1,5 @@
+// CameraDto — Camera DTO definitions (extracted from MessageCameraHandler.h)
+
 #include "service/camera/dto/CameraDto.h"
 
 #include <nlohmann/json.hpp>

@@ -1,3 +1,5 @@
+// SystemNetworkDto — HTTP interface parameters set request
+
 #include "SystemNetworkDto.h"
 
 #include <nlohmann/json.hpp>

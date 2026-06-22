@@ -1,4 +1,4 @@
-
+// TaskAlarm — Alarm terminal node: pushes alarms directly.
 
 #include "flow/alarm/TaskAlarm.h"
 

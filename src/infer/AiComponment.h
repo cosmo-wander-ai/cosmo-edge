@@ -1,3 +1,4 @@
+// AiComponment — Shared AI component base types.
 
 #pragma once
 

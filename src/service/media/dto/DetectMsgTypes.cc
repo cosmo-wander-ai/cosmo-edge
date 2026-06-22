@@ -1,3 +1,5 @@
+// DetectMsgTypes — Detection types — MsgDetect*, MsgGetFeatures*, MsgAlgorithmPreload*.
+
 #include "DetectMsgTypes.h"
 
 #include <nlohmann/json.hpp>

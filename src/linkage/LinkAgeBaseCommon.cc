@@ -1,3 +1,5 @@
+// LinkAgeBaseCommon — Link Age Base Common implementation.
+
 #include "linkage/LinkAgeBaseCommon.h"
 
 #include <nlohmann/json.hpp>

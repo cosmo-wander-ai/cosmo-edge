@@ -1,3 +1,5 @@
+// ActionServiceImpl — ActionService implementation — manages video & picture algorithm orchestrations
+
 #include "service/algorithm/impl/ActionServiceImpl.h"
 
 #include <shared_mutex>

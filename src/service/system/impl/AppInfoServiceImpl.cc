@@ -1,3 +1,5 @@
+// AppInfoServiceImpl — AppInfoService implementation — owns app-info state previously held by UserDa...
+
 #include "service/system/impl/AppInfoServiceImpl.h"
 
 #include <filesystem>

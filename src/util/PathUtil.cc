@@ -1,3 +1,5 @@
+// PathUtil — Filesystem path helpers for the Cosmo application.
+
 #include "util/PathUtil.h"
 
 #include <filesystem>

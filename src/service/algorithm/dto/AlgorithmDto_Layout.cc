@@ -1,3 +1,5 @@
+// AlgorithmDto_Layout — Algorithm Dto_ Layout implementation.
+
 #include <nlohmann/json.hpp>
 
 #include "AlgorithmDto.h"

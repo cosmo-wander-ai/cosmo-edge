@@ -1,3 +1,5 @@
+// HttpFileServerCliThread — Worker thread for file upload/download operations.
+
 #include "service/path/impl/file/HttpFileServerCliThread.h"
 
 #include <memory>

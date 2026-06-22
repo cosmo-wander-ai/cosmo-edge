@@ -1,3 +1,5 @@
+// app_init — app_init implementation.
+
 #include "app/app_init.h"
 
 #include <cassert>
