@@ -173,7 +173,7 @@ TEST_CASE("ApiRouter: DispatchJson with malformed JSON", "[ApiRouter][dispatch]"
     bool ret = router.HandMessage("/v1/cwai/aihost/InterfaceTest", "{{not json}}", response);
 
     REQUIRE(ret == true);
-    // Should get an error response (x2struct parse error) rather than crash
+    // Should get an error response (legacy JSON parse error) rather than crash
     REQUIRE(response.find("resCode") != std::string::npos);
 }
 

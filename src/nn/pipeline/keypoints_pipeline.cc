@@ -1,6 +1,7 @@
 #include "nn/pipeline/keypoints_pipeline.h"
 
-#include "json/json.h"
+#include <nlohmann/json.hpp>
+
 #include "nn/pipeline/pipeline_utils.h"
 
 namespace cosmo::nn {
@@ -14,11 +15,7 @@ Status KeypointsPipeline::Init(const PipelineConfig& config, const std::string& 
     model_info_.type          = "keypoints";
 
     for (auto& mc : config.models) {
-        Json::Value p(Json::objectValue);
-        if (!mc.params_json.empty()) {
-            Json::Reader r;
-            r.parse(mc.params_json, p);
-        }
+        nlohmann::json p = pipeline_utils::ParseJsonObject(mc.params_json);
 
         ModelInfo model;
         model.name      = mc.name;
@@ -27,29 +24,20 @@ Status KeypointsPipeline::Init(const PipelineConfig& config, const std::string& 
         model.max_batch = mc.max_batch;
         max_batch_      = mc.max_batch;
 
-        std::vector<int> dsize = {48, 48};
-        if (p.isMember("input_size") && p["input_size"].isArray()) {
-            dsize.clear();
-            for (unsigned i = 0; i < p["input_size"].size(); i++)
-                dsize.push_back(p["input_size"][i].asInt());
-        }
+        std::vector<int> dsize = pipeline_utils::ReadIntArray(p, "input_size", {48, 48}, 2);
 
-        std::vector<float> mean = {127.5f, 127.5f, 127.5f};
-        if (p.isMember("normalize_mean") && p["normalize_mean"].isArray()) {
-            mean.clear();
-            for (unsigned i = 0; i < p["normalize_mean"].size(); i++)
-                mean.push_back(p["normalize_mean"][i].asFloat());
-        }
-        float scale = p.get("normalize_scale", 0.0078125f).asFloat();
-        bool is_bgr = p.get("is_bgr", true).asBool();
+        std::vector<float> mean =
+            pipeline_utils::ReadFloatArray(p, "normalize_mean", {127.5f, 127.5f, 127.5f}, 3);
+        float scale = pipeline_utils::ReadFloat(p, "normalize_scale", 0.0078125f);
+        bool is_bgr = pipeline_utils::ReadBool(p, "is_bgr", true);
 
-        bool has_crop = p.get("crop", false).asBool();
+        bool has_crop = pipeline_utils::ReadBool(p, "crop", false);
         std::vector<std::unique_ptr<Op>> preprocess;
         if (has_crop) {
-            float top    = p.get("crop_h_top", 0.0f).asFloat();
-            float bottom = p.get("crop_h_bottom", 0.0f).asFloat();
-            float left   = p.get("crop_w_left", 0.0f).asFloat();
-            float right  = p.get("crop_w_right", 0.0f).asFloat();
+            float top    = pipeline_utils::ReadFloat(p, "crop_h_top", 0.0f);
+            float bottom = pipeline_utils::ReadFloat(p, "crop_h_bottom", 0.0f);
+            float left   = pipeline_utils::ReadFloat(p, "crop_w_left", 0.0f);
+            float right  = pipeline_utils::ReadFloat(p, "crop_w_right", 0.0f);
 
             std::vector<float> h_top    = {top};
             std::vector<float> h_bottom = {bottom};

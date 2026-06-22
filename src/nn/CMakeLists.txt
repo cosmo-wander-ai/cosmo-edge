@@ -8,15 +8,6 @@ if(COSMO_NN_USE_SOPHON_BACKEND)
     set(SOPHON_ROOT_DIR ${CMAKE_SOURCE_DIR}/3rd/libsophon-0.4.11)
 endif()
 
-# ── jsoncpp (OBJECT library) ──
-set(JSONCPP_WITH_PKGCONFIG_SUPPORT OFF)
-set(JSONCPP_WITH_CMAKE_PACKAGE OFF)
-set(BUILD_SHARED_LIBS OFF)
-set(BUILD_STATIC_LIBS OFF)
-add_subdirectory(${CMAKE_SOURCE_DIR}/3rd/jsoncpp-1.9.5 ${CMAKE_BINARY_DIR}/jsoncpp)
-set_property(TARGET jsoncpp_object PROPERTY POSITION_INDEPENDENT_CODE ON)
-
-
 # ── Collect NN source files ──
 file(GLOB_RECURSE NN_ALL_SRC
     "${NN_DIR}/core/*.h"   "${NN_DIR}/core/*.cc"
@@ -51,7 +42,6 @@ add_library(cosmo_nn OBJECT ${NN_ALL_SRC})
 
 target_include_directories(cosmo_nn PRIVATE
     ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_SOURCE_DIR}/3rd/jsoncpp-1.9.5/include
 )
 
 # ── Backend-specific configuration ──

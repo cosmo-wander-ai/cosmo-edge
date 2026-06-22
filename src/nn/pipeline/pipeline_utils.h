@@ -1,8 +1,11 @@
 #pragma once
 
 #include <memory>
+#include <cstddef>
 #include <string>
 #include <vector>
+
+#include <nlohmann/json_fwd.hpp>
 
 #include "nn/core/status.h"
 #include "nn/pipeline/model_pipeline.h"
@@ -60,6 +63,29 @@ namespace pipeline_utils {
     void BuildInstructionsFromLabels(const std::vector<PipelineLabelInfo>& labels,
                                      const std::string& output_node_name, const DimsVector& output_shape,
                                      CombinedModelConfig& config);
+
+    nlohmann::json ParseJsonObject(const std::string& raw);
+
+    std::string ReadString(const nlohmann::json& json, const char* key, std::string defaults = {});
+
+    int ReadInt(const nlohmann::json& json, const char* key, int defaults = 0);
+
+    size_t ReadSize(const nlohmann::json& json, const char* key, size_t defaults = 0);
+
+    float ReadFloat(const nlohmann::json& json, const char* key, float defaults = 0.0f);
+
+    bool ReadBool(const nlohmann::json& json, const char* key, bool defaults = false);
+
+    std::vector<int> ReadIntArray(const nlohmann::json& json, const char* key,
+                                  std::vector<int> defaults = {}, size_t min_size = 0);
+
+    std::vector<float> ReadFloatArray(const nlohmann::json& json, const char* key,
+                                      std::vector<float> defaults = {}, size_t min_size = 0);
+
+    std::vector<std::vector<std::vector<float>>> ReadFloat3DArray(
+        const nlohmann::json& json, const char* key,
+        std::vector<std::vector<std::vector<float>>> defaults = {}, size_t min_outer_size = 0,
+        size_t min_middle_size = 0, size_t min_inner_size = 0);
 
     Status ParsePipelineConfig(const std::string& json_content, PipelineConfig& config);
 

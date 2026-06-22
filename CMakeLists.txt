@@ -251,7 +251,6 @@ set(ALL_OBJECTS
     $<TARGET_OBJECTS:cosmo_flow>
     $<TARGET_OBJECTS:cosmo_api>
     $<TARGET_OBJECTS:cosmo_nn>
-    $<TARGET_OBJECTS:jsoncpp_object>
 )
 
 #Common link libraries(shared by main executable and tests)

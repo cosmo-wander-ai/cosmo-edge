@@ -1,17 +1,72 @@
 #include "nn/device/sophon/qwen3vl/qwen3vl_model.h"
 
 #include <assert.h>
-#include <json/json.h>
 
 #include <cstring>
 #include <fstream>
 #include <iostream>
+
+#include <nlohmann/json.hpp>
 
 #include "bmlib_runtime.h"
 #include "bmruntime_interface.h"
 
 namespace cosmo::nn {
 namespace qwen3vl {
+    namespace {
+
+    constexpr std::streamoff kMaxJsonFileBytes = 10 * 1024 * 1024;
+
+    bool LooksLikeJsonContent(const std::string& value) {
+        const auto first = value.find_first_not_of(" \t\r\n");
+        return first != std::string::npos && (value[first] == '{' || value[first] == '[');
+    }
+
+    nlohmann::json ParseJsonFile(const std::string& path) {
+        std::ifstream in(path, std::ios::binary | std::ios::ate);
+        if (!in.good())
+            return nlohmann::json::object();
+        const auto size = in.tellg();
+        if (size < 0 || size > kMaxJsonFileBytes)
+            return nlohmann::json::object();
+        in.seekg(0, std::ios::beg);
+        auto json = nlohmann::json::parse(in, nullptr, false);
+        return json.is_discarded() || !json.is_object() ? nlohmann::json::object() : json;
+    }
+
+    nlohmann::json ParseJsonContentOrFile(const std::string& value) {
+        if (LooksLikeJsonContent(value)) {
+            auto json = nlohmann::json::parse(value, nullptr, false);
+            if (!json.is_discarded())
+                return json.is_object() ? json : nlohmann::json::object();
+        }
+        return ParseJsonFile(value);
+    }
+
+    void ApplyGenerationConfig(const nlohmann::json& json, GenerationConfig& config) {
+        if (json.contains("eos_token_id") && json["eos_token_id"].is_array()) {
+            for (const auto& v : json["eos_token_id"]) {
+                if (v.is_number_integer())
+                    config.eos_token_id.push_back(v.get<int>());
+            }
+        }
+        if (json.contains("repetition_penalty") && json["repetition_penalty"].is_number())
+            config.repetition_penalty = json["repetition_penalty"].get<float>();
+        if (json.contains("temperature") && json["temperature"].is_number())
+            config.temperature = json["temperature"].get<float>();
+        if (json.contains("top_k") && json["top_k"].is_number_integer())
+            config.top_k = json["top_k"].get<int>();
+        if (json.contains("top_p") && json["top_p"].is_number())
+            config.top_p = json["top_p"].get<float>();
+        if (json.contains("stop_strings") && json["stop_strings"].is_array()) {
+            for (const auto& v : json["stop_strings"]) {
+                if (v.is_string())
+                    config.stop_strings.push_back(v.get<std::string>());
+            }
+        }
+    }
+
+    }  // namespace
 
     static void empty(bm_handle_t& bm_handle, bm_device_mem_t& mem) {
         int value = 0;
@@ -28,69 +83,23 @@ namespace qwen3vl {
 
     GenerationConfig GenerationConfig::from_json(const std::string& path) {
         GenerationConfig config;
-        std::ifstream in(path);
-        if (!in.good())
-            return config;
-        Json::Value j;
-        in >> j;
-        if (j.isMember("eos_token_id") && j["eos_token_id"].isArray()) {
-            for (const auto& v : j["eos_token_id"])
-                config.eos_token_id.push_back(v.asInt());
-        }
-        if (j.isMember("repetition_penalty"))
-            config.repetition_penalty = j["repetition_penalty"].asFloat();
-        if (j.isMember("temperature"))
-            config.temperature = j["temperature"].asFloat();
-        if (j.isMember("top_k"))
-            config.top_k = j["top_k"].asInt();
-        if (j.isMember("top_p"))
-            config.top_p = j["top_p"].asFloat();
-        if (j.isMember("stop_strings") && j["stop_strings"].isArray()) {
-            for (const auto& v : j["stop_strings"])
-                config.stop_strings.push_back(v.asString());
-        }
+        ApplyGenerationConfig(ParseJsonFile(path), config);
         return config;
     }
 
     GenerationConfig GenerationConfig::from_model_json(const std::string& path) {
         GenerationConfig config;
-        Json::Value root;
-        if (!path.empty() && path[0] == '{') {
-            Json::Reader reader;
-            if (!reader.parse(path, root))
-                return config;
-        } else {
-            std::ifstream in(path);
-            if (!in.good())
-                return config;
-            in >> root;
-        }
-        const Json::Value* g_ptr = nullptr;
-        if (root.isMember("config") && root["config"].isObject() && root["config"].isMember("generation") &&
-            root["config"]["generation"].isObject()) {
+        nlohmann::json root = ParseJsonContentOrFile(path);
+        const nlohmann::json* g_ptr = nullptr;
+        if (root.contains("config") && root["config"].is_object() && root["config"].contains("generation") &&
+            root["config"]["generation"].is_object()) {
             g_ptr = &root["config"]["generation"];
-        } else if (root.isMember("generation") && root["generation"].isObject()) {
+        } else if (root.contains("generation") && root["generation"].is_object()) {
             g_ptr = &root["generation"];
         }
         if (!g_ptr)
             return config;
-        const Json::Value& g = *g_ptr;
-        if (g.isMember("eos_token_id") && g["eos_token_id"].isArray()) {
-            for (const auto& v : g["eos_token_id"])
-                config.eos_token_id.push_back(v.asInt());
-        }
-        if (g.isMember("repetition_penalty"))
-            config.repetition_penalty = g["repetition_penalty"].asFloat();
-        if (g.isMember("temperature"))
-            config.temperature = g["temperature"].asFloat();
-        if (g.isMember("top_k"))
-            config.top_k = g["top_k"].asInt();
-        if (g.isMember("top_p"))
-            config.top_p = g["top_p"].asFloat();
-        if (g.isMember("stop_strings") && g["stop_strings"].isArray()) {
-            for (const auto& v : g["stop_strings"])
-                config.stop_strings.push_back(v.asString());
-        }
+        ApplyGenerationConfig(*g_ptr, config);
         return config;
     }
 

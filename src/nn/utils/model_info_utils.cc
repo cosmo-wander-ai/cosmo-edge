@@ -2,274 +2,299 @@
 
 #include <algorithm>
 #include <fstream>
+#include <stdexcept>
 #include <vector>
 
-#include "json/json.h"
+#include <nlohmann/json.hpp>
+
 #include "nn/core/macros.h"
 
 namespace cosmo::nn {
 
-void CheckNull(Json::Value& value, std::string msg) noexcept(false) {
-    if (value.isNull())
+namespace {
+
+const nlohmann::json* FindMember(const nlohmann::json& value, const char* key) {
+    if (!value.is_object())
+        return nullptr;
+    auto iter = value.find(key);
+    if (iter == value.end())
+        return nullptr;
+    return &(*iter);
+}
+
+const nlohmann::json& NullJson() {
+    static const nlohmann::json value;
+    return value;
+}
+
+const nlohmann::json& GetMemberOrNull(const nlohmann::json& value, const char* key) {
+    const nlohmann::json* member = FindMember(value, key);
+    return member ? *member : NullJson();
+}
+
+int ToInt(const nlohmann::json& value) {
+    if (value.is_number_integer())
+        return value.get<int>();
+    return static_cast<int>(value.get<double>());
+}
+
+float ToFloat(const nlohmann::json& value) {
+    return value.get<float>();
+}
+
+}  // namespace
+
+void CheckNull(const nlohmann::json& value, std::string msg) noexcept(false) {
+    if (value.is_null())
         throw std::runtime_error(msg);
 }
 
-void CheckObject(Json::Value& value, std::string msg) noexcept(false) {
-    if (!value.isObject())
+void CheckObject(const nlohmann::json& value, std::string msg) noexcept(false) {
+    if (!value.is_object())
         throw std::runtime_error(msg);
 }
 
-void CheckNullAndObject(Json::Value& value, std::string msg) noexcept(false) {
-    if (value.isNull())
+void CheckNullAndObject(const nlohmann::json& value, std::string msg) noexcept(false) {
+    if (value.is_null())
         throw std::runtime_error(msg);
-    if (!value.isObject())
-        throw std::runtime_error(msg);
-}
-
-void CheckArray(Json::Value& value, std::string msg) noexcept(false) {
-    if (!value.isArray())
+    if (!value.is_object())
         throw std::runtime_error(msg);
 }
 
-void CheckNullAndArray(Json::Value& value, std::string msg) noexcept(false) {
-    if (value.isNull())
+void CheckArray(const nlohmann::json& value, std::string msg) noexcept(false) {
+    if (!value.is_array())
         throw std::runtime_error(msg);
-    if (!value.isArray())
+}
+
+void CheckNullAndArray(const nlohmann::json& value, std::string msg) noexcept(false) {
+    if (value.is_null())
+        throw std::runtime_error(msg);
+    if (!value.is_array())
         throw std::runtime_error(msg);
 }
 
 template <typename T>
-T Get(Json::Value& value, Json::StaticString key) noexcept(false);
+T Get(const nlohmann::json& value, const char* key) noexcept(false);
 
 template <typename T>
-T Get(Json::Value& value, Json::StaticString key, T def) noexcept(false);
+T Get(const nlohmann::json& value, const char* key, T def) noexcept(false);
 
 template <>
-std::string Get<std::string>(Json::Value& value, Json::StaticString key) noexcept(false) {
-    Json::Value v = value[key];
-    if (v.isNull())
+std::string Get<std::string>(const nlohmann::json& value, const char* key) noexcept(false) {
+    const nlohmann::json& v = GetMemberOrNull(value, key);
+    if (v.is_null())
         return "";
-    if (!v.isString())
+    if (!v.is_string())
         throw std::runtime_error(std::string(key) + " value must be String.");
 
-    return v.asString();
+    return v.get<std::string>();
 }
 
 template <>
-std::string Get<std::string>(Json::Value& value, Json::StaticString key,
+std::string Get<std::string>(const nlohmann::json& value, const char* key,
                              std::string default_value) noexcept(false) {
-    Json::Value v = value[key];
-    if (v.isNull())
+    const nlohmann::json& v = GetMemberOrNull(value, key);
+    if (v.is_null())
         return default_value;
 
-    if (!v.isString())
+    if (!v.is_string())
         throw std::runtime_error(std::string(key) + " value must be String.");
 
-    return v.asString();
+    return v.get<std::string>();
 }
 
 template <>
-int Get<int>(Json::Value& value, Json::StaticString key) noexcept(false) {
-    Json::Value v = value[key];
-    if (v.isNull())
+int Get<int>(const nlohmann::json& value, const char* key) noexcept(false) {
+    const nlohmann::json& v = GetMemberOrNull(value, key);
+    if (v.is_null())
         throw std::runtime_error(std::string(key) + " value must not be Null.");
 
-    if (!v.isInt())
+    if (!v.is_number_integer())
         throw std::runtime_error(std::string(key) + " value must be Numeric.");
 
-    return v.asInt();
+    return v.get<int>();
 }
 
 template <>
-int Get<int>(Json::Value& value, Json::StaticString key, int default_value) noexcept(false) {
-    Json::Value v = value[key];
-    if (v.isNull())
+int Get<int>(const nlohmann::json& value, const char* key, int default_value) noexcept(false) {
+    const nlohmann::json& v = GetMemberOrNull(value, key);
+    if (v.is_null())
         return default_value;
 
-    if (!v.isNumeric())
+    if (!v.is_number())
         throw std::runtime_error(std::string(key) + " value must be Numeric.");
 
-    return v.asInt();
+    return ToInt(v);
 }
 
 template <>
-std::vector<int> Get<std::vector<int>>(Json::Value& value, Json::StaticString key) noexcept(false) {
-    Json::Value v = value[key];
+std::vector<int> Get<std::vector<int>>(const nlohmann::json& value, const char* key) noexcept(false) {
+    const nlohmann::json& v = GetMemberOrNull(value, key);
     std::vector<int> result;
-    if (v.isNull())
+    if (v.is_null())
         throw std::runtime_error(std::string(key) + " value must not be Null.");
 
-    if (!v.isArray())
+    if (!v.is_array())
         throw std::runtime_error(std::string(key) + " value must be Array.");
 
-    auto size = v.size();
-    for (unsigned int i = 0; i < size; i++) {
-        auto element = v[i];
-        if (element.isNull())
+    for (const auto& element : v) {
+        if (element.is_null())
             throw std::runtime_error(std::string(key) + " element value must not be Null.");
 
-        if (!element.isInt())
+        if (!element.is_number_integer())
             throw std::runtime_error(std::string(key) + " element value must be Int.");
 
-        result.push_back(v[i].asInt());
+        result.push_back(element.get<int>());
     }
     return result;
 }
 
 template <>
-std::vector<int> Get<std::vector<int>>(Json::Value& value, Json::StaticString key,
-                                       std::vector<int> def) noexcept(false) {
-    Json::Value v = value[key];
+std::vector<int> Get<std::vector<int>>(const nlohmann::json& value, const char* key,
+                                       std::vector<int> /*def*/) noexcept(false) {
+    const nlohmann::json& v = GetMemberOrNull(value, key);
     std::vector<int> result;
-    auto size = v.size();
-    if (v.isNull())
+    if (v.is_null())
         throw std::runtime_error(std::string(key) + " value must not be Null.");
 
-    if (!v.isArray())
+    if (!v.is_array())
         throw std::runtime_error(std::string(key) + " value must be Array.");
 
-    for (unsigned int i = 0; i < size; i++) {
-        auto element = v[i];
-        if (element.isNull())
+    for (const auto& element : v) {
+        if (element.is_null())
             throw std::runtime_error(std::string(key) + " element value must not be Null.");
 
-        if (!element.isInt())
+        if (!element.is_number_integer())
             throw std::runtime_error(std::string(key) + " element value must be Int.");
 
-        result.push_back(v[i].asInt());
+        result.push_back(element.get<int>());
     }
     return result;
 }
 
 template <>
-Json::Value Get<Json::Value>(Json::Value& value, Json::StaticString key) noexcept(false) {
-    Json::Value v = value[key];
-    if (v.isNull())
+nlohmann::json Get<nlohmann::json>(const nlohmann::json& value, const char* key) noexcept(false) {
+    const nlohmann::json& v = GetMemberOrNull(value, key);
+    if (v.is_null())
         throw std::runtime_error(std::string(key) + " value must not be Null.");
 
     return v;
 }
 
 template <>
-Json::Value Get<Json::Value>(Json::Value& value, Json::StaticString key, Json::Value def) noexcept(false) {
-    Json::Value v = value[key];
-    if (v.isNull())
+nlohmann::json Get<nlohmann::json>(const nlohmann::json& value, const char* key,
+                                   nlohmann::json def) noexcept(false) {
+    const nlohmann::json& v = GetMemberOrNull(value, key);
+    if (v.is_null())
         return def;
     return v;
 }
 
 template <>
-float Get<float>(Json::Value& value, Json::StaticString key) noexcept(false) {
-    Json::Value v = value[key];
-    if (v.isNull())
+float Get<float>(const nlohmann::json& value, const char* key) noexcept(false) {
+    const nlohmann::json& v = GetMemberOrNull(value, key);
+    if (v.is_null())
         throw std::runtime_error(std::string(key) + " value must not be Null.");
 
-    if (!v.isNumeric())
+    if (!v.is_number())
         throw std::runtime_error(std::string(key) + " value must be Numeric.");
 
-    return v.asFloat();
+    return ToFloat(v);
 }
 
 template <>
-float Get<float>(Json::Value& value, Json::StaticString key, float default_value) noexcept(false) {
-    Json::Value v = value[key];
-    if (v.isNull())
+float Get<float>(const nlohmann::json& value, const char* key, float default_value) noexcept(false) {
+    const nlohmann::json& v = GetMemberOrNull(value, key);
+    if (v.is_null())
         return default_value;
 
-    if (!v.isNumeric())
+    if (!v.is_number())
         throw std::runtime_error(std::string(key) + " value must be Numeric.");
 
-    return v.asFloat();
+    return ToFloat(v);
 }
 
 template <>
-std::vector<float> Get<std::vector<float>>(Json::Value& value, Json::StaticString key) noexcept(false) {
-    Json::Value v = value[key];
-    auto size     = v.size();
+std::vector<float> Get<std::vector<float>>(const nlohmann::json& value, const char* key) noexcept(false) {
+    const nlohmann::json& v = GetMemberOrNull(value, key);
     std::vector<float> result;
-    if (v.isNull())
+    if (v.is_null())
         throw std::runtime_error(std::string(key) + " value must not be Null.");
 
-    if (!v.isArray())
+    if (!v.is_array())
         throw std::runtime_error(std::string(key) + " value must be Array.");
 
-    for (unsigned int i = 0; i < size; i++) {
-        auto element = v[i];
-        if (element.isNull())
+    for (const auto& element : v) {
+        if (element.is_null())
             throw std::runtime_error(std::string(key) + " element value must not be Null.");
 
-        if (!element.isDouble())
+        if (!element.is_number())
             throw std::runtime_error(std::string(key) + " element value must be Numeric.");
 
-        result.push_back(element.asFloat());
+        result.push_back(ToFloat(element));
     }
     return result;
 }
 
 template <>
-std::vector<float> Get<std::vector<float>>(Json::Value& value, Json::StaticString key,
+std::vector<float> Get<std::vector<float>>(const nlohmann::json& value, const char* key,
                                            std::vector<float> def) noexcept(false) {
-    Json::Value v = value[key];
-    if (v.isNull())
+    const nlohmann::json& v = GetMemberOrNull(value, key);
+    if (v.is_null())
         return def;
-    auto size = v.size();
     std::vector<float> result;
 
-    if (!v.isArray())
+    if (!v.is_array())
         throw std::runtime_error(std::string(key) + " value must be Array.");
 
-    for (unsigned int i = 0; i < size; i++) {
-        auto element = v[i];
-        if (element.isNull())
+    for (const auto& element : v) {
+        if (element.is_null())
             throw std::runtime_error(std::string(key) + " element value must not be Null.");
 
-        if (!element.isDouble())
+        if (!element.is_number())
             throw std::runtime_error(std::string(key) + " element value must be Numeric.");
 
-        result.push_back(element.asFloat());
+        result.push_back(ToFloat(element));
     }
     return result;
 }
 
 template <>
 std::vector<std::vector<std::vector<float>>> Get<std::vector<std::vector<std::vector<float>>>>(
-    Json::Value& value, Json::StaticString key) noexcept(false) {
-    Json::Value v = value[key];
+    const nlohmann::json& value, const char* key) noexcept(false) {
+    const nlohmann::json& v = GetMemberOrNull(value, key);
 
-    if (v.isNull())
+    if (v.is_null())
         throw std::runtime_error(std::string(key) + " first layer value must not be Null.");
 
-    if (!v.isArray())
+    if (!v.is_array())
         throw std::runtime_error(std::string(key) + " first layer value must be Array.");
 
     std::vector<std::vector<std::vector<float>>> result;
-    for (unsigned int i = 0; i < v.size(); i++) {
-        auto v1 = v[i];
-        if (v1.isNull())
+    for (const auto& v1 : v) {
+        if (v1.is_null())
             throw std::runtime_error(std::string(key) + " second layer value must not be Null.");
 
-        if (!v1.isArray())
+        if (!v1.is_array())
             throw std::runtime_error(std::string(key) + " second layer value must be Array.");
 
         std::vector<std::vector<float>> data_v1;
-        for (unsigned int j = 0; j < v1.size(); j++) {
-            auto v2 = v1[j];
-            if (v2.isNull())
+        for (const auto& v2 : v1) {
+            if (v2.is_null())
                 throw std::runtime_error(std::string(key) + " third layer value must not be Null.");
 
-            if (!v2.isArray())
+            if (!v2.is_array())
                 throw std::runtime_error(std::string(key) + " third layer value must be Array.");
 
             std::vector<float> data_v2;
-            for (unsigned int k = 0; k < v2.size(); k++) {
-                auto element = v2[k];
-                if (element.isNull())
+            for (const auto& element : v2) {
+                if (element.is_null())
                     throw std::runtime_error(std::string(key) + " element value must not be Null.");
 
-                if (!element.isDouble())
+                if (!element.is_number())
                     throw std::runtime_error(std::string(key) + " element value must be Numeric.");
 
-                data_v2.push_back(element.asFloat());
+                data_v2.push_back(ToFloat(element));
             }
             data_v1.push_back(data_v2);
         }
@@ -279,26 +304,26 @@ std::vector<std::vector<std::vector<float>>> Get<std::vector<std::vector<std::ve
 }
 
 template <>
-bool Get<bool>(Json::Value& value, Json::StaticString key) noexcept(false) {
-    Json::Value v = value[key];
-    if (v.isNull())
+bool Get<bool>(const nlohmann::json& value, const char* key) noexcept(false) {
+    const nlohmann::json& v = GetMemberOrNull(value, key);
+    if (v.is_null())
         throw std::runtime_error(std::string(key) + " value must not be Null.");
 
-    if (!v.isBool())
+    if (!v.is_boolean())
         throw std::runtime_error(std::string(key) + " value must be Bool.");
 
-    return v.asBool();
+    return v.get<bool>();
 }
 
 template <>
-bool Get<bool>(Json::Value& value, Json::StaticString key, bool default_value) noexcept(false) {
-    Json::Value v = value[key];
-    if (v.isNull())
+bool Get<bool>(const nlohmann::json& value, const char* key, bool default_value) noexcept(false) {
+    const nlohmann::json& v = GetMemberOrNull(value, key);
+    if (v.is_null())
         return default_value;
-    if (!v.isBool())
+    if (!v.is_boolean())
         throw std::runtime_error(std::string(key) + " value must be Bool.");
 
-    return v.asBool();
+    return v.get<bool>();
 }
 
 Status ModelInfoUtils::LoadJson(const std::string& json_path, std::string& file_content) {
@@ -320,28 +345,28 @@ Status ModelInfoUtils::LoadJson(const std::string& json_path, std::string& file_
     return COSMO_NN_OK;
 }
 
-Status ParseModelsConfig(Json::Value& config_value, CombinedModelConfig& config) {
+Status ParseModelsConfig(nlohmann::json& config_value, CombinedModelConfig& config) {
     try {
         CheckObject(config_value, "config value must be Object.");
         // face_info
         auto face_info_value =
-            Get<Json::Value>(config_value, Json::StaticString("feature_info"), Json::Value::nullSingleton());
-        if (!face_info_value.isNull()) {
+            Get<nlohmann::json>(config_value, "feature_info", nlohmann::json());
+        if (!face_info_value.is_null()) {
             CheckObject(face_info_value, "face info value must be Object.");
 
             config.face_info.testset_name =
-                Get<std::string>(face_info_value, Json::StaticString("testset_name"), "");
+                Get<std::string>(face_info_value, "testset_name", "");
             config.face_info.score_level =
-                Get<std::vector<float>>(face_info_value, Json::StaticString("score_level"));
+                Get<std::vector<float>>(face_info_value, "score_level");
             config.face_info.cmp_score =
-                Get<std::vector<float>>(face_info_value, Json::StaticString("cmp_score"));
-            config.face_info.feature_dim = Get<int>(face_info_value, Json::StaticString("feature_dim"));
+                Get<std::vector<float>>(face_info_value, "cmp_score");
+            config.face_info.feature_dim = Get<int>(face_info_value, "feature_dim");
         }
 
         // instruction
         auto instructions_value =
-            Get<Json::Value>(config_value, Json::StaticString("instruction"), Json::Value::nullSingleton());
-        if (instructions_value.isNull())
+            Get<nlohmann::json>(config_value, "instruction", nlohmann::json());
+        if (instructions_value.is_null())
             return COSMO_NN_OK;
 
         CheckArray(instructions_value, "instruction must be Array.");
@@ -351,31 +376,31 @@ Status ParseModelsConfig(Json::Value& config_value, CombinedModelConfig& config)
             auto instruction_value = instructions_value[i];
             CheckNullAndObject(instruction_value, "instruction element value must be Object.");
 
-            instruction.output_node = Get<std::string>(instruction_value, Json::StaticString("output_node"));
-            instruction.shape       = Get<DimsVector>(instruction_value, Json::StaticString("shape"));
+            instruction.output_node = Get<std::string>(instruction_value, "output_node");
+            instruction.shape       = Get<DimsVector>(instruction_value, "shape");
 
-            auto instruction_categories_value = Get<Json::Value>(
-                instruction_value, Json::StaticString("categories"), Json::Value::nullSingleton());
-            if (!instruction_categories_value.isNull()) {
+            auto instruction_categories_value = Get<nlohmann::json>(
+                instruction_value, "categories", nlohmann::json());
+            if (!instruction_categories_value.is_null()) {
                 CheckArray(instruction_categories_value, "categories must be Array.");
                 auto instruction_categories_size = instruction_categories_value.size();
                 for (unsigned int i = 0; i < instruction_categories_size; i++) {
-                    Json::Value instruction_categories_element_value = instruction_categories_value[i];
+                    nlohmann::json instruction_categories_element_value = instruction_categories_value[i];
                     CheckNullAndObject(instruction_categories_element_value,
                                        "instruction categories element must be Object.");
                     CategoryInfo category_info;
                     category_info.class_name = Get<std::string>(instruction_categories_element_value,
-                                                                Json::StaticString("class_name"));
+                                                                "class_name");
                     category_info.split =
-                        Get<int>(instruction_categories_element_value, Json::StaticString("split"));
+                        Get<int>(instruction_categories_element_value, "split");
                     category_info.threshold = Get<std::vector<float>>(instruction_categories_element_value,
-                                                                      Json::StaticString("threshold"));
+                                                                      "threshold");
                     instruction.categories.emplace_back(category_info);
                 }
             }
 
             auto instruction_output_infos_value =
-                Get<Json::Value>(instruction_value, Json::StaticString("output_info"));
+                Get<nlohmann::json>(instruction_value, "output_info");
             CheckArray(instruction_output_infos_value, "instruction output info must be Array");
             auto instruction_output_info_size = instruction_output_infos_value.size();
             instruction.infos.resize(instruction_output_info_size);
@@ -384,11 +409,11 @@ Status ParseModelsConfig(Json::Value& config_value, CombinedModelConfig& config)
                 CheckNullAndObject(instruction_output_info_value, "output_info must be Object");
 
                 instruction.infos.at(i).label =
-                    Get<std::string>(instruction_output_info_value, Json::StaticString("label"));
+                    Get<std::string>(instruction_output_info_value, "label");
                 instruction.infos.at(i).class_name =
-                    Get<std::string>(instruction_output_info_value, Json::StaticString("class_name"));
+                    Get<std::string>(instruction_output_info_value, "class_name");
                 instruction.infos.at(i).thresholds =
-                    Get<std::vector<float>>(instruction_output_info_value, Json::StaticString("threshold"));
+                    Get<std::vector<float>>(instruction_output_info_value, "threshold");
             }
 
             config.instructions.emplace_back(instruction);
@@ -399,27 +424,27 @@ Status ParseModelsConfig(Json::Value& config_value, CombinedModelConfig& config)
     return COSMO_NN_OK;
 }
 
-Status ParseModelInputOp(Json::Value& op_value, std::unique_ptr<Op>& op_out) {
+Status ParseModelInputOp(nlohmann::json& op_value, std::unique_ptr<Op>& op_out) {
     try {
-        auto op_name = Get<std::string>(op_value, Json::StaticString("op"));
+        auto op_name = Get<std::string>(op_value, "op");
         // todo: add more ops
         if (op_name == "resize") {
             auto resize     = std::make_unique<Resize>();
-            resize->dsize   = Get<std::vector<int>>(op_value, Json::StaticString("dsize"));
-            resize->gravity = Get<int>(op_value, Json::StaticString("gravity"),
-                                       Get<int>(op_value, Json::StaticString("padding_gravity"), 0));
-            resize->color   = Get<std::vector<int>>(op_value, Json::StaticString("color"));
-            resize->skip    = Get<bool>(op_value, Json::StaticString("skip"), false);
+            resize->dsize   = Get<std::vector<int>>(op_value, "dsize");
+            resize->gravity = Get<int>(op_value, "gravity",
+                                       Get<int>(op_value, "padding_gravity", 0));
+            resize->color   = Get<std::vector<int>>(op_value, "color");
+            resize->skip    = Get<bool>(op_value, "skip", false);
             op_out          = std::move(resize);
             return COSMO_NN_OK;
         } else if (op_name == "normalize") {
             auto normalize  = std::make_unique<Normalize>();
-            normalize->mean = Get<std::vector<float>>(op_value, Json::StaticString("mean"));
+            normalize->mean = Get<std::vector<float>>(op_value, "mean");
             normalize->std =
-                Get<std::vector<float>>(op_value, Json::StaticString("std"), std::vector<float>());
-            normalize->scale  = Get<float>(op_value, Json::StaticString("scale"));
-            normalize->is_bgr = Get<bool>(op_value, Json::StaticString("is_bgr"));
-            normalize->skip   = Get<bool>(op_value, Json::StaticString("skip"), false);
+                Get<std::vector<float>>(op_value, "std", std::vector<float>());
+            normalize->scale  = Get<float>(op_value, "scale");
+            normalize->is_bgr = Get<bool>(op_value, "is_bgr");
+            normalize->skip   = Get<bool>(op_value, "skip", false);
             op_out            = std::move(normalize);
             return COSMO_NN_OK;
         } else if (op_name == "crop" || op_name == "expand") {
@@ -428,10 +453,10 @@ Status ParseModelInputOp(Json::Value& op_value, std::unique_ptr<Op>& op_out) {
 
             // Unified signed ratio [-1, 1]: negative or 0 means crop on that side, positive means expand
             // (computed by sign at runtime)
-            float top    = Get<float>(op_value, Json::StaticString("h_top_crop"), 0.0f);
-            float bottom = Get<float>(op_value, Json::StaticString("h_bottom_crop"), 0.0f);
-            float left   = Get<float>(op_value, Json::StaticString("w_left_crop"), 0.0f);
-            float right  = Get<float>(op_value, Json::StaticString("w_right_crop"), 0.0f);
+            float top    = Get<float>(op_value, "h_top_crop", 0.0f);
+            float bottom = Get<float>(op_value, "h_bottom_crop", 0.0f);
+            float left   = Get<float>(op_value, "w_left_crop", 0.0f);
+            float right  = Get<float>(op_value, "w_right_crop", 0.0f);
 
             rect_crop->h_top_crop    = {top};
             rect_crop->h_bottom_crop = {bottom};
@@ -439,59 +464,59 @@ Status ParseModelInputOp(Json::Value& op_value, std::unique_ptr<Op>& op_out) {
             rect_crop->w_right_crop  = {right};
             rect_crop->bbox_hw_ratio_levels.clear();
 
-            rect_crop->square      = Get<bool>(op_value, Json::StaticString("square"), false);
-            rect_crop->square_mode = Get<int>(op_value, Json::StaticString("square_mode"), 0);
-            rect_crop->skip        = Get<bool>(op_value, Json::StaticString("skip"), false);
+            rect_crop->square      = Get<bool>(op_value, "square", false);
+            rect_crop->square_mode = Get<int>(op_value, "square_mode", 0);
+            rect_crop->skip        = Get<bool>(op_value, "skip", false);
 
             op_out = std::move(rect_crop);
             return COSMO_NN_OK;
         } else if (op_name == "affine_crop") {
             auto affine       = std::make_unique<AffineCrop>();
-            affine->norm_mode = Get<int>(op_value, Json::StaticString("NormMode"));
+            affine->norm_mode = Get<int>(op_value, "NormMode");
             if (affine->norm_mode < 0 || affine->norm_mode > 2)
                 return Status(COSMO_NN_ERR_JSON_PARSE, "affine NormMode tag must be in [0, 2].");
 
-            affine->norm_ratio   = Get<float>(op_value, Json::StaticString("norm_ratio"));
-            affine->output_hw    = Get<std::vector<int>>(op_value, Json::StaticString("output_hw"));
-            affine->center_index = Get<std::vector<int>>(op_value, Json::StaticString("center_index"));
-            affine->skip         = Get<bool>(op_value, Json::StaticString("skip"), false);
+            affine->norm_ratio   = Get<float>(op_value, "norm_ratio");
+            affine->output_hw    = Get<std::vector<int>>(op_value, "output_hw");
+            affine->center_index = Get<std::vector<int>>(op_value, "center_index");
+            affine->skip         = Get<bool>(op_value, "skip", false);
             op_out               = std::move(affine);
             return COSMO_NN_OK;
         } else if (op_name == "sequence") {
             auto sequence    = std::make_unique<Sequence>();
-            sequence->size   = Get<int>(op_value, Json::StaticString("size"));
-            sequence->scale  = Get<float>(op_value, Json::StaticString("scale"));
-            sequence->dsize  = Get<std::vector<int>>(op_value, Json::StaticString("dsize"));
-            sequence->is_bgr = Get<bool>(op_value, Json::StaticString("is_bgr"));
-            sequence->skip   = Get<bool>(op_value, Json::StaticString("skip"), false);
+            sequence->size   = Get<int>(op_value, "size");
+            sequence->scale  = Get<float>(op_value, "scale");
+            sequence->dsize  = Get<std::vector<int>>(op_value, "dsize");
+            sequence->is_bgr = Get<bool>(op_value, "is_bgr");
+            sequence->skip   = Get<bool>(op_value, "skip", false);
             op_out           = std::move(sequence);
             return COSMO_NN_OK;
         } else if (op_name == "combine_image") {
             auto combine_image        = std::make_unique<CombineImage>();
-            combine_image->count      = Get<int>(op_value, Json::StaticString("count"));
-            combine_image->dst_height = Get<int>(op_value, Json::StaticString("dst_height"));
-            combine_image->dst_width  = Get<int>(op_value, Json::StaticString("dst_width"));
-            combine_image->skip       = Get<bool>(op_value, Json::StaticString("skip"), false);
+            combine_image->count      = Get<int>(op_value, "count");
+            combine_image->dst_height = Get<int>(op_value, "dst_height");
+            combine_image->dst_width  = Get<int>(op_value, "dst_width");
+            combine_image->skip       = Get<bool>(op_value, "skip", false);
             op_out                    = std::move(combine_image);
             return COSMO_NN_OK;
         } else if (op_name == "dino_encode") {
             auto dino_encode        = std::make_unique<DinoEncoder>();
-            dino_encode->dst_height = Get<int>(op_value, Json::StaticString("dst_height"));
-            dino_encode->dst_width  = Get<int>(op_value, Json::StaticString("dst_width"));
-            dino_encode->is_bgr     = Get<bool>(op_value, Json::StaticString("is_bgr"));
-            dino_encode->mean       = Get<std::vector<float>>(op_value, Json::StaticString("mean"));
-            dino_encode->std        = Get<std::vector<float>>(op_value, Json::StaticString("std"));
-            dino_encode->skip       = Get<bool>(op_value, Json::StaticString("skip"), false);
+            dino_encode->dst_height = Get<int>(op_value, "dst_height");
+            dino_encode->dst_width  = Get<int>(op_value, "dst_width");
+            dino_encode->is_bgr     = Get<bool>(op_value, "is_bgr");
+            dino_encode->mean       = Get<std::vector<float>>(op_value, "mean");
+            dino_encode->std        = Get<std::vector<float>>(op_value, "std");
+            dino_encode->skip       = Get<bool>(op_value, "skip", false);
             op_out                  = std::move(dino_encode);
             return COSMO_NN_OK;
         } else if (op_name == "sam_prompt_encode") {
             auto sam_prompt_encode = std::make_unique<SAMPromptEncode>();
             sam_prompt_encode->prompt_type =
-                Get<std::string>(op_value, Json::StaticString("prompt_type"), "point");
-            sam_prompt_encode->normalize    = Get<bool>(op_value, Json::StaticString("normalize"), true);
-            sam_prompt_encode->encoder_size = Get<int>(op_value, Json::StaticString("encoder_size"), 1024);
-            sam_prompt_encode->max_points   = Get<int>(op_value, Json::StaticString("max_points"), 6);
-            sam_prompt_encode->skip         = Get<bool>(op_value, Json::StaticString("skip"), false);
+                Get<std::string>(op_value, "prompt_type", "point");
+            sam_prompt_encode->normalize    = Get<bool>(op_value, "normalize", true);
+            sam_prompt_encode->encoder_size = Get<int>(op_value, "encoder_size", 1024);
+            sam_prompt_encode->max_points   = Get<int>(op_value, "max_points", 6);
+            sam_prompt_encode->skip         = Get<bool>(op_value, "skip", false);
             op_out                          = std::move(sam_prompt_encode);
             return COSMO_NN_OK;
         } else {
@@ -503,36 +528,36 @@ Status ParseModelInputOp(Json::Value& op_value, std::unique_ptr<Op>& op_out) {
     return COSMO_NN_OK;
 }
 
-Status ParseModelOutputOp(Json::Value& op_value, std::unique_ptr<Op>& op_out) {
+Status ParseModelOutputOp(nlohmann::json& op_value, std::unique_ptr<Op>& op_out) {
     try {
         CheckObject(op_value, "output post_process node must be Object.");
-        auto op_name = Get<std::string>(op_value, Json::StaticString("op"));
+        auto op_name = Get<std::string>(op_value, "op");
         // todo: add more post process op
         if (op_name == "yolo_postprocess") {
             auto yolo_post                = std::make_unique<YoloPost>();
-            yolo_post->nms_threshold      = Get<float>(op_value, Json::StaticString("nms_threshold"));
-            yolo_post->nms_detection_conf = Get<float>(op_value, Json::StaticString("nms_detection_conf"));
-            yolo_post->top_k              = Get<int>(op_value, Json::StaticString("top_k"));
+            yolo_post->nms_threshold      = Get<float>(op_value, "nms_threshold");
+            yolo_post->nms_detection_conf = Get<float>(op_value, "nms_detection_conf");
+            yolo_post->top_k              = Get<int>(op_value, "top_k");
             op_out                        = std::move(yolo_post);
             return COSMO_NN_OK;
         } else if (op_name == "yolo_npu_postprocess") {
             auto yolo_npu_post           = std::make_unique<YoloNpuPost>();
-            yolo_npu_post->nms_threshold = Get<float>(op_value, Json::StaticString("nms_threshold"));
+            yolo_npu_post->nms_threshold = Get<float>(op_value, "nms_threshold");
             yolo_npu_post->nms_detection_conf =
-                Get<float>(op_value, Json::StaticString("nms_detection_conf"));
-            yolo_npu_post->top_k = Get<int>(op_value, Json::StaticString("top_k"));
+                Get<float>(op_value, "nms_detection_conf");
+            yolo_npu_post->top_k = Get<int>(op_value, "top_k");
             yolo_npu_post->anchors =
-                Get<std::vector<std::vector<std::vector<float>>>>(op_value, Json::StaticString("anchors"));
-            yolo_npu_post->stride = Get<std::vector<float>>(op_value, Json::StaticString("stride"));
+                Get<std::vector<std::vector<std::vector<float>>>>(op_value, "anchors");
+            yolo_npu_post->stride = Get<std::vector<float>>(op_value, "stride");
             std::string des       = yolo_npu_post->Description();
             op_out                = std::move(yolo_npu_post);
             return COSMO_NN_OK;
         } else if (op_name == "yolov8_postprocess") {
             // YOLOv8 uses the same output format as YOLOv5 when anchor decoding is in the model
             auto yolov8_post                = std::make_unique<YoloPost>("yolov8_postprocess");
-            yolov8_post->nms_threshold      = Get<float>(op_value, Json::StaticString("nms_threshold"));
-            yolov8_post->nms_detection_conf = Get<float>(op_value, Json::StaticString("nms_detection_conf"));
-            yolov8_post->top_k              = Get<int>(op_value, Json::StaticString("top_k"));
+            yolov8_post->nms_threshold      = Get<float>(op_value, "nms_threshold");
+            yolov8_post->nms_detection_conf = Get<float>(op_value, "nms_detection_conf");
+            yolov8_post->top_k              = Get<int>(op_value, "top_k");
             op_out                          = std::move(yolov8_post);
             return COSMO_NN_OK;
         } else if (op_name == "sum") {
@@ -540,32 +565,32 @@ Status ParseModelOutputOp(Json::Value& op_value, std::unique_ptr<Op>& op_out) {
             return COSMO_NN_OK;
         } else if (op_name == "arg_max") {
             auto arg_max  = std::make_unique<ArgMax>();
-            arg_max->axis = Get<int>(op_value, Json::StaticString("axis"));
+            arg_max->axis = Get<int>(op_value, "axis");
             op_out        = std::move(arg_max);
             return COSMO_NN_OK;
         } else if (op_name == "split") {
             auto split_op   = std::make_unique<Split>();
-            split_op->axis  = Get<int>(op_value, Json::StaticString("axis"));
-            split_op->split = Get<std::vector<int>>(op_value, Json::StaticString("split"));
+            split_op->axis  = Get<int>(op_value, "axis");
+            split_op->split = Get<std::vector<int>>(op_value, "split");
             op_out          = std::move(split_op);
             return COSMO_NN_OK;
         } else if (op_name == "split_arg_max") {
             auto split_arg_max   = std::make_unique<SplitArgMax>();
-            split_arg_max->split = Get<DimsVector>(op_value, Json::StaticString("split"));
+            split_arg_max->split = Get<DimsVector>(op_value, "split");
             op_out               = std::move(split_arg_max);
             return COSMO_NN_OK;
         } else if (op_name == "dino_decode") {
             auto dino_decode            = std::make_unique<DinoDecode>();
-            dino_decode->text_threshold = Get<float>(op_value, Json::StaticString("text_threshold"));
-            dino_decode->box_threshold  = Get<float>(op_value, Json::StaticString("box_threshold"));
+            dino_decode->text_threshold = Get<float>(op_value, "text_threshold");
+            dino_decode->box_threshold  = Get<float>(op_value, "box_threshold");
             op_out                      = std::move(dino_decode);
             return COSMO_NN_OK;
         } else if (op_name == "sam_decode") {
             auto sam_decode       = std::make_unique<SAMDecode>();
-            sam_decode->threshold = Get<float>(op_value, Json::StaticString("threshold"), 0.0f);
+            sam_decode->threshold = Get<float>(op_value, "threshold", 0.0f);
             sam_decode->output_size =
-                Get<std::vector<int>>(op_value, Json::StaticString("output_size"), std::vector<int>());
-            sam_decode->skip = Get<bool>(op_value, Json::StaticString("skip"), false);
+                Get<std::vector<int>>(op_value, "output_size", std::vector<int>());
+            sam_decode->skip = Get<bool>(op_value, "skip", false);
             op_out           = std::move(sam_decode);
             return COSMO_NN_OK;
         } else {
@@ -577,7 +602,7 @@ Status ParseModelOutputOp(Json::Value& op_value, std::unique_ptr<Op>& op_out) {
     return COSMO_NN_OK;
 }
 
-Status ParseModelInputOps(Json::Value& ops_value, std::vector<std::unique_ptr<Op>>& ops) {
+Status ParseModelInputOps(nlohmann::json& ops_value, std::vector<std::unique_ptr<Op>>& ops) {
     try {
         auto input_node_ops_size = ops_value.size();
         if (input_node_ops_size < 1)
@@ -585,7 +610,7 @@ Status ParseModelInputOps(Json::Value& ops_value, std::vector<std::unique_ptr<Op
 
         ops.resize(input_node_ops_size);
         for (unsigned int i = 0; i < input_node_ops_size; i++) {
-            Json::Value op_value = ops_value[i];
+            nlohmann::json op_value = ops_value[i];
             CheckNullAndObject(op_value, "preprocess element must not be null and must be Object.");
             RETURN_ON_FAIL(ParseModelInputOp(op_value, ops.at(i)));
         }
@@ -595,15 +620,15 @@ Status ParseModelInputOps(Json::Value& ops_value, std::vector<std::unique_ptr<Op
     return COSMO_NN_OK;
 }
 
-Status ParseModelInputNode(Json::Value& input_node_info_value, InputNodeInfo& input_node) {
+Status ParseModelInputNode(nlohmann::json& input_node_info_value, InputNodeInfo& input_node) {
     try {
-        input_node.name  = Get<std::string>(input_node_info_value, Json::StaticString("input_node"));
-        input_node.shape = Get<DimsVector>(input_node_info_value, Json::StaticString("shape"));
+        input_node.name  = Get<std::string>(input_node_info_value, "input_node");
+        input_node.shape = Get<DimsVector>(input_node_info_value, "shape");
 
-        input_node.data_type      = Get<int>(input_node_info_value, Json::StaticString("data_type"));
-        auto input_node_ops_value = Get<Json::Value>(input_node_info_value, Json::StaticString("preprocess"),
-                                                     Json::Value::nullSingleton());
-        if (!input_node_ops_value.isNull()) {
+        input_node.data_type      = Get<int>(input_node_info_value, "data_type");
+        auto input_node_ops_value = Get<nlohmann::json>(input_node_info_value, "preprocess",
+                                                     nlohmann::json());
+        if (!input_node_ops_value.is_null()) {
             CheckArray(input_node_ops_value, "input node ops must be Array.");
             RETURN_ON_FAIL(ParseModelInputOps(input_node_ops_value, input_node.ops));
         }
@@ -613,7 +638,7 @@ Status ParseModelInputNode(Json::Value& input_node_info_value, InputNodeInfo& in
     return COSMO_NN_OK;
 }
 
-Status ParseModelInputNodes(Json::Value& input_node_infos_value,
+Status ParseModelInputNodes(nlohmann::json& input_node_infos_value,
                             std::vector<InputNodeInfo>& input_node_infos) {
     try {
         auto input_node_infos_size = input_node_infos_value.size();
@@ -633,14 +658,14 @@ Status ParseModelInputNodes(Json::Value& input_node_infos_value,
     return COSMO_NN_OK;
 }
 
-Status ParseModelOutputNode(Json::Value& output_node_value, OutputNodeInfo& output_node) {
+Status ParseModelOutputNode(nlohmann::json& output_node_value, OutputNodeInfo& output_node) {
     try {
-        output_node.name      = Get<std::string>(output_node_value, Json::StaticString("output_node"));
-        output_node.shape     = Get<DimsVector>(output_node_value, Json::StaticString("shape"));
-        output_node.data_type = Get<int>(output_node_value, Json::StaticString("data_type"));
-        auto output_node_post_process_value = Get<Json::Value>(
-            output_node_value, Json::StaticString("post_process"), Json::Value::nullSingleton());
-        if (!output_node_post_process_value.isNull())
+        output_node.name      = Get<std::string>(output_node_value, "output_node");
+        output_node.shape     = Get<DimsVector>(output_node_value, "shape");
+        output_node.data_type = Get<int>(output_node_value, "data_type");
+        auto output_node_post_process_value = Get<nlohmann::json>(
+            output_node_value, "post_process", nlohmann::json());
+        if (!output_node_post_process_value.is_null())
             RETURN_ON_FAIL(ParseModelOutputOp(output_node_post_process_value, output_node.op));
     } catch (std::exception& e) {
         return Status(COSMO_NN_ERR_JSON_PARSE, e.what());
@@ -648,7 +673,7 @@ Status ParseModelOutputNode(Json::Value& output_node_value, OutputNodeInfo& outp
     return COSMO_NN_OK;
 }
 
-Status ParseModelOutputNodes(Json::Value& output_node_infos_value,
+Status ParseModelOutputNodes(nlohmann::json& output_node_infos_value,
                              std::vector<OutputNodeInfo>& output_node_infos) {
     try {
         auto output_node_size = output_node_infos_value.size();
@@ -657,7 +682,7 @@ Status ParseModelOutputNodes(Json::Value& output_node_infos_value,
 
         output_node_infos.resize(output_node_size);
         for (unsigned int i = 0; i < output_node_size; i++) {
-            Json::Value output_node_value = output_node_infos_value[i];
+            nlohmann::json output_node_value = output_node_infos_value[i];
             CheckNullAndObject(output_node_value, "output_node_infos element must be Object.");
             RETURN_ON_FAIL(ParseModelOutputNode(output_node_value, output_node_infos.at(i)));
         }
@@ -667,18 +692,18 @@ Status ParseModelOutputNodes(Json::Value& output_node_infos_value,
     return COSMO_NN_OK;
 }
 
-Status ParseModelInfoInner(Json::Value& info_value, ModelInfo& model_info) {
+Status ParseModelInfoInner(nlohmann::json& info_value, ModelInfo& model_info) {
     try {
-        model_info.description      = Get<std::string>(info_value, Json::StaticString("description"), "");
-        model_info.name             = Get<std::string>(info_value, Json::StaticString("name"));
-        model_info.filename         = Get<std::string>(info_value, Json::StaticString("file_name"));
-        model_info.file_md5         = Get<std::string>(info_value, Json::StaticString("file_MD5"), "");
-        model_info.max_batch        = Get<int>(info_value, Json::StaticString("max_batch"));
-        auto input_node_infos_value = Get<Json::Value>(info_value, Json::StaticString("inputs"));
+        model_info.description      = Get<std::string>(info_value, "description", "");
+        model_info.name             = Get<std::string>(info_value, "name");
+        model_info.filename         = Get<std::string>(info_value, "file_name");
+        model_info.file_md5         = Get<std::string>(info_value, "file_MD5", "");
+        model_info.max_batch        = Get<int>(info_value, "max_batch");
+        auto input_node_infos_value = Get<nlohmann::json>(info_value, "inputs");
         CheckArray(input_node_infos_value, "inputs must be Array.");
         RETURN_ON_FAIL(ParseModelInputNodes(input_node_infos_value, model_info.input_node_infos));
 
-        auto output_node_infos_value = Get<Json::Value>(info_value, Json::StaticString("outputs"));
+        auto output_node_infos_value = Get<nlohmann::json>(info_value, "outputs");
         CheckArray(output_node_infos_value, "outputs must be Array.");
         RETURN_ON_FAIL(ParseModelOutputNodes(output_node_infos_value, model_info.output_node_infos));
     } catch (std::exception& e) {
@@ -688,7 +713,7 @@ Status ParseModelInfoInner(Json::Value& info_value, ModelInfo& model_info) {
     return COSMO_NN_OK;
 }
 
-Status ParseModelsInfo(Json::Value& model_value, std::vector<ModelInfo>& models) {
+Status ParseModelsInfo(nlohmann::json& model_value, std::vector<ModelInfo>& models) {
     try {
         CheckArray(model_value, "model must be Array.");
         auto model_size = model_value.size();
@@ -708,15 +733,15 @@ Status ParseModelsInfo(Json::Value& model_value, std::vector<ModelInfo>& models)
     return COSMO_NN_OK;
 }
 
-Status ParseModelConvert(Json::Value& convert_value, Convert& convert) {
+Status ParseModelConvert(nlohmann::json& convert_value, Convert& convert) {
     try {
         CheckObject(convert_value, "config value must be Object.");
-        convert.type      = Get<std::string>(convert_value, Json::StaticString("type"));
-        convert.max_batch = Get<int>(convert_value, Json::StaticString("max_batch"));
-        convert.precision = Get<std::string>(convert_value, Json::StaticString("precision"));
+        convert.type      = Get<std::string>(convert_value, "type");
+        convert.max_batch = Get<int>(convert_value, "max_batch");
+        convert.precision = Get<std::string>(convert_value, "precision");
         auto models_value =
-            Get<Json::Value>(convert_value, Json::StaticString("model"), Json::Value::nullSingleton());
-        if (models_value.isNull())
+            Get<nlohmann::json>(convert_value, "model", nlohmann::json());
+        if (models_value.is_null())
             return COSMO_NN_OK;
 
         CheckArray(models_value, "model must be Array.");
@@ -724,15 +749,15 @@ Status ParseModelConvert(Json::Value& convert_value, Convert& convert) {
         for (unsigned int i = 0; i < models_value.size(); i++) {
             auto model_value = models_value[i];
             CheckNullAndObject(model_value, "inner must be Object.");
-            convert.models.at(i).mean  = Get<std::vector<float>>(model_value, Json::StaticString("mean"), {});
-            convert.models.at(i).scale = Get<float>(model_value, Json::StaticString("scale"), 0.f);
-            convert.models.at(i).is_bgr = Get<bool>(model_value, Json::StaticString("is_bgr"), false);
+            convert.models.at(i).mean  = Get<std::vector<float>>(model_value, "mean", {});
+            convert.models.at(i).scale = Get<float>(model_value, "scale", 0.f);
+            convert.models.at(i).is_bgr = Get<bool>(model_value, "is_bgr", false);
             convert.models.at(i).is_opconvert =
-                Get<bool>(model_value, Json::StaticString("is_opconvert"), true);
+                Get<bool>(model_value, "is_opconvert", true);
             convert.models.at(i).is_optimize =
-                Get<bool>(model_value, Json::StaticString("is_optimize"), true);
+                Get<bool>(model_value, "is_optimize", true);
             convert.models.at(i).is_normalize =
-                Get<bool>(model_value, Json::StaticString("is_normalize"), false);
+                Get<bool>(model_value, "is_normalize", false);
         }
     } catch (std::exception& e) {
         return Status(COSMO_NN_ERR_JSON_PARSE, e.what());
@@ -742,34 +767,27 @@ Status ParseModelConvert(Json::Value& convert_value, Convert& convert) {
 }
 
 Status ModelInfoUtils::ParseModelInfo(const std::string& info_content_, CombinedModelInfo& info) {
-    const auto rawJsonLength = static_cast<int>(info_content_.length());
-
-    JSONCPP_STRING err;
-    Json::Value root;
-
-    Json::CharReaderBuilder builder;
-    const std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
-
-    if (!reader->parse(info_content_.c_str(), info_content_.c_str() + rawJsonLength, &root, &err)) {
-        return Status(COSMO_NN_ERR_JSON_PARSE, err);
+    nlohmann::json root = nlohmann::json::parse(info_content_, nullptr, false);
+    if (root.is_discarded()) {
+        return Status(COSMO_NN_ERR_JSON_PARSE, "Failed to parse model info JSON");
     }
 
     try {
         CheckNullAndObject(root, "root must be Object.");
-        info.reduce        = Get<std::string>(root, Json::StaticString("reduce"), "");
-        info.type          = Get<std::string>(root, Json::StaticString("type"));
-        info.algorithmcode = Get<std::string>(root, Json::StaticString("algorithmcode"));
-        auto model_value   = Get<Json::Value>(root, Json::StaticString("model"));
+        info.reduce        = Get<std::string>(root, "reduce", "");
+        info.type          = Get<std::string>(root, "type");
+        info.algorithmcode = Get<std::string>(root, "algorithmcode");
+        auto model_value   = Get<nlohmann::json>(root, "model");
         RETURN_ON_FAIL(ParseModelsInfo(model_value, info.models));
 
         auto config_value =
-            Get<Json::Value>(root, Json::StaticString("config"), Json::Value::nullSingleton());
-        if (!config_value.isNull())
+            Get<nlohmann::json>(root, "config", nlohmann::json());
+        if (!config_value.is_null())
             RETURN_ON_FAIL(ParseModelsConfig(config_value, info.config));
 
         auto convert_value =
-            Get<Json::Value>(root, Json::StaticString("cwnn_convert"), Json::Value::nullSingleton());
-        if (!convert_value.isNull())
+            Get<nlohmann::json>(root, "cwnn_convert", nlohmann::json());
+        if (!convert_value.is_null())
             RETURN_ON_FAIL(ParseModelConvert(convert_value, info.convert));
 
     } catch (const std::runtime_error& e) {

@@ -1,7 +1,5 @@
 #include "nn/device/sophon/qwen3vl/qwen3vl_runner.h"
 
-#include <json/json.h>
-
 #include <algorithm>
 #include <chrono>
 #include <cstring>
@@ -9,6 +7,8 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+
+#include <nlohmann/json.hpp>
 
 #include "bmlib_runtime.h"
 #include "nn/core/blob.h"
@@ -28,6 +28,12 @@ namespace {
     const int SPATIAL_MERGE_SIZE = 2;
     const int NUM_GRID_PER_SIDE  = 48;
     const int TOKENS_PER_SECOND  = 2;
+    constexpr std::streamoff kMaxJsonFileBytes = 10 * 1024 * 1024;
+
+    bool LooksLikeJsonContent(const std::string& value) {
+        const auto first = value.find_first_not_of(" \t\r\n");
+        return first != std::string::npos && (value[first] == '{' || value[first] == '[');
+    }
 
     std::string EscapeForLog(const std::string& s, size_t max_len = 512) {
         std::string out;
@@ -104,49 +110,55 @@ namespace {
         return false;
     }
 
-    Json::Value ParseModelConfigRoot(const std::string& model_config_json_path) {
-        Json::Value root;
-        if (!model_config_json_path.empty() && model_config_json_path[0] == '{') {
-            Json::Reader reader;
-            reader.parse(model_config_json_path, root);
-        } else {
-            std::ifstream in(model_config_json_path);
-            if (in.good())
-                in >> root;
+    nlohmann::json ParseModelConfigRoot(const std::string& model_config_json_path) {
+        if (LooksLikeJsonContent(model_config_json_path)) {
+            auto root = nlohmann::json::parse(model_config_json_path, nullptr, false);
+            if (!root.is_discarded())
+                return root.is_object() ? root : nlohmann::json::object();
         }
-        return root;
+
+        std::ifstream in(model_config_json_path, std::ios::binary | std::ios::ate);
+        if (in.good()) {
+            const auto size = in.tellg();
+            if (size < 0 || size > kMaxJsonFileBytes)
+                return nlohmann::json::object();
+            in.seekg(0, std::ios::beg);
+            auto root = nlohmann::json::parse(in, nullptr, false);
+            return root.is_discarded() || !root.is_object() ? nlohmann::json::object() : root;
+        }
+        return nlohmann::json::object();
     }
 
     bool ReadDoSampleFromModelConfig(const std::string& model_config_json_path) {
-        Json::Value root     = ParseModelConfigRoot(model_config_json_path);
-        const Json::Value* g = nullptr;
-        if (root.isMember("config") && root["config"].isObject() && root["config"].isMember("generation") &&
-            root["config"]["generation"].isObject()) {
+        nlohmann::json root     = ParseModelConfigRoot(model_config_json_path);
+        const nlohmann::json* g = nullptr;
+        if (root.contains("config") && root["config"].is_object() && root["config"].contains("generation") &&
+            root["config"]["generation"].is_object()) {
             g = &root["config"]["generation"];
-        } else if (root.isMember("generation") && root["generation"].isObject()) {
+        } else if (root.contains("generation") && root["generation"].is_object()) {
             g = &root["generation"];
         }
         if (!g)
             return false;
-        if (!g->isMember("do_sample"))
+        if (!g->contains("do_sample") || !(*g)["do_sample"].is_boolean())
             return false;
-        return (*g)["do_sample"].asBool();
+        return (*g)["do_sample"].get<bool>();
     }
 
     // Read optional max_pixels config from config.json model_params
     // Returns 0 if not configured (use default)
     int ReadMaxPixelsFromModelConfig(const std::string& model_config_json_path) {
-        Json::Value root      = ParseModelConfigRoot(model_config_json_path);
-        const Json::Value* mp = nullptr;
-        if (root.isMember("config") && root["config"].isObject() && root["config"].isMember("model_params") &&
-            root["config"]["model_params"].isObject()) {
+        nlohmann::json root      = ParseModelConfigRoot(model_config_json_path);
+        const nlohmann::json* mp = nullptr;
+        if (root.contains("config") && root["config"].is_object() && root["config"].contains("model_params") &&
+            root["config"]["model_params"].is_object()) {
             mp = &root["config"]["model_params"];
-        } else if (root.isMember("model_params") && root["model_params"].isObject()) {
+        } else if (root.contains("model_params") && root["model_params"].is_object()) {
             mp = &root["model_params"];
         }
-        if (!mp || !mp->isMember("max_pixels"))
+        if (!mp || !mp->contains("max_pixels") || !(*mp)["max_pixels"].is_number_integer())
             return 0;
-        return (*mp)["max_pixels"].asInt();
+        return (*mp)["max_pixels"].get<int>();
     }
 
     std::string GetPromptFromBlob(Blob* prompt_blob) {
@@ -348,7 +360,8 @@ Status Qwen3VLRunner::Init(const std::string& model_path, const std::string& tok
               << " do_sample=" << (impl_->do_sample ? 1 : 0) << " config_json="
               << (model_config_json_path.empty()
                       ? "(empty)"
-                      : (model_config_json_path[0] == '{' ? "(inline_json)" : model_config_json_path))
+                      : (LooksLikeJsonContent(model_config_json_path) ? "(inline_json)"
+                                                                      : model_config_json_path))
               << " tokenizer=" << tokenizer_path << " id_im_end=" << impl_->ID_IM_END
               << " id_vision_start=" << impl_->ID_VISION_START << " image_pad=" << impl_->IMAGE_PAD_TOKEN
               << std::endl;

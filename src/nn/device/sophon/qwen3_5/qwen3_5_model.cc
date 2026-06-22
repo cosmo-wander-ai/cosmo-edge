@@ -1,7 +1,6 @@
 #include "nn/device/sophon/qwen3_5/qwen3_5_model.h"
 
 #include <assert.h>
-#include <json/json.h>
 
 #include <cstring>
 #include <fstream>

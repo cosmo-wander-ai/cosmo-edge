@@ -2,57 +2,47 @@
 
 #include <cstdio>
 
-#include "json/json.h"
+#include <nlohmann/json.hpp>
+
 #include "nn/pipeline/pipeline_utils.h"
 
 namespace cosmo::nn {
 
 // ─── Internal Helpers ─────────────────────────────────────────
 
-static Json::Value SafeParams(const PipelineModelConfig& mc) {
-    if (mc.params_json.empty())
-        return Json::Value(Json::objectValue);
-    Json::Reader reader;
-    Json::Value val;
-    if (!reader.parse(mc.params_json, val))
-        return Json::Value(Json::objectValue);
-    return val;
+static bool ReadYoloNpuPostParams(const nlohmann::json& json,
+                                  std::vector<std::vector<std::vector<float>>>& anchors,
+                                  std::vector<float>& stride) {
+    anchors = pipeline_utils::ReadFloat3DArray(json, "anchors", {}, 1, 1, 2);
+    stride  = pipeline_utils::ReadFloatArray(json, "stride", {}, 1);
+
+    if (anchors.empty() || stride.empty() || anchors.size() != stride.size())
+        return false;
+
+    for (const auto& grid : anchors) {
+        if (grid.empty())
+            return false;
+        for (const auto& anchor : grid) {
+            if (anchor.size() < 2)
+                return false;
+        }
+    }
+    return true;
 }
 
-static std::vector<std::unique_ptr<Op>> MakeDetPreprocess(const Json::Value& p) {
+static std::vector<std::unique_ptr<Op>> MakeDetPreprocess(const nlohmann::json& p) {
     std::vector<std::unique_ptr<Op>> ops;
 
-    std::vector<int> dsize = {640, 640};
-    if (p.isMember("input_size") && p["input_size"].isArray()) {
-        dsize.clear();
-        for (unsigned i = 0; i < p["input_size"].size(); i++)
-            dsize.push_back(p["input_size"][i].asInt());
-    }
-
-    int gravity            = p.get("gravity", p.get("padding_gravity", 0).asInt()).asInt();
-    std::vector<int> color = {114, 114, 114};
-    if (p.isMember("padding_color") && p["padding_color"].isArray()) {
-        color.clear();
-        for (unsigned i = 0; i < p["padding_color"].size(); i++)
-            color.push_back(p["padding_color"][i].asInt());
-    }
+    std::vector<int> dsize = pipeline_utils::ReadIntArray(p, "input_size", {640, 640}, 2);
+    int gravity = pipeline_utils::ReadInt(p, "gravity", pipeline_utils::ReadInt(p, "padding_gravity", 0));
+    std::vector<int> color = pipeline_utils::ReadIntArray(p, "padding_color", {114, 114, 114}, 1);
 
     ops.push_back(pipeline_utils::MakeResizeOp(dsize, gravity, color));
 
-    std::vector<float> mean = {0.f, 0.f, 0.f};
-    if (p.isMember("normalize_mean") && p["normalize_mean"].isArray()) {
-        mean.clear();
-        for (unsigned i = 0; i < p["normalize_mean"].size(); i++)
-            mean.push_back(p["normalize_mean"][i].asFloat());
-    }
-    float scale = p.get("normalize_scale", 0.00392157f).asFloat();
-    bool is_bgr = p.get("is_bgr", true).asBool();
-
-    std::vector<float> std_dev;
-    if (p.isMember("normalize_std") && p["normalize_std"].isArray()) {
-        for (unsigned i = 0; i < p["normalize_std"].size(); i++)
-            std_dev.push_back(p["normalize_std"][i].asFloat());
-    }
+    std::vector<float> mean = pipeline_utils::ReadFloatArray(p, "normalize_mean", {0.f, 0.f, 0.f}, 3);
+    float scale  = pipeline_utils::ReadFloat(p, "normalize_scale", 0.00392157f);
+    bool is_bgr  = pipeline_utils::ReadBool(p, "is_bgr", true);
+    std::vector<float> std_dev = pipeline_utils::ReadFloatArray(p, "normalize_std", {}, 3);
 
     ops.push_back(pipeline_utils::MakeNormalizeOp(mean, scale, is_bgr, std_dev));
     return ops;
@@ -108,7 +98,7 @@ Status YoloV5DetPipeline::Init(const PipelineConfig& config, const std::string& 
     model_info_.type          = "yolov5_det";
 
     for (auto& mc : config.models) {
-        Json::Value p = SafeParams(mc);
+        nlohmann::json p = pipeline_utils::ParseJsonObject(mc.params_json);
         ModelInfo model;
         model.name      = mc.name;
         model.filename  = mc.file_name;
@@ -125,16 +115,17 @@ Status YoloV5DetPipeline::Init(const PipelineConfig& config, const std::string& 
             model.input_node_infos.push_back(std::move(input));
         }
 
-        float nms_thresh  = p.get("nms_threshold", 0.35f).asFloat();
-        float conf_thresh = p.get("confidence_threshold", 0.1f).asFloat();
-        int top_k         = p.get("top_k", 1000).asInt();
-        bool use_npu_post = p.get("use_npu_postprocess", false).asBool();
+        float nms_thresh  = pipeline_utils::ReadFloat(p, "nms_threshold", 0.35f);
+        float conf_thresh = pipeline_utils::ReadFloat(p, "confidence_threshold", 0.1f);
+        int top_k         = pipeline_utils::ReadInt(p, "top_k", 1000);
+        bool use_npu_post = pipeline_utils::ReadBool(p, "use_npu_postprocess", false);
 
         // Extract input size for coordinate denormalization
         int v5_input_w = 640, v5_input_h = 640;
-        if (p.isMember("input_size") && p["input_size"].isArray() && p["input_size"].size() >= 2) {
-            v5_input_w = p["input_size"][0].asInt();
-            v5_input_h = p["input_size"][1].asInt();
+        std::vector<int> input_size = pipeline_utils::ReadIntArray(p, "input_size", {}, 2);
+        if (input_size.size() >= 2) {
+            v5_input_w = input_size[0];
+            v5_input_h = input_size[1];
         }
 
         for (size_t i = 0; i < mc.outputs.size(); i++) {
@@ -148,21 +139,10 @@ Status YoloV5DetPipeline::Init(const PipelineConfig& config, const std::string& 
                 if (use_npu_post) {
                     std::vector<std::vector<std::vector<float>>> anchors;
                     std::vector<float> stride;
-                    if (p.isMember("anchors") && p["anchors"].isArray()) {
-                        for (unsigned a = 0; a < p["anchors"].size(); a++) {
-                            std::vector<std::vector<float>> grid;
-                            for (unsigned b = 0; b < p["anchors"][a].size(); b++) {
-                                std::vector<float> anchor;
-                                for (unsigned c = 0; c < p["anchors"][a][b].size(); c++)
-                                    anchor.push_back(p["anchors"][a][b][c].asFloat());
-                                grid.push_back(anchor);
-                            }
-                            anchors.push_back(grid);
-                        }
+                    if (!ReadYoloNpuPostParams(p, anchors, stride)) {
+                        return Status(COSMO_NN_ERR_PARAM,
+                                      "Invalid yolo_npu anchors/stride config");
                     }
-                    if (p.isMember("stride") && p["stride"].isArray())
-                        for (unsigned s = 0; s < p["stride"].size(); s++)
-                            stride.push_back(p["stride"][s].asFloat());
                     output.op =
                         pipeline_utils::MakeYoloNpuPostOp(nms_thresh, conf_thresh, top_k, anchors, stride);
                 } else {
@@ -211,7 +191,7 @@ Status YoloV8DetPipeline::Init(const PipelineConfig& config, const std::string& 
     model_info_.type          = "yolov8_det";
 
     for (auto& mc : config.models) {
-        Json::Value p = SafeParams(mc);
+        nlohmann::json p = pipeline_utils::ParseJsonObject(mc.params_json);
         ModelInfo model;
         model.name      = mc.name;
         model.filename  = mc.file_name;
@@ -228,15 +208,16 @@ Status YoloV8DetPipeline::Init(const PipelineConfig& config, const std::string& 
             model.input_node_infos.push_back(std::move(input));
         }
 
-        float nms_thresh  = p.get("nms_threshold", 0.7f).asFloat();
-        float conf_thresh = p.get("confidence_threshold", 0.25f).asFloat();
-        int top_k         = p.get("top_k", 300).asInt();
+        float nms_thresh  = pipeline_utils::ReadFloat(p, "nms_threshold", 0.7f);
+        float conf_thresh = pipeline_utils::ReadFloat(p, "confidence_threshold", 0.25f);
+        int top_k         = pipeline_utils::ReadInt(p, "top_k", 300);
 
         // Extract input size for coordinate denormalization
         int post_input_w = 640, post_input_h = 640;
-        if (p.isMember("input_size") && p["input_size"].isArray() && p["input_size"].size() >= 2) {
-            post_input_w = p["input_size"][0].asInt();
-            post_input_h = p["input_size"][1].asInt();
+        std::vector<int> input_size = pipeline_utils::ReadIntArray(p, "input_size", {}, 2);
+        if (input_size.size() >= 2) {
+            post_input_w = input_size[0];
+            post_input_h = input_size[1];
         }
 
         for (size_t i = 0; i < mc.outputs.size(); i++) {
@@ -289,7 +270,7 @@ Status Yolo26DetPipeline::Init(const PipelineConfig& config, const std::string& 
     model_info_.type          = "yolo26_det";
 
     for (auto& mc : config.models) {
-        Json::Value p = SafeParams(mc);
+        nlohmann::json p = pipeline_utils::ParseJsonObject(mc.params_json);
         ModelInfo model;
         model.name      = mc.name;
         model.filename  = mc.file_name;
@@ -306,14 +287,15 @@ Status Yolo26DetPipeline::Init(const PipelineConfig& config, const std::string& 
             model.input_node_infos.push_back(std::move(input));
         }
 
-        float conf_thresh = p.get("confidence_threshold", 0.25f).asFloat();
-        int top_k         = p.get("top_k", 300).asInt();
+        float conf_thresh = pipeline_utils::ReadFloat(p, "confidence_threshold", 0.25f);
+        int top_k         = pipeline_utils::ReadInt(p, "top_k", 300);
 
         // Extract input size for coordinate denormalization
         int e2e_input_w = 640, e2e_input_h = 640;
-        if (p.isMember("input_size") && p["input_size"].isArray() && p["input_size"].size() >= 2) {
-            e2e_input_w = p["input_size"][0].asInt();
-            e2e_input_h = p["input_size"][1].asInt();
+        std::vector<int> input_size = pipeline_utils::ReadIntArray(p, "input_size", {}, 2);
+        if (input_size.size() >= 2) {
+            e2e_input_w = input_size[0];
+            e2e_input_h = input_size[1];
         }
 
         for (size_t i = 0; i < mc.outputs.size(); i++) {
@@ -365,7 +347,7 @@ Status GenericDetectorPipeline::Init(const PipelineConfig& config, const std::st
     model_info_.type          = "detector";
 
     for (auto& mc : config.models) {
-        Json::Value p = SafeParams(mc);
+        nlohmann::json p = pipeline_utils::ParseJsonObject(mc.params_json);
         ModelInfo model;
         model.name      = mc.name;
         model.filename  = mc.file_name;
@@ -382,10 +364,10 @@ Status GenericDetectorPipeline::Init(const PipelineConfig& config, const std::st
             model.input_node_infos.push_back(std::move(input));
         }
 
-        std::string post_type = p.get("post_type", "yolo").asString();
-        float nms_thresh      = p.get("nms_threshold", 0.35f).asFloat();
-        float conf_thresh     = p.get("confidence_threshold", 0.1f).asFloat();
-        int top_k             = p.get("top_k", 1000).asInt();
+        std::string post_type = pipeline_utils::ReadString(p, "post_type", std::string("yolo"));
+        float nms_thresh      = pipeline_utils::ReadFloat(p, "nms_threshold", 0.35f);
+        float conf_thresh     = pipeline_utils::ReadFloat(p, "confidence_threshold", 0.1f);
+        int top_k             = pipeline_utils::ReadInt(p, "top_k", 1000);
 
         for (size_t i = 0; i < mc.outputs.size(); i++) {
             auto& out_def = mc.outputs[i];
@@ -397,9 +379,10 @@ Status GenericDetectorPipeline::Init(const PipelineConfig& config, const std::st
             if (i == 0) {
                 // Extract input size for coordinate denormalization
                 int gd_input_w = 640, gd_input_h = 640;
-                if (p.isMember("input_size") && p["input_size"].isArray() && p["input_size"].size() >= 2) {
-                    gd_input_w = p["input_size"][0].asInt();
-                    gd_input_h = p["input_size"][1].asInt();
+                std::vector<int> input_size = pipeline_utils::ReadIntArray(p, "input_size", {}, 2);
+                if (input_size.size() >= 2) {
+                    gd_input_w = input_size[0];
+                    gd_input_h = input_size[1];
                 }
                 if (post_type == "yolov8") {
                     output.op = pipeline_utils::MakeYoloV8PostOp(nms_thresh, conf_thresh, top_k, gd_input_w,
@@ -409,20 +392,10 @@ Status GenericDetectorPipeline::Init(const PipelineConfig& config, const std::st
                 } else if (post_type == "yolo_npu") {
                     std::vector<std::vector<std::vector<float>>> anchors;
                     std::vector<float> stride;
-                    if (p.isMember("anchors") && p["anchors"].isArray())
-                        for (unsigned a = 0; a < p["anchors"].size(); a++) {
-                            std::vector<std::vector<float>> grid;
-                            for (unsigned b = 0; b < p["anchors"][a].size(); b++) {
-                                std::vector<float> anchor;
-                                for (unsigned c = 0; c < p["anchors"][a][b].size(); c++)
-                                    anchor.push_back(p["anchors"][a][b][c].asFloat());
-                                grid.push_back(anchor);
-                            }
-                            anchors.push_back(grid);
-                        }
-                    if (p.isMember("stride") && p["stride"].isArray())
-                        for (unsigned s = 0; s < p["stride"].size(); s++)
-                            stride.push_back(p["stride"][s].asFloat());
+                    if (!ReadYoloNpuPostParams(p, anchors, stride)) {
+                        return Status(COSMO_NN_ERR_PARAM,
+                                      "Invalid yolo_npu anchors/stride config");
+                    }
                     output.op =
                         pipeline_utils::MakeYoloNpuPostOp(nms_thresh, conf_thresh, top_k, anchors, stride);
                 } else {

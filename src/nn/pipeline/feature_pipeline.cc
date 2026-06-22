@@ -3,7 +3,8 @@
 #include <cmath>
 #include <vector>
 
-#include "json/json.h"
+#include <nlohmann/json.hpp>
+
 #include "nn/pipeline/pipeline_utils.h"
 
 namespace cosmo::nn {
@@ -17,11 +18,7 @@ Status FeaturePipeline::Init(const PipelineConfig& config, const std::string& mo
     model_info_.type          = "feature";
 
     for (auto& mc : config.models) {
-        Json::Value p(Json::objectValue);
-        if (!mc.params_json.empty()) {
-            Json::Reader r;
-            r.parse(mc.params_json, p);
-        }
+        nlohmann::json p = pipeline_utils::ParseJsonObject(mc.params_json);
 
         ModelInfo model;
         model.name      = mc.name;
@@ -32,86 +29,58 @@ Status FeaturePipeline::Init(const PipelineConfig& config, const std::string& mo
 
         std::vector<std::unique_ptr<Op>> preprocess;
         bool use_affine = false;
-        if (p.isMember("use_affine_crop")) {
-            use_affine = p["use_affine_crop"].asBool();
-        } else if (p.isMember("crop") && p["crop"].asBool()) {
+        if (p.contains("use_affine_crop")) {
+            use_affine = pipeline_utils::ReadBool(p, "use_affine_crop", false);
+        } else if (pipeline_utils::ReadBool(p, "crop", false)) {
             use_affine = false;
         } else {
             use_affine = true;
         }
 
         if (use_affine) {
-            float norm_ratio           = p.get("norm_ratio", 0.4f).asFloat();
-            int norm_mode              = p.get("norm_mode", 1).asInt();
-            std::vector<int> output_hw = {112, 112};
-            if (p.isMember("output_hw") && p["output_hw"].isArray()) {
-                output_hw.clear();
-                for (unsigned i = 0; i < p["output_hw"].size(); i++)
-                    output_hw.push_back(p["output_hw"][i].asInt());
-            }
-            std::vector<int> center_index = {0, 1};
-            if (p.isMember("center_index") && p["center_index"].isArray()) {
-                center_index.clear();
-                for (unsigned i = 0; i < p["center_index"].size(); i++)
-                    center_index.push_back(p["center_index"][i].asInt());
-            }
+            float norm_ratio = pipeline_utils::ReadFloat(p, "norm_ratio", 0.4f);
+            int norm_mode    = pipeline_utils::ReadInt(p, "norm_mode", 1);
+            std::vector<int> output_hw =
+                pipeline_utils::ReadIntArray(p, "output_hw", {112, 112}, 2);
+            std::vector<int> center_index =
+                pipeline_utils::ReadIntArray(p, "center_index", {0, 1}, 1);
             preprocess.push_back(
                 pipeline_utils::MakeAffineCropOp(norm_ratio, norm_mode, output_hw, center_index));
-        } else if (p.isMember("crop") && p["crop"].asBool()) {
-            std::vector<int> dsize = {112, 112};
-            if (p.isMember("input_size") && p["input_size"].isArray()) {
-                dsize.clear();
-                for (unsigned i = 0; i < p["input_size"].size(); i++)
-                    dsize.push_back(p["input_size"][i].asInt());
-            }
-            int gravity            = p.get("gravity", p.get("padding_gravity", 0)).asInt();
-            std::vector<int> color = {114, 114, 114};
-            if (p.isMember("padding_color") && p["padding_color"].isArray()) {
-                color.clear();
-                for (unsigned i = 0; i < p["padding_color"].size(); i++)
-                    color.push_back(p["padding_color"][i].asInt());
-            }
+        } else if (pipeline_utils::ReadBool(p, "crop", false)) {
+            std::vector<int> dsize = pipeline_utils::ReadIntArray(p, "input_size", {112, 112}, 2);
+            int gravity =
+                pipeline_utils::ReadInt(p, "gravity", pipeline_utils::ReadInt(p, "padding_gravity", 0));
+            std::vector<int> color =
+                pipeline_utils::ReadIntArray(p, "padding_color", {114, 114, 114}, 1);
 
-            float top    = p.get("crop_h_top", 0.0f).asFloat();
-            float bottom = p.get("crop_h_bottom", 0.0f).asFloat();
-            float left   = p.get("crop_w_left", 0.0f).asFloat();
-            float right  = p.get("crop_w_right", 0.0f).asFloat();
+            float top    = pipeline_utils::ReadFloat(p, "crop_h_top", 0.0f);
+            float bottom = pipeline_utils::ReadFloat(p, "crop_h_bottom", 0.0f);
+            float left   = pipeline_utils::ReadFloat(p, "crop_w_left", 0.0f);
+            float right  = pipeline_utils::ReadFloat(p, "crop_w_right", 0.0f);
 
             std::vector<float> h_top    = {top};
             std::vector<float> h_bottom = {bottom};
             std::vector<float> w_left   = {left};
             std::vector<float> w_right  = {right};
 
-            bool square     = p.get("square", false).asBool();
-            int square_mode = p.get("square_mode", 0).asInt();
+            bool square     = pipeline_utils::ReadBool(p, "square", false);
+            int square_mode = pipeline_utils::ReadInt(p, "square_mode", 0);
 
             preprocess.push_back(pipeline_utils::MakeCropResizeOp(
                 "crop", h_top, h_bottom, w_left, w_right, square, square_mode, dsize, gravity, color));
         } else {
-            std::vector<int> dsize = {112, 112};
-            if (p.isMember("input_size") && p["input_size"].isArray()) {
-                dsize.clear();
-                for (unsigned i = 0; i < p["input_size"].size(); i++)
-                    dsize.push_back(p["input_size"][i].asInt());
-            }
-            int gravity            = p.get("gravity", p.get("padding_gravity", 0)).asInt();
-            std::vector<int> color = {114, 114, 114};
-            if (p.isMember("padding_color") && p["padding_color"].isArray()) {
-                color.clear();
-                for (unsigned i = 0; i < p["padding_color"].size(); i++)
-                    color.push_back(p["padding_color"][i].asInt());
-            }
+            std::vector<int> dsize = pipeline_utils::ReadIntArray(p, "input_size", {112, 112}, 2);
+            int gravity =
+                pipeline_utils::ReadInt(p, "gravity", pipeline_utils::ReadInt(p, "padding_gravity", 0));
+            std::vector<int> color =
+                pipeline_utils::ReadIntArray(p, "padding_color", {114, 114, 114}, 1);
             preprocess.push_back(pipeline_utils::MakeResizeOp(dsize, gravity, color));
         }
 
-        std::vector<float> mean = {0.f, 0.f, 0.f};
-        if (p.isMember("normalize_mean") && p["normalize_mean"].isArray()) {
-            mean.clear();
-            for (unsigned i = 0; i < p["normalize_mean"].size(); i++)
-                mean.push_back(p["normalize_mean"][i].asFloat());
-        }
-        float scale = p.get("normalize_scale", 1.f).asFloat();
-        bool is_bgr = p.get("is_bgr", true).asBool();
+        std::vector<float> mean =
+            pipeline_utils::ReadFloatArray(p, "normalize_mean", {0.f, 0.f, 0.f}, 3);
+        float scale = pipeline_utils::ReadFloat(p, "normalize_scale", 1.f);
+        bool is_bgr = pipeline_utils::ReadBool(p, "is_bgr", true);
         preprocess.push_back(pipeline_utils::MakeNormalizeOp(mean, scale, is_bgr));
 
         for (auto& in_def : mc.inputs) {
@@ -133,21 +102,15 @@ Status FeaturePipeline::Init(const PipelineConfig& config, const std::string& mo
         model_info_.models.push_back(std::move(model));
     }
 
-    Json::Value extra_cfg;
-    if (!config.extra_config_json.empty()) {
-        Json::Reader r;
-        r.parse(config.extra_config_json, extra_cfg);
-    }
-    if (extra_cfg.isMember("feature_info")) {
-        auto& fi                                  = extra_cfg["feature_info"];
-        model_info_.config.face_info.testset_name = fi.get("testset_name", "").asString();
-        if (fi.isMember("score_level") && fi["score_level"].isArray())
-            for (unsigned i = 0; i < fi["score_level"].size(); i++)
-                model_info_.config.face_info.score_level.push_back(fi["score_level"][i].asFloat());
-        if (fi.isMember("cmp_score") && fi["cmp_score"].isArray())
-            for (unsigned i = 0; i < fi["cmp_score"].size(); i++)
-                model_info_.config.face_info.cmp_score.push_back(fi["cmp_score"][i].asFloat());
-        model_info_.config.face_info.feature_dim = fi.get("feature_dim", 512).asUInt();
+    nlohmann::json extra_cfg = pipeline_utils::ParseJsonObject(config.extra_config_json);
+    if (extra_cfg.contains("feature_info") && extra_cfg["feature_info"].is_object()) {
+        const auto& fi                            = extra_cfg["feature_info"];
+        model_info_.config.face_info.testset_name =
+            pipeline_utils::ReadString(fi, "testset_name", std::string());
+        model_info_.config.face_info.score_level =
+            pipeline_utils::ReadFloatArray(fi, "score_level", {});
+        model_info_.config.face_info.cmp_score = pipeline_utils::ReadFloatArray(fi, "cmp_score", {});
+        model_info_.config.face_info.feature_dim = pipeline_utils::ReadSize(fi, "feature_dim", 512);
     }
 
     InitThresholdsAndLabels();

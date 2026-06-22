@@ -1,9 +1,250 @@
 #include "nn/pipeline/pipeline_utils.h"
 
-#include "json/json.h"
+#include <utility>
+
+#include <nlohmann/json.hpp>
+
+#include "util/Log.h"
 
 namespace cosmo::nn {
 namespace pipeline_utils {
+namespace {
+
+    const nlohmann::json* FindObjectMember(const nlohmann::json& json, const char* key) {
+        if (!json.is_object())
+            return nullptr;
+        auto iter = json.find(key);
+        return iter == json.end() ? nullptr : &(*iter);
+    }
+
+    void WarnInvalidField(const char* key, const char* expected, const nlohmann::json& actual) {
+        LOG_WARN("Invalid JSON field '{}' type: expected {}, actual {}; using default", key, expected,
+                 actual.type_name());
+    }
+
+}  // namespace
+
+    nlohmann::json ParseJsonObject(const std::string& raw) {
+        if (raw.empty())
+            return nlohmann::json::object();
+        auto parsed = nlohmann::json::parse(raw, nullptr, false);
+        return parsed.is_discarded() || !parsed.is_object() ? nlohmann::json::object() : parsed;
+    }
+
+    std::string ReadString(const nlohmann::json& json, const char* key, std::string defaults) {
+        const nlohmann::json* value = FindObjectMember(json, key);
+        if (!value || value->is_null())
+            return defaults;
+        if (!value->is_string()) {
+            WarnInvalidField(key, "string", *value);
+            return defaults;
+        }
+        try {
+            return value->get<std::string>();
+        } catch (const nlohmann::json::exception& e) {
+            LOG_WARN("Invalid JSON field '{}' conversion: {}; using default", key, e.what());
+            return defaults;
+        }
+    }
+
+    int ReadInt(const nlohmann::json& json, const char* key, int defaults) {
+        const nlohmann::json* value = FindObjectMember(json, key);
+        if (!value || value->is_null())
+            return defaults;
+        if (!value->is_number_integer()) {
+            WarnInvalidField(key, "integer", *value);
+            return defaults;
+        }
+        try {
+            return value->get<int>();
+        } catch (const nlohmann::json::exception& e) {
+            LOG_WARN("Invalid JSON field '{}' conversion: {}; using default", key, e.what());
+            return defaults;
+        }
+    }
+
+    size_t ReadSize(const nlohmann::json& json, const char* key, size_t defaults) {
+        const nlohmann::json* value = FindObjectMember(json, key);
+        if (!value || value->is_null())
+            return defaults;
+        if (!value->is_number_integer()) {
+            WarnInvalidField(key, "non-negative integer", *value);
+            return defaults;
+        }
+        try {
+            if (value->is_number_unsigned())
+                return value->get<size_t>();
+            const auto signed_value = value->get<long long>();
+            if (signed_value < 0) {
+                WarnInvalidField(key, "non-negative integer", *value);
+                return defaults;
+            }
+            return static_cast<size_t>(signed_value);
+        } catch (const nlohmann::json::exception& e) {
+            LOG_WARN("Invalid JSON field '{}' conversion: {}; using default", key, e.what());
+            return defaults;
+        }
+    }
+
+    float ReadFloat(const nlohmann::json& json, const char* key, float defaults) {
+        const nlohmann::json* value = FindObjectMember(json, key);
+        if (!value || value->is_null())
+            return defaults;
+        if (!value->is_number()) {
+            WarnInvalidField(key, "number", *value);
+            return defaults;
+        }
+        try {
+            return value->get<float>();
+        } catch (const nlohmann::json::exception& e) {
+            LOG_WARN("Invalid JSON field '{}' conversion: {}; using default", key, e.what());
+            return defaults;
+        }
+    }
+
+    bool ReadBool(const nlohmann::json& json, const char* key, bool defaults) {
+        const nlohmann::json* value = FindObjectMember(json, key);
+        if (!value || value->is_null())
+            return defaults;
+        if (!value->is_boolean()) {
+            WarnInvalidField(key, "boolean", *value);
+            return defaults;
+        }
+        try {
+            return value->get<bool>();
+        } catch (const nlohmann::json::exception& e) {
+            LOG_WARN("Invalid JSON field '{}' conversion: {}; using default", key, e.what());
+            return defaults;
+        }
+    }
+
+    std::vector<int> ReadIntArray(const nlohmann::json& json, const char* key,
+                                  std::vector<int> defaults, size_t min_size) {
+        const nlohmann::json* value = FindObjectMember(json, key);
+        if (!value || value->is_null())
+            return defaults;
+        if (!value->is_array()) {
+            WarnInvalidField(key, "integer array", *value);
+            return defaults;
+        }
+
+        std::vector<int> values;
+        values.reserve(value->size());
+        try {
+            for (const auto& item : *value) {
+                if (!item.is_number_integer()) {
+                    WarnInvalidField(key, "integer array", item);
+                    return defaults;
+                }
+                values.push_back(item.get<int>());
+            }
+        } catch (const nlohmann::json::exception& e) {
+            LOG_WARN("Invalid JSON field '{}' conversion: {}; using default", key, e.what());
+            return defaults;
+        }
+        if (values.size() < min_size) {
+            LOG_WARN("Invalid JSON field '{}' length: expected at least {}, actual {}; using default", key,
+                     min_size, values.size());
+            return defaults;
+        }
+        return values;
+    }
+
+    std::vector<float> ReadFloatArray(const nlohmann::json& json, const char* key,
+                                      std::vector<float> defaults, size_t min_size) {
+        const nlohmann::json* value = FindObjectMember(json, key);
+        if (!value || value->is_null())
+            return defaults;
+        if (!value->is_array()) {
+            WarnInvalidField(key, "number array", *value);
+            return defaults;
+        }
+
+        std::vector<float> values;
+        values.reserve(value->size());
+        try {
+            for (const auto& item : *value) {
+                if (!item.is_number()) {
+                    WarnInvalidField(key, "number array", item);
+                    return defaults;
+                }
+                values.push_back(item.get<float>());
+            }
+        } catch (const nlohmann::json::exception& e) {
+            LOG_WARN("Invalid JSON field '{}' conversion: {}; using default", key, e.what());
+            return defaults;
+        }
+        if (values.size() < min_size) {
+            LOG_WARN("Invalid JSON field '{}' length: expected at least {}, actual {}; using default", key,
+                     min_size, values.size());
+            return defaults;
+        }
+        return values;
+    }
+
+    std::vector<std::vector<std::vector<float>>> ReadFloat3DArray(
+        const nlohmann::json& json, const char* key,
+        std::vector<std::vector<std::vector<float>>> defaults, size_t min_outer_size,
+        size_t min_middle_size, size_t min_inner_size) {
+        const nlohmann::json* value = FindObjectMember(json, key);
+        if (!value || value->is_null())
+            return defaults;
+        if (!value->is_array()) {
+            WarnInvalidField(key, "3D number array", *value);
+            return defaults;
+        }
+
+        std::vector<std::vector<std::vector<float>>> values;
+        values.reserve(value->size());
+        for (const auto& outer_json : *value) {
+            if (!outer_json.is_array()) {
+                WarnInvalidField(key, "3D number array", outer_json);
+                return defaults;
+            }
+
+            std::vector<std::vector<float>> outer;
+            outer.reserve(outer_json.size());
+            for (const auto& middle_json : outer_json) {
+                if (!middle_json.is_array()) {
+                    WarnInvalidField(key, "3D number array", middle_json);
+                    return defaults;
+                }
+
+                std::vector<float> middle;
+                middle.reserve(middle_json.size());
+                try {
+                    for (const auto& item : middle_json) {
+                        if (!item.is_number()) {
+                            WarnInvalidField(key, "3D number array", item);
+                            return defaults;
+                        }
+                        middle.push_back(item.get<float>());
+                    }
+                } catch (const nlohmann::json::exception& e) {
+                    LOG_WARN("Invalid JSON field '{}' conversion: {}; using default", key, e.what());
+                    return defaults;
+                }
+                if (middle.size() < min_inner_size) {
+                    LOG_WARN("Invalid JSON field '{}' inner length: expected at least {}, actual {}; using default",
+                             key, min_inner_size, middle.size());
+                    return defaults;
+                }
+                outer.push_back(std::move(middle));
+            }
+            if (outer.size() < min_middle_size) {
+                LOG_WARN("Invalid JSON field '{}' middle length: expected at least {}, actual {}; using default",
+                         key, min_middle_size, outer.size());
+                return defaults;
+            }
+            values.push_back(std::move(outer));
+        }
+        if (values.size() < min_outer_size) {
+            LOG_WARN("Invalid JSON field '{}' outer length: expected at least {}, actual {}; using default", key,
+                     min_outer_size, values.size());
+            return defaults;
+        }
+        return values;
+    }
 
     std::unique_ptr<Resize> MakeResizeOp(const std::vector<int>& dsize, int gravity,
                                          const std::vector<int>& color) {
@@ -169,95 +410,107 @@ namespace pipeline_utils {
         config.instructions.push_back(instruction);
     }
 
-    static std::vector<int> GetIntArray(const Json::Value& val) {
+    static std::vector<int> GetIntArray(const nlohmann::json& val) {
         std::vector<int> result;
-        if (!val.isArray())
+        if (!val.is_array())
             return result;
-        for (unsigned int i = 0; i < val.size(); i++)
-            result.push_back(val[i].asInt());
+        for (const auto& item : val) {
+            if (!item.is_number_integer())
+                return {};
+            result.push_back(item.get<int>());
+        }
         return result;
     }
 
-    static std::vector<float> GetFloatArray(const Json::Value& val) {
+    static std::vector<float> GetFloatArray(const nlohmann::json& val) {
         std::vector<float> result;
-        if (!val.isArray())
+        if (!val.is_array())
             return result;
-        for (unsigned int i = 0; i < val.size(); i++)
-            result.push_back(val[i].asFloat());
+        for (const auto& item : val) {
+            if (!item.is_number())
+                return {};
+            result.push_back(item.get<float>());
+        }
         return result;
     }
 
     Status ParsePipelineConfig(const std::string& json_content, PipelineConfig& config) {
-        Json::Reader reader;
-        Json::Value root;
-        if (!reader.parse(json_content, root))
-            return Status(COSMO_NN_ERR_JSON_PARSE, "Failed to parse pipeline JSON");
+        try {
+            auto root = nlohmann::json::parse(json_content, nullptr, false);
+            if (root.is_discarded())
+                return Status(COSMO_NN_ERR_JSON_PARSE, "Failed to parse pipeline JSON");
 
-        if (!root.isMember("model_type"))
-            return Status(COSMO_NN_ERR_JSON_PARSE, "Missing 'model_type' field");
+            if (!root.contains("model_type"))
+                return Status(COSMO_NN_ERR_JSON_PARSE, "Missing 'model_type' field");
 
-        config.model_type     = root["model_type"].asString();
-        config.chip_type      = root.get("chip_type", "sophon").asString();
-        config.algorithm_code = root.get("algorithm_code", "").asString();
-        config.version        = root.get("version", "V1").asString();
-        config.reduce         = root.get("reduce", "").asString();
+            config.model_type     = ReadString(root, "model_type", std::string());
+            config.chip_type      = ReadString(root, "chip_type", std::string("sophon"));
+            config.algorithm_code = ReadString(root, "algorithm_code", std::string());
+            config.version        = ReadString(root, "version", std::string("V1"));
+            config.reduce         = ReadString(root, "reduce", std::string());
 
-        auto& models_json = root["models"];
-        if (!models_json.isArray() || models_json.empty())
-            return Status(COSMO_NN_ERR_JSON_PARSE, "Missing or empty 'models' array");
+            const nlohmann::json* models_json = FindObjectMember(root, "models");
+            if (!models_json || !models_json->is_array() || models_json->empty())
+                return Status(COSMO_NN_ERR_JSON_PARSE, "Missing or empty 'models' array");
 
-        Json::FastWriter writer;
-        for (unsigned int i = 0; i < models_json.size(); i++) {
-            auto& m = models_json[i];
-            PipelineModelConfig model;
-            model.name      = m.get("name", "").asString();
-            model.file_name = m.get("file_name", "").asString();
-            model.file_md5  = m.get("file_md5", "").asString();
-            model.max_batch = m.get("max_batch", 1).asInt();
+            for (const auto& m : *models_json) {
+                PipelineModelConfig model;
+                model.name      = ReadString(m, "name", std::string());
+                model.file_name = ReadString(m, "file_name", std::string());
+                model.file_md5  = ReadString(m, "file_md5", std::string());
+                model.max_batch = ReadInt(m, "max_batch", 1);
 
-            if (m.isMember("inputs") && m["inputs"].isArray()) {
-                for (unsigned int j = 0; j < m["inputs"].size(); j++) {
-                    auto& in = m["inputs"][j];
-                    PipelineModelConfig::InputDef input;
-                    input.name      = in.get("name", "").asString();
-                    input.shape     = GetIntArray(in["shape"]);
-                    input.data_type = in.get("data_type", 0).asInt();
-                    model.inputs.push_back(input);
+                const nlohmann::json* inputs = FindObjectMember(m, "inputs");
+                if (inputs && inputs->is_array()) {
+                    for (const auto& in : *inputs) {
+                        PipelineModelConfig::InputDef input;
+                        input.name = ReadString(in, "name", std::string());
+                        const nlohmann::json* shape = FindObjectMember(in, "shape");
+                        input.shape                 = shape ? GetIntArray(*shape) : std::vector<int>();
+                        input.data_type             = ReadInt(in, "data_type", 0);
+                        model.inputs.push_back(input);
+                    }
+                }
+
+                const nlohmann::json* outputs = FindObjectMember(m, "outputs");
+                if (outputs && outputs->is_array()) {
+                    for (const auto& out : *outputs) {
+                        PipelineModelConfig::OutputDef output;
+                        output.name = ReadString(out, "name", std::string());
+                        const nlohmann::json* shape = FindObjectMember(out, "shape");
+                        output.shape                = shape ? GetIntArray(*shape) : std::vector<int>();
+                        output.data_type            = ReadInt(out, "data_type", 0);
+                        model.outputs.push_back(output);
+                    }
+                }
+
+                const nlohmann::json* params = FindObjectMember(m, "params");
+                if (params)
+                    model.params_json = params->dump();
+
+                config.models.push_back(model);
+            }
+
+            const nlohmann::json* labels = FindObjectMember(root, "labels");
+            if (labels && labels->is_array()) {
+                for (const auto& l : *labels) {
+                    PipelineLabelInfo label;
+                    label.id   = ReadString(l, "id", std::string());
+                    label.name = ReadString(l, "name", std::string());
+                    const nlohmann::json* threshold = FindObjectMember(l, "threshold");
+                    label.threshold = threshold ? GetFloatArray(*threshold) : std::vector<float>();
+                    config.labels.push_back(label);
                 }
             }
 
-            if (m.isMember("outputs") && m["outputs"].isArray()) {
-                for (unsigned int j = 0; j < m["outputs"].size(); j++) {
-                    auto& out = m["outputs"][j];
-                    PipelineModelConfig::OutputDef output;
-                    output.name      = out.get("name", "").asString();
-                    output.shape     = GetIntArray(out["shape"]);
-                    output.data_type = out.get("data_type", 0).asInt();
-                    model.outputs.push_back(output);
-                }
-            }
+            const nlohmann::json* extra_config = FindObjectMember(root, "config");
+            if (extra_config)
+                config.extra_config_json = extra_config->dump();
 
-            if (m.isMember("params"))
-                model.params_json = writer.write(m["params"]);
-
-            config.models.push_back(model);
+            return COSMO_NN_OK;
+        } catch (const nlohmann::json::exception& e) {
+            return Status(COSMO_NN_ERR_JSON_PARSE, e.what());
         }
-
-        if (root.isMember("labels") && root["labels"].isArray()) {
-            for (unsigned int i = 0; i < root["labels"].size(); i++) {
-                auto& l = root["labels"][i];
-                PipelineLabelInfo label;
-                label.id        = l.get("id", "").asString();
-                label.name      = l.get("name", "").asString();
-                label.threshold = GetFloatArray(l["threshold"]);
-                config.labels.push_back(label);
-            }
-        }
-
-        if (root.isMember("config"))
-            config.extra_config_json = writer.write(root["config"]);
-
-        return COSMO_NN_OK;
     }
 
 }  // namespace pipeline_utils

@@ -16,8 +16,8 @@ using Json = nlohmann::json;
 /// Parse a JSON string. Returns a default-constructed Json on failure.
 [[nodiscard]] inline Json ParseJson(const std::string& input) {
     try {
-        return Json::parse(input);
-    } catch (const Json::parse_error&) {
+        return nlohmann::json::parse(input);
+    } catch (const nlohmann::json::parse_error&) {
         return Json{};
     }
 }
@@ -33,10 +33,10 @@ using Json = nlohmann::json;
 template <typename T>
 [[nodiscard]] bool FromJsonString(const std::string& input, T& out) {
     try {
-        auto j = Json::parse(input);
+        auto j = nlohmann::json::parse(input);
         j.get_to(out);
         return true;
-    } catch (const Json::exception&) {
+    } catch (const nlohmann::json::exception&) {
         return false;
     }
 }
@@ -48,7 +48,7 @@ template <typename T>
     try {
         Json j = value;
         return j.dump(indent);
-    } catch (const Json::exception&) {
+    } catch (const nlohmann::json::exception&) {
         return "{}";
     }
 }
