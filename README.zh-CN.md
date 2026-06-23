@@ -341,30 +341,16 @@ CosmoEdge 是开源项目。仓库提供认证设备包所使用的同一套引�
 
 ## 文档
 
-| 文档 | 读者 | 说明 |
+| 入口 | 读者 | 说明 |
 | --- | --- | --- |
-| [Quick Start Guide](docs/tutorials/01-quickstart/quickstart.md) | 所有用户 | 几分钟内完成首次体验 |
-| [Scenario Configuration](docs/tutorials/02-scenario-config/scenario-config.md) | 集成商 | 构建场景级 AI 工作流 |
-| [VLM Guide](docs/tutorials/03-vlm-guide/vlm-guide.md) | 开发者 | 使用提示词完成视觉状态判断 |
-| [Pipeline Orchestration](docs/tutorials/04-pipeline-orchestration/pipeline-orchestration.md) | 高级用户 | 可视化编排自定义流水线 |
-| [Model Porting Guide](docs/tutorials/05-model-porting/model-porting.md) | 算法工程师 | 接入自有 ONNX 或目标格式模型 |
-| [构建指南](docs/guide/build.md) | 开发者 | 当前确认的 x86 Docker 和 Sophon 发布包构建路径 |
-| [部署指南](docs/guide/deployment.md) | DevOps | 运行目录、端口、进程、发布包和 systemd |
-| [运行配置](docs/guide/configuration.md) | 运维人员 | 环境变量、资源路径、端口、日志和运行默认值 |
-| [故障排查](docs/guide/troubleshooting.md) | 运维人员 | 构建、运行、端口、Sophon 镜像和文档站常见问题 |
-| [API 概览](docs/reference/api.md) | 开发者 | 当前 REST/WebSocket/MQTT-facing API 类别 |
-| [字段级 API 参考](docs/reference/api-fields.md) | 集成商 | 通用响应、事件、HTTP 推送、MQTT 和 IoT 网络字段 |
-| [MQTT 接入参考](docs/reference/mqtt.md) | 集成商 | MQTT topic、外层消息、注册、心跳、下发请求和响应 |
-| [HTTP Webhook 参考](docs/reference/webhook.md) | 集成商 | 事件推送配置、负载字段和接收端建议 |
-| [架构概览](docs/guide/architecture.md) | 贡献者 | 引擎内部结构和扩展点 |
-| [前端工程](docs/development/frontend.md) | 前端开发者 | Vue 3 前端结构和脚本 |
-| [I18N 术语表](docs/i18n/GLOSSARY.md) | 前端开发者 | UI 术语、默认英文文案和 short label 规则 |
-| [I18N Short Scope 规则](docs/i18n/SHORT-SCOPES.md) | 前端开发者 | 受控紧凑文案场景 ID |
-| [后端开发](docs/development/backend.md) | C++ 开发者 | 后端模块、CMake 选项和测试 |
-| [CI 与质量检查](docs/development/ci.md) | 贡献者 | 文档站、前端、C++ 格式、静态分析和发布检查入口 |
-| [Security Policy](SECURITY.md) | 维护者 | 漏洞报告和部署安全说明 |
-| [Notice](NOTICE) | 维护者 | 项目 notice 和第三方 attribution 信息 |
-| [Changelog](CHANGELOG.md) | 维护者 | 公开变更历史 |
+| [文档首页](docs/index.md) | 所有用户 | 完整文档索引和阅读路径 |
+| [快速开始](docs/tutorials/01-quickstart/quickstart.md) | 所有用户 | 完成首次体验 |
+| [场景配置](docs/tutorials/02-scenario-config/scenario-config.md) | 集成商 | 构建场景级 AI 工作流 |
+| [VLM 指南](docs/tutorials/03-vlm-guide/vlm-guide.md) | 开发者 | 使用提示词完成视觉状态判断 |
+| [流水线编排](docs/tutorials/04-pipeline-orchestration/pipeline-orchestration.md) | 高级用户 | 可视化编排自定义流水线 |
+| [模型适配指南](docs/tutorials/05-model-porting/model-porting.md) | 算法工程师 | 接入自有 ONNX 或目标格式模型 |
+| [构建指南](docs/guide/build.md) | 开发者 | 构建 x86 Docker 和 Sophon 发布包 |
+| [API 概览](docs/reference/api.md) | 开发者 | REST/WebSocket/MQTT-facing API 类别 |
 
 ## 路线图
 

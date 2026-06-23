@@ -339,30 +339,16 @@ Certified devices add deployment readiness, not locked software features.
 
 ## Documentation
 
-| Document               | Audience       | Description                                 |
-| ---------------------- | -------------- | ------------------------------------------- |
-| [Quick Start Guide](docs/en/tutorials/01-quickstart/quickstart.md) | Everyone | First working experience in minutes |
+| Start here | For | Description |
+| ---------- | --- | ----------- |
+| [Documentation Home](docs/en/index.md) | Everyone | Full documentation index and reading path |
+| [Quick Start Guide](docs/en/tutorials/01-quickstart/quickstart.md) | Everyone | First working experience |
 | [Scenario Configuration](docs/en/tutorials/02-scenario-config/scenario-config.md) | Integrators | Build scene-level AI workflows |
 | [VLM Guide](docs/en/tutorials/03-vlm-guide/vlm-guide.md) | Developers | Use visual state judgment with prompts |
 | [Pipeline Orchestration](docs/en/tutorials/04-pipeline-orchestration/pipeline-orchestration.md) | Advanced users | Compose custom pipelines visually |
 | [Model Porting Guide](docs/en/tutorials/05-model-porting/model-porting.md) | ML engineers | Bring your own ONNX or target model |
-| [Build Guide](docs/en/guide/build.md) | Developers | Confirmed x86 Docker and Sophon package build paths |
-| [Deployment Guide](docs/en/guide/deployment.md) | DevOps | Runtime paths, ports, processes, packages, and systemd |
-| [Configuration](docs/en/guide/configuration.md) | Operators | Environment variables, resource paths, ports, logs, and runtime defaults |
-| [Troubleshooting](docs/en/guide/troubleshooting.md) | Operators | Common build, runtime, port, Sophon image, and docs-site issues |
-| [API Overview](docs/en/reference/api.md) | Developers | Current REST/WebSocket/MQTT-facing API categories |
-| [API Fields](docs/en/reference/api-fields.md) | Integrators | Common response, event, HTTP push, MQTT, and IoT network fields |
-| [MQTT Reference](docs/en/reference/mqtt.md) | Integrators | MQTT topics, envelope format, registration, heartbeat, requests, and responses |
-| [HTTP Webhook Reference](docs/en/reference/webhook.md) | Integrators | Event push configuration, payload fields, and receiver guidance |
-| [Architecture Overview](docs/en/guide/architecture.md) | Contributors | Engine internals and extension points |
-| [Frontend Development](docs/en/development/frontend.md) | Frontend developers | Vue 3 frontend structure and scripts |
-| [I18N Glossary](docs/i18n/GLOSSARY.md) | Frontend developers | UI terminology, default English labels, and short-label rules |
-| [I18N Short Scope Rules](docs/i18n/SHORT-SCOPES.md) | Frontend developers | Controlled compact-label scope IDs |
-| [Backend Development](docs/en/development/backend.md) | C++ developers | Backend modules, CMake options, and tests |
-| [CI and Quality Checks](docs/en/development/ci.md) | Contributors | Documentation, frontend, C++ formatting, static analysis, and release checks |
-| [Security Policy](SECURITY.md) | Maintainers | Vulnerability reporting and deployment security notes |
-| [Notice](NOTICE) | Maintainers | Project notice and third-party attribution information |
-| [Changelog](CHANGELOG.md) | Maintainers | Public change history |
+| [Build Guide](docs/en/guide/build.md) | Developers | Build x86 Docker and Sophon packages |
+| [API Overview](docs/en/reference/api.md) | Developers | REST/WebSocket/MQTT-facing API categories |
 
 ## Roadmap
 
