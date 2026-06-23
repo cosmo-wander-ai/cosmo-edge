@@ -148,14 +148,6 @@ Certified device packages can include a fine-tuned 0.8B edge VLM and production-
 
 > TODO: Confirm the public model name, parameter count, quantization format, and measured latency before using the 0.8B VLM claim in a release.
 
-### Zero-barrier Developer Mode
-
-Try the full UI and workflow on standard x86 hardware:
-
-- x86 Linux and Windows support for development and evaluation.
-- Same UI and workflow as edge deployment.
-- Lower throughput than Sophon NPU mode, but enough for onboarding, testing, and integration work.
-
 ### Model Sources
 
 **Validated end-to-end in CosmoEdge:**
@@ -191,7 +183,7 @@ CosmoEdge runs on the Sophon BM1688 inference stack. Models from SOPHGO's offici
 
 ### Option A: x86 Developer Mode
 
-No edge hardware is required for the first experience.
+No edge hardware is required for the first experience. The x86 developer mode uses the same UI and workflow as edge deployment, with lower throughput than Sophon NPU mode.
 
 ```bash
 # 1. Clone
