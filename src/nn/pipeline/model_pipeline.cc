@@ -138,6 +138,8 @@ Status ModelPipeline::InitGraph(const std::string& model_path, DeviceType device
     if (profiler)
         graph_->SetProfiler(profiler);
 
+    num_models_ = static_cast<int>(model_info_.models.size());
+
     std::string mp = model_path;
     RETURN_ON_FAIL(graph_->Init(model_info_, mp, device_type, tokenizer_path, device_id, use_skip));
     return COSMO_NN_OK;

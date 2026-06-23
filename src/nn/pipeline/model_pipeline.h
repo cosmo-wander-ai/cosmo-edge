@@ -131,6 +131,7 @@ protected:
     std::vector<Size> image_sizes_;
     std::vector<Rect2i> rects_;
     Size net_input_size_;
+    int num_models_ = 0;
 
     // Labels and thresholds
     std::vector<float> selected_thresholds_;

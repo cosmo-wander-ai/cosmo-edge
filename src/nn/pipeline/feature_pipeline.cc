@@ -123,7 +123,7 @@ Status FeaturePipeline::Forward(std::initializer_list<std::vector<std::shared_pt
     // (reduce=concat/mean) each sub-model's affine_crop is a first_calculate_node with 2 inputs,
     // so the graph expects 2 * N param groups. Repeat the same image + aux for each branch.
     const size_t n_groups   = inputs.size();
-    const size_t n_models   = model_info_.models.size();
+    const size_t n_models   = num_models_;
     const std::string& red  = model_info_.reduce;
     const bool multi_branch = (red == "concat" || red == "mean");
 
