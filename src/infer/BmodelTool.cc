@@ -3,12 +3,14 @@
 #include "infer/BmodelTool.h"
 
 #include <algorithm>
-#include <cstring>
+#include <array>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
-#include <numeric>
+#include <limits>
 #include <sstream>
 
+#include "nn/utils/model_header_info.h"
 #include "util/Log.h"
 
 #if defined(__linux__) || defined(__ANDROID__)
@@ -27,13 +29,6 @@
 namespace fs = std::filesystem;
 
 namespace cosmo {
-
-static constexpr int kMagicNum = 0xABCD0001;  // NOLINT: matches cosmo::nn::ModelHeaderInfo convention
-
-struct NnHeaderInfo {
-    int magic_num = kMagicNum;
-    char reserved[256];
-};
 
 int BmodelTool::ConvertDataType(int bmDataType) {
     switch (bmDataType) {
@@ -313,26 +308,34 @@ std::string BmodelTool::ConvertToNn(const std::vector<std::string>& bmodelPaths,
     if (bmodelPaths.empty()) {
         return "No bmodel files provided";
     }
+    if (bmodelPaths.size() > cosmo::nn::kPlainNnMaxModelCount) {
+        return "Too many bmodel files for nn container";
+    }
 
-    std::vector<long> fileSizes;  // NOLINT: matches nn header convention
+    std::vector<uint64_t> fileSizes;
     for (const auto& path : bmodelPaths) {
+        std::error_code equivalentError;
+        if (fs::equivalent(outputPath, path, equivalentError)) {
+            return "Output nn file must be different from input bmodel file: " + path;
+        }
         std::error_code ec;
         auto size = fs::file_size(path, ec);
         if (ec) {
             return "File does not exist or is inaccessible: " + path;
         }
-        fileSizes.push_back(static_cast<long>(size));
+        if (size == 0) {
+            return "Bmodel file is empty: " + path;
+        }
+        if (size > static_cast<std::uintmax_t>(std::numeric_limits<uint64_t>::max())) {
+            return "Bmodel file is too large: " + path;
+        }
+        fileSizes.push_back(static_cast<uint64_t>(size));
         LOG_INFO("[BmodelTool] bmodel file: {}, size: {} bytes", path, size);
     }
 
-    NnHeaderInfo headerInfo;
-    std::memset(headerInfo.reserved, 0, sizeof(headerInfo.reserved));
-    char* reser = headerInfo.reserved;
-    reser[0]    = static_cast<char>(fileSizes.size());
-    reser++;
-    long* d = reinterpret_cast<long*>(reser);
-    for (size_t i = 0; i < fileSizes.size(); i++) {
-        d[i] = fileSizes.at(i);
+    auto headerResult = cosmo::nn::BuildPlainNnHeader(fileSizes);
+    if (!headerResult) {
+        return "Failed to build nn header: " + headerResult.error;
     }
 
     std::ofstream outputFile(outputPath, std::ios::binary);
@@ -340,7 +343,7 @@ std::string BmodelTool::ConvertToNn(const std::vector<std::string>& bmodelPaths,
         return "Cannot create output file: " + outputPath;
     }
 
-    outputFile.write(reinterpret_cast<char*>(&headerInfo), sizeof(NnHeaderInfo));
+    outputFile.write(headerResult.data.data(), static_cast<std::streamsize>(headerResult.data.size()));
 
     // Chunked copy: do not allocate vector<char>(fileSize) at once, otherwise GB-scale bmodel will OOM
     // or only write out the header (model.nn only a few hundred bytes)
@@ -348,8 +351,7 @@ std::string BmodelTool::ConvertToNn(const std::vector<std::string>& bmodelPaths,
     std::vector<char> copyBuf(static_cast<size_t>(kCopyChunk));
 
     for (size_t idx = 0; idx < bmodelPaths.size(); ++idx) {
-        const std::string& bmodelPath    = bmodelPaths[idx];
-        const std::streamsize totalBytes = fileSizes[idx];
+        const std::string& bmodelPath = bmodelPaths[idx];
 
         std::ifstream inputFile(bmodelPath, std::ios::binary);
         if (inputFile.fail()) {
@@ -358,9 +360,10 @@ std::string BmodelTool::ConvertToNn(const std::vector<std::string>& bmodelPaths,
             return "Cannot open bmodel file: " + bmodelPath;
         }
 
-        std::streamsize remaining = totalBytes;
+        uint64_t remaining = fileSizes[idx];
         while (remaining > 0) {
-            const std::streamsize n = std::min(remaining, kCopyChunk);
+            const uint64_t copyBytes = std::min<uint64_t>(remaining, static_cast<uint64_t>(kCopyChunk));
+            const std::streamsize n  = static_cast<std::streamsize>(copyBytes);
             if (!inputFile.read(copyBuf.data(), n)) {
                 outputFile.close();
                 fs::remove(outputPath);
@@ -373,7 +376,7 @@ std::string BmodelTool::ConvertToNn(const std::vector<std::string>& bmodelPaths,
                 fs::remove(outputPath);
                 return "Failed to write nn file: " + outputPath;
             }
-            remaining -= n;
+            remaining -= copyBytes;
         }
         inputFile.close();
     }
@@ -389,9 +392,15 @@ std::string BmodelTool::ConvertToNn(const std::vector<std::string>& bmodelPaths,
         return "nn file does not exist after creation";
     }
 
-    auto outputSize = fs::file_size(outputPath);
-    long expectedSize =
-        std::accumulate(fileSizes.begin(), fileSizes.end(), static_cast<long>(sizeof(NnHeaderInfo)));
+    auto outputSize       = fs::file_size(outputPath);
+    uint64_t expectedSize = cosmo::nn::kPlainNnHeaderSize;
+    for (uint64_t fileSize : fileSizes) {
+        if (fileSize > std::numeric_limits<uint64_t>::max() - expectedSize) {
+            fs::remove(outputPath);
+            return "nn file size overflow";
+        }
+        expectedSize += fileSize;
+    }
     if (outputSize != static_cast<std::uintmax_t>(expectedSize)) {
         fs::remove(outputPath);
         return "nn file size is incorrect";

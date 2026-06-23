@@ -1,12 +1,17 @@
 #include "nn/core/graph.h"
 
 #include <algorithm>
+#include <array>
+#include <cstdint>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <map>
+#include <memory>
+#include <new>
 #include <set>
 
 #include "nn/core/blob_store.h"
@@ -509,7 +514,6 @@ Status Graph::BuildPostprocessChain(const ModelInfo& model,
 }
 
 Status Graph::MakeUp(CombinedModelInfo& info, bool use_skip) {
-
     // add one input node to graph first
     auto input = std::make_unique<InputNode>();
     nodes.emplace_back(std::move(input));
@@ -572,7 +576,7 @@ Status Graph::MakeUp(CombinedModelInfo& info, bool use_skip) {
     }
 
     Status status = AddCombinedModelNode(info);
-    model_infos_ = std::move(info.models);
+    model_infos_  = std::move(info.models);
     return status;
 }
 
@@ -701,8 +705,13 @@ Status Graph::LoadWeight(const std::string& model_path) {
         if (model_size <= 0)
             return Status(COSMO_NN_ERR_LOAD_MODEL, "model file is empty or unreadable");
 
-        std::vector<char> model_data(model_size);
-        model_stream.read(model_data.data(), model_size);
+        std::unique_ptr<char[]> model_data;
+        try {
+            model_data.reset(new char[static_cast<size_t>(model_size)]);
+        } catch (const std::bad_alloc&) {
+            return Status(COSMO_NN_ERR_OUT_OF_MEMORY, "not enough memory to load model");
+        }
+        model_stream.read(model_data.get(), model_size);
 
         auto net_node = GetNodeByName("net_0");
         if (!net_node)
@@ -712,7 +721,7 @@ Status Graph::LoadWeight(const std::string& model_path) {
         if (!net_ptr)
             return Status(COSMO_NN_ERR_LOAD_MODEL, "Failed to cast to NetNode");
 
-        return net_ptr->LoadWeight(model_data.data(), model_size);
+        return net_ptr->LoadWeight(model_data.get(), static_cast<size_t>(model_size));
     }
 
     if (!fs::is_directory(base_path)) {
@@ -757,8 +766,13 @@ Status Graph::LoadWeight(const std::string& model_path) {
                           "ONNX model file is empty or unreadable: " + part_path.string());
         }
 
-        std::vector<char> model_data(model_size);
-        model_stream.read(model_data.data(), model_size);
+        std::unique_ptr<char[]> model_data;
+        try {
+            model_data.reset(new char[static_cast<size_t>(model_size)]);
+        } catch (const std::bad_alloc&) {
+            return Status(COSMO_NN_ERR_OUT_OF_MEMORY, "not enough memory to load ONNX model");
+        }
+        model_stream.read(model_data.get(), model_size);
 
         auto net_node = GetNodeByName("net_" + std::to_string(i));
         if (!net_node)
@@ -768,43 +782,79 @@ Status Graph::LoadWeight(const std::string& model_path) {
         if (!net_ptr)
             return Status(COSMO_NN_ERR_LOAD_MODEL, "Failed to cast to NetNode");
 
-        RETURN_ON_FAIL(net_ptr->LoadWeight(model_data.data(), model_size));
+        RETURN_ON_FAIL(net_ptr->LoadWeight(model_data.get(), static_cast<size_t>(model_size)));
     }
 
     return COSMO_NN_OK;
 #else
     // Sophon: .nn model file has a header wrapping one or more bmodel segments.
-    size_t header_size = sizeof(struct ModelHeaderInfo);
-    ModelHeaderInfo header_info;
-    stream.read((char*)&header_info, header_size);
-    if (header_info.magic_num != g_magic_num) {
-        return Status(COSMO_NN_ERR_LOAD_MODEL, "model file magic mismatch, invalid or wrong-format .nn");
+    std::array<char, kPlainNnHeaderSize> header_data{};
+    stream.read(header_data.data(), static_cast<std::streamsize>(header_data.size()));
+    if (!stream) {
+        return Status(COSMO_NN_ERR_LOAD_MODEL, "failed to read .nn model header");
     }
 
-    std::vector<long int> sizes = GetModelSize(header_info);
+    auto header_result = ParsePlainNnHeader(header_data);
+    if (!header_result) {
+        return Status(COSMO_NN_ERR_LOAD_MODEL, "invalid .nn model header: " + header_result.error);
+    }
 
-    if (net_node_num != static_cast<int>(sizes.size()))
+    const PlainNnHeader& header_info = header_result.header;
+    if (net_node_num != static_cast<int>(header_info.model_count))
         return Status(COSMO_NN_ERR_LOAD_MODEL, "Graph not match with model file");
+
+    stream.seekg(0, std::ios::end);
+    if (!stream) {
+        return Status(COSMO_NN_ERR_LOAD_MODEL, "failed to seek .nn model file end");
+    }
+    std::streampos end_pos = stream.tellg();
+    if (end_pos == std::streampos(-1)) {
+        return Status(COSMO_NN_ERR_LOAD_MODEL, "failed to get .nn model file size");
+    }
+    std::streamoff raw_file_size_offset = static_cast<std::streamoff>(end_pos);
+    if (raw_file_size_offset < 0) {
+        return Status(COSMO_NN_ERR_LOAD_MODEL, ".nn model file size is invalid");
+    }
+    uint64_t raw_file_size = static_cast<uint64_t>(raw_file_size_offset);
+    auto file_size_result  = ValidatePlainNnFileSize(header_info, raw_file_size);
+    if (!file_size_result) {
+        return Status(COSMO_NN_ERR_LOAD_MODEL, "invalid .nn model file size: " + file_size_result.error);
+    }
+    stream.seekg(static_cast<std::streamoff>(kPlainNnHeaderSize), std::ios::beg);
+    if (!stream) {
+        return Status(COSMO_NN_ERR_LOAD_MODEL, "failed to seek .nn model payload");
+    }
 
     for (int i = 0; i < net_node_num; i++) {
         auto net_node = GetNodeByName("net_" + std::to_string(i));
         if (!net_node)
             return Status(COSMO_NN_ERR_LOAD_MODEL, "Can not find net node");
 
-        long int seg_model_size                      = sizes.at(i);
-        static constexpr long int kMaxModelSizeBytes = 512L * 1024 * 1024;
-        if (seg_model_size <= 0 || seg_model_size > kMaxModelSizeBytes) {
-            return Status(COSMO_NN_ERR_LOAD_MODEL,
-                          "model segment size invalid (must be positive and <= 512MB)");
+        uint64_t seg_model_size_u64 = header_info.model_sizes.at(static_cast<size_t>(i));
+        if (seg_model_size_u64 > static_cast<uint64_t>(std::numeric_limits<size_t>::max())) {
+            return Status(COSMO_NN_ERR_LOAD_MODEL, "model segment size exceeds size_t limit");
         }
-        std::vector<char> model_data(seg_model_size);
-        stream.read(model_data.data(), seg_model_size);
+        if (seg_model_size_u64 > static_cast<uint64_t>(std::numeric_limits<std::streamsize>::max())) {
+            return Status(COSMO_NN_ERR_LOAD_MODEL, "model segment size exceeds stream read limit");
+        }
+
+        size_t seg_model_size = static_cast<size_t>(seg_model_size_u64);
+        std::unique_ptr<char[]> model_data;
+        try {
+            model_data.reset(new char[seg_model_size]);
+        } catch (const std::bad_alloc&) {
+            return Status(COSMO_NN_ERR_OUT_OF_MEMORY, "not enough memory to load model segment");
+        }
+        stream.read(model_data.get(), static_cast<std::streamsize>(seg_model_size));
+        if (!stream) {
+            return Status(COSMO_NN_ERR_LOAD_MODEL, "failed to read model segment");
+        }
 
         auto* net_ptr = dynamic_cast<NetNode*>(net_node);
         if (!net_ptr)
             return Status(COSMO_NN_ERR_LOAD_MODEL, "Failed to cast to NetNode");
 
-        RETURN_ON_FAIL(net_ptr->LoadWeight(model_data.data(), seg_model_size));
+        RETURN_ON_FAIL(net_ptr->LoadWeight(model_data.get(), seg_model_size));
     }
 
     stream.close();
