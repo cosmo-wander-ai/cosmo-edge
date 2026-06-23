@@ -265,6 +265,11 @@ CameraServiceImpl::~CameraServiceImpl() {
     if (timer_) {
         timer_->Destroy();
     }
+    for (auto& camera : cameras_) {
+        if (camera) {
+            camera->WaitForSwitchThread();
+        }
+    }
     LOG_INFO("{}", "CameraServiceImpl Delete");
 }
 
