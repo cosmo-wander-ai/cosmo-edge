@@ -18,7 +18,7 @@
             <div id="arrange-content" class="arrange-content" ref="arrangeContentRef">
               <div class="arrange-select">
                 <el-select v-model="selectedTemplate" :placeholder="t('field.selectTemplate')" size="small" style="width: 200px" filterable @change="handleTemplateChange">
-                  <el-option v-for="item in templateList" :key="item.algorithmCode" :label="item.algorithmName" :value="item.algorithmCode" />
+                  <el-option v-for="item in templateList" :key="item.algorithmCode" :label="resolveResourceAlgorithmName(item)" :value="item.algorithmCode" />
                 </el-select>
               </div>
               <arrange-flow v-if="showArrangeFlow" ref="flowRef" :width="width" :height="height" :algorithmData="algorithmData" :algorithmMetadata="algorithmMetadata" :actionList="actionList" :atomicCode="$route.query.algorithmId" @onMetadata="syncMetadata"></arrange-flow>

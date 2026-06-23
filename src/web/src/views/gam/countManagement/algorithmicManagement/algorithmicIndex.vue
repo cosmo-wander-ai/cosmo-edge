@@ -46,7 +46,7 @@
         </div>
         <!-- 信息 -->
         <div class="card-info">
-          <div class="card-title" :title="row.algorithmName">{{ row.algorithmName }}</div>
+          <div class="card-title" :title="resolveResourceAlgorithmName(row)">{{ resolveResourceAlgorithmName(row) }}</div>
           <div class="card-meta">ID: {{ row.algorithmId }} · {{ getUsageLabel(row) }}</div>
           <el-tooltip v-if="row.remark" :content="resolveResourceAlgorithmRemark(row)" placement="top" :show-after="300" popper-class="task-remark-tooltip">
             <div class="card-desc">{{ resolveResourceAlgorithmRemark(row) }}</div>
@@ -151,7 +151,7 @@ import VersionDetailDialog from './components/VersionDetailDialog.vue'
 import { ArrowDown, Delete } from '@element-plus/icons-vue'
 import moment from 'moment'
 import { t, localeColon } from '@/i18n'
-import { resolveResourceAlgorithmRemark } from '@/utils/i18nResource'
+import { resolveResourceAlgorithmRemark, resolveResourceAlgorithmName } from '@/utils/i18nResource'
 
 export default {
   components: {
@@ -161,7 +161,7 @@ export default {
     Delete
   },
   setup() {
-    return { t, localeColon, resolveResourceAlgorithmRemark }
+    return { t, localeColon, resolveResourceAlgorithmRemark, resolveResourceAlgorithmName }
   },
   data() {
     return {
