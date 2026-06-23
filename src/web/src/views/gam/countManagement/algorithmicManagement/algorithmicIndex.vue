@@ -161,7 +161,7 @@ export default {
     Delete
   },
   setup() {
-    return { t, resolveResourceAlgorithmRemark }
+    return { t, localeColon, resolveResourceAlgorithmRemark }
   },
   data() {
     return {
