@@ -62,9 +62,9 @@ COPY . .
 
 ARG RESOURCE_DIR=data/resource/aiboxresource
 RUN if [ -n "${RESOURCE_DIR}" ]; then \
-        bash ./scripts/build.sh -t -m "${RESOURCE_DIR}"; \
+        bash ./scripts/build.sh -m "${RESOURCE_DIR}"; \
     else \
-        bash ./scripts/build.sh -t; \
+        bash ./scripts/build.sh; \
     fi
 
 CMD ["bash", "-lc", "set -e; mkdir -p /build_output; cp -f /src/build/packages/* /build_output/; ls -lh /build_output"]
