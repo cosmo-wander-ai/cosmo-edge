@@ -68,6 +68,7 @@ public:
 
     mutable std::mutex attr_mtx_;
     MsgCameraAttr cached_attr_{};  // Cached resolution/codec/fps
+    std::mutex switch_mtx_;        // Protects switch_thread_
     std::thread switch_thread_;    // Background switch thread (joinable, replaces detach)
 
     // Wait for background switch thread to finish

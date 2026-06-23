@@ -52,6 +52,7 @@ CameraEntity::~CameraEntity() {
 }
 
 void CameraEntity::WaitForSwitchThread() {
+    std::lock_guard<std::mutex> lock(switch_mtx_);
     if (switch_thread_.joinable()) {
         switch_thread_.join();
     }
@@ -432,12 +433,14 @@ void CameraServiceImpl::SwitchCameraTask(const CameraEntityPtr& camera, CameraTa
 }
 
 void CameraServiceImpl::SwitchCameraTaskAsync(CameraEntityPtr camera, CameraTaskPtr task) {
-    // Wait for the previous switch thread to finish (only one switch per channel at a time)
-    camera->WaitForSwitchThread();
+    std::lock_guard<std::mutex> lock(camera->switch_mtx_);
+    if (camera->switch_thread_.joinable()) {
+        camera->switch_thread_.join();
+    }
 
     std::string channelId = camera->videoChannelId;
     camera->switch_thread_ =
-        std::thread([this, camera = std::move(camera), task = std::move(task), channelId]() {
+        std::thread([this, camera, task, channelId]() {
             LOG_INFO("[{}/{}] SwitchCameraTaskAsync START in background thread", channelId, task->task_id_);
             SwitchCameraTask(camera, task);
             LOG_INFO("[{}/{}] SwitchCameraTaskAsync DONE", channelId, task->task_id_);
