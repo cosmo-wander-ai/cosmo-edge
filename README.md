@@ -47,7 +47,7 @@ TODO before public launch:
 
 <div align="center">
 
-https://github.com/user-attachments/assets/155d4b04-904b-430f-897f-81f0daed40c9
+https://github.com/user-attachments/assets/23a014a5-d753-432f-8de5-c750bc82d8e2
 
 </div>
 
@@ -97,7 +97,7 @@ Build video AI workflows in a browser. Connect video sources, AI models, post-pr
 
 <div align="center">
 
-https://github.com/user-attachments/assets/87b35736-72dc-4d0c-980d-334131d41816
+https://github.com/user-attachments/assets/94b9418b-36c8-47b6-a730-ad8f508a6709
 
 </div>
 
@@ -155,7 +155,7 @@ CosmoEdge supports prompt-driven visual intelligence on edge devices. GroundingD
 
 <div align="center">
 
-https://github.com/user-attachments/assets/b9cbd944-8cd1-48e6-86d0-cb1969404d72
+https://github.com/user-attachments/assets/212a33a8-e662-4678-9945-02c78d808e4d
 
 </div>
 
