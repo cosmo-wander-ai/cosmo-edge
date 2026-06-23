@@ -54,7 +54,7 @@ CosmoEdge基于算能的AI边缘计算设备，采用算能BM1688性能强劲处
 
 <!-- 这是一张图片，ocr 内容为：HCLID USEBIO LAN WW 电源接口 -->
 
-![](images/img_04.png)
+![](images/img_04.jpg)
 
 3. 等待约 **60 秒**，设备启动完成
 
@@ -64,13 +64,13 @@ CosmoEdge基于算能的AI边缘计算设备，采用算能BM1688性能强劲处
 
 <!-- 这是一张图片，ocr 内容为：电源指示灯 PWR WAN ALM SYS XT -->
 
-![](images/img_05.png)
+![](images/img_05.jpg)
 
 + 网络指示灯（WAN）：闪烁（表示网络连接正常）
 
 <!-- 这是一张图片，ocr 内容为：PWR 网络指示灯 WAN ALM SYS US80  DEBUG QUT -->
 
-![](images/img_06.png)
+![](images/img_06.jpg)
 
 4. **CosmoEdge静态IP配置**
 5. 电脑桌面点击 **开始 **-> **控制面板** ->**网络和Internet **->**网络和共享中心** ->**更改适配器设置** -> **网络连接** -> **以太网** 。（推荐刚开始设备和计算机直连）
