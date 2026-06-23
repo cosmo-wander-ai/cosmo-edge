@@ -40,7 +40,7 @@ vision-language-model, vlm, sophon, bm1688, real-time
 TODO before public launch:
 - Replace all placeholder image paths with real assets.
 - Confirm Quick Start commands.
-- Confirm benchmark values and attach a reproducible test report.
+- Confirm public benchmark values.
 - Confirm final public release assets and URLs.
 - Confirm certified hardware URL.
 -->
@@ -52,8 +52,6 @@ https://github.com/user-attachments/assets/23a014a5-d753-432f-8de5-c750bc82d8e2
 </div>
 
 *Multiple AI pipelines, real-time OSD, and live event output on one edge device.*
-
-</div>
 
 CosmoEdge is a C++ native edge AI engine for building production-oriented video analytics systems on edge devices. It turns models into visual, manageable applications: import a model, compose a pipeline, connect video sources, watch AI overlays in the browser, and push structured events to MQTT or HTTP.
 
@@ -92,7 +90,7 @@ https://github.com/user-attachments/assets/94b9418b-36c8-47b6-a730-ad8f508a6709
 
 ### Complete Application Loop
 
-CosmoEdge is not only an inference runtime. It includes the application layer needed to operate AI vision systems in the field.
+CosmoEdge links the runtime, web console, and integration layer into one field workflow:
 
 ```text
 Model Repository -> Scenario Task -> Real-time Analysis -> Alarm Management -> Data Push
@@ -252,7 +250,7 @@ This path builds, exports, and installs release packages. Ready for production h
 
 ## Validation
 
-CosmoEdge is built from a commercial codebase and has gone through internal system validation before open-source release.
+CosmoEdge is built from a commercial codebase and has gone through recent internal system validation before open-source release.
 
 | Area                   | Current validation status                                                                                    |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------ |
@@ -261,8 +259,6 @@ CosmoEdge is built from a commercial codebase and has gone through internal syst
 | Concurrent CV workload | 16-channel CV inference verified on a single BM1688 device                                                   |
 | Regression testing     | Multi-round system regression with dedicated QA                                                              |
 | Pilot deployments      | Validated in de-identified pilot scenarios across education, smart campus, and industrial safety             |
-
-> TODO: Link to a public validation report before formal v1.0 release. The report should include test duration, device configuration, input resolution, model versions, and known limitations.
 
 ### Performance Benchmarks
 
@@ -377,7 +373,7 @@ Certified devices add deployment readiness, not locked software features.
 - [X] VLM and GroundingDINO integration
 - [X] 18 CV pipelines internally validated
 - [ ] Public x86 one-command startup
-- [ ] Public reproducible benchmark dataset and reports
+- [ ] Additional public performance summaries
 - [ ] Release packaging for v1.0
 - [ ] Community model and scenario examples
 - [ ] GB28181 protocol support
@@ -419,7 +415,7 @@ Yes. CosmoEdge is designed around model import and model lifecycle management. T
 <details>
 <summary><b>How is CosmoEdge different from inference servers or NVR projects?</b></summary>
 
-CosmoEdge combines three layers in one edge system: a C++ video AI runtime, a visual pipeline builder, and a web management console for scenarios, alarms, model lifecycle, OSD, and data push. The goal is not only to run models, but to help integrators operate complete edge AI applications.
+CosmoEdge is an application runtime for complete edge AI workflows, not only a model-serving layer or video recorder.
 
 </details>
 
