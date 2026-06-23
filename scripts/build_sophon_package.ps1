@@ -18,12 +18,23 @@ function Test-Command {
     return $null -ne (Get-Command $Name -ErrorAction SilentlyContinue)
 }
 
+function Test-DockerImage {
+    param([string]$Image)
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        docker image inspect $Image *> $null
+        return $LASTEXITCODE -eq 0
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+}
+
 if (-not (Test-Command "docker")) {
     throw "docker is required but was not found in PATH."
 }
 
-docker image inspect $BaseImage *> $null
-if ($LASTEXITCODE -ne 0) {
+if (-not (Test-DockerImage $BaseImage)) {
     Write-Host "Sophon base image not found locally: $BaseImage"
 
     if (-not $ImageTar) {
@@ -74,8 +85,7 @@ You can either:
     Write-Host "Loading Sophon base image from $ImageTar..."
     docker load -i $ImageTar
 
-    docker image inspect $BaseImage *> $null
-    if ($LASTEXITCODE -ne 0) {
+    if (-not (Test-DockerImage $BaseImage)) {
         throw "docker load completed, but $BaseImage is still unavailable. Set SOPHON_BASE_IMAGE to the tag shown by 'docker images' and rerun this script."
     }
 } else {

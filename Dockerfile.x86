@@ -44,6 +44,21 @@ RUN npm config set registry https://registry.npmmirror.com
 WORKDIR /src
 COPY . .
 
+# Windows Git may check out symlinks as small text files. Recreate Linux
+# shared-library links inside the build container before linking against them.
+RUN find prebuild 3rd -path '*/lib/*.so*' -type f -size -256c -print | while IFS= read -r link; do \
+        target="$(cat "${link}")"; \
+        case "${target}" in \
+            *.so|*.so.*) \
+                dir="$(dirname "${link}")"; \
+                if [ -e "${dir}/${target}" ]; then \
+                    rm -f "${link}"; \
+                    ln -s "${target}" "${link}"; \
+                fi; \
+                ;; \
+        esac; \
+    done
+
 ARG RESOURCE_DIR=data/resource/aiboxresource_x86
 RUN if [ -n "${RESOURCE_DIR}" ]; then \
         bash ./scripts/build_cpu.sh -t -m "${RESOURCE_DIR}"; \
