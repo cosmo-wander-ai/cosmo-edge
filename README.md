@@ -28,7 +28,7 @@ vision-language-model, vlm, sophon, bm1688, real-time
 [![Stress Test](https://img.shields.io/badge/stress%20test-200%20video%20samples-brightgreen?style=flat-square)](#validation)
 [![Pipelines](https://img.shields.io/badge/pipelines-18%2F18%20validated-brightgreen?style=flat-square)](#validation)
 
-[Quick Start](#quick-start) | [Features](#key-features) | [Showcases](#showcases) | [Validation](#validation) | [Docs](#documentation) | [Hardware](#cosmoedge-ready-devices)
+[Quick Start](#quick-start) | [Features](#key-features) | [Validation](#validation) | [Docs](#documentation) | [Hardware](#cosmoedge-ready-devices)
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
@@ -275,18 +275,6 @@ After installing the package and rebooting the device:
 - **Default Password**: `admin` (it is highly recommended to change this password after your first login)
 
 This path builds, exports, and installs release packages. Ready for production hardware? Certified CosmoEdge devices provide preconfigured Sophon acceleration, production model packages, and deployment support. See [CosmoEdge-ready devices](#cosmoedge-ready-devices).
-
-## Showcases
-
-Representative application pipelines built with the same engine, UI, and event system:
-
-| Scenario                 | Pipeline                                                        | What it demonstrates                                    |
-| ------------------------ | --------------------------------------------------------------- | ------------------------------------------------------- |
-| Pedestrian Flow Analysis | Detection -> tracking -> line crossing -> counting -> MQTT      | Multi-stage CV pipeline with real-time statistics       |
-| Construction Site Safety | Person/PPE detection -> zone rule -> alarm -> snapshot -> OSD   | Compliance monitoring with semantic overlays and alarms |
-| Visual Inspection        | DINO object localization -> VLM state judgment -> event mapping | Prompt-driven long-tail inspection without retraining   |
-
-Additional scene GIFs can be added here later. The three launch GIFs are intentionally used for the three strongest README proof points: live edge runtime, visual orchestration, and prompt-driven AI.
 
 ## Validation
 

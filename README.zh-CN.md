@@ -28,7 +28,7 @@ vision-language-model, vlm, sophon, bm1688, real-time
 [![Stress Test](https://img.shields.io/badge/stress%20test-200%20video%20samples-brightgreen?style=flat-square)](#验证与性能)
 [![Pipelines](https://img.shields.io/badge/pipelines-18%2F18%20validated-brightgreen?style=flat-square)](#验证与性能)
 
-[快速开始](#快速开始) | [核心特性](#核心特性) | [典型场景](#典型场景) | [验证与性能](#验证与性能) | [文档](#文档) | [硬件](#cosmoedge-ready-设备)
+[快速开始](#快速开始) | [核心特性](#核心特性) | [验证与性能](#验证与性能) | [文档](#文档) | [硬件](#cosmoedge-ready-设备)
 
 [English](README.md) | 简体中文
 
@@ -275,18 +275,6 @@ sudo reboot
 - **默认密码**：`admin`（首次登录后建议修改）
 
 该路径用于构建、导出并安装发布包。准备用于生产硬件？认证 CosmoEdge 设备提供预配置 Sophon 加速、生产模型包和部署支持。参见 [CosmoEdge-ready 设备](#cosmoedge-ready-设备)。
-
-## 典型场景
-
-以下是使用同一套引擎、UI 和事件系统构建的代表性应用流水线：
-
-| 场景 | 流水线 | 展示能力 |
-| --- | --- | --- |
-| 人流分析 | 检测 -> 跟踪 -> 越线 -> 计数 -> MQTT | 多阶段 CV 流水线和实时统计 |
-| 工地安全 | 人员/PPE 检测 -> 区域规则 -> 告警 -> 截图 -> OSD | 合规监测、语义化叠加和告警 |
-| 视觉巡检 | DINO 目标定位 -> VLM 状态判断 -> 事件映射 | 无需重新训练的提示词驱动长尾巡检 |
-
-后续可以继续补充更多场景 GIF。当前三个首发 GIF 分别用于展示 README 中最关键的三个证明点：实时边缘运行时、可视化编排和提示词驱动 AI。
 
 ## 验证与性能
 
