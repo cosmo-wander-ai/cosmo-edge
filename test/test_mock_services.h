@@ -819,6 +819,7 @@ struct MockServiceRegistry {
         expectations.push_back(NAMED_ALLOW_CALL(appInfoSvc, GetModelDebug()).RETURN(false));
         expectations.push_back(NAMED_ALLOW_CALL(appInfoSvc, GetHaveManager()).RETURN(false));
         expectations.push_back(NAMED_ALLOW_CALL(appInfoSvc, GetAppRuntime()).RETURN(0));
+        expectations.push_back(NAMED_ALLOW_CALL(configReadSvc, GetResourceLimit()).RETURN(false));
         expectations.push_back(NAMED_ALLOW_CALL(taskSvc, TaskCreate(trompeloeil::_, trompeloeil::_,
                                                                     trompeloeil::_, trompeloeil::_))
                                    .RETURN(cosmo::util::ErrorEnum::Success));

@@ -24,7 +24,7 @@ struct TestFixture {
         ALLOW_CALL(mocks.taskSvc, TaskIsStart(_)).RETURN(false);
         ALLOW_CALL(mocks.taskSvc, TaskStart(_, _)).RETURN(true);
         ALLOW_CALL(mocks.taskSvc, TaskStop(_)).RETURN(true);
-        ALLOW_CALL(mocks.taskSvc, TaskDelete(_)).RETURN(true);
+        ALLOW_CALL(mocks.taskSvc, TaskDelete(_)).RETURN(util::ErrorEnum::Success);
         ALLOW_CALL(mocks.taskSvc, TaskChannelSetUrl(_, _));
 
         MsgCameraInfo config;
@@ -39,7 +39,7 @@ struct TestFixture {
 }  // namespace
 
 TEST_CASE("CameraServiceImpl basic task operations", "[CameraServiceImpl]") {
-    system("rm -rf /tmp/test_camera_basic");
+    system("rm -rf /tmp/cosmo_test/conf/camera/test_camera_01");
     TestFixture fx("test_camera_01", "rtsp://test");
 
     SECTION("GetTasks initially empty") {
@@ -65,7 +65,7 @@ TEST_CASE("CameraServiceImpl basic task operations", "[CameraServiceImpl]") {
 }
 
 TEST_CASE("CameraServiceImpl monitor logic", "[CameraServiceImpl]") {
-    system("rm -rf /tmp/test_camera_monitor");
+    system("rm -rf /tmp/cosmo_test/conf/camera/test_camera_01");
     TestFixture fx("test_camera_01", "rtsp://test");
 
     ALLOW_CALL(fx.mocks.appInfoSvc, GetNumber()).RETURN(1);
@@ -101,7 +101,7 @@ TEST_CASE("CameraServiceImpl monitor logic", "[CameraServiceImpl]") {
 }
 
 TEST_CASE("CameraServiceImpl concurrent task operations", "[CameraServiceImpl][concurrency]") {
-    system("rm -rf /tmp/test_camera_conc");
+    system("rm -rf /tmp/cosmo_test/conf/camera/test_camera_02");
     TestFixture fx("test_camera_02", "rtsp://test2");
 
     std::atomic<bool> stop{false};
