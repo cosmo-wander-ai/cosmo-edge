@@ -69,17 +69,6 @@ Instead of stopping at an inference API or demo script, CosmoEdge focuses on the
 - Long-tail object detection with text-prompted GroundingDINO.
 - End-to-end edge AI systems with model management, scenario tasks, alarms, and data push.
 
-## Screenshots
-
-<!--
-TODO: Replace placeholders with real screenshots.
-Recommended set:
-1. Visual Pipeline Orchestrator
-2. Real-time AI Analytics
-3. Web Management Console
-4. VLM Visual Inspection
--->
-
 ## Key Features
 
 ### C++ Native Runtime
@@ -136,12 +125,6 @@ CosmoEdge includes a production-oriented OSD system designed for operators and d
 - Semantic colors for normal, warning, violation, and uncertain states.
 - Zone overlays, line-crossing indicators, counters, and event panels.
 - Debug view for raw detections, confidence scores, track IDs, and model output.
-
-### Multi-channel Edge Runtime
-
-The C++ engine is designed for multi-channel video analytics on edge hardware. On Sophon BM1688, CosmoEdge has been internally verified with 16-channel CV inference workloads.
-
-> TODO: Publish the exact benchmark setup before launch: device model, SDK version, resolution, codec, input source, model version, duration, and whether OSD/streaming are included.
 
 ### Prompt-driven AI: GroundingDINO + VLM
 
@@ -216,7 +199,6 @@ git clone https://github.com/cosmo-wander-ai/cosmo-edge.git
 cd cosmo-edge
 
 # 2. Start in x86 mode
-# TODO: Confirm the final public launch command.
 # Preferred release target (Linux):
 sudo docker compose -f docker-compose.x86.yml up -d --build
 
