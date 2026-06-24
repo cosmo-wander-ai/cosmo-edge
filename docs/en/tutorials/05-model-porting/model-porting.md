@@ -456,14 +456,14 @@ Video Decode → Object Detection (third-party model) → Object Tracking → Re
 **Step 5**: Add **Event Reporting**.
 
 <!-- Screenshot of event reporting config -->
-![](images/img_36.png)
+![](images/img_35.png)
 
 
 
 3. Configure parameters
 
 <!-- Screenshot of parameter config -->
-![](images/img_37.png)
+![](images/img_36.png)
 
 4. Click **Save** to store the pipeline.
 
@@ -475,7 +475,7 @@ Video Decode → Object Detection (third-party model) → Object Tracking → Re
 2. Go to **Video Sources** and add a video channel.
 
 <!-- Screenshot of video channel creation -->
-![](images/img_38.png)
+![](images/img_37.png)
 
 Parameters:
 
@@ -490,28 +490,28 @@ Parameters:
 Click **Service Assignment** to open the configuration page.
 
 <!-- Screenshot of service assignment -->
-![](images/img_39.png)
+![](images/img_38.png)
 
 
 
 Select **Drone Object Detection** as the scenario task.
 
 <!-- Screenshot of task selection -->
-![](images/img_40.png)
+![](images/img_39.png)
 
 
 
 Add a detection region.
 
 <!-- Screenshot of region added -->
-![](images/img_41.png)
+![](images/img_40.png)
 
 
 
 Configure **Runtime Strategy** — set play count to 0.
 
 <!-- Screenshot of runtime strategy -->
-![](images/img_42.png)
+![](images/img_41.png)
 
 
 Click **Save** to save and start.
@@ -520,18 +520,18 @@ Click **Save** to save and start.
 Go to **Live Preview** and select the Drone Camera channel.
 
 <!-- Screenshot of live preview -->
-![](images/img_43.png)
+![](images/img_42.png)
 
 
 
 Enable the algorithm overlay: Drone Object Detection.
 
 <!-- Screenshot of overlay enabled -->
-![](images/img_44.png)
+![](images/img_43.png)
 
 Alarm popup:
 
-![](images/img_46.png)
+![](images/img_44.png)
 
 Verify:
 
