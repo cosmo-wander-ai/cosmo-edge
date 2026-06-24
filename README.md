@@ -142,9 +142,7 @@ https://github.com/user-attachments/assets/212a33a8-e662-4678-9945-02c78d808e4d
 
 GroundingDINO finds what and where. VLM judges whether a visual state is true. Both can be used as asynchronous pipeline nodes alongside traditional CV pipelines.
 
-Certified device packages can include a fine-tuned 0.8B edge VLM and production-ready CV models. The open-source engine can also run user-provided models through the same workflow.
-
-> TODO: Confirm the public model name, parameter count, quantization format, and measured latency before using the 0.8B VLM claim in a release.
+Certified device packages can include a validated `CosmoEdge-VL-Judge-0.8B` edge visual judge model and production-ready CV models. The open-source engine can also run user-provided models through the same workflow.
 
 ### Model Sources
 
@@ -159,8 +157,12 @@ Models listed below have full pipeline support — detection, OSD rendering, tra
 | Attribute Classification  | Safety helmet, vest, uniform classifiers       | Full pipeline       |
 | Counting & Statistics     | Line crossing, zone counting, directional flow | Full pipeline       |
 | Open-vocabulary Detection | GroundingDINO                                  | Async pipeline node |
-| Visual State Judgment     | Edge VLM (text prompt → YES/NO/Enum)          | Async pipeline node |
+| Visual State Judgment     | `CosmoEdge-VL-Judge-0.8B` (text prompt -> YES/NO/Enum) | Async pipeline node |
 | Image Analysis            | VLM batch analysis                             | Standalone task     |
+
+**Edge VLM model package:**
+
+`CosmoEdge-VL-Judge-0.8B` is the validated model package for certified device packages. It is based on Qwen3.5 0.8B, then fine-tuned and edge-quantized for visual state judgment, targeting closed-form VLM-as-judge tasks such as YES/NO and enum outputs. The open-source repository provides the engine, pipeline nodes, and model integration path; community-quantized weights or user-provided VLMs must be validated for the target scenario and are not treated as production-ready defaults.
 
 **Model ecosystem compatibility:**
 
@@ -269,7 +271,7 @@ The numbers below are representative system-level combinations based on internal
 | Full-stream YOLOv8n detection |             16 |                16 |   3/channel |     32-68(ms) | BM1688   | Decode + inference + OSD enabled; stable upper-limit case                       |
 | Shared-codec dense CV tasks   |              4 |                20 |   3/channel |    84-141(ms) | BM1688   | Multiple scenario tasks share decoded streams; demonstrates task concurrency    |
 | Safety compliance pipeline    |             16 |                16 |   3/channel |   182-314(ms) | BM1688   | Detection + tracking + attribute/rule + alarm; representative business pipeline |
-| Prompt-driven AI pipeline     |              8 |                 8 | 0.2/channel | 3154-4128(ms) | BM1688   | VLM async nodes; event-driven slow path, not frame-synchronous OSD（QW3.5 0.8b) |
+| Prompt-driven AI pipeline     |              8 |                 8 | 0.2/channel | 3154-4128(ms) | BM1688   | Validated `CosmoEdge-VL-Judge-0.8B`; VLM async nodes; event-driven slow path, not frame-synchronous OSD |
 | x86 developer mode            |              1 |                 1 |        TODO |          TODO | x86 CPU  | YOLOv8n development and evaluation workload                                     |
 
 ## Architecture
@@ -327,7 +329,7 @@ Certified devices are for teams that want to skip hardware bring-up and model pa
 | x86 developer mode           |             Included             |         Included         |
 | Sophon NPU runtime support   | Source support, hardware required |      Preconfigured      |
 | CV model package             |       Bring your own models       |      Pre-installed      |
-| 0.8B edge VLM                | Bring your own or custom package |      Pre-installed      |
+| `CosmoEdge-VL-Judge-0.8B`    | Bring your own/custom package; validation required | Pre-installed validated package |
 | GroundingDINO package        | Bring your own or custom package |      Pre-installed      |
 | Deployment support           |             Community             |        Dedicated        |
 
@@ -387,7 +389,7 @@ No. Use x86 developer mode on Linux or Windows to try the UI, pipeline workflow,
 <details>
 <summary><b>Does the open-source repository include model weights?</b></summary>
 
-The open-source repository focuses on the engine, UI, and workflow. You can bring your own models and follow the model porting guide. Certified device packages can include pre-installed production CV models, a fine-tuned edge VLM, and GroundingDINO.
+The open-source repository focuses on the engine, UI, pipeline workflow, and model integration path. It does not include production model weights by default. You can bring your own models and follow the model porting guide. Certified device packages can include pre-installed production CV models, the validated `CosmoEdge-VL-Judge-0.8B`, and GroundingDINO; community-quantized weights or user-provided VLMs must be validated for the target scenario.
 
 </details>
 
