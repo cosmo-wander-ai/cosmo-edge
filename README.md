@@ -131,7 +131,7 @@ CosmoEdge supports prompt-driven visual intelligence on edge devices. GroundingD
 | Capability         | How it works                                    | Typical use                                           |
 | ------------------ | ----------------------------------------------- | ----------------------------------------------------- |
 | GroundingDINO      | Text prompt -> open-vocabulary object detection | Find long-tail objects without task-specific training |
-| Edge VLM           | Closed question -> YES/NO/Enum state judgment   | "Is the cabinet door open?" -> alarm on YES           |
+| Edge VLM           | Closed question -> YES/NO state judgment        | "Is the cabinet door open?" -> alarm on YES           |
 | VLM Image Analysis | Image upload -> structured visual check         | Quality inspection, compliance review                 |
 
 <div align="center">
@@ -142,27 +142,27 @@ https://github.com/user-attachments/assets/212a33a8-e662-4678-9945-02c78d808e4d
 
 GroundingDINO finds what and where. VLM judges whether a visual state is true. Both can be used as asynchronous pipeline nodes alongside traditional CV pipelines.
 
-Certified device packages can include a validated `CosmoEdge-VL-Judge-0.8B` edge visual judge model and production-ready CV models. The open-source engine can also run user-provided models through the same workflow.
+CosmoEdge supports compatible Qwen3 VLM series models and Qwen3.5 multimodal models as edge VLM nodes. Certified device packages can provide `CosmoEdge-VL-Judge-0.8B`, a 0.8B model package optimized for YES/NO visual state judgment.
 
 ### Model Sources
 
-**Validated end-to-end in CosmoEdge:**
+**Integrated end-to-end in CosmoEdge:**
 
-Models listed below have full pipeline support — detection, OSD rendering, tracking, alarm rules, and event output work out of the box.
+The capabilities below are integrated end-to-end; different model types map to different runtime modes.
 
-| Category                  | Verified Architectures                         | Pipeline Support    |
+| Category                  | Supported Models / Architectures               | Pipeline Support    |
 | :------------------------ | :--------------------------------------------- | :------------------ |
 | Object Detection          | YOLOv5, YOLOv8, YOLOv10, YOLOv11, YOLOv12, YOLO26 | Full pipeline       |
 | Object Tracking           | ByteTrack                                      | Full pipeline       |
 | Attribute Classification  | Safety helmet, vest, uniform classifiers       | Full pipeline       |
 | Counting & Statistics     | Line crossing, zone counting, directional flow | Full pipeline       |
 | Open-vocabulary Detection | GroundingDINO                                  | Async pipeline node |
-| Visual State Judgment     | `CosmoEdge-VL-Judge-0.8B` (text prompt -> YES/NO/Enum) | Async pipeline node |
+| Visual State Judgment     | Qwen3 VLM models, Qwen3.5 multimodal models (text prompt -> YES/NO) | Async pipeline node |
 | Image Analysis            | VLM batch analysis                             | Standalone task     |
 
 **Edge VLM model package:**
 
-`CosmoEdge-VL-Judge-0.8B` is the validated model package for certified device packages. It is based on Qwen3.5 0.8B, then fine-tuned and edge-quantized for visual state judgment, targeting closed-form VLM-as-judge tasks such as YES/NO and enum outputs. The open-source repository provides the engine, pipeline nodes, and model integration path; community-quantized weights or user-provided VLMs must be validated for the target scenario and are not treated as production-ready defaults.
+`CosmoEdge-VL-Judge-0.8B` is based on Qwen3.5 0.8B, then fine-tuned and edge-quantized for YES/NO visual state judgment. It complements the general Qwen model integration path with a production-optimized package for certified devices and low-power edge deployments.
 
 **Model ecosystem compatibility:**
 
@@ -389,7 +389,7 @@ No. Use x86 developer mode on Linux or Windows to try the UI, pipeline workflow,
 <details>
 <summary><b>Does the open-source repository include model weights?</b></summary>
 
-The open-source repository focuses on the engine, UI, pipeline workflow, and model integration path. It does not include production model weights by default. You can bring your own models and follow the model porting guide. Certified device packages can include pre-installed production CV models, the validated `CosmoEdge-VL-Judge-0.8B`, and GroundingDINO; community-quantized weights or user-provided VLMs must be validated for the target scenario.
+The open-source repository does not include production model weights by default. You can bring your own models, including compatible Qwen3 VLM series models and Qwen3.5 multimodal models. Certified device packages can provide pre-installed production CV models, `CosmoEdge-VL-Judge-0.8B`, and GroundingDINO. Community or custom models should be validated for the target scenario.
 
 </details>
 
