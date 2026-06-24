@@ -154,7 +154,7 @@ Models listed below have full pipeline support — detection, OSD rendering, tra
 
 | Category                  | Verified Architectures                         | Pipeline Support    |
 | :------------------------ | :--------------------------------------------- | :------------------ |
-| Object Detection          | YOLOv5, YOLOv8, YOLOv10, YOLOv11               | Full pipeline       |
+| Object Detection          | YOLOv5, YOLOv8, YOLOv10, YOLOv11, YOLOv12, YOLO26 | Full pipeline       |
 | Object Tracking           | ByteTrack                                      | Full pipeline       |
 | Attribute Classification  | Safety helmet, vest, uniform classifiers       | Full pipeline       |
 | Counting & Statistics     | Line crossing, zone counting, directional flow | Full pipeline       |
