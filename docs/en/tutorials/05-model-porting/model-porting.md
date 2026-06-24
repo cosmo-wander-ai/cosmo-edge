@@ -15,7 +15,6 @@ next: false
 > **Extra environment needed**: A computer with Docker installed for model conversion
 >
 
-
 **CosmoEdge Scenario Task Orchestration** covers "how to organize existing capabilities." This volume covers "how to bring in new ones." In other words:
 
 + **CosmoEdge Scenario Task Orchestration** teaches you to orchestrate pipelines
@@ -454,12 +453,6 @@ Video Decode → Object Detection (third-party model) → Object Tracking → Re
 
 
 
-<!-- Screenshot of region judgment config -->
-![](images/img_35.png)
-
-
-
-
 **Step 5**: Add **Event Reporting**.
 
 <!-- Screenshot of event reporting config -->
@@ -468,8 +461,6 @@ Video Decode → Object Detection (third-party model) → Object Tracking → Re
 
 
 3. Configure parameters
-
-Set the Region Alarm Judgment condition to **alarm when target count in region exceeds 0**.
 
 <!-- Screenshot of parameter config -->
 ![](images/img_37.png)
@@ -537,6 +528,10 @@ Enable the algorithm overlay: Drone Object Detection.
 
 <!-- Screenshot of overlay enabled -->
 ![](images/img_44.png)
+
+Alarm popup:
+
+![](images/img_46.png)
 
 Verify:
 
