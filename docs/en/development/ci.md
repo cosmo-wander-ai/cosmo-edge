@@ -30,7 +30,3 @@ npm run docs:build
 ```
 
 On Windows PowerShell, use `npm.cmd run docs:build` if script execution policy blocks `npm.ps1`.
-
-## Release Checks
-
-Release validation should verify package layout, executable startup, web console availability, service ports, resource loading, and sensitive-data scan results.

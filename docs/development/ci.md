@@ -167,21 +167,5 @@ Windows PowerShell：
 .\scripts\build_sophon_package.ps1
 ```
 
-说明：
-
-- 该检查依赖交叉编译环境、Sophon SDK 和目标运行时约束，适合放入手动 workflow 或 self-hosted runner。
-- 发布前建议确认 `build_output/` 中导出的包名、版本号、依赖和启动脚本是否符合预期。
-
-## 建议的 GitHub Actions 拆分
-
-首批公开仓库可以先保留现有 Pages workflow，并逐步增加：
-
-| Workflow | 内容 | 备注 |
-| --- | --- | --- |
-| `docs` | 文档站依赖安装和 `docs:build` | 已具备基础 workflow |
-| `frontend` | `src/web` 依赖安装、i18n 检查和构建 | 适合普通 GitHub runner |
-| `cpp-format` | `format_check.sh --check` | 需要安装 clang-format |
-| `cpp-analysis` | `cppcheck` / `clang-tidy` | 可先手动触发 |
-| `cpu-test-build` | `build_cpu_test.sh` 和 `cosmo-tests` | 依赖较重，先评估耗时 |
-| `release-package` | Sophon package build | 建议 self-hosted runner |
+Sophon 发布包构建依赖交叉编译环境和 Sophon SDK。`build_output/` 中导出的包名格式为 `cosmo-V<major>.<minor>.<patch>-<md5>.tar.gz`。
 
