@@ -114,12 +114,3 @@ src/web
 
 模板中可见 YOLO、DINO、SAM2、Qwen3/Qwen3VL、keypoints、feature、classification 等类型。模型权重和资源是否公开分发，需要单独确认。
 
-## 开发模式和受限模式
-
-`app_init.cc` 中存在设备 SN 校验逻辑。
-
-- `COSMO_DEV_MODE` 构建会跳过设备 SN 校验。
-- 非开发模式校验失败时会进入受限模式。
-- 受限模式只启动基础服务和 HTTP 状态能力。
-
-该机制应在正式公开发布前明确对外口径。

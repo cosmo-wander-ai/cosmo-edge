@@ -57,11 +57,11 @@ next:
 
 | 路径 | 说明 |
 | --- | --- |
-| `/appfs/cosmo_wander/cwai_data` | 主安装目录 |
-| `/data/cwaiuserdata` | 用户持久化数据目录 |
-| `/data/cwaiuserdata/log/logs` | 日志目录 |
-| `/data/cwaiuserdata/upgrade` | 升级包目录 |
-| `/appfs/cosmo_wander/cwai_data/resource` | 运行资源目录 |
+| `<INSTALLPATH>` | 主安装目录，由 Dockerfile 或部署脚本设定 |
+| `<INSTALLPATH>/resource` | 运行资源目录 |
+| `<DATADIR>` | 用户持久化数据目录，默认位于持久化卷上 |
+| `<DATADIR>/log/logs` | 日志目录 |
+| `<DATADIR>/upgrade` | 升级包目录 |
 
 ## 运行进程
 
@@ -73,6 +73,8 @@ next:
 
 对应路径：
 
+`${INSTALLPATH}` 由 Dockerfile 中的 `INSTALLPATH` 环境变量设置（默认见运行配置）。
+具体路径：
 ```text
 /usr/sbin/nginx  (system nginx)
 ${INSTALLPATH}/bin/srs
@@ -131,7 +133,7 @@ cosmo-V<major>.<minor>.<patch>-<32-char-md5>.tar.gz
 服务启动命令：
 
 ```text
-ExecStart=/appfs/cosmo_wander/cwai_data/scripts/inte_run_start.sh
+ExecStart=${INSTALLPATH}/scripts/inte_run_start.sh
 ```
 
 ## 接口文档静态链接
@@ -146,6 +148,3 @@ ExecStart=/appfs/cosmo_wander/cwai_data/scripts/inte_run_start.sh
 - `web/staticfile/httpInterface.html`
 - `web/staticfile/mqttInterface.html`
 
-## 生产授权说明
-
-非开发模式构建中包含设备 SN 校验。开发模式 `COSMO_DEV_MODE` 会跳过该校验。生产授权、公开设备策略和受限模式的对外表述，需要在正式发布前由维护者确认。

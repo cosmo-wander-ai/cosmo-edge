@@ -31,12 +31,11 @@ Algorithm templates connect model capabilities to scenario tasks and pipeline no
 
 ## x86 and Sophon Differences
 
-x86 resources are useful for development and CPU-oriented validation. Sophon resources target BM1688/BM runtime deployment. Confirm model format and runtime compatibility before release.
+x86 resources are useful for development and CPU-oriented validation. Sophon resources target BM1688/BM runtime deployment.
 
-## Open-Source Release Notes
+## Resource and License Notes
 
-- Confirm all model/resource licenses.
-- Remove private weights and private download links.
-- Replace real device/customer examples.
+- Confirm all model/resource licenses before distribution.
+- Remove private weights and private download links from public resources.
+- Replace real device/customer examples in templates.
 - Document which resources are examples and which are production-ready.
-- Keep unconfirmed resources out of the first public release.

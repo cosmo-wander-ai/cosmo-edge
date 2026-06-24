@@ -32,13 +32,13 @@ docker-compose.sophon.yml
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `INSTALLPATH` | `/appfs/cosmo_wander/cwai_data` | 主安装目录 |
+| `INSTALLPATH` | `/appfs/cosmo_wander/cwai_data` | 主安装目录（可按需覆盖） |
 | `COSMO_PLATFORM_TYPE` | `x86_64` | 平台类型 |
 
 `scripts/docker-entrypoint.x86.sh` 会保证运行目录存在，并执行：
 
 ```bash
-${INSTALLPATH}/scripts/run_start.sh start /data/cwaiuserdata/log/logs/INTE_RUN_container.log
+${INSTALLPATH}/scripts/run_start.sh start ${DATADIR}/log/logs/INTE_RUN_container.log
 ```
 
 ## Sophon 构建变量
@@ -76,11 +76,11 @@ CMake 通过 `RESOURCE_DIR` 安装资源。
 
 | 路径 | 说明 |
 | --- | --- |
-| `/appfs/cosmo_wander/cwai_data` | 主安装目录 |
-| `/data/cwaiuserdata` | 用户数据 |
-| `/data/cwaiuserdata/log/logs` | 日志 |
-| `/data/cwaiuserdata/upgrade` | 升级包 |
-| `/data/cwaiuserdata/tmp/*` | nginx 临时目录 |
+| `<INSTALLPATH>` | 主安装目录，由 Dockerfile 中的 `INSTALLPATH` 环境变量设定 |
+| `<DATADIR>` | 用户数据，默认位于持久化卷上 |
+| `<DATADIR>/log/logs` | 日志 |
+| `<DATADIR>/upgrade` | 升级包 |
+| `<DATADIR>/tmp/*` | nginx 临时目录 |
 
 ## 端口
 
@@ -117,6 +117,3 @@ COSMO_STREAM_HTTP_PORT=18088
 | `COSMO_ENABLE_GPL_CODECS` | 启用 GPL codec，发布前需审慎 |
 | `BUILD_TESTS` | 构建测试 |
 
-## 设备校验
-
-非开发模式中存在设备 SN 校验逻辑。开发模式 `COSMO_DEV_MODE` 会跳过该校验。正式开源发布前，应确认生产授权和受限模式的公开说明。

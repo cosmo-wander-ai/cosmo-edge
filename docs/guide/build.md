@@ -1,6 +1,6 @@
 ---
 title: 构建指南
-description: 当前仓库已确认的 x86 Docker 和 Sophon 发布包构建路径。
+description: x86 Docker、Sophon 发布包和 CPU 测试构建路径。
 prev:
   text: 文档首页
   link: /
@@ -115,8 +115,3 @@ BUILD_TESTS=ON
 build_cpu/cosmo-tests
 ```
 
-## 当前不确认的路径
-
-- 当前仓库没有可确认的 Windows 本机 CPU 构建脚本。
-- 不建议在公开文档中写旧的手工 CMake Sophon 构建命令，除非后续重新验证。
-- 不建议写 `scripts/start_x86.sh`，当前仓库没有该脚本。

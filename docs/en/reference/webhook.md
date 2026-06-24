@@ -11,7 +11,7 @@ next:
 
 # HTTP Webhook Reference
 
-CosmoEdge can push alarm/event data to an external HTTP receiver. The exact endpoint and configuration fields should be verified against the current backend before public release.
+CosmoEdge can push alarm/event data to an external HTTP receiver. Configure the endpoint, enable/disable switch, and optional authentication headers through the system settings API.
 
 ## Configuration API
 

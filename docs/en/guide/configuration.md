@@ -1,6 +1,6 @@
 ---
 title: Runtime Configuration
-description: Docker, Sophon, resource, port, stream, CMake, and device-verification configuration notes.
+description: Docker, Sophon, resource, port, stream, and CMake configuration notes.
 prev:
   text: Deployment Guide
   link: /en/guide/deployment
@@ -15,7 +15,7 @@ This page summarizes configuration surfaces visible in the repository.
 
 ## Docker Compose
 
-`docker-compose.x86.yml` (Linux) and `docker-compose.x86.windows.yml` (Windows) define the x86 runtime container setup. Before release, verify mounted paths, exposed ports, image names, persistent data directories, and whether private registries or mirrors are referenced.
+`docker-compose.x86.yml` (Linux) and `docker-compose.x86.windows.yml` (Windows) define the x86 runtime container setup. Check mounted paths, exposed ports, image names, and persistent data directories against your environment.
 
 ## Sophon Build Variables
 
@@ -41,6 +41,3 @@ Verify RTSP/RTMP/WebRTC examples before publishing. Replace private camera URLs 
 
 Important options include CPU/Sophon backend selection, ONNX Runtime integration, and model guard integration. Document release defaults once they are stable.
 
-## Device Verification
-
-The backend may run in restricted mode when device identity or model guard validation fails. Public docs should explain expected behavior without exposing private validation rules.

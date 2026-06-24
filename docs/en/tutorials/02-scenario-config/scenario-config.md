@@ -46,7 +46,7 @@ After completing the first two chapters, you'll be able to independently configu
 
 1. Download the demo video
 
-   The project provides demo videos. Video URL: xxx
+   The project provides demo videos. Download link available in the system documentation or from your device's help page.
 
 2. **Upload the demo video**
 
@@ -369,9 +369,9 @@ Absence detection has different core parameters than hard hat detection. Focus o
 
 | Parameter                                                                                | Meaning                                         | Recommended Value | Notes                                                          |
 | ---------------------------------------------------------------------------------------- | ----------------------------------------------- | :----------------: | -------------------------------------------------------------- |
-| **[TBD: Absence time threshold param name]** (how long before an alarm triggers, seconds) | Prevents false alarms from brief absences       | 60–180 sec         | Strict posts = shorter; flexible posts = longer                |
-| **Alarm Interval**                                                                       | Same as the hard hat scenario                   | 300 sec            | Absence is a continuous state — no need for frequent re-alarms |
-| **[TBD: Person count threshold param name]**                                             | Minimum number of people required in the region  | 1                  | Set to 2 for dual-staffed positions                            |
+| **Absence Time Threshold** (how long before an alarm triggers, seconds) | Prevents false alarms from brief absences       | 60–180 sec         | Strict posts = shorter; flexible posts = longer                |
+| **Alarm Interval**                                                       | Same as the hard hat scenario                   | 300 sec            | Absence is a continuous state — no need for frequent re-alarms |
+| **Person Count Threshold**                                               | Minimum number of people required in the region  | 1                  | Set to 2 for dual-staffed positions                            |
 
 > **⚠️ If parameter names don't exactly match the table above**
 > Some parameters currently use technical names. Match them by value type and position.

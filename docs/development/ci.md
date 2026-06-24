@@ -170,7 +170,7 @@ Windows PowerShell：
 说明：
 
 - 该检查依赖交叉编译环境、Sophon SDK 和目标运行时约束，适合放入手动 workflow 或 self-hosted runner。
-- 发布前应确认 `build_output/` 中导出的包名、版本号、依赖和启动脚本。
+- 发布前建议确认 `build_output/` 中导出的包名、版本号、依赖和启动脚本是否符合预期。
 
 ## 建议的 GitHub Actions 拆分
 
@@ -185,96 +185,3 @@ Windows PowerShell：
 | `cpu-test-build` | `build_cpu_test.sh` 和 `cosmo-tests` | 依赖较重，先评估耗时 |
 | `release-package` | Sophon package build | 建议 self-hosted runner |
 
-## English
-
-This page lists the quality gates that already exist in the repository and can be connected to CI gradually. Before the public launch, keep lightweight checks on regular GitHub-hosted runners and move hardware-dependent or long-running checks to manual workflows or self-hosted runners.
-
-### Recommended Quality Gates
-
-| Layer | Checks | Suggested trigger |
-| --- | --- | --- |
-| Documentation | `npm ci`, `npm run docs:build` | Pull request / push |
-| Frontend | `npm ci`, `npm run i18n:check`, `npm run build`, `npm run resource-i18n:check` | Pull request / push |
-| C++ formatting | `scripts/format_check.sh --check` | Pull request / push |
-| C++ static analysis | `scripts/static_analysis.sh --cppcheck`, `scripts/static_analysis.sh --clang-tidy` | Scheduled / manual / self-hosted |
-| CPU test build | `scripts/build_cpu_test.sh`, `build_cpu/cosmo-tests` | Pull request / manual |
-| x86 Docker | `docker compose -f docker-compose.x86.yml up -d --build` (or `docker-compose.x86.windows.yml` on Windows) | Manual / pre-release |
-| Sophon package | `scripts/build_sophon_package.sh` | Manual / self-hosted |
-
-### Documentation
-
-```bash
-npm ci
-npm run docs:build
-npm run docs:preview
-```
-
-The documentation build validates VitePress pages, navigation, and internal links. Dependency audit findings should be reviewed before release.
-
-### Frontend
-
-```bash
-cd src/web
-npm ci
-npm run i18n:check
-npm run build
-npm run resource-i18n:check
-```
-
-The frontend build runs `i18n:check` through `prebuild`. Use `resource-i18n:sync` only when resource text changes are intentional, then review the resulting diff.
-
-### C++ Formatting
-
-```bash
-bash scripts/format_check.sh --check
-bash scripts/format_check.sh --staged --check
-bash scripts/format_check.sh --fix
-```
-
-The script checks `.h` and `.cc` files under `src` and `test`, excludes generated or third-party directories, and requires `clang-format`.
-
-### C++ Static Analysis
-
-```bash
-bash scripts/static_analysis.sh --cppcheck
-bash scripts/static_analysis.sh --clang-tidy
-bash scripts/static_analysis.sh --all
-```
-
-`cppcheck` is the easier first CI target. `clang-tidy` requires `build/compile_commands.json`, so it should run after a matching CMake configure step.
-
-### CPU Tests
-
-```bash
-bash scripts/build_cpu_test.sh
-./build_cpu/cosmo-tests
-```
-
-The script enables `BUILD_TESTS=ON`, uses the x86 CPU backend, and builds `build_cpu/cosmo-tests`.
-
-### Release Checks
-
-Use x86 Docker validation before a public release:
-
-- **Linux**:
-  ```bash
-  docker compose -f docker-compose.x86.yml up -d --build
-  docker compose -f docker-compose.x86.yml logs -f
-  docker compose -f docker-compose.x86.yml down
-  ```
-- **Windows (PowerShell/CMD)**:
-  ```powershell
-  docker compose -f docker-compose.x86.windows.yml up -d --build
-  docker compose -f docker-compose.x86.windows.yml logs -f
-  docker compose -f docker-compose.x86.windows.yml down
-  ```
-
-Use the Sophon package scripts on a properly configured builder:
-
-```bash
-bash scripts/build_sophon_package.sh
-```
-
-```powershell
-.\scripts\build_sophon_package.ps1
-```

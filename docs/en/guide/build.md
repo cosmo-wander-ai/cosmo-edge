@@ -11,7 +11,7 @@ next:
 
 # Build Guide
 
-This page documents build paths that are visible in the repository. Commands marked TODO require maintainer confirmation before the first public release.
+This page documents build paths that are confirmed and available in the repository.
 
 ## Build Path Overview
 
@@ -19,10 +19,28 @@ This page documents build paths that are visible in the repository. Commands mar
 | --- | --- | --- |
 | x86 Docker runtime | `docker-compose.x86.yml` / `docker-compose.x86.windows.yml` | Starts the containerized development/runtime environment. |
 | Sophon release package | `scripts/build_sophon_package.sh` | Creates the target-device release package. |
-| Windows CPU build | `scripts/build_cpu_windows.ps1` | Local build path used during validation. |
+| CPU test build | `scripts/build_cpu_test.sh` | Builds `cosmo-tests` for x86 CPU validation. |
 | Documentation site | `npm ci` and `npm run docs:build` | Builds this VitePress site. |
 
 ## x86 Docker Development Runtime
+
+These entry points are from:
+- `docker-compose.x86.yml` (Linux)
+- `docker-compose.x86.windows.yml` (Windows)
+- `Dockerfile.x86`
+- `scripts/build_cpu.sh`
+
+Confirmed CMake parameters:
+
+| Parameter | Value |
+| --- | --- |
+| `COSMO_TARGET_ARCH` | `x86_64` |
+| `COSMO_NN_USE_SOPHON_BACKEND` | `OFF` |
+| `COSMO_NN_USE_CPU_BACKEND` | `ON` |
+| `COSMO_ENABLE_OPENH264` | `ON` |
+| `COSMO_ENABLE_GPL_CODECS` | `OFF` |
+| `COSMO_DEV_MODE` | `ON` |
+| `RESOURCE_DIR` | `data/resource/aiboxresource_x86` |
 
 Linux:
 ```bash
@@ -36,7 +54,11 @@ docker compose -f docker-compose.x86.windows.yml up -d --build
 docker compose -f docker-compose.x86.windows.yml ps
 ```
 
-If ports or mounted paths differ in your environment, update `docker-compose.x86.yml` (or `docker-compose.x86.windows.yml` on Windows) and document the final values in the deployment guide.
+After build:
+- Web console available at `http://127.0.0.1:8080`.
+- Release packages and build artifacts exported to `build_output/`.
+- Runtime data stored in Docker volume `cosmo-x86-data`.
+- Resource directory mounted to Docker volume `cosmo-x86-app-resource`.
 
 ## Sophon Release Package
 
@@ -44,15 +66,47 @@ If ports or mounted paths differ in your environment, update `docker-compose.x86
 bash scripts/build_sophon_package.sh
 ```
 
-The package output location and target-device installation steps must be verified by maintainers before publication.
+Windows PowerShell:
+
+```powershell
+.\scripts\build_sophon_package.ps1
+```
+
+This path is from:
+- `docker-compose.sophon.yml`
+- `Dockerfile.sophon`
+- `scripts/build_sophon_package.sh`
+- `scripts/build_sophon_package.ps1`
+- `scripts/build.sh`
+
+Confirmed behavior:
+- Default base image: `stream_dev:0.2`.
+- Builds with `scripts/build.sh -t -m data/resource/aiboxresource`.
+- Exports the release package only (does not start services).
+- Package output under `build_output/`.
+
+Common override variables:
+
+```bash
+SOPHON_STREAM_DEV_TAR=/path/to/stream_dev_22.04.tar bash scripts/build_sophon_package.sh
+SOPHON_BASE_IMAGE=stream_dev:0.2 bash scripts/build_sophon_package.sh
+```
+
+If `stream_dev:0.2` is not available locally, the helper script attempts to download and load `stream_dev_22.04.tar` via `dfss`.
 
 ## CPU Test Build
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_cpu_windows.ps1
+```bash
+bash scripts/build_cpu_test.sh
 ```
 
-This path is useful for smoke testing C++ compilation and packaging logic without a target edge device.
+This script configures CMake with the CPU backend and `BUILD_TESTS=ON`, producing:
+
+```
+build_cpu/cosmo-tests
+```
+
+Useful for smoke testing C++ compilation and packaging logic without a target edge device.
 
 ## Documentation Build
 
@@ -62,9 +116,3 @@ npm run docs:build
 ```
 
 The build output is generated under `docs/.vitepress/dist` and should not be committed.
-
-## Unconfirmed Paths
-
-- Public binary release naming.
-- Final target-device installation command.
-- Whether every bundled model/resource is distributable in the first open-source release.

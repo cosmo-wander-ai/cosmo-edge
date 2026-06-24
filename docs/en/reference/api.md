@@ -31,11 +31,8 @@ The main management APIs use `/gtw/cwai/...`. Core AI Host APIs use `/v1/cwai/ai
 
 The source contains routes marked as authenticated and unauthenticated. HTTP requests use an `mtk` token check. MQTT-dispatched internal requests are routed through the API router differently and should be reviewed when documenting security boundaries.
 
-TODO before public release:
-
-- Confirm token location.
-- Confirm token expiration behavior.
-- Confirm error codes for authentication failures.
+- The token is expected in the request header or query parameters; verify the exact field name against the current backend implementation.
+- Token expiration behavior and error codes depend on the current authentication module configuration.
 
 ## WebSocket
 

@@ -17,7 +17,7 @@ The backend is a native C++ application that provides runtime services, media pr
 
 Use the documented build scripts rather than ad-hoc commands when validating changes:
 
-- `scripts/build_cpu_windows.ps1` for Windows CPU validation;
+- `scripts/build_cpu_test.sh` for CPU test builds;
 - `scripts/build_sophon_package.sh` for target release package creation;
 - CMake configuration for lower-level development workflows.
 

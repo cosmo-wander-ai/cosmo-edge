@@ -98,12 +98,6 @@ docker load -i /path/to/stream_dev_22.04.tar
 
 然后重新运行构建脚本。
 
-## 后端只启动受限能力
-
-非开发模式存在设备 SN 校验。校验失败时，程序会进入受限模式，只启动基础服务和 HTTP 状态能力。
-
-x86 Docker 开发路径启用 `COSMO_DEV_MODE`，会跳过该校验。
-
 ## nginx / SRS / cosmo-engine 未启动
 
 运行脚本：
