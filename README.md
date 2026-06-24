@@ -160,10 +160,6 @@ The capabilities below are integrated end-to-end; different model types map to d
 | Visual State Judgment     | Qwen3 VLM models, Qwen3.5 multimodal models (text prompt -> YES/NO) | Async pipeline node |
 | Image Analysis            | VLM batch analysis                             | Standalone task     |
 
-**Edge VLM model package:**
-
-`CosmoEdge-VL-Judge-0.8B` is based on Qwen3.5 0.8B, then fine-tuned and edge-quantized for YES/NO visual state judgment. It complements the general Qwen model integration path with a production-optimized package for certified devices and low-power edge deployments.
-
 **Model ecosystem compatibility:**
 
 CosmoEdge uses ONNX as the model interchange format. Models from major CV training frameworks can be imported through a documented conversion path:
