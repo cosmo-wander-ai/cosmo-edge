@@ -28,7 +28,7 @@ vision-language-model, vlm, sophon, bm1688, real-time
 [![Stress Test](https://img.shields.io/badge/stress%20test-200%20video%20samples-brightgreen?style=flat-square)](#validation)
 [![Pipelines](https://img.shields.io/badge/pipelines-18%2F18%20validated-brightgreen?style=flat-square)](#validation)
 
-[Quick Start](#quick-start) | [Features](#key-features) | [Showcases](#showcases) | [Validation](#validation) | [Docs](#documentation) | [Hardware](#cosmoedge-ready-devices)
+[Quick Start](#quick-start) | [Features](#key-features) | [Validation](#validation) | [Docs](#documentation) | [Hardware](#cosmoedge-ready-devices)
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
@@ -40,7 +40,7 @@ vision-language-model, vlm, sophon, bm1688, real-time
 TODO before public launch:
 - Replace all placeholder image paths with real assets.
 - Confirm Quick Start commands.
-- Confirm benchmark values and attach a reproducible test report.
+- Confirm public benchmark values.
 - Confirm final public release assets and URLs.
 - Confirm certified hardware URL.
 -->
@@ -52,8 +52,6 @@ https://github.com/user-attachments/assets/23a014a5-d753-432f-8de5-c750bc82d8e2
 </div>
 
 *Multiple AI pipelines, real-time OSD, and live event output on one edge device.*
-
-</div>
 
 CosmoEdge is a C++ native edge AI engine for building production-oriented video analytics systems on edge devices. It turns models into visual, manageable applications: import a model, compose a pipeline, connect video sources, watch AI overlays in the browser, and push structured events to MQTT or HTTP.
 
@@ -68,17 +66,6 @@ Instead of stopping at an inference API or demo script, CosmoEdge focuses on the
 - Visual inspection workflows powered by on-device VLM prompts.
 - Long-tail object detection with text-prompted GroundingDINO.
 - End-to-end edge AI systems with model management, scenario tasks, alarms, and data push.
-
-## Screenshots
-
-<!--
-TODO: Replace placeholders with real screenshots.
-Recommended set:
-1. Visual Pipeline Orchestrator
-2. Real-time AI Analytics
-3. Web Management Console
-4. VLM Visual Inspection
--->
 
 ## Key Features
 
@@ -103,7 +90,7 @@ https://github.com/user-attachments/assets/94b9418b-36c8-47b6-a730-ad8f508a6709
 
 ### Complete Application Loop
 
-CosmoEdge is not only an inference runtime. It includes the application layer needed to operate AI vision systems in the field.
+CosmoEdge links the runtime, web console, and integration layer into one field workflow:
 
 ```text
 Model Repository -> Scenario Task -> Real-time Analysis -> Alarm Management -> Data Push
@@ -137,12 +124,6 @@ CosmoEdge includes a production-oriented OSD system designed for operators and d
 - Zone overlays, line-crossing indicators, counters, and event panels.
 - Debug view for raw detections, confidence scores, track IDs, and model output.
 
-### Multi-channel Edge Runtime
-
-The C++ engine is designed for multi-channel video analytics on edge hardware. On Sophon BM1688, CosmoEdge has been internally verified with 16-channel CV inference workloads.
-
-> TODO: Publish the exact benchmark setup before launch: device model, SDK version, resolution, codec, input source, model version, duration, and whether OSD/streaming are included.
-
 ### Prompt-driven AI: GroundingDINO + VLM
 
 CosmoEdge supports prompt-driven visual intelligence on edge devices. GroundingDINO and VLM are part of the same capability family, but they solve different problems:
@@ -164,14 +145,6 @@ GroundingDINO finds what and where. VLM judges whether a visual state is true. B
 Certified device packages can include a fine-tuned 0.8B edge VLM and production-ready CV models. The open-source engine can also run user-provided models through the same workflow.
 
 > TODO: Confirm the public model name, parameter count, quantization format, and measured latency before using the 0.8B VLM claim in a release.
-
-### Zero-barrier Developer Mode
-
-Try the full UI and workflow on standard x86 hardware:
-
-- x86 Linux and Windows support for development and evaluation.
-- Same UI and workflow as edge deployment.
-- Lower throughput than Sophon NPU mode, but enough for onboarding, testing, and integration work.
 
 ### Model Sources
 
@@ -208,7 +181,7 @@ CosmoEdge runs on the Sophon BM1688 inference stack. Models from SOPHGO's offici
 
 ### Option A: x86 Developer Mode
 
-No edge hardware is required for the first experience.
+No edge hardware is required for the first experience. The x86 developer mode uses the same UI and workflow as edge deployment, with lower throughput than Sophon NPU mode.
 
 ```bash
 # 1. Clone
@@ -216,7 +189,6 @@ git clone https://github.com/cosmo-wander-ai/cosmo-edge.git
 cd cosmo-edge
 
 # 2. Start in x86 mode
-# TODO: Confirm the final public launch command.
 # Preferred release target (Linux):
 sudo docker compose -f docker-compose.x86.yml up -d --build
 
@@ -276,21 +248,9 @@ After installing the package and rebooting the device:
 
 This path builds, exports, and installs release packages. Ready for production hardware? Certified CosmoEdge devices provide preconfigured Sophon acceleration, production model packages, and deployment support. See [CosmoEdge-ready devices](#cosmoedge-ready-devices).
 
-## Showcases
-
-Representative application pipelines built with the same engine, UI, and event system:
-
-| Scenario                 | Pipeline                                                        | What it demonstrates                                    |
-| ------------------------ | --------------------------------------------------------------- | ------------------------------------------------------- |
-| Pedestrian Flow Analysis | Detection -> tracking -> line crossing -> counting -> MQTT      | Multi-stage CV pipeline with real-time statistics       |
-| Construction Site Safety | Person/PPE detection -> zone rule -> alarm -> snapshot -> OSD   | Compliance monitoring with semantic overlays and alarms |
-| Visual Inspection        | DINO object localization -> VLM state judgment -> event mapping | Prompt-driven long-tail inspection without retraining   |
-
-Additional scene GIFs can be added here later. The three launch GIFs are intentionally used for the three strongest README proof points: live edge runtime, visual orchestration, and prompt-driven AI.
-
 ## Validation
 
-CosmoEdge is built from a commercial codebase and has gone through internal system validation before open-source release.
+CosmoEdge is built from a commercial codebase and has gone through recent internal system validation before open-source release.
 
 | Area                   | Current validation status                                                                                    |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------ |
@@ -299,8 +259,6 @@ CosmoEdge is built from a commercial codebase and has gone through internal syst
 | Concurrent CV workload | 16-channel CV inference verified on a single BM1688 device                                                   |
 | Regression testing     | Multi-round system regression with dedicated QA                                                              |
 | Pilot deployments      | Validated in de-identified pilot scenarios across education, smart campus, and industrial safety             |
-
-> TODO: Link to a public validation report before formal v1.0 release. The report should include test duration, device configuration, input resolution, model versions, and known limitations.
 
 ### Performance Benchmarks
 
@@ -381,30 +339,16 @@ Certified devices add deployment readiness, not locked software features.
 
 ## Documentation
 
-| Document               | Audience       | Description                                 |
-| ---------------------- | -------------- | ------------------------------------------- |
-| [Quick Start Guide](docs/en/tutorials/01-quickstart/quickstart.md) | Everyone | First working experience in minutes |
+| Start here | For | Description |
+| ---------- | --- | ----------- |
+| [Documentation Home](docs/en/index.md) | Everyone | Full documentation index and reading path |
+| [Quick Start Guide](docs/en/tutorials/01-quickstart/quickstart.md) | Everyone | First working experience |
 | [Scenario Configuration](docs/en/tutorials/02-scenario-config/scenario-config.md) | Integrators | Build scene-level AI workflows |
 | [VLM Guide](docs/en/tutorials/03-vlm-guide/vlm-guide.md) | Developers | Use visual state judgment with prompts |
 | [Pipeline Orchestration](docs/en/tutorials/04-pipeline-orchestration/pipeline-orchestration.md) | Advanced users | Compose custom pipelines visually |
 | [Model Porting Guide](docs/en/tutorials/05-model-porting/model-porting.md) | ML engineers | Bring your own ONNX or target model |
-| [Build Guide](docs/en/guide/build.md) | Developers | Confirmed x86 Docker and Sophon package build paths |
-| [Deployment Guide](docs/en/guide/deployment.md) | DevOps | Runtime paths, ports, processes, packages, and systemd |
-| [Configuration](docs/en/guide/configuration.md) | Operators | Environment variables, resource paths, ports, logs, and runtime defaults |
-| [Troubleshooting](docs/en/guide/troubleshooting.md) | Operators | Common build, runtime, port, Sophon image, and docs-site issues |
-| [API Overview](docs/en/reference/api.md) | Developers | Current REST/WebSocket/MQTT-facing API categories |
-| [API Fields](docs/en/reference/api-fields.md) | Integrators | Common response, event, HTTP push, MQTT, and IoT network fields |
-| [MQTT Reference](docs/en/reference/mqtt.md) | Integrators | MQTT topics, envelope format, registration, heartbeat, requests, and responses |
-| [HTTP Webhook Reference](docs/en/reference/webhook.md) | Integrators | Event push configuration, payload fields, and receiver guidance |
-| [Architecture Overview](docs/en/guide/architecture.md) | Contributors | Engine internals and extension points |
-| [Frontend Development](docs/en/development/frontend.md) | Frontend developers | Vue 3 frontend structure and scripts |
-| [I18N Glossary](docs/i18n/GLOSSARY.md) | Frontend developers | UI terminology, default English labels, and short-label rules |
-| [I18N Short Scope Rules](docs/i18n/SHORT-SCOPES.md) | Frontend developers | Controlled compact-label scope IDs |
-| [Backend Development](docs/en/development/backend.md) | C++ developers | Backend modules, CMake options, and tests |
-| [CI and Quality Checks](docs/en/development/ci.md) | Contributors | Documentation, frontend, C++ formatting, static analysis, and release checks |
-| [Security Policy](SECURITY.md) | Maintainers | Vulnerability reporting and deployment security notes |
-| [Notice](NOTICE) | Maintainers | Project notice and third-party attribution information |
-| [Changelog](CHANGELOG.md) | Maintainers | Public change history |
+| [Build Guide](docs/en/guide/build.md) | Developers | Build x86 Docker and Sophon packages |
+| [API Overview](docs/en/reference/api.md) | Developers | REST/WebSocket/MQTT-facing API categories |
 
 ## Roadmap
 
@@ -415,7 +359,7 @@ Certified devices add deployment readiness, not locked software features.
 - [X] VLM and GroundingDINO integration
 - [X] 18 CV pipelines internally validated
 - [ ] Public x86 one-command startup
-- [ ] Public reproducible benchmark dataset and reports
+- [ ] Additional public performance summaries
 - [ ] Release packaging for v1.0
 - [ ] Community model and scenario examples
 - [ ] GB28181 protocol support
@@ -457,7 +401,7 @@ Yes. CosmoEdge is designed around model import and model lifecycle management. T
 <details>
 <summary><b>How is CosmoEdge different from inference servers or NVR projects?</b></summary>
 
-CosmoEdge combines three layers in one edge system: a C++ video AI runtime, a visual pipeline builder, and a web management console for scenarios, alarms, model lifecycle, OSD, and data push. The goal is not only to run models, but to help integrators operate complete edge AI applications.
+CosmoEdge is an application runtime for complete edge AI workflows, not only a model-serving layer or video recorder.
 
 </details>
 

@@ -28,7 +28,7 @@ vision-language-model, vlm, sophon, bm1688, real-time
 [![Stress Test](https://img.shields.io/badge/stress%20test-200%20video%20samples-brightgreen?style=flat-square)](#验证与性能)
 [![Pipelines](https://img.shields.io/badge/pipelines-18%2F18%20validated-brightgreen?style=flat-square)](#验证与性能)
 
-[快速开始](#快速开始) | [核心特性](#核心特性) | [典型场景](#典型场景) | [验证与性能](#验证与性能) | [文档](#文档) | [硬件](#cosmoedge-ready-设备)
+[快速开始](#快速开始) | [核心特性](#核心特性) | [验证与性能](#验证与性能) | [文档](#文档) | [硬件](#cosmoedge-ready-设备)
 
 [English](README.md) | 简体中文
 
@@ -42,7 +42,7 @@ vision-language-model, vlm, sophon, bm1688, real-time
 公开发布前待确认：
 - 替换所有占位图片路径为真实资源。
 - 确认 Quick Start 命令。
-- 确认性能数据，并附上可复现测试报告。
+- 确认可公开的性能数据。
 - 确认最终公开发布资源和 URL。
 - 确认认证硬件页面 URL。
 -->
@@ -69,17 +69,6 @@ CosmoEdge 不止提供一个推理 API 或演示脚本。它关注的是下一�
 - 基于 GroundingDINO 文本提示词的长尾目标检测。
 - 包含模型管理、场景任务、告警和数据推送的端到端边缘 AI 系统。
 
-## 截图
-
-<!--
-TODO: 替换为真实截图。
-建议截图组合：
-1. 可视化流水线编排器
-2. 实时 AI 分析画面
-3. Web 管理控制台
-4. VLM 视觉巡检
--->
-
 ## 核心特性
 
 ### C++ 原生运行时
@@ -103,7 +92,7 @@ CosmoEdge 以 C++17 运行时为核心，而不是基于 Python 服务循环。�
 
 ### 完整应用闭环
 
-CosmoEdge 不只是推理运行时，还包含现场运行 AI 视觉系统所需的应用层能力。
+CosmoEdge 将运行时、Web 控制台和集成层串联成一条现场工作流：
 
 ```text
 模型仓库 -> 场景任务 -> 实时分析 -> 告警管理 -> 数据推送
@@ -137,12 +126,6 @@ CosmoEdge 内置面向生产场景的 OSD 系统，同时服务操作人员和�
 - 支持区域叠加、越线指示、计数器和事件面板。
 - 支持调试视图，展示原始检测框、置信度、跟踪 ID 和模型输出。
 
-### 多路边缘运行时
-
-C++ 引擎面向边缘硬件上的多路视频分析设计。在 Sophon BM1688 上，CosmoEdge 已完成 16 路 CV 推理负载的内部验证。
-
-> 注：正式发布前需要公开完整基准测试设置，包括设备型号、SDK 版本、分辨率、编码格式、输入源、模型版本、测试时长，以及是否包含 OSD 和流媒体输出。
-
 ### 提示词驱动 AI：GroundingDINO + VLM
 
 CosmoEdge 支持端侧提示词驱动的视觉智能。GroundingDINO 和 VLM 属于同一类能力，但解决的问题不同：
@@ -164,14 +147,6 @@ GroundingDINO 负责找到“是什么、在哪里”。VLM 负责判断某个�
 认证设备包可以包含微调后的 0.8B 端侧 VLM 和生产可用的 CV 模型。开源引擎也可以通过同一套工作流运行用户自带模型。
 
 > 注：正式发布前需要确认公开模型名称、参数量、量化格式和实测延迟，再使用 0.8B VLM 的发布级表述。
-
-### 低门槛开发模式
-
-你可以在标准 x86 硬件上体验完整 UI 和工作流：
-
-- 支持 x86 Linux 和 Windows，用于开发、评估和集成测试。
-- 与边缘部署使用同一套 UI 和工作流。
-- 吞吐低于 Sophon NPU 模式，但足够用于上手、测试和系统集成。
 
 ### 模型来源
 
@@ -208,7 +183,7 @@ CosmoEdge 运行在 Sophon BM1688 推理栈上。SOPHGO 官方模型仓库中的
 
 ### 方案 A：x86 开发模式
 
-首次体验不需要边缘硬件。
+首次体验不需要边缘硬件。x86 开发模式使用与边缘部署相同的 UI 和工作流，但吞吐低于 Sophon NPU 模式。
 
 ```bash
 # 1. Clone
@@ -216,7 +191,6 @@ git clone https://github.com/cosmo-wander-ai/cosmo-edge.git
 cd cosmo-edge
 
 # 2. 启动 x86 模式
-# TODO: 确认最终公开启动命令。
 # 首选发布目标 (Linux)：
 sudo docker compose -f docker-compose.x86.yml up -d --build
 
@@ -276,21 +250,9 @@ sudo reboot
 
 该路径用于构建、导出并安装发布包。准备用于生产硬件？认证 CosmoEdge 设备提供预配置 Sophon 加速、生产模型包和部署支持。参见 [CosmoEdge-ready 设备](#cosmoedge-ready-设备)。
 
-## 典型场景
-
-以下是使用同一套引擎、UI 和事件系统构建的代表性应用流水线：
-
-| 场景 | 流水线 | 展示能力 |
-| --- | --- | --- |
-| 人流分析 | 检测 -> 跟踪 -> 越线 -> 计数 -> MQTT | 多阶段 CV 流水线和实时统计 |
-| 工地安全 | 人员/PPE 检测 -> 区域规则 -> 告警 -> 截图 -> OSD | 合规监测、语义化叠加和告警 |
-| 视觉巡检 | DINO 目标定位 -> VLM 状态判断 -> 事件映射 | 无需重新训练的提示词驱动长尾巡检 |
-
-后续可以继续补充更多场景 GIF。当前三个首发 GIF 分别用于展示 README 中最关键的三个证明点：实时边缘运行时、可视化编排和提示词驱动 AI。
-
 ## 验证与性能
 
-CosmoEdge 来自商业化代码库，在开源发布前已经完成内部系统验证。
+CosmoEdge 来自商业化代码库，在开源发布前已经完成近期内部系统性验证。
 
 | 范围 | 当前验证状态 |
 | --- | --- |
@@ -299,8 +261,6 @@ CosmoEdge 来自商业化代码库，在开源发布前已经完成内部系统�
 | 并发 CV 负载 | 已在单台 BM1688 设备上验证 16 路 CV 推理 |
 | 回归测试 | 专职 QA 完成多轮系统回归 |
 | 试点部署 | 已在脱敏后的教育、智慧园区和工业安全试点场景中验证 |
-
-> 注：正式 v1.0 发布前需要补充公开验证报告，包括测试时长、设备配置、输入分辨率、模型版本和已知限制。
 
 ### 性能基准
 
@@ -381,30 +341,16 @@ CosmoEdge 是开源项目。仓库提供认证设备包所使用的同一套引�
 
 ## 文档
 
-| 文档 | 读者 | 说明 |
+| 入口 | 读者 | 说明 |
 | --- | --- | --- |
-| [Quick Start Guide](docs/tutorials/01-quickstart/quickstart.md) | 所有用户 | 几分钟内完成首次体验 |
-| [Scenario Configuration](docs/tutorials/02-scenario-config/scenario-config.md) | 集成商 | 构建场景级 AI 工作流 |
-| [VLM Guide](docs/tutorials/03-vlm-guide/vlm-guide.md) | 开发者 | 使用提示词完成视觉状态判断 |
-| [Pipeline Orchestration](docs/tutorials/04-pipeline-orchestration/pipeline-orchestration.md) | 高级用户 | 可视化编排自定义流水线 |
-| [Model Porting Guide](docs/tutorials/05-model-porting/model-porting.md) | 算法工程师 | 接入自有 ONNX 或目标格式模型 |
-| [构建指南](docs/guide/build.md) | 开发者 | 当前确认的 x86 Docker 和 Sophon 发布包构建路径 |
-| [部署指南](docs/guide/deployment.md) | DevOps | 运行目录、端口、进程、发布包和 systemd |
-| [运行配置](docs/guide/configuration.md) | 运维人员 | 环境变量、资源路径、端口、日志和运行默认值 |
-| [故障排查](docs/guide/troubleshooting.md) | 运维人员 | 构建、运行、端口、Sophon 镜像和文档站常见问题 |
-| [API 概览](docs/reference/api.md) | 开发者 | 当前 REST/WebSocket/MQTT-facing API 类别 |
-| [字段级 API 参考](docs/reference/api-fields.md) | 集成商 | 通用响应、事件、HTTP 推送、MQTT 和 IoT 网络字段 |
-| [MQTT 接入参考](docs/reference/mqtt.md) | 集成商 | MQTT topic、外层消息、注册、心跳、下发请求和响应 |
-| [HTTP Webhook 参考](docs/reference/webhook.md) | 集成商 | 事件推送配置、负载字段和接收端建议 |
-| [架构概览](docs/guide/architecture.md) | 贡献者 | 引擎内部结构和扩展点 |
-| [前端工程](docs/development/frontend.md) | 前端开发者 | Vue 3 前端结构和脚本 |
-| [I18N 术语表](docs/i18n/GLOSSARY.md) | 前端开发者 | UI 术语、默认英文文案和 short label 规则 |
-| [I18N Short Scope 规则](docs/i18n/SHORT-SCOPES.md) | 前端开发者 | 受控紧凑文案场景 ID |
-| [后端开发](docs/development/backend.md) | C++ 开发者 | 后端模块、CMake 选项和测试 |
-| [CI 与质量检查](docs/development/ci.md) | 贡献者 | 文档站、前端、C++ 格式、静态分析和发布检查入口 |
-| [Security Policy](SECURITY.md) | 维护者 | 漏洞报告和部署安全说明 |
-| [Notice](NOTICE) | 维护者 | 项目 notice 和第三方 attribution 信息 |
-| [Changelog](CHANGELOG.md) | 维护者 | 公开变更历史 |
+| [文档首页](docs/index.md) | 所有用户 | 完整文档索引和阅读路径 |
+| [快速开始](docs/tutorials/01-quickstart/quickstart.md) | 所有用户 | 完成首次体验 |
+| [场景配置](docs/tutorials/02-scenario-config/scenario-config.md) | 集成商 | 构建场景级 AI 工作流 |
+| [VLM 指南](docs/tutorials/03-vlm-guide/vlm-guide.md) | 开发者 | 使用提示词完成视觉状态判断 |
+| [流水线编排](docs/tutorials/04-pipeline-orchestration/pipeline-orchestration.md) | 高级用户 | 可视化编排自定义流水线 |
+| [模型适配指南](docs/tutorials/05-model-porting/model-porting.md) | 算法工程师 | 接入自有 ONNX 或目标格式模型 |
+| [构建指南](docs/guide/build.md) | 开发者 | 构建 x86 Docker 和 Sophon 发布包 |
+| [API 概览](docs/reference/api.md) | 开发者 | REST/WebSocket/MQTT-facing API 类别 |
 
 ## 路线图
 
@@ -415,7 +361,7 @@ CosmoEdge 是开源项目。仓库提供认证设备包所使用的同一套引�
 - [X] VLM 与 GroundingDINO 集成
 - [X] 18 条 CV 流水线完成内部验证
 - [ ] 公开 x86 一键启动方案
-- [ ] 公开可复现基准数据集和报告
+- [ ] 补充公开性能摘要
 - [ ] v1.0 发布打包
 - [ ] 社区模型和场景示例
 - [ ] GB28181 协议支持
@@ -457,7 +403,7 @@ CosmoEdge 正在向 v1.0 持续演进，欢迎围绕以下方向贡献：
 <details>
 <summary><b>CosmoEdge 和推理服务器或 NVR 项目有什么区别？</b></summary>
 
-CosmoEdge 把三层能力组合在一个边缘系统中：C++ 视频 AI 运行时、可视化流水线构建器，以及用于场景、告警、模型生命周期、OSD 和数据推送的 Web 管理控制台。目标不只是把模型跑起来，而是帮助集成商运行完整的边缘 AI 应用。
+CosmoEdge 是面向完整边缘 AI 工作流的应用运行时，不只是模型服务层或视频录像系统。
 
 </details>
 
