@@ -5,13 +5,16 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# shellcheck source=common.sh
+. "${SCRIPT_DIR}/common.sh"
+
 # Stop running processes first
 ./stop.sh
 
-# !!!prohibit to modify this variable INSTALLPATH
-INSTALLPATH="/appfs/cosmo_wander/cwai_data"
+# WARNING: Do not modify INSTALLPATH - it is the production deployment root
+INSTALLPATH="${COSMO_INSTALL_DIR}"
 
-INSTALL_SUCCESS_SIGN="/data/cwaiuserdata/mqttUpgradeApp"
+INSTALL_SUCCESS_SIGN="${COSMO_UPGRADE_SIGN}"
 
 logFile="${1:-/dev/null}"
 logTag="[INSTALL]"
@@ -83,13 +86,16 @@ echo "${logTag} Setting up systemd auto-start service..." >> "$logFile"
 
 cat > "$SERVICE_FILE" <<EOF
 [Unit]
-Description=setup bitmain runtime env.
-After=docker.service
+Description=Cosmo Edge AI Engine
+After=docker.service network-online.target
+Wants=network-online.target
 
 [Service]
 User=root
 ExecStart=${INSTALLPATH}/scripts/inte_run_start.sh
 Type=simple
+Restart=on-failure
+RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
@@ -106,7 +112,7 @@ systemctl daemon-reload
 echo "${logTag} systemd service [cosmo] installed and enabled." >> "$logFile"
 echo "systemd service [cosmo] installed and enabled."
 
-# 升级完成标志 用于MQTT上报
+# Upgrade completion marker for MQTT reporting
 mkdir -p "$(dirname "$INSTALL_SUCCESS_SIGN")"
 touch "$INSTALL_SUCCESS_SIGN"
 sync

@@ -1,30 +1,33 @@
 #!/bin/bash
 set -e
 
+# Service starter - configures environment and launches nginx, SRS, cosmo-engine.
+# Called by start.sh after upgrade check is complete.
+
 # Check if enough arguments are provided
 if [ $# -lt 2 ]; then
-    echo "Usage: $0 [-h] [start] <logfile>"
+    echo "Usage: $0 start <logfile>"
     exit 1
 fi
 
-logTag="[RUN_START]"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# shellcheck source=common.sh
+. "${SCRIPT_DIR}/common.sh"
+
+logTag="RUN_START"
 logFile="$2"
 
-echo "${logTag} Start at $(date '+%Y-%m-%d_%H:%M:%S'), action is $1" >> "$logFile"
-echo "${logTag} Start at $(date '+%Y-%m-%d_%H:%M:%S'), action is $1"
+cosmo_log "$logTag" "Start, action=$1" "$logFile"
 
 # Set INSTALLPATH if not already set
 if [ -z "${INSTALLPATH}" ]; then
-    INSTALLPATH="$(cd "$(dirname "$0")/../" && pwd)"
-    echo "INSTALLPATH=${INSTALLPATH}" 
+    INSTALLPATH="$(cd "${SCRIPT_DIR}/../" && pwd)"
+    cosmo_log "$logTag" "INSTALLPATH=${INSTALLPATH}" "$logFile"
 fi
 
-IF_STANDALONE=1
-# Help manual
-
 if [ "$1" != "start" ]; then
-    echo "Not supported action: [$1], please read help page with -h!"
-    echo "${logTag} Stop at $(date '+%Y-%m-%d_%H:%M:%S'). Not supported action: [$1]" >> "$logFile"
+    cosmo_log "$logTag" "Unsupported action: [$1], use 'start'" "$logFile"
     exit 1
 fi
 
@@ -37,88 +40,59 @@ case "${PLTFORM_TYPE}" in
         PLTFORM_TYPE="sophon"
         ;;
 esac
-echo "In run_start.sh, install path is ${INSTALLPATH}, install platform is ${PLTFORM_TYPE}"
-echo "${logTag} In run_start.sh, install path is ${INSTALLPATH}, install platform is ${PLTFORM_TYPE}" >> "$logFile"
+cosmo_log "$logTag" "Install path=${INSTALLPATH}, platform=${PLTFORM_TYPE}" "$logFile"
 
 # Set multicast options
 sysctl -w net.ipv4.igmp_max_memberships=20 2>/dev/null || true
 
 # Run dependency libs
 IED_LIB="${INSTALLPATH}/lib"
-LIBRARY_PATH="$IED_LIB"
-
-export LD_LIBRARY_PATH="$LIBRARY_PATH:$LD_LIBRARY_PATH:/usr/lib"
+export LD_LIBRARY_PATH="${IED_LIB}:${LD_LIBRARY_PATH:-}:/usr/lib"
 
 # Main process binary file path
 BINPATH="${INSTALLPATH}/bin"
 NGINX_PREFIX="${BINPATH}/nginx_conf"
 NGINX_CONF="${NGINX_PREFIX}/conf/nginx.conf"
 
-# Kill running process before starting
-echo "Killall running processes before start!"
-echo "${logTag} Killall running processes before start!" >> "$logFile"
-${INSTALLPATH}/scripts/stop.sh
+# Stop all running processes before starting (including nginx)
+cosmo_log "$logTag" "Stopping all running processes before start..." "$logFile"
+"${INSTALLPATH}/scripts/stop.sh"
 
+# Add iptables rule (idempotent - skips if already exists)
 if hash iptables 2>/dev/null; then
-    echo "iptables set."
-    echo "${logTag} iptables set." >> "$logFile"
-    iptables -A INPUT -p udp --dport 46000 -j ACCEPT
+    cosmo_log "$logTag" "Ensuring iptables UDP/46000 rule..." "$logFile"
+    iptables_ensure INPUT -p udp --dport 46000 -j ACCEPT
 fi
 
-mkdir -p /data/cwaiuserdata/audioMng
-ln -sf "${INSTALLPATH}/files/Audio/beep.ogg" /data/cwaiuserdata/audioMng/beep.ogg
-mkdir -p /data/cwaiuserdata/tmp/nginx_body
-mkdir -p /data/cwaiuserdata/tmp/nginx_proxy
-mkdir -p /data/cwaiuserdata/tmp/nginx_fastcgi
-mkdir -p /data/cwaiuserdata/tmp/nginx_uwsgi
-mkdir -p /data/cwaiuserdata/tmp/nginx_scgi
+# Create audio symlink
+mkdir -p "${COSMO_DATA_DIR}/audioMng"
+ln -sf "${INSTALLPATH}/files/Audio/beep.ogg" "${COSMO_DATA_DIR}/audioMng/beep.ogg"
 
-# Debugging: Print the value of $1
-echo "Argument 1: '$1'"
-
-# Fix the condition check
-if [ "$1" = "start" ]; then
-    if [ ! -f /etc/netplan/01-failsafe.yaml.bak ] || ! cmp -s "${INSTALLPATH}/scripts/01-failsafe.yaml.bak" /etc/netplan/01-failsafe.yaml.bak; then
-        cp -f "${INSTALLPATH}/scripts/01-failsafe.yaml.bak" /etc/netplan/
-    fi
-    # Change to main process binary file path
-    cd "${BINPATH}" || exit 1
-
-    # SRS streaming environment
-    export COSMO_STREAM_PLAY_MODE=srs
-    export COSMO_STREAM_RTMP_BASE=rtmp://127.0.0.1:1936/live
-    export COSMO_STREAM_RTC_API_PORT=1985
-    export COSMO_STREAM_HTTP_PORT=18088
-
-    # Restart nginx: stop first, then start fresh
-    killall nginx 2>/dev/null || true
-    sleep 1
-    echo "${logTag} Starting nginx..." >> "$logFile"
-    nginx -p "${NGINX_PREFIX}" -c "${NGINX_CONF}"
-
-    # Start SRS media server (for srs/webrtc/srs-flv/httpflv-srs play modes)
-    PLAY_MODE="${COSMO_STREAM_PLAY_MODE:-srs}"
-    if [ "$PLAY_MODE" = "srs" ] || [ "$PLAY_MODE" = "webrtc" ] || [ "$PLAY_MODE" = "srs-flv" ] || [ "$PLAY_MODE" = "httpflv-srs" ]; then
-        killall srs 2>/dev/null || true
-        sleep 1
-        echo "${logTag} Starting SRS media server (mode: ${PLAY_MODE})..." >> "$logFile"
-        ./srs -c srs_conf/srs.conf &
-    fi
-
-
-
-
-    echo "${logTag} Process [cosmo-engine] normal start....." >> "$logFile"
-    ./cosmo-engine
-    sleep 1
-
-    echo "*** Process [cosmo-engine] normal start over!"
-    RUNNING_INFO=$(ps -ef | grep -i cosmo-engine | grep -v 'grep')
-    echo "Processes running info statics:"
-    echo "${RUNNING_INFO}"
-    echo "${logTag} *** Process [cosmo-engine] normal start over!" >> "$logFile"
-    echo "${logTag} Processes running info statics:" >> "$logFile"
-    echo "${logTag} ${RUNNING_INFO}" >> "$logFile"
+if [ ! -f /etc/netplan/01-failsafe.yaml.bak ] || ! cmp -s "${INSTALLPATH}/scripts/01-failsafe.yaml.bak" /etc/netplan/01-failsafe.yaml.bak; then
+    cp -f "${INSTALLPATH}/scripts/01-failsafe.yaml.bak" /etc/netplan/
 fi
 
-echo "${logTag} Stop at $(date '+%Y-%m-%d_%H:%M:%S')" >> "$logFile"
+cd "${BINPATH}" || exit 1
+
+# SRS streaming environment
+export COSMO_STREAM_PLAY_MODE=srs
+export COSMO_STREAM_RTMP_BASE=rtmp://127.0.0.1:1936/live
+export COSMO_STREAM_RTC_API_PORT=1985
+export COSMO_STREAM_HTTP_PORT=18088
+
+# Start nginx
+cosmo_log "$logTag" "Starting nginx..." "$logFile"
+nginx -p "${NGINX_PREFIX}" -c "${NGINX_CONF}"
+
+# Start SRS media server (for srs/webrtc/srs-flv/httpflv-srs play modes)
+PLAY_MODE="${COSMO_STREAM_PLAY_MODE}"
+if [ "$PLAY_MODE" = "srs" ] || [ "$PLAY_MODE" = "webrtc" ] || [ "$PLAY_MODE" = "srs-flv" ] || [ "$PLAY_MODE" = "httpflv-srs" ]; then
+    cosmo_log "$logTag" "Starting SRS media server (mode: ${PLAY_MODE})..." "$logFile"
+    ./srs -c srs_conf/srs.conf &
+fi
+
+# Start cosmo-engine (foreground, managed by systemd)
+cosmo_log "$logTag" "Starting cosmo-engine (foreground)..." "$logFile"
+./cosmo-engine
+
+cosmo_log "$logTag" "Script ended." "$logFile"
