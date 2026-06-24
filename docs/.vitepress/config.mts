@@ -5,7 +5,8 @@ const guideZh = [
   { text: '部署指南', link: '/guide/deployment' },
   { text: '运行配置', link: '/guide/configuration' },
   { text: '故障排查', link: '/guide/troubleshooting' },
-  { text: '架构概览', link: '/guide/architecture' }
+  { text: '架构概览', link: '/guide/architecture' },
+  { text: '测试范围与用例', link: '/guide/test-cases' }
 ]
 
 const referenceZh = [
