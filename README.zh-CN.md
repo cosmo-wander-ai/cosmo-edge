@@ -199,6 +199,8 @@ docker compose -f docker-compose.x86.windows.yml up -d --build
 # http://localhost:8080
 ```
 
+> **USB 摄像头**：如有 USB 摄像头设备，请在启动前取消 `docker-compose.x86.yml` 中 `devices` 段的注释。
+
 推荐的首次体验路径：
 
 ```text

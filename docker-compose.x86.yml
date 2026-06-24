@@ -19,10 +19,11 @@ services:
       - cosmo-x86-data:/data/cwaiuserdata
       - cosmo-x86-app-resource:/appfs/cosmo_wander/cwai_data/resource
       - ./build_output:/build_output
-    devices:
-      - /dev/video0:/dev/video0
-      - /dev/video1:/dev/video1
-      - /dev/media0:/dev/media0
+    # if you have USB cameras, uncomment the devices block below.
+    # devices:
+    #   - /dev/video0:/dev/video0
+    #   - /dev/video1:/dev/video1
+    #   - /dev/media0:/dev/media0
     group_add:
       - video
     cap_add:

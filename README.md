@@ -197,6 +197,8 @@ docker compose -f docker-compose.x86.windows.yml up -d --build
 # http://localhost:8080
 ```
 
+> **USB cameras**: If you have USB cameras attached, uncomment the `devices` block in `docker-compose.x86.yml` before starting.
+
 Expected first path:
 
 ```text
