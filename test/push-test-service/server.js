@@ -10,6 +10,10 @@ const crypto = require('crypto');
 const os = require('os');
 const fs = require('fs');
 
+// ── MQTT 自动化测试模块 ──────────────────────────────────────────────────
+const testCasesModule = require('./test-cases');
+const { TestOrchestrator } = require('./mqtt-test-runner');
+
 const HTTP_PORT = Number(process.env.HTTP_PORT || 18080);
 const MQTT_PORT = Number(process.env.MQTT_PORT || 1883);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -25,6 +29,14 @@ const state = {
   mqttMessages: [],
   devices: new Map(),
   mqttClients: new Map(), // clientId -> client
+};
+
+// ── MQTT 自动化测试状态 ──────────────────────────────────────────────────
+const testState = {
+  orchestrator: null,   // TestOrchestrator 实例
+  running: false,
+  currentResult: null,  // 当前/最后一次结果汇总
+  history: [],          // 历史报告列表 [{ summary, filename, results }]
 };
 
 const app = express();
@@ -311,6 +323,158 @@ function localAddresses() {
   return addresses;
 }
 
+// ── 确保 test-results 目录存在 ───────────────────────────────────────────
+const testResultsDir = path.join(__dirname, 'test-results');
+if (!fs.existsSync(testResultsDir)) {
+  fs.mkdirSync(testResultsDir, { recursive: true });
+}
+
+// ── MQTT 自动化测试 API ──────────────────────────────────────────────────
+
+// 获取所有可测试的分类
+app.get('/api/mqtt/test/categories', (req, res) => {
+  res.json(testCasesModule.getCategories());
+});
+
+// 获取历史测试报告列表
+app.get('/api/mqtt/test/history', (req, res) => {
+  const dir = path.join(__dirname, 'test-results');
+  if (!fs.existsSync(dir)) {
+    return res.json([]);
+  }
+  const files = fs.readdirSync(dir)
+    .filter(f => f.endsWith('.json'))
+    .sort()
+    .reverse()
+    .slice(0, 20);  // 最近 20 条
+
+  const list = files.map(f => {
+    const raw = fs.readFileSync(path.join(dir, f), 'utf8');
+    const report = JSON.parse(raw);
+    return {
+      filename: f,
+      summary: report.summary,
+      timestamp: report.summary ? report.summary.timestamp : null,
+    };
+  });
+  res.json(list);
+});
+
+// 获取指定历史报告的完整内容
+app.get('/api/mqtt/test/history/:filename', (req, res) => {
+  const filepath = path.join(__dirname, 'test-results', req.params.filename);
+  if (!fs.existsSync(filepath)) {
+    return res.status(404).json({ error: '报告不存在' });
+  }
+  // 安全检查：防止目录遍历
+  if (req.params.filename.includes('..') || req.params.filename.includes('/')) {
+    return res.status(403).json({ error: '非法文件名' });
+  }
+  const raw = fs.readFileSync(filepath, 'utf8');
+  res.json(JSON.parse(raw));
+});
+
+// 启动测试
+app.post('/api/mqtt/test/start', async (req, res) => {
+  if (testState.running) {
+    return res.status(409).json({ error: '测试已在运行中' });
+  }
+
+  const { categories, deviceSn: reqDeviceSn } = req.body || {};
+  const mqttBrokerUrl = `mqtt://127.0.0.1:${MQTT_PORT}`;
+  // 使用前端选择的设备 SN，如果没有传则用默认测试 SN
+  const deviceSn = reqDeviceSn || testCasesModule.TEST_DEVICE_SN;
+
+  const orchestrator = new TestOrchestrator(mqttBrokerUrl, deviceSn, testCasesModule, {
+    defaultTimeoutMs: req.body.timeoutMs || 5000,
+  });
+
+  testState.orchestrator = orchestrator;
+  testState.running = true;
+  testState.currentResult = null;
+
+  // 转发日志
+  orchestrator.on('log', (entry) => {
+    broadcast('test_log', entry);
+  });
+
+  // 测试开始
+  orchestrator.on('test_start', (info) => {
+    broadcast('test_start', info);
+  });
+
+  // 进度更新
+  orchestrator.on('progress', (info) => {
+    broadcast('test_progress', info);
+  });
+
+  // 单条结果
+  orchestrator.on('result', (result) => {
+    broadcast('test_result', result);
+  });
+
+  // 测试完成
+  orchestrator.on('test_done', (report) => {
+    testState.running = false;
+    testState.currentResult = report;
+    testState.history.unshift({
+      summary: report.summary,
+      results: report.results,
+      timestamp: report.summary.timestamp,
+    });
+    // 保留最近 50 条历史
+    if (testState.history.length > 50) {
+      testState.history = testState.history.slice(0, 50);
+    }
+    broadcast('test_done', report);
+  });
+
+  res.json({ success: true, message: '测试已启动' });
+
+  // 异步执行测试
+  try {
+    await orchestrator.start();
+    const result = await orchestrator.runAll(
+      categories && categories.length > 0 ? categories : null
+    );
+    // 清理
+    await orchestrator.stop();
+    testState.orchestrator = null;
+  } catch (err) {
+    console.error(`[${now()}] Test runner error:`, err.message);
+    testState.running = false;
+    broadcast('test_error', { error: err.message });
+    if (testState.orchestrator) {
+      await testState.orchestrator.stop().catch(() => {});
+      testState.orchestrator = null;
+    }
+  }
+});
+
+// 停止测试
+app.post('/api/mqtt/test/stop', async (req, res) => {
+  if (!testState.running || !testState.orchestrator) {
+    return res.status(409).json({ error: '没有正在运行的测试' });
+  }
+
+  try {
+    await testState.orchestrator.stop();
+    testState.running = false;
+    broadcast('test_stopped', { message: '测试已被用户停止' });
+    res.json({ success: true, message: '测试已停止' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 获取当前测试状态
+app.get('/api/mqtt/test/status', (req, res) => {
+  res.json({
+    running: testState.running,
+    currentResult: testState.currentResult,
+  });
+});
+
 httpServer.listen(HTTP_PORT, HOST, () => {
   console.log(`\n[${now()}] HTTP visualization server started at http://${HOST}:${HTTP_PORT}`);
   console.log(`Local access: http://localhost:${HTTP_PORT}`);
@@ -323,7 +487,13 @@ mqttServer.listen(MQTT_PORT, HOST, () => {
 
 function shutdown(signal) {
   console.log(`\n[${now()}] Received ${signal}, closing servers...`);
-  
+
+  // 先停止测试
+  if (testState.orchestrator) {
+    testState.orchestrator.stop().catch(() => {});
+    testState.orchestrator = null;
+  }
+
   let closed = 0;
   const finish = () => {
     closed++;

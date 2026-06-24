@@ -5,7 +5,8 @@
   "description": "HTTP and MQTT test service for AI Box push interface verification.",
   "type": "commonjs",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test:mqtt": "node server.js"
   },
   "dependencies": {
     "aedes": "^0.51.3",

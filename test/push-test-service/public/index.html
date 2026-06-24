@@ -13,6 +13,7 @@
             <nav>
                 <button class="nav-btn active" data-tab="http-alerts">HTTP 告警可视化</button>
                 <button class="nav-btn" data-tab="mqtt-test">MQTT 接口测试</button>
+                <button class="nav-btn" data-tab="mqtt-auto-test">MQTT 自动化测试</button>
             </nav>
         </div>
     </header>
@@ -110,6 +111,88 @@
                         <h3>MQTT 日志</h3>
                         <div id="mqtt-logs" class="log-viewer">
                             <!-- Logs will be injected here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- MQTT 自动化测试 Tab -->
+        <section id="mqtt-auto-test" class="tab-content">
+            <div class="auto-test-layout">
+                <!-- 左侧控制面板 -->
+                <div class="auto-test-sidebar">
+                    <div class="card">
+                        <h3>⚙️ 测试配置</h3>
+                        <div class="form-group">
+                            <label>目标设备 SN:</label>
+                            <select id="auto-test-sn" style="width:100%;" onchange="onDeviceSnChange()">
+                                <option value="test-device-auto-001">🖥️ 模拟测试设备</option>
+                            </select>
+                            <div id="auto-test-device-warning" class="device-warning hidden">
+                                ⚠️ 已选择真实设备 <strong class="warn-device-sn"></strong>，
+                                修改性用例 (🔧) 已自动取消勾选。发送 <code>SetMqttAdapterParam</code> 等指令会<strong>实际修改设备配置</strong>，请谨慎操作！
+                            </div>
+                            <p class="text-muted" style="font-size:0.7rem;margin-top:4px;">
+                                💡 "模拟测试设备"使用内置模拟器，安全验证协议通路；真实设备仅建议执行 📖 只读查询。
+                            </p>
+                        </div>
+                        <div class="form-group">
+                            <label>超时设置 (ms):</label>
+                            <input type="number" id="auto-test-timeout" value="5000" min="1000" max="30000" step="500">
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3>📂 测试范围</h3>
+                        <div id="auto-test-categories" class="category-checklist">
+                            <!-- 由 JS 动态填充 -->
+                        </div>
+                        <div style="margin-top: 10px;">
+                            <button id="auto-test-select-all" class="btn btn-sm btn-ghost">全选</button>
+                            <button id="auto-test-deselect-all" class="btn btn-sm btn-ghost">取消全选</button>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <button id="auto-test-start" class="btn btn-primary" style="flex: 1;">▶ 开始测试</button>
+                            <button id="auto-test-stop" class="btn btn-danger" style="flex: 1;" disabled>■ 停止</button>
+                        </div>
+                    </div>
+
+                    <!-- 历史报告区域 -->
+                    <div class="card">
+                        <h3>📊 历史报告</h3>
+                        <div id="auto-test-history" class="history-list">
+                            <p class="text-muted">加载中...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右侧执行区 -->
+                <div class="auto-test-main">
+                    <!-- 进度条 -->
+                    <div id="auto-test-progress-bar" class="progress-bar-container hidden">
+                        <div class="progress-bar-inner" style="width: 0%;"></div>
+                        <span class="progress-bar-text">0 / 0</span>
+                    </div>
+
+                    <!-- 汇总面板 -->
+                    <div id="auto-test-summary" class="test-summary hidden">
+                        <div class="summary-card summary-pass"><span class="summary-num" id="sum-pass">0</span><span class="summary-label">Pass</span></div>
+                        <div class="summary-card summary-fail"><span class="summary-num" id="sum-fail">0</span><span class="summary-label">Fail</span></div>
+                        <div class="summary-card summary-timeout"><span class="summary-num" id="sum-timeout">0</span><span class="summary-label">Timeout</span></div>
+                        <div class="summary-card summary-warn"><span class="summary-num" id="sum-warn">0</span><span class="summary-label">Warn</span></div>
+                        <div class="summary-card summary-rate"><span class="summary-num" id="sum-rate">0%</span><span class="summary-label">通过率</span></div>
+                        <div class="summary-card summary-elapsed"><span class="summary-num" id="sum-elapsed">0s</span><span class="summary-label">耗时</span></div>
+                    </div>
+
+                    <!-- 实时结果列表 -->
+                    <div class="card">
+                        <h3>📋 测试结果 <span id="auto-test-status" class="text-muted">(待开始)</span></h3>
+                        <div id="auto-test-results" class="test-results-list">
+                            <p class="text-muted" id="auto-test-placeholder">点击"开始测试"执行 MQTT 接口自动化验证</p>
                         </div>
                     </div>
                 </div>

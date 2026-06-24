@@ -709,6 +709,7 @@ socket.on('device_updated', (device) => {
         devices.push(device);
     }
     renderDevices();
+    refreshDeviceSnSelect();
 });
 
 socket.on('mqtt_client_connected', ({ id }) => {
@@ -718,3 +719,512 @@ socket.on('mqtt_client_connected', ({ id }) => {
 socket.on('mqtt_client_disconnected', ({ id }) => {
     console.log('MQTT Client disconnected:', id);
 });
+
+// ══════════════════════════════════════════════════════════════════════════
+// MQTT 自动化测试页面
+// ══════════════════════════════════════════════════════════════════════════
+
+let autoTestRunning = false;
+let autoTestResults = [];
+let autoTestCategories = [];
+
+// 分类中文名映射
+const categoryLabels = {
+    builtin: '内置协议',
+    'core-task': '核心任务',
+    system: '系统管理',
+    camera: '摄像机',
+    task: '任务配置',
+    algorithm: '算法管理',
+    exception: '异常场景',
+};
+
+// 加载分类列表
+async function loadCategories() {
+    try {
+        const res = await fetch('/api/mqtt/test/categories');
+        autoTestCategories = await res.json();
+        renderCategoryChecklist();
+    } catch (e) {
+        console.error('Failed to load categories', e);
+        // 降级：使用默认分类
+        autoTestCategories = Object.entries(categoryLabels).map(([key, label]) => ({
+            key, label, icon: '', count: '?',
+        }));
+        renderCategoryChecklist();
+    }
+}
+
+// 刷新目标设备下拉列表（从 state.devices 同步）
+// 可以安全地在 Tab 未打开时调用（getElementById 返回 null 时直接返回）
+function refreshDeviceSnSelect() {
+    const select = document.getElementById('auto-test-sn');
+    if (!select) return;  // Tab 未打开时不更新
+    const currentVal = select.value;
+
+    // 保留已有选项，重建列表
+    select.innerHTML = '';
+
+    // 始终保留模拟测试设备选项
+    const syntheticOption = document.createElement('option');
+    syntheticOption.value = 'test-device-auto-001';
+    syntheticOption.textContent = '🖥️ 模拟测试设备 (test-device-auto-001)';
+    syntheticOption.style.color = '#64748b';
+    select.appendChild(syntheticOption);
+
+    // 添加真实在线设备
+    if (devices.length > 0) {
+        const group = document.createElement('optgroup');
+        group.label = '── 在线设备 ──';
+        devices.forEach(dev => {
+            const sn = dev.deviceSn || dev.devId || '';
+            if (!sn) return;
+            const option = document.createElement('option');
+            option.value = sn;
+            const model = dev.deviceModel ? ` (${dev.deviceModel})` : '';
+            option.textContent = `${sn}${model}`;
+            group.appendChild(option);
+        });
+        select.appendChild(group);
+    } else {
+        const emptyGroup = document.createElement('optgroup');
+        emptyGroup.label = '── 在线设备 (暂无) ──';
+        const emptyOption = document.createElement('option');
+        emptyOption.disabled = true;
+        emptyOption.textContent = '暂无在线设备';
+        emptyGroup.appendChild(emptyOption);
+        select.appendChild(emptyGroup);
+    }
+
+    // 恢复之前选中的值
+    select.value = currentVal || 'test-device-auto-001';
+}
+
+function renderCategoryChecklist() {
+    const container = document.getElementById('auto-test-categories');
+    if (!container) return;
+    container.innerHTML = autoTestCategories
+        .filter(c => c.count > 0)
+        .map(c => {
+            const readOnly = c.count - c.mutationCount;
+            const mutationNote = c.mutationCount > 0
+                ? ` (<span style="color:#16a34a;">📖${readOnly}</span> + <span style="color:#dc2626;">🔧${c.mutationCount}</span>)`
+                : '';
+            return `
+                <label title="${c.label}: 📖只读 ${readOnly}条, 🔧修改 ${c.mutationCount}条">
+                    <input type="checkbox" value="${c.key}" checked>
+                    <span>${c.icon} ${c.label}</span>
+                    <span style="color:#64748b;font-size:0.75rem;">(${c.count})${mutationNote}</span>
+                </label>
+            `;
+        }).join('');
+}
+
+// 设备 SN 切换时的处理
+function onDeviceSnChange() {
+    const select = document.getElementById('auto-test-sn');
+    if (!select) return;
+    const sn = select.value;
+    const isSimulated = sn === 'test-device-auto-001';
+
+    const warnBox = document.getElementById('auto-test-device-warning');
+    if (warnBox) {
+        if (isSimulated) {
+            warnBox.classList.add('hidden');
+        } else {
+            warnBox.classList.remove('hidden');
+            warnBox.querySelector('.warn-device-sn').textContent = escapeHtml(sn);
+        }
+    }
+
+    // 真实设备时自动取消修改性用例分类的勾选
+    if (!isSimulated) {
+        const checkboxes = document.querySelectorAll('#auto-test-categories input[type="checkbox"]');
+        checkboxes.forEach(cb => {
+            const cat = autoTestCategories.find(c => c.key === cb.value);
+            if (cat && cat.mutationCount > 0) {
+                cb.checked = false;
+                cb.parentElement.style.opacity = '0.5';
+            }
+        });
+    } else {
+        // 模拟设备恢复全部勾选
+        const checkboxes = document.querySelectorAll('#auto-test-categories input[type="checkbox"]');
+        checkboxes.forEach(cb => {
+            cb.checked = true;
+            cb.parentElement.style.opacity = '1';
+        });
+    }
+}
+
+// 获取选中的分类
+function getSelectedCategories() {
+    const checkboxes = document.querySelectorAll('#auto-test-categories input[type="checkbox"]:checked');
+    return Array.from(checkboxes).map(cb => cb.value);
+}
+
+// 刷新历史报告列表
+async function loadTestHistory() {
+    const container = document.getElementById('auto-test-history');
+    if (!container) return;
+    try {
+        const res = await fetch('/api/mqtt/test/history');
+        const list = await res.json();
+        if (list.length === 0) {
+            container.innerHTML = '<p class="text-muted">暂无历史报告</p>';
+            return;
+        }
+        container.innerHTML = list.map(item => {
+            const s = item.summary || {};
+            const time = item.timestamp ? new Date(item.timestamp).toLocaleString('zh-CN') : '未知';
+            return `
+                <div class="history-item" onclick="loadHistoryReport('${item.filename}')" title="点击查看详情">
+                    <div class="history-item-time">${time}</div>
+                    <div class="history-item-stats">
+                        <span style="color:#16a34a;">✅ ${s.passed || 0}</span>
+                        <span style="color:#dc2626;">❌ ${s.failed || 0}</span>
+                        <span style="color:#d97706;">⏱ ${s.timeout || 0}</span>
+                        <span style="color:#7c3aed;">⏱ ${s.totalElapsed || '?'}</span>
+                        <span>通过率: ${s.passRate || '?'}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (e) {
+        container.innerHTML = '<p class="text-muted">加载失败</p>';
+    }
+}
+
+// 点击历史报告查看详情
+async function loadHistoryReport(filename) {
+    try {
+        const res = await fetch(`/api/mqtt/test/history/${encodeURIComponent(filename)}`);
+        const report = await res.json();
+        renderHistoryReport(report);
+    } catch (e) {
+        console.error('Failed to load report', e);
+    }
+}
+
+function renderHistoryReport(report) {
+    const container = document.getElementById('auto-test-results');
+    const summary = report.summary || {};
+    const results = report.results || [];
+
+    // 更新汇总
+    updateSummaryUI({
+        summary: {
+            total: results.length,
+            passed: summary.passed || 0,
+            failed: summary.failed || 0,
+            timeout: summary.timeout || 0,
+            warn: summary.warn || 0,
+            passRate: summary.passRate || '0%',
+            totalElapsed: summary.totalElapsed || '?',
+            failures: summary.failures || [],
+        },
+    });
+
+    // 渲染结果列表
+    const statusEl = document.getElementById('auto-test-status');
+    if (statusEl) statusEl.textContent = '(历史报告)';
+    document.getElementById('auto-test-summary').classList.remove('hidden');
+    document.getElementById('auto-test-progress-bar').classList.add('hidden');
+
+    container.innerHTML = results.map((r, i) => buildResultLine(r, i)).join('');
+    container.scrollTop = 0;
+}
+
+// 开始测试
+async function startAutoTest() {
+    if (autoTestRunning) return;
+
+    const timeoutMs = parseInt(document.getElementById('auto-test-timeout').value) || 5000;
+    const categories = getSelectedCategories();
+    const deviceSn = document.getElementById('auto-test-sn').value || 'test-device-auto-001';
+
+    if (categories.length === 0) {
+        alert('请至少选择一个测试分类');
+        return;
+    }
+
+    autoTestRunning = true;
+    autoTestResults = [];
+    updateButtonStates();
+
+    // 清空
+    const container = document.getElementById('auto-test-results');
+    container.innerHTML = '<p class="text-muted">正在启动测试引擎...</p>';
+    document.getElementById('auto-test-summary').classList.remove('hidden');
+    document.getElementById('auto-test-progress-bar').classList.remove('hidden');
+    const statusEl = document.getElementById('auto-test-status');
+    if (statusEl) statusEl.textContent = '(启动中...)';
+
+    try {
+        const res = await fetch('/api/mqtt/test/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ categories, timeoutMs, deviceSn }),
+        });
+        const data = await res.json();
+        if (!data.success) {
+            alert('启动测试失败: ' + (data.error || '未知错误'));
+            autoTestRunning = false;
+            updateButtonStates();
+        }
+    } catch (e) {
+        console.error('Failed to start test', e);
+        autoTestRunning = false;
+        updateButtonStates();
+    }
+}
+
+// 停止测试
+async function stopAutoTest() {
+    if (!autoTestRunning) return;
+    try {
+        await fetch('/api/mqtt/test/stop', { method: 'POST' });
+    } catch (e) {
+        console.error('Failed to stop test', e);
+    }
+}
+
+function updateButtonStates() {
+    const startBtn = document.getElementById('auto-test-start');
+    const stopBtn = document.getElementById('auto-test-stop');
+    if (startBtn) startBtn.disabled = autoTestRunning;
+    if (stopBtn) stopBtn.disabled = !autoTestRunning;
+}
+
+// 构建结果行 HTML（始终可展开查看输入输出）
+function buildResultLine(r, index) {
+    const catLabel = categoryLabels[r.category] || r.category;
+    const mutationBadge = r.mutation ? ' 🔧' : ' 📖';
+    let icon, cssClass;
+    switch (r.verdict) {
+        case 'PASS':  icon = '✅'; cssClass = 'test-result-pass'; break;
+        case 'FAIL':  icon = '❌'; cssClass = 'test-result-fail'; break;
+        case 'TIMEOUT': icon = '⏰'; cssClass = 'test-result-timeout'; break;
+        case 'WARN':  icon = '⚠️'; cssClass = 'test-result-warn'; break;
+        case 'ABORTED': icon = '⊘'; cssClass = 'test-result-info'; break;
+        default:      icon = '⏳'; cssClass = 'test-result-running'; break;
+    }
+    const elapsed = r.elapsedMs ? `${r.elapsedMs}ms` : '';
+    const errorLine = r.error ? `<div class="test-result-error">↳ ${escapeHtml(r.error)}</div>` : '';
+    const detailLine = r.detail && !r.error ? `<div class="test-result-info">↳ ${escapeHtml(r.detail)}</div>` : '';
+
+    const idx = index !== undefined ? index : Date.now();
+
+    const reqPretty = r.requestPayload ? formatJsonForDisplay(r.requestPayload) : null;
+    const rspPretty = r.responsePayload ? formatJsonForDisplay(r.responsePayload) : null;
+    // 用 responseBody + responseHead 重建响应（兜底）
+    const rspFromParts = (!rspPretty && r.responseHead)
+        ? JSON.stringify({ head: r.responseHead, body: r.responseBody }, null, 2) : null;
+
+    return `
+        <div class="test-result-row">
+            <div class="test-result-line clickable" onclick="togglePayload('payload-${idx}', this)">
+                <span class="test-result-icon ${cssClass}">${icon}</span>
+                <span class="test-result-text">
+                    <span class="test-result-cat">${escapeHtml(catLabel)}</span>
+                    ${escapeHtml(r.name)}
+                    ${errorLine}
+                    ${detailLine}
+                </span>
+                <span class="test-result-elapsed">${elapsed}</span>
+                <span class="test-result-expand">▼</span>
+            </div>
+            <div class="test-payload-panel hidden" id="payload-${idx}">
+                ${reqPretty ? `<div class="payload-section">
+                    <div class="payload-label">📤 请求 (Request)</div>
+                    <pre class="payload-json">${escapeHtml(reqPretty)}</pre>
+                </div>` : `<div class="payload-section">
+                    <div class="payload-label">📤 请求 (Request)</div>
+                    <pre class="payload-json" style="color:#64748b;">(无请求数据)</pre>
+                </div>`}
+                ${rspPretty || rspFromParts ? `<div class="payload-section">
+                    <div class="payload-label">📥 响应 (Response)</div>
+                    <pre class="payload-json">${escapeHtml(rspPretty || rspFromParts)}</pre>
+                </div>` : `<div class="payload-section">
+                    <div class="payload-label">📥 响应 (Response)</div>
+                    <pre class="payload-json" style="color:#64748b;">(无响应数据)</pre>
+                </div>`}
+            </div>
+        </div>
+    `;
+}
+
+// 格式化 JSON 用于展示（紧凑但可读）
+function formatJsonForDisplay(jsonStr) {
+    try {
+        const obj = JSON.parse(jsonStr);
+        return JSON.stringify(obj, null, 2);
+    } catch (_) {
+        return jsonStr;
+    }
+}
+
+// 展开/收起输入输出面板
+function togglePayload(payloadId, lineEl) {
+    const panel = document.getElementById(payloadId);
+    if (!panel) return;
+    const isHidden = panel.classList.contains('hidden');
+    panel.classList.toggle('hidden');
+    // 更新展开箭头
+    const expandEl = lineEl.querySelector('.test-result-expand');
+    if (expandEl) {
+        expandEl.textContent = isHidden ? '▲' : '▼';
+    }
+}
+
+function updateSummaryUI(data) {
+    const s = data.summary;
+    document.getElementById('sum-pass').textContent = s.passed || 0;
+    document.getElementById('sum-fail').textContent = s.failed || 0;
+    document.getElementById('sum-timeout').textContent = s.timeout || 0;
+    document.getElementById('sum-warn').textContent = s.warn || 0;
+    document.getElementById('sum-rate').textContent = s.passRate || '0%';
+    document.getElementById('sum-elapsed').textContent = s.totalElapsed || '0s';
+}
+
+// ── Socket.IO 事件 ──────────────────────────────────────────────────────
+
+socket.on('test_start', (info) => {
+    const container = document.getElementById('auto-test-results');
+    container.innerHTML = '';
+    const statusEl = document.getElementById('auto-test-status');
+    if (statusEl) statusEl.textContent = `(0/${info.total})`;
+    document.getElementById('auto-test-progress-bar').classList.remove('hidden');
+    document.querySelector('.progress-bar-inner').style.width = '0%';
+    document.querySelector('.progress-bar-text').textContent = `0 / ${info.total}`;
+});
+
+socket.on('test_progress', (info) => {
+    const statusEl = document.getElementById('auto-test-status');
+    if (statusEl) statusEl.textContent = `(${info.index}/${info.total})`;
+    const pct = Math.round((info.index / info.total) * 100);
+    document.querySelector('.progress-bar-inner').style.width = pct + '%';
+    document.querySelector('.progress-bar-text').textContent = `${info.index} / ${info.total} (${pct}%)`;
+
+    // 移除上一次的运行中占位行
+    const container = document.getElementById('auto-test-results');
+    const prevRunning = container.querySelector('.test-result-row-running');
+    if (prevRunning) prevRunning.remove();
+
+    // 添加新的"运行中"行（与结果行结构一致，方便 test_result 时移除）
+    const catLabel = categoryLabels[info.category] || info.category;
+    const row = document.createElement('div');
+    row.className = 'test-result-row test-result-row-running';
+    row.innerHTML = `
+        <div class="test-result-line">
+            <span class="test-result-icon test-result-running">⏳</span>
+            <span class="test-result-text">
+                <span class="test-result-cat">${escapeHtml(catLabel)}</span>
+                ${escapeHtml(info.name)}
+            </span>
+            <span class="test-result-elapsed">...</span>
+        </div>
+    `;
+    container.appendChild(row);
+    container.scrollTop = container.scrollHeight;
+});
+
+socket.on('test_result', (result) => {
+    // 调试日志：确认数据是否包含 payload 字段
+    console.log('[test_result]', result.testId, result.verdict,
+        'req:', typeof result.requestPayload, 'rsp:', typeof result.responsePayload,
+        'head:', !!result.responseHead, 'body:', !!result.responseBody,
+        'keys:', Object.keys(result).join(','));
+
+    autoTestResults.push(result);
+
+    const container = document.getElementById('auto-test-results');
+    // 移除运行中占位行
+    const runningRow = container.querySelector('.test-result-row-running');
+    if (runningRow) runningRow.remove();
+
+    // 插入结果行
+    const tmpDiv = document.createElement('div');
+    tmpDiv.innerHTML = buildResultLine(result, autoTestResults.length);
+    const resultRow = tmpDiv.firstElementChild;
+    if (resultRow) {
+        container.appendChild(resultRow);
+    }
+    container.scrollTop = container.scrollHeight;
+
+    // 实时更新汇总
+    const counts = { PASS: 0, FAIL: 0, TIMEOUT: 0, WARN: 0, ABORTED: 0 };
+    autoTestResults.forEach(r => { counts[r.verdict] = (counts[r.verdict] || 0) + 1; });
+    const total = autoTestResults.length;
+    const passRate = total > 0 ? ((counts.PASS / total) * 100).toFixed(1) + '%' : '0%';
+    updateSummaryUI({
+        summary: {
+            passed: counts.PASS, failed: counts.FAIL, timeout: counts.TIMEOUT,
+            warn: counts.WARN, aborted: counts.ABORTED, passRate, totalElapsed: '...',
+            failures: [],
+        },
+    });
+});
+
+socket.on('test_done', (report) => {
+    autoTestRunning = false;
+    updateButtonStates();
+    updateSummaryUI(report);
+
+    const statusEl = document.getElementById('auto-test-status');
+    if (statusEl) statusEl.textContent = '(完成)';
+    document.querySelector('.progress-bar-text').textContent = '完成';
+
+    // 刷新历史列表
+    loadTestHistory();
+});
+
+socket.on('test_stopped', (info) => {
+    autoTestRunning = false;
+    updateButtonStates();
+    const statusEl = document.getElementById('auto-test-status');
+    if (statusEl) statusEl.textContent = '(已停止)';
+    document.querySelector('.progress-bar-text').textContent = '已停止';
+});
+
+socket.on('test_error', (info) => {
+    autoTestRunning = false;
+    updateButtonStates();
+    const statusEl = document.getElementById('auto-test-status');
+    if (statusEl) statusEl.textContent = '(错误)';
+});
+
+socket.on('test_log', (entry) => {
+    console.log(`[Test ${entry.level}] ${entry.msg}`);
+});
+
+// ── 页面初始化 ──────────────────────────────────────────────────────────
+
+function initAutoTestPage() {
+    loadCategories();
+    loadTestHistory();
+    refreshDeviceSnSelect();
+
+    // 初始化时检查设备选择状态（首次默认是模拟设备，安全）
+    setTimeout(() => onDeviceSnChange(), 100);
+
+    document.getElementById('auto-test-start').onclick = startAutoTest;
+    document.getElementById('auto-test-stop').onclick = stopAutoTest;
+
+    document.getElementById('auto-test-select-all').onclick = () => {
+        document.querySelectorAll('#auto-test-categories input[type="checkbox"]')
+            .forEach(cb => { cb.checked = true; });
+    };
+    document.getElementById('auto-test-deselect-all').onclick = () => {
+        document.querySelectorAll('#auto-test-categories input[type="checkbox"]')
+            .forEach(cb => { cb.checked = false; });
+    };
+}
+
+// 首次切换到自动化测试 Tab 时初始化
+const autoTestTab = document.querySelector('[data-tab="mqtt-auto-test"]');
+if (autoTestTab) {
+    autoTestTab.addEventListener('click', () => {
+        initAutoTestPage();
+    }, { once: true });
+}
