@@ -199,11 +199,7 @@ docker compose -f docker-compose.x86.windows.yml up -d --build
 
 > **USB cameras**: If you have USB cameras attached, uncomment the `devices` block in `docker-compose.x86.yml` before starting.
 
-Expected first path:
-
-```text
-Open browser -> import or select model -> create scenario task -> connect video -> view AI results
-```
+Once running, follow the [Scenario Configuration tutorial](docs/en/tutorials/02-scenario-config/scenario-config.md) to set up your first AI detection scenario.
 
 ### Option B: Sophon Edge Device
 

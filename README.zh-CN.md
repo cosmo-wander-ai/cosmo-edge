@@ -201,11 +201,7 @@ docker compose -f docker-compose.x86.windows.yml up -d --build
 
 > **USB 摄像头**：如有 USB 摄像头设备，请在启动前取消 `docker-compose.x86.yml` 中 `devices` 段的注释。
 
-推荐的首次体验路径：
-
-```text
-打开浏览器 -> 导入或选择模型 -> 创建场景任务 -> 接入视频 -> 查看 AI 结果
-```
+启动后，参照[场景配置教程](docs/tutorials/02-scenario-config/scenario-config.md)设置你的第一个 AI 检测场景。
 
 ### 方案 B：Sophon 边缘设备
 
