@@ -288,7 +288,7 @@ The numbers below are representative system-level combinations based on internal
                                 v
 +---------------------------------------------------------------+
 | Hardware Abstraction                                          |
-| Sophon BM1688 NPU/VPU/VPP | x86 CPU/OpenCV                    |
+| Sophon BM1688 NPU/VPU/VPP | x86 CPU                           |
 +---------------------------------------------------------------+
 ```
 
@@ -296,7 +296,7 @@ The numbers below are representative system-level combinations based on internal
 
 | Layer       | Technology                                  |
 | ----------- | ------------------------------------------- |
-| Engine      | C++17, CMake, FFmpeg, OpenCV, SQLiteCpp     |
+| Engine      | C++17, CMake, FFmpeg, SQLiteCpp             |
 | Inference   | Sophon BMRT/SAIL, ONNX Runtime for x86 mode |
 | Frontend    | Vue.js, Vue Flow, Element Plus              |
 | Streaming   | SRS 6.0, WebRTC, HTTP-FLV                   |

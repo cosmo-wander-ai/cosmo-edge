@@ -290,7 +290,7 @@ CosmoEdge 来自商业化代码库，在开源发布前已经完成近期内部�
                                 v
 +---------------------------------------------------------------+
 | Hardware Abstraction                                          |
-| Sophon BM1688 NPU/VPU/VPP | x86 CPU/OpenCV                    |
+| Sophon BM1688 NPU/VPU/VPP | x86 CPU                           |
 +---------------------------------------------------------------+
 ```
 
@@ -298,7 +298,7 @@ CosmoEdge 来自商业化代码库，在开源发布前已经完成近期内部�
 
 | 层级 | 技术 |
 | --- | --- |
-| 引擎 | C++17、CMake、FFmpeg、OpenCV、SQLiteCpp |
+| 引擎 | C++17、CMake、FFmpeg、SQLiteCpp |
 | 推理 | Sophon BMRT/SAIL、x86 模式使用 ONNX Runtime |
 | 前端 | Vue.js、Vue Flow、Element Plus |
 | 流媒体 | SRS 6.0、WebRTC、HTTP-FLV |
