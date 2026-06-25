@@ -17,6 +17,8 @@ const sanitizeSegment = (value) =>
     .replace(/^_|_$/g, '')
 
 const zhFallbackTerms = [
+  ['图片语言视觉大模型', 'Image-Language-Vision Foundation Model'],
+  ['人流量统计', 'Passenger Flow Statistics'],
   ['安全帽检测算法', 'Safety Helmet Detection Algorithm'],
   ['安全帽手机检测', 'Safety Helmet Phone Detection'],
   ['玩手机检测', 'Phone Usage Detection'],

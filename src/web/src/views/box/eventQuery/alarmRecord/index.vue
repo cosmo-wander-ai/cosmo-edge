@@ -114,11 +114,13 @@ import detailDialog from '../components/detailDialog.vue'
 import videoFrequency from '../components/videoPlaying265.vue'
 import rukuDialog from '../components/rukuDialog.vue'
 import { t, localeColon, currentLocale } from '@/i18n'
+import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
 
 const { proxy } = getCurrentInstance()
 
 const runMode = ref(0) // 0 单机版 1 联网版
 const topBarRef = ref(null)
+const rawAlgorithmList = ref([])
 const viewType = ref('grid')
 const tableData = ref([])
 const multipleSelections = ref([])
@@ -214,6 +216,23 @@ const reportStatusText = (status) => {
   return status === 1 ? t('event.uploaded') : t('event.notUploaded')
 }
 
+// 更新算法下拉列表选项
+const updateAlgorithmOptions = () => {
+  const newAlgorithmList = []
+  rawAlgorithmList.value.forEach((item) => {
+    if (item.algorithmCategory == '2' || item.algorithmCategory == '3') {
+      newAlgorithmList.push({
+        label: resolveResourceAlgorithmName(item),
+        value: item.algorithmId
+      })
+    }
+  })
+  topBarData.formList[2].dataList = [
+    { labelI18nKey: 'common.all', value: '' },
+    ...newAlgorithmList
+  ]
+}
+
 // 获取算法信息
 const getAlgorithmInfo = () => {
   const params = {
@@ -222,22 +241,15 @@ const getAlgorithmInfo = () => {
   }
   proxy.$API.boxAllAlgorithmInfo(params).then((res) => {
     const { resData } = res
-    const algorithmList = resData.rows || []
-    const newAlgorithmList = []
-    algorithmList.forEach((item) => {
-      if (item.algorithmCategory == '2' || item.algorithmCategory == '3') {
-        newAlgorithmList.push({
-          label: item.algorithmName,
-          value: item.algorithmId
-        })
-      }
-    })
-    topBarData.formList[2].dataList = [
-      { labelI18nKey: 'common.all', value: '' },
-      ...newAlgorithmList
-    ]
+    rawAlgorithmList.value = resData.rows || []
+    updateAlgorithmOptions()
   })
 }
+
+// 监听语言切换，更新下拉列表名称
+watch(currentLocale, () => {
+  updateAlgorithmOptions()
+})
 
 // 获取通道列表
 const getChannelList = () => {

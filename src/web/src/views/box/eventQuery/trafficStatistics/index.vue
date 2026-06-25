@@ -35,7 +35,7 @@
 
             <el-form-item :label="t('event.algorithmService') + localeColon">
               <el-select v-model="hourParams.algorithmCode" style="width: 160px;" size="small">
-                <el-option v-for="item in algorithmList" :key="item.algorithmId" :label="item.algorithmName"
+                <el-option v-for="item in algorithmList" :key="item.algorithmId" :label="resolveResourceAlgorithmName(item)"
                   :value="item.algorithmId"></el-option>
               </el-select>
             </el-form-item>
@@ -65,7 +65,7 @@
 
             <el-form-item :label="t('event.algorithmService') + localeColon">
               <el-select v-model="dayParams.algorithmCode" style="width: 160px;" size="small">
-                <el-option v-for="item in algorithmList" :key="item.algorithmId" :label="item.algorithmName"
+                <el-option v-for="item in algorithmList" :key="item.algorithmId" :label="resolveResourceAlgorithmName(item)"
                   :value="item.algorithmId"></el-option>
               </el-select>
             </el-form-item>
@@ -96,7 +96,7 @@
 
             <el-form-item :label="t('event.algorithmService') + localeColon">
               <el-select v-model="monthParams.algorithmCode" style="width: 160px;" size="small">
-                <el-option v-for="item in algorithmList" :key="item.algorithmId" :label="item.algorithmName"
+                <el-option v-for="item in algorithmList" :key="item.algorithmId" :label="resolveResourceAlgorithmName(item)"
                   :value="item.algorithmId"></el-option>
               </el-select>
             </el-form-item>
@@ -178,6 +178,7 @@ import { ref, reactive, watch, onMounted, nextTick, computed, getCurrentInstance
 import moment from 'moment'
 import * as echarts from 'echarts'
 import { t, localeColon } from '@/i18n'
+import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
 
 const { proxy } = getCurrentInstance()
 
