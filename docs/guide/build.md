@@ -48,7 +48,6 @@ docker compose -f docker-compose.x86.windows.yml up -d --build
 | `COSMO_NN_USE_SOPHON_BACKEND` | `OFF` |
 | `COSMO_NN_USE_CPU_BACKEND` | `ON` |
 | `COSMO_ENABLE_OPENH264` | `ON` |
-| `COSMO_ENABLE_GPL_CODECS` | `OFF` |
 | `COSMO_DEV_MODE` | `ON` |
 | `RESOURCE_DIR` | `data/resource/aiboxresource_x86` |
 

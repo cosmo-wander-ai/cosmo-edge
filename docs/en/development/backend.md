@@ -46,7 +46,6 @@ Each object library maps to a source directory under `src/`. The layer order ens
 | `COSMO_NN_USE_SOPHON_BACKEND`   | `ON`       | Enable Sophon TPU backend                      |
 | `COSMO_NN_USE_CPU_BACKEND`      | `OFF`      | Enable CPU / ONNX Runtime backend              |
 | `COSMO_ENABLE_OPENH264`         | auto       | Enable OpenH264 (ON when CPU backend selected) |
-| `COSMO_ENABLE_GPL_CODECS`       | `OFF`      | Enable GPL codecs — review before distribution |
 | `COSMO_DEV_MODE`                | `OFF`      | Disable watchdog and other production guards   |
 | `COSMO_MODEL_GUARD`             | auto       | Link `libcosmo_model_guard.so` (Sophon default)|
 | `BUILD_TESTS`                   | `OFF`      | Build `cosmo-tests` with Catch2 + gcov         |

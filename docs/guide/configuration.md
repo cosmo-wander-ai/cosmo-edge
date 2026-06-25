@@ -114,6 +114,5 @@ COSMO_STREAM_HTTP_PORT=18088
 | `COSMO_NN_USE_CPU_BACKEND` | 启用 CPU/ONNX Runtime 后端 |
 | `COSMO_DEV_MODE` | 开发模式 |
 | `COSMO_ENABLE_OPENH264` | CPU 后端启用 OpenH264 |
-| `COSMO_ENABLE_GPL_CODECS` | 启用 GPL codec，发布前需审慎 |
 | `BUILD_TESTS` | 构建测试 |
 

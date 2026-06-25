@@ -44,7 +44,6 @@ Layer 3 (接口层)         cosmo_api
 | `COSMO_NN_USE_SOPHON_BACKEND`   | `ON`       | 启用 Sophon TPU 后端                  |
 | `COSMO_NN_USE_CPU_BACKEND`      | `OFF`      | 启用 CPU / ONNX Runtime 后端          |
 | `COSMO_ENABLE_OPENH264`         | 自动       | 启用 OpenH264（CPU 后端时自动开启）   |
-| `COSMO_ENABLE_GPL_CODECS`       | `OFF`      | 启用 GPL codec，发布前需审慎评估      |
 | `COSMO_DEV_MODE`                | `OFF`      | 开发模式，跳过看门狗等生产校验        |
 | `COSMO_MODEL_GUARD`             | 自动       | 链接 `libcosmo_model_guard.so`（Sophon 默认开启） |
 | `BUILD_TESTS`                   | `OFF`      | 构建 `cosmo-tests`，含 Catch2 + gcov  |
