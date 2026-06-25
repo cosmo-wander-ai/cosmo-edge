@@ -31,7 +31,7 @@
         </el-form-item>
         <el-form-item :label="t('glossary.algorithmService') + localeColon">
           <span v-for="(item, idx) in props.detailChannel.algorithms" :key="idx" style="margin-right:8px;">
-            {{item.name}}
+            {{ resolveResourceAlgorithmName(item) }}
             <span v-if="item.status === 1" style="color: #00b300;">{{ t('status.running') }}</span>
             <span v-else style="color: #999;">{{item.statusText}}</span>
             <span v-if="item.workday" style="margin-left:4px;">{{item.workday}}</span>
@@ -50,6 +50,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { t, localeColon, currentLocale } from '@/i18n'
+import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
 
 const props = defineProps({
   visible: {

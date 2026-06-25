@@ -549,6 +549,8 @@ const handleDetailChannel = (row) => {
     externalChannelNo: row.externalChannelNo || '',
     algorithms: (row.taskList || []).map((item) => ({
       name: item.algorithmName,
+      algorithmCode: item.algorithmCode,
+      algorithmId: item.algorithmId,
       status: item.status,
       statusText:
         item.status === 1

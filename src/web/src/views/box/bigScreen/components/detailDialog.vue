@@ -7,7 +7,7 @@
             {{ t('event.alarmType') }}{{ localeColon }}
           </span>
           <span class="info-item-content">
-            {{ detailData.algorithmName }}
+            {{ resolveResourceAlgorithmName(detailData) }}
           </span>
         </div>
 
@@ -165,6 +165,7 @@ import moment from 'moment'
 import ImageLoader from '@/components/ImageLoader.vue'
 import VideoFrequency from '@/components/videoPlaying265.vue'
 import { t, localeColon } from '@/i18n'
+import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
 
 const props = defineProps({
   visible: {

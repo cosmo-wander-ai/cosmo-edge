@@ -7,7 +7,7 @@
               {{ t('event.eventType') }}{{ localeColon }}
           </span>
           <span class="info-item-content">
-            {{ detailData.algorithmName }}
+            {{ resolveResourceAlgorithmName(detailData) }}
           </span>
         </div>
 
@@ -157,6 +157,7 @@ import { ref, watch } from 'vue'
 import moment from 'moment'
 import ImageLoader from '@/components/ImageLoader.vue'
 import { t, localeColon } from '@/i18n'
+import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
 
 const props = defineProps({
   visible: {

@@ -4,7 +4,7 @@
       <div v-if="show" class="content-body">
         <div class="info-item">
           <span class="info-item-title">{{ t('event.eventType') }}{{ localeColon }}</span>
-          <span class="info-item-content">{{ detailData.algorithmName }}</span>
+          <span class="info-item-content">{{ resolveResourceAlgorithmName(detailData) }}</span>
         </div>
 
         <div class="info-item"></div>
@@ -120,6 +120,7 @@ import { ref, watch } from 'vue'
 import moment from 'moment'
 import ImageLoader from '@/components/ImageLoader.vue'
 import { t, localeColon } from '@/i18n'
+import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
 
 const props = defineProps({
   visible: {
