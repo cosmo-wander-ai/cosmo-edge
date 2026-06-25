@@ -17,6 +17,7 @@ add_library(cosmo_api OBJECT
     MessageLinkageHandler.cc        MessageLinkageHandler.h
     MessageLiveStreamHandler.cc     MessageLiveStreamHandler.h
     MessageModelHandler.cc          MessageModelHandler.h
+    MessageOnboardingHandler.cc     MessageOnboardingHandler.h
     MessageNetworkHandler.cc        MessageNetworkHandler.h
     MessageScheduleHandler.cc       MessageScheduleHandler.h
     MessageSystemHandler.cc         MessageSystemHandler.h

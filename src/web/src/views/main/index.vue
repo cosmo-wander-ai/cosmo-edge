@@ -9,6 +9,7 @@ import { computed, ref, watch, onMounted, onBeforeUnmount, getCurrentInstance } 
 import { useRouter, useRoute } from 'vue-router'
 import { SwitchButton, Menu, House, View, Document, VideoCamera, Connection, Cpu, Picture, Headset, Iphone, Link, Setting, DataBoard, Monitor, Box } from '@element-plus/icons-vue'
 import EventBus from '@/components/eventBus.js'
+import OnboardingGuide from '@/components/OnboardingGuide.vue'
 import menuData from './menu.js'
 import md5 from 'js-md5'
 import { currentLocale, localeOptions, setLocale, t, tShort } from '@/i18n'
@@ -345,6 +346,7 @@ const handleReboot = () => {
             <div
               v-if="!item.hidden"
               class="menu-item-wrapper"
+              :id="'onboarding-menu-' + item.index.replace(/\//g, '-').replace(/^-/, '')"
             >
               <!-- 主菜单项 -->
               <div
@@ -443,6 +445,8 @@ const handleReboot = () => {
             <component :is="Component" />
           </keep-alive>
         </router-view>
+        <!-- Onboarding guide overlay -->
+        <OnboardingGuide ref="onboardingGuideRef" />
       </main>
       <div v-if="rebooting" class="reboot-mask">
         <div class="reboot-dialog">

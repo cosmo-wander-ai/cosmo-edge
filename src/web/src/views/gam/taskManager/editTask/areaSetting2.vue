@@ -6,7 +6,7 @@
         <el-button v-if="retroDirectParamIndex !== -1" :disabled="isDrawingLine" @click="changeRetroDirection"
           type="primary" size="small">{{ t('action.adjustArrowDirection') }}</el-button>
       </div>
-      <detection-canvas ref="canvasRef" :width="width" :height="height" :imageSrc="imgSrc" :allPoints="allPoints"
+      <detection-canvas id="onboarding-detection-canvas" ref="canvasRef" :width="width" :height="height" :imageSrc="imgSrc" :allPoints="allPoints"
         :activeIndex="activeIndex" :shieldActiveIndex="shieldActiveIndex" :regionType="regionType"
         :isDrawingLine="isDrawingLine" :associatedAreaConfig="associatedAreaConfig"
         :retroDirectType="retroDirectType"></detection-canvas>
@@ -48,7 +48,7 @@
       <div v-else-if="props.config?.taskAreaHeader && props.config.taskAreaHeader.length !== 0" class="area-content">
         <div class="area-top">
           <div>{{ t('glossary.detectionAreaList') }}</div>
-          <el-button @click="addArea('detection')" type="primary" size="small">{{ t('glossary.addArea') }}</el-button>
+          <el-button id="onboarding-add-area" @click="addArea('detection')" type="primary" size="small">{{ t('glossary.addArea') }}</el-button>
         </div>
         <el-table :data="props.config?.taskAreaRows || []" style="width: 100%"
           @row-click="chooseRow($event, 'detection')" :row-class-name="setRowIndex" :row-style="hightlight">
@@ -98,7 +98,7 @@
       </div>
     </div>
 
-    <el-dialog :title="dialogTitle" v-model="addDialogVisible" width="560px" center>
+    <el-dialog id="onboarding-area-dialog" :title="dialogTitle" v-model="addDialogVisible" width="560px" center>
       <dynamicform v-model="addAreaDialogConfig" :labelWidth="'200px'" :algorithmCode="props.algorithmCode" ref="submitFormRef" @update:modelValue="handleFormUpdate"></dynamicform>
       <template #footer>
         <span class="dialog-footer">

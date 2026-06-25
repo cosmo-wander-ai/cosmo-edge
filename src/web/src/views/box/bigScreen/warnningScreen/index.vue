@@ -80,7 +80,7 @@
                 </template>
               </el-input>
               <div class="tree-body">
-                <el-tree ref="tree" class="filter-tree" :data="camearList" :highlight-current="true" node-key="id" default-expand-all :filter-node-method="filterNode" draggable @node-drag-start="handleDragStart" :allow-drop="handleDrop">
+                <el-tree id="onboarding-camera-tree" ref="tree" class="filter-tree" :data="camearList" :highlight-current="true" node-key="id" default-expand-all :filter-node-method="filterNode" draggable @node-drag-start="handleDragStart" :allow-drop="handleDrop">
                   <template #default="{ node, data }">
                     <div class="custom-tree-node" :class="{'padding-left-18': nodeLabel(data) !== t('common.all')}" @dblclick="handleCameraNodeClick(data)">
                       <div v-if="data.channelType == 0 && data.status == 0" class="stnode">
@@ -100,7 +100,7 @@
               </div>
             </div>
           </div>
-          <div class="select-area-tools" @click="toggleCameraDrawer">
+          <div id="onboarding-camera-toggle" class="select-area-tools" @click="toggleCameraDrawer">
             <img src="@/assets/screen-camera.png" :class="{ 'expanded': cameraDrawerVisible }">
             <div class="el-icon-d-arrow-right" :class="{ 'expanded': cameraDrawerVisible }"></div>
           </div>

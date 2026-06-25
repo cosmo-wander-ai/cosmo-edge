@@ -123,6 +123,21 @@ const handleLogin = async () => {
       localStorage.setItem('runMode', '0')
     // }
 
+    // Check onboarding status before navigating to home
+    try {
+      const onboardingRes = await proxy.$API.queryOnboardingStatus({})
+      if (onboardingRes?.resData?.onboardingCompleted) {
+        localStorage.setItem('onboarding_completed', 'true')
+        localStorage.removeItem('onboarding_active')
+      } else {
+        localStorage.removeItem('onboarding_completed')
+        localStorage.setItem('onboarding_active', 'true')
+      }
+    } catch {
+      localStorage.removeItem('onboarding_completed')
+      localStorage.setItem('onboarding_active', 'true')
+    }
+
     router.replace({ path: '/home' })
   } catch (error) {
     console.error('Login failed:', error)

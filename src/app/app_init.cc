@@ -64,6 +64,8 @@
 #include "service/model/IModelQuery.h"
 #include "service/model/IModelService.h"
 #include "service/model/impl/ModelServiceImpl.h"
+#include "service/onboarding/IOnboardingService.h"
+#include "service/onboarding/impl/OnboardingServiceImpl.h"
 #include "service/network/INetworkService.h"
 #include "service/network/impl/AuthServiceImpl.h"
 #include "service/network/impl/ClientMessageServiceImpl.h"
@@ -246,6 +248,8 @@ static void RegisterBusinessServices() {
         std::make_unique<cosmo::service::PersonRecogDaoServiceImpl>());
     registry.Register<cosmo::service::ILiveStreamService>(
         std::make_unique<cosmo::service::LiveStreamServiceImpl>());
+    registry.Register<cosmo::service::IOnboardingService>(
+        std::make_unique<cosmo::service::OnboardingServiceImpl>());
     registry.Register<cosmo::service::IActionService>(std::make_unique<cosmo::service::ActionServiceImpl>());
     registry.Register<cosmo::service::IClientMessageService>(
         std::make_unique<cosmo::service::ClientMessageServiceImpl>());

@@ -25,6 +25,7 @@
 #include "service/media/IAudioService.h"
 #include "service/media/ILiveStreamService.h"
 #include "service/media/IVideoFrameCodec.h"
+#include "service/onboarding/IOnboardingService.h"
 #include "service/model/IModelService.h"
 #include "service/network/IAuthService.h"
 #include "service/network/INetworkService.h"
@@ -103,6 +104,8 @@ ApiRouter::ApiRouter(MessageFromType from)
           service::ServiceRegistry::Instance().Get<service::ILinkageService>())),
       linkage_handler_(std::make_unique<MessageLinkageHandler>(
           service::ServiceRegistry::Instance().Get<service::ILinkageService>())),
+      onboarding_handler_(std::make_unique<MessageOnboardingHandler>(
+          service::ServiceRegistry::Instance().Get<service::IOnboardingService>())),
       from_(from) {
     RegisterCoreRoutes();
     RegisterNetworkRoutes();
@@ -118,6 +121,7 @@ ApiRouter::ApiRouter(MessageFromType from)
     RegisterAudioRoutes();
     RegisterLinkageRoutes();
     RegisterLiveStreamRoutes();
+    RegisterOnboardingRoutes();
 }
 
 void ApiRouter::RegisterCoreRoutes() {

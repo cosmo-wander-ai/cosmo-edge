@@ -5,7 +5,7 @@
       <div class="taskButton">
         <span></span>
         <div v-if="runMode == 0">
-          <el-button size="small" type="primary" @click="addChannelClick">{{ t('action.add') }}</el-button>
+          <el-button id="onboarding-add-channel" size="small" type="primary" @click="addChannelClick">{{ t('action.add') }}</el-button>
           <el-dropdown @command="handleBatchCommand" :disabled="multipleSelection.length == 0">
             <el-button size="small" type="primary" style="margin-left: 8px;" :disabled="multipleSelection.length == 0">
               {{ t('action.batchOperation') }}
@@ -38,7 +38,7 @@
         <el-table-column :label="t('glossary.scenarioTask')" prop="taskList" min-width="320">
           <template #default="scope">
             <div>
-              <div class="task_table" v-for="(item, index) in scope.row.taskList" :key="index">
+              <div id="onboarding-task-switch" class="task_table" v-for="(item, index) in scope.row.taskList" :key="index">
                 <div class="analytical" @click="analyticalEngine(item)">
                   <div class="task_text">{{ resolveResourceAlgorithmName(item) }}</div>
                 </div>
@@ -115,7 +115,7 @@
               <el-button link class="primary-text" @click="handleDetailChannel(scope.row)">{{ t('action.details') }}</el-button>
               <el-button v-if="runMode != 1" link class="primary-text" @click="handleEditChannel(scope.row)">{{ t('action.edit') }}</el-button>
               <el-button :disabled="scope.row.channelStatus == 3 || (scope.row.channelStatus == 0 && scope.row.channelType !== 3)" link class="primary-text" @click="handleChannelPic(scope.row)">{{ t('action.snapshot') }}</el-button>
-              <el-button v-if="runMode != 1" :disabled="scope.row.channelStatus == 3 || (scope.row.channelStatus == 0 && scope.row.channelType !== 3)" link class="primary-text" @click="handleAllocateClick(scope.row)">{{ t('action.allocateTask') }}</el-button>
+              <el-button id="onboarding-allocate-btn" v-if="runMode != 1" :disabled="scope.row.channelStatus == 3 || (scope.row.channelStatus == 0 && scope.row.channelType !== 3)" link class="primary-text" @click="handleAllocateClick(scope.row)">{{ t('action.allocateTask') }}</el-button>
               <el-button v-if="scope.row.channelType == 3 && runMode != 1" link class="primary-text" @click="handleVideoDownload(scope.row)">{{ t('action.videoDownload') }}</el-button>
               <el-button v-if="runMode != 1" link class="danger-text" @click="handleDeleteChannel(scope.row)">{{ t('action.delete') }}</el-button>
             </div>
@@ -135,7 +135,7 @@
           <el-input class="form-item-content" v-model="channelForm.videoChannelId" autocomplete="off" size="small" disabled />
         </el-form-item>
         <el-form-item :label="t('glossary.accessType') + localeColon" prop="channelType">
-          <el-select class="form-item-content" v-model="channelForm.channelType" :disabled="channelDialogMode === 'edit'" :placeholder="t('placeholder.select', { field: t('glossary.accessType') })" size="small" @change="channelTypeChange">
+          <el-select id="onboarding-channel-type" popper-class="onboarding-type-popper" class="form-item-content" v-model="channelForm.channelType" :disabled="channelDialogMode === 'edit'" :placeholder="t('placeholder.select', { field: t('glossary.accessType') })" size="small" @change="channelTypeChange">
             <el-option label="RTSP" :value="0"></el-option>
             <el-option label="HLS" :value="1"></el-option>
             <el-option :label="t('glossary.usbCamera')" :value="6"></el-option>
@@ -143,7 +143,7 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="t('field.channelName') + localeColon" prop="channelName">
-          <el-input class="form-item-content" v-model="channelForm.channelName" autocomplete="off" size="small" />
+          <el-input id="onboarding-channel-name" class="form-item-content" v-model="channelForm.channelName" autocomplete="off" size="small" />
         </el-form-item>
         <!-- USB摄像头接入类型 -->
         <template v-if="channelForm.channelType === 6">
@@ -166,7 +166,7 @@
         </el-form-item>
         <!-- 离线视频类型 -->
         <el-form-item :label="t('glossary.uploadVideo') + localeColon" prop="videoFileList" v-if="channelForm.channelType === 3 && channelDialogMode !== 'edit'">
-          <el-upload class="form-item-content" drag action="" :http-request="handleVideoUpload" :file-list="channelForm.videoFileList" :limit="1" :on-remove="handleRemove" :before-upload="beforeVideoUpload" accept=".avi,.mp4,.dav">
+          <el-upload id="onboarding-upload-video" class="form-item-content" drag action="" :http-request="handleVideoUpload" :file-list="channelForm.videoFileList" :limit="1" :on-remove="handleRemove" :before-upload="beforeVideoUpload" accept=".avi,.mp4,.dav">
             <i class="el-icon-upload"></i>
             <div class="el-upload__text">{{ t('validate.dragUploadHint', { clickUpload: t('action.clickUpload'), n: 1 }) }}</div>
           </el-upload>
@@ -185,7 +185,7 @@
       <template #footer>
         <div class="dialog-footer" style="text-align:center;">
           <el-button size="small" @click="channelDialogVisible = false">{{ t('action.cancel') }}</el-button>
-          <el-button size="small" type="primary" @click="submitAddChannel">{{ t('action.save') }}</el-button>
+          <el-button id="onboarding-save-channel" size="small" type="primary" @click="submitAddChannel">{{ t('action.save') }}</el-button>
         </div>
       </template>
     </el-dialog>

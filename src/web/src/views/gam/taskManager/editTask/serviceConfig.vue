@@ -10,7 +10,7 @@
           </template>
           <el-input :placeholder="t('field.filterKeyword')" v-model="filterText" size="small" clearable style="margin-left: 10px;width: 220px;"></el-input>
           <div class="tree-body">
-            <el-tree class="filter-tree" :data="arithmeticTree" :props="defaultProps" highlight-current default-expand-all :filter-node-method="filterNode" ref="tree" @node-click="chooseType" node-key="algorithmId">
+            <el-tree id="onboarding-algorithm-tree" class="filter-tree" :data="arithmeticTree" :props="defaultProps" highlight-current default-expand-all :filter-node-method="filterNode" ref="tree" @node-click="chooseType" node-key="algorithmId">
               <template #default="{ data }">
                 <span class="custom-tree-node">
                   <span v-if="!data.algorithmCode" class="custom-treeText">{{ data.algorithmCategoryName }}</span>
@@ -42,7 +42,7 @@
                   <el-button type="danger" v-if="taskEnableStatus == 1 && (taskId != '' || platformType === '15')" @click="stopServe(0)" size="small">{{ t('action.disableService') }}</el-button>
                   <el-button type="primary" v-if="taskEnableStatus == 0 && (taskId != '' || platformType === '15')" @click="startServe(1)" size="small">{{ t('action.enableService') }}</el-button>
                   <el-button type="danger" v-if="(taskId || platformType === '15')" @click="handleDelServe()" size="small">{{ t('action.deleteService') }}</el-button>
-                  <el-button class="mv-el-button" type="primary" @click="clickSaveServe()" size="small">{{ t('action.save') }}</el-button>
+                  <el-button id="onboarding-save-service" class="mv-el-button" type="primary" @click="clickSaveServe()" size="small">{{ t('action.save') }}</el-button>
                 </div>
               </div>
             </template>

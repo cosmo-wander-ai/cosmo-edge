@@ -25,6 +25,7 @@
 #include "api/MessageScheduleHandler.h"
 #include "api/MessageSystemHandler.h"
 #include "api/MessageThingsLibHandler.h"
+#include "api/MessageOnboardingHandler.h"
 #include "api/MessageVideoTaskHandler.h"
 #include "util/IRequestDispatcher.h"
 
@@ -73,6 +74,7 @@ private:
     void RegisterAudioRoutes();
     void RegisterLinkageRoutes();
     void RegisterLiveStreamRoutes();
+    void RegisterOnboardingRoutes();
 
     std::string DispatchFileDownload(const std::string& jsonResponse);
 
@@ -93,6 +95,7 @@ private:
     std::unique_ptr<MessageThingsLibHandler> things_lib_handler_;
     std::unique_ptr<MessageAudioHandler> audio_handler_;
     std::unique_ptr<MessageLinkageHandler> linkage_handler_;
+    std::unique_ptr<MessageOnboardingHandler> onboarding_handler_;
     std::map<std::string, InterfaceMsgMapUnit> url_map_;
     MessageFromType from_{MessageFromType::MessageFromHttp};
 };

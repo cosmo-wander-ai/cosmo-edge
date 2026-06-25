@@ -11,7 +11,7 @@
         <div class="camera-name">{{ t('event.currentSelected') }}{{ localeColon }}{{ cameraName }}</div>
         <div>
           <span>{{ t('event.algorithmOverlay') }}{{ localeColon }}</span>
-          <el-select v-model="algorithmId" popper-class="custom-select-popper2" class="overlay-select" size="small" @change="overlayAlgorithmChange">
+          <el-select v-model="algorithmId" popper-class="custom-select-popper2" class="overlay-select" size="small" id="onboarding-overlay-select" @change="overlayAlgorithmChange">
             <el-option v-for="item in algorithmOverlayList" :label="resolveResourceAlgorithmName(item)" :value="item.algorithmId" :key="item.algorithmId"></el-option>
           </el-select>
         </div>
