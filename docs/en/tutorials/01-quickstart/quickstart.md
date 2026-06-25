@@ -8,7 +8,6 @@ next:
   text: 'Volume 2: Scenario Configuration'
   link: /en/tutorials/02-scenario-config/scenario-config
 ---
-
 # Volume 1: Quick Start
 
 > **Estimated time**: 10–15 minutes
@@ -30,15 +29,15 @@ CosmoEdge runs on a Sophon-based AI edge computing device powered by the BM1688 
 
 Key specifications:
 
-| Component   | Specification                                                |
-| ----------- | ------------------------------------------------------------ |
-| Processor   | BM1688                                                       |
-| CPU         | Octa-core ARM A53 @ 1.6 GHz                                 |
-| Memory      | LPDDR4 8 GB                                                  |
-| Storage     | 64 GB                                                        |
-| AI Compute  | 16.0 TOPS                                                    |
-| Network     | 2 × 10/100/1000 Mbps auto-negotiation Ethernet              |
-| Interfaces  | USB 3.0 × 2, Type-C × 1, HDMI × 1, TF × 1, SIM × 1        |
+| Component  | Specification                                           |
+| ---------- | ------------------------------------------------------- |
+| Processor  | BM1688                                                  |
+| CPU        | Octa-core ARM A53 @ 1.6 GHz                             |
+| Memory     | LPDDR4 8 GB                                             |
+| Storage    | 64 GB                                                   |
+| AI Compute | 16.0 TOPS                                               |
+| Network    | 2 × 10/100/1000 Mbps auto-negotiation Ethernet         |
+| Interfaces | USB 3.0 × 2, Type-C × 1, HDMI × 1, TF × 1, SIM × 1 |
 
 ## Step 1: Hardware Connection
 
@@ -115,13 +114,13 @@ Open a browser and navigate to the device's IP address.
 
 After a successful login, you'll see the **System Dashboard**, which displays the following key metrics:
 
-| Metric         | Description                                                              |
-| :------------: | :----------------------------------------------------------------------: |
-| CPU Usage      | Processor load                                                           |
-| VRAM Usage     | Video memory consumed by loaded tasks                                    |
-| NPU Usage      | Neural processing unit load                                              |
-| eMMC Usage     | System storage utilization                                               |
-| Packet Loss    | If above 10%, system performance may degrade                             |
+|   Metric   |                 Description                 |
+| :---------: | :------------------------------------------: |
+|  CPU Usage  |                Processor load                |
+| VRAM Usage |    Video memory consumed by loaded tasks    |
+|  NPU Usage  |         Neural processing unit load         |
+| eMMC Usage |          System storage utilization          |
+| Packet Loss | If above 10%, system performance may degrade |
 
 Go to **System Management** → **System Settings** → **Time Settings** → **Manual Sync** → **Sync with Computer**. (Since the device is directly connected, it can't automatically obtain the correct time.)
 
@@ -336,10 +335,10 @@ You've now successfully:
 
 **What's next:**
 
-| Goal                                                          | Read                                         |
-| ------------------------------------------------------------- | -------------------------------------------- |
-| Configure your own AI detection scenarios                     | → Scenario Configuration Guide (Volume 2)    |
-| Try the VLM — switch detection rules without model training   | → VLM Visual State Judgment Guide (Volume 3) |
-| Look up a specific parameter or troubleshoot an issue         | → Reference Manual                           |
+| Goal                                                         | Read                                          |
+| ------------------------------------------------------------ | --------------------------------------------- |
+| Configure your own AI detection scenarios                    | → Scenario Configuration Guide (Volume 2)    |
+| Try the VLM — switch detection rules without model training | → VLM Visual State Judgment Guide (Volume 3) |
+| Look up a specific parameter or troubleshoot an issue        | → Reference Manual                           |
 
 ---

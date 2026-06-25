@@ -8,7 +8,6 @@ next:
   text: "卷三：VLM / DINO 指南"
   link: /tutorials/03-vlm-guide/vlm-guide
 ---
-
 # 卷二：场景配置
 
 > **阅读时长**：30-45 分钟
