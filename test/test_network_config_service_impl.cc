@@ -1,4 +1,5 @@
 #include "catch_amalgamated.hpp"
+#include "util/PathUtil.h"
 /*
  * test_network_config_service_impl.cc — NetworkConfigServiceImpl unit tests
  *
@@ -8,8 +9,9 @@
 #include <chrono>
 #include <filesystem>
 
+#include "mock/MockDeviceInfoService.h"
+#include "mock/MockServiceRegistry.h"
 #include "service/network/impl/NetworkConfigServiceImpl.h"
-#include "test_mock_services.h"
 
 using namespace cosmo::service;
 

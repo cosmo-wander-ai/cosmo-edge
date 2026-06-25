@@ -2,6 +2,8 @@
 #include <fstream>
 #include <functional>
 
+#include "util/PathUtil.h"
+
 // clang-format off
 #include "catch_amalgamated.hpp"
 #include "catch2/trompeloeil.hpp"
@@ -16,7 +18,7 @@
 #define private public
 #include "service/model/impl/ModelImportExporter.h"
 #undef private
-#include "test_mock_services.h"
+#include "mock/MockServiceRegistry.h"
 #include "util/JsonFileUtil.h"
 
 using namespace cosmo::service;
@@ -109,7 +111,7 @@ TEST_CASE("ModelImportExporter Tests", "[model]") {
         cosmo::BmodelInfo bmodelInfo;
         bmodelInfo.valid = true;
         cosmo::BmodelNetworkInfo network;
-        network.name     = "onnx_network";
+        network.name      = "onnx_network";
         network.max_batch = 1;
         network.inputs.push_back({"input", {-1, 3, 224, 224}, 0});
         network.outputs.push_back({"output", {-1, 2}, 0});

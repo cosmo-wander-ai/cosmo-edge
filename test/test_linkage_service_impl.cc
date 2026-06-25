@@ -1,4 +1,5 @@
 #include "catch_amalgamated.hpp"
+#include "util/PathUtil.h"
 // Unit tests for LinkageServiceImpl — validates CRUD operations,
 // strategy workflow parsing, and query/pagination/filtering.
 // The service reads config from disk on construction; we use temp dirs for isolation.
@@ -11,9 +12,9 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "mock/MockServiceRegistry.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/infra/impl/LinkageServiceImpl.h"
-#include "test_mock_services.h"
 
 using cosmo::service::LinkageServiceImpl;
 using cosmo::util::ErrorEnum;

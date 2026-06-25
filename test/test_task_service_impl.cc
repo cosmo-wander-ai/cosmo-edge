@@ -1,6 +1,8 @@
 #include "catch_amalgamated.hpp"
+#include "mock/MockAlgorithmService.h"
+#include "mock/MockAppInfoService.h"
+#include "mock/MockServiceRegistry.h"
 #include "service/task/impl/TaskServiceImpl.h"
-#include "test_mock_services.h"
 #include "util/ErrorCode.h"
 
 using namespace cosmo::service;

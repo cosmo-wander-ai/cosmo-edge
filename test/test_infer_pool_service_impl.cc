@@ -6,8 +6,8 @@
  * Full functional tests require NPU hardware (bmrt).
  * We test construction/destruction and thread-safety of the pool map.
  */
+#include "mock/MockServiceRegistry.h"
 #include "service/ai/impl/InferPoolServiceImpl.h"
-#include "test_mock_services.h"
 
 using namespace cosmo::service;
 

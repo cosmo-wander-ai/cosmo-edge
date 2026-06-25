@@ -1,4 +1,5 @@
 #include "catch_amalgamated.hpp"
+#include "util/PathUtil.h"
 /// @file test_alarm_push_service_impl.cc
 /// @brief AlarmPushServiceImpl unit tests — validates config CRUD methods
 ///        (IsEnabled, GetUrl, SetPush) by pointing config path to a temp dir.
@@ -10,8 +11,8 @@
 #include <filesystem>
 #include <fstream>
 
+#include "mock/MockServiceRegistry.h"
 #include "service/event/impl/AlarmPushServiceImpl.h"
-#include "test_mock_services.h"
 
 namespace cosmo::test {
 

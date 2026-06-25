@@ -8,8 +8,9 @@
 #include <memory>
 
 #include "db/PersonRecogDao.h"
+#include "mock/MockDbService.h"
+#include "mock/MockServiceRegistry.h"
 #include "service/face/impl/PersonRecogDaoServiceImpl.h"
-#include "test_mock_services.h"
 
 namespace cosmo::test {
 

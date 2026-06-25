@@ -1,4 +1,5 @@
 #include "catch_amalgamated.hpp"
+#include "util/PathUtil.h"
 /*
  * test_audio_service_impl.cc — AudioServiceImpl unit tests (DEBT-T01)
  *
@@ -9,8 +10,8 @@
 #include <filesystem>
 #include <fstream>
 
+#include "mock/MockServiceRegistry.h"
 #include "service/media/impl/AudioServiceImpl.h"
-#include "test_mock_services.h"
 
 using namespace cosmo::service;
 namespace fs = std::filesystem;

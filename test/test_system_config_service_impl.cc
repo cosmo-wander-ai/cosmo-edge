@@ -2,8 +2,11 @@
 #include <fstream>
 
 #include "catch_amalgamated.hpp"
+#include "mock/MockAlarmPushService.h"
+#include "mock/MockNetworkService.h"
+#include "mock/MockServiceRegistry.h"
 #include "service/system/impl/SystemServiceImpl.h"
-#include "test_mock_services.h"
+#include "util/PathUtil.h"
 
 namespace fs = std::filesystem;
 

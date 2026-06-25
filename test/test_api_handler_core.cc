@@ -6,7 +6,9 @@
  * and GraphicsMemory handler methods.
  */
 #include "api/MessageHandler.h"
-#include "test_mock_services.h"
+#include "mock/MockAppInfoService.h"
+#include "mock/MockLiveStreamService.h"
+#include "mock/MockServiceRegistry.h"
 #include "util/ErrorCode.h"
 
 using namespace cosmo;
@@ -30,7 +32,7 @@ TEST_CASE("MessageHandler: InterfaceTest error trigger", "[CoreHandler]") {
     MsgInterfaceTestRecv req{};
     req.test                  = "111";  // triggers ParameterLenError
     std::error_condition errc = util::ErrorEnum::Success;
-    handler.Handle(std::move(req), errc);
+    (void)handler.Handle(std::move(req), errc);
 
     REQUIRE(errc == util::ErrorEnum::ParameterLenError);
 }
@@ -56,7 +58,7 @@ TEST_CASE("MessageHandler: ViewRoutes delegates to service", "[CoreHandler]") {
     MsgViewRoutesRecv req{};
     req.viewCounts            = 4;
     std::error_condition errc = util::ErrorEnum::Success;
-    handler.Handle(std::move(req), errc);
+    (void)handler.Handle(std::move(req), errc);
 
     REQUIRE(errc == util::ErrorEnum::Success);
 }

@@ -6,9 +6,10 @@
 #include <chrono>
 #include <thread>
 
+#include "mock/MockConfigReadService.h"
+#include "mock/MockServiceRegistry.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/system/impl/TimerRestartServiceImpl.h"
-#include "test_mock_services.h"
 #include "trompeloeil.hpp"
 
 using cosmo::service::TimerRestartServiceImpl;

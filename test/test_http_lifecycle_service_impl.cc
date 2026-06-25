@@ -5,8 +5,8 @@
  * Strategy: Test construction, and Start/Stop idempotency.
  * Full HTTP server tests are tagged [.network].
  */
+#include "mock/MockServiceRegistry.h"
 #include "service/network/impl/HttpLifecycleServiceImpl.h"
-#include "test_mock_services.h"
 #include "util/IRequestDispatcher.h"
 
 using namespace cosmo::service;

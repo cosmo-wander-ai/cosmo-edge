@@ -4,7 +4,7 @@
  */
 #include "flow/common/AlgDataRecord.h"
 #include "flow/common/AlgDataUnit.h"
-#include "test_mock_services.h"
+#include "mock/MockServiceRegistry.h"
 
 using namespace cosmo;
 

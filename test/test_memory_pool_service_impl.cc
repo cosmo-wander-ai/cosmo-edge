@@ -6,8 +6,8 @@
  * Construction requires bmlib device init which only works on aarch64.
  * All tests tagged [.device].
  */
+#include "mock/MockServiceRegistry.h"
 #include "service/infra/impl/MemoryPoolServiceImpl.h"
-#include "test_mock_services.h"
 
 using namespace cosmo::service;
 

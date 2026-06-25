@@ -7,7 +7,11 @@
 // clang-format on
 
 #include "api/MessageBodyLibHandler.h"
-#include "test_mock_services.h"
+#include "mock/MockBodyLibService.h"
+#include "mock/MockCameraService.h"
+#include "mock/MockPersonRecogDaoService.h"
+#include "mock/MockServiceRegistry.h"
+#include "mock/MockVideoFrameCodec.h"
 #include "util/ErrorCode.h"
 
 using namespace cosmo;

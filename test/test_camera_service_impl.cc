@@ -1,4 +1,5 @@
 #include "catch_amalgamated.hpp"
+#include "util/PathUtil.h"
 /*
  * test_camera_service_impl.cc - CameraServiceImpl 核心路径单元测试
  *
@@ -10,8 +11,8 @@
 #include <thread>
 #include <vector>
 
+#include "mock/MockServiceRegistry.h"
 #include "service/camera/impl/CameraServiceImpl.h"
-#include "test_mock_services.h"
 
 using namespace cosmo::service;
 using namespace cosmo;

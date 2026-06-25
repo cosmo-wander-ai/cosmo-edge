@@ -6,7 +6,8 @@
  * through the handler layer with DI-injected ILinkageService.
  */
 #include "api/MessageLinkageHandler.h"
-#include "test_mock_services.h"
+#include "mock/MockLinkageService.h"
+#include "mock/MockServiceRegistry.h"
 #include "util/ErrorCode.h"
 
 using namespace cosmo;
@@ -54,7 +55,7 @@ TEST_CASE("MessageLinkageHandler: Delete strategy", "[LinkageHandler]") {
         Linkage::MsgDeleteRecv req{};
         req.id = "linkage-001";
         std::error_condition errc;
-        handler.Handle(std::move(req), errc);
+        (void)handler.Handle(std::move(req), errc);
 
         REQUIRE(errc == util::ErrorEnum::Success);
     }
@@ -65,7 +66,7 @@ TEST_CASE("MessageLinkageHandler: Delete strategy", "[LinkageHandler]") {
         Linkage::MsgDeleteRecv req{};
         req.id = "non-existent";
         std::error_condition errc;
-        handler.Handle(std::move(req), errc);
+        (void)handler.Handle(std::move(req), errc);
 
         REQUIRE(errc == util::ErrorEnum::IDNotExist);
     }
@@ -84,7 +85,7 @@ TEST_CASE("MessageLinkageHandler: Update strategy", "[LinkageHandler]") {
         req.id       = "linkage-001";
         req.workFlow = "[{\"type\":\"light\"}]";
         std::error_condition errc;
-        handler.Handle(std::move(req), errc);
+        (void)handler.Handle(std::move(req), errc);
 
         REQUIRE(errc == util::ErrorEnum::Success);
     }
@@ -96,7 +97,7 @@ TEST_CASE("MessageLinkageHandler: Update strategy", "[LinkageHandler]") {
         Linkage::MsgUpdateRecv req{};
         req.id = "non-existent";
         std::error_condition errc;
-        handler.Handle(std::move(req), errc);
+        (void)handler.Handle(std::move(req), errc);
 
         REQUIRE(errc == util::ErrorEnum::StrategyNotExist);
     }
@@ -164,7 +165,7 @@ TEST_CASE("MessageLinkageHandler: Switch strategy", "[LinkageHandler]") {
         req.id     = "linkage-001";
         req.enable = true;
         std::error_condition errc;
-        handler.Handle(std::move(req), errc);
+        (void)handler.Handle(std::move(req), errc);
 
         REQUIRE(errc == util::ErrorEnum::Success);
     }
@@ -176,7 +177,7 @@ TEST_CASE("MessageLinkageHandler: Switch strategy", "[LinkageHandler]") {
         req.id     = "linkage-001";
         req.enable = false;
         std::error_condition errc;
-        handler.Handle(std::move(req), errc);
+        (void)handler.Handle(std::move(req), errc);
 
         REQUIRE(errc == util::ErrorEnum::Success);
     }
@@ -189,7 +190,7 @@ TEST_CASE("MessageLinkageHandler: Switch strategy", "[LinkageHandler]") {
         req.id     = "non-existent";
         req.enable = true;
         std::error_condition errc;
-        handler.Handle(std::move(req), errc);
+        (void)handler.Handle(std::move(req), errc);
 
         REQUIRE(errc == util::ErrorEnum::IDNotExist);
     }

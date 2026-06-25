@@ -8,8 +8,9 @@
 #include <memory>
 
 #include "db/ArticlesReidDao.h"
+#include "mock/MockDbService.h"
+#include "mock/MockServiceRegistry.h"
 #include "service/face/impl/ArticlesReidDaoServiceImpl.h"
-#include "test_mock_services.h"
 
 namespace cosmo::test {
 

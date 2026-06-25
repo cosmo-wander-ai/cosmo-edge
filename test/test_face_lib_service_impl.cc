@@ -1,6 +1,6 @@
 #include "catch_amalgamated.hpp"
+#include "mock/MockServiceRegistry.h"
 #include "service/face/impl/FaceLibServiceImpl.h"
-#include "test_mock_services.h"
 
 using namespace cosmo::service;
 

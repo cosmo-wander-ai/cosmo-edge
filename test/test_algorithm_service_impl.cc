@@ -11,10 +11,10 @@
 #include <thread>
 #include <vector>
 
+#include "mock/MockServiceRegistry.h"
 #include "service/algorithm/impl/AlgorithmPacketLoader.h"
 #include "service/algorithm/impl/AlgorithmServiceImpl.h"
 #include "service/detail/ServiceRegistry.h"
-#include "test_mock_services.h"
 
 using namespace cosmo::service;
 

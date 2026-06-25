@@ -1,12 +1,14 @@
 #include "catch_amalgamated.hpp"
+#include "util/PathUtil.h"
 // Unit tests for AppInfoServiceImpl — validates state management,
 // delegation to DeviceInfoService, and thread-safe property accessors.
 
 #include <thread>
 
+#include "mock/MockDeviceInfoService.h"
+#include "mock/MockServiceRegistry.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/system/impl/AppInfoServiceImpl.h"
-#include "test_mock_services.h"
 
 TEST_CASE("AppInfoServiceImpl: State management", "[appinfo][service]") {
     cosmo::test::MockServiceRegistry mocks;

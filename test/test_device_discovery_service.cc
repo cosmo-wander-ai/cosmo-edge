@@ -1,6 +1,6 @@
 #include "catch_amalgamated.hpp"
+#include "mock/MockServiceRegistry.h"
 #include "service/network/impl/DeviceDiscoveryServiceImpl.h"
-#include "test_mock_services.h"
 
 TEST_CASE("DeviceDiscoveryService: lifecycle safety", "[device-discovery]") {
     cosmo::test::MockServiceRegistry mocks;

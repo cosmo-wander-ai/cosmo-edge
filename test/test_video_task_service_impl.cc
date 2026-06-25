@@ -8,8 +8,11 @@
 // GetHaveManager() returning false by default, which is exactly the
 // precondition for the guard to trigger.
 
+#include "mock/MockActionService.h"
+#include "mock/MockAppInfoService.h"
+#include "mock/MockClientMessageService.h"
+#include "mock/MockServiceRegistry.h"
 #include "service/task/impl/TaskServiceImpl.h"
-#include "test_mock_services.h"
 #include "util/Keys.h"
 
 using namespace cosmo::service;

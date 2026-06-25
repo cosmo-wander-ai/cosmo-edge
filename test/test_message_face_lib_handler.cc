@@ -7,7 +7,10 @@
 
 #include "api/MessageFaceLibHandler.h"
 #include "flow/face/FaceLib.h"
-#include "test_mock_services.h"
+#include "mock/MockFaceLibService.h"
+#include "mock/MockPersonDaoService.h"
+#include "mock/MockServiceRegistry.h"
+#include "mock/MockVideoFrameCodec.h"
 #include "util/ErrorCode.h"
 
 using namespace cosmo;

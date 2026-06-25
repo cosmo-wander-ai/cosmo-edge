@@ -5,7 +5,9 @@
  * Tests for schedule CRUD operations through handler layer.
  */
 #include "api/MessageScheduleHandler.h"
-#include "test_mock_services.h"
+#include "mock/MockCameraService.h"
+#include "mock/MockScheduleService.h"
+#include "mock/MockServiceRegistry.h"
 #include "util/ErrorCode.h"
 
 using namespace cosmo;
@@ -35,7 +37,7 @@ TEST_CASE("MessageScheduleHandler: Add", "[ScheduleHandler]") {
 
         Schedule::MsgAddRecv req{};
         std::error_condition errc;
-        handler.Handle(std::move(req), errc);
+        (void)handler.Handle(std::move(req), errc);
 
         REQUIRE(errc == util::ErrorEnum::ParameterException);
     }
@@ -52,7 +54,7 @@ TEST_CASE("MessageScheduleHandler: Update", "[ScheduleHandler]") {
     req.scheduleId   = "sched-001";
     req.scheduleName = "Updated Schedule";
     std::error_condition errc;
-    handler.Handle(std::move(req), errc);
+    (void)handler.Handle(std::move(req), errc);
 
     REQUIRE(errc == util::ErrorEnum::Success);
 }
@@ -93,7 +95,7 @@ TEST_CASE("MessageScheduleHandler: Delete in-use schedule", "[ScheduleHandler]")
         Schedule::MsgDeleteRecv req{};
         req.scheduleId = "sched-in-use";
         std::error_condition errc;
-        handler.Handle(std::move(req), errc);
+        (void)handler.Handle(std::move(req), errc);
 
         REQUIRE(errc == util::ErrorEnum::TimeTemplateInUse);
     }
@@ -105,7 +107,7 @@ TEST_CASE("MessageScheduleHandler: Delete in-use schedule", "[ScheduleHandler]")
         Schedule::MsgDeleteRecv req{};
         req.scheduleId = "sched-free";
         std::error_condition errc;
-        handler.Handle(std::move(req), errc);
+        (void)handler.Handle(std::move(req), errc);
 
         REQUIRE(errc == util::ErrorEnum::Success);
     }

@@ -6,7 +6,13 @@
 // clang-format on
 
 #include "api/MessageSystemHandler.h"
-#include "test_mock_services.h"
+#include "mock/MockConfigNetworkService.h"
+#include "mock/MockConfigReadService.h"
+#include "mock/MockConfigWriteService.h"
+#include "mock/MockDeviceInfoService.h"
+#include "mock/MockServiceRegistry.h"
+#include "mock/MockSystemOperationService.h"
+#include "mock/MockTimeService.h"
 #include "util/ErrorCode.h"
 
 using namespace cosmo;

@@ -11,8 +11,9 @@
 #include <memory>
 #include <thread>
 
+#include "mock/MockDbService.h"
+#include "mock/MockServiceRegistry.h"
 #include "service/event/impl/AlarmRecordServiceImpl.h"
-#include "test_mock_services.h"
 
 using namespace cosmo::service;
 

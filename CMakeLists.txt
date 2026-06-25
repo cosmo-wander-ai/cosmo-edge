@@ -304,7 +304,7 @@ target_link_libraries(${EXECUTABLE_NAME} PRIVATE ${COMMON_LIBS})
 #Unit Tests(optional, cmake - DBUILD_TESTS = ON)
 ##########################################################
 if(BUILD_TESTS)
-    file(GLOB TEST_SRC "test/*.cc" "test/*.cpp")
+    file(GLOB TEST_SRC "test/*.cc" "test/*.cpp" "test/mock/*.cc")
 
     #App sources without main.cc
     set(APP_SRC_NO_MAIN ${APP_SRC})
@@ -314,6 +314,10 @@ if(BUILD_TESTS)
     add_dependencies(cosmo-tests third_build)
     target_include_directories(cosmo-tests PRIVATE
         ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/test)
+    target_precompile_headers(cosmo-tests PRIVATE
+        ${CMAKE_SOURCE_DIR}/test/catch_amalgamated.hpp
+        ${CMAKE_SOURCE_DIR}/test/catch2/trompeloeil.hpp
+    )
     target_link_libraries(cosmo-tests PRIVATE nlohmann stb uWebSockets)
     if(COSMO_NN_USE_SOPHON_BACKEND)
         target_link_directories(cosmo-tests PRIVATE ${DEVICE_LIB_DIR})

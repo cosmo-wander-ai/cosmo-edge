@@ -6,8 +6,9 @@
 #include "catch2/trompeloeil.hpp"
 // clang-format on
 #include "api/MessageNetworkHandler.h"
+#include "mock/MockNetworkService.h"
+#include "mock/MockServiceRegistry.h"
 #include "service/network/INetworkConfig.h"
-#include "test_mock_services.h"
 
 namespace cosmo::test {
 

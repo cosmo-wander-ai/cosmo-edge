@@ -6,8 +6,8 @@
  * Construction creates VideoFrameProc which requires bmlib device init.
  * All tests tagged [.device].
  */
+#include "mock/MockServiceRegistry.h"
 #include "service/media/impl/VideoFrameServiceImpl.h"
-#include "test_mock_services.h"
 
 using namespace cosmo::service;
 

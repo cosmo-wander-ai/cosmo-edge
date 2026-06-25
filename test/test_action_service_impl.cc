@@ -2,8 +2,8 @@
 // Unit tests for ActionServiceImpl — video/pic algorithm orchestration management.
 // Tests exercise the in-memory CRUD operations without external dependencies.
 
+#include "mock/MockServiceRegistry.h"
 #include "service/algorithm/impl/ActionServiceImpl.h"
-#include "test_mock_services.h"
 
 using namespace cosmo::service;
 

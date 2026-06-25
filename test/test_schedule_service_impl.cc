@@ -2,8 +2,9 @@
 #include <filesystem>
 
 #include "catch_amalgamated.hpp"
+#include "mock/MockServiceRegistry.h"
 #include "service/task/impl/ScheduleServiceImpl.h"
-#include "test_mock_services.h"
+#include "util/PathUtil.h"
 
 using namespace cosmo::service;
 using namespace cosmo;

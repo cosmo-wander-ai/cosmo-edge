@@ -9,8 +9,8 @@
  */
 #include <thread>
 
+#include "mock/MockServiceRegistry.h"
 #include "service/system/impl/DeviceInfoServiceImpl.h"
-#include "test_mock_services.h"
 
 using namespace cosmo::service;
 

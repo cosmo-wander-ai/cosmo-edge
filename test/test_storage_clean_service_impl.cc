@@ -6,8 +6,8 @@
  * Actual cleanup logic depends on StorageSpace and file system state,
  * so we only verify Start/Stop contract and crash safety.
  */
+#include "mock/MockServiceRegistry.h"
 #include "service/infra/impl/StorageCleanServiceImpl.h"
-#include "test_mock_services.h"
 
 using namespace cosmo::service;
 

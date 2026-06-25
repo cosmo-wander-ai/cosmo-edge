@@ -2,8 +2,9 @@
 // Unit tests for BodyLibServiceImpl (DEBT-C06).
 // Validates cache behavior, TTL, invalidation, and match logic.
 
+#include "mock/MockPersonRecogDaoService.h"
+#include "mock/MockServiceRegistry.h"
 #include "service/face/impl/BodyLibServiceImpl.h"
-#include "test_mock_services.h"
 
 namespace cosmo::test {
 

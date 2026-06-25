@@ -3,7 +3,8 @@
 // Uses MockAuthService via DI constructor injection.
 
 #include "api/MessageAuthHandler.h"
-#include "test_mock_services.h"
+#include "mock/MockAuthService.h"
+#include "mock/MockServiceRegistry.h"
 #include "util/ErrorCode.h"
 
 using namespace cosmo;
@@ -71,7 +72,7 @@ TEST_CASE("MessageAuthHandler: ChangePassword success", "[AuthHandler]") {
     req.passwdOld = "old";
     req.passwdNew = "new";
     std::error_condition errc;
-    handler.Handle(std::move(req), errc);
+    (void)handler.Handle(std::move(req), errc);
 
     REQUIRE(errc == util::ErrorEnum::Success);
 }
@@ -87,7 +88,7 @@ TEST_CASE("MessageAuthHandler: ChangePassword not logged in", "[AuthHandler]") {
     req.passwdOld = "old";
     req.passwdNew = "new";
     std::error_condition errc;
-    handler.Handle(std::move(req), errc);
+    (void)handler.Handle(std::move(req), errc);
 
     REQUIRE(errc == util::ErrorEnum::NotLogin);
 }
@@ -103,7 +104,7 @@ TEST_CASE("MessageAuthHandler: ChangePassword wrong old", "[AuthHandler]") {
     req.passwdOld = "wrong";
     req.passwdNew = "new";
     std::error_condition errc;
-    handler.Handle(std::move(req), errc);
+    (void)handler.Handle(std::move(req), errc);
 
     REQUIRE(errc == util::ErrorEnum::OldPasswdWrong);
 }

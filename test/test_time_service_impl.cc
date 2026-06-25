@@ -1,4 +1,5 @@
 #include "catch_amalgamated.hpp"
+#include "util/PathUtil.h"
 // Unit tests for TimeServiceImpl — validates NTP config management,
 // timezone application, and time status queries.
 // Uses temp JSON config files to isolate from production config.
@@ -6,9 +7,9 @@
 #include <filesystem>
 #include <fstream>
 
+#include "mock/MockServiceRegistry.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/system/impl/TimeServiceImpl.h"
-#include "test_mock_services.h"
 
 namespace fs = std::filesystem;
 
@@ -167,7 +168,7 @@ TEST_CASE("TimeServiceImpl: SetTime disables NTP", "[time][service]") {
 
         // Now SetTime — should disable NTP
         int64_t timestamp = 1700000000000;  // 2023-11-14
-        auto result = timeSvc.SetTime(timestamp, 75);
+        auto result       = timeSvc.SetTime(timestamp, 75);
         REQUIRE((result == cosmo::util::ErrorEnum::Success ||
                  result == cosmo::util::ErrorEnum::OperationNotSupport ||
                  result == cosmo::util::ErrorEnum::SysErr));
@@ -179,7 +180,7 @@ TEST_CASE("TimeServiceImpl: SetTime disables NTP", "[time][service]") {
 
     SECTION("SetTime updates timezone ID") {
         int64_t timestamp = 1700000000000;
-        auto result = timeSvc.SetTime(timestamp, 9);
+        auto result       = timeSvc.SetTime(timestamp, 9);
         REQUIRE((result == cosmo::util::ErrorEnum::Success ||
                  result == cosmo::util::ErrorEnum::OperationNotSupport ||
                  result == cosmo::util::ErrorEnum::SysErr));

@@ -5,7 +5,8 @@
  * Tests for live stream request, keepalive, and stop.
  */
 #include "api/MessageLiveStreamHandler.h"
-#include "test_mock_services.h"
+#include "mock/MockLiveStreamService.h"
+#include "mock/MockServiceRegistry.h"
 #include "util/ErrorCode.h"
 
 using namespace cosmo;
@@ -84,7 +85,7 @@ TEST_CASE("MessageLiveStreamHandler: KeepAlive success", "[LiveStreamHandler]") 
     req.channelId   = "ch1";
     req.algorithmId = "alg1";
     std::error_condition errc;
-    handler.Handle(std::move(req), errc);
+    (void)handler.Handle(std::move(req), errc);
 
     REQUIRE(errc == util::ErrorEnum::Success);
 }
@@ -100,7 +101,7 @@ TEST_CASE("MessageLiveStreamHandler: KeepAlive failure", "[LiveStreamHandler]") 
     req.channelId   = "bad_ch";
     req.algorithmId = "";
     std::error_condition errc;
-    handler.Handle(std::move(req), errc);
+    (void)handler.Handle(std::move(req), errc);
 
     REQUIRE(errc == util::ErrorEnum::ParameterException);
 }

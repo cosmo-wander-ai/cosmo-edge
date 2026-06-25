@@ -6,7 +6,10 @@
 #include "catch2/trompeloeil.hpp"
 // clang-format on
 #include "api/MessageVideoTaskHandler.h"
-#include "test_mock_services.h"
+#include "mock/MockAlgorithmService.h"
+#include "mock/MockCameraService.h"
+#include "mock/MockServiceRegistry.h"
+#include "mock/MockTaskService.h"
 #include "util/ErrorCode.h"
 
 namespace {

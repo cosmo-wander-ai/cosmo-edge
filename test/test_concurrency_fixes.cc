@@ -1,4 +1,6 @@
 #include "catch_amalgamated.hpp"
+#include "service/algorithm/IAlgorithmService.h"
+#include "util/PathUtil.h"
 /*
  * test_concurrency_fixes.cc - Phase 1.1 并发修复验证
  *
@@ -13,12 +15,13 @@
 #include <thread>
 #include <vector>
 
+#include "mock/MockServiceRegistry.h"
+#include "mock/MockTaskService.h"
 #include "service/camera/impl/CameraServiceImpl.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/system/impl/SystemServiceImpl.h"
 #include "service/task/ITaskService.h"
 #include "service/task/impl/TaskServiceImpl.h"
-#include "test_mock_services.h"
 
 using namespace cosmo;
 

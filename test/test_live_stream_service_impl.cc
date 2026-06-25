@@ -11,7 +11,8 @@
 #undef private
 
 #include "flow/channel/AlgChannel.h"
-#include "test_mock_services.h"
+#include "mock/MockCameraService.h"
+#include "mock/MockServiceRegistry.h"
 
 using namespace cosmo::service;
 

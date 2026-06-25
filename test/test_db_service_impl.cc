@@ -1,4 +1,5 @@
 #include "catch_amalgamated.hpp"
+#include "util/PathUtil.h"
 /*
  * test_db_service_impl.cc — DbServiceImpl unit tests (DEBT-T01)
  *
@@ -12,8 +13,8 @@
 #include <memory>
 #include <thread>
 
+#include "mock/MockServiceRegistry.h"
 #include "service/infra/impl/DbServiceImpl.h"
-#include "test_mock_services.h"
 
 using namespace cosmo::service;
 

@@ -2,11 +2,15 @@
 #include <filesystem>
 
 #include "catch_amalgamated.hpp"
+#include "mock/MockConfigNetworkService.h"
+#include "mock/MockConfigReadService.h"
+#include "mock/MockDeviceInfoService.h"
+#include "mock/MockServiceRegistry.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/network/impl/NetworkServiceImpl.h"
-#include "test_mock_services.h"
 #include "trompeloeil.hpp"
 #include "util/IRequestDispatcher.h"
+#include "util/PathUtil.h"
 
 using namespace cosmo::service;
 

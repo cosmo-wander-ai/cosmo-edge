@@ -1,6 +1,8 @@
 #include "api/ApiRouter.h"
 #include "catch_amalgamated.hpp"
-#include "test_mock_services.h"
+#include "mock/MockAuthService.h"
+#include "mock/MockScheduleService.h"
+#include "mock/MockServiceRegistry.h"
 #include "util/ErrorCode.h"
 #include "util/MsgBaseTypes.h"  // For MessageFromType
 

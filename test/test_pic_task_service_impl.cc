@@ -13,8 +13,9 @@
  * are tagged [.device] since they require the full inference stack.
  */
 #include "catch_amalgamated.hpp"
+#include "mock/MockAlgorithmService.h"
+#include "mock/MockServiceRegistry.h"
 #include "service/media/impl/PicTaskServiceImpl.h"
-#include "test_mock_services.h"
 #include "util/Keys.h"
 
 using namespace cosmo::service;

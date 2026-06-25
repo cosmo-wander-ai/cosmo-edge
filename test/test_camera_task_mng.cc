@@ -4,8 +4,11 @@
  * (Formerly tested CameraTaskMng directly; now tests via CameraServiceImpl
  *  after CameraTaskMng was inlined.)
  */
+#include "mock/MockAppInfoService.h"
+#include "mock/MockScheduleService.h"
+#include "mock/MockServiceRegistry.h"
+#include "mock/MockTaskService.h"
 #include "service/camera/impl/CameraServiceImpl.h"
-#include "test_mock_services.h"
 #include "util/dto/ChannelStatusDto.h"
 
 using namespace cosmo;
@@ -39,7 +42,7 @@ struct TestFixture {
 }  // namespace
 
 TEST_CASE("CameraServiceImpl basic task operations", "[CameraServiceImpl]") {
-    system("rm -rf /tmp/cosmo_test/conf/camera/test_camera_01");
+    (void)!system("rm -rf /tmp/cosmo_test/conf/camera/test_camera_01");
     TestFixture fx("test_camera_01", "rtsp://test");
 
     SECTION("GetTasks initially empty") {
@@ -65,7 +68,7 @@ TEST_CASE("CameraServiceImpl basic task operations", "[CameraServiceImpl]") {
 }
 
 TEST_CASE("CameraServiceImpl monitor logic", "[CameraServiceImpl]") {
-    system("rm -rf /tmp/cosmo_test/conf/camera/test_camera_01");
+    (void)!system("rm -rf /tmp/cosmo_test/conf/camera/test_camera_01");
     TestFixture fx("test_camera_01", "rtsp://test");
 
     ALLOW_CALL(fx.mocks.appInfoSvc, GetNumber()).RETURN(1);
@@ -101,7 +104,7 @@ TEST_CASE("CameraServiceImpl monitor logic", "[CameraServiceImpl]") {
 }
 
 TEST_CASE("CameraServiceImpl concurrent task operations", "[CameraServiceImpl][concurrency]") {
-    system("rm -rf /tmp/cosmo_test/conf/camera/test_camera_02");
+    (void)!system("rm -rf /tmp/cosmo_test/conf/camera/test_camera_02");
     TestFixture fx("test_camera_02", "rtsp://test2");
 
     std::atomic<bool> stop{false};

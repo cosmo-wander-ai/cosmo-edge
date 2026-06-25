@@ -1,12 +1,14 @@
 #include <filesystem>
 #include <fstream>
 
+#include "util/PathUtil.h"
+
 // clang-format off
 #include "catch_amalgamated.hpp"
 #include "catch2/trompeloeil.hpp"
 // clang-format on
+#include "mock/MockServiceRegistry.h"
 #include "service/model/impl/ModelUploadHelper.h"
-#include "test_mock_services.h"
 
 using namespace cosmo::service;
 using namespace cosmo::test;

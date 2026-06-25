@@ -5,9 +5,10 @@
 
 #include <thread>
 
+#include "mock/MockModelService.h"
+#include "mock/MockServiceRegistry.h"
 #include "service/ai/impl/LlmInferServiceImpl.h"
 #include "service/detail/ServiceRegistry.h"
-#include "test_mock_services.h"
 
 using cosmo::service::LlmInferServiceImpl;
 using cosmo::util::ErrorEnum;

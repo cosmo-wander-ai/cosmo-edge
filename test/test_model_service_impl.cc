@@ -3,9 +3,12 @@
 #include <fstream>
 
 #include "catch_amalgamated.hpp"
+#include "mock/MockAlgorithmService.h"
+#include "mock/MockCameraService.h"
+#include "mock/MockServiceRegistry.h"
 #include "service/model/impl/ModelServiceImpl.h"
-#include "test_mock_services.h"
 #include "util/FileUtil.h"
+#include "util/PathUtil.h"
 
 using namespace cosmo::service;
 using namespace cosmo;

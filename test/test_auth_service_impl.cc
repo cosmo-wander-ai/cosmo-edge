@@ -1,11 +1,12 @@
 #include "catch_amalgamated.hpp"
+#include "util/PathUtil.h"
 // Unit tests for AuthServiceImpl — login, token management, password change.
 // Uses a unique temp config directory per test to isolate from device state.
 
 #include <filesystem>
 
+#include "mock/MockServiceRegistry.h"
 #include "service/network/impl/AuthServiceImpl.h"
-#include "test_mock_services.h"
 #include "util/CipherUtil.h"
 #include "util/StringUtil.h"
 

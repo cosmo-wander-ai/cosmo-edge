@@ -5,8 +5,8 @@
  * Strategy: ClientMessageServiceImpl is a stub implementation that logs warnings
  * and returns false/noop. Tests verify this contract.
  */
+#include "mock/MockServiceRegistry.h"
 #include "service/network/impl/ClientMessageServiceImpl.h"
-#include "test_mock_services.h"
 
 using namespace cosmo::service;
 

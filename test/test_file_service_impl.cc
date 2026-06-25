@@ -6,8 +6,8 @@
  * Network-dependent operations (upload/download) cannot be tested without
  * a file server, so they are skipped.
  */
+#include "mock/MockServiceRegistry.h"
 #include "service/path/impl/FileServiceImpl.h"
-#include "test_mock_services.h"
 
 using namespace cosmo::service;
 

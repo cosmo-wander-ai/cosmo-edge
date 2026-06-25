@@ -5,8 +5,8 @@
  * Strategy: HttpClientImpl delegates to libcurl. Network tests are
  * tagged [.network]. We can safely test construction.
  */
+#include "mock/MockServiceRegistry.h"
 #include "service/network/impl/HttpClientImpl.h"
-#include "test_mock_services.h"
 
 using namespace cosmo::service;
 
