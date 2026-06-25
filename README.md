@@ -267,7 +267,7 @@ The numbers below are representative system-level combinations based on internal
 | Shared-codec dense CV tasks   |              4 |                20 |   3/channel |    84-141(ms) | BM1688                                     | Multiple scenario tasks share decoded streams; demonstrates task concurrency                             |
 | Safety compliance pipeline    |             16 |                16 |   3/channel |   182-314(ms) | BM1688                                     | Detection + tracking + attribute/rule + alarm; representative business pipeline                          |
 | Prompt-driven AI pipeline     |              8 |                 8 | 0.2/channel | 3154-4128(ms) | BM1688                                     | Validated `CosmoEdge-VL-Judge-0.8B`; VLM async nodes; event-driven slow path, not frame-synchronous OSD |
-| x86 developer mode            |              1 |                 1 |   3/channel |     45-50(ms) | x86CPU<br />(Intel(R) Core(TM) i9-13900F) | YOLOv8n development and evaluation workload                                                              |
+| x86 developer mode            |              1 |                 1 |   3/channel |     45-50(ms) | x86 CPU<br />(Intel(R) Core(TM) i9-13900F) | YOLOv8n development and evaluation workload                                                              |
 
 ## Architecture
 
@@ -413,6 +413,7 @@ The codebase comes from production-oriented commercial development and has passe
 
 - 💬 Community: [GitHub Discussions](https://github.com/cosmo-wander-ai/cosmo-edge/discussions)
 - 📧 Partnership & Enterprise: hello@cosmowander.ai
+- 🔒 Security: see [SECURITY.md](SECURITY.md) for private vulnerability reporting
 
 ## License
 

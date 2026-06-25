@@ -8,7 +8,7 @@ The following guidelines are designed to help make the contribution process smoo
 
 ## Code of Conduct
 
-By participating in this project, you agree to abide by our [Code of Conduct](CODE_OF_CONDUCT.md). Please report any violations or inappropriate behavior to [cosmoedge@cosmowanderer.com](mailto:cosmoedge@cosmowanderer.com).
+By participating in this project, you agree to abide by our [Code of Conduct](CODE_OF_CONDUCT.md). Please report any violations or inappropriate behavior to [hello@cosmowander.ai](mailto:hello@cosmowander.ai).
 
 ---
 

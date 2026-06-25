@@ -174,8 +174,8 @@ CosmoEdge 使用 ONNX 作为模型交换格式。来自主流 CV 训练框架的
 
 CosmoEdge 运行在 Sophon BM1688 推理栈上。SOPHGO 官方模型仓库中的模型可以通过模型适配指南接入，指南会覆盖后处理适配和流水线节点注册。
 
--> [SOPHGO Model Zoo (sophon-demo)](https://github.com/sophgo/sophon-demo)
--> [CosmoEdge Model Porting Guide](docs/tutorials/05-model-porting/model-porting.md)
+→ [SOPHGO Model Zoo (sophon-demo)](https://github.com/sophgo/sophon-demo)
+→ [CosmoEdge Model Porting Guide](docs/tutorials/05-model-porting/model-porting.md)
 
 ## 快速开始
 
@@ -268,7 +268,7 @@ CosmoEdge 来自商业化代码库，在开源发布前已经完成近期内部�
 | 共享解码密集 CV 任务 | 4 | 20 | 3/channel | 84-141(ms) | BM1688 | 多个场景任务共享解码流，展示任务并发能力 |
 | 安全合规流水线 | 16 | 16 | 3/channel | 182-314(ms) | BM1688 | 检测 + 跟踪 + 属性/规则 + 告警，代表性业务流水线 |
 | 提示词驱动 AI 流水线 | 8 | 8 | 0.2/channel | 3154-4128(ms) | BM1688 | 认证 `CosmoEdge-VL-Judge-0.8B`；VLM 异步节点；事件驱动慢路径，不是逐帧同步 OSD |
-| x86 开发模式 | 1 | 1 | 3/channel | 45-50(ms) | x86CPU<br />(Intel(R) Core(TM) i9-13900F) | YOLOv8n 开发与评估负载 |
+| x86 开发模式 | 1 | 1 | 3/channel | 45-50(ms) | x86 CPU<br />(Intel(R) Core(TM) i9-13900F) | YOLOv8n 开发与评估负载 |
 
 ## 架构
 
@@ -414,6 +414,7 @@ CosmoEdge 是面向完整边缘 AI 工作流的应用运行时，不只是模型
 
 - Community: [GitHub Discussions](https://github.com/cosmo-wander-ai/cosmo-edge/discussions)
 - Partnership & Enterprise: hello@cosmowander.ai
+- 安全报告：请参见 [SECURITY.md](SECURITY.md)，通过私密渠道上报安全漏洞
 
 ## License
 

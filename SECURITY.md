@@ -8,7 +8,7 @@ If you believe you have found a security issue, please report it privately.
 
 Preferred contact:
 
-- Email: cosmoedge@cosmowanderer.com
+- Email: hello@cosmowander.ai
 
 Please include:
 
