@@ -80,7 +80,7 @@ This path is from:
 
 Confirmed behavior:
 - Default base image: `stream_dev:0.2`.
-- Builds with `scripts/build.sh -t -m data/resource/aiboxresource`.
+- Builds with `scripts/build.sh -m data/resource/aiboxresource`.
 - Exports the release package only (does not start services).
 - Package output under `build_output/`.
 
