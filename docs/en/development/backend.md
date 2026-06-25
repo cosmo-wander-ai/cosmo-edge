@@ -304,7 +304,7 @@ Key third-party libraries (under `3rd/` and linked via CMake `ExternalProject`):
 | Paho MQTT C        | MQTT client                      | EPL 2.0      |
 | ONNX Runtime       | x86 CPU inference                | MIT          |
 | Sophon BMRT        | aarch64 TPU inference            | Proprietary  |
-| FFmpeg             | Video decode / encode            | LGPL         |
+| FFmpeg             | Video decode / encode            | LGPL 2.1+    |
 | OpenH264           | H.264 encode (CPU backend)       | BSD 2-Clause |
 | Catch2             | Test framework                   | Boost        |
 | Trompeloeil        | Mocking framework                | Boost        |

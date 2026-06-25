@@ -302,7 +302,7 @@ flow 层实现场景任务流水线中的可组合节点：
 | Paho MQTT C       | MQTT 客户端                   | EPL 2.0       |
 | ONNX Runtime      | x86 CPU 推理                  | MIT           |
 | Sophon BMRT       | aarch64 TPU 推理              | 专有          |
-| FFmpeg            | 视频编解码                    | LGPL          |
+| FFmpeg            | 视频编解码                    | LGPL 2.1+     |
 | OpenH264          | H.264 编码（CPU 后端）        | BSD 2-Clause  |
 | Catch2            | 测试框架                      | Boost         |
 | Trompeloeil       | Mock 框架                     | Boost         |
