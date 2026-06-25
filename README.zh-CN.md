@@ -49,11 +49,11 @@ vision-language-model, vlm, sophon, bm1688, real-time
 
 <div align="center">
 
-![CosmoEdge running multiple edge AI pipelines](docs/assets/hero.gif)
-
-*在一台边缘设备上运行多条 AI 流水线、实时 OSD 叠加和事件输出。*
+https://github.com/user-attachments/assets/96eeba7e-5b00-4c54-97b3-3ee4571cd5a0
 
 </div>
+
+*在一台边缘设备上运行多条 AI 流水线、实时 OSD 叠加和事件输出。*
 
 CosmoEdge 是一个 C++ 原生的边缘 AI 引擎，面向生产级视频智能分析系统。它把模型变成可视化、可管理的边缘应用：导入模型、编排流水线、接入视频源、在浏览器中查看 AI 叠加画面，并通过 MQTT 或 HTTP 推送结构化事件。
 
@@ -86,7 +86,7 @@ CosmoEdge 以 C++17 运行时为核心，而不是基于 Python 服务循环。�
 
 <div align="center">
 
-![Pipeline editor workflow](docs/assets/pipeline-editor.gif)
+https://github.com/user-attachments/assets/c9673081-ad73-4455-9486-1a3021358cdd
 
 </div>
 
@@ -138,7 +138,7 @@ CosmoEdge 支持端侧提示词驱动的视觉智能。GroundingDINO 和 VLM 属
 
 <div align="center">
 
-![Prompt-driven AI with GroundingDINO and VLM](docs/assets/prompt-driven-ai.gif)
+https://github.com/user-attachments/assets/f47b541e-0d01-437d-86e1-4183f6e610fd
 
 </div>
 
