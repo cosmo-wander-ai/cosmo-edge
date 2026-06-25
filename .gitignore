@@ -521,3 +521,4 @@ docs/.vitepress/dist/
 # Allow 3rd/onnxruntime libraries
 !3rd/onnxruntime-linux-x64-1.26.0/lib/
 !3rd/onnxruntime-linux-x64-1.26.0/lib/*
+test/video/demo.mp4
