@@ -13,9 +13,7 @@ vision-language-model, vlm, sophon, bm1688, real-time
 
 <div align="center">
 
-<!-- TODO: Replace with final logo asset. -->
-
-<!-- <img src="docs/assets/cosmoedge-logo.png" width="320" alt="CosmoEdge"> -->
+<img src="docs/assets/cosmoedge-logo.png" width="320" alt="CosmoEdge">
 
 # CosmoEdge
 
