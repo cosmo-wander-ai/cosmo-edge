@@ -40,7 +40,8 @@ struct LinkageTestEnv {
 
     ~LinkageTestEnv() {
         std::string cmd = "rm -rf " + baseDir;
-        (void)system(cmd.c_str());
+        if (system(cmd.c_str())) {
+        }
     }
 };
 

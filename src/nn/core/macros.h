@@ -30,6 +30,7 @@
 #endif
 
 // deprecated
+#ifndef DEPRECATED
 #if defined(__GNUC__) || defined(__clang__)
 #define DEPRECATED(msg) __attribute__((deprecated(msg)))
 #elif defined(_MSC_VER)
@@ -37,6 +38,7 @@
 #else
 #pragma message("WARNING: You need to implement DEPRECATED for this compiler")
 #define DEPRECATED
+#endif
 #endif
 
 // log
