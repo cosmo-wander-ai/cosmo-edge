@@ -26,32 +26,6 @@ void from_json(const nlohmann::json& j, MsgStatusSend& v) {
     j.at("resData").get_to(v.res_data);
 }
 
-// ── MsgStartDemoSend ─────────────────────────────────────────────
-
-void to_json(nlohmann::json& j, const MsgStartDemoSend::ResData& v) {
-    j = nlohmann::json{
-        {"cameraId", v.camera_id},
-        {"cameraName", v.camera_name},
-        {"algorithmCode", v.algorithm_code},
-    };
-}
-
-void from_json(const nlohmann::json& j, MsgStartDemoSend::ResData& v) {
-    j.at("cameraId").get_to(v.camera_id);
-    j.at("cameraName").get_to(v.camera_name);
-    j.at("algorithmCode").get_to(v.algorithm_code);
-}
-
-void to_json(nlohmann::json& j, const MsgStartDemoSend& v) {
-    to_json(j, static_cast<const MsgSendHead&>(v));
-    j["resData"] = v.res_data;
-}
-
-void from_json(const nlohmann::json& j, MsgStartDemoSend& v) {
-    from_json(j, static_cast<MsgSendHead&>(v));
-    j.at("resData").get_to(v.res_data);
-}
-
 // ── MsgCompleteSend ──────────────────────────────────────────────
 
 void to_json(nlohmann::json& j, const MsgCompleteSend& v) {
@@ -59,16 +33,6 @@ void to_json(nlohmann::json& j, const MsgCompleteSend& v) {
 }
 
 void from_json(const nlohmann::json& j, MsgCompleteSend& v) {
-    from_json(j, static_cast<MsgSendHead&>(v));
-}
-
-// ── MsgResetDemoSend ─────────────────────────────────────────────
-
-void to_json(nlohmann::json& j, const MsgResetDemoSend& v) {
-    to_json(j, static_cast<const MsgSendHead&>(v));
-}
-
-void from_json(const nlohmann::json& j, MsgResetDemoSend& v) {
     from_json(j, static_cast<MsgSendHead&>(v));
 }
 

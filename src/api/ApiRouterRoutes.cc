@@ -198,9 +198,7 @@ void ApiRouter::RegisterLiveStreamRoutes() {
 void ApiRouter::RegisterOnboardingRoutes() {
     // ── Onboarding Guide ──────────────────────────────────────────────────
     ROUTE("/gtw/cwai/Onboarding/", kNoAuth, onboarding_handler_, Onboarding, Status);
-    ROUTE("/gtw/cwai/Onboarding/", kNoAuth, onboarding_handler_, Onboarding, StartDemo);
     ROUTE("/gtw/cwai/Onboarding/", kNoAuth, onboarding_handler_, Onboarding, Complete);
-    ROUTE("/gtw/cwai/Onboarding/", kAuth, onboarding_handler_, Onboarding, ResetDemo);
 }
 
 std::string ApiRouter::DispatchFileDownload(const std::string& jsonResponse) {
