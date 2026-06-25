@@ -70,7 +70,6 @@ CosmoEdge 支持将告警/事件通过 HTTP 推送到外部平台。当前推送
   "videoChannelId": "CHANNEL_ID",
   "channelName": "Entrance Camera",
   "timestamp": "1792147200000",
-  "itimestamp": 1792147200000,
   "algorithmId": "ALG_ID",
   "algorithmCode": "helmet",
   "algorithmName": "Helmet Detection",
@@ -83,32 +82,40 @@ CosmoEdge 支持将告警/事件通过 HTTP 推送到外部平台。当前推送
   "videostructured": "/data/event/structured.json",
   "overviewFile": "/data/event/overview.json",
   "recordId": "RECORD_ID",
-  "files": [],
   "isRetryMessage": false,
   "category": "alarm",
   "property": {}
 }
 ```
 
+> 事件 DTO（`CMsgOnEventsReq`）中还定义了 `itimestamp`（数值时间戳）和 `files`（关联文件列表），但当前出站序列化（`to_json`）不输出这两个字段，故实际推送负载中不会出现。字段名 `orignalPicture` 沿用当前实现（legacy 拼写）。
+
 字段说明见[字段级 API 参考](api-fields.md#事件上报负载)。
 
 ## 属性对象
 
-`property` 会随算法类型变化。当前可确认的属性类别包括：
+`property` 会随算法类型（`OnEventsPropertyType`）变化。主类型及其输出键：
 
 | 类别 | 说明 |
 | --- | --- |
 | `face` | 人脸质量、年龄、性别、口罩、眼镜、特征文件和人脸图 |
-| `recognition` | 人脸库匹配结果 |
-| `body` | 人体属性、人体特征和人体图片 |
+| `body` | 人体属性、人体特征和人体图片（`Body` 与 `BodyFeature` 都输出此键） |
 | `vehicle` | 车牌、车身颜色、车辆类型、方向和车辆属性 |
 | `behavior` | 行为计数、持续时间和目标 ID |
 | `machineMaterial` | 物料/设备状态匹配结果 |
 | `people` | 人流统计 |
 | `car` | 车流统计 |
 | `workClothesRecognition` | 工服识别匹配结果 |
-| `persons` | 人员目标列表 |
-| `target` | 目标进出区域时间和图片 |
+| `personCount` | 区域人数统计（同时输出 `persons` 列表） |
+| `countNumber` | 计数类事件 |
+
+附加子对象（不是独立的属性类别，而是随主类型一起出现）：
+
+| 子对象 | 出现条件 | 说明 |
+| --- | --- | --- |
+| `recognition` | `face` 类型同时输出 | 人脸库匹配结果 |
+| `persons` | `personCount` 类型同时输出 | 人员目标列表 |
+| `target` | 任意类型，当存在目标进出区域信息时附加 | 目标进出区域时间和图片 |
 
 ## 接收端建议
 

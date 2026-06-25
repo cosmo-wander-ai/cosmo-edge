@@ -186,7 +186,7 @@ When adding a new service, add a corresponding test file with a Trompeloeil mock
 
 ## Code Style
 
-The project follows the [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html) adapted for C++17. Full details are in [`CODING_STYLE.md`](../../CODING_STYLE.md) (Chinese). Key conventions:
+The project follows the [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html) adapted for C++17. Full details are in `CODING_STYLE.md` at the repository root (Chinese). Key conventions:
 
 | Category          | Convention                              | Example                      |
 | ----------------- | --------------------------------------- | ---------------------------- |

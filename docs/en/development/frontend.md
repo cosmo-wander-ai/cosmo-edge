@@ -11,7 +11,7 @@ next:
 
 # Frontend Development
 
-The web console is located under `src/web/`. It is a Vue 3 + Vite SPA that provides model management, scenario configuration, pipeline orchestration, live preview, alarm views, and system settings.
+The frontend project is located under `src/web/`. It is a Vue 3 + Vite single-page application that provides model management, scenario configuration, pipeline orchestration, live preview, alarm views, and system settings.
 
 ## Project Structure
 
@@ -46,7 +46,7 @@ src/web/
 
 | Category       | Library             | Version  | Purpose                           |
 | -------------- | ------------------- | :------: | --------------------------------- |
-| Framework      | Vue 3               | ^3.5.35  | Composition API with `<script setup>` |
+| Framework      | Vue 3               | ^3.5.35  | Composition API + `<script setup>` |
 | Build          | Vite                | 6.3.5    | Dev server, HMR, chunked production builds |
 | Router         | Vue Router          | ^4.2.0   | Hash-based client-side routing    |
 | UI             | Element Plus        | 2.13.2   | Component library (pinned)        |
@@ -56,6 +56,7 @@ src/web/
 |                | @vue-flow/background | ^1.3.2  | Flow editor background grid       |
 |                | @vue-flow/controls  | ^1.1.3   | Flow editor zoom controls         |
 |                | @vue-flow/minimap   | ^1.5.4   | Flow editor minimap               |
+| Tree Transfer  | tree-transfer-vue3  | ^1.2.2   | Tree-shuttle component for algorithm selection |
 | i18n           | Vue I18n            | ^9.14.5  | Internationalization              |
 | Video          | flv.js              | ^1.6.2   | FLV stream playback               |
 | WebRTC         | native RTCPeerConnection | —   | WHEP-based playback               |
@@ -66,11 +67,11 @@ src/web/
 
 ### Environment Variables
 
-Create a `.env` or `.env.development` file under `src/web/` with:
+Create a `.env` or `.env.development` file under `src/web/`:
 
 | Variable             | Purpose                                      |
 | -------------------- | -------------------------------------------- |
-| `VITE_APP_BASE_URL`  | App base path (default: `/`)                 |
+| `VITE_APP_BASE_URL`  | App base path (default `/`)                  |
 | `VITE_APP_API_URL`   | Backend API target for dev proxy             |
 
 ### Dev Server
@@ -97,19 +98,19 @@ npm run build
 | Script                    | Purpose                                                  |
 | ------------------------- | -------------------------------------------------------- |
 | `npm run dev`             | Start Vite dev server                                    |
-| `npm run build`           | Production build (with `prebuild` → i18n check)          |
-| `npm run preview`         | Preview production build locally                         |
+| `npm run build`           | Production build (via `prebuild` → i18n check)           |
+| `npm run preview`         | Preview the production build locally                     |
 | `npm run i18n:check`      | Run all 5 i18n validation scripts                        |
 | `npm run resource-i18n:check` | Check resource i18n sync status                      |
 | `npm run resource-i18n:sync`  | Sync resource i18n keys from the backend (review diff before committing) |
 
-The i18n validators cover: short-scope correctness, locale key consistency, glossary synchronization, dialog action labels, and unused-key detection.
+The i18n validators cover: short-scope correctness, locale key consistency, glossary synchronization, dialog action button labels, and unused-key detection.
 
 ## Adding a New Page
 
 ### Step 1: Create the View Component
 
-Create a new `.vue` file under `src/web/views/` in the appropriate subdirectory (`box/` for device views, `gam/` for AI-management views).
+Create a new `.vue` file under `src/web/views/` in the appropriate subdirectory (`box/` for device-related views, `gam/` for AI-management views).
 
 ### Step 2: Register a Route
 
@@ -123,13 +124,13 @@ Add a route entry in `src/web/src/router/index.js`:
 }
 ```
 
-New routes should use the `MainLayout` parent for the standard sidebar + header chrome. Standalone pages (like login or big-screen) omit the layout.
+Pages that need the sidebar + header layout should use the `MainLayout` parent route. Standalone pages (e.g. login, big-screen) do not require the layout wrapper.
 
-Routes requiring authentication are guarded by the global navigation guard that checks `localStorage.getItem('token')`.
+Routes that require login are guarded by the global navigation guard, which checks `localStorage.getItem('token')`.
 
 ### Step 3: Add a Menu Entry
 
-Edit `src/web/src/views/main/menu.js`. Choose the appropriate `section` (`"core"`, `"display"`, `"task"`, `"resource"`, `"system"`) and add an entry:
+Edit `src/web/src/views/main/menu.js`, choose the matching `section` (`"core"`, `"display"`, `"task"`, `"resource"`, `"system"`), and add an entry:
 
 ```js
 {
@@ -142,17 +143,17 @@ Edit `src/web/src/views/main/menu.js`. Choose the appropriate `section` (`"core"
 
 ### Step 4: Add Translations
 
-Add the new i18n keys to both:
+Add the new i18n keys to both of these files:
 - `src/web/src/i18n/locales/zh-CN.js`
 - `src/web/src/i18n/locales/en-US.js`
 
-Use the top-level `nav` section for menu labels and create a new top-level section for page-specific strings when the page has substantial UI.
+Menu labels go under `nav`; create a new top-level key for page-specific strings per module.
 
 ## API Layer
 
 ### Pattern
 
-API modules live under `src/web/src/api/`. Each module exports functions that wrap `axios` calls to specific backend endpoints. The central `api/index.js` merges all modules into a single object via spread, and `main.js` injects it globally as `$API`.
+API modules live under `src/web/src/api/`. Each module exports functions that wrap `axios` calls. `api/index.js` merges all modules into a single object via object spread, and `main.js` injects it as the global `$API`.
 
 Usage in components: `this.$API.dologin(params)` or `proxy.$API.dologin(params)` (Composition API).
 
@@ -160,16 +161,16 @@ Usage in components: `this.$API.dologin(params)` or `proxy.$API.dologin(params)`
 
 | Module          | File           | Domain                                           |
 | --------------- | -------------- | ------------------------------------------------ |
-| Auth            | `login.js`     | Login/logout, captcha, password reset, user info  |
-| Device          | `box.js`       | Cameras, events, system settings, audio, linkage  |
-| AI Management   | `gam.js`       | Algorithms, tasks, models, orchestration, images  |
+| Auth            | `login.js`     | Login/logout, captcha, password reset, user info |
+| Device          | `box.js`       | Cameras, events, system settings, audio, linkage |
+| AI Management   | `gam.js`       | Algorithms, tasks, models, orchestration, image analysis |
 | Algorithm Admin | `countManage.js` | Algorithm CRUD, licenses, hardware info         |
-| Base Libraries  | `basePic.js`   | Face library, body library, item library, imports |
+| Base Libraries  | `basePic.js`   | Face library, body library, item library, file imports |
 | Live Stream     | `screen.js`    | Camera list, live stream lifecycle, WebSocket     |
 
 ### Adding a New Endpoint
 
-Add a function to the relevant module file (or create a new file), export it, and re-export it through `api/index.js`:
+Add a function to the relevant module file (or create a new file) and re-export it through `api/index.js`:
 
 ```js
 // api/myModule.js
@@ -179,7 +180,7 @@ export const queryMyData = (params) => request.post('/gtw/cwai/MyModule/Query', 
 export * as myModule from './myModule.js';
 ```
 
-All API calls use the shared `request.js` Axios instance, which automatically attaches `mtk`, `token`, `fileMode`, and `lang` headers, and handles auth-failure redirects.
+All API calls share the Axios instance in `utils/request.js`, which automatically attaches the `mtk`, `token`, `fileMode`, and `lang` request headers and handles the auth-failure redirect.
 
 ## Internationalization (i18n)
 
@@ -187,20 +188,20 @@ All API calls use the shared `request.js` Axios instance, which automatically at
 
 - **Default locale**: `zh-CN`
 - **Fallback locale**: `en-US`
-- Locale persisted in `localStorage` under `cosmo.locale`
+- Locale preference is persisted in `localStorage` under the `cosmo.locale` key
 
-Translations are split across three tiers:
+Translations are managed across three tiers:
 
-| Tier                         | Source                                      | Purpose                                         |
-| ---------------------------- | ------------------------------------------- | ----------------------------------------------- |
-| Static locale files          | `i18n/locales/{zh-CN,en-US}.js` (~1420 lines each) | All built-in UI strings, nav, validation, status |
-| Short-form glossary          | `i18n/glossary.js` (78 entries)             | Compact labels for constrained UI contexts       |
-| Dynamic resource i18n        | `public/resource-i18n/resource.{locale}.json` | Algorithm names, params, options from backend   |
+| Tier               | Source                                          | Purpose                               |
+| ------------------ | --------------------------------------------- | ---------------------------------- |
+| Static locale files   | `i18n/locales/{zh-CN,en-US}.js` (~1420 lines each) | All built-in UI strings, navigation, validation, status, etc. |
+| Short-form glossary      | `i18n/glossary.js` (76 entries)                     | Compact labels for constrained layouts               |
+| Dynamic resource i18n      | `public/resource-i18n/resource.{locale}.json`    | Backend config items such as algorithm names, parameters, options |
 
 ### Translation API
 
 - **`$t('key.path')`** — Always returns the full translation in the current locale.
-- **`$tShort('key.path', scope)`** — Returns the compact form only when the glossary permits it for the given scope. Falls back to the full form otherwise.
+- **`$tShort('key.path', scope)`** — Returns the short form only when the glossary permits it for the given scope; otherwise falls back to the full translation.
 
 ### Short Scopes
 
@@ -208,13 +209,13 @@ Nine UI context scopes control where compact labels are allowed:
 
 | Scope ID         | Typical Component                    |
 | ---------------- | ------------------------------------ |
-| `btn.compact`    | Small buttons ≤100px                 |
+| `btn.compact`    | Compact buttons (≤100px)             |
 | `table.header`   | Table column headers                 |
-| `sidebar.menu`   | Sidebar menu items (~180px)           |
-| `flow.node`      | Pipeline editor node labels          |
+| `sidebar.menu`   | Sidebar menu (~180px wide)           |
+| `flow.node`      | Pipeline orchestration node labels   |
 | `dashboard.card` | Dashboard KPI card titles            |
-| `tag.badge`      | Status pills / badges                |
-| `inline.action`  | Row-level action links               |
+| `tag.badge`      | Status badges                        |
+| `inline.action`  | Table row-level action links         |
 | `tab.compact`    | Compact tab titles                   |
 | `placeholder`    | Input placeholder text               |
 
@@ -224,35 +225,37 @@ Nine UI context scopes control where compact labels are allowed:
 
 - **Alias**: `@` → `src/`
 - **Dev proxy**: `/gtw`, `/event`, `/weblogo`, `/web` → `VITE_APP_API_URL`
-- **CSS**: SCSS with `modern-compiler` API via `sass-embedded`
+- **CSS**: SCSS compiled via `sass-embedded` using the `modern-compiler` API
 - **Build chunks** (manual split):
   - `vendor-vue` — Vue + Router + I18n
   - `vendor-element` — Element Plus
   - `vendor-echarts` — ECharts
   - `vendor-vue-flow` — @vue-flow/*
+  - `vendor-graph` — @antv/x6, @antv/layout (dependencies currently not installed, reserved)
   - `vendor-lodash` — lodash, dagre
   - `vendor-moment` — moment
+  - `vendor-md` — highlight.js, markdown-it (dependencies currently not installed, reserved)
   - `vendor` — remaining dependencies
 
 ### Environment Variables
 
-The app reads `VITE_APP_BASE_URL` at build time and `VITE_APP_API_URL` for dev proxy. No `.env` files are tracked in git — create one locally for your development setup.
+The app reads `VITE_APP_BASE_URL` at build time and uses `VITE_APP_API_URL` for the dev proxy. `.env` files are not tracked in the repository; create one locally as needed.
 
 ## State Management
 
 No Pinia or Vuex stores are used. State is managed through:
 
 - **localStorage**: Auth token (`mtk`), account info, locale preference, run mode.
-- **`micro/state.js`**: A minimal global reactive-like object for loading and login states, consumed by the Axios interceptor to show/hide a loading overlay.
-- **Component-local state**: Most UI state lives in `reactive()` / `ref()` within each view component.
+- **`micro/state.js`**: A minimal global reactive object that manages loading and login state, consumed by the Axios interceptor to control the loading overlay.
+- **Component-local state**: Most UI state is managed inside each view component via `reactive()` / `ref()`.
 
 ## Key Utilities
 
-| File                          | Purpose                                                      |
-| ----------------------------- | ------------------------------------------------------------ |
-| `utils/request.js`            | Axios instance with `mtk`/`token`/`lang` interceptors, auth-failure redirect, long-timeout list for uploads |
-| `utils/message.js`            | Singleton-deduped `ElMessage` wrapper                           |
-| `utils/imagePreview.js`       | Full-screen image lightbox                                      |
-| `utils/resourceLocaleLoader.js` | Fetches dynamic i18n JSON from backend at app start          |
-| `utils/i18nResource.js`       | Resolves algorithm/param i18n keys from backend config          |
-| `utils/whepPlayer.js`         | WHEP-based WebRTC playback via `RTCPeerConnection`              |
+| File                          | Purpose                                                          |
+| ----------------------------- | ------------------------------------------------------------- |
+| `utils/request.js`            | Axios instance; auto-attaches `mtk`/`token`/`lang` headers, handles auth-failure redirects; long-running requests such as uploads and upgrades do not show the loading overlay |
+| `utils/message.js`            | Singleton-deduped `ElMessage` wrapper                        |
+| `utils/imagePreview.js`       | Full-screen image preview                                    |
+| `utils/resourceLocaleLoader.js` | Fetches dynamic i18n JSON from the server at app start and merges it into vue-i18n |
+| `utils/i18nResource.js`       | Resolves the `*I18nKey` fields in backend algorithm/parameter config |
+| `utils/whepPlayer.js`         | WHEP WebRTC player based on the native `RTCPeerConnection`   |

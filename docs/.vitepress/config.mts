@@ -42,7 +42,8 @@ const guideEn = [
   { text: 'Deployment Guide', link: '/en/guide/deployment' },
   { text: 'Runtime Configuration', link: '/en/guide/configuration' },
   { text: 'Troubleshooting', link: '/en/guide/troubleshooting' },
-  { text: 'Architecture Overview', link: '/en/guide/architecture' }
+  { text: 'Architecture Overview', link: '/en/guide/architecture' },
+  { text: 'Test Scope and Cases', link: '/en/guide/test-cases' }
 ]
 
 const referenceEn = [
