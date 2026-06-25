@@ -26,7 +26,7 @@
         <el-form-item :label="'RTSP' + localeColon">
           <el-input v-model="props.detailChannel.url" size="small" disabled />
         </el-form-item>
-        <el-form-item :label="t('field.externalChannelNo') + localeColon">
+        <el-form-item v-if="false" :label="t('field.externalChannelNo') + localeColon">
           <el-input v-model="props.detailChannel.externalChannelNo" size="small" disabled />
         </el-form-item>
         <el-form-item :label="t('glossary.algorithmService') + localeColon">

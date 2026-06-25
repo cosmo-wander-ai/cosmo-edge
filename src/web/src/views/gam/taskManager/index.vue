@@ -171,7 +171,7 @@
             <div class="el-upload__text">{{ t('validate.dragUploadHint', { clickUpload: t('action.clickUpload'), n: 1 }) }}</div>
           </el-upload>
         </el-form-item>
-        <el-form-item :label="t('field.externalChannelNo') + localeColon" prop="externalChannelNo">
+        <el-form-item v-if="false" :label="t('field.externalChannelNo') + localeColon" prop="externalChannelNo">
           <el-input class="form-item-content" v-model="channelForm.externalChannelNo" autocomplete="off" size="small" />
         </el-form-item>
         <!-- 离线视频说明 -->
