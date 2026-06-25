@@ -43,7 +43,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, getCurrentInstance } from 'vue'
+import { ref, reactive, computed, onMounted, getCurrentInstance } from 'vue'
 import { t, localeColon } from '@/i18n'
 
 const props = defineProps({
@@ -65,37 +65,37 @@ const formData = reactive({
   algorithmUsage: ''
 })
 
-const algorithmTree = ref([{ label: t('common.all'), value: '' }])
+const algorithmTree = computed(() => [{ label: t('common.all'), value: '' }])
 const intellectData = ref([])
-const dataSource = ref([
+const dataSource = computed(() => [
   { label: t('common.all'), value: '' },
   { label: t('glossary.videoAnalysis'), value: '1' },
   { label: t('glossary.imageAnalysis'), value: '2' }
 ])
-const stateData = ref([
+const stateData = computed(() => [
   { label: t('common.all'), value: '' },
   { label: t('status.stopped'), value: '0' },
   { label: t('status.inProgress'), value: '1' },
   { label: t('status.paused'), value: '2' }
 ])
-const channelStatusList = ref([
+const channelStatusList = computed(() => [
   { label: t('common.all'), value: -1 },
   { label: t('status.offline'), value: 0 },
   { label: t('status.online'), value: 1 }
 ])
-const runTypeData = ref([
+const runTypeData = computed(() => [
   { label: t('common.all'), value: '' },
   { label: t('glossary.realtime'), value: '0' },
   { label: t('glossary.polling'), value: '1' }
 ])
 const timeTemplateList = ref([])
 const schedulePollingList = ref([])
-const channelTypeList = ref([
+const channelTypeList = computed(() => [
   { label: t('common.all'), value: '' },
   { label: 'RTSP', value: 0 },
   { label: t('glossary.offlineVideo'), value: 3 }
 ])
-const algorithmCategoryList = ref([
+const algorithmCategoryList = computed(() => [
   { label: t('glossary.faceAndBody'), value: '1' },
   { label: t('glossary.detection'), value: '2' },
   { label: t('glossary.detection'), value: '3' },

@@ -7,13 +7,15 @@
     }"
   >
     <div class="bracket-label" :style="{ color: data.color }">
-      {{ data.title }}
+      {{ data.titleKey ? t(data.titleKey) : data.title }}
     </div>
     <div class="bracket-line" :style="{ borderColor: data.stroke }"></div>
   </div>
 </template>
 
 <script setup>
+import { t } from '@/i18n'
+
 defineProps({
   data: {
     type: Object,

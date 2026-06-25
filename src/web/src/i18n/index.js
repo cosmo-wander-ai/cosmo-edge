@@ -79,7 +79,11 @@ export const setLocale = (locale) => {
 
 setLocale(currentLocale.value)
 
-export const t = (key, params = {}) => i18n.global.t(key, params)
+export const t = (key, params = {}) => {
+  // eslint-disable-next-line no-unused-expressions
+  currentLocale.value // Track dependency
+  return i18n.global.t(key, params)
+}
 
 // Locale-aware colon: English and pseudo locales use ': ', zh-CN uses '：'.
 export const localeColon = computed(() =>

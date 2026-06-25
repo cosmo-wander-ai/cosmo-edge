@@ -185,42 +185,8 @@ export default {
       selectedCards: [],
       selectAll: false,
       channelCountMap: {},
-      topBarData: {
-        formList: [
-          {
-            label: t('field.taskName'),
-            model: 'algorithmName'
-          },
-          {
-            label: t('field.taskType'),
-            model: 'algorithmCategory',
-            type: 'select',
-            filterable: true,
-            dataList: [
-              { label: t('common.all'), value: '' },
-              { label: t('glossary.faceAndBody'), value: 'face' },
-              { label: t('glossary.detection'), value: 'detect' },
-              { label: t('glossary.countingAnalytics'), value: 'count' }
-            ]
-          },
-          {
-            label: t('field.dataSourceType'),
-            model: 'algorithmUsage',
-            type: 'select',
-            dataList: [
-              { label: t('common.all'), value: '' },
-              { label: t('glossary.videoAnalysis'), value: 1 },
-              { label: t('glossary.imageAnalysis'), value: 2 }
-            ]
-          },
-          {
-            label: t('field.serviceProvider'),
-            model: 'supplier',
-            type: 'select',
-            dataList: []
-          }
-        ]
-      },
+      channelCountMap: {},
+      supplierOptions: [],
       formData: {
         algorithmId: '',
         algorithmCategory: '',
@@ -266,18 +232,6 @@ export default {
       },
       uploadAlgorithmicName: '',
       uploadAlgorithmicData: [],
-      algorithmCategoryOptions: [
-        { label: t('glossary.faceAndBody'), value: '1', eventType: 'face' },
-        { label: t('glossary.detection'), value: '2', eventType: 'behavior' },
-        { label: t('glossary.detection'), value: '3', eventType: 'motorCommodity' },
-        { label: t('glossary.countingAnalytics'), value: '8', eventType: 'passengerNumber' },
-        { label: t('glossary.countingAnalytics'), value: '9', eventType: 'peopleCountByArea' },
-        { label: t('glossary.countingAnalytics'), value: '11', eventType: 'vehicleNumber' }
-      ],
-      algorithmUsageOptions: [
-        { label: t('glossary.videoAnalysis'), value: '1' },
-        { label: t('glossary.imageAnalysis'), value: '2' }
-      ],
       engineTypeList: [],
       batchDeleteFalg: false
     }
@@ -290,6 +244,62 @@ export default {
     window.removeEventListener('resize', this.handleResize)
   },
   computed: {
+    topBarData() {
+      const list = [
+        {
+          label: t('field.taskName'),
+          model: 'algorithmName'
+        },
+        {
+          label: t('field.taskType'),
+          model: 'algorithmCategory',
+          type: 'select',
+          filterable: true,
+          dataList: [
+            { label: t('common.all'), value: '' },
+            { label: t('glossary.faceAndBody'), value: 'face' },
+            { label: t('glossary.detection'), value: 'detect' },
+            { label: t('glossary.countingAnalytics'), value: 'count' }
+          ]
+        },
+        {
+          label: t('field.dataSourceType'),
+          model: 'algorithmUsage',
+          type: 'select',
+          dataList: [
+            { label: t('common.all'), value: '' },
+            { label: t('glossary.videoAnalysis'), value: 1 },
+            { label: t('glossary.imageAnalysis'), value: 2 }
+          ]
+        },
+        {
+          label: t('field.serviceProvider'),
+          model: 'supplier',
+          type: 'select',
+          dataList: this.supplierOptions
+        }
+      ]
+      if (this.platformType === '15') {
+        list.splice(2, 2)
+      }
+      return { formList: list }
+    },
+    algorithmCategoryOptions() {
+      return [
+        { label: t('glossary.faceAndBody'), value: '1', eventType: 'face' },
+        { label: t('glossary.detection'), value: '2', eventType: 'behavior' },
+        { label: t('glossary.detection'), value: '3', eventType: 'motorCommodity' },
+        { label: t('glossary.countingAnalytics'), value: '8', eventType: 'passengerNumber' },
+        { label: t('glossary.countingAnalytics'), value: '9', eventType: 'peopleCountByArea' },
+        { label: t('glossary.countingAnalytics'), value: '11', eventType: 'vehicleNumber' }
+      ]
+    },
+    algorithmUsageOptions() {
+      return [
+        { label: t('glossary.videoAnalysis'), value: '1' },
+        { label: t('glossary.imageAnalysis'), value: '2' }
+      ]
+    },
     uniqueCategoryOptions() {
       const seen = new Set()
       return this.algorithmCategoryOptions.filter(item => {
@@ -311,7 +321,6 @@ export default {
       this.getSupplier()
       this.initAuthSummary()
     } else {
-      this.topBarData.formList.splice(2, 2)
       this.init()
     }
   },
@@ -435,12 +444,14 @@ export default {
     getSupplier() {
       this.$API.getSupplier().then((res) => {
         const { resData } = res
+        const options = []
         resData.forEach((item) => {
-          this.topBarData.formList[3].dataList.push({
+          options.push({
             label: item.value,
             value: item.code
           })
         })
+        this.supplierOptions = options
       })
     },
     initAuthSummary() {

@@ -146,7 +146,7 @@
 
           <div class="formDiv">
             <div class="formtext">{{ t('field.name') }}{{ localeColon }}</div>
-            <el-input v-model="item.nameValue" :placeholder="t('validate.pleaseEnter', { name: '' })" class="formR" size="small" @focus="isEditing = true" @blur="isEditing = false"></el-input>
+            <el-input :model-value="resolveParameterName(item)" @update:model-value="(val) => { item.nameValue = val; item.nameI18nKey = '' }" :placeholder="t('validate.pleaseEnter', { name: '' })" class="formR" size="small" @focus="isEditing = true" @blur="isEditing = false"></el-input>
           </div>
 
           <div v-if="item.showMore">
@@ -217,10 +217,10 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { t, localeColon } from '@/i18n'
+import { t, localeColon, currentLocale } from '@/i18n'
 import { resolveI18nOptionLabel, resolveI18nText } from '@/utils/i18nResource'
 
 // Props
@@ -235,7 +235,7 @@ const props = defineProps({
 const isSelecting = ref(false)
 const viewMode = ref('simple')
 const showMore = ref(false)
-const options = ref([
+const options = computed(() => [
   {
     value: 'text',
     label: t('glossary.textInput')
@@ -335,7 +335,7 @@ watch(
 const isUpdatingFormData = ref(false)
 
 watch(
-  formData,
+  [formData, currentLocale],
   () => {
     if (isUpdatingFormData.value) return
 
@@ -377,6 +377,32 @@ watch(
             value: '1'
           }
         ]
+      }
+    })
+
+    // Rebuild enumerationOptions for child components to react to locale changes
+    formData.value.forEach((item) => {
+      if (item.dependOn && item.enumerationOptions) {
+        let relevance = formData.value.find((obj) => item.dependOn == obj.keyValue)
+        if (relevance) {
+          let str = []
+          if (relevance.moduleType == 'switch') {
+            str = [
+              { value: '0', label: t('glossary.switchOff') },
+              { value: '1', label: t('glossary.switchOn') }
+            ]
+          } else if (relevance.options) {
+            relevance.options.forEach((el) => {
+              str.push({
+                value: el.value,
+                label: resolveI18nOptionLabel(el)
+              })
+            })
+          }
+          if (str.length > 0) {
+            item.enumerationOptions = str
+          }
+        }
       }
     })
 

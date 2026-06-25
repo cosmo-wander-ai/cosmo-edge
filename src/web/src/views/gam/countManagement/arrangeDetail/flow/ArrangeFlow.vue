@@ -663,6 +663,7 @@ const getActionStage = (actionId = '') => {
     return {
       key: 'input',
       title: t('glossary.inputProcessing'),
+      titleKey: 'glossary.inputProcessing',
       fill: 'transparent',
       stroke: '#f97316',
       color: '#9a3412'
@@ -673,6 +674,7 @@ const getActionStage = (actionId = '') => {
     return {
       key: 'detect',
       title: t('glossary.modelInference'),
+      titleKey: 'glossary.modelInference',
       fill: 'transparent',
       stroke: '#3b82f6',
       color: '#1d4ed8'
@@ -683,6 +685,7 @@ const getActionStage = (actionId = '') => {
     return {
       key: 'output',
       title: t('glossary.alertOutput'),
+      titleKey: 'glossary.alertOutput',
       fill: 'transparent',
       stroke: '#22c55e',
       color: '#15803d'
@@ -692,6 +695,7 @@ const getActionStage = (actionId = '') => {
   return {
     key: 'rule',
     title: t('glossary.ruleJudgment'),
+    titleKey: 'glossary.ruleJudgment',
     fill: 'transparent',
     stroke: '#f97316',
     color: '#ea580c'
@@ -781,6 +785,7 @@ const buildStageGroupNodes = (positionedNodes) => {
         data: {
           isStageGroup: true,
           title: segment.stage.title,
+          titleKey: segment.stage.titleKey,
           fill: segment.stage.fill,
           stroke: segment.stage.stroke,
           color: segment.stage.color,
