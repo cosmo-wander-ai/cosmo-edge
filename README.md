@@ -22,7 +22,7 @@ vision-language-model, vlm, sophon, bm1688, real-time
 **Production-grade C++ edge AI engine for video analytics, with visual pipeline orchestration and on-device VLM support**
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)](LICENSE)
-[![Runtime](https://img.shields.io/badge/runtime-C%2B%2B17-orange?style=flat-square)](#cpp-native-runtime)
+[![Runtime](https://img.shields.io/badge/runtime-C%2B%2B17-orange?style=flat-square)](#c-native-runtime)
 [![Platform](https://img.shields.io/badge/platform-Sophon%20BM1688%20%2F%20x86%20Linux%20%2F%20Windows-purple?style=flat-square)](#supported-platforms)
 [![Release](https://img.shields.io/badge/release-v0.1.0-green?style=flat-square)](https://github.com/cosmo-wander-ai/cosmo-edge/releases)
 [![Stress Test](https://img.shields.io/badge/stress%20test-200%20video%20samples-brightgreen?style=flat-square)](#validation)
@@ -266,7 +266,7 @@ The numbers below are representative system-level combinations based on internal
 | Full-stream YOLOv8n detection |             16 |                16 |   3/channel |     32-68(ms) | BM1688                                     | Decode + inference + OSD enabled; stable upper-limit case                                                |
 | Shared-codec dense CV tasks   |              4 |                20 |   3/channel |    84-141(ms) | BM1688                                     | Multiple scenario tasks share decoded streams; demonstrates task concurrency                             |
 | Safety compliance pipeline    |             16 |                16 |   3/channel |   182-314(ms) | BM1688                                     | Detection + tracking + attribute/rule + alarm; representative business pipeline                          |
-| Prompt-driven AI pipeline     |              8 |                 8 | 0.2/channel | 3154-4128(ms) | BM1688                                     | Validated`CosmoEdge-VL-Judge-0.8B`; VLM async nodes; event-driven slow path, not frame-synchronous OSD |
+| Prompt-driven AI pipeline     |              8 |                 8 | 0.2/channel | 3154-4128(ms) | BM1688                                     | Validated `CosmoEdge-VL-Judge-0.8B`; VLM async nodes; event-driven slow path, not frame-synchronous OSD |
 | x86 developer mode            |              1 |                 1 |   3/channel |     45-50(ms) | x86CPU<br />(Intel(R) Core(TM) i9-13900F) | YOLOv8n development and evaluation workload                                                              |
 
 ## Architecture
