@@ -30,7 +30,7 @@ void from_json(const nlohmann::json& j, OnboardingState& s) {
 
 OnboardingServiceImpl::OnboardingServiceImpl() {
     LoadState();
-    MLOG_INFO("OnboardingServiceImpl: state loaded, completed={}", onboarding_completed_);
+    LOG_INFO("OnboardingServiceImpl: state loaded, completed={}", onboarding_completed_);
 }
 
 // ── Public API ──────────────────────────────────────────────────────────
@@ -44,7 +44,7 @@ void OnboardingServiceImpl::CompleteOnboarding() {
     std::lock_guard<std::mutex> lock(mtx_);
     onboarding_completed_ = true;
     SaveState();
-    MLOG_INFO("OnboardingServiceImpl::CompleteOnboarding: onboarding marked as completed");
+    LOG_INFO("OnboardingServiceImpl::CompleteOnboarding: onboarding marked as completed");
 }
 
 // ── Private Persistence ─────────────────────────────────────────────────
@@ -64,7 +64,7 @@ void OnboardingServiceImpl::LoadState() {
                 j.get_to(state);
                 onboarding_completed_ = state.onboarding_completed;
             } catch (const nlohmann::json::exception& e) {
-                MLOG_WARN("OnboardingServiceImpl::LoadState: parse error: {}", e.what());
+                LOG_WARN("OnboardingServiceImpl::LoadState: parse error: {}", e.what());
                 onboarding_completed_ = false;
             }
         }
