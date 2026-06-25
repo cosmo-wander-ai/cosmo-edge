@@ -150,15 +150,15 @@ CosmoEdge supports compatible Qwen3 VLM series models and Qwen3.5 multimodal mod
 
 The capabilities below are integrated end-to-end; different model types map to different runtime modes.
 
-| Category                  | Supported Models / Architectures               | Pipeline Support    |
-| :------------------------ | :--------------------------------------------- | :------------------ |
-| Object Detection          | YOLOv5, YOLOv8, YOLOv10, YOLOv11, YOLOv12, YOLO26 | Full pipeline       |
-| Object Tracking           | ByteTrack                                      | Full pipeline       |
-| Attribute Classification  | Safety helmet, vest, uniform classifiers       | Full pipeline       |
-| Counting & Statistics     | Line crossing, zone counting, directional flow | Full pipeline       |
-| Open-vocabulary Detection | GroundingDINO                                  | Async pipeline node |
+| Category                  | Supported Models / Architectures                                    | Pipeline Support    |
+| :------------------------ | :------------------------------------------------------------------ | :------------------ |
+| Object Detection          | YOLOv5, YOLOv8, YOLOv10, YOLOv11, YOLOv12, YOLO26                   | Full pipeline       |
+| Object Tracking           | ByteTrack                                                           | Full pipeline       |
+| Attribute Classification  | Safety helmet, vest, uniform classifiers                            | Full pipeline       |
+| Counting & Statistics     | Line crossing, zone counting, directional flow                      | Full pipeline       |
+| Open-vocabulary Detection | GroundingDINO                                                       | Async pipeline node |
 | Visual State Judgment     | Qwen3 VLM models, Qwen3.5 multimodal models (text prompt -> YES/NO) | Async pipeline node |
-| Image Analysis            | VLM batch analysis                             | Standalone task     |
+| Image Analysis            | VLM batch analysis                                                  | Standalone task     |
 
 **Model ecosystem compatibility:**
 
@@ -237,6 +237,7 @@ On Windows PowerShell to build the package:
 ```
 
 After installing the package and rebooting the device:
+
 - **Default IP**: `192.168.100.1` (ensure your computer is configured with a static IP in the `192.168.100.x` subnet to connect directly)
 - **Web Console URL**: `http://192.168.100.1`
 - **Default Username**: `admin`
@@ -260,13 +261,13 @@ CosmoEdge is built from a commercial codebase and has gone through recent intern
 
 The numbers below are representative system-level combinations based on internal records. A video channel means one decoded input stream; multiple scenario tasks can share the same decoded stream. E2E latency means frame-to-OSD or frame-to-event latency under the listed workload, not single-model inference time.
 
-| Workload                      | Video channels | Scenario task num |  FPS target |   E2E latency | Hardware | Notes                                                                           |
-| ----------------------------- | -------------: | ----------------: | ----------: | ------------: | -------- | ------------------------------------------------------------------------------- |
-| Full-stream YOLOv8n detection |             16 |                16 |   3/channel |     32-68(ms) | BM1688   | Decode + inference + OSD enabled; stable upper-limit case                       |
-| Shared-codec dense CV tasks   |              4 |                20 |   3/channel |    84-141(ms) | BM1688   | Multiple scenario tasks share decoded streams; demonstrates task concurrency    |
-| Safety compliance pipeline    |             16 |                16 |   3/channel |   182-314(ms) | BM1688   | Detection + tracking + attribute/rule + alarm; representative business pipeline |
-| Prompt-driven AI pipeline     |              8 |                 8 | 0.2/channel | 3154-4128(ms) | BM1688   | Validated `CosmoEdge-VL-Judge-0.8B`; VLM async nodes; event-driven slow path, not frame-synchronous OSD |
-| x86 developer mode            |              1 |                 1 |        TODO |          TODO | x86 CPU  | YOLOv8n development and evaluation workload                                     |
+| Workload                      | Video channels | Scenario task num |  FPS target |   E2E latency | Hardware                                   | Notes                                                                                                    |
+| ----------------------------- | -------------: | ----------------: | ----------: | ------------: | ------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| Full-stream YOLOv8n detection |             16 |                16 |   3/channel |     32-68(ms) | BM1688                                     | Decode + inference + OSD enabled; stable upper-limit case                                                |
+| Shared-codec dense CV tasks   |              4 |                20 |   3/channel |    84-141(ms) | BM1688                                     | Multiple scenario tasks share decoded streams; demonstrates task concurrency                             |
+| Safety compliance pipeline    |             16 |                16 |   3/channel |   182-314(ms) | BM1688                                     | Detection + tracking + attribute/rule + alarm; representative business pipeline                          |
+| Prompt-driven AI pipeline     |              8 |                 8 | 0.2/channel | 3154-4128(ms) | BM1688                                     | Validated`CosmoEdge-VL-Judge-0.8B`; VLM async nodes; event-driven slow path, not frame-synchronous OSD |
+| x86 developer mode            |              1 |                 1 |   3/channel |     45-50(ms) | x86CPU<br />(Intel(R) Core(TM) i9-13900F) | YOLOv8n development and evaluation workload                                                              |
 
 ## Architecture
 
@@ -315,17 +316,17 @@ CosmoEdge is open source. The repository provides the same engine, web UI, and w
 
 Certified devices are for teams that want to skip hardware bring-up and model packaging. They add preconfigured NPU acceleration, production model packages, and dedicated support.
 
-| Capability                   |      Open-source repository      | Certified device package |
-| ---------------------------- | :-------------------------------: | :----------------------: |
-| C++ engine                   |             Included             |         Included         |
-| Visual pipeline orchestrator |             Included             |         Included         |
-| Web management console       |             Included             |         Included         |
-| x86 developer mode           |             Included             |         Included         |
-| Sophon NPU runtime support   | Source support, hardware required |      Preconfigured      |
-| CV model package             |       Bring your own models       |      Pre-installed      |
-| `CosmoEdge-VL-Judge-0.8B`    | Bring your own/custom package; validation required | Pre-installed validated package |
-| GroundingDINO package        | Bring your own or custom package |      Pre-installed      |
-| Deployment support           |             Community             |        Dedicated        |
+| Capability                   |               Open-source repository               |    Certified device package    |
+| ---------------------------- | :------------------------------------------------: | :-----------------------------: |
+| C++ engine                   |                      Included                      |            Included            |
+| Visual pipeline orchestrator |                      Included                      |            Included            |
+| Web management console       |                      Included                      |            Included            |
+| x86 developer mode           |                      Included                      |            Included            |
+| Sophon NPU runtime support   |         Source support, hardware required         |          Preconfigured          |
+| CV model package             |               Bring your own models               |          Pre-installed          |
+| `CosmoEdge-VL-Judge-0.8B`  | Bring your own/custom package; validation required | Pre-installed validated package |
+| GroundingDINO package        |          Bring your own or custom package          |          Pre-installed          |
+| Deployment support           |                     Community                     |            Dedicated            |
 
 Certified devices add deployment readiness, not locked software features.
 
@@ -335,16 +336,16 @@ Certified devices add deployment readiness, not locked software features.
 
 ## Documentation
 
-| Start here | For | Description |
-| ---------- | --- | ----------- |
-| [Documentation Home](docs/en/index.md) | Everyone | Full documentation index and reading path |
-| [Quick Start Guide](docs/en/tutorials/01-quickstart/quickstart.md) | Everyone | First working experience |
-| [Scenario Configuration](docs/en/tutorials/02-scenario-config/scenario-config.md) | Integrators | Build scene-level AI workflows |
-| [VLM Guide](docs/en/tutorials/03-vlm-guide/vlm-guide.md) | Developers | Use visual state judgment with prompts |
-| [Pipeline Orchestration](docs/en/tutorials/04-pipeline-orchestration/pipeline-orchestration.md) | Advanced users | Compose custom pipelines visually |
-| [Model Porting Guide](docs/en/tutorials/05-model-porting/model-porting.md) | ML engineers | Bring your own ONNX or target model |
-| [Build Guide](docs/en/guide/build.md) | Developers | Build x86 Docker and Sophon packages |
-| [API Overview](docs/en/reference/api.md) | Developers | REST/WebSocket/MQTT-facing API categories |
+| Start here                                                                                   | For            | Description                               |
+| -------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------- |
+| [Documentation Home](docs/en/index.md)                                                          | Everyone       | Full documentation index and reading path |
+| [Quick Start Guide](docs/en/tutorials/01-quickstart/quickstart.md)                              | Everyone       | First working experience                  |
+| [Scenario Configuration](docs/en/tutorials/02-scenario-config/scenario-config.md)               | Integrators    | Build scene-level AI workflows            |
+| [VLM Guide](docs/en/tutorials/03-vlm-guide/vlm-guide.md)                                        | Developers     | Use visual state judgment with prompts    |
+| [Pipeline Orchestration](docs/en/tutorials/04-pipeline-orchestration/pipeline-orchestration.md) | Advanced users | Compose custom pipelines visually         |
+| [Model Porting Guide](docs/en/tutorials/05-model-porting/model-porting.md)                      | ML engineers   | Bring your own ONNX or target model       |
+| [Build Guide](docs/en/guide/build.md)                                                           | Developers     | Build x86 Docker and Sophon packages      |
+| [API Overview](docs/en/reference/api.md)                                                        | Developers     | REST/WebSocket/MQTT-facing API categories |
 
 ## Roadmap
 
