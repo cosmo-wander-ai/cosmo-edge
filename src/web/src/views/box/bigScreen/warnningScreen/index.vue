@@ -3,7 +3,7 @@
     <!-- 告警弹窗 -->
     <transition name="alert-slide">
       <div v-if="showAlert" class="alert-popup">
-        <div class="alert-top-title">{{ currentSocketData.algorithmName }}</div>
+        <div class="alert-top-title">{{ resolveResourceAlgorithmName(currentSocketData) }}</div>
         
         <div class="alert-body">
           <div class="alert-left">
@@ -192,7 +192,7 @@
                   </el-image>
                 </div>
                 <div class="event-info">
-                  <div>{{ t('event.eventType') }}{{ localeColon }}{{ event.algorithmName }}</div>
+                  <div>{{ t('event.eventType') }}{{ localeColon }}{{ resolveResourceAlgorithmName(event) }}</div>
                   <div>{{ t('event.channel') }}{{ localeColon }}{{ event.channelName }}</div>
                   <div>{{ t('event.alarmTime') }}{{ localeColon }}{{ dateFormat(event.timestamp) }}</div>
                 </div>
@@ -259,7 +259,8 @@ import moment from 'moment'
 import TreeSelect from '../components/TreeSelect.vue'
 import EventBus from '@/components/eventBus'
 import _ from 'lodash'
-import { t, localeColon } from '@/i18n'
+import { t, localeColon, currentLocale } from '@/i18n'
+import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
 
 const { proxy } = getCurrentInstance()
 const $API = proxy.$API
@@ -276,6 +277,7 @@ const currentTime = ref('')
 const screenType = ref(4)
 const alarmCount = ref(0)
 const eventList = ref([])
+const rawAlgorithmList = ref([])
 const cameraDrawerVisible = ref(false)
 const recordDrawerVisible = ref(true)
 const settingDialogVisible = ref(false)
@@ -655,6 +657,42 @@ const queryWarnRecord = () => {
   })
 }
 
+const updateAlgorithmInfoList = () => {
+  const algorithmList = rawAlgorithmList.value
+  const groupedByLabel = {}
+  algorithmList.forEach((item) => {
+    const categoryInfo = algorithmCategoryList.find(
+      (c) => c.value === String(item.algorithmCategory)
+    )
+    const groupLabel = categoryInfo ? t(categoryInfo.labelI18nKey) : t('event.categoryWithValue', { value: item.algorithmCategory })
+    if (!groupedByLabel[groupLabel]) {
+      groupedByLabel[groupLabel] = []
+    }
+    groupedByLabel[groupLabel].push(item)
+  })
+
+  const newAlgorithmList = Object.entries(groupedByLabel).map(
+    ([label, items]) => {
+      return {
+        label,
+        children: items.map((item) => ({
+          label: resolveResourceAlgorithmName(item),
+          id: item.algorithmId
+        }))
+      }
+    }
+  )
+  if (newAlgorithmList.length > 0) {
+    algorithmInfoList.value = [
+      {
+        labelI18nKey: 'common.all',
+        id: '',
+        children: newAlgorithmList
+      }
+    ]
+  }
+}
+
 const getAlgorithmInfo = () => {
   const params = {
     pageNum: 1,
@@ -662,41 +700,15 @@ const getAlgorithmInfo = () => {
   }
   $API.boxAllAlgorithmInfo(params).then((res) => {
     const { resData } = res
-    const algorithmList = resData.rows || []
-    // 按显示名分组（合并同名类别，如 category 2/3 都归入"检测/分析"）
-    const groupedByLabel = {}
-    algorithmList.forEach((item) => {
-      const categoryInfo = algorithmCategoryList.find(
-        (c) => c.value === String(item.algorithmCategory)
-      )
-      const groupLabel = categoryInfo ? t(categoryInfo.labelI18nKey) : t('event.categoryWithValue', { value: item.algorithmCategory })
-      if (!groupedByLabel[groupLabel]) {
-        groupedByLabel[groupLabel] = []
-      }
-      groupedByLabel[groupLabel].push(item)
-    })
-
-    const newAlgorithmList = Object.entries(groupedByLabel).map(
-      ([label, items]) => {
-        return {
-          label,
-          children: items.map((item) => ({
-            label: item.algorithmName,
-            id: item.algorithmId
-          }))
-        }
-      }
-    )
-    newAlgorithmList.length > 0 &&
-      (algorithmInfoList.value = [
-        {
-          labelI18nKey: 'common.all',
-          id: '',
-          children: newAlgorithmList
-        }
-      ])
+    rawAlgorithmList.value = resData.rows || []
+    updateAlgorithmInfoList()
   })
 }
+
+// 监听语言切换，更新搜索面板的过滤算法列表
+watch(currentLocale, () => {
+  updateAlgorithmInfoList()
+})
 
 const eventDetail = (event) => {
   if (showAlert.value) return

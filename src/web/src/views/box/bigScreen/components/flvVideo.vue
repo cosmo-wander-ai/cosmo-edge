@@ -12,7 +12,7 @@
         <div>
           <span>{{ t('event.algorithmOverlay') }}{{ localeColon }}</span>
           <el-select v-model="algorithmId" popper-class="custom-select-popper2" class="overlay-select" size="small" @change="overlayAlgorithmChange">
-            <el-option v-for="item in algorithmOverlayList" :label="item.algorithmName" :value="item.algorithmId" :key="item.algorithmId"></el-option>
+            <el-option v-for="item in algorithmOverlayList" :label="resolveResourceAlgorithmName(item)" :value="item.algorithmId" :key="item.algorithmId"></el-option>
           </el-select>
         </div>
         <div>
@@ -35,6 +35,7 @@ import { ref, nextTick, watch, onBeforeUnmount, onMounted, getCurrentInstance } 
 import flvjs from 'flv.js'
 import { createWhepPlayer } from '@/utils/whepPlayer'
 import { t, localeColon } from '@/i18n'
+import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
 
 const props = defineProps({
   channelId: String,
