@@ -15,8 +15,6 @@ vision-language-model, vlm, sophon, bm1688, real-time
 
 <img src="docs/assets/cosmoedge-logo.png" width="320" alt="CosmoEdge">
 
-# CosmoEdge
-
 **Production-grade C++ edge AI engine for video analytics, with visual pipeline orchestration and on-device VLM support**
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)](LICENSE)
