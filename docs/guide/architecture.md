@@ -112,5 +112,5 @@ src/web
 - `data/resource/aiboxresource`
 - `data/resource/aiboxresource_x86`
 
-模板中可见 YOLO、DINO、SAM2、Qwen3/Qwen3VL、keypoints、feature、classification 等类型。模型权重和资源是否公开分发，需要单独确认。
+支持的推理类型包括 YOLO、DINO、SAM2、Qwen3 / Qwen3VL、keypoints、feature 和 classification 等。
 
