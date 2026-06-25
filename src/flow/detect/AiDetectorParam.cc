@@ -262,10 +262,23 @@ void AiDetector::CheckAndActiveConfidece() {
             std::shared_lock<std::shared_mutex> lock(mtx);
             for (auto& channelTask : bindTasks) {
                 for (auto& task : channelTask.tasks) {
+                    // Per-task confidence with tracking coefficient (0.7) for ConfidenceFilter.
+                    // Tracking needs a lower threshold to keep candidates that might re-associate;
+                    // this lowered value is correct for per-task filtering but must NOT leak to
+                    // the detector's global SetThreshold.
                     auto taskConfidence = FoundLocalParamByTask(task);
                     LOG_INFO("{}[{} {}] BindTask {}/{}.", kTag, m_name, uuid, task.channel_id, task.task_id);
-                    shouldActiveParams.push_back(taskConfidence);
                     m_activeTaskConfidence.push_back(taskConfidence);
+
+                    // Global detector threshold: use raw user-configured values without the
+                    // tracking coefficient.  The 0.7× discount is a per-task tracking concern;
+                    // applying it to SetThreshold would silently lower the model's effective
+                    // detection threshold below what the user configured.
+                    auto it = std::find_if(m_params.param.begin(), m_params.param.end(),
+                                           [&task](const auto& lp) { return task.task_id == lp.taskId; });
+                    if (it != m_params.param.end()) {
+                        shouldActiveParams.push_back(*it);
+                    }
                 }
             }
         }
