@@ -253,7 +253,7 @@ Each domain typically has:
 The neural network layer uses an abstract device pattern:
 
 - `src/nn/core/` — Device-agnostic graph, blob, and node base classes.
-- `src/nn/device/sophon/` — Sophon BM1688 TPU backend (BMRT, SAIL).
+- `src/nn/device/sophon/` — Sophon BM1688 TPU backend (BMRT).
 - `src/nn/device/cpu/` — x86 ONNX Runtime backend.
 - `src/nn/device/naive/` — Fallback for in-memory compute.
 - `src/nn/pipeline/` — High-level pipelines: `detection`, `classify`, `feature`, `keypoints`, `advanced`.
@@ -303,7 +303,7 @@ Key third-party libraries (under `3rd/` and linked via CMake `ExternalProject`):
 | uWebSockets        | HTTP / WebSocket server          | Apache 2.0   |
 | Paho MQTT C        | MQTT client                      | EPL 2.0      |
 | ONNX Runtime       | x86 CPU inference                | MIT          |
-| Sophon BMRT / SAIL | aarch64 TPU inference            | Proprietary  |
+| Sophon BMRT        | aarch64 TPU inference            | Proprietary  |
 | FFmpeg             | Video decode / encode            | LGPL         |
 | OpenH264           | H.264 encode (CPU backend)       | BSD 2-Clause |
 | Catch2             | Test framework                   | Boost        |

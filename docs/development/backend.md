@@ -251,7 +251,7 @@ flow 层实现场景任务流水线中的可组合节点：
 神经网络层使用抽象设备模式：
 
 - `src/nn/core/` — 与设备无关的图、Blob 和 Node 基类。
-- `src/nn/device/sophon/` — Sophon BM1688 TPU 后端（BMRT、SAIL）。
+- `src/nn/device/sophon/` — Sophon BM1688 TPU 后端（BMRT）。
 - `src/nn/device/cpu/` — x86 ONNX Runtime 后端。
 - `src/nn/device/naive/` — 内存计算兜底实现。
 - `src/nn/pipeline/` — 高层流水线：`detection`、`classify`、`feature`、`keypoints`、`advanced`。
@@ -301,7 +301,7 @@ flow 层实现场景任务流水线中的可组合节点：
 | uWebSockets       | HTTP / WebSocket 服务器       | Apache 2.0    |
 | Paho MQTT C       | MQTT 客户端                   | EPL 2.0       |
 | ONNX Runtime      | x86 CPU 推理                  | MIT           |
-| Sophon BMRT / SAIL| aarch64 TPU 推理              | 专有          |
+| Sophon BMRT       | aarch64 TPU 推理              | 专有          |
 | FFmpeg            | 视频编解码                    | LGPL          |
 | OpenH264          | H.264 编码（CPU 后端）        | BSD 2-Clause  |
 | Catch2            | 测试框架                      | Boost         |
