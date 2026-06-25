@@ -18,6 +18,13 @@ const sanitizeSegment = (value) =>
 
 const zhFallbackTerms = [
   ['图片语言视觉大模型', 'Image-Language-Vision Foundation Model'],
+  ['图片分割大模型', 'Image-Segmentation Foundation Model'],
+  ['图片检测大模型', 'Image-Detection Foundation Model'],
+  ['图片检测分类任务', 'Image Detection & Classification Task'],
+  ['图片检测任务', 'Image Detection Task'],
+  ['视觉语言大模型', 'Vision-Language Foundation Model'],
+  ['人脸比对', 'Face Comparison'],
+  ['未穿工服', 'No Uniform'],
   ['人流量统计', 'Passenger Flow Statistics'],
   ['安全帽检测算法', 'Safety Helmet Detection Algorithm'],
   ['安全帽手机检测', 'Safety Helmet Phone Detection'],

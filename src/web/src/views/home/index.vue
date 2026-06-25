@@ -64,7 +64,7 @@
       >
         <div class="task-card-header">
           <div class="task-card-title-area">
-            <div class="task-card-name">{{ task.algorithmName || task.name }}</div>
+            <div class="task-card-name">{{ resolveResourceAlgorithmName(task) || task.name }}</div>
             <div class="task-card-meta">
               <span class="task-tag" :class="getTaskTypeClass(task)">{{ getTaskTypeLabel(task) }}</span>
             </div>
@@ -145,7 +145,7 @@
             <div class="event-title-row">
               <div class="event-title-wrap">
                 <span class="event-level" :class="evt.level || 'info'"></span>
-                <span class="event-content">{{ evt.content }}</span>
+                <span class="event-content">{{ resolveResourceAlgorithmName(evt) }}</span>
               </div>
               <span class="event-upload-status" :class="getReportStatusClass(evt)">
                 {{ getReportStatusText(evt) }}
@@ -155,7 +155,7 @@
               <span>{{ $t('home.channel') }}{{ localeColon }}{{ evt.channelName || '-' }}</span>
               <span>{{ $t('home.area') }}{{ localeColon }}{{ evt.areaName || '-' }}</span>
               <span>{{ $t('home.time') }}{{ localeColon }}{{ formatEventDateTime(evt.time) }}</span>
-              <span>{{ $t('home.source') }}{{ localeColon }}{{ evt.algorithmName || evt.content }}</span>
+              <span>{{ $t('home.source') }}{{ localeColon }}{{ resolveResourceAlgorithmName(evt) }}</span>
             </div>
             <div class="event-actions">
               <span class="event-level-badge" :class="evt.level || 'info'">{{ getLevelText(evt) }}</span>
@@ -186,6 +186,7 @@
 import { ref, onMounted, onBeforeUnmount, getCurrentInstance, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { t, localeColon, currentLocale } from '@/i18n'
+import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
 import DetailDialog from '../box/eventQuery/components/detailDialog.vue'
 import VideoFrequency from '../box/eventQuery/components/videoPlaying265.vue'
 
@@ -549,7 +550,7 @@ const openRunningView = (task) => {
     path: '/bigScreen/warnningScreen',
     query: {
       algorithmId: task.algorithmId || '',
-      algorithmName: task.algorithmName || task.name || ''
+      algorithmName: resolveResourceAlgorithmName(task) || task.name || ''
     }
   })
 }
@@ -586,7 +587,7 @@ const openEventDetail = (evt) => {
 const openEventVideo = (evt) => {
   if (!evt.video) return
   currentEvent.value = evt
-  videoTitle.value = `${evt.channelName || t('home.channel')}_${formatEventDateTime(evt.timestamp)}_${evt.algorithmName || t('home.liveEvents')}.mp4`
+  videoTitle.value = `${evt.channelName || t('home.channel')}_${formatEventDateTime(evt.timestamp)}_${resolveResourceAlgorithmName(evt) || t('home.liveEvents')}.mp4`
   videoDialogVisiable.value = true
 }
 

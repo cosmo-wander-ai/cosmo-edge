@@ -40,7 +40,7 @@
             <div>
               <div class="task_table" v-for="(item, index) in scope.row.taskList" :key="index">
                 <div class="analytical" @click="analyticalEngine(item)">
-                  <div class="task_text">{{ item.algorithmName }}</div>
+                  <div class="task_text">{{ resolveResourceAlgorithmName(item) }}</div>
                 </div>
                 <el-switch class="task-switch" v-model="item.enableStatus" active-color="#00f944" :active-value="1" :inactive-value="0" @change="taskEnableChange(item, scope.row.videoChannelId)"></el-switch>
                 <div class="rtspa" v-if="item.status == 1">
@@ -210,6 +210,7 @@ import {
   onUnmounted
 } from 'vue'
 import { t, localeColon, currentLocale } from '@/i18n'
+import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
 import TopBar from './components/algorithmTopBar.vue'
 import chanelDetailDialog from './components/chanelDetailDialog.vue'
 import defaultImage from '@/assets/CatchPhoto.png'

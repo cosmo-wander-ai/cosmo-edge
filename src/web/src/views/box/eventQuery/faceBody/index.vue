@@ -16,7 +16,11 @@
         @selection-change="handleSelectionChange">
         <el-table-column type="selection" min-width="55"></el-table-column>
         <el-table-column type="index" :index="getIndex" :label="t('field.no')" width="80"></el-table-column>
-        <el-table-column prop="algorithmName" :label="t('event.eventType')" min-width="110"></el-table-column>
+        <el-table-column :label="t('event.eventType')" min-width="110">
+          <template #default="{ row }">
+            {{ resolveResourceAlgorithmName(row) }}
+          </template>
+        </el-table-column>
         <el-table-column :label="t('event.captureImage')" min-width="115">
           <template #default="scope">
             <el-image

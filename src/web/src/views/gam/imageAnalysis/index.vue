@@ -14,7 +14,7 @@
           <el-option
             v-for="item in algorithmList"
             :key="item.algorithmId"
-            :label="item.algorithmName"
+            :label="resolveResourceAlgorithmName(item)"
             :value="item.algorithmId"
           />
         </el-select>
@@ -160,7 +160,7 @@
         </div>
         <div v-if="previewItem.result" class="preview-details">
           <el-descriptions :column="2" border size="small">
-            <el-descriptions-item :label="$t('field.algorithmName')">{{ previewItem.result.algorithmCode || selectedAlgorithmInfo?.algorithmName }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('field.algorithmName')">{{ previewItem.result.algorithmCode || resolveResourceAlgorithmName(selectedAlgorithmInfo) }}</el-descriptions-item>
             <el-descriptions-item :label="$t('imageAnalysis.detectionCount')">{{ getTargetCount(previewItem.result) }}</el-descriptions-item>
           </el-descriptions>
           <div v-if="getTargetCount(previewItem.result) > 0" class="preview-targets">
@@ -215,6 +215,7 @@ import { ref, computed, getCurrentInstance, nextTick, onUnmounted, onDeactivated
 import { t } from '@/i18n'
 import { ElMessage } from 'element-plus'
 import { Upload, VideoPlay, Delete } from '@element-plus/icons-vue'
+import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
 
 const { proxy } = getCurrentInstance()
 const $API = proxy.$API

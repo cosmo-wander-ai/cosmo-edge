@@ -23,7 +23,11 @@
             <el-image :src="row.detectedPicture" fit="scale-down" style="width: 60px; height: 60px;cursor: pointer;" @click="handleImageView([row.detectedPicture])" />
           </template>
         </el-table-column>
-        <el-table-column prop="algorithmName" :label="t('event.alarmType')" />
+        <el-table-column :label="t('event.alarmType')">
+          <template #default="{ row }">
+            {{ resolveResourceAlgorithmName(row) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="channelName" :label="t('field.channelName')" />
         <el-table-column prop="areaName" :label="t('event.areaName')" />
         <el-table-column :label="t('event.alarmTime')" min-width="130">
@@ -59,7 +63,7 @@
               <div class="grid-info">
                 <div class="info-item">
                   <span class="label">{{ t('event.alarmType') }}{{ localeColon }}</span>
-                  <span>{{ item.algorithmName }}</span>
+                  <span>{{ resolveResourceAlgorithmName(item) }}</span>
                 </div>
                 <div class="info-item">
                   <span class="label">{{ t('field.channelName') }}{{ localeColon }}</span>
