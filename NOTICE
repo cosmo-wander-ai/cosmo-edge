@@ -6,37 +6,168 @@ This product includes software developed by CosmoEdge Contributors.
 CosmoEdge is licensed under the Apache License, Version 2.0.
 See the LICENSE file in this repository for the full license text.
 
+
 Third-party software
 --------------------
 
-This repository may include third-party open-source software,
-vendored source code, build scripts, generated artifacts, frontend
-dependencies, documentation tooling, and optional runtime components.
-Third-party components remain subject to their own license terms.
+This product includes third-party open-source software, vendored source code,
+build scripts, prebuilt artifacts, and proprietary vendor components. Each
+third-party component remains subject to its own license terms. The applicable
+licenses and copyright notices are listed below, grouped by license type.
 
-Maintainers should complete the third-party license audit before a
-formal public release and expand this NOTICE file with required
-third-party attribution notices.
+Permissive licenses (MIT, BSD, Apache-2.0, zlib, BSL-1.0, public domain)
+.........................................................................
 
-Initial components identified for release review include, but are not
-limited to:
+  - Crypto++ 8.9.0
+      License: Boost Software License (compilation); individual files are in
+               the public domain.
+      Copyright (c) 1995-2019 by Wei Dai. All rights reserved.
+      Source: 3rd/cryptopp-CRYPTOPP_8_9_0/License.txt
 
-  - FFmpeg
-  - OpenH264
-  - OpenSSL
-  - curl
-  - Paho MQTT C
-  - SRS
-  - ONNX Runtime
-  - Sophon SDK/runtime components
-  - Vue/Vite/VitePress and frontend npm dependencies
+  - cryptopp-cmake 8.9.0
+      License: BSD 3-Clause License.
+      Copyright (c) 2018, The Authors. All rights reserved.
+      Source: 3rd/cryptopp-cmake-CRYPTOPP_8_9_0/LICENSE
+
+  - curl 8.17.0
+      License: curl license (MIT-style).
+      Copyright (c) 1996 - 2025, Daniel Stenberg, <daniel@haxx.se>, and
+      contributors.
+      Source: 3rd/curl-8.17.0/COPYING
+
+  - fmt 7.1.2
+      License: MIT License (with optional exception for object form).
+      Copyright (c) 2012 - present, Victor Zverovich.
+      Source: 3rd/fmt-7.1.2/LICENSE.rst
+
+  - glog
+      License: BSD 3-Clause License.
+      Copyright (c) 2008, Google Inc. All rights reserved.
+      Source: 3rd/glog/COPYING
+
+  - libevent 2.1.12
+      License: BSD 3-Clause License.
+      Copyright (c) 2000-2007 Niels Provos <provos@citi.umich.edu>.
+      Copyright (c) 2007-2012 Niels Provos and Nick Mathewson.
+      Source: 3rd/libevent-2.1.12-stable/LICENSE
+
+  - libuuid 1.0.3
+      License: Modified BSD License (BSD 3-Clause).
+      Source: 3rd/libuuid-1.0.3/COPYING
+
+  - libpcap (pcap headers)
+      License: BSD 3-Clause License.
+      Copyright (c) 1993, 1994, 1995, 1996, 1997 The Regents of the
+      University of California. All rights reserved.
+      Source: 3rd/pcap/include/pcap/pcap.h
+
+  - nlohmann/json 3.12.0
+      License: MIT License.
+      SPDX-FileCopyrightText: 2013 - 2025 Niels Lohmann <https://nlohmann.me>
+      Source: 3rd/include/nlohmann/json.hpp
+
+  - ONNX Runtime 1.26.0
+      License: MIT License.
+      Copyright (c) Microsoft Corporation.
+      Source: 3rd/onnxruntime-linux-x64-1.26.0/LICENSE
+
+  - OpenSSL 3.5.3
+      License: Apache License 2.0.
+      Source: 3rd/openssl-3.5.3/LICENSE.txt
+      Note: OpenSSL 3.x is itself licensed under Apache 2.0. The historical
+      OpenSSL-vs-Apache-2.0 license incompatibility does NOT apply to this
+      version.
+
+  - SRS (Simple Realtime Server) 6.0
+      License: MIT License.
+      Copyright (c) 2013-2025 The SRS Authors.
+      Source: 3rd/srs-6.0-r0/LICENSE
+
+  - SQLiteCpp 3.3.3
+      License: MIT License.
+      Copyright (c) 2012-2025 Sebastien Rombauts
+      (sebastien.rombauts@gmail.com).
+      Source: 3rd/SQLiteCpp-3.3.3/LICENSE.txt
+
+  - stb (single-file public-domain libraries)
+      License: Public domain / MIT. Use at your own risk; no warranty implied.
+      Source: 3rd/include/stb/
+
+  - tokenizers-cpp
+      License: Apache License 2.0.
+      Source: 3rd/tokenizers-cpp/LICENSE
+
+  - uSockets
+      License: Apache License 2.0.
+      Source: 3rd/uSockets/LICENSE
+
+  - uWebSockets
+      License: Apache License 2.0.
+      Source: 3rd/uWebSockets/LICENSE
+
+  - zlib 1.3.1
+      License: zlib License.
+      Copyright (C) 1995-2022 Jean-loup Gailly and Mark Adler.
+      Source: 3rd/zlib-1.3.1/LICENSE
+
+Weak copyleft licenses (MPL)
+............................
+
+These libraries are file-level weak-copyleft licensed. They are compatible
+with this Apache 2.0 combined work, but modifications to THEIR source files
+must remain under MPL (with the source disclosed). Modifications to other
+files of CosmoEdge are unaffected.
+
+  - Eigen 3.2.92
+      License: Mozilla Public License 2.0 (MPL-2.0).
+      Copyright (C) 2006-2015 Gael Guennebaud <gael.guennebaud@inria.fr>
+      and Benoit Jacob <jacob.benoit.1@gmail.com>, with additional
+      contributors per file.
+      License text: 3rd/eigen3-3.2.92/LICENSE.MPL2.0
+      Note: The vendored Eigen source tree did not ship a top-level license
+      file; the official MPL 2.0 text has been added at the path above to
+      satisfy the MPL source-accompaniment requirement.
+
+  - mp4v2 2.0.0
+      License: Mozilla Public License 1.1 (MPL-1.1).
+      Source: 3rd/mp4v2-2.0.0/COPYING
+      Note: MPL 1.1 predates MPL 2.0 and interacts with Apache 2.0 patent
+      terms differently than MPL 2.0. Modifications to mp4v2 source files
+      must remain under MPL 1.1 and have their source disclosed.
+
+Dual-licensed libraries
+.......................
+
+  - Paho MQTT C 1.3.15
+      License: Eclipse Public License 2.0 OR Eclipse Distribution License 1.0
+               (BSD 3-Clause).
+      Source: 3rd/paho.mqtt.c-1.3.15/LICENSE
+      Note: This distribution uses the project under its EDL 1.0
+      (BSD-3-Clause) branch, which is permissive and compatible with this
+      Apache 2.0 work. The EPL-2.0 branch is not the governing license for
+      this distribution.
+
+Proprietary vendor components
+.............................
+
+  - Sophon SDK / libsophon 0.4.11 (SOPHGO)
+      Provided by SOPHGO (Bitmain) as proprietary SDK headers and runtime
+      libraries (bmodel/bmrt/bmcv/etc.). CosmoEdge distributes these
+      components under the SOPHGO software distribution terms granted to the
+      project. The formal redistribution authorization text for this package
+      is to be appended here prior to the formal public release. Until then,
+      redistribution of the libsophon binaries is limited to parties covered
+      by the applicable SOPHGO distribution agreement.
+      Location: 3rd/libsophon-0.4.11/
+
 
 Codec and binary distribution notice
 ------------------------------------
 
-Public release builds should document whether GPL codec support is
-disabled or enabled. Enabling GPL codec components can change
-redistribution obligations.
+Public release builds must document whether GPL-licensed FFmpeg codec support
+is disabled or enabled. Enabling GPL codec components changes redistribution
+obligations (it can make the resulting FFmpeg build GPL-licensed).
 
-Prebuilt binaries, model packages, tokenizer resources, and sample
-media must be reviewed separately before publication.
+Prebuilt binaries, model packages, tokenizer resources, and sample media
+referenced by this repository are reviewed separately before publication, as
+they may carry additional license or export-control obligations.
