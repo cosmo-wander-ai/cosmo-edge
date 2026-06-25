@@ -117,11 +117,3 @@ web/staticfile/mqttInterface.html
 | --- | --- |
 | `type = 0` | `/staticfile/httpInterface.html` |
 | `type = 1` | `/staticfile/mqttInterface.html` |
-
-## English
-
-This page summarizes the API entry points that can be verified from the current source tree. For field-level details, continue with [API Fields](api-fields.md), [MQTT Reference](mqtt.md), and [HTTP Webhook Reference](webhook.md).
-
-The main management APIs use `/gtw/cwai/...`. Core AI Host APIs use `/v1/cwai/aihost/...` and selected compatibility routes under `/gtw/cwai/aihost/...`.
-
-Most management responses inherit `MsgSendHead`: `resCode = 1` means success and `resCode = 0` means failure. Business payloads are usually returned under `resData`.

@@ -176,9 +176,3 @@ HTTP webhook 和部分内部事件消息使用 `CMsgOnEventsReq` 语义：
 | `mqttPort` | number | `1883` | IoT 网络模式下 MQTT 端口 |
 | `httpUrl` | string | 空 | IoT 网络模式下 HTTP 地址 |
 | `status` | boolean | `true` | 当前 MQTT 是否启用，查询结果字段 |
-
-## English
-
-This page lists field-level details that can be verified from the current DTOs. It focuses on common responses, event queries, event records, HTTP push settings, MQTT settings, and IoT network mode settings.
-
-Field names intentionally follow the current implementation, including legacy names such as `categorys`, `orignalPicture`, and `switch`.

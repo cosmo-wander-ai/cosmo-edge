@@ -133,9 +133,3 @@ web/staticfile/httpInterface.html
 ```
 
 该 HTML 可作为历史接口对照，但开源文档应优先以当前 DTO 和 Markdown 参考为准。
-
-## English
-
-HTTP webhook delivery is configured through `QueryHttpInterfaceParam` and `SetHttpInterfaceParam`. The event payload follows the current event DTOs and contains device, task, channel, algorithm, media, record, category, and algorithm-specific `property` fields.
-
-Receivers should implement idempotency with `messageId` or `recordId`, tolerate optional fields, and fetch media URLs asynchronously.
