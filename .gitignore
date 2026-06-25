@@ -3,6 +3,7 @@
 .vscode
 .agent
 .antigravitycli
+.claude
 CLAUDE.md
 build
 build_linux
