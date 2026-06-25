@@ -162,7 +162,7 @@ import TopBar from '@/components/TopBar.vue'
 import moment from 'moment'
 import videoFrequency from '../components/videoPlaying265.vue'
 import CarDetailDialog from '../components/carDetailDialog.vue'
-import { t } from '@/i18n'
+import { t, currentLocale } from '@/i18n'
 
 const { proxy } = getCurrentInstance()
 
@@ -405,7 +405,8 @@ const handleExport = () => {
     propRelatedColor: formData.propRelatedColor,
     propType: formData.propType,
     propDirection: formData.propDirection,
-    reportStatus: formData.reportStatus === '' ? undefined : formData.reportStatus
+    reportStatus: formData.reportStatus === '' ? undefined : formData.reportStatus,
+    language: currentLocale.value
   }
   proxy.$API.boxExportAlarm(params).then(async (res) => {
     const { resData } = res

@@ -362,7 +362,8 @@ const handleExport = () => {
     categorys: ['2', '3'],
     videoChannelName: formData.videoChannelName || undefined,
     reportStatus:
-      formData.reportStatus === '' ? undefined : formData.reportStatus
+      formData.reportStatus === '' ? undefined : formData.reportStatus,
+    language: currentLocale.value
   }
   proxy.$API.boxExportAlarm(params).then(async (res) => {
     const { resData } = res

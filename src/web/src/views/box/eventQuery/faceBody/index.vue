@@ -424,15 +424,14 @@ const handleExport = () => {
     timeEnd: moment(formData.times[1]).valueOf(),
     pageNum: 1,
     pageSize: 0,
-    algorithmCodes: formData.algorithmCode
-      ? [formData.algorithmCode]
-      : [],
+    algorithmCodes: formData.algorithmCode ? [formData.algorithmCode] : [],
     categorys: ['1'],
     videoChannelName: formData.videoChannelName,
     reportStatus: formData.reportStatus || null,
     personName: formData.personName,
     personCode: formData.personCode,
-    matchLibName: formData.matchLibName
+    matchLibName: formData.matchLibName,
+    language: currentLocale.value
   }
   proxy.$API.boxExportAlarm(params).then(async (res) => {
     const { resData } = res

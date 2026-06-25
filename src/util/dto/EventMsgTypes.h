@@ -34,6 +34,7 @@ struct MsgConditionEvent : public MsgConditionPage, public MsgConditionDuration 
     std::string propType;          // Target attribute type      used for vehicle type
     std::string propDirection;     // Target attribute direction used for vehicle direction
     int reportStatus{-1};
+    std::string language;
 };
 
 void to_json(nlohmann::json& j, const MsgConditionEvent& v);

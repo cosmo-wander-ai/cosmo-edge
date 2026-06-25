@@ -213,18 +213,18 @@ const parameterData = ref({})
 const parameterVisible = ref(false)
 const arithmeticShow = ref(true)
 const algorithmName = ref('')
-const runTypeOptions = [
+const runTypeOptions = computed(() => [
   { label: t('glossary.realtime'), value: 0 },
   { label: t('glossary.polling'), value: 1 }
-]
-const algorithmCategoryOptions = [
+])
+const algorithmCategoryOptions = computed(() => [
   { label: t('glossary.faceAndBody'), value: '1' },
   { label: t('glossary.detection'), value: '2' },
   { label: t('glossary.detection'), value: '3' },
   { label: t('glossary.countingAnalytics'), value: '8' },
   { label: t('glossary.countingAnalytics'), value: '9' },
   { label: t('glossary.countingAnalytics'), value: '11' }
-]
+])
 const warningVisible = ref(false)
 const warningContent = ref(t('validate.addDetectionAreaFirst'))
 
@@ -438,7 +438,7 @@ const getServeTypes = () => {
 
     rows.forEach((alg) => {
       const catValue = String(alg.algorithmCategory || '0')
-      const catOption = algorithmCategoryOptions.find(opt => opt.value === catValue)
+      const catOption = algorithmCategoryOptions.value.find(opt => opt.value === catValue)
       const catLabel = catOption ? catOption.label : t('glossary.other')
 
       if (!groupMap[catLabel]) {

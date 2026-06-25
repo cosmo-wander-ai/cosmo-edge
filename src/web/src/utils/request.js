@@ -39,6 +39,7 @@ service.interceptors.request.use(config => {
   config.headers.token = localStorage.getItem('mtk')
   config.headers.fileMode = 1 //告知后端返回相对路径
   config.headers.lang = currentLocale.value.replace('-', '_')
+  config.headers['Accept-Language'] = currentLocale.value
   if (longTimeoutApi.includes(config.url)) {
     config.timeout = 1000 * 60 * 10  // 
   }

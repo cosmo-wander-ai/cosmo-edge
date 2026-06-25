@@ -49,7 +49,7 @@ Event::MsgExportAlarmSend MessageEventHandler::Handle(Event::MsgExportAlarmRecv&
 
     // Delegate CSV generation to service layer.
     auto host_ip  = network_config_.GetHostIpAddress();
-    auto file_url = ExportAlarmRecordsToCsv(records, export_type, host_ip, algorithm_query_);
+    auto file_url = ExportAlarmRecordsToCsv(records, export_type, host_ip, algorithm_query_, data.language);
 
     Event::MsgExportAlarmSend retData{};
     if (file_url.empty()) {

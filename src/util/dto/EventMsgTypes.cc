@@ -23,6 +23,7 @@ void to_json(nlohmann::json& j, const MsgConditionEvent& v) {
     j["propRelatedColor"] = v.propRelatedColor;
     j["propType"]         = v.propType;
     j["propDirection"]    = v.propDirection;
+    j["language"]         = v.language;
 }
 
 void from_json(const nlohmann::json& j, MsgConditionEvent& v) {
@@ -39,6 +40,7 @@ void from_json(const nlohmann::json& j, MsgConditionEvent& v) {
     JSON_OPT(j, v, propRelatedColor);
     JSON_OPT(j, v, propType);
     JSON_OPT(j, v, propDirection);
+    JSON_OPT(j, v, language);
 }
 
 void to_json(nlohmann::json& j, const MsgConditionLib& v) {

@@ -36,18 +36,28 @@ ExportType CategoryToExportType(const std::string& category) {
 
 // ── CSV header ──────────────────────────────────────────────────────
 
-std::ostream& WriteExportCsvHeader(std::ostream& os, ExportType type, bool /*isCapOrigId*/) {
+std::ostream& WriteExportCsvHeader(std::ostream& os, ExportType type, bool is_en, bool /*isCapOrigId*/) {
     unsigned char utf8_bom[] = {0xEF, 0xBB, 0xBF, 0};
     os << utf8_bom;
 
     switch (type) {
         case ExportType::Behavior:
-            os << "\"序号\",";
-            os << "\"全景照\",\"告警类型\",\"通道名称\",\"区域名称\",\"告警时间\",\"状态\"\n";
+            if (is_en) {
+                os << "\"No.\",";
+                os << "\"Full Image\",\"Alarm Type\",\"Channel Name\",\"Area Name\",\"Alarm Time\",\"Status\"\n";
+            } else {
+                os << "\"序号\",";
+                os << "\"全景照\",\"告警类型\",\"通道名称\",\"区域名称\",\"告警时间\",\"状态\"\n";
+            }
             break;
         case ExportType::Recognize:
-            os << "\"序号\",\"事件类型\",\"人脸抓拍照\",\"人脸底库照\",\"全景照\",\"所属脸库\",\"相似度\","
-                  "\"人员姓名\",\"人员编号\",\"通道名称\",\"抓拍时间\",\"状态\"\n";
+            if (is_en) {
+                os << "\"No.\",\"Event Type\",\"Face Capture\",\"Face Base Image\",\"Full Image\",\"Face Library\",\"Similarity\","
+                      "\"Name\",\"ID\",\"Channel Name\",\"Capture Time\",\"Status\"\n";
+            } else {
+                os << "\"序号\",\"事件类型\",\"人脸抓拍照\",\"人脸底库照\",\"全景照\",\"所属脸库\",\"相似度\","
+                      "\"人员姓名\",\"人员编号\",\"通道名称\",\"抓拍时间\",\"状态\"\n";
+            }
             break;
         default:
             break;
@@ -84,7 +94,10 @@ namespace {
     constexpr const char* kReportedText   = "已上传";
     constexpr const char* kUnreportedText = "未上传";
 
-    const char* ReportStatusText(int status) {
+    const char* ReportStatusText(int status, bool is_en) {
+        if (is_en) {
+            return status ? "Uploaded" : "Not Uploaded";
+        }
         return status ? kReportedText : kUnreportedText;
     }
 
@@ -96,7 +109,7 @@ namespace {
 }  // namespace
 
 void WriteCsvRowRecognize(std::ostream& os, const MsgEventUnit& el, const std::string& http_dir, size_t index,
-                          service::IAlgorithmQuery& alg_query) {
+                          service::IAlgorithmQuery& alg_query, bool is_en) {
     CMsgOnEventsProperty para;
     para.type = OnEventsPropertyType::Face;
     if (!el.property.empty()) {
@@ -120,27 +133,27 @@ void WriteCsvRowRecognize(std::ostream& os, const MsgEventUnit& el, const std::s
     }
 
     os << "\t\",\"" << para.recognition.matchName << "\t\",\"" << para.recognition.personCode << "\t\",\""
-       << el.channelName << "\t\",\"" << time_string << "\t\",\"" << ReportStatusText(el.reportStatus)
+       << el.channelName << "\t\",\"" << time_string << "\t\",\"" << ReportStatusText(el.reportStatus, is_en)
        << "\t\",\""
        << "\t\"\n";
 }
 
 void WriteCsvRowBehavior(std::ostream& os, const MsgEventUnit& el, const std::string& http_dir, size_t index,
-                         service::IAlgorithmQuery& alg_query) {
+                         service::IAlgorithmQuery& alg_query, bool is_en) {
     auto time_string = FormatTimestamp(el.timestamp);
     auto full_pic    = el.fullPicture.empty() ? "" : (http_dir + el.fullPicture);
     auto alg_name    = alg_query.GetAlgorithmName(el.algorithmCode);
 
     os << "\"" << index << "\t\",\"" << full_pic << "\t\",\"" << alg_name << "\t\",\"" << el.channelName
        << "\t\",\"" << el.areaName << "\t\",\"" << time_string << "\t\",\""
-       << ReportStatusText(el.reportStatus) << "\t\",\""
+       << ReportStatusText(el.reportStatus, is_en) << "\t\",\""
        << "\t\"\n";
 }
 
 // ── Full CSV export orchestration ───────────────────────────────────
 
 std::string ExportAlarmRecordsToCsv(const std::vector<MsgEventUnit>& records, ExportType export_type,
-                                    const std::string& host_ip, service::IAlgorithmQuery& alg_query) {
+                                    const std::string& host_ip, service::IAlgorithmQuery& alg_query, const std::string& language) {
     auto date = util::DateTime(util::GetMilliseconds() / 1000);
     auto csv_name =
         date.Date().ToYMD() + "_" + date.Time().ToHMS() + "_" + util::GenerateUUID().substr(0, 4) + ".csv";
@@ -156,7 +169,8 @@ std::string ExportAlarmRecordsToCsv(const std::vector<MsgEventUnit>& records, Ex
         return {};
     }
 
-    WriteExportCsvHeader(out_file, export_type);
+    bool is_en = (language == "en-US" || language == "en_US");
+    WriteExportCsvHeader(out_file, export_type, is_en);
     std::string http_dir = "http://" + host_ip;
 
     if (records.empty()) {
@@ -167,9 +181,9 @@ std::string ExportAlarmRecordsToCsv(const std::vector<MsgEventUnit>& records, Ex
     for (const auto& el : records) {
         ++index;
         if (ExportType::Recognize == export_type) {
-            WriteCsvRowRecognize(out_file, el, http_dir, index, alg_query);
+            WriteCsvRowRecognize(out_file, el, http_dir, index, alg_query, is_en);
         } else if (ExportType::Behavior == export_type) {
-            WriteCsvRowBehavior(out_file, el, http_dir, index, alg_query);
+            WriteCsvRowBehavior(out_file, el, http_dir, index, alg_query, is_en);
         }
     }
 
