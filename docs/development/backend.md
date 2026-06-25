@@ -184,7 +184,7 @@ bash scripts/build_cpu_test.sh
 
 ## 代码风格
 
-项目遵循 [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html) 并适配 C++17。完整规范见 [`CODING_STYLE.md`](../../CODING_STYLE.md)。核心约定速查：
+项目遵循 [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html) 并适配 C++17。完整规范见仓库根目录的 `CODING_STYLE.md`。核心约定速查：
 
 | 类别           | 约定                                    | 示例                          |
 | -------------- | --------------------------------------- | ----------------------------- |

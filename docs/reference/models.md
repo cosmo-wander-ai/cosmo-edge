@@ -30,15 +30,17 @@ next:
 data/resource/*/model_template
 ```
 
-当前可见模板包括：
+当前模板文件（两个资源目录内容一致，共 13 个）：
 
-- YOLO 检测类模板
-- YOLO 分类类模板
-- DINO
-- SAM2
-- feature
-- keypoints
-- Qwen3 / Qwen3VL
+- 检测：`yolov5_det`、`yolov8_det`、`yolov9_det`、`yolov11_det`、`yolov12_det`、`yolo26_det`
+- 分类：`classify`（基于 YOLOv8 的分类模板）
+- 关键点：`keypoints`
+- 特征：`feature`
+- 分割：`sam2`
+- 目标定位：`dino`
+- 视觉语言模型：`qwen3vl`、`qwen3_5`
+
+> 完整清单以 `data/resource/aiboxresource/model_template/` 与 `data/resource/aiboxresource_x86/model_template/` 目录下的实际文件为准。
 
 ## 布局和组件
 

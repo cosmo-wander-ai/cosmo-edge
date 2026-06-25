@@ -83,7 +83,7 @@ Windows PowerShell：
 已确认行为：
 
 - 默认基础镜像为 `stream_dev:0.2`。
-- 使用 `scripts/build.sh -t -m data/resource/aiboxresource` 构建。
+- 使用 `scripts/build.sh -m data/resource/aiboxresource` 构建（生产包不启用 dev mode，故不传 `-t`）。
 - 只导出发布包，不启动服务。
 - 发布包导出到 `build_output/`。
 

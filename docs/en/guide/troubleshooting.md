@@ -1,6 +1,6 @@
 ---
 title: Troubleshooting
-description: Common runtime, build, port, package, and documentation-site issues.
+description: Common build, runtime, port, Sophon image, log, and documentation-site issues.
 prev:
   text: Runtime Configuration
   link: /en/guide/configuration
@@ -11,39 +11,146 @@ next:
 
 # Troubleshooting
 
+This page collects the most common build and runtime issues for the current project.
+
 ## Web Console Cannot Open
 
-Check whether nginx and the backend process are running, and whether the configured HTTP port is listening.
+Confirm that you are using host port `8080`:
 
-```bash
-ps aux | grep -E 'nginx|cosmo-engine|srs'
+```text
+http://127.0.0.1:8080
 ```
+
+Check container status:
+
+- **Linux**:
+  ```bash
+  docker compose -f docker-compose.x86.yml ps
+  ```
+- **Windows (PowerShell/CMD)**:
+  ```powershell
+  docker compose -f docker-compose.x86.windows.yml ps
+  ```
+
+View logs:
+
+- **Linux**:
+  ```bash
+  docker compose -f docker-compose.x86.yml logs -f
+  ```
+- **Windows (PowerShell/CMD)**:
+  ```powershell
+  docker compose -f docker-compose.x86.windows.yml logs -f
+  ```
 
 ## Port Conflicts
 
-If startup fails, verify that runtime ports are not already used by another process. Update deployment configuration and restart the services.
+The x86 Compose file publishes:
 
-## No Release Package Generated
+- `8080`
+- `1936`
+- `1985`
+- `18088`
+- `8000/udp`
 
-If the expected package directory is missing, confirm that the packaging script completed successfully and that required SDK/resource paths exist.
+If a port is occupied, you can modify the host port in `docker-compose.x86.yml` (or `docker-compose.x86.windows.yml` on Windows), or stop the service that occupies the port.
+
+## No Release Package in `build_output/`
+
+Use the full run command:
+
+- **Linux**:
+  ```bash
+  docker compose -f docker-compose.x86.yml up -d --build
+  ```
+- **Windows (PowerShell/CMD)**:
+  ```powershell
+  docker compose -f docker-compose.x86.windows.yml up -d --build
+  ```
+
+For the Sophon path, use:
+
+```bash
+docker compose -f docker-compose.sophon.yml up --build
+```
+
+Note: `docker compose build` only builds the image and does not necessarily execute the container command that exports the release package.
 
 ## Sophon Base Image Missing
 
-If a Sophon build references a private or unavailable image, replace it with a public base image or document the required private setup outside the open-source repository.
+Prefer the helper script:
 
-## Restricted Backend Mode
+```bash
+bash scripts/build_sophon_package.sh
+```
 
-If the backend starts with limited capabilities, check device validation, model guard availability, resource paths, and license-sensitive prebuilt files.
+If you have already manually downloaded the image tar:
 
-## Documentation Build Fails
+```bash
+SOPHON_STREAM_DEV_TAR=/path/to/stream_dev_22.04.tar bash scripts/build_sophon_package.sh
+```
+
+If the `dfss` download fails, check the network, or manually run:
+
+```bash
+docker load -i /path/to/stream_dev_22.04.tar
+```
+
+Then re-run the build script.
+
+## nginx / SRS / cosmo-engine Not Started
+
+Run the script:
+
+```text
+${INSTALLPATH}/scripts/run_start.sh
+```
+
+The startup sequence includes:
+
+1. Stop existing processes.
+2. Start nginx.
+3. Start SRS.
+4. Start `cosmo-engine`.
+
+Check the logs:
+
+```text
+/data/cwaiuserdata/log/logs
+```
+
+## Documentation Site Build Fails
+
+First install dependencies:
 
 ```bash
 npm ci
+```
+
+Then build:
+
+```bash
 npm run docs:build
 ```
 
-If PowerShell blocks `npm.ps1` on Windows, use:
+In Windows PowerShell, if you encounter an `npm.ps1` execution-policy issue, you can use:
 
 ```powershell
 npm.cmd run docs:build
 ```
+
+## `vitepress` Not Found
+
+This means the documentation-site dependencies have not been installed:
+
+```bash
+npm ci
+```
+
+## npm Audit Reports Vulnerabilities
+
+The current documentation-site dependencies may trigger npm audit warnings. Do not blindly upgrade dependencies; before upgrading, confirm that VitePress, the theme configuration, and the GitHub Pages workflow still build successfully.
+
+## Windows Native CPU Build
+
+There is currently no confirmed-working Windows native CPU build script in this repository. Do not present old scripts or old commands as a publicly supported path.
