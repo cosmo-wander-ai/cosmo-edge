@@ -30,3 +30,22 @@ TEST_CASE("FileServiceImpl: double destruction is safe", "[FileService]") {
         // destructor calls Shutdown — verify no crash on double destroy
     }());
 }
+
+TEST_CASE("FileServiceImpl: GetFileUrl for different types", "[FileService]") {
+    FileServiceImpl sut;
+
+    SECTION("Image type returns empty when not initialized") {
+        REQUIRE(sut.GetFileUrl(FileType::Image).empty());
+    }
+
+    SECTION("Video type returns empty when not initialized") {
+        REQUIRE(sut.GetFileUrl(FileType::Video).empty());
+    }
+}
+
+TEST_CASE("FileServiceImpl: multiple instances do not interfere", "[FileService]") {
+    REQUIRE_NOTHROW([]() {
+        FileServiceImpl sut1;
+        FileServiceImpl sut2;
+    }());
+}

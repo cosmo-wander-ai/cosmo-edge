@@ -1,9 +1,24 @@
+#include <atomic>
 #include <thread>
 
 #include "catch_amalgamated.hpp"
 #include "service/event/impl/EventNotifierImpl.h"
 
 using namespace cosmo::service;
+
+TEST_CASE("EventNotifierImpl: construction and destruction", "[EventNotifier]") {
+    REQUIRE_NOTHROW([]() { EventNotifierImpl notifier; }());
+}
+
+TEST_CASE("EventNotifierImpl: SetEventPostQue and push without processor", "[EventNotifier]") {
+    EventNotifierImpl notifier;
+    cosmo::AsyncQueue<cosmo::CMsgOnEventsReq> eventQue("test_no_proc", 100);
+    notifier.SetEventPostQue(eventQue);
+
+    // Push without processor — should not crash
+    cosmo::CMsgOnEventsReq req;
+    REQUIRE_NOTHROW(notifier.EventPush(req));
+}
 
 TEST_CASE("EventNotifierImpl: WebSocket and Events", "[EventNotifier]") {
     EventNotifierImpl notifier;

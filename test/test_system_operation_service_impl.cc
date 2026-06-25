@@ -54,3 +54,27 @@ TEST_CASE("PacketUpgrade accepts cosmo tar.gz package names", "[system][upgrade]
     result = cosmo::UpgradeFileNameCheck("cosmo-V1.1.0-52d08574819464a735d4b0a90f26c924.mpkt", md5sum);
     REQUIRE(result == cosmo::util::ErrorEnum::UpgradeFileVerifyFailed);
 }
+
+TEST_CASE("PacketUpgrade rejects empty filename", "[system][upgrade]") {
+    std::string md5sum;
+    auto result = cosmo::UpgradeFileNameCheck("", md5sum);
+    REQUIRE(result != cosmo::util::ErrorEnum::Success);
+}
+
+TEST_CASE("PacketUpgrade rejects random filename", "[system][upgrade]") {
+    std::string md5sum;
+    auto result = cosmo::UpgradeFileNameCheck("random.txt", md5sum);
+    REQUIRE(result != cosmo::util::ErrorEnum::Success);
+}
+
+TEST_CASE("PacketUpgrade rejects missing md5", "[system][upgrade]") {
+    std::string md5sum;
+    auto result = cosmo::UpgradeFileNameCheck("cosmo-V1.0.0.tar.gz", md5sum);
+    REQUIRE(result != cosmo::util::ErrorEnum::Success);
+}
+
+TEST_CASE("SystemOperationServiceImpl: ShowThreadDebugInfo does not crash", "[system][service]") {
+    cosmo::test::MockServiceRegistry mocks;
+    cosmo::service::SystemOperationServiceImpl sysOpSvc;
+    REQUIRE_NOTHROW(sysOpSvc.ShowThreadDebugInfo());
+}

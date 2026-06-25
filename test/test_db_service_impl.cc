@@ -7,8 +7,10 @@
  */
 #include <SQLiteCpp/SQLiteCpp.h>
 
+#include <atomic>
 #include <filesystem>
 #include <memory>
+#include <thread>
 
 #include "service/infra/impl/DbServiceImpl.h"
 #include "test_mock_services.h"
@@ -46,6 +48,53 @@ TEST_CASE("DbServiceImpl: construction creates DB and GetDb returns valid ptr", 
         REQUIRE_NOTHROW(db->exec("CREATE TABLE IF NOT EXISTS test_tbl (id INTEGER PRIMARY KEY, val TEXT)"));
         REQUIRE_NOTHROW(db->exec("INSERT INTO test_tbl (val) VALUES ('hello')"));
     }
+
+    std::filesystem::remove_all(testDir);
+}
+
+TEST_CASE("DbServiceImpl: concurrent GetDb access", "[DbService]") {
+    std::string testDir =
+        "/tmp/cosmo_db_test_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+    std::filesystem::create_directories(testDir);
+
+    cosmo::test::MockServiceRegistry mocks;
+    cosmo::path::OverrideRootPathForTest(testDir, testDir);
+
+    DbServiceImpl sut;
+
+    std::vector<std::thread> threads;
+    std::atomic<int> successCount{0};
+
+    for (int i = 0; i < 4; ++i) {
+        threads.emplace_back([&]() {
+            auto db = sut.GetDb();
+            if (db != nullptr) {
+                successCount.fetch_add(1);
+            }
+        });
+    }
+
+    for (auto& t : threads) {
+        t.join();
+    }
+
+    REQUIRE(successCount.load() == 4);
+    std::filesystem::remove_all(testDir);
+}
+
+TEST_CASE("DbServiceImpl: Init creates required directories", "[DbService]") {
+    std::string testDir =
+        "/tmp/cosmo_db_test_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+    std::filesystem::create_directories(testDir);
+
+    cosmo::test::MockServiceRegistry mocks;
+    cosmo::path::OverrideRootPathForTest(testDir, testDir);
+
+    DbServiceImpl sut;
+    sut.Init();
+
+    auto dbPath = cosmo::path::GetDbPath();
+    REQUIRE(std::filesystem::exists(dbPath));
 
     std::filesystem::remove_all(testDir);
 }

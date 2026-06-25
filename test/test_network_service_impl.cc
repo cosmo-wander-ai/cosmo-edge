@@ -62,3 +62,60 @@ TEST_CASE("NetworkServiceImpl: network config and core dependency test", "[netwo
     std::filesystem::current_path(oldPath);
     std::filesystem::remove_all(testBaseDir);
 }
+
+TEST_CASE("NetworkServiceImpl: HttpInit and Stop lifecycle", "[network-service]") {
+    std::string testBaseDir =
+        "/tmp/cosmo_test_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+    std::filesystem::create_directories(testBaseDir);
+
+    auto oldPath = std::filesystem::current_path();
+    std::filesystem::current_path(testBaseDir);
+
+    cosmo::test::MockServiceRegistry mocks;
+    cosmo::path::OverrideRootPathForTest(testBaseDir, testBaseDir);
+
+    NetworkServiceImpl sut([]() { return std::make_unique<StubDispatcher>(); },
+                           []() { return std::make_unique<StubDispatcher>(); });
+
+    SECTION("StopHttpServer without Init is safe") {
+        REQUIRE_NOTHROW(sut.StopHttpServer());
+    }
+
+    SECTION("Double StopHttpServer is safe") {
+        REQUIRE_NOTHROW(sut.StopHttpServer());
+        REQUIRE_NOTHROW(sut.StopHttpServer());
+    }
+
+    std::filesystem::current_path(oldPath);
+    std::filesystem::remove_all(testBaseDir);
+}
+
+TEST_CASE("NetworkServiceImpl: IsMqttRegistered and IsMqttEnabled initial state", "[network-service]") {
+    std::string testBaseDir =
+        "/tmp/cosmo_test_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+    std::filesystem::create_directories(testBaseDir);
+
+    auto oldPath = std::filesystem::current_path();
+    std::filesystem::current_path(testBaseDir);
+
+    cosmo::test::MockServiceRegistry mocks;
+    cosmo::path::OverrideRootPathForTest(testBaseDir, testBaseDir);
+
+    NetworkServiceImpl sut([]() { return std::make_unique<StubDispatcher>(); },
+                           []() { return std::make_unique<StubDispatcher>(); });
+
+    SECTION("IsMqttRegistered returns false before start") {
+        REQUIRE(sut.IsMqttRegistered() == false);
+    }
+
+    SECTION("IsMqttEnabled returns false before start") {
+        REQUIRE(sut.IsMqttEnabled() == false);
+    }
+
+    SECTION("MqttStop before MqttStart is safe") {
+        REQUIRE_NOTHROW(sut.MqttStop());
+    }
+
+    std::filesystem::current_path(oldPath);
+    std::filesystem::remove_all(testBaseDir);
+}
