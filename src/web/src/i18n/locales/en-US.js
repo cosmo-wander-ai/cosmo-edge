@@ -81,7 +81,8 @@ export default {
     importModel: 'Import Model',
     batchUpdate: 'Batch Update',
     editModel: 'Edit Model',
-    configure: 'Config'
+    configure: 'Config',
+    resetOnboarding: 'Reset Guide'
   },
   short: {
     action: {
@@ -1466,6 +1467,8 @@ export default {
     step16Desc: 'Find the "Hardhat Detection Demo" channel and double-click to start playback. Click "Continue" when done.',
     step16Tip: 'Double-click the channel name to open',
     step17Title: 'Enable Algorithm Overlay',
-    step17Desc: 'In the video control bar at the top, click the "Algorithm Overlay" dropdown and select the hardhat detection algorithm. Click "Finish Tour" when done.'
+    step17Desc: 'In the video control bar at the top, click the "Algorithm Overlay" dropdown and select the hardhat detection algorithm. Click "Finish Tour" when done.',
+    resetSucceeded: 'Guide has been reset. Refresh the page to restart.',
+    resetFailed: 'Reset failed. Please try again later.'
   },
 }

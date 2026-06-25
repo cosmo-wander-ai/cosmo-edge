@@ -19,6 +19,7 @@ public:
     Onboarding::MsgStatusSend Handle(Onboarding::MsgStatusRecv&& data, std::error_condition& errc);
     Onboarding::MsgCompleteSend Handle(Onboarding::MsgCompleteRecv&& data,
                                         std::error_condition& errc);
+    Onboarding::MsgResetSend Handle(Onboarding::MsgResetRecv&& data, std::error_condition& errc);
 
 private:
     service::IOnboardingService& onboarding_service_;

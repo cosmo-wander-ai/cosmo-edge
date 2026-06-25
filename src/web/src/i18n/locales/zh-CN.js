@@ -81,7 +81,8 @@ export default {
     importModel: '导入模型',
     batchUpdate: '批量更新',
     editModel: '修改模型',
-    configure: '配置'
+    configure: '配置',
+    resetOnboarding: '重置引导'
   },
   short: {
     action: {
@@ -1466,6 +1467,8 @@ export default {
     step16Desc: '在通道列表中找到"安全帽检测演示"通道，双击打开视频预览。完成后点击"继续"。',
     step16Tip: '需要双击通道名称才能打开',
     step17Title: '开启算法叠加',
-    step17Desc: '在视频窗口顶部控制栏中，点击"算法叠加"下拉框，选择安全帽检测算法。选择完成后点击"完成引导"。'
+    step17Desc: '在视频窗口顶部控制栏中，点击"算法叠加"下拉框，选择安全帽检测算法。选择完成后点击"完成引导"。',
+    resetSucceeded: '引导已重置，刷新页面后可重新体验',
+    resetFailed: '重置失败，请稍后重试'
   },
 }

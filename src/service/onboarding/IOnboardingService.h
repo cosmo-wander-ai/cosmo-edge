@@ -19,6 +19,9 @@ public:
     /// Mark onboarding as completed and persist the state so it survives
     /// device reboots.
     virtual void CompleteOnboarding() = 0;
+
+    /// Reset onboarding state so the wizard runs again on next login.
+    virtual void Reset() = 0;
 };
 
 }  // namespace cosmo::service

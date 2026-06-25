@@ -31,5 +31,14 @@ struct MsgCompleteSend : public MsgSendHead {};
 void to_json(nlohmann::json& j, const MsgCompleteSend& v);
 void from_json(const nlohmann::json& j, MsgCompleteSend& v);
 
+// ── Reset onboarding ─────────────────────────────────────────────
+
+struct MsgResetRecv : public MsgRecvHead {};
+
+struct MsgResetSend : public MsgSendHead {};
+
+void to_json(nlohmann::json& j, const MsgResetSend& v);
+void from_json(const nlohmann::json& j, MsgResetSend& v);
+
 }  // namespace Onboarding
 }  // namespace cosmo

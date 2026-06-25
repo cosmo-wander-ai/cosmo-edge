@@ -36,4 +36,14 @@ void from_json(const nlohmann::json& j, MsgCompleteSend& v) {
     from_json(j, static_cast<MsgSendHead&>(v));
 }
 
+// ── MsgResetSend ────────────────────────────────────────────────
+
+void to_json(nlohmann::json& j, const MsgResetSend& v) {
+    to_json(j, static_cast<const MsgSendHead&>(v));
+}
+
+void from_json(const nlohmann::json& j, MsgResetSend& v) {
+    from_json(j, static_cast<MsgSendHead&>(v));
+}
+
 }  // namespace cosmo::Onboarding

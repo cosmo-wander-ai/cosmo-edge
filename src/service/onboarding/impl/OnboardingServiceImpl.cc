@@ -47,6 +47,13 @@ void OnboardingServiceImpl::CompleteOnboarding() {
     LOG_INFO("OnboardingServiceImpl::CompleteOnboarding: onboarding marked as completed");
 }
 
+void OnboardingServiceImpl::Reset() {
+    std::lock_guard<std::mutex> lock(mtx_);
+    onboarding_completed_ = false;
+    SaveState();
+    LOG_INFO("OnboardingServiceImpl::Reset: onboarding state reset");
+}
+
 // ── Private Persistence ─────────────────────────────────────────────────
 
 std::string OnboardingServiceImpl::GetConfigFilePath() {

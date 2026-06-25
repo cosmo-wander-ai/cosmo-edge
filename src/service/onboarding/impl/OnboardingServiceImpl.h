@@ -17,6 +17,7 @@ public:
     // ---- IOnboardingService ----
     bool IsOnboardingCompleted() override;
     void CompleteOnboarding() override;
+    void Reset() override;
 
 private:
     /// Load persisted onboarding state from disk.

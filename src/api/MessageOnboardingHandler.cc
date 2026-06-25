@@ -28,4 +28,13 @@ Onboarding::MsgCompleteSend MessageOnboardingHandler::Handle(Onboarding::MsgComp
     return ret;
 }
 
+Onboarding::MsgResetSend MessageOnboardingHandler::Handle(Onboarding::MsgResetRecv&& data,
+                                                           std::error_condition& errc) {
+    (void)data;
+    Onboarding::MsgResetSend ret{};
+    onboarding_service_.Reset();
+    errc = util::ErrorEnum::Success;
+    return ret;
+}
+
 }  // namespace cosmo

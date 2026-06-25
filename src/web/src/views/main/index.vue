@@ -243,6 +243,19 @@ const openChangePwd = (e) => {
   changePwdVisible.value = true
 }
 
+const handleResetOnboarding = async (e) => {
+  e?.stopPropagation?.()
+  userMenuOpen.value = false
+  try {
+    await proxy.$API.resetOnboarding({})
+    localStorage.removeItem('onboarding_completed')
+    localStorage.setItem('onboarding_active', 'true')
+    proxy.$message.success(t('onboarding.resetSucceeded'))
+  } catch {
+    proxy.$message.error(t('onboarding.resetFailed'))
+  }
+}
+
 const submitChangePwd = () => {
   if (!changePwdForm.value.oldPassword || !changePwdForm.value.newPassword) {
     proxy.$message.warning(t('validate.oldNewPasswordRequired'))
@@ -432,6 +445,7 @@ const handleReboot = () => {
             </svg>
             <div v-if="userMenuOpen" class="user-dropdown" @click.stop>
               <div class="dropdown-item" @click="openChangePwd">{{ t('action.changePassword') }}</div>
+              <div class="dropdown-item" @click="handleResetOnboarding">{{ t('action.resetOnboarding') }}</div>
               <div class="dropdown-divider"></div>
               <div class="dropdown-item danger" @click="handleLogout">{{ t('action.logout') }}</div>
             </div>
