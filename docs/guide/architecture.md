@@ -112,5 +112,5 @@ src/web
 - `data/resource/aiboxresource`
 - `data/resource/aiboxresource_x86`
 
-模板中可见 YOLO、DINO、SAM2、Qwen3/Qwen3VL、keypoints、feature、classification 等类型。模型权重和资源是否公开分发，需要单独确认。
+当前模板覆盖检测（YOLO v5/v8/v9/v11/v12/26）、分类、关键点、特征、分割（SAM2）、目标定位（DINO）以及视觉语言模型（Qwen3VL、Qwen3.5）。完整清单以 `data/resource/aiboxresource/model_template/` 与 `data/resource/aiboxresource_x86/model_template/` 目录下的实际模板文件为准。
 

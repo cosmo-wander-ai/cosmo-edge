@@ -50,6 +50,7 @@ src/web/
 | 构建       | Vite                 | 6.3.5    | 开发服务器、HMR、分块生产构建     |
 | 路由       | Vue Router           | ^4.2.0   | 基于 Hash 的客户端路由            |
 | UI         | Element Plus         | 2.13.2   | 组件库（锁定版本）                |
+| 穿梭框     | tree-transfer-vue3   | ^1.2.2   | 算法选择的树形穿梭框组件          |
 | HTTP       | Axios                | ^1.7.0   | API 客户端，带拦截器              |
 | 图表       | ECharts              | ^6.0.0   | 仪表盘和统计图表                  |
 | 流程编辑器 | @vue-flow/core       | ^1.48.2  | 流水线编排编辑器                  |
@@ -194,7 +195,7 @@ export * as myModule from './myModule.js';
 | 层级               | 来源                                          | 用途                               |
 | ------------------ | --------------------------------------------- | ---------------------------------- |
 | 静态 locale 文件   | `i18n/locales/{zh-CN,en-US}.js`（各约 1420 行） | 所有内置 UI 文案、导航、校验、状态等 |
-| 短词 glossary      | `i18n/glossary.js`（78 条）                     | 紧凑布局场景下的缩写               |
+| 短词 glossary      | `i18n/glossary.js`（76 条）                     | 紧凑布局场景下的缩写               |
 | 动态资源 i18n      | `public/resource-i18n/resource.{locale}.json`    | 算法名称、参数、选项等后端配置项   |
 
 ### 翻译 API
@@ -230,8 +231,10 @@ export * as myModule from './myModule.js';
   - `vendor-element` — Element Plus
   - `vendor-echarts` — ECharts
   - `vendor-vue-flow` — @vue-flow/*
+  - `vendor-graph` — @antv/x6、@antv/layout（依赖当前未在 package.json 中安装，为预留规则）
   - `vendor-lodash` — lodash, dagre
   - `vendor-moment` — moment
+  - `vendor-md` — highlight.js、markdown-it（依赖当前未安装，为预留规则）
   - `vendor` — 其余依赖
 
 ### 环境变量

@@ -41,6 +41,7 @@ npm run docs:preview
 说明：
 
 - 文档站构建会检查 VitePress 页面、导航和站内链接。
+- 仓库已存在 `.github/workflows/docs.yml`（手动触发 `workflow_dispatch`，构建 VitePress 并部署到 GitHub Pages）；上表"文档站"层的 `npm run docs:build` 可作为该 workflow 的基础或在其上扩展。
 - 当前依赖审计可能报告 npm dependency vulnerabilities，公开发布前应单独评估并记录处理结论。
 
 ## 前端检查

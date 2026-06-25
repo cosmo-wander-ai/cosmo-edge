@@ -175,9 +175,3 @@ MQTT 外层消息由 `head` 和 `body` 组成：
 ```
 
 `body` 是业务响应 JSON 字符串，字段结构与 HTTP API 响应保持一致。
-
-## English
-
-The MQTT integration uses `/d2p/aibox` and `/d2p/aibox/heartbeat` for device-to-platform messages, and `/p2d/aibox/{deviceSn}` plus `/p2d/aibox/heartbeat/{deviceSn}` for platform-to-device messages.
-
-Business requests are routed by `head.action`. The outer `body` field is a JSON string, not an object, so platform requests should stringify the business payload before publishing.

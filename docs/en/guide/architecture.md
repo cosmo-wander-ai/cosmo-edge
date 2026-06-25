@@ -1,6 +1,6 @@
 ---
 title: Architecture Overview
-description: High-level architecture of the backend, frontend, services, inference, and resource system.
+description: Overview of the current C++ backend, Vue frontend, service registry, API, media, and inference modules.
 prev:
   text: Troubleshooting
   link: /en/guide/troubleshooting
@@ -11,7 +11,7 @@ next:
 
 # Architecture Overview
 
-CosmoEdge combines a native C++ backend, a Vue-based web console, media services, resource templates, and model/runtime integrations into one edge AI application stack.
+The current CosmoEdge repository is the complete product runtime, not just a single inference library or backend program.
 
 ## Overall Structure
 
@@ -38,10 +38,10 @@ CosmoEdge combines a native C++ backend, a Vue-based web console, media services
 
 | Entry | Purpose |
 | --- | --- |
-| `src/app/main.cc` | Creates `cosmo::app::Application`. |
-| `src/app/application.cc` | Application startup shell. |
-| `src/app/app_init.cc` | Service registration, initialization, network service startup. |
-| `src/app/AppConstants.h` | Default HTTP / WebSocket ports. |
+| `src/app/main.cc` | Creates `cosmo::app::Application` |
+| `src/app/application.cc` | Application startup shell |
+| `src/app/app_init.cc` | Service registration, initialization, network service startup |
+| `src/app/AppConstants.h` | Default HTTP / WebSocket ports |
 
 Primary executable target:
 
@@ -51,19 +51,21 @@ cosmo-engine
 
 ## Service Registry
 
-The backend assembles services through `cosmo::service::ServiceRegistry`. The startup sequence:
+The backend assembles services through `cosmo::service::ServiceRegistry`.
+
+The startup sequence is split into:
 
 1. Register infrastructure services.
 2. Register business services.
 3. Initialize services.
-4. Start MQTT, HTTP, WebSocket, device discovery, storage cleanup, watchdog, and other runtime services.
+4. Start runtime services such as MQTT, HTTP, WebSocket, device discovery, storage cleanup, and the watchdog.
 
 ## Main Source Tree
 
 | Directory | Purpose |
 | --- | --- |
 | `src/api` | API routing and message handlers |
-| `src/app` | Application entry point and startup |
+| `src/app` | Application entry point and startup flow |
 | `src/db` | DAO and database support |
 | `src/flow` | Tasks, algorithms, action chains |
 | `src/infer` | Model inference wrappers |
@@ -79,13 +81,14 @@ The backend assembles services through `cosmo::service::ServiceRegistry`. The st
 
 ## Frontend
 
-Frontend source path:
+Frontend path:
 
 ```text
 src/web
 ```
 
-Confirmed stack:
+Confirmed technology stack:
+
 - Vue 3
 - Vite 6
 - Vue Router 4
@@ -99,14 +102,14 @@ The frontend build output is installed into the release package's `web` director
 
 ## Inference and Models
 
-Two inference backend paths exist:
+Two inference backend paths currently exist in the project:
 
-- x86 CPU backend using ONNX Runtime.
-- Sophon backend for aarch64/Sophon release packages.
+- x86 CPU backend, using ONNX Runtime.
+- Sophon backend, used for aarch64/Sophon release packages.
 
 Resource directories:
+
 - `data/resource/aiboxresource`
 - `data/resource/aiboxresource_x86`
 
-Templates include YOLO, DINO, SAM2, Qwen3/Qwen3VL, keypoints, feature, and classification types. Model weights and resources may require separate distribution confirmation.
-
+The current templates cover detection (YOLO v5/v8/v9/v11/v12/v26), classification, keypoints, feature, segmentation (SAM2), object localization (DINO), and vision-language models (Qwen3VL, Qwen3.5). The complete list is subject to the actual files under `data/resource/aiboxresource/model_template/` and `data/resource/aiboxresource_x86/model_template/`.

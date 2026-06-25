@@ -35,14 +35,28 @@ src/api/ApiRouterRoutes.cc
 /gtw/cwai/aihost/...
 ```
 
+该组路由标记为 `kNoAuth`（免鉴权），注册在 `src/api/ApiRouter.cc` 的 `RegisterCoreRoutes()`。`/v1/cwai/aihost/` 下共 19 个端点：
+
+```text
+InterfaceTest             TaskCreate                TaskCancle
+PTaskCreate               PTaskCancle               PTaskDetectPic
+OperateNode               Info                      Probe
+ViewRoutes                GraphicsMemory            OverviewStructrueRecord
+LoadLocalAlgorithmAction  LogicTest                 QueryTaskOverviewFile
+QueryTaskStatus           QueryTaskInfo             QueryDeviceMemStatus
+QueryLogs
+```
+
+另外为前端统一前缀提供了 3 个 `/gtw/cwai/aihost/` 兼容路由：`PTaskCreate`、`PTaskCancle`、`PTaskDetectPic`（同样 `kNoAuth`）。
+
 ## API 类别
 
 | 类别 | 路由前缀 | 说明 |
 | --- | --- | --- |
 | 登录 | `/gtw/cwai/login/` | 登录和密码修改 |
 | 网络 | `/gtw/cwai/network/` | 网卡、DNS、网络质量和连通性检查 |
-| 算法 | `/gtw/cwai/Algorithm/` | 算法分页、上传、更新、删除、客流算法列表 |
-| 算法编排 | `/gtw/cwai/algorithm/layout/` | 编排算法保存、详情、列表和导出 |
+| 算法 | `/gtw/cwai/Algorithm/` | 算法分页、上传、新增、更新、删除、客流算法列表 |
+| 算法编排 | `/gtw/cwai/algorithm/layout/` | 编排算法保存、详情、列表、导出单个算法(`exportSingleAlg`，zip)和导出全部(`export`，tar.gz) |
 | 原子动作 | `/gtw/cwai/atomic/action/list` | Pipeline action 列表 |
 | 模型管理 | `/gtw/cwai/atomic/Model/` | 模型列表、上传、配置、导入、删除和导出 |
 | 计划 | `/gtw/cwai/schedule/` | 计划新增、更新、分页、删除和查询 |
@@ -79,7 +93,8 @@ src/api/ApiRouterRoutes.cc
 | `resMsg` | object[] | 错误或提示信息列表 |
 | `resultCode` | string | ChinaMobile 兼容响应码 |
 | `resultMsg` | string | ChinaMobile 兼容响应信息 |
-| `resData` | object | 业务数据，按接口不同而变化 |
+
+`MsgSendHead` 本身不含业务数据；各具体响应消息（各 `*Send` 子类）会在 `MsgSendHead` 之外额外携带 `resData` 业务数据容器，其结构按接口不同而变化。
 
 ## WebSocket
 
@@ -117,11 +132,3 @@ web/staticfile/mqttInterface.html
 | --- | --- |
 | `type = 0` | `/staticfile/httpInterface.html` |
 | `type = 1` | `/staticfile/mqttInterface.html` |
-
-## English
-
-This page summarizes the API entry points that can be verified from the current source tree. For field-level details, continue with [API Fields](api-fields.md), [MQTT Reference](mqtt.md), and [HTTP Webhook Reference](webhook.md).
-
-The main management APIs use `/gtw/cwai/...`. Core AI Host APIs use `/v1/cwai/aihost/...` and selected compatibility routes under `/gtw/cwai/aihost/...`.
-
-Most management responses inherit `MsgSendHead`: `resCode = 1` means success and `resCode = 0` means failure. Business payloads are usually returned under `resData`.

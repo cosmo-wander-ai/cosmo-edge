@@ -107,13 +107,21 @@ COSMO_STREAM_HTTP_PORT=18088
 
 ## CMake 关键选项
 
+用户可设置的 cache 选项（`option()` 声明）：
+
 | 选项 | 说明 |
 | --- | --- |
 | `COSMO_TARGET_ARCH` | `aarch64` 或 `x86_64` |
 | `COSMO_NN_USE_SOPHON_BACKEND` | 启用 Sophon 后端 |
-| `COSMO_NN_USE_CPU_BACKEND` | 启用 CPU/ONNX Runtime 后端 |
+| `COSMO_NN_USE_CPU_BACKEND` | 启用 CPU/ONNX Runtime 后端（与 Sophon 互斥） |
 | `COSMO_DEV_MODE` | 开发模式 |
-| `COSMO_ENABLE_OPENH264` | CPU 后端启用 OpenH264 |
-| `COSMO_ENABLE_GPL_CODECS` | 启用 GPL codec，发布前需审慎 |
 | `BUILD_TESTS` | 构建测试 |
+
+以下为**派生变量**（由后端选择自动推导，非 `option()` 声明，不可直接 `-D` 设置，列出仅供了解）：
+
+| 派生变量 | 说明 |
+| --- | --- |
+| `COSMO_ENABLE_OPENH264` | CPU 后端时自动 `ON`，Sophon 后端时 `OFF` |
+| `COSMO_OPENH264_USE_ASM` | 始终为 `OFF` |
+| `COSMO_MODEL_GUARD` | Sophon 后端时 `ON`（启用加密模型校验），CPU 后端时 `OFF` |
 

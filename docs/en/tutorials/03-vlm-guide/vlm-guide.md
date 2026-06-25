@@ -98,7 +98,7 @@ VLM's core capability: **Look at an image and answer a yes-or-no question.**
 ```plain
 Video frame
    ↓
-Extract one frame every few seconds ← Frame interval (configurable)
+Extract one frame every few seconds ← Frame rate (configurable)
    ↓
 Crop to your region of interest ← ROI selection (you draw a box on screen)
    ↓
@@ -143,7 +143,7 @@ Parameter reference:
 | Parameter | Purpose | Notes |
 | --- | --- | --- |
 | Select Base Model | Choose the multimodal model type |  |
-| Frame Interval | How often to sample a frame for analysis (seconds) | Large models are compute-intensive — use longer intervals |
+| Frame Rate | How many frames per second to sample for analysis (fps; the lower the value, the longer the interval between analyses) | Large models are compute-intensive — use a smaller value to lengthen the interval |
 | Advanced Prompt Mode | Enable full prompt configuration | When on, you write a complete prompt sentence; when off, just enter the detection target |
 | Prompt | Enter your prompt text |  |
 | Generation Style | Controls output randomness | Strict = low randomness; Standard = normal; Creative = high randomness; Custom = manual control |
@@ -383,7 +383,7 @@ Once the prompt passes image testing, set it up on a live video channel followin
 1. **Bind the VLM algorithm** to the city wall monitoring channel.
 2. **Enter the validated prompt.**
 3. **Draw an ROI** around the main wall area.
-4. **Set the frame interval** (for heritage patrol, `0.1` = one analysis every 10 seconds is typically sufficient).
+4. **Set the frame rate** (for heritage patrol, `0.1` = one analysis every 10 seconds is typically sufficient).
 5. Go to **Live Preview** to verify results.
 
 > These steps were covered in detail in Scenario 1 and are not repeated here.
@@ -407,7 +407,7 @@ That's what DINO does: you write a **target name**, and the system automatically
 ```plain
 Video frame
    ↓
-Extract one frame every few seconds ← Frame interval (configurable)
+Extract one frame every few seconds ← Frame rate (configurable)
    ↓
 Send the frame + your target name to DINO ← Prompt (e.g., "garbage")
    ↓
@@ -578,7 +578,7 @@ Whether using VLM or DINO, confirm the following before any new scenario goes li
 - [ ] Validated with **Image Testing** using at least 3 negative samples (images that should NOT trigger alarms)
 - [ ] Tested the same image 3 consecutive times with consistent results (stability check)
 - [ ] ROI has been drawn to focus on the specific area of interest, excluding irrelevant background
-- [ ] Frame interval has been set to a reasonable value for the scenario
+- [ ] Frame rate has been set to a reasonable value for the scenario
 
 ### What's Next
 

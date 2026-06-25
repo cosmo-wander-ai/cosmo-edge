@@ -46,7 +46,6 @@ Each object library maps to a source directory under `src/`. The layer order ens
 | `COSMO_NN_USE_SOPHON_BACKEND`   | `ON`       | Enable Sophon TPU backend                      |
 | `COSMO_NN_USE_CPU_BACKEND`      | `OFF`      | Enable CPU / ONNX Runtime backend              |
 | `COSMO_ENABLE_OPENH264`         | auto       | Enable OpenH264 (ON when CPU backend selected) |
-| `COSMO_ENABLE_GPL_CODECS`       | `OFF`      | Enable GPL codecs — review before distribution |
 | `COSMO_DEV_MODE`                | `OFF`      | Disable watchdog and other production guards   |
 | `COSMO_MODEL_GUARD`             | auto       | Link `libcosmo_model_guard.so` (Sophon default)|
 | `BUILD_TESTS`                   | `OFF`      | Build `cosmo-tests` with Catch2 + gcov         |
@@ -187,7 +186,7 @@ When adding a new service, add a corresponding test file with a Trompeloeil mock
 
 ## Code Style
 
-The project follows the [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html) adapted for C++17. Full details are in [`CODING_STYLE.md`](../../CODING_STYLE.md) (Chinese). Key conventions:
+The project follows the [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html) adapted for C++17. Full details are in `CODING_STYLE.md` at the repository root (Chinese). Key conventions:
 
 | Category          | Convention                              | Example                      |
 | ----------------- | --------------------------------------- | ---------------------------- |
@@ -254,7 +253,7 @@ Each domain typically has:
 The neural network layer uses an abstract device pattern:
 
 - `src/nn/core/` — Device-agnostic graph, blob, and node base classes.
-- `src/nn/device/sophon/` — Sophon BM1688 TPU backend (BMRT, SAIL).
+- `src/nn/device/sophon/` — Sophon BM1688 TPU backend (BMRT).
 - `src/nn/device/cpu/` — x86 ONNX Runtime backend.
 - `src/nn/device/naive/` — Fallback for in-memory compute.
 - `src/nn/pipeline/` — High-level pipelines: `detection`, `classify`, `feature`, `keypoints`, `advanced`.
@@ -304,8 +303,8 @@ Key third-party libraries (under `3rd/` and linked via CMake `ExternalProject`):
 | uWebSockets        | HTTP / WebSocket server          | Apache 2.0   |
 | Paho MQTT C        | MQTT client                      | EPL 2.0      |
 | ONNX Runtime       | x86 CPU inference                | MIT          |
-| Sophon BMRT / SAIL | aarch64 TPU inference            | Proprietary  |
-| FFmpeg             | Video decode / encode            | LGPL         |
+| Sophon BMRT        | aarch64 TPU inference            | Proprietary  |
+| FFmpeg             | Video decode / encode            | LGPL 2.1+    |
 | OpenH264           | H.264 encode (CPU backend)       | BSD 2-Clause |
 | Catch2             | Test framework                   | Boost        |
 | Trompeloeil        | Mocking framework                | Boost        |

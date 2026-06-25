@@ -89,7 +89,7 @@ HTTP webhook 和部分内部事件消息使用 `CMsgOnEventsReq` 语义：
 | `videoChannelId` | string | 通道 ID |
 | `channelName` | string | 通道名称 |
 | `timestamp` | string | UTC 毫秒时间戳字符串 |
-| `itimestamp` | number | UTC 毫秒时间戳 |
+| `itimestamp` | number | UTC 毫秒时间戳（DTO 中定义；当前出站 `to_json` 不输出此字段，仅入站反序列化时读取） |
 | `algorithmId` | string | 算法 ID |
 | `algorithmCode` | string | 算法编码 |
 | `algorithmName` | string | 算法名称 |
@@ -102,28 +102,35 @@ HTTP webhook 和部分内部事件消息使用 `CMsgOnEventsReq` 语义：
 | `videostructured` | string | 视频结构化文件 URL |
 | `overviewFile` | string | 结构化概览文件 URL |
 | `recordId` | string | 告警记录 ID |
-| `files` | string[] | 关联文件列表 |
+| `files` | string[] | 关联文件列表（DTO 中定义；当前出站 `to_json` 不输出此字段，仅入站反序列化时读取） |
 | `isRetryMessage` | boolean | 是否为重试消息 |
 | `property` | object | 属性对象，按算法类型变化 |
 | `category` | string | 事件类别 |
 
 ## 属性字段类型
 
-事件属性通过 `OnEventsPropertyType` 区分：
+事件属性通过 `OnEventsPropertyType` 区分（枚举见 `src/util/MsgBaseTypes.h`，出站序列化见 `src/util/dto/ClientMsgEvent.cc`）。每种类型输出对应的 JSON 键：
 
-| 类型 | 说明 | 主要字段 |
+| 类型 (`OnEventsPropertyType`) | 输出键 | 主要字段 |
 | --- | --- | --- |
-| `face` | 人脸检测 | `quality`、`age`、`gender`、`wearMask`、`wearGlasses`、`featureUrl`、`image` |
-| `recognition` | 人脸识别 | `matchDegree`、`matchLibName`、`matchId`、`LibImage`、`matchName`、`personCode`、`personId` |
-| `body` | 人体属性或特征 | `topLength`、`topColor`、`bottomLength`、`bottomColor`、`featureUrl`、`image` |
-| `vehicle` | 车辆属性 | `plateColor`、`vehicleColor`、`vehicleClass`、`orientation`、`plate`、`plateSrc`、`attrs` |
-| `behavior` | 行为类事件 | `count`、`duration`、`targetId` |
-| `machineMaterial` | 物料或设备状态 | `matchId`、`matchDegree`、`groupId`、`groupName`、`baseImageUrl`、`runningStatus` |
-| `people` | 人流统计 | `enterNumber`、`leaveNumber`、`enterOrgNum`、`leaveOrgNum`、`time` |
-| `car` | 车流统计 | `enterNumber`、`leaveNumber`、`enterOrgNum`、`leaveOrgNum`、`time` |
-| `workClothesRecognition` | 工服识别 | `matchId`、`matchDegree`、`groupId`、`groupName`、`baseImageUrl` |
-| `persons` | 人员列表 | `orignalPicture`、`fullPicture`、`targetPicture`、`box` |
-| `target` | 目标进出区域 | `inAreaTime`、`inAreaFullImageUrl`、`outAreaTime`、`outAreaFullImageUrl` |
+| `face` | `face` | `quality`、`age`、`gender`、`wearMask`、`wearGlasses`、`featureUrl`、`image` |
+| `body` (Body / BodyFeature) | `body` | `topLength`、`topColor`、`bottomLength`、`bottomColor`、`featureUrl`、`image` |
+| `vehicle` | `vehicle` | `plateColor`、`vehicleColor`、`vehicleClass`、`orientation`、`plate`、`plateSrc`、`attrs` |
+| `behavior` | `behavior` | `count`、`duration`、`targetId` |
+| `machineMaterial` | `machineMaterial` | `matchId`、`matchDegree`、`groupId`、`groupName`、`baseImageUrl`、`runningStatus` |
+| `people` | `people` | `enterNumber`、`leaveNumber`、`enterOrgNum`、`leaveOrgNum`、`time` |
+| `car` | `car` | `enterNumber`、`leaveNumber`、`enterOrgNum`、`leaveOrgNum`、`time` |
+| `workClothesRecognition` | `workClothesRecognition` | `matchId`、`matchDegree`、`groupId`、`groupName`、`baseImageUrl` |
+| `personCount` (PersonCount) | `personCount` + `persons` | 区域人数统计；同时输出 `persons` 人员列表（字段见下） |
+| `countNumber` (CountNumber) | `countNumber` | 计数类事件 |
+
+以下为**附加子对象**（不是独立的 `OnEventsPropertyType` 枚举值，而是随主类型一起输出）：
+
+| 子对象 | 出现条件 | 主要字段 |
+| --- | --- | --- |
+| `recognition` | `face` 类型同时输出 | `matchDegree`、`matchLibName`、`matchId`、`LibImage`、`matchName`、`personCode`、`personId` |
+| `persons` | `personCount` 类型同时输出 | `orignalPicture`、`fullPicture`、`targetPicture`、`box` |
+| `target` | 任意类型，当 `bHaveTarget` 为真时附加 | `inAreaTime`、`inAreaFullImageUrl`、`outAreaTime`、`outAreaFullImageUrl` |
 
 ## HTTP 推送参数
 
@@ -136,8 +143,8 @@ HTTP webhook 和部分内部事件消息使用 `CMsgOnEventsReq` 语义：
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `switch` | boolean | 是否启用 HTTP 推送，设置接口使用该字段 |
-| `enable` | boolean | 是否启用 HTTP 推送，查询结果会同时输出 `enable` 和 `switch` |
+| `switch` | boolean | 是否启用 HTTP 推送；**设置接口只识别此字段** |
+| `enable` | boolean | **仅查询响应输出**（与 `switch` 同值）；设置接口不读取此字段 |
 | `url` | string | 接收事件的 HTTP URL |
 
 ## MQTT 参数
@@ -151,8 +158,8 @@ HTTP webhook 和部分内部事件消息使用 `CMsgOnEventsReq` 语义：
 
 | 字段 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `switch` | boolean | `true` | 是否启用 MQTT，设置接口使用该字段 |
-| `enable` | boolean | `true` | 是否启用 MQTT，查询结果会同时输出 `enable` 和 `switch` |
+| `switch` | boolean | `true` | 是否启用 MQTT；**设置接口只识别此字段** |
+| `enable` | boolean | `true` | **仅查询响应输出**（与 `switch` 同值）；设置接口不读取此字段 |
 | `url` | string | 空 | MQTT Broker 地址 |
 | `port` | number | `1883` | MQTT Broker 端口 |
 | `status` | boolean | `true` | 当前 MQTT 注册/连接状态，查询结果字段 |
@@ -176,9 +183,3 @@ HTTP webhook 和部分内部事件消息使用 `CMsgOnEventsReq` 语义：
 | `mqttPort` | number | `1883` | IoT 网络模式下 MQTT 端口 |
 | `httpUrl` | string | 空 | IoT 网络模式下 HTTP 地址 |
 | `status` | boolean | `true` | 当前 MQTT 是否启用，查询结果字段 |
-
-## English
-
-This page lists field-level details that can be verified from the current DTOs. It focuses on common responses, event queries, event records, HTTP push settings, MQTT settings, and IoT network mode settings.
-
-Field names intentionally follow the current implementation, including legacy names such as `categorys`, `orignalPicture`, and `switch`.

@@ -392,53 +392,55 @@ After configuration, verify the following:
 
 Below are all 18 built-in AI algorithm scenario tasks. Their configuration workflow is **identical to the first two chapters** (Video Source → Service Assignment → Detection Region → Parameter Tuning). The only differences are in **applicable scenarios and key parameters**.
 
+The 18 algorithms fall into six categories: Construction Safety, Smart Office, Fire Safety, Community / Campus Security, Passenger Flow Counting, and Face Recognition.
+
 ### Construction Safety
 
-| Algorithm         | Detection Target   | Alarm Condition                   | Key Parameters             |
-| ----------------- | ------------------ | --------------------------------- | -------------------------- |
-| No Hard Hat       | Head/shoulders     | No hard hat detected              | Alarm interval, alarm count |
-| No Hi-Vis Vest    | Upper body         | No reflective vest detected       | Same as above              |
-| No Safety Harness | Workers at height  | No safety harness detected        | Same as above              |
-| Zone Intrusion    | People             | Person enters a restricted zone   | Region config (required)   |
+| Algorithm         | Detection Target | Alarm Condition                  | Key Parameters             |
+| ----------------- | ---------------- | -------------------------------- | -------------------------- |
+| No Helmet         | Person's head    | No hard hat detected             | Alarm interval, alarm count |
+| No Reflective Vest | Person's upper body | No reflective vest detected   | Same as above              |
+| No Work Clothes   | Person's upper body | No work uniform detected       | Same as above              |
+| Area Intrusion    | People           | Person enters a restricted zone  | Region config (required)   |
 
 ### Smart Office
 
-| Algorithm         | Detection Target   | Alarm Condition                         | Key Parameters                     |
-| ----------------- | ------------------ | --------------------------------------- | ---------------------------------- |
-| Sleeping on Duty  | Body posture       | Detected sleeping at desk / head down   | Duration threshold                 |
-| Absence Detection | Personnel presence | No one in the designated area past threshold | Absence time, person count threshold |
-| Phone Usage       | Hand activity      | Detected using a phone                  | Alarm interval                     |
-| Phone Call        | Hand activity      | Detected making a phone call            | Alarm interval                     |
+| Algorithm         | Detection Target   | Alarm Condition                              | Key Parameters                     |
+| ----------------- | ------------------ | -------------------------------------------- | ---------------------------------- |
+| Sleeping on Duty  | Body posture       | Detected sleeping on desk / head down        | Duration threshold                 |
+| Leave Post        | Personnel presence | Designated area unattended past threshold    | Absence time, person count threshold |
+| Phone Use         | Hand activity      | Detected using a phone                       | Alarm interval                     |
+| Making a Call     | Hand activity      | Detected making a phone call                 | Alarm interval                     |
+| Smoking           | Person / smoke & fire | Detected smoking behavior                 | Sensitivity, alarm interval        |
 
-### Commercial Kitchen Compliance
+### Fire Safety
 
-| Algorithm        | Detection Target  | Alarm Condition              | Key Parameters |
-| ---------------- | ----------------- | ---------------------------- | -------------- |
-| No Chef Hat      | Kitchen staff head | No chef hat detected         | Alarm interval |
-| No Chef Uniform  | Kitchen staff body | No chef uniform detected     | Alarm interval |
-| Rodent Detection | Small animals      | Suspected rodent detected    | Sensitivity    |
-| Smoke Detection  | Smoke              | Abnormal smoke detected      | Sensitivity    |
+| Algorithm    | Detection Target | Alarm Condition        | Key Parameters |
+| ------------ | ---------------- | ---------------------- | -------------- |
+| Smoke        | Smoke            | Abnormal smoke detected | Sensitivity   |
+| Flame        | Open flame       | Flame detected         | Sensitivity    |
 
-### Community Safety
+### Community / Campus Security
 
-| Algorithm              | Detection Target   | Alarm Condition                     | Key Parameters                    |
-| ---------------------- | ------------------ | ----------------------------------- | --------------------------------- |
-| Fall Detection         | Body posture       | Fall detected                       | Duration (to distinguish squatting) |
-| Fight Detection        | Multi-person interaction | Violent behavior detected      | Sensitivity                       |
-| E-bike in Elevator     | Electric scooters  | E-bike detected inside elevator     | Region config                     |
-| Fire Detection         | Open flame         | Flame detected                      | Sensitivity                       |
+| Algorithm         | Detection Target       | Alarm Condition                              | Key Parameters                       |
+| ----------------- | ---------------------- | -------------------------------------------- | ------------------------------------ |
+| Person Fall       | Body posture           | Fall detected                                | Duration (to distinguish squatting)  |
+| Crowd             | Area person density    | Person count in area exceeds threshold       | Person count threshold, duration     |
+| Illegal Parking   | Vehicles               | Vehicle stays in no-parking zone past limit  | Region config, dwell time            |
+| Tripwire          | People / vehicles      | Crosses a configured tripwire                | Tripwire config, direction           |
+| Area Headcount    | Person count in area   | Area headcount / over-threshold alarm        | Region config, person count threshold |
 
-### Pedestrian Counting
+### Passenger Flow Counting
 
-| Algorithm          | Detection Target | Output                  | Key Parameters          |
-| ------------------ | ---------------- | ----------------------- | ----------------------- |
-| Pedestrian Flow    | People           | Entry/exit count totals | Line position, direction |
+| Algorithm       | Detection Target | Output                  | Key Parameters          |
+| --------------- | ---------------- | ----------------------- | ----------------------- |
+| Passenger Flow  | People           | Entry/exit count totals | Line position, direction |
 
 ### Face Recognition
 
-| Algorithm          | Detection Target | Output                    | Key Parameters                     |
-| ------------------ | ---------------- | ------------------------- | ---------------------------------- |
-| Face Recognition   | Faces            | Identity matching results | Gallery config, similarity threshold |
+| Algorithm       | Detection Target | Output                    | Key Parameters                     |
+| --------------- | ---------------- | ------------------------- | ---------------------------------- |
+| Face Recognition | Faces            | Identity matching results | Gallery config, similarity threshold |
 
 > **💡 Choosing the Right Algorithm**
 >
