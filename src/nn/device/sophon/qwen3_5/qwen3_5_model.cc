@@ -5,6 +5,7 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <stdexcept>
 
 #include "bmlib_runtime.h"
 #include "bmruntime_interface.h"

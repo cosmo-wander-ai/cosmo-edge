@@ -5,6 +5,7 @@
 #include <codecvt>
 #include <locale>
 #include <regex>
+#include <stdexcept>
 #include <unordered_map>
 
 #include "infer/AiCommon.h"
