@@ -36,6 +36,11 @@ jobs:
     timeout-minutes: 60
 
     steps:
+      # Container runs as root but workspace is owned by host UID.
+      # Suppress git "dubious ownership" errors that break test-reporter.
+      - name: Configure git safe directory
+        run: git config --global --add safe.directory '*'
+
       - uses: actions/checkout@v4
 
       # ── System dependencies (mirrors Dockerfile.x86 builder stage) ───
