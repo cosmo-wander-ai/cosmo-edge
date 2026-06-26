@@ -1,0 +1,94 @@
+name: Build and Test (x86)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      # Only run this heavy workflow when C++ / build sources change
+      - 'src/**'
+      - 'test/**'
+      - 'cmake/**'
+      - '3rd/**'
+      - 'prebuild/ffmpeg/x86_64/**'
+      - 'toolchains/**'
+      - 'CMakeLists.txt'
+      - 'scripts/build_cpu_test.sh'
+      - '.github/workflows/ci-build-and-test.yml'
+  workflow_dispatch:
+
+permissions:
+  checks: write   # for dorny/test-reporter to create check runs
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── System dependencies ──────────────────────────────────────────
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            pkg-config \
+            nasm \
+            yasm \
+            python3 \
+            zlib1g-dev
+
+      # ── Rust (required by tokenizers-cpp) ────────────────────────────
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      # ── Build ────────────────────────────────────────────────────────
+      - name: Configure and build cosmo-tests (x86 CPU backend)
+        run: bash scripts/build_cpu_test.sh
+
+      # ── Run tests ────────────────────────────────────────────────────
+      # Catch2 binary writes JUnit XML for GitHub's test summary UI.
+      # LD_LIBRARY_PATH must include prebuilt .so directories and third-party
+      # ExternalProject install paths so the test binary can resolve all
+      # shared libraries at runtime.
+      - name: Run tests
+        run: |
+          export LD_LIBRARY_PATH="\
+          ${GITHUB_WORKSPACE}/prebuild/ffmpeg/x86_64/lib:\
+          ${GITHUB_WORKSPACE}/3rd/onnxruntime-linux-x64-1.26.0/lib:\
+          ${GITHUB_WORKSPACE}/build_cpu/thirdparty_install/openssl/lib:\
+          ${GITHUB_WORKSPACE}/build_cpu/thirdparty_install/curl/lib:\
+          ${GITHUB_WORKSPACE}/build_cpu/thirdparty_install/event/lib:\
+          ${GITHUB_WORKSPACE}/build_cpu/thirdparty_install/glog/lib:\
+          ${GITHUB_WORKSPACE}/build_cpu/thirdparty_install/mp4v2/lib:\
+          ${GITHUB_WORKSPACE}/build_cpu/thirdparty_install/uuid/lib:\
+          ${LD_LIBRARY_PATH}"
+          ./build_cpu/cosmo-tests -r junit -o test-results.xml
+
+      # ── Upload test results ──────────────────────────────────────────
+      - name: Upload test results artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-x86
+          path: test-results.xml
+          retention-days: 7
+
+      # ── Surface test summary in GitHub UI ────────────────────────────
+      - name: Publish test results
+        if: always()
+        uses: dorny/test-reporter@v2
+        with:
+          name: Cosmo Tests (x86)
+          path: test-results.xml
+          reporter: java-junit
