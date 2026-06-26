@@ -1,11 +1,11 @@
 #include "nn/device/sophon/qwen3vl/qwen3vl_model.h"
 
 #include <assert.h>
-#include <nlohmann/json.hpp>
 
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <stdexcept>
 
 #include "bmlib_runtime.h"
@@ -15,56 +15,56 @@ namespace cosmo::nn {
 namespace qwen3vl {
     namespace {
 
-    constexpr std::streamoff kMaxJsonFileBytes = 10 * 1024 * 1024;
+        constexpr std::streamoff kMaxJsonFileBytes = 10 * 1024 * 1024;
 
-    bool LooksLikeJsonContent(const std::string& value) {
-        const auto first = value.find_first_not_of(" \t\r\n");
-        return first != std::string::npos && (value[first] == '{' || value[first] == '[');
-    }
-
-    nlohmann::json ParseJsonFile(const std::string& path) {
-        std::ifstream in(path, std::ios::binary | std::ios::ate);
-        if (!in.good())
-            return nlohmann::json::object();
-        const auto size = in.tellg();
-        if (size < 0 || size > kMaxJsonFileBytes)
-            return nlohmann::json::object();
-        in.seekg(0, std::ios::beg);
-        auto json = nlohmann::json::parse(in, nullptr, false);
-        return json.is_discarded() || !json.is_object() ? nlohmann::json::object() : json;
-    }
-
-    nlohmann::json ParseJsonContentOrFile(const std::string& value) {
-        if (LooksLikeJsonContent(value)) {
-            auto json = nlohmann::json::parse(value, nullptr, false);
-            if (!json.is_discarded())
-                return json.is_object() ? json : nlohmann::json::object();
+        bool LooksLikeJsonContent(const std::string& value) {
+            const auto first = value.find_first_not_of(" \t\r\n");
+            return first != std::string::npos && (value[first] == '{' || value[first] == '[');
         }
-        return ParseJsonFile(value);
-    }
 
-    void ApplyGenerationConfig(const nlohmann::json& json, GenerationConfig& config) {
-        if (json.contains("eos_token_id") && json["eos_token_id"].is_array()) {
-            for (const auto& v : json["eos_token_id"]) {
-                if (v.is_number_integer())
-                    config.eos_token_id.push_back(v.get<int>());
+        nlohmann::json ParseJsonFile(const std::string& path) {
+            std::ifstream in(path, std::ios::binary | std::ios::ate);
+            if (!in.good())
+                return nlohmann::json::object();
+            const auto size = in.tellg();
+            if (size < 0 || size > kMaxJsonFileBytes)
+                return nlohmann::json::object();
+            in.seekg(0, std::ios::beg);
+            auto json = nlohmann::json::parse(in, nullptr, false);
+            return json.is_discarded() || !json.is_object() ? nlohmann::json::object() : json;
+        }
+
+        nlohmann::json ParseJsonContentOrFile(const std::string& value) {
+            if (LooksLikeJsonContent(value)) {
+                auto json = nlohmann::json::parse(value, nullptr, false);
+                if (!json.is_discarded())
+                    return json.is_object() ? json : nlohmann::json::object();
+            }
+            return ParseJsonFile(value);
+        }
+
+        void ApplyGenerationConfig(const nlohmann::json& json, GenerationConfig& config) {
+            if (json.contains("eos_token_id") && json["eos_token_id"].is_array()) {
+                for (const auto& v : json["eos_token_id"]) {
+                    if (v.is_number_integer())
+                        config.eos_token_id.push_back(v.get<int>());
+                }
+            }
+            if (json.contains("repetition_penalty") && json["repetition_penalty"].is_number())
+                config.repetition_penalty = json["repetition_penalty"].get<float>();
+            if (json.contains("temperature") && json["temperature"].is_number())
+                config.temperature = json["temperature"].get<float>();
+            if (json.contains("top_k") && json["top_k"].is_number_integer())
+                config.top_k = json["top_k"].get<int>();
+            if (json.contains("top_p") && json["top_p"].is_number())
+                config.top_p = json["top_p"].get<float>();
+            if (json.contains("stop_strings") && json["stop_strings"].is_array()) {
+                for (const auto& v : json["stop_strings"]) {
+                    if (v.is_string())
+                        config.stop_strings.push_back(v.get<std::string>());
+                }
             }
         }
-        if (json.contains("repetition_penalty") && json["repetition_penalty"].is_number())
-            config.repetition_penalty = json["repetition_penalty"].get<float>();
-        if (json.contains("temperature") && json["temperature"].is_number())
-            config.temperature = json["temperature"].get<float>();
-        if (json.contains("top_k") && json["top_k"].is_number_integer())
-            config.top_k = json["top_k"].get<int>();
-        if (json.contains("top_p") && json["top_p"].is_number())
-            config.top_p = json["top_p"].get<float>();
-        if (json.contains("stop_strings") && json["stop_strings"].is_array()) {
-            for (const auto& v : json["stop_strings"]) {
-                if (v.is_string())
-                    config.stop_strings.push_back(v.get<std::string>());
-            }
-        }
-    }
 
     }  // namespace
 
@@ -89,7 +89,7 @@ namespace qwen3vl {
 
     GenerationConfig GenerationConfig::from_model_json(const std::string& path) {
         GenerationConfig config;
-        nlohmann::json root = ParseJsonContentOrFile(path);
+        nlohmann::json root         = ParseJsonContentOrFile(path);
         const nlohmann::json* g_ptr = nullptr;
         if (root.contains("config") && root["config"].is_object() && root["config"].contains("generation") &&
             root["config"]["generation"].is_object()) {
