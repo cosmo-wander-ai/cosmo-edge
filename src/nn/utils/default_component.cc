@@ -2,6 +2,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <stdexcept>
 
 #include "nn/pipeline/model_pipeline.h"
 #include "nn/pipeline/pipeline_utils.h"
