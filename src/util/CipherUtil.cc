@@ -100,7 +100,7 @@ std::string EncMd5(const std::string& enc_str, bool is_upper) {
 }
 
 std::string EncFileMd5(const std::string& file_path, bool is_upper) {
-    std::string read_str = std::move(cosmo::util::ReadFile(file_path));
+    std::string read_str = cosmo::util::ReadFile(file_path);
 
     return EncMd5(read_str, is_upper);
 }
