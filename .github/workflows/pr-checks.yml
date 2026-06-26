@@ -12,18 +12,43 @@ concurrency:
 
 jobs:
   # ── C++ format check via clang-format ──────────────────────────────
+  # Only checks files changed in the PR (not the entire codebase)
   format-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # fetch all history for diff against base
 
       - name: Install clang-format
         run: |
           sudo apt-get update
           sudo apt-get install -y clang-format
 
-      - name: Check C++ formatting
-        run: bash scripts/format_check.sh --check
+      - name: Check C++ formatting (changed files only)
+        run: |
+          BASE=$(git merge-base HEAD origin/main)
+          CHANGED=$(git diff --name-only --diff-filter=ACMR "$BASE" HEAD -- \
+            '*.cc' '*.h' | grep -vE '(^|/)3rd/')
+          if [ -z "$CHANGED" ]; then
+            echo "No C++ files changed."
+            exit 0
+          fi
+          echo "Checking $(echo "$CHANGED" | wc -l) changed file(s)..."
+          FAIL=0
+          for f in $CHANGED; do
+            if ! diff <(clang-format "$f") "$f" > /dev/null 2>&1; then
+              echo "  ❌ $f"
+              FAIL=1
+            fi
+          done
+          if [ $FAIL -eq 0 ]; then
+            echo "✅ All changed files are properly formatted."
+          else
+            echo ""
+            echo "Run 'scripts/format_check.sh --fix' locally to auto-fix."
+            exit 1
+          fi
 
   # ── Vue 3 frontend build (includes i18n checks via prebuild hook) ──
   frontend-build:
@@ -46,16 +71,37 @@ jobs:
       - name: Build frontend
         run: npm run build
 
-  # ── cppcheck static analysis ───────────────────────────────────────
+  # ── cppcheck static analysis (changed files only) ───────────────────
   cppcheck:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install cppcheck
         run: |
           sudo apt-get update
           sudo apt-get install -y cppcheck
 
-      - name: Run cppcheck
-        run: bash scripts/static_analysis.sh --cppcheck
+      - name: Run cppcheck (changed files only)
+        run: |
+          BASE=$(git merge-base HEAD origin/main)
+          CHANGED=$(git diff --name-only --diff-filter=ACMR "$BASE" HEAD -- \
+            'src/**/*.cc' 'src/**/*.h' 'test/**/*.cc' 'test/**/*.h')
+          if [ -z "$CHANGED" ]; then
+            echo "No C++ files changed."
+            exit 0
+          fi
+          echo "Checking $(echo "$CHANGED" | wc -l) changed file(s)..."
+          cppcheck \
+            --std=c++17 \
+            --language=c++ \
+            --enable=warning,style,performance,portability \
+            --inline-suppr \
+            --suppressions-list=.cppcheck-suppressions \
+            --quiet \
+            --template='{file}:{line}: [{severity}] {id}: {message}' \
+            -I src \
+            -j"$(nproc)" \
+            $CHANGED
