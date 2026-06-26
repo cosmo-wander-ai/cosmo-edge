@@ -25,10 +25,10 @@ util::ErrorEnum AiClassifierUnify::Init() {
 
     classifier_ =
         std::make_unique<cosmo::nn::DefaultComponent>(cfg_path_, model_path_, GetDeviceType(), &profiler_);
-    LOG_INFO("DEBUG: Classifier {} Init", model_path_);
+    LOG_DEBUG("DEBUG: Classifier {} Init", model_path_);
 
     max_batch_size_ = static_cast<size_t>(classifier_->GetMaxBatchSize());
-    LOG_INFO("DEBUG: {} Classifier Max Batch Size {}", model_path_, max_batch_size_);
+    LOG_DEBUG("DEBUG: {} Classifier Max Batch Size {}", model_path_, max_batch_size_);
 
     return util::ErrorEnum::Success;
 }

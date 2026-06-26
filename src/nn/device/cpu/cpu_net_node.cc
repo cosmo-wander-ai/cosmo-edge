@@ -261,7 +261,7 @@ Status CpuNetNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
                 fsum += fdata[k];
             }
             size_t sample = std::min(element_count, (size_t)100000);
-            LOG_INFO(
+            LOG_DEBUG(
                 "[CpuNetNode] Input[{}:{}] shape=[{},{},{},{}] min={} max={} mean={} first5=[{},{},{},{},{}]",
                 i, input_names_[i], shape.size() > 0 ? shape[0] : 0, shape.size() > 1 ? shape[1] : 0,
                 shape.size() > 2 ? shape[2] : 0, shape.size() > 3 ? shape[3] : 0, fmin, fmax, fsum / sample,

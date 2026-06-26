@@ -67,9 +67,9 @@ util::ErrorEnum Qwen3VLUnify::Generate(const std::vector<VideoFramePtr>& images,
     }
 
     for (size_t i = 0; i < prompts.size(); i++) {
-        LOG_INFO("[Qwen3VL] Generate input prompt[{}]: {}", i, prompts[i]);
+        LOG_DEBUG("[Qwen3VL] Generate input prompt[{}]: {}", i, prompts[i]);
     }
-    LOG_INFO("[Qwen3VL] Generate param do_sample:{} top_k:{} top_p:{} temperature:{} imageNum:{}",
+    LOG_DEBUG("[Qwen3VL] Generate param do_sample:{} top_k:{} top_p:{} temperature:{} imageNum:{}",
              gen_param.do_sample, gen_param.top_k, gen_param.top_p, gen_param.temperature, images.size());
 
     size_t image_num{images.size()};
@@ -93,12 +93,12 @@ util::ErrorEnum Qwen3VLUnify::Generate(const std::vector<VideoFramePtr>& images,
         }
     }
     for (size_t i = 0; i < results.size(); i++) {
-        LOG_INFO("[Qwen3VL] Generate output result[{}] frameIndex:{} text: {}", i, results[i].frame_index,
+        LOG_DEBUG("[Qwen3VL] Generate output result[{}] frameIndex:{} text: {}", i, results[i].frame_index,
                  results[i].text);
     }
     auto end      = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    LOG_INFO("Qwen3VL Generate execution time: {} ms, imageNum: {}", duration.count(), image_num);
+    LOG_DEBUG("Qwen3VL Generate execution time: {} ms, imageNum: {}", duration.count(), image_num);
     return util::ErrorEnum::Success;
 }
 
@@ -200,10 +200,10 @@ util::ErrorEnum Qwen3VLUnify::Forward(const std::vector<VideoFramePtr>& images,
         std::string preview = results[i].text.empty() ? "(empty)" : results[i].text;
         if (preview.length() > 200)
             preview = preview.substr(0, 200) + "...";
-        LOG_INFO("[Qwen3VL] Forward done. imageIdx:{} frameIndex:{} text:{}", i, results[i].frame_index,
+        LOG_DEBUG("[Qwen3VL] Forward done. imageIdx:{} frameIndex:{} text:{}", i, results[i].frame_index,
                  preview);
     }
-    LOG_INFO("[Qwen3VL] Forward done. images:{} results:{}", images.size(), results.size());
+    LOG_DEBUG("[Qwen3VL] Forward done. images:{} results:{}", images.size(), results.size());
     return util::ErrorEnum::Success;
 }
 

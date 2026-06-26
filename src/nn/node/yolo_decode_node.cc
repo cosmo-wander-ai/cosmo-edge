@@ -123,7 +123,7 @@ Status YoloDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
         }
 
         if (is_normalized) {
-            LOG_INFO("[YoloDecodeNode] batch {}: detected normalized coordinates, denormalizing by [{}x{}]",
+            LOG_DEBUG("[YoloDecodeNode] batch {}: detected normalized coordinates, denormalizing by [{}x{}]",
                      i, input_width_, input_height_);
         }
 

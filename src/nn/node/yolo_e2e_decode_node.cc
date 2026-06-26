@@ -94,7 +94,7 @@ Status YoloE2EDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blo
         }
 
         if (is_normalized) {
-            LOG_INFO(
+            LOG_DEBUG(
                 "[YoloE2EDecodeNode] batch {}: detected normalized coordinates, denormalizing by [{}x{}]", b,
                 input_width_, input_height_);
         }

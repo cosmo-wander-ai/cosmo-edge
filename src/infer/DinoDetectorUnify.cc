@@ -108,7 +108,7 @@ util::ErrorEnum DinoDetectorUnify::Forward(const std::vector<VideoFramePtr>& ima
     // Consistent with sophon_simple_graph.cc LoadPrompt: input_1 is raw UTF-8 text bytes (UINT8), not token
     // IDs
     std::string prompt_text = prompt.empty() ? "person" : prompt;
-    LOG_INFO("Dino Forward Prompt:{}", prompt_text);
+    LOG_DEBUG("Dino Forward Prompt:{}", prompt_text);
     std::vector<std::shared_ptr<cosmo::nn::Blob>> prompt_blobs;
     for (size_t i = 0; i < image_blobs.size(); i++) {
         cosmo::nn::BlobDesc p_desc;
@@ -131,10 +131,10 @@ util::ErrorEnum DinoDetectorUnify::Forward(const std::vector<VideoFramePtr>& ima
                 dim_str += ",";
             dim_str += std::to_string(d.dims[k]);
         }
-        LOG_INFO("[DinoDetect] input imageIdx:{} blob dims:[{}] dtype:{} device:{}", i, dim_str,
+        LOG_DEBUG("[DinoDetect] input imageIdx:{} blob dims:[{}] dtype:{} device:{}", i, dim_str,
                  static_cast<int>(d.data_type), static_cast<int>(d.device_type));
     }
-    LOG_INFO("[DinoDetect] input prompt: \"{}\" len:{} promptBlobs:{} eachDims:[1,{}]", prompt_text,
+    LOG_DEBUG("[DinoDetect] input prompt: \"{}\" len:{} promptBlobs:{} eachDims:[1,{}]", prompt_text,
              prompt_text.size(), prompt_blobs.size(), prompt_text.size());
 
     auto status = detector_->Forward({image_blobs, prompt_blobs});
@@ -181,13 +181,13 @@ util::ErrorEnum DinoDetectorUnify::Forward(const std::vector<VideoFramePtr>& ima
     for (size_t i = 0; i < results.size(); i++) {
         for (size_t j = 0; j < results[i].size() && j < 5; j++) {
             const auto& el = results[i][j];
-            LOG_INFO("[DinoDetect] imageIdx:{} detIdx:{} box:[{},{},{},{}] label:{} conf:{}", i, j, el.box.x,
+            LOG_DEBUG("[DinoDetect] imageIdx:{} detIdx:{} box:[{},{},{},{}] label:{} conf:{}", i, j, el.box.x,
                      el.box.y, el.box.width, el.box.height, el.confidence.label, el.confidence.confidence);
         }
         if (results[i].size() > 5)
-            LOG_INFO("[DinoDetect] imageIdx:{} total:{} (only first 5 logged)", i, results[i].size());
+            LOG_DEBUG("[DinoDetect] imageIdx:{} total:{} (only first 5 logged)", i, results[i].size());
     }
-    LOG_INFO("[DinoDetect] Forward done. images:{} totalDetections:{}", results.size(), total_det);
+    LOG_DEBUG("[DinoDetect] Forward done. images:{} totalDetections:{}", results.size(), total_det);
     return util::ErrorEnum::Success;
 }
 
