@@ -6,7 +6,6 @@ on:
   pull_request:
     branches: [main]
     paths:
-      # Only run this heavy workflow when C++ / build sources change
       - 'src/**'
       - 'test/**'
       - 'cmake/**'
@@ -19,7 +18,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  checks: write   # for dorny/test-reporter to create check runs
+  checks: write
   contents: read
 
 concurrency:
@@ -28,26 +27,42 @@ concurrency:
 
 jobs:
   build-and-test:
+    # Use the same base image as Dockerfile.x86 builder stage — Debian 12 / GCC 12.
+    # This keeps CI and production builds consistent.
     runs-on: ubuntu-latest
+    container:
+      image: node:20-bookworm
+
     timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v4
 
-      # ── System dependencies ──────────────────────────────────────────
+      # ── System dependencies (mirrors Dockerfile.x86 builder stage) ───
       - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            bash \
             build-essential \
+            ca-certificates \
             cmake \
+            curl \
+            file \
             g++-aarch64-linux-gnu \
-            ninja-build \
-            pkg-config \
+            git \
+            libtool \
+            make \
             nasm \
-            yasm \
+            ninja-build \
+            patch \
+            perl \
+            pkg-config \
             python3 \
+            unzip \
+            yasm \
             zlib1g-dev
+          rm -rf /var/lib/apt/lists/*
 
       # ── Rust (required by tokenizers-cpp) ────────────────────────────
       - name: Install Rust toolchain
@@ -58,10 +73,6 @@ jobs:
         run: bash scripts/build_cpu_test.sh
 
       # ── Run tests ────────────────────────────────────────────────────
-      # Catch2 binary writes JUnit XML for GitHub's test summary UI.
-      # LD_LIBRARY_PATH must include prebuilt .so directories and third-party
-      # ExternalProject install paths so the test binary can resolve all
-      # shared libraries at runtime.
       - name: Run tests
         run: |
           export LD_LIBRARY_PATH="\
