@@ -1,11 +1,11 @@
 #include "nn/device/sophon/qwen3vl/qwen3vl_model.h"
 
 #include <assert.h>
+#include <nlohmann/json.hpp>
 
 #include <cstring>
 #include <fstream>
 #include <iostream>
-#include <nlohmann/json.hpp>
 #include <stdexcept>
 
 #include "bmlib_runtime.h"
