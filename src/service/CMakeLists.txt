@@ -14,6 +14,7 @@ target_link_libraries(cosmo_service PRIVATE cosmo_common
     SQLiteCpp sqlite3 cryptopp pcap
     uWebSockets uSockets z openssl_ssl openssl_crypto
     ffmpeg_avcodec ffmpeg_avformat ffmpeg_avutil
+    event_core event_extra event
 )
 # Backend compile definitions and link libraries
 # (MemoryPoolServiceImpl needs allocator selection, HardwareQueryUtil needs device info,
