@@ -9,6 +9,7 @@
 #include "service/model/impl/ModelServiceImpl.h"
 #include "util/FileUtil.h"
 #include "util/PathUtil.h"
+#include "util/PlatformConstants.h"
 
 using namespace cosmo::service;
 using namespace cosmo;
@@ -16,7 +17,8 @@ using namespace cosmo;
 // Helper: create a minimal model directory with config.json on disk
 static void CreateTestModelOnDisk(const std::string& modelsDir, const std::string& modelCode,
                                   const std::string& modelName) {
-    std::string dirName  = "prod_BM1688_" + modelCode + "_" + modelName + "_V1.0.0";
+    std::string dirName =
+        std::string(cosmo::util::kPlatformDirPrefix) + modelCode + "_" + modelName + "_V1.0.0";
     std::string modelDir = (std::filesystem::path(modelsDir) / dirName).string();
     std::filesystem::create_directories(modelDir);
 
@@ -103,8 +105,9 @@ TEST_CASE("ModelServiceImpl: 模型服务核心逻辑", "[model-service]") {
                 .RETURN(std::vector<std::string>{});
             ALLOW_CALL(mocks.cameraSvc, NotifyAlgorithmsChanged(trompeloeil::_, false));
             REQUIRE(sut.DeleteModel("test_model_001") == cosmo::util::ErrorEnum::Success);
-            REQUIRE(std::filesystem::exists(testModelsDir + "/prod_BM1688_test_model_001_TestModel_V1.0.0") ==
-                    false);
+            REQUIRE(std::filesystem::exists(testModelsDir + "/" +
+                                            std::string(cosmo::util::kPlatformDirPrefix) +
+                                            "test_model_001_TestModel_V1.0.0") == false);
         }
 
         SECTION("UpdateModel 流程") {

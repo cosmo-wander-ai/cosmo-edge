@@ -3,6 +3,7 @@
 #include <functional>
 
 #include "util/PathUtil.h"
+#include "util/PlatformConstants.h"
 
 // clang-format off
 #include "catch_amalgamated.hpp"
@@ -80,10 +81,11 @@ TEST_CASE("ModelImportExporter Tests", "[model]") {
                                                  bmodelFiles, "", tokenizerSrc, "", "");
         REQUIRE(res == cosmo::util::ErrorEnum::Success);
 
-        std::string expectedDir = testModelDir + "/prod_BM1688_1234567_AtomicName_V1.0.0";
+        std::string expectedDir =
+            testModelDir + "/" + std::string(cosmo::util::kPlatformDirPrefix) + "1234567_AtomicName_V1.0.0";
         REQUIRE(fs::exists(expectedDir));
         REQUIRE(fs::exists(expectedDir + "/config.json"));
-        REQUIRE(fs::exists(expectedDir + "/model.nn"));
+        REQUIRE(fs::exists(expectedDir + "/model" + std::string(cosmo::util::kModelFileExt)));
 
         nlohmann::json doc;
         REQUIRE(cosmo::util::JsonFileUtil::ReadJsonFile(expectedDir + "/config.json", doc) ==
@@ -219,7 +221,8 @@ TEST_CASE("ModelImportExporter Tests", "[model]") {
         outCfg << "{\"modelCode\": \"fake_model\", \"algorithmVersion\": \"1.0.0\"}";
         outCfg.close();
 
-        std::ofstream outNn(tempArchiveDir + "/fake_model/model.nn");
+        std::string modelFile = "model" + std::string(cosmo::util::kModelFileExt);
+        std::ofstream outNn(tempArchiveDir + "/fake_model/" + modelFile);
         outNn << "fake";
         outNn.close();
 
@@ -244,23 +247,27 @@ TEST_CASE("ModelImportExporter Tests", "[model]") {
         outCfg << "{\"modelCode\": \"flat_model\", \"algorithmVersion\": \"1.0.0\"}";
         outCfg.close();
 
-        std::ofstream outNn(tempArchiveDir + "/model.nn");
+        std::string modelFile = "model" + std::string(cosmo::util::kModelFileExt);
+        std::ofstream outNn(tempArchiveDir + "/" + modelFile);
         outNn << "fake";
         outNn.close();
 
         std::string tarFile = "/tmp/cosmo_test_models/flat_import.tar.gz";
-        std::string cmd     = "cd " + tempArchiveDir + " && tar -czf " + tarFile + " config.json model.nn";
+        std::string cmd = "cd " + tempArchiveDir + " && tar -czf " + tarFile + " config.json " + modelFile;
         (void)!system(cmd.c_str());
 
         auto res = importExporter.ImportModel(tarFile);
         REQUIRE(res == cosmo::util::ErrorEnum::Success);
 
-        // It should have created a directory named after modelCode "flat_model" or "test_gen_code" if it
-        // couldn't find modelCode Since we provided modelCode in config.json, it should be flat_model
-        REQUIRE(fs::exists(testModelDir + "/prod_BM1688_0000000_imported_V1.0.0/config.json"));
+        // ImportFlatArchive uses kPlatformDirPrefix + alg_code + "_" + name + "_" + version
+        // alg_code defaults to "0000000" (no "algorithm_code" key in config.json),
+        // name defaults to "imported", version defaults to "V1.0.0"
+        REQUIRE(fs::exists(testModelDir + "/" + std::string(cosmo::util::kPlatformDirPrefix) +
+                           "0000000_imported_V1.0.0/config.json"));
 
         fs::remove_all(tempArchiveDir);
-        fs::remove_all(testModelDir + "/prod_BM1688_0000000_imported_V1.0.0");
+        fs::remove_all(testModelDir + "/" + std::string(cosmo::util::kPlatformDirPrefix) +
+                       "0000000_imported_V1.0.0");
         fs::remove(tarFile);
     }
 
