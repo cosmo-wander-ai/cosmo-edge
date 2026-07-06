@@ -384,7 +384,7 @@ util::ErrorEnum CameraServiceImpl::MakeCameraTask(const CameraEntityPtr& camera,
     task->task_id_        = ChannelAlgIdToTaskId(camera->videoChannelId, task->algorithm_code_);
     task->algorithm_name_ = algData->algorithmName;
     auto taskUnit         = std::make_shared<CameraTaskUnit>(camera->conf_file_path_, camera->videoChannelId,
-                                                             task->algorithm_code_, models);
+                                                     task->algorithm_code_, models);
     if (!taskUnit->IsReady()) {
         auto status = taskUnit->GetStatus();
         LOG_WARN("[{}/{}] Make Task failed, unit status:{}", camera->videoChannelId, task->algorithm_code_,
@@ -458,8 +458,19 @@ void CameraServiceImpl::SwitchCameraTaskAsync(CameraEntityPtr camera, CameraTask
 void CameraServiceImpl::CameraTaskMonitor() {
     // Authorization removed: no longer check auth; always treat as authorized (matches old 23461e05)
     const bool is_service_authed = true;
-    std::shared_lock<std::shared_mutex> lock(mtx_);
-    for (const auto& camera : cameras_) {
+    // Snapshot the camera list under the shared lock, then release mtx_ before iterating.
+    // MonitorCameraEntity -> ProbeCameraOnlineStatus -> CheckUrlConnectivity performs a blocking
+    // 2s TCP select() per offline camera; holding mtx_ across the whole scan would block
+    // Add/Update/Delete (which take mtx_ exclusively) for up to 2s * camera_count per cycle,
+    // causing HTTP latency spikes and timeouts. The snapshot owns shared_ptr copies, so each
+    // CameraEntity stays alive for the scan even if Delete removes it from cameras_ concurrently.
+    // Per-camera task_mtx_ is still acquired briefly inside MonitorCameraEntity as needed.
+    std::vector<CameraEntityPtr> snapshot;
+    {
+        std::shared_lock<std::shared_mutex> lock(mtx_);
+        snapshot = cameras_;
+    }
+    for (const auto& camera : snapshot) {
         MonitorCameraEntity(camera, is_service_authed);
     }
 }
