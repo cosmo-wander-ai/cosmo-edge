@@ -120,6 +120,44 @@ docker compose -f docker-compose.x86.windows.yml down
 
 启动后 Web 控制台地址为 `http://127.0.0.1:8080`。
 
+### Git Pre-commit Hook
+
+CosmoEdge 内置 Git pre-commit hook，可在提交前自动检查暂存区 C++ 文件的格式（`clang-format`），并在本地安装了 `cppcheck` 时运行静态分析。安装 hook 可在问题进入 CI 前拦截。
+
+**安装 hook：**
+
+```bash
+bash scripts/install-hooks.sh
+```
+
+这会在 `.git/hooks/pre-commit` 创建指向 `scripts/pre-commit` 的符号链接，随仓库同步更新。
+
+**Hook 检查内容：**
+
+1. **clang-format** — 所有暂存的 `.h` 和 `.cc` 文件需符合项目风格（根目录 `.clang-format`）。
+   - 格式检查失败：运行 `bash scripts/format_check.sh --staged --fix`，然后 `git add -u`。
+2. **cppcheck**（可选）— 仅当本地安装了 `cppcheck` 时运行。仅在出现 error 级别问题时拦截。
+
+**卸载 hook：**
+
+```bash
+rm .git/hooks/pre-commit
+```
+
+**手动检查（不依赖 hook）：**
+
+```bash
+# 检查暂存区文件格式
+bash scripts/format_check.sh --staged --check
+
+# 自动修复暂存区文件格式
+bash scripts/format_check.sh --staged --fix
+git add -u
+
+# 对暂存区文件运行 cppcheck（需已安装）
+bash scripts/static_analysis.sh --cppcheck --staged
+```
+
 ## PR 前检查清单
 
 - 改动是否聚焦在一个主题上。

@@ -120,6 +120,44 @@ docker compose -f docker-compose.x86.windows.yml down
 
 After startup, the web console is available at `http://127.0.0.1:8080`.
 
+### Git Pre-commit Hook
+
+CosmoEdge includes a Git pre-commit hook that automatically checks staged C++ files for formatting issues (via `clang-format`) and runs `cppcheck` static analysis if available. Installing the hook catches problems before they reach CI.
+
+**Install the hook:**
+
+```bash
+bash scripts/install-hooks.sh
+```
+
+This creates a symlink from `.git/hooks/pre-commit` to `scripts/pre-commit`, so the hook stays in sync with the repository.
+
+**What the hook checks:**
+
+1. **clang-format** — all staged `.h` and `.cc` files must follow the project style (`.clang-format` at repo root).
+   - If formatting fails: run `bash scripts/format_check.sh --staged --fix`, then `git add -u`.
+2. **cppcheck** (optional) — runs only if `cppcheck` is installed locally. Blocks on error-level findings.
+
+**Uninstall the hook:**
+
+```bash
+rm .git/hooks/pre-commit
+```
+
+**Manual checks (without the hook):**
+
+```bash
+# Check formatting of staged files
+bash scripts/format_check.sh --staged --check
+
+# Auto-fix formatting of staged files
+bash scripts/format_check.sh --staged --fix
+git add -u
+
+# Run cppcheck on staged files (if installed)
+bash scripts/static_analysis.sh --cppcheck --staged
+```
+
 ## Pull Request Checklist
 
 - The change is focused on one topic.
