@@ -103,6 +103,13 @@ namespace media {
         open_params_.bitrate      = 0;
         open_params_.cqp          = 32;
         open_params_.gop_preset   = BMVpuEncGopPreset::BM_VPU_ENC_GOP_PRESET_IPPPP;
+        // IDR interval (frames between intra/keyframes). SDK default is 28, which at
+        // the overlay preview feed rate (~10fps) yields a keyframe only every ~2.8s.
+        // SRS WebRTC starts a new subscriber from the next keyframe, so that long
+        // interval shows up as multi-second black when switching to overlay. 10 frames
+        // ≈ 1s at 10fps — frequent enough for snappy switch-in, cheap enough for a
+        // preview-only encoder (recording uses a separate path).
+        open_params_.intra_period = 10;
 
         auto ret = bmvpu_enc_load(soc_idx_);
         if (ret != BM_VPU_ENC_RETURN_CODE_OK) {

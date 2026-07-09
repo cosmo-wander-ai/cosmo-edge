@@ -159,8 +159,13 @@ namespace media {
         codec_ctx_->framerate = {25, 1};
         codec_ctx_->bit_rate  = 4000000;
 
-        // GOP settings: all P-frames after first I-frame
-        codec_ctx_->gop_size     = 25;
+        // GOP settings: all P-frames after first I-frame.
+        // gop_size = IDR interval in frames. Align with the Sophon encoder's
+        // intra_period (10): at the overlay preview feed rate (~10fps) this yields a
+        // keyframe every ~1s so SRS WebRTC subscribers get a decodable start quickly
+        // on switch-in (the previous 25 ≈ 2.5s caused long black screen, same issue
+        // as the Sophon default intra_period=28).
+        codec_ctx_->gop_size     = 10;
         codec_ctx_->max_b_frames = 0;
 
         // Quality setting via qmin/qmax for CQP-like behavior
