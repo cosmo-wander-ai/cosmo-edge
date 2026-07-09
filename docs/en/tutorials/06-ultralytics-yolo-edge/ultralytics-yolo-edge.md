@@ -95,7 +95,7 @@ The benchmark hardware identifiers are anonymized. Keep that policy for public d
 | --- | --- | --- |
 | Input video | `data/test-video/Safety Helmet.mp4` | Reproducible source video used by the pipeline validation and ScenarioBench benchmark. |
 | Demo recording | [`ultralytics-yolo-edge-demo.mp4`](https://github.com/user-attachments/assets/1d65ec39-c3d2-4fb8-8712-8a8d6bad8936) | Screen recording of the CosmoEdge workflow and OSD result, 1920 x 1080, 24 FPS, 100.97 seconds, H.264/AAC. |
-| Pipeline package | [`ultralytics-yolo-no-safety-helmet-pipeline.tar.gz`](../../../assets/community/ultralytics-yolo-no-safety-helmet-pipeline.tar.gz) | Exported `NO Safety Helmet` scenario package containing `87841_NO Safety Helmet.json`. |
+| Pipeline package | [`ultralytics-yolo-no-safety-helmet-pipeline.tar.gz`](/assets/community/ultralytics-yolo-no-safety-helmet-pipeline.tar.gz) | Exported `NO Safety Helmet` scenario package containing `87841_NO Safety Helmet.json`. |
 | Benchmark reports | ScenarioBench v1.0 report paths | Published capacity and stability evidence for each benchmark row. |
 
 ### Validation Evidence
@@ -248,7 +248,7 @@ Video Decode
   -> OSD Rendering
 ```
 
-Reference pipeline package: [NO Safety Helmet scenario export](../../../assets/community/ultralytics-yolo-no-safety-helmet-pipeline.tar.gz).
+Reference pipeline package: [NO Safety Helmet scenario export](/assets/community/ultralytics-yolo-no-safety-helmet-pipeline.tar.gz).
 
 Key configuration points:
 
