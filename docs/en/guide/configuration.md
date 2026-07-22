@@ -41,6 +41,19 @@ Set in `Dockerfile.x86`:
 ${INSTALLPATH}/scripts/run_start.sh start ${DATADIR}/log/logs/INTE_RUN_container.log
 ```
 
+## Manager Signing Credentials
+
+Signed requests to the manager no longer use built-in application credentials. Configure both variables below with absolute paths to credential files:
+
+| Variable | Description |
+| --- | --- |
+| `COSMO_APP_KEY_FILE` | App Key file |
+| `COSMO_APP_SECRET_FILE` | App Secret file |
+
+Each path must reference a regular file no larger than 4096 bytes containing exactly one non-empty line. Mount the files read-only with restricted permissions; do not store the credential values in an image, Compose file, or repository.
+
+When both variables are absent, signed manager requests remain disabled. A partial configuration, relative path, or invalid file also rejects the request. Local web and device APIs are unaffected.
+
 ## Sophon Build Variables
 
 `docker-compose.sophon.yml` supports the following build arguments:

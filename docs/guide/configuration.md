@@ -41,6 +41,19 @@ docker-compose.sophon.yml
 ${INSTALLPATH}/scripts/run_start.sh start ${DATADIR}/log/logs/INTE_RUN_container.log
 ```
 
+## 管理平台签名凭据
+
+向管理平台发送签名请求时，不再使用内置应用凭据。运行环境必须同时配置以下变量，变量值为凭据文件的绝对路径：
+
+| 变量 | 说明 |
+| --- | --- |
+| `COSMO_APP_KEY_FILE` | App Key 文件 |
+| `COSMO_APP_SECRET_FILE` | App Secret 文件 |
+
+两个文件都必须是普通文件，大小不超过 4096 字节，并且只包含一行非空内容。建议以只读方式挂载文件并限制读取权限，不要把实际凭据写入镜像、Compose 文件或仓库。
+
+两个变量均未设置时，签名管理平台请求保持禁用；只配置一个变量、使用相对路径或文件内容无效时，请求同样会被拒绝。该行为不会影响本地 Web 和设备 API。
+
 ## Sophon 构建变量
 
 `docker-compose.sophon.yml` 支持以下构建参数：
@@ -114,4 +127,3 @@ COSMO_STREAM_HTTP_PORT=18088
 | `COSMO_ENABLE_OPENH264` | CPU 后端时自动 `ON`，Sophon 后端时 `OFF` |
 | `COSMO_OPENH264_USE_ASM` | 始终为 `OFF` |
 | `COSMO_MODEL_GUARD` | Sophon 后端时 `ON`（启用加密模型校验），CPU 后端时 `OFF` |
-
