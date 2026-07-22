@@ -59,6 +59,7 @@ public:
 private:
     [[nodiscard]] bool ParseAvcC(const std::vector<uint8_t>& data);
     [[nodiscard]] bool ParseHevcC(const std::vector<uint8_t>& data);
+    bool NormalizeAnnexB(const uint8_t* data, size_t size, const uint8_t*& out_data, size_t& out_size);
 
     media::VideoCodecType codec_type_;
     int width_;
@@ -69,7 +70,8 @@ private:
     std::vector<uint8_t> sps_;
     std::vector<uint8_t> pps_;
     std::vector<uint8_t> sei_;
-    std::vector<uint8_t> prepend_buffer_;  // reusable buffer for I-frame parameter prepend
+    std::vector<uint8_t> prepend_buffer_;     // reusable buffer for I-frame parameter prepend
+    std::vector<uint8_t> normalized_buffer_;  // canonical Annex-B packet without empty/padded NAL units
 };
 
 }  // namespace cosmo

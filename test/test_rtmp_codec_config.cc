@@ -108,4 +108,130 @@ TEST_CASE("RtmpCodecConfig recognizes an Annex-B packet with parameter sets and 
     CHECK(output_size == packet.size());
 }
 
+namespace {
+    std::vector<std::vector<uint8_t>> ParseCanonicalAnnexB(const uint8_t* data, size_t size) {
+        std::vector<std::vector<uint8_t>> nal_units;
+        size_t offset = 0;
+        while (offset < size) {
+            REQUIRE(offset + 4 <= size);
+            REQUIRE(data[offset] == 0x00);
+            REQUIRE(data[offset + 1] == 0x00);
+            REQUIRE(data[offset + 2] == 0x00);
+            REQUIRE(data[offset + 3] == 0x01);
+            const size_t nal_start = offset + 4;
+            size_t next            = nal_start;
+            while (next + 4 <= size && !(data[next] == 0x00 && data[next + 1] == 0x00 &&
+                                         data[next + 2] == 0x00 && data[next + 3] == 0x01)) {
+                ++next;
+            }
+            const size_t nal_end = next + 4 <= size ? next : size;
+            REQUIRE(nal_end > nal_start);
+            nal_units.emplace_back(data + nal_start, data + nal_end);
+            offset = nal_end;
+        }
+        return nal_units;
+    }
+}  // namespace
+
+TEST_CASE("RTMP codec config removes padded Annex-B separators", "[media][preview][rtmp]") {
+    const std::vector<uint8_t> packet{
+        0x00,
+        0x00,
+        0x00,
+        0x01,
+        0x67,
+        0x4d,
+        0x40,
+        0x32,
+        0x00,
+        0x00,
+        0x00,
+        0x01,
+        0x68,
+        0xce,
+        0x3c,
+        0x80,
+        // Legal trailing_zero_8bits followed by a four-byte start code. The legacy
+        // FLV muxer previously serialized this run as an empty AVCC NAL.
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+        0x01,
+        0x06,
+        0x05,
+        0x2f,
+        0x00,
+        0x00,
+        0x00,
+        0x01,
+        0x65,
+        0x88,
+        0x80,
+        0x0e,
+    };
+
+    cosmo::RtmpCodecConfig config(cosmo::media::VideoCodecType::kH264, 1920, 1080, 24.0F);
+    const uint8_t* output = nullptr;
+    size_t output_size    = 0;
+    cosmo::media::HFrameType main_type{};
+    cosmo::media::HFrameType lead_type{};
+
+    REQUIRE(config.ParseAndPrepare(packet.data(), packet.size(), output, output_size, main_type, lead_type));
+    REQUIRE(main_type == cosmo::media::HFrameType::I);
+    REQUIRE(lead_type == cosmo::media::HFrameType::SPS);
+
+    const auto nal_units = ParseCanonicalAnnexB(output, output_size);
+    REQUIRE(nal_units.size() == 4);
+    REQUIRE((nal_units[0][0] & 0x1f) == 7);
+    REQUIRE((nal_units[1][0] & 0x1f) == 8);
+    REQUIRE((nal_units[2][0] & 0x1f) == 6);
+    REQUIRE((nal_units[3][0] & 0x1f) == 5);
+}
+
+TEST_CASE("RTMP codec config canonicalizes ordinary H264 access units", "[media][preview][rtmp]") {
+    const std::vector<uint8_t> packet{
+        0x00, 0x00, 0x00, 0x01, 0x09, 0x30, 0x00, 0x00, 0x01, 0x41, 0x9a, 0x02, 0x07,
+    };
+
+    cosmo::RtmpCodecConfig config(cosmo::media::VideoCodecType::kH264, 1280, 720, 25.0F);
+    const uint8_t* output = nullptr;
+    size_t output_size    = 0;
+    cosmo::media::HFrameType main_type{};
+    cosmo::media::HFrameType lead_type{};
+
+    REQUIRE(config.ParseAndPrepare(packet.data(), packet.size(), output, output_size, main_type, lead_type));
+    const auto nal_units = ParseCanonicalAnnexB(output, output_size);
+    REQUIRE(nal_units.size() == 2);
+    REQUIRE((nal_units[0][0] & 0x1f) == 9);
+    REQUIRE((nal_units[1][0] & 0x1f) == 1);
+}
+
+TEST_CASE("RTMP codec config removes padded H265 Annex-B separators", "[media][preview][rtmp]") {
+    const std::vector<uint8_t> packet{
+        0x00, 0x00, 0x00, 0x01, 0x40, 0x01, 0x0c, 0x00, 0x00, 0x00, 0x01, 0x42, 0x01,
+        0x01, 0x00, 0x00, 0x00, 0x01, 0x44, 0x01, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x01, 0x4e, 0x01, 0x80, 0x00, 0x00, 0x00, 0x01, 0x26, 0x01, 0xaf,
+    };
+
+    cosmo::RtmpCodecConfig config(cosmo::media::VideoCodecType::kH265, 1920, 1080, 25.0F);
+    const uint8_t* output = nullptr;
+    size_t output_size    = 0;
+    cosmo::media::HFrameType main_type{};
+    cosmo::media::HFrameType lead_type{};
+
+    REQUIRE(config.ParseAndPrepare(packet.data(), packet.size(), output, output_size, main_type, lead_type));
+    REQUIRE(main_type == cosmo::media::HFrameType::I);
+    REQUIRE(lead_type == cosmo::media::HFrameType::VPS);
+
+    const auto nal_units = ParseCanonicalAnnexB(output, output_size);
+    REQUIRE(nal_units.size() == 5);
+    REQUIRE(((nal_units[0][0] & 0x7e) >> 1) == 32);
+    REQUIRE(((nal_units[1][0] & 0x7e) >> 1) == 33);
+    REQUIRE(((nal_units[2][0] & 0x7e) >> 1) == 34);
+    REQUIRE(((nal_units[3][0] & 0x7e) >> 1) == 39);
+    REQUIRE(((nal_units[4][0] & 0x7e) >> 1) == 19);
+}
+
 }  // namespace cosmo

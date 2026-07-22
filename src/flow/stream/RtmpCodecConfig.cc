@@ -43,6 +43,23 @@ namespace {
                       input.begin() + static_cast<std::ptrdiff_t>(offset + length));
         return true;
     }
+
+    bool FindAnnexBStartCode(const uint8_t* data, size_t size, size_t from, size_t& offset, size_t& length) {
+        for (size_t index = from; index + 3 <= size; ++index) {
+            if (index + 4 <= size && data[index] == 0x00 && data[index + 1] == 0x00 &&
+                data[index + 2] == 0x00 && data[index + 3] == 0x01) {
+                offset = index;
+                length = 4;
+                return true;
+            }
+            if (data[index] == 0x00 && data[index + 1] == 0x00 && data[index + 2] == 0x01) {
+                offset = index;
+                length = 3;
+                return true;
+            }
+        }
+        return false;
+    }
 }  // namespace
 
 RtmpCodecConfig::RtmpCodecConfig(media::VideoCodecType codec_type, int width, int height, float fps)
@@ -140,6 +157,8 @@ bool RtmpCodecConfig::ParseAndPrepare(const uint8_t* data, size_t size, const ui
     // SPS/PPS from in-band stream have 00 00 00 01 prefix (SeparateHVideoFrame
     // includes it); those from avcC extradata are raw NAL units.
     // Annex-B-mix would corrupt the bytestream — detect and add prefix as needed.
+    const uint8_t* effective_data = data;
+    size_t effective_size         = size;
     if (main_type == media::HFrameType::I && lead_type != media::HFrameType::SPS &&
         lead_type != media::HFrameType::VPS) {
         static const uint8_t kStartCode[]{0x00, 0x00, 0x00, 0x01};
@@ -163,13 +182,70 @@ bool RtmpCodecConfig::ParseAndPrepare(const uint8_t* data, size_t size, const ui
         appendNal(pps_);
         appendNal(sei_);
         prepend_buffer_.insert(prepend_buffer_.end(), data, data + size);
-        out_data = prepend_buffer_.data();
-        out_size = prepend_buffer_.size();
-    } else {
-        out_data = data;
-        out_size = size;
+        effective_data = prepend_buffer_.data();
+        effective_size = prepend_buffer_.size();
     }
 
+    // FFmpeg 4.4's FLV muxer can emit zero-length AVCC NAL units when an Annex-B packet
+    // contains legal trailing_zero_8bits (for example 00 00 00 00 00 01 between PPS and
+    // SEI). Rebuild a canonical Annex-B packet so the legacy muxer receives exactly one
+    // start code per non-empty NAL. This preserves the existing FFmpeg ABI while making
+    // periodic keyframes decodable by standard H.264 clients.
+    if (!NormalizeAnnexB(effective_data, effective_size, out_data, out_size)) {
+        out_data = effective_data;
+        out_size = effective_size;
+    }
+
+    return true;
+}
+
+bool RtmpCodecConfig::NormalizeAnnexB(const uint8_t* data, size_t size, const uint8_t*& out_data,
+                                      size_t& out_size) {
+    size_t start_offset = 0;
+    size_t start_length = 0;
+    if (!data || !FindAnnexBStartCode(data, size, 0, start_offset, start_length)) {
+        return false;
+    }
+
+    static constexpr uint8_t kStartCode[]{0x00, 0x00, 0x00, 0x01};
+    normalized_buffer_.clear();
+    normalized_buffer_.reserve(size + 16);
+    bool needs_normalization = start_offset != 0 || start_length != sizeof(kStartCode);
+
+    size_t nal_start = start_offset + start_length;
+    while (nal_start < size) {
+        size_t next_offset             = 0;
+        size_t next_length             = 0;
+        const bool has_next            = FindAnnexBStartCode(data, size, nal_start, next_offset, next_length);
+        size_t nal_end                 = has_next ? next_offset : size;
+        const size_t untrimmed_nal_end = nal_end;
+        while (nal_end > nal_start && data[nal_end - 1] == 0x00) {
+            --nal_end;
+        }
+        if (nal_end > nal_start) {
+            const size_t nal_size = nal_end - nal_start;
+            if (normalized_buffer_.size() > kMaxEncodedPacketBytes - sizeof(kStartCode) ||
+                nal_size > kMaxEncodedPacketBytes - normalized_buffer_.size() - sizeof(kStartCode)) {
+                normalized_buffer_.clear();
+                return false;
+            }
+            normalized_buffer_.insert(normalized_buffer_.end(), kStartCode, kStartCode + 4);
+            normalized_buffer_.insert(normalized_buffer_.end(), data + nal_start, data + nal_end);
+        }
+        needs_normalization = needs_normalization || nal_end != untrimmed_nal_end ||
+                              (has_next && next_length != sizeof(kStartCode));
+        if (!has_next) {
+            break;
+        }
+        nal_start = next_offset + next_length;
+    }
+
+    if (normalized_buffer_.empty() || !needs_normalization) {
+        normalized_buffer_.clear();
+        return false;
+    }
+    out_data = normalized_buffer_.data();
+    out_size = normalized_buffer_.size();
     return true;
 }
 
