@@ -39,8 +39,10 @@ namespace detail {
 
     inline std::string ErroResult(const char* errMsg, std::error_condition& errc) {
         LOG_ERRO("{}", errMsg);
-        if (!errc) {
-            errc = util::ErrorEnum::SysErr;
+        // A plain std::exception does not carry a Cosmo error condition. Never
+        // serialize it with msgCode=0/messageKey=Success.
+        if (errc == util::ErrorEnum::Success) {
+            errc = util::ErrorEnum::InternalError;
         }
         MsgSendHead retData{};
         retData.resCode = kServerRspFailed;
