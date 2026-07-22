@@ -1,0 +1,46 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Vendored upstream source and cryptographic test vectors are reviewed through dependency and SBOM gates"
+paths = ['''^3rd/''']
+
+[[allowlists]]
+description = "Generated web bundle is reproduced from separately scanned source"
+paths = ['''^src/web/dist/''']
+
+[[allowlists]]
+description = "Gitleaks configuration contains detection examples"
+paths = ['''^\.gitleaks\.toml$''']
+
+[[allowlists]]
+targetRules = ["generic-api-key"]
+description = "3D key-point field assignments are not credentials"
+condition = "AND"
+regexTarget = "match"
+paths = ['''^src/nn/utils/net_utils\.cc$''']
+regexes = ['''(?:new_info|offset_info)\.key_points_3d\s*=\s*key_points_3d''']
+
+[[allowlists]]
+targetRules = ["generic-api-key"]
+description = "Factory-default password hash is a one-way comparison marker"
+condition = "AND"
+regexTarget = "match"
+paths = ['''^src/service/network/impl/AuthServiceImpl\.h$''']
+regexes = ['''kDefaultAdminPasswordHash\s*=\s*"[A-F0-9]{32}"''']
+
+[[allowlists]]
+targetRules = ["generic-api-key"]
+description = "Retired discovery flow used the same reviewed factory password hash"
+condition = "AND"
+regexTarget = "match"
+paths = ['''^src/service/network/impl/DiscoveryCommandHandler\.cc$''']
+regexes = ['''tokenSendData\.passwd\s*=\s*"[A-F0-9]{32}"''']
+
+[[allowlists]]
+targetRules = ["generic-api-key"]
+description = "Deterministic AES unit-test material"
+condition = "AND"
+regexTarget = "match"
+paths = ['''^test/test_cipher_util\.cc$''']
+regexes = ['''key\s*=\s*"0123456789abcdef"''']
