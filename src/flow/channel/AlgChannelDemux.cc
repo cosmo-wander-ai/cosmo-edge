@@ -246,7 +246,7 @@ void AlgChannelDemux::HandleStream() {
                 NotifyOnComplete();
             }
             SetStatusInfo(service::camera::AlgDemuxStatus::AlgDemuxReadEnd);
-            action_status_     = util::ErrorEnum::DemuxStreamClosed;
+            action_status_      = util::ErrorEnum::DemuxStreamClosed;
             frame_packet->index = -1;
             recorder_->TaskFrame(frame_packet);
             return;

@@ -1,5 +1,4 @@
 #include "catch_amalgamated.hpp"
-
 #include "flow/channel/VideoEofPolicy.h"
 
 using cosmo::flow::DecideVideoEof;
@@ -26,8 +25,7 @@ TEST_CASE("Live stream EOF remains a reopen condition", "[video-eof][live]") {
     CHECK(DecideVideoEof(true, 1000, 3) == VideoEofDisposition::Reopen);
 }
 
-TEST_CASE("Camera monitor rejects terminal interpretation while reopen is pending",
-          "[video-eof][monitor]") {
+TEST_CASE("Camera monitor rejects terminal interpretation while reopen is pending", "[video-eof][monitor]") {
     CHECK_FALSE(IsTerminalOfflineReadEnd(false, false));
     CHECK_FALSE(IsTerminalOfflineReadEnd(false, true));
     CHECK_FALSE(IsTerminalOfflineReadEnd(true, true));

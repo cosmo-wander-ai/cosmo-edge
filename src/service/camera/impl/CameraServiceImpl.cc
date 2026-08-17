@@ -591,9 +591,8 @@ void CameraServiceImpl::MonitorCameraEntity(const CameraEntityPtr& camera, bool 
                                  camera->videoChannelId, task->task_id_);
                     }
                     // Channel has finished reading and no active data remains (queue fully consumed)
-                    if (isTerminalReadEnd &&
-                        !ServiceRegistry::Instance().Get<ITaskChannel>().TaskDataActive(
-                            camera->videoChannelId)) {
+                    if (isTerminalReadEnd && !ServiceRegistry::Instance().Get<ITaskChannel>().TaskDataActive(
+                                                 camera->videoChannelId)) {
                         LOG_INFO("[{}/{}] Offline video completed, auto-stopping task to release resources",
                                  camera->videoChannelId, task->task_id_);
                         ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskStop(task->task_id_);
