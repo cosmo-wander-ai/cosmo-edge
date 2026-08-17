@@ -31,6 +31,9 @@ struct MsgCameraAttr {
     float fps{0.0};
     ChannelStatus channelStatus{ChannelStatus::ChannelStatusOffline};  // 0: offline, 1: online, 2: auth error
     int dataStatus{0};  // service::camera::AlgDemuxStatus status
+    // Runtime-only guard. It is intentionally not serialized into the public
+    // camera DTO because it only coordinates the demuxer and task monitor.
+    bool repeatPending{false};
     friend void to_json(nlohmann::json& j, const MsgCameraAttr& v);
     friend void from_json(const nlohmann::json& j, MsgCameraAttr& v);
 };

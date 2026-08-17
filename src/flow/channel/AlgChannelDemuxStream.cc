@@ -145,7 +145,8 @@ bool AlgChannelDemux::GetAttr(MsgCameraAttr& attr) {
             attr.channelStatus = ChannelStatus::ChannelStatusResolusionUnSupport;
         }
     }
-    attr.dataStatus = static_cast<int>(status_.status);
+    attr.dataStatus    = static_cast<int>(status_.status);
+    attr.repeatPending = is_need_repeat_.load();
     return true;
 }
 

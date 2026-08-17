@@ -20,6 +20,7 @@
 #include <regex>
 
 #include "flow/channel/AlgChannel.h"
+#include "flow/channel/VideoEofPolicy.h"
 #include "flow/common/AlgDataRecord.h"
 #include "flow/common/FlowTaskUtil.h"
 #include "service/algorithm/IAlgorithmQuery.h"
@@ -581,11 +582,18 @@ void CameraServiceImpl::MonitorCameraEntity(const CameraEntityPtr& camera, bool 
                 MsgCameraAttr attr;
                 if (ServiceRegistry::Instance().Get<ITaskChannel>().GetChannelAttr(camera->videoChannelId,
                                                                                    attr)) {
-                    bool isReadEnd =
+                    const bool isReadEnd =
                         (attr.dataStatus == static_cast<int>(camera::AlgDemuxStatus::AlgDemuxReadEnd));
+                    const bool isTerminalReadEnd =
+                        flow::IsTerminalOfflineReadEnd(isReadEnd, attr.repeatPending);
+                    if (isReadEnd && attr.repeatPending) {
+                        LOG_ERRO("[{}/{}] Refusing task auto-stop: local video is reopening",
+                                 camera->videoChannelId, task->task_id_);
+                    }
                     // Channel has finished reading and no active data remains (queue fully consumed)
-                    if (isReadEnd && !ServiceRegistry::Instance().Get<ITaskChannel>().TaskDataActive(
-                                         camera->videoChannelId)) {
+                    if (isTerminalReadEnd &&
+                        !ServiceRegistry::Instance().Get<ITaskChannel>().TaskDataActive(
+                            camera->videoChannelId)) {
                         LOG_INFO("[{}/{}] Offline video completed, auto-stopping task to release resources",
                                  camera->videoChannelId, task->task_id_);
                         ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskStop(task->task_id_);
