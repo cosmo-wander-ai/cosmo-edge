@@ -55,6 +55,8 @@ The 49 small-model cases are stored once in four platform-level canonical JSON f
 
 This refresh updates small-model results only. The preceding VLM observations are consolidated in [one canonical file](results/vlm-observations.json) and remain experimental because FPS was not an enabled gate.
 
+Candidate-bound VLM stress and long-running qualification are currently in progress and are not represented by these preserved observations or 30-second staircases. This page will be updated only after those runs complete and their source, package, model, environment, thresholds, duration, and cleanup identities are frozen.
+
 The full pre-simplification evidence tree, including per-case commands, sanitized logs, summaries, metrics, and HTML, is recorded in the manifest as a separate archive. Its hash is frozen, but the archive is **prepared, not published**, and is not tracked in this repository.
 
 ## Reproduction files

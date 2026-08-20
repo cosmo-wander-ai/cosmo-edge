@@ -11,7 +11,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)](LICENSE)
 [![Runtime](https://img.shields.io/badge/runtime-C%2B%2B17-orange?style=flat-square)](#核心能力)
-[![Release](https://img.shields.io/badge/release-v1.1.0-green?style=flat-square)](https://github.com/cosmo-wander-ai/cosmo-edge/releases)
+[![Release](https://img.shields.io/badge/release-v1.1.0%20RC-orange?style=flat-square)](https://github.com/cosmo-wander-ai/cosmo-edge/releases)
 
 [![Website](https://img.shields.io/badge/website-cosmowander.ai-3B82F6?style=flat-square)](https://www.cosmowander.ai/)
 [![Docs](https://img.shields.io/badge/docs-online-2563EB?style=flat-square)](https://www.cosmowander.ai/zh/docs/)
@@ -37,12 +37,13 @@ CosmoEdge 不只是模型推理服务：它提供从模型导入、可视化编�
 
 - **多平台发布：**BM1688、CV186X、RK3576 与 RV1126B 共享同一套视频接入、任务编排、事件和可观测流程，并分别使用目标平台模型产物。
 - **公开 benchmark 包：**[CosmoEdge 1.1 多平台报告](docs/benchmarks/scenario-bench/v1.1/README.zh-CN.md)覆盖单任务、并发混合任务与 Experimental VLM，提供脱敏后的可复现附件。
-- **Rockchip 发布平台：**RK3576 与 RV1126B 均已集成交叉构建、板端运行、RKNN 推理和 MPP/RGA 媒体路径，并纳入同一档 v1.1 发布范围。
+- **Rockchip 发布平台：**RK3576 与 RV1126B 均已集成交叉构建、板端运行、RKNN 推理和 MPP/RGA 媒体路径，并纳入同一档 v1.1 发布范围。RV1126B 已完成多轮线下验证；最终长稳证据仍在生成，因此当前短时结果不作为生产容量承诺。
 - **Sophon 模型处理：**芯片感知校验支持 BM1688 与 CV186X 的目标 `.nn` 产物；benchmark 已记录两台参考设备的 Open 安装包和运行引擎精确绑定。
 - **RKNN 数据路径：**包含 DMA-BUF 到 RGA 输入、持久绑定输入、原生量化输出和 YOLOv8 张量直接解码路径，并保留明确 fallback。
 - **智能体辅助二开：**提供仓库级入口，把模型适配、系统集成和界面改造任务交给常用编码智能体，并获得可核验交付物。
 - **Model Guard 2.3：**为 Sophon Protected 包中的商业预置模型提供分发保护；Open 与 Protected 的应用软件能力一致，不以 SKU 解锁软件功能，区别在于模型是否加密以及是否包含设备授权工具。
-- **macOS Docker Preview：**为 Apple Silicon 提供隔离的 `linux/amd64` 单路本地视频体验候选；发布前仍需完成连续两轮端到端验收。它不启用 Model Guard，也不代表 NPU 或原生性能。
+- **macOS Docker Preview：**为 Apple Silicon 提供隔离的 `linux/amd64` 单路本地视频体验路径，已完成多轮线下端到端验证。由于它不启用 Model Guard、不提供原生 macOS/NPU 路径、不覆盖多路部署，也不代表生产性能，因此仍保持 Preview 定位。
+- **验证进行中：**候选绑定的 VLM 压测和长稳验证正在执行。运行完成并冻结身份与阈值前，当前 VLM 数据仍为 Experimental，短时容量结果也不等同于长稳结论。
 
 ## 选择平台
 
@@ -52,7 +53,7 @@ CosmoEdge 提供统一的引擎架构与编排体验，但每次构建只选择�
 | --- | --- | --- | --- |
 | Sophon BM1688 | v1.1 已支持 / 主力平台 | BMRT / `.nn` | 生产部署路径，包含 [v1.1 工作负载证据](docs/benchmarks/scenario-bench/v1.1/README.zh-CN.md)和已发布 [v1.0 基线](https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.0/) |
 | Rockchip RK3576 | v1.1 已支持 | RKNN / `.rknn` | 交叉构建和板端路径已验证；参见 [RK3576 集成指南](docs/guide/rk3576-rknn-development.md)与 [v1.1 工作负载证据](docs/benchmarks/scenario-bench/v1.1/README.zh-CN.md) |
-| Rockchip RV1126B | v1.1 已支持 | RKNN / `.rknn` | 板端运行、媒体与推理路径已验证；容量结果与 RK3576 同列于 [v1.1 工作负载证据](docs/benchmarks/scenario-bench/v1.1/README.zh-CN.md) |
+| Rockchip RV1126B | v1.1 已支持 | RKNN / `.rknn` | 板端运行、媒体、推理与端到端流程已通过多轮线下验证；当前容量结果已公开，最终长稳证据仍在生成 |
 | Sophon CV186X | v1.1 已支持 | BMRT / 目标芯片专用 `.nn` | 模型导入与设备工作负载证据见 [v1.1 benchmark](docs/benchmarks/scenario-bench/v1.1/README.zh-CN.md) |
 | x86 Linux / Windows；Apple Silicon macOS | Linux / Windows 已支持；macOS Preview | ONNX Runtime / `.onnx` | Mac 通过 amd64 仿真覆盖单路本地视频开发体验，不代表原生性能 |
 | Sophon BM1684X | 规划中 | — | 不属于当前发布范围 |
@@ -249,7 +250,7 @@ v1.1 报告覆盖 BM1688、CV186X、RK3576 与 RV1126B。报告包含人员检�
 <details>
 <summary><b>CosmoEdge 的生产就绪程度如何？</b></summary>
 
-`v1.1.0` 是 BM1688、CV186X、RK3576 与 x86 的多平台发布线。关联报告记录了实测工作负载边界和明确的证据缺口；生产容量仍需结合自有模型、视频流、精度要求和部署条件完成验证。
+`v1.1.0` 是 BM1688、CV186X、RK3576、RV1126B 与 x86 的多平台发布线，并包含已完成多轮验证、范围受限的 macOS Docker Preview。关联报告记录了实测工作负载边界和明确的证据缺口；VLM 压测与长稳结果将在验证完成后补充。生产容量仍需结合自有模型、视频流、精度要求和部署条件完成验证。
 
 </details>
 

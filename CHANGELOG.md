@@ -8,8 +8,11 @@ This project follows a release-note style inspired by Keep a Changelog.
 
 ### 1.1.0 release candidate
 
-Multi-platform release for BM1688, CV186X, RK3576, and x86. Capacity claims remain bound to the
-models, packages, environments, thresholds, and durations recorded in their linked evidence.
+Multi-platform release candidate for BM1688, CV186X, RK3576, RV1126B, and x86, plus a scoped
+Apple Silicon macOS Docker Preview. RV1126B and the macOS Preview have completed multiple lab
+validation rounds; those results are not yet part of the public evidence pack. VLM stress and
+long-running qualification are still in progress. Capacity claims remain bound to the models,
+packages, environments, thresholds, and durations recorded in their linked evidence.
 
 ### Added
 
@@ -19,6 +22,11 @@ models, packages, environments, thresholds, and durations recorded in their link
 - Rockchip RK3576 integration with an RKNN inference backend, native MPP/RGA media pipeline,
   cross-compilation toolchain, accelerator telemetry, integration assets, and
   qualification fixtures.
+- Rockchip RV1126B release-platform support with target-specific RKNN artifacts, cross-build and
+  board-operation paths, MPP/RGA media integration, and measured short-run workload evidence.
+- Apple Silicon macOS Docker Preview for an isolated `linux/amd64` single-local-video workflow;
+  it is not a native macOS/NPU path, a multi-channel deployment claim, or production-performance
+  evidence.
 - Platform-neutral host/backend and media-factory contracts, derived model-artifact identities,
   accelerator and preview-pipeline metrics, and ScenarioBench preview validation for additional
   accelerator families.
