@@ -1,5 +1,4 @@
 #include "catch_amalgamated.hpp"
-
 #include "media/NetworkDemuxStrategy.h"
 
 TEST_CASE("NetworkDemuxStrategy models RTMP as a packetized live source", "[media][rtmp]") {

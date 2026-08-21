@@ -143,7 +143,7 @@ util::ErrorEnum CameraServiceImpl::Update(MsgCameraInfo& config) {
         return util::ErrorEnum::CameraNotExist;
     }
     camera->WaitForSwitchThread();
-    const auto source_type = static_cast<MsgCameraType>(camera->channelType);
+    const auto source_type  = static_cast<MsgCameraType>(camera->channelType);
     std::string logical_url = camera->url;
     std::string media_url   = camera->channel_url_;
     if (source_type != MsgCameraType::MsgCameraTypeLocalVideo) {
@@ -170,8 +170,7 @@ util::ErrorEnum CameraServiceImpl::Update(MsgCameraInfo& config) {
         LOG_INFO("{}/{} Update", config.videoChannelId, config.channelName);
     }
     if (channel_url_changed) {
-        ServiceRegistry::Instance().Get<ITaskChannel>().TaskChannelSetUrl(camera->videoChannelId,
-                                                                          media_url);
+        ServiceRegistry::Instance().Get<ITaskChannel>().TaskChannelSetUrl(camera->videoChannelId, media_url);
     }
     // Editing channel may have changed URL; trigger immediate probe to update status.
     ProbeCameraOnlineStatusNow(camera);

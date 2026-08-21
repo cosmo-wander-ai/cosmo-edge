@@ -1,9 +1,8 @@
-#include "catch_amalgamated.hpp"
-
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "catch_amalgamated.hpp"
 #include "service/detail/ServiceRegistry.h"
 #include "service/gb28181/impl/Gb28181SourceServiceImpl.h"
 #include "service/network/IHttpClient.h"
@@ -16,17 +15,15 @@ public:
     std::string last_url;
     int get_calls{0};
 
-    cosmo::service::HttpResponse Get(
-        const std::string& url, long, long,
-        const std::vector<std::pair<std::string, std::string>>&) override {
+    cosmo::service::HttpResponse Get(const std::string& url, long, long,
+                                     const std::vector<std::pair<std::string, std::string>>&) override {
         last_url = url;
         ++get_calls;
         return response;
     }
 
-    cosmo::service::HttpResponse Post(
-        const std::string&, const std::string&, const std::string&, long, long,
-        const std::vector<std::pair<std::string, std::string>>&) override {
+    cosmo::service::HttpResponse Post(const std::string&, const std::string&, const std::string&, long, long,
+                                      const std::vector<std::pair<std::string, std::string>>&) override {
         return {};
     }
 };

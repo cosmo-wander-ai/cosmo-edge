@@ -16,7 +16,7 @@ public:
     virtual ~IGb28181SourceService() = default;
 
     virtual bool Resolve(const std::string& source, Gb28181Source& resolved) const = 0;
-    virtual bool IsStreamActive(const std::string& source) = 0;
+    virtual bool IsStreamActive(const std::string& source)                         = 0;
 };
 
 }  // namespace cosmo::service

@@ -2,8 +2,8 @@
 
 #include <algorithm>
 #include <cctype>
-#include <utility>
 #include <nlohmann/json.hpp>
+#include <utility>
 
 #include "service/detail/ServiceRegistry.h"
 #include "service/network/IHttpClient.h"
@@ -68,8 +68,7 @@ bool Gb28181SourceServiceImpl::IsStreamActive(const std::string& source) {
     }
 }
 
-bool Gb28181SourceServiceImpl::FetchActiveStreams(
-    std::unordered_set<std::string>& activeStreams) const {
+bool Gb28181SourceServiceImpl::FetchActiveStreams(std::unordered_set<std::string>& activeStreams) const {
     const auto response = ServiceRegistry::Instance().Get<IHttpClient>().Get(kStreamsApiUrl, 1, 2);
     if (response.statusCode != 200) {
         LOG_INFO("GB28181 stream status query failed with HTTP {}", response.statusCode);
@@ -77,8 +76,8 @@ bool Gb28181SourceServiceImpl::FetchActiveStreams(
     }
 
     const auto root = nlohmann::json::parse(response.body, nullptr, false);
-    if (root.is_discarded() || !root.is_object() || root.value("code", -1) != 0 || !root.contains("streams") ||
-        !root["streams"].is_array()) {
+    if (root.is_discarded() || !root.is_object() || root.value("code", -1) != 0 ||
+        !root.contains("streams") || !root["streams"].is_array()) {
         LOG_WARN("{}", "GB28181 stream status response is invalid");
         return false;
     }
