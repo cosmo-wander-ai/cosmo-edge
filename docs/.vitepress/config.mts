@@ -7,6 +7,7 @@ const guideZh = [
   { text: 'macOS Docker Preview', link: '/guide/macos-docker-preview' },
   { text: '部署指南', link: '/guide/deployment' },
   { text: '运行配置', link: '/guide/configuration' },
+  { text: 'GB28181 设备接入', link: '/guide/gb28181-access' },
   { text: '故障排查', link: '/guide/troubleshooting' },
   { text: '架构概览', link: '/guide/architecture' },
   { text: '测试范围与用例', link: '/guide/test-cases' }
@@ -77,6 +78,7 @@ const guideEn = [
   { text: 'macOS Docker Preview', link: '/en/guide/macos-docker-preview' },
   { text: 'Deployment Guide', link: '/en/guide/deployment' },
   { text: 'Runtime Configuration', link: '/en/guide/configuration' },
+  { text: 'GB28181 Device Access', link: '/en/guide/gb28181-access' },
   { text: 'Troubleshooting', link: '/en/guide/troubleshooting' },
   { text: 'Architecture Overview', link: '/en/guide/architecture' },
   { text: 'Test Scope and Cases', link: '/en/guide/test-cases' }

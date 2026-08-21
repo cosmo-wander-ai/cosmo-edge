@@ -16,6 +16,11 @@ COSMO_APP_DATA_DIR="${COSMO_APP_DATA_DIR:-${COSMO_PACKAGE_APP_DATA_DIR:-${COSMO_
 COSMO_LOG_DIR="${COSMO_DATA_DIR}/log/logs"
 COSMO_UPGRADE_DIR="${COSMO_DATA_DIR}/upgrade"
 COSMO_NGINX_TMP_DIR="${COSMO_DATA_DIR}/tmp"
+COSMO_GB28181_ENABLED="${COSMO_GB28181_ENABLED:-off}"
+COSMO_GB28181_CANDIDATE="${COSMO_GB28181_CANDIDATE:-*}"
+COSMO_GB28181_SIP_PORT="${COSMO_GB28181_SIP_PORT:-5060}"
+COSMO_GB28181_MEDIA_PORT="${COSMO_GB28181_MEDIA_PORT:-9000}"
+
 
 # Upgrade signal files
 COSMO_UPGRADE_SIGN="${COSMO_DATA_DIR}/mqttUpgradeApp"
@@ -31,6 +36,49 @@ validate_runtime_root() {
         return 1
     fi
 }
+validate_gb28181_config() {
+    case "$COSMO_GB28181_ENABLED" in
+        on|off) ;;
+        *)
+            echo "COSMO_GB28181_ENABLED must be on or off: ${COSMO_GB28181_ENABLED}" >&2
+            return 1
+            ;;
+    esac
+
+    local port label
+    for port in "$COSMO_GB28181_SIP_PORT" "$COSMO_GB28181_MEDIA_PORT"; do
+        if [ "$port" = "$COSMO_GB28181_SIP_PORT" ]; then
+            label=COSMO_GB28181_SIP_PORT
+        else
+            label=COSMO_GB28181_MEDIA_PORT
+        fi
+        if [[ ! "$port" =~ ^[0-9]+$ ]] || [ "${#port}" -gt 5 ]; then
+            echo "${label} must be a port from 1 to 65535: ${port}" >&2
+            return 1
+        fi
+        if ((10#$port < 1 || 10#$port > 65535)); then
+            echo "${label} must be a port from 1 to 65535: ${port}" >&2
+            return 1
+        fi
+    done
+
+    if [ "$COSMO_GB28181_CANDIDATE" != "*" ]; then
+        if [[ ! "$COSMO_GB28181_CANDIDATE" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then
+            echo "COSMO_GB28181_CANDIDATE must be * or an IPv4 address" >&2
+            return 1
+        fi
+        local octet
+        local -a octets
+        IFS=. read -r -a octets <<<"$COSMO_GB28181_CANDIDATE"
+        for octet in "${octets[@]}"; do
+            if ((10#$octet > 255)); then
+                echo "COSMO_GB28181_CANDIDATE must be * or an IPv4 address" >&2
+                return 1
+            fi
+        done
+    fi
+}
+
 
 render_runtime_template() {
     local source_file="$1" output_file="$2" output_tmp line
@@ -44,6 +92,10 @@ render_runtime_template() {
         line="${line%$'\r'}"
         line="${line//@COSMO_DATA_DIR@/${COSMO_DATA_DIR}}"
         line="${line//@COSMO_APP_DATA_DIR@/${COSMO_APP_DATA_DIR}}"
+        line="${line//@COSMO_GB28181_ENABLED@/${COSMO_GB28181_ENABLED}}"
+        line="${line//@COSMO_GB28181_CANDIDATE@/${COSMO_GB28181_CANDIDATE}}"
+        line="${line//@COSMO_GB28181_SIP_PORT@/${COSMO_GB28181_SIP_PORT}}"
+        line="${line//@COSMO_GB28181_MEDIA_PORT@/${COSMO_GB28181_MEDIA_PORT}}"
         printf '%s\n' "$line" >>"$output_tmp"
     done <"$source_file"
     mv -f -- "$output_tmp" "$output_file"
@@ -53,6 +105,7 @@ render_runtime_template() {
 # expand arbitrary environment variables in path directives themselves.
 render_runtime_configs() {
     validate_runtime_root "$COSMO_DATA_DIR" COSMO_DATA_DIR
+    validate_gb28181_config || return 1
     validate_runtime_root "$COSMO_APP_DATA_DIR" COSMO_APP_DATA_DIR
 
     local runtime_root="${COSMO_DATA_DIR}/runtime"

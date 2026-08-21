@@ -167,6 +167,10 @@ private:
 
     // ---- Camera lookup ----
     std::string GetVideoFileName(const std::string& id, const std::string& url);
+    bool ResolveSourceUrl(MsgCameraType sourceType, const std::string& source,
+                          std::string& logicalUrl, std::string& mediaUrl) const;
+    bool IsCameraSourceOnline(const CameraEntityPtr& camera);
+
     CameraEntityPtr GetCamera(const std::string& cameraId);
     CameraEntityPtr GetCamera(const std::string& cameraId) const;
     template <typename Func>

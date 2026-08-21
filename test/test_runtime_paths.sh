@@ -89,6 +89,44 @@ render_data_dir="${root}/userdata/cwaiuserdata"
         "$COSMO_RUNTIME_SRS_CONF"
     ! grep -R -Fq '@COSMO_DATA_DIR@' "$COSMO_RUNTIME_NGINX_PREFIX" "$COSMO_RUNTIME_SRS_CONF"
     ! grep -R -Fq '/data/cwaiuserdata' "$COSMO_RUNTIME_NGINX_PREFIX" "$COSMO_RUNTIME_SRS_CONF"
+    grep -Fq 'enabled off;' "$COSMO_RUNTIME_SRS_CONF"
+    grep -Fq 'listen 9000;' "$COSMO_RUNTIME_SRS_CONF"
+    grep -Fq 'listen 5060;' "$COSMO_RUNTIME_SRS_CONF"
+    grep -Fq 'candidate *;' "$COSMO_RUNTIME_SRS_CONF"
+    ! grep -Fq '@COSMO_GB28181_' "$COSMO_RUNTIME_SRS_CONF"
 )
+
+gb_data_dir="${root}/gb28181/cwaiuserdata"
+(
+    unset COSMO_PACKAGE_DATA_DIR COSMO_PACKAGE_APP_DATA_DIR
+    COSMO_INSTALL_DIR="$render_install"
+    COSMO_DATA_DIR="$gb_data_dir"
+    COSMO_GB28181_ENABLED=on
+    COSMO_GB28181_CANDIDATE=192.0.2.20
+    COSMO_GB28181_SIP_PORT=15060
+    COSMO_GB28181_MEDIA_PORT=19000
+    # shellcheck source=../scripts/common.sh
+    . "${repo}/scripts/common.sh"
+    render_runtime_configs
+
+    grep -Fq 'enabled on;' "$COSMO_RUNTIME_SRS_CONF"
+    grep -Fq 'listen 19000;' "$COSMO_RUNTIME_SRS_CONF"
+    grep -Fq 'listen 15060;' "$COSMO_RUNTIME_SRS_CONF"
+    grep -Fq 'candidate 192.0.2.20;' "$COSMO_RUNTIME_SRS_CONF"
+)
+
+if (
+    unset COSMO_PACKAGE_DATA_DIR COSMO_PACKAGE_APP_DATA_DIR
+    COSMO_INSTALL_DIR="$render_install"
+    COSMO_DATA_DIR="${root}/invalid-gb28181"
+    COSMO_GB28181_ENABLED=on
+    COSMO_GB28181_CANDIDATE='192.0.2.20; daemon on'
+    # shellcheck source=../scripts/common.sh
+    . "${repo}/scripts/common.sh"
+    render_runtime_configs >/dev/null 2>&1
+); then
+    echo 'invalid GB28181 candidate was accepted' >&2
+    exit 1
+fi
 
 echo "runtime path resolution tests passed"

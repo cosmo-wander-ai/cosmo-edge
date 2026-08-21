@@ -5,6 +5,7 @@
 #include <thread>
 
 #include "media/FileDemuxStrategy.h"
+#include "media/NetworkDemuxStrategy.h"
 #include "media/RtspDemuxStrategy.h"
 #include "media/UsbDemuxStrategy.h"
 #include "util/Log.h"
@@ -96,6 +97,9 @@ namespace media {
         }
         if (file.compare(0, 7, "rtsp://") == 0) {
             return std::make_unique<RtspDemuxStrategy>(pullTimeoutSec, delayMs);
+        }
+        if (file.compare(0, 7, "rtmp://") == 0) {
+            return std::make_unique<NetworkDemuxStrategy>(pullTimeoutSec);
         }
         // Local file / HTTP file
         return std::make_unique<FileDemuxStrategy>();

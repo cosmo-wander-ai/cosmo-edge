@@ -52,6 +52,7 @@ ExternalProject_Add(
         --srt=off
         --rtc=on
         --h265=on
+        --gb28181=on
         --ffmpeg-fit=on
         --sanitizer=off
         --nasm=off

@@ -61,6 +61,8 @@ enum class MsgCameraType {
     ,
     MsgCameraTypeUsb = 6  // USB camera (MJPEG), consistent with old b7a2dcc3
     ,
+    MsgCameraTypeGb28181 = 7  // GB/T 28181 device, media is bridged through local SRS
+    ,
     MsgCameraTypeMax  //
 };
 

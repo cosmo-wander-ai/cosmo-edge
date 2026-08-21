@@ -138,6 +138,7 @@
           <el-select id="onboarding-channel-type" popper-class="onboarding-type-popper" class="form-item-content" v-model="channelForm.channelType" :disabled="channelDialogMode === 'edit'" :placeholder="t('placeholder.select', { field: t('glossary.accessType') })" size="small" @change="channelTypeChange">
             <el-option label="RTSP" :value="0"></el-option>
             <el-option label="HLS" :value="1"></el-option>
+            <el-option label="GB28181" :value="7"></el-option>
             <el-option :label="t('glossary.usbCamera')" :value="6"></el-option>
             <el-option :label="t('glossary.offlineVideo')" :value="3"></el-option>
           </el-select>
@@ -161,7 +162,10 @@
             </el-select>
           </el-form-item>
         </template>
-        <el-form-item :label="t('field.address') + localeColon" prop="url" v-if="channelForm.channelType !== 3 && channelForm.channelType !== 6">
+        <el-form-item :label="t('field.gbDeviceId') + localeColon" prop="gbDeviceId" v-if="channelForm.channelType === 7">
+          <el-input class="form-item-content" v-model.trim="channelForm.gbDeviceId" autocomplete="off" size="small" />
+        </el-form-item>
+        <el-form-item :label="t('field.address') + localeColon" prop="url" v-if="channelForm.channelType !== 3 && channelForm.channelType !== 6 && channelForm.channelType !== 7">
           <el-input class="form-item-content" v-model="channelForm.url" autocomplete="off" size="small" />
         </el-form-item>
         <!-- 离线视频类型 -->
@@ -247,6 +251,7 @@ const channelForm = reactive({
   channelType: 0,
   channelName: '',
   url: '',
+  gbDeviceId: '',
   externalChannelNo: '',
   videoFileList: [],
   tempVideoPath: '',
@@ -275,6 +280,10 @@ const channelFormRules = {
   ],
   usbResolutionTier: [
     { required: true, message: () => t('validate.selectResolution'), trigger: 'change' }
+  ],
+  gbDeviceId: [
+    { required: true, message: () => t('validate.enterGbDeviceId'), trigger: 'blur' },
+    { pattern: /^\d{20}$/, message: () => t('validate.gbDeviceIdFormat'), trigger: 'blur' }
   ],
   externalChannelNo: [
     { max: 128, message: () => t('validate.externalChannelNoMax', { n: 128 }), trigger: 'blur' }
@@ -347,6 +356,8 @@ const channelTypeLabel = (value) => {
       return 'HLS'
     case 6:
       return t('glossary.usbCamera')
+    case 7:
+      return 'GB28181'
     case 3:
       return t('glossary.offlineVideo')
     default:
@@ -441,6 +452,9 @@ const submitAddChannel = () => {
         background: 'rgba(0, 0, 0, 0.7)'
       })
       try {
+        if (channelForm.channelType === 7) {
+          channelForm.url = 'gb28181://' + channelForm.gbDeviceId
+        }
         if (channelForm.channelType === 6) {
           channelForm.url = composeUsbUrl(
             channelForm.usbDeviceIndex,
@@ -511,6 +525,9 @@ const channelTypeChange = (val) => {
   if (val === 6) {
     queryUsbCameraList()
   }
+  if (val !== 7) {
+    channelForm.gbDeviceId = ''
+  }
   channelFormRef.value && channelFormRef.value.clearValidate()
 }
 
@@ -557,6 +574,7 @@ const handleEditChannel = (row) => {
   channelDialogMode.value = 'edit'
   let usbDeviceIndex = row.usbDeviceIndex || ''
   let usbResolutionTier = row.usbResolutionTier || ''
+  let gbDeviceId = ''
   if (row.channelType === 6 && row.url) {
     const urlMatch = row.url.match(/usb:\/\/(\d+)\?tier=(\d+)/)
     if (urlMatch) {
@@ -564,11 +582,18 @@ const handleEditChannel = (row) => {
       usbResolutionTier = Number(urlMatch[2])
     }
   }
+  if (row.channelType === 7 && row.url) {
+    const urlMatch = row.url.match(/^gb28181:\/\/(\d{20})$/)
+    if (urlMatch) {
+      gbDeviceId = urlMatch[1]
+    }
+  }
   Object.assign(channelForm, {
     videoChannelId: row.videoChannelId,
     channelType: row.channelType,
     channelName: row.channelName,
     url: row.url,
+    gbDeviceId,
     externalChannelNo: row.externalChannelNo,
     videoFileList: [],
     usbDeviceIndex,
@@ -612,7 +637,7 @@ const handleAllocateClick = (row) => {
       resetUrl: proxy.$route.path,
       channelId: row.videoChannelId,
       channelName: row.channelName,
-      joinType: (row.channelType == 0 || row.channelType == 6) ? 0 : -1
+      joinType: (row.channelType == 0 || row.channelType == 6 || row.channelType == 7) ? 0 : -1
     }
   })
 }
@@ -752,6 +777,7 @@ const addChannelClick = () => {
     channelType: 0,
     channelName: '',
     url: '',
+    gbDeviceId: '',
     externalChannelNo: '',
     videoFileList: [],
     usbDeviceIndex: '',

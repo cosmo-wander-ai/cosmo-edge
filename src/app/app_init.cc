@@ -26,6 +26,8 @@
 #include "service/camera/ICameraDeviceCrud.h"
 #include "service/camera/ICameraTaskConfig.h"
 #include "service/camera/impl/CameraServiceImpl.h"
+#include "service/gb28181/IGb28181SourceService.h"
+#include "service/gb28181/impl/Gb28181SourceServiceImpl.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/event/IAlarmPushService.h"
 #include "service/event/IEventNotifier.h"
@@ -173,6 +175,8 @@ static void RegisterInfrastructureServices() {
         std::make_unique<cosmo::service::DeviceDiscoveryServiceImpl>());
 
     registry.Register<cosmo::service::IHttpClient>(std::make_unique<cosmo::service::HttpClientImpl>());
+    registry.Register<cosmo::service::IGb28181SourceService>(
+        std::make_unique<cosmo::service::Gb28181SourceServiceImpl>());
 }
 
 static void RegisterBusinessServices() {

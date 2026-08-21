@@ -25,6 +25,7 @@
 #include "flow/common/FlowTaskUtil.h"
 #include "service/algorithm/IAlgorithmQuery.h"
 #include "service/camera/impl/CameraConfigPersistence.h"
+#include "service/gb28181/IGb28181SourceService.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/media/IVideoFrameCodec.h"
 #include "service/model/IModelQuery.h"
@@ -249,6 +250,30 @@ namespace {
 
 }  // namespace
 
+bool CameraServiceImpl::ResolveSourceUrl(MsgCameraType sourceType, const std::string& source,
+                                         std::string& logicalUrl, std::string& mediaUrl) const {
+    if (sourceType == MsgCameraType::MsgCameraTypeGb28181) {
+        Gb28181Source resolved;
+        if (!ServiceRegistry::Instance().Get<IGb28181SourceService>().Resolve(source, resolved)) {
+            return false;
+        }
+        logicalUrl = std::move(resolved.logicalUrl);
+        mediaUrl   = std::move(resolved.mediaUrl);
+        return true;
+    }
+
+    logicalUrl = util::NormalizeRtspUrl(source);
+    mediaUrl   = logicalUrl;
+    return true;
+}
+
+bool CameraServiceImpl::IsCameraSourceOnline(const CameraEntityPtr& camera) {
+    if (static_cast<MsgCameraType>(camera->channelType) == MsgCameraType::MsgCameraTypeGb28181) {
+        return ServiceRegistry::Instance().Get<IGb28181SourceService>().IsStreamActive(camera->url);
+    }
+    return CheckUrlConnectivity(camera->channel_url_);
+}
+
 // ============================================================
 //  Construction / Destruction
 // ============================================================
@@ -321,7 +346,16 @@ void CameraServiceImpl::InitCameraChannel(CameraEntityPtr camera) {
     camera->conf_file_path_ =
         (std::filesystem::path(cosmo::path::GetCfgPath(conf_file_path_)) / camera->videoChannelId).string();
     camera->channel_task_ = camera->videoChannelId + "-ChannelTask";
-    camera->channel_url_  = camera->url;
+    std::string logical_url;
+    std::string media_url;
+    if (ResolveSourceUrl(static_cast<MsgCameraType>(camera->channelType), camera->url, logical_url,
+                         media_url)) {
+        camera->url          = std::move(logical_url);
+        camera->channel_url_ = std::move(media_url);
+    } else {
+        camera->channel_url_.clear();
+        LOG_WARN("[{}] Invalid camera source {}", camera->videoChannelId, camera->url);
+    }
 
     LoadCameraTaskList(camera);
 
@@ -675,13 +709,13 @@ void CameraServiceImpl::ProbeCameraOnlineStatus(const CameraEntityPtr& camera) {
         return;
     }
 
-    bool isConnected = CheckUrlConnectivity(camera->channel_url_);
+    bool isConnected = IsCameraSourceOnline(camera);
     camera->probed_status_.store(isConnected ? ChannelStatus::ChannelStatusOnline
                                              : ChannelStatus::ChannelStatusOffline);
 }
 
 void CameraServiceImpl::ProbeCameraOnlineStatusNow(const CameraEntityPtr& camera) {
-    bool isConnected = CheckUrlConnectivity(camera->channel_url_);
+    bool isConnected = IsCameraSourceOnline(camera);
     camera->probed_status_.store(isConnected ? ChannelStatus::ChannelStatusOnline
                                              : ChannelStatus::ChannelStatusOffline);
 }
@@ -694,7 +728,6 @@ void CameraServiceImpl::LoadConfig() {
     cameras_       = detail::CameraConfigPersistence::LoadConfig(conf_file_path_, conf_file_name_);
     int max_number = -1;
     for (const auto& camera : cameras_) {
-        camera->url = util::NormalizeRtspUrl(camera->url);
         LOG_INFO("LoadConfig channel Id {}", camera->videoChannelId);
         InitCameraChannel(camera);
         int current_number = -1;
