@@ -30,7 +30,7 @@ The SRS binary is built with GB28181 support, while the listeners are disabled b
 | `COSMO_GB28181_ENABLED` | `off` | Set to `on` to enable GB28181 listeners |
 | `COSMO_GB28181_CANDIDATE` | `*` | Address advertised through SIP/SDP; production deployments should explicitly set the CosmoEdge LAN IPv4 address reachable by the camera |
 | `COSMO_GB28181_SIP_PORT` | `5060` | SIP/TCP listener |
-| `COSMO_GB28181_MEDIA_PORT` | `9000` | PS/TCP media listener |
+| `COSMO_GB28181_MEDIA_PORT` | `9001` | PS/TCP media listener; must not reuse backend WebSocket port `9000` |
 
 Example:
 
@@ -38,7 +38,7 @@ Example:
 export COSMO_GB28181_ENABLED=on
 export COSMO_GB28181_CANDIDATE=192.168.0.72
 export COSMO_GB28181_SIP_PORT=5060
-export COSMO_GB28181_MEDIA_PORT=9000
+export COSMO_GB28181_MEDIA_PORT=9001
 ```
 
 The startup scripts validate the switch, IPv4 address, and port ranges before rendering `${COSMO_DATA_DIR}/runtime/srs.conf`. Invalid values stop startup so arbitrary text cannot be injected into the SRS configuration.
@@ -78,7 +78,7 @@ When analysis is stopped, CosmoEdge queries the SRS HTTP API for an active publi
 Read-only checks on the device:
 
 ```bash
-ss -ltn | grep -E ':(5060|9000) '
+ss -ltn | grep -E ':(5060|9001) '
 curl -s 'http://127.0.0.1:1985/api/v1/streams/?start=0&count=1000'
 ```
 

@@ -19,7 +19,7 @@ COSMO_NGINX_TMP_DIR="${COSMO_DATA_DIR}/tmp"
 COSMO_GB28181_ENABLED="${COSMO_GB28181_ENABLED:-off}"
 COSMO_GB28181_CANDIDATE="${COSMO_GB28181_CANDIDATE:-*}"
 COSMO_GB28181_SIP_PORT="${COSMO_GB28181_SIP_PORT:-5060}"
-COSMO_GB28181_MEDIA_PORT="${COSMO_GB28181_MEDIA_PORT:-9000}"
+COSMO_GB28181_MEDIA_PORT="${COSMO_GB28181_MEDIA_PORT:-9001}"
 
 
 # Upgrade signal files
@@ -61,6 +61,23 @@ validate_gb28181_config() {
             return 1
         fi
     done
+
+    if [ "$COSMO_GB28181_ENABLED" = on ]; then
+        local reserved_port
+        if [ "$COSMO_GB28181_SIP_PORT" = "$COSMO_GB28181_MEDIA_PORT" ]; then
+            echo "COSMO_GB28181_SIP_PORT and COSMO_GB28181_MEDIA_PORT must differ" >&2
+            return 1
+        fi
+        for port in "$COSMO_GB28181_SIP_PORT" "$COSMO_GB28181_MEDIA_PORT"; do
+            for reserved_port in 1936 1985 18088 "${COSMO_HTTP_PORT:-8000}" \
+                "${COSMO_WEBSOCKET_PORT:-9000}"; do
+                if [ "$port" = "$reserved_port" ]; then
+                    echo "GB28181 port ${port} conflicts with a Cosmo runtime port" >&2
+                    return 1
+                fi
+            done
+        done
+    fi
 
     if [ "$COSMO_GB28181_CANDIDATE" != "*" ]; then
         if [[ ! "$COSMO_GB28181_CANDIDATE" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then

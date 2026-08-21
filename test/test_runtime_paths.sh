@@ -90,7 +90,7 @@ render_data_dir="${root}/userdata/cwaiuserdata"
     ! grep -R -Fq '@COSMO_DATA_DIR@' "$COSMO_RUNTIME_NGINX_PREFIX" "$COSMO_RUNTIME_SRS_CONF"
     ! grep -R -Fq '/data/cwaiuserdata' "$COSMO_RUNTIME_NGINX_PREFIX" "$COSMO_RUNTIME_SRS_CONF"
     grep -Fq 'enabled off;' "$COSMO_RUNTIME_SRS_CONF"
-    grep -Fq 'listen 9000;' "$COSMO_RUNTIME_SRS_CONF"
+    grep -Fq 'listen 9001;' "$COSMO_RUNTIME_SRS_CONF"
     grep -Fq 'listen 5060;' "$COSMO_RUNTIME_SRS_CONF"
     grep -Fq 'candidate *;' "$COSMO_RUNTIME_SRS_CONF"
     ! grep -Fq '@COSMO_GB28181_' "$COSMO_RUNTIME_SRS_CONF"
@@ -126,6 +126,20 @@ if (
     render_runtime_configs >/dev/null 2>&1
 ); then
     echo 'invalid GB28181 candidate was accepted' >&2
+    exit 1
+fi
+
+if (
+    unset COSMO_PACKAGE_DATA_DIR COSMO_PACKAGE_APP_DATA_DIR
+    COSMO_INSTALL_DIR="$render_install"
+    COSMO_DATA_DIR="${root}/conflicting-gb28181"
+    COSMO_GB28181_ENABLED=on
+    COSMO_GB28181_MEDIA_PORT=9000
+    # shellcheck source=../scripts/common.sh
+    . "${repo}/scripts/common.sh"
+    render_runtime_configs >/dev/null 2>&1
+); then
+    echo 'GB28181 media port conflict was accepted' >&2
     exit 1
 fi
 

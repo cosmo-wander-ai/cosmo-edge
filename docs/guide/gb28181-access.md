@@ -30,7 +30,7 @@ SRS 二进制已编译国标能力，但运行时默认关闭监听。通过部�
 | `COSMO_GB28181_ENABLED` | `off` | 设置为 `on` 启用国标监听 |
 | `COSMO_GB28181_CANDIDATE` | `*` | SIP/SDP 中通告给设备的地址；生产环境应显式设置为摄像机可访问的 CosmoEdge LAN IPv4 地址 |
 | `COSMO_GB28181_SIP_PORT` | `5060` | SIP/TCP 监听端口 |
-| `COSMO_GB28181_MEDIA_PORT` | `9000` | PS/TCP 媒体监听端口 |
+| `COSMO_GB28181_MEDIA_PORT` | `9001` | PS/TCP 媒体监听端口；须避开后端 WebSocket 的 `9000` |
 
 示例：
 
@@ -38,7 +38,7 @@ SRS 二进制已编译国标能力，但运行时默认关闭监听。通过部�
 export COSMO_GB28181_ENABLED=on
 export COSMO_GB28181_CANDIDATE=192.168.0.72
 export COSMO_GB28181_SIP_PORT=5060
-export COSMO_GB28181_MEDIA_PORT=9000
+export COSMO_GB28181_MEDIA_PORT=9001
 ```
 
 启动脚本会校验开关、IPv4 地址和端口范围，再将值渲染到 `${COSMO_DATA_DIR}/runtime/srs.conf`。无效值会阻止启动，避免把任意文本注入 SRS 配置。
@@ -78,7 +78,7 @@ rtmp://127.0.0.1:1936/live/<20位设备ID>
 可在设备上只读检查：
 
 ```bash
-ss -ltn | grep -E ':(5060|9000) '
+ss -ltn | grep -E ':(5060|9001) '
 curl -s 'http://127.0.0.1:1985/api/v1/streams/?start=0&count=1000'
 ```
 
