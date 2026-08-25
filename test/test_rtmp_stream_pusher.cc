@@ -1,4 +1,5 @@
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <thread>
 #include <vector>
@@ -32,6 +33,35 @@ TEST_CASE("RtmpStreamPusher rejects empty frames concurrently", "[rtmp][concurre
         REQUIRE(pusher.GetProcInfo().recvFrames == 0);
     }
 
+    std::error_code error;
+    std::filesystem::remove(output_path, error);
+}
+
+TEST_CASE("RtmpStreamPusher accepts a valid small startup keyframe", "[rtmp][regression]") {
+    const auto output_path =
+        std::filesystem::path("/tmp") / ("cosmo-rtmp-small-keyframe-" + cosmo::util::GenerateUUID() + ".flv");
+
+    // Annex-B H.264 access unit containing SPS, PPS and an IDR slice. Small
+    // keyframes are valid for low-complexity scenes and must not be rejected by
+    // an arbitrary byte-size threshold.
+    const std::vector<std::uint8_t> small_keyframe{
+        0x00, 0x00, 0x00, 0x01, 0x67, 0x42, 0x00, 0x1e, 0xe9, 0x01, 0x40, 0x7b, 0x20, 0x00,
+        0x00, 0x00, 0x01, 0x68, 0xce, 0x06, 0xe2, 0x00, 0x00, 0x00, 0x01, 0x65, 0x88, 0x84,
+    };
+    REQUIRE(small_keyframe.size() < 1024);
+
+    {
+        cosmo::RtmpStreamPusher pusher(cosmo::media::VideoCodecType::kH264, output_path.string(), 1920, 1080,
+                                       25.0F);
+        pusher.PushFrame(small_keyframe.data(), small_keyframe.size());
+
+        REQUIRE(pusher.WaitReady(std::chrono::milliseconds(100)));
+        CHECK(pusher.GetProcInfo().recvFrames == 1);
+        CHECK(pusher.GetProcInfo().sendFrames == 1);
+    }
+
+    REQUIRE(std::filesystem::exists(output_path));
+    CHECK(std::filesystem::file_size(output_path) > 0);
     std::error_code error;
     std::filesystem::remove(output_path, error);
 }
