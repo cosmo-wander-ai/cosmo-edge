@@ -84,7 +84,9 @@ public:
 
 public:
 #ifdef COSMO_NN_USE_SOPHON_BACKEND
-    bm_handle_t m_handle;
+    // Non-owning. SophonDevice owns this process-lifetime handle so destroying
+    // one task graph cannot invalidate concurrently active media contexts.
+    bm_handle_t m_handle = nullptr;
 #endif
 
     int current_device_id = 0;

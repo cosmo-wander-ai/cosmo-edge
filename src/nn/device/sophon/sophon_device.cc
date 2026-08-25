@@ -27,6 +27,10 @@ SophonDevice::~SophonDevice() {
     }
 }
 
+bm_handle_t SophonDevice::GetHandle() const noexcept {
+    return bm_handle;
+}
+
 AbstractContext* SophonDevice::CreateContext(int device_id_) {
     return nullptr;
 }

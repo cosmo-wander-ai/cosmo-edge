@@ -31,6 +31,10 @@ public:
 
     Status Allocate(void** handle, size_t size);
 
+    // Process-lifetime BM handle shared by graph-local runtimes and blob memory.
+    // Callers borrow it; SophonDevice remains the sole owner.
+    [[nodiscard]] bm_handle_t GetHandle() const noexcept;
+
 private:
     bm_handle_t bm_handle = nullptr;
 };
