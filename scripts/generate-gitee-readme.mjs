@@ -9,6 +9,8 @@ const sourcePath = path.join(repositoryRoot, 'README.zh-CN.md');
 const targetPath = path.join(repositoryRoot, 'Readme.osc.md');
 const checkMode = process.argv.includes('--check');
 const generatedHeader = '<!-- Generated from README.zh-CN.md by scripts/generate-gitee-readme.mjs. Do not edit directly. -->\n\n';
+const githubReleaseBadge = '[![Release](https://img.shields.io/badge/release-v1.1.0-2ea44f?style=flat-square)](https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.1.0)';
+const giteeReleaseBadge = '[![Release](https://img.shields.io/badge/release-v1.1.0-2ea44f?style=flat-square)](https://gitee.com/cosmo-wander-ai/cosmo-edge/releases)';
 
 const replacements = [
   {
@@ -34,6 +36,10 @@ const replacements = [
       '',
       '[▶ 在官网播放 DINO 与 VLM 演示](https://www.cosmowander.ai/zh/demos/#vlm-dino)'
     ].join('\n')
+  },
+  {
+    source: githubReleaseBadge,
+    target: giteeReleaseBadge
   }
 ];
 
@@ -43,7 +49,7 @@ let body = source;
 for (const replacement of replacements) {
   const occurrences = countOccurrences(body, replacement.source);
   if (occurrences !== 1) {
-    fail('Expected exactly one source video link, found ' + occurrences + ': ' + replacement.source);
+    fail('Expected exactly one source pattern, found ' + occurrences + ': ' + replacement.source);
   }
   body = body.replace(replacement.source, replacement.target);
 }
@@ -55,15 +61,21 @@ if (checkMode) {
   if (!fs.existsSync(targetPath)) fail('Readme.osc.md is missing; run npm run gitee:readme:generate');
   const actual = fs.readFileSync(targetPath, 'utf8');
   if (actual !== generated) fail('Readme.osc.md is stale; run npm run gitee:readme:generate');
-  console.log('Gitee README check passed: generated copy is current and all 3 videos route to official playback pages.');
+  console.log('Gitee README check passed: generated copy is current, all 3 videos route to official playback pages, and the release badge routes to Gitee.');
 } else {
   fs.writeFileSync(targetPath, generated);
-  console.log('Generated Readme.osc.md from README.zh-CN.md with 3 official video-page replacements.');
+  console.log('Generated Readme.osc.md from README.zh-CN.md with 3 official video-page replacements and the Gitee release link.');
 }
 
 function validateGenerated(content) {
   if (content.includes('github.com/user-attachments')) {
     fail('Generated Gitee README still contains GitHub attachment media');
+  }
+  if (content.includes(githubReleaseBadge)) {
+    fail('Generated Gitee README still routes the release badge to GitHub');
+  }
+  if (countOccurrences(content, giteeReleaseBadge) !== 1) {
+    fail('Expected exactly one Gitee release badge');
   }
   for (const anchor of ['#overview', '#pipeline', '#vlm-dino']) {
     const expected = 'https://www.cosmowander.ai/zh/demos/' + anchor;
