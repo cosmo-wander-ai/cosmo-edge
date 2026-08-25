@@ -106,7 +106,7 @@
 
     <ruku-dialog v-model:visible="rukuDialogVisible" :rukuData="rukuData" />
     <detail-dialog v-model:visible="detailDialogVisible" :detailData="detailData" />
-    <video-frequency v-model:visible="videoDialogVisiable" :algorithmCode="currentEvent?.algorithmCode || ''" :closable="false" :url="currentEvent?.video || ''" :structureDataUrl="currentEvent?.videostructured || ''" :title="downloadName" />
+    <video-frequency v-model:visible="videoDialogVisiable" :algorithmCode="currentEvent?.algorithmCode || ''" :closable="false" :url="currentEvent?.video || ''" :structureDataUrl="currentEvent?.videostructured || ''" :title="downloadName" :show-custom-title="false" />
   </div>
 </template>
 
@@ -115,7 +115,7 @@ import { ref, reactive, watch, onMounted, getCurrentInstance } from 'vue'
 import TopBar from '@/components/TopBar.vue'
 import moment from 'moment'
 import detailDialog from '../components/detailDialog.vue'
-import videoFrequency from '../components/videoPlaying265.vue'
+import videoFrequency from '@/components/videoPlaying265.vue'
 import rukuDialog from '../components/rukuDialog.vue'
 import { t, localeColon, currentLocale } from '@/i18n'
 import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
