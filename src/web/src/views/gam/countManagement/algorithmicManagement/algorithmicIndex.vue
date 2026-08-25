@@ -1038,10 +1038,10 @@ export default {
   padding: 20px;
   border: 1px solid #f0f0f0;
   transition: all 0.25s ease;
-  height: 220px;
+  min-height: 220px;
+  height: auto;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   &:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(0,0,0,0.08);
@@ -1095,6 +1095,7 @@ export default {
   display: flex; justify-content: space-between; align-items: center;
   padding-top: 12px; border-top: 1px solid #f5f5f5;
   margin-top: auto;
+  flex-shrink: 0;
 }
 .card-status { display: flex; align-items: center; gap: 10px; font-size: 12px; }
 .status-indicator {
