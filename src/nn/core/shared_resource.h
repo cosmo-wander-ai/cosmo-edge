@@ -14,6 +14,10 @@
 
 namespace cosmo::nn {
 
+#ifdef COSMO_NN_USE_SOPHON_BACKEND
+class SophonDevice;
+#endif
+
 struct Yolov8DirectPostprocessConfig {
     bool configured{false};
     float confidence_threshold{0.0f};
@@ -82,10 +86,15 @@ public:
 
     ~SharedResource();
 
+    SharedResource(const SharedResource&)            = delete;
+    SharedResource& operator=(const SharedResource&) = delete;
+    SharedResource(SharedResource&&)                 = delete;
+    SharedResource& operator=(SharedResource&&)      = delete;
+
 public:
 #ifdef COSMO_NN_USE_SOPHON_BACKEND
-    // Non-owning. SophonDevice owns this process-lifetime handle so destroying
-    // one task graph cannot invalidate concurrently active media contexts.
+    // Leased from SophonDevice. Concurrent graphs have distinct handles; graph
+    // teardown returns this handle to a process-lifetime pool without freeing it.
     bm_handle_t m_handle = nullptr;
 #endif
 
@@ -120,6 +129,11 @@ public:
     // write directly into the RKNN input DMA-BUF only when the complete
     // preprocessing contract (RGB UINT8, 0..255 -> 0..1) is compatible.
     bool rknn_bound_input_preprocess_compatible{false};
+
+private:
+#ifdef COSMO_NN_USE_SOPHON_BACKEND
+    SophonDevice* sophon_device_owner_ = nullptr;
+#endif
 };
 
 }  // namespace cosmo::nn
