@@ -43,12 +43,17 @@ Docker 29.1.3 和 Docker Compose v5.1.4。它只是一次验证快照，不是�
 Docker Compose V2 使用 `docker compose`。若环境仍安装独立的旧版 Compose，需要把命令中的
 `docker compose` 替换为 `docker-compose`。
 
-获取代码：
+中国大陆网络建议从 Gitee 获取代码：
+
+```bash
+git clone https://gitee.com/cosmo-wander-ai/cosmo-edge.git
+cd cosmo-edge
+```
+
+也可以从 GitHub 主仓获取：
 
 ```bash
 git clone https://github.com/cosmo-wander-ai/cosmo-edge.git
-# 中国大陆网络也可以使用项目维护的 Gitee 镜像：
-# git clone https://gitee.com/cosmo-wander-ai/cosmo-edge.git
 cd cosmo-edge
 ```
 

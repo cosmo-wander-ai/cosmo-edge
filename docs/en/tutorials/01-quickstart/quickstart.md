@@ -43,12 +43,17 @@ Docker 29.1.3, and Docker Compose v5.1.4. This is a recorded validation environm
 
 Docker Compose V2 uses `docker compose`. If the host still uses the standalone legacy Compose binary, replace `docker compose` with `docker-compose`.
 
-Get the source:
+Get the source from the GitHub source of truth:
 
 ```bash
 git clone https://github.com/cosmo-wander-ai/cosmo-edge.git
-# A project-maintained Gitee mirror is also available for networks in mainland China:
-# git clone https://gitee.com/cosmo-wander-ai/cosmo-edge.git
+cd cosmo-edge
+```
+
+For networks in mainland China, use the project-maintained Gitee mirror instead:
+
+```bash
+git clone https://gitee.com/cosmo-wander-ai/cosmo-edge.git
 cd cosmo-edge
 ```
 

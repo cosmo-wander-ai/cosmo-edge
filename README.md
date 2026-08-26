@@ -258,7 +258,7 @@ Certified devices add preconfigured acceleration, validated commercial model pac
 
 Contributions are welcome through scoped bug reports, documentation improvements, scenarios, and integration notes. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
-[GitHub Discussions](https://github.com/cosmo-wander-ai/cosmo-edge/discussions) is the official searchable English Q&A and community-support channel for v1.1. Send reproducible defects to [GitHub Issues](https://github.com/cosmo-wander-ai/cosmo-edge/issues), use [Gitee Issues](https://gitee.com/cosmo-wander-ai/cosmo-edge/issues) for the mainland China mirror, and report vulnerabilities privately through [SECURITY.md](SECURITY.md). No Discord channel is operated for this release.
+[GitHub Discussions](https://github.com/cosmo-wander-ai/cosmo-edge/discussions) is the official searchable English Q&A and community-support channel for v1.1, and general reproducible defects belong in [GitHub Issues](https://github.com/cosmo-wander-ai/cosmo-edge/issues). Users in mainland China can use [Gitee Issues](https://gitee.com/cosmo-wander-ai/cosmo-edge/issues) for repository access, installation, usage, release downloads, and device-adaptation questions. Code changes and pull requests remain on GitHub; report vulnerabilities privately through [SECURITY.md](SECURITY.md). No Discord channel is operated for this release.
 
 ## FAQ
 
@@ -302,6 +302,6 @@ An open-source project by Cosmo Wander AI and the CosmoEdge contributors.
 
 Turn video AI models into deployable edge applications.
 
-📦 This repository is mirrored read-only to [Gitee](https://gitee.com/cosmo-wander-ai/cosmo-edge) for mainland China access. See [MIRRORING.md](MIRRORING.md).
+📦 GitHub remains the development and pull-request source of truth. [Gitee](https://gitee.com/cosmo-wander-ai/cosmo-edge) automatically mirrors the code and provides release access and a Chinese issue channel for users in mainland China. See [MIRRORING.md](MIRRORING.md).
 
 </div>

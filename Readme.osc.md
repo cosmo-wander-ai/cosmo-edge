@@ -67,7 +67,7 @@ CosmoEdge 提供统一的引擎架构与编排体验，但每次构建只选择�
 
 ```bash
 # 1. 克隆
-git clone https://github.com/cosmo-wander-ai/cosmo-edge.git
+git clone https://gitee.com/cosmo-wander-ai/cosmo-edge.git
 cd cosmo-edge
 
 # 2. 在 Linux 启动
@@ -83,7 +83,7 @@ sudo docker compose -f docker-compose.x86.yml up -d --build
 ### 为 Sophon 构建
 
 ```bash
-git clone https://github.com/cosmo-wander-ai/cosmo-edge.git
+git clone https://gitee.com/cosmo-wander-ai/cosmo-edge.git
 cd cosmo-edge
 # BM1688（省略芯片型号时的默认值）
 ./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package --chip bm1688
@@ -248,7 +248,7 @@ v1.1 报告覆盖 BM1688、CV186X、RK3576 与 RV1126B。报告包含人员检�
 
 欢迎提交范围明确的 bug 报告、文档改进、场景示例和集成说明。提交 pull request 前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-[GitHub Discussions](https://github.com/cosmo-wander-ai/cosmo-edge/discussions) 是 v1.1 官方、可检索的英文问答与社区支持渠道；可复现缺陷请提交到 [GitHub Issues](https://github.com/cosmo-wander-ai/cosmo-edge/issues)，中国大陆镜像问题可使用 [Gitee Issues](https://gitee.com/cosmo-wander-ai/cosmo-edge/issues)，安全问题请按 [SECURITY.md](SECURITY.md) 私密报告。本次发布不运营 Discord。
+中国大陆用户遇到代码访问、安装、使用、版本获取或设备适配问题，可提交到 [Gitee Issues](https://gitee.com/cosmo-wander-ai/cosmo-edge/issues)；[GitHub Discussions](https://github.com/cosmo-wander-ai/cosmo-edge/discussions) 是 v1.1 官方、可检索的英文问答与社区支持渠道，通用可复现缺陷可提交到 [GitHub Issues](https://github.com/cosmo-wander-ai/cosmo-edge/issues)。代码变更与 Pull Request 仍统一在 GitHub 处理；安全问题请按 [SECURITY.md](SECURITY.md) 私密报告。本次发布不运营 Discord。
 
 中文实时交流可加入 [CosmoEdge 微信开发者交流群](https://github.com/cosmo-wander-ai/cosmo-edge/discussions/112)；微信群用于开发者交流，群内形成的可复现问题和可复用结论请继续沉淀到 GitHub Discussions 或 Issues。
 
@@ -294,6 +294,6 @@ An open-source project by Cosmo Wander AI and the CosmoEdge contributors.
 
 Turn video AI models into deployable edge applications.
 
-📦 本仓库在 [Gitee](https://gitee.com/cosmo-wander-ai/cosmo-edge) 维护只读镜像，代码自动从 GitHub 同步。详见 [MIRRORING.md](MIRRORING.md)。
+📦 GitHub 管理代码主线和 Pull Request；[Gitee](https://gitee.com/cosmo-wander-ai/cosmo-edge) 自动同步代码，并为中国大陆用户提供版本获取与中文问题反馈入口。详见 [MIRRORING.md](MIRRORING.md)。
 
 </div>
