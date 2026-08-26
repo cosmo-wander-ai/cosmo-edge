@@ -4,9 +4,38 @@
  */
 #include "flow/common/AlgDataRecord.h"
 #include "flow/common/AlgDataUnit.h"
+#include "flow/common/AreaLineUtil.h"
 #include "mock/MockServiceRegistry.h"
 
 using namespace cosmo;
+
+namespace {
+
+using AreaLine = std::pair<cosmo::util::Point, cosmo::util::Point>;
+
+AreaLine MakeLine(int x1, int y1, int x2, int y2) {
+    return {{x1, y1}, {x2, y2}};
+}
+
+void RequireLinesEqual(const std::vector<AreaLine>& actual, const std::vector<AreaLine>& expected) {
+    REQUIRE(actual.size() == expected.size());
+    for (size_t index = 0; index < expected.size(); ++index) {
+        CAPTURE(index);
+        REQUIRE(actual[index].first.x == expected[index].first.x);
+        REQUIRE(actual[index].first.y == expected[index].first.y);
+        REQUIRE(actual[index].second.x == expected[index].second.x);
+        REQUIRE(actual[index].second.y == expected[index].second.y);
+    }
+}
+
+std::vector<AreaLine> GetAreaOsdLinesWithParityCheck(const MsgTaskArea& area, int width, int height) {
+    auto osd_lines  = GetAreaOsdLines(area, width, height);
+    auto area_lines = GetAreaLines(area, width, height);
+    RequireLinesEqual(osd_lines, area_lines);
+    return osd_lines;
+}
+
+}  // namespace
 
 TEST_CASE("AlgDataCopy: nullptr returns nullptr", "[AlgDataUnit]") {
     REQUIRE(AlgDataCopy(nullptr) == nullptr);
@@ -68,40 +97,81 @@ TEST_CASE("AlgData::SetTaskResult and GetTaskResult roundtrip", "[AlgDataUnit]")
 
 TEST_CASE("GetAreaOsdLines: Empty area returns empty", "[AlgDataUnit]") {
     MsgTaskArea area;
-    auto lines = GetAreaOsdLines(area, 1920, 1080);
+    auto lines = GetAreaOsdLinesWithParityCheck(area, 1920, 1080);
     REQUIRE(lines.empty());
 }
 
-TEST_CASE("GetAreaOsdLines: Polygon area generates edges", "[AlgDataUnit]") {
-    MsgTaskArea area;
-    // Triangle: (0,0) -> (1,0) -> (0.5,1)
-    area.points = {{0.0, 0.0}, {1.0, 0.0}, {0.5, 1.0}};
-
-    auto lines = GetAreaOsdLines(area, 1000, 1000);
-    // 3 vertices => 2 edges + 1 closing edge = 3 lines
-    REQUIRE(lines.size() == 3);
-}
-
-TEST_CASE("GetAreaOsdLines: Two-point area (line segment)", "[AlgDataUnit]") {
+TEST_CASE("GetAreaOsdLines: Two-point area preserves its single segment", "[AlgDataUnit]") {
     MsgTaskArea area;
     area.points = {{0.0, 0.0}, {1.0, 1.0}};
 
-    auto lines = GetAreaOsdLines(area, 100, 100);
-    // 2 points => 1 edge, no closing edge (need >2 for closing)
-    REQUIRE(lines.size() == 1);
+    auto lines = GetAreaOsdLinesWithParityCheck(area, 100, 100);
+    RequireLinesEqual(lines, {MakeLine(0, 0, 100, 100)});
+}
+
+TEST_CASE("GetAreaOsdLines: Polygon area closes its final edge", "[AlgDataUnit]") {
+    MsgTaskArea area;
+    area.points = {{0.0, 0.0}, {1.0, 0.0}, {0.5, 1.0}};
+
+    auto lines = GetAreaOsdLinesWithParityCheck(area, 100, 100);
+    RequireLinesEqual(lines, {MakeLine(0, 0, 100, 0), MakeLine(100, 0, 50, 100), MakeLine(50, 100, 0, 0)});
+}
+
+TEST_CASE("GetAreaOsdLines: Associated areas are collected recursively before their parent",
+          "[AlgDataUnit]") {
+    MsgTaskArea grandchild;
+    grandchild.points = {{0.0, 0.0}, {0.5, 0.0}};
+
+    MsgTaskArea child;
+    child.points = {{0.0, 0.5}, {0.5, 0.5}};
+    child.associatedAreas.push_back(grandchild);
+
+    MsgTaskArea parent;
+    parent.points = {{0.0, 1.0}, {0.5, 1.0}};
+    parent.associatedAreas.push_back(child);
+
+    auto lines = GetAreaOsdLinesWithParityCheck(parent, 100, 100);
+    RequireLinesEqual(lines, {MakeLine(0, 0, 50, 0), MakeLine(0, 50, 50, 50), MakeLine(0, 100, 50, 100)});
+}
+
+TEST_CASE("GetAreaOsdLines: One-way line keeps its direction arrow", "[AlgDataUnit]") {
+    MsgTaskArea area;
+    area.linePoints     = {{0.0, 0.5}, {1.0, 0.5}};
+    area.iderectionType = DirectionType::DirectionTypeOneWay;
+
+    auto lines = GetAreaOsdLinesWithParityCheck(area, 100, 100);
+    RequireLinesEqual(lines, {MakeLine(0, 50, 100, 50), MakeLine(50, 50, 50, 54), MakeLine(50, 54, 52, 52),
+                              MakeLine(50, 54, 48, 52)});
+}
+
+TEST_CASE("GetAreaOsdLines: Two-way line keeps both direction arrows", "[AlgDataUnit]") {
+    MsgTaskArea area;
+    area.linePoints     = {{0.0, 0.5}, {1.0, 0.5}};
+    area.iderectionType = DirectionType::DirectionTypeTwoWay;
+
+    auto lines = GetAreaOsdLinesWithParityCheck(area, 100, 100);
+    RequireLinesEqual(lines, {MakeLine(0, 50, 100, 50), MakeLine(50, 54, 52, 52), MakeLine(50, 54, 48, 52),
+                              MakeLine(50, 54, 50, 46), MakeLine(50, 46, 48, 48), MakeLine(50, 46, 52, 48)});
+}
+
+TEST_CASE("GetAreaOsdLines: Zero-length line does not produce segments", "[AlgDataUnit]") {
+    MsgTaskArea area;
+    area.linePoints = {{0.5, 0.5}, {0.5, 0.5}};
+
+    auto lines = GetAreaOsdLinesWithParityCheck(area, 100, 100);
+    REQUIRE(lines.empty());
 }
 
 TEST_CASE("GetAreasOsdLines: Multiple areas combined", "[AlgDataUnit]") {
     MsgTaskArea area1;
-    area1.points = {{0.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}, {0.0, 1.0}};  // Quad
+    area1.points = {{0.0, 0.0}, {1.0, 0.0}};
 
     MsgTaskArea area2;
-    area2.points = {{0.0, 0.0}, {1.0, 0.0}, {0.5, 1.0}};  // Triangle
+    area2.points = {{0.0, 1.0}, {1.0, 1.0}};
 
     std::vector<MsgTaskArea> areas = {area1, area2};
     auto lines                     = GetAreasOsdLines(areas, 100, 100);
-    // Quad=4 + Triangle=3 = 7
-    REQUIRE(lines.size() == 7);
+    RequireLinesEqual(lines, {MakeLine(0, 0, 100, 0), MakeLine(0, 100, 100, 100)});
 }
 
 TEST_CASE("GenRandomDetBoxs: Generates non-empty targets", "[AlgDataUnit]") {

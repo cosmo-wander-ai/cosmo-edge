@@ -134,9 +134,6 @@ private:
     bool IsOverlappingTracked(const MsgTarget& target, const std::vector<MsgTarget>& targets);
 
     void LiveDataAiFrameToLocal(std::vector<MsgAiDetFrame>& aiData);
-    void LiveDataSensitityToLocal(std::vector<MsgRecSensitity>& aiData);
-    void LiveDataPosSaveSensitityToLocal(std::vector<MsgRecPosSaveSensitity>& aiData);
-    void LiveDataAiFilterToLocal(std::vector<MsgAiFilterFrame>& aiData);
     void LiveDataAlarmToLocal(std::vector<MsgRecAlarm>& aiData);
     void OldLocalData();
     void LiveDataToLocal();

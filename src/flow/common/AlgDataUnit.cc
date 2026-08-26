@@ -4,6 +4,7 @@
 
 #include <algorithm>
 
+#include "flow/common/AreaLineUtil.h"
 #include "util/GeometricPos.h"
 #include "util/Log.h"
 #include "util/MsgBaseTypes.h"
@@ -208,93 +209,7 @@ void TargetSignAreas(DataDetTrackClassifyPtr detRet, const std::vector<MsgTaskAr
 }
 
 std::vector<std::pair<util::Point, util::Point>> GetAreaOsdLines(MsgTaskArea area, int width, int height) {
-    std::vector<std::pair<util::Point, util::Point>> lines;
-    for (auto assArea : area.associatedAreas) {
-        auto assLines = GetAreaOsdLines(assArea, width, height);
-        if (!assLines.empty())
-            lines.insert(lines.end(), assLines.begin(), assLines.end());
-    }
-
-    if (!area.points.empty()) {
-        for (size_t index = 1; index < area.points.size(); index++) {
-            std::pair<util::Point, util::Point> line;
-            line.first.x  = static_cast<int>(area.points[index - 1].x * width);
-            line.first.y  = static_cast<int>(area.points[index - 1].y * height);
-            line.second.x = static_cast<int>(area.points[index].x * width);
-            line.second.y = static_cast<int>(area.points[index].y * height);
-            lines.push_back(line);
-        }
-        if (area.points.size() > 2) {
-            std::pair<util::Point, util::Point> line;
-            line.first.x  = static_cast<int>(area.points[area.points.size() - 1].x * width);
-            line.first.y  = static_cast<int>(area.points[area.points.size() - 1].y * height);
-            line.second.x = static_cast<int>(area.points[0].x * width);
-            line.second.y = static_cast<int>(area.points[0].y * height);
-            lines.push_back(line);
-        }
-    }
-
-    if (!area.linePoints.empty()) {
-        auto pointTrans = [width, height](const MsgPoint& origin) {
-            return util::Point{static_cast<int>(origin.x * width), static_cast<int>(origin.y * height)};
-        };
-
-        size_t drawDirectionIndex = area.linePoints.size() / 2;
-        for (size_t i = 1; i < area.linePoints.size(); ++i) {
-            auto lastPoint = pointTrans(area.linePoints[i - 1]);
-            auto currPoint = pointTrans(area.linePoints[i]);
-
-            auto lineDir    = currPoint - lastPoint;
-            auto lineLength = util::Length(lineDir);
-            if (lineLength == 0) {
-                continue;
-            }
-
-            std::pair<util::Point, util::Point> line;
-            line.first  = lastPoint;
-            line.second = currPoint;
-            lines.push_back(line);
-
-            // Draw only one direction line
-            if (drawDirectionIndex != i)
-                continue;
-
-            // Perpendicular line
-            auto centPoint  = (lastPoint + currPoint) / 2;
-            auto perpLength = height * 0.04;
-            auto perpDir    = util::LineDirection(util::Perpendicular(lineDir), perpLength);
-            auto finaPoint  = centPoint + perpDir;
-            if (area.iderectionType == DirectionType::DirectionTypeOneWay) {
-                // Vertical line
-                lines.push_back(std::make_pair(centPoint, finaPoint));
-            }
-
-            // Arrow
-            auto centPerpPoint = (centPoint + finaPoint) / 2;
-            auto arrowDir      = util::LineDirection(lineDir, perpLength / 2);
-            lines.push_back(std::make_pair(finaPoint, centPerpPoint + arrowDir));
-            lines.push_back(std::make_pair(finaPoint, centPerpPoint + arrowDir * -1));
-
-            // Two-way line   negative direction
-            if (area.iderectionType == DirectionType::DirectionTypeTwoWay) {
-                // Perpendicular line
-                auto negativeLineDir = lastPoint - currPoint;
-                auto negativePerpDir = util::LineDirection(util::Perpendicular(negativeLineDir), perpLength);
-                auto negativeFinaPoint = centPoint + negativePerpDir;
-                lines.push_back(
-                    std::make_pair(finaPoint, negativeFinaPoint));  // Draw one less perpendicular line
-
-                // Arrow
-                auto negativeCentPerpPoint = (centPoint + negativeFinaPoint) / 2;
-                auto negativeArrowDir      = util::LineDirection(negativeLineDir, perpLength / 2);
-                lines.push_back(std::make_pair(negativeFinaPoint, negativeCentPerpPoint + negativeArrowDir));
-                lines.push_back(
-                    std::make_pair(negativeFinaPoint, negativeCentPerpPoint + negativeArrowDir * -1));
-            }
-        }
-    }
-
-    return lines;
+    return GetAreaLines(area, width, height);
 }
 
 std::vector<std::pair<util::Point, util::Point>> GetAreasOsdLines(const std::vector<MsgTaskArea>& areas,

@@ -373,8 +373,10 @@ TEST_CASE("SystemServiceImpl: HttpInterface delegates to AlarmPushService", "[Sy
         REQUIRE(result == cosmo::util::ErrorEnum::Success);
     }
 
-    SECTION("SetHttpInterfaceParam rejects unsafe URL before delegation") {
+    SECTION("SetHttpInterfaceParam propagates validation failure from IAlarmPushService") {
         cosmo::service::HttpPushParam param{true, "file:///etc/passwd"};
+        REQUIRE_CALL(mocks.alarmPushSvc, SetPush(true, std::string("file:///etc/passwd")))
+            .RETURN(cosmo::util::ErrorEnum::InvalidParam);
         REQUIRE(sut.SetHttpInterfaceParam(param) == cosmo::util::ErrorEnum::InvalidParam);
     }
 }

@@ -33,6 +33,7 @@
 #include "util/ErrorCode.h"
 #include "util/Exec.h"
 #include "util/FileUtil.h"
+#include "util/HttpUrlUtil.h"
 #include "util/JsonStructUtil.h"
 #include "util/LimitedTypeJson.h"
 #include "util/Log.h"
@@ -45,7 +46,6 @@ namespace cosmo::service {
 namespace {
 
     constexpr size_t kMaxLogoBytes           = 1024 * 1024;
-    constexpr size_t kMaxEndpointBytes       = 2048;
     constexpr size_t kMaxMqttHostBytes       = 253;
     constexpr size_t kMaxMqttIdentityBytes   = 128;
     constexpr size_t kMaxMqttCredentialBytes = 256;
@@ -85,38 +85,6 @@ namespace {
     bool IsValidMqttHost(const std::string& host) {
         return !host.empty() && host.size() <= kMaxMqttHostBytes && !ContainsControlCharacter(host) &&
                cosmo::util::IsHostnameSafe(host) && std::any_of(host.begin(), host.end(), [](char character) {
-                   return std::isalnum(static_cast<unsigned char>(character)) != 0;
-               });
-    }
-
-    bool IsValidHttpUrl(const std::string& url) {
-        if (url.empty() || url.size() > kMaxEndpointBytes || ContainsControlCharacter(url) ||
-            url.find('\\') != std::string::npos) {
-            return false;
-        }
-
-        constexpr std::string_view kHttpPrefix{"http://"};
-        constexpr std::string_view kHttpsPrefix{"https://"};
-        size_t authority_begin = 0;
-        if (url.compare(0, kHttpPrefix.size(), kHttpPrefix) == 0) {
-            authority_begin = kHttpPrefix.size();
-        } else if (url.compare(0, kHttpsPrefix.size(), kHttpsPrefix) == 0) {
-            authority_begin = kHttpsPrefix.size();
-        } else {
-            return false;
-        }
-
-        const auto authority_end = url.find_first_of("/?#", authority_begin);
-        const auto authority = std::string_view(url).substr(authority_begin, authority_end - authority_begin);
-        if (authority.empty() || authority.find('@') != std::string_view::npos) {
-            return false;
-        }
-        const bool syntax_valid = std::all_of(authority.begin(), authority.end(), [](char character) {
-            const auto byte = static_cast<unsigned char>(character);
-            return std::isalnum(byte) != 0 || character == '.' || character == '-' || character == '_' ||
-                   character == ':' || character == '[' || character == ']';
-        });
-        return syntax_valid && std::any_of(authority.begin(), authority.end(), [](char character) {
                    return std::isalnum(static_cast<unsigned char>(character)) != 0;
                });
     }
@@ -185,7 +153,7 @@ namespace {
                                 ((!stored.mqttParam.bEnable && stored.mqttParam.ip.empty()) ||
                                  IsValidMqttHost(stored.mqttParam.ip));
         const bool http_valid = (!stored.httpParam.bEnable && stored.httpParam.url.empty()) ||
-                                IsValidHttpUrl(stored.httpParam.url);
+                                cosmo::util::IsValidHttpUrl(stored.httpParam.url);
         return mqtt_valid && http_valid;
     }
 
@@ -615,9 +583,6 @@ HttpPushParam SystemServiceImpl::GetHttpInterfaceParam() {
 }
 
 cosmo::util::ErrorEnum SystemServiceImpl::SetHttpInterfaceParam(const HttpPushParam& param) {
-    if ((param.enable || !param.url.empty()) && !IsValidHttpUrl(param.url)) {
-        return cosmo::util::ErrorEnum::InvalidParam;
-    }
     return service::ServiceRegistry::Instance().Get<service::IAlarmPushService>().SetPush(param.enable,
                                                                                           param.url);
 }
@@ -721,7 +686,8 @@ IotNetworkParam SystemServiceImpl::GetIotNetworkParam() {
 
 cosmo::util::ErrorEnum SystemServiceImpl::SetIotNetworkParam(const std::string& httpUrl,
                                                              const std::string& mqttIp, int mqtt_port) {
-    if (!IsValidHttpUrl(httpUrl) || !IsValidMqttHost(mqttIp) || mqtt_port < 1 || mqtt_port > 65535) {
+    if (!cosmo::util::IsValidHttpUrl(httpUrl) || !IsValidMqttHost(mqttIp) || mqtt_port < 1 ||
+        mqtt_port > 65535) {
         return cosmo::util::ErrorEnum::InvalidParam;
     }
     std::lock_guard<std::shared_mutex> lock(sys_config_state_->mtx);
