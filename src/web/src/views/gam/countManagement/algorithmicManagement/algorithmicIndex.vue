@@ -998,12 +998,15 @@ export default {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 .task-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 14px 24px;
+  flex-shrink: 0;
 }
 .toolbar-left { display: flex; align-items: center; }
 .task-count {
@@ -1023,10 +1026,13 @@ export default {
 .task-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: minmax(260px, auto);
   gap: 16px;
   padding: 4px 24px 12px;
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   align-content: start;
 }
 @media (max-width: 1200px) { .task-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -1038,7 +1044,7 @@ export default {
   padding: 20px;
   border: 1px solid #f0f0f0;
   transition: all 0.25s ease;
-  min-height: 220px;
+  min-height: 260px;
   min-width: 0;
   height: auto;
   display: flex;
