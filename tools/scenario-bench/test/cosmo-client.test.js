@@ -69,6 +69,18 @@ test('cleanup requests remain available after the run signal is aborted', async 
   assert.equal(requestSignal.aborted, false);
 });
 
+test('detached cleanup client preserves the active signal on concurrent work', () => {
+  const controller = new AbortController();
+  const client = new CosmoClient({
+    base: 'http://device', token: 'token', signal: controller.signal,
+    fetchImpl: async () => { throw new Error('not used'); },
+  });
+  const cleanup = client.detachedCleanupClient();
+  assert.equal(client.signal, controller.signal);
+  assert.equal(cleanup.signal, null);
+  assert.equal(cleanup.mtk, 'token');
+});
+
 test('batch task switch uses the wire-level switch field', async () => {
   const client = new CosmoClient({ base: 'http://device', token: 'token' });
   let request = null;
