@@ -10,6 +10,8 @@
   "scripts": {
     "start": "node src/cli.js",
     "bench": "node src/cli.js run",
+    "accuracy": "node src/accuracy-cli.js",
+    "test:accuracy": "node --test test/accuracy-*.test.js",
     "test": "node --test test/*.test.js"
   },
   "engines": {
