@@ -1,5 +1,8 @@
 #pragma once
 
+#include <mutex>
+#include <vector>
+
 #include "bmcv_api.h"
 #include "bmcv_api_ext.h"
 #include "bmlib_runtime.h"
@@ -31,8 +34,23 @@ public:
 
     Status Allocate(void** handle, size_t size);
 
+    // Lease a graph-local BM handle. Concurrent graphs receive distinct handles
+    // so bm_thread_sync remains isolated, while released handles stay alive and
+    // are recycled instead of calling bm_dev_free during active media work.
+    [[nodiscard]] bm_handle_t AcquireRuntimeHandle(int device_id);
+
+    void ReleaseRuntimeHandle(bm_handle_t handle) noexcept;
+
 private:
+    struct RuntimeHandleEntry {
+        bm_handle_t handle{nullptr};
+        int device_id{0};
+        bool in_use{false};
+    };
+
     bm_handle_t bm_handle = nullptr;
+    std::mutex runtime_handles_mutex_;
+    std::vector<RuntimeHandleEntry> runtime_handles_;
 };
 
 }  // namespace cosmo::nn

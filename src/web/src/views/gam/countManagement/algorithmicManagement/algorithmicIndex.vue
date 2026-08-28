@@ -998,12 +998,15 @@ export default {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 .task-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 14px 24px;
+  flex-shrink: 0;
 }
 .toolbar-left { display: flex; align-items: center; }
 .task-count {
@@ -1022,15 +1025,18 @@ export default {
 }
 .task-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: minmax(260px, auto);
   gap: 16px;
   padding: 4px 24px 12px;
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   align-content: start;
 }
-@media (max-width: 1200px) { .task-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 768px) { .task-grid { grid-template-columns: 1fr; } }
+@media (max-width: 1200px) { .task-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 768px) { .task-grid { grid-template-columns: minmax(0, 1fr); } }
 .task-card {
   position: relative;
   background: #fff;
@@ -1038,10 +1044,11 @@ export default {
   padding: 20px;
   border: 1px solid #f0f0f0;
   transition: all 0.25s ease;
-  height: 220px;
+  min-height: 260px;
+  min-width: 0;
+  height: auto;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   &:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(0,0,0,0.08);
@@ -1071,7 +1078,7 @@ export default {
   &.icon-green { background: rgba(34,197,94,0.1); color: #22c55e; }
   &.icon-orange { background: rgba(245,158,11,0.1); color: #f59e0b; }
 }
-.card-info { margin-bottom: 10px; }
+.card-info { min-width: 0; margin-bottom: 10px; }
 .card-title {
   font-size: 15px; font-weight: 600; color: #1f2937;
   margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -1093,8 +1100,10 @@ export default {
 }
 .card-footer {
   display: flex; justify-content: space-between; align-items: center;
+  min-width: 0; gap: 8px;
   padding-top: 12px; border-top: 1px solid #f5f5f5;
   margin-top: auto;
+  flex-shrink: 0;
 }
 .card-status { display: flex; align-items: center; gap: 10px; font-size: 12px; }
 .status-indicator {
@@ -1103,7 +1112,7 @@ export default {
 }
 .running-count { color: #3182ce; font-weight: 500; }
 .card-actions {
-  display: flex; gap: 4px;
+  display: flex; flex-shrink: 0; gap: 4px;
   .el-button { font-size: 13px; color: #3182ce !important; &:hover { color: #2b6cb0 !important; } }
 }
 .pagination-container { display: flex; justify-content: center; padding: 12px 24px 16px; flex-shrink: 0; }

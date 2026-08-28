@@ -143,6 +143,7 @@ import paramSetting from './paramSetting.vue'
 import EventBus from '@/components/eventBus.js'
 import { v4 } from 'uuid'
 import Batch from './BatchApplication.vue'
+import { getLocationQueryParam } from '@/utils/locationQuery'
 
 const { proxy } = getCurrentInstance()
 
@@ -352,18 +353,7 @@ const init = () => {
 }
 
 const getParams = (name) => {
-  let search = window.location.search.substring(1)
-  if (!search) {
-    search = window.location.hash.split('?')[1]
-  }
-  if (search) {
-    const params = new URLSearchParams(search)
-    const obj = {}
-    for (const [key, value] of params.entries()) {
-      obj[key] = value
-    }
-    return name ? obj[name] : obj
-  }
+  return getLocationQueryParam(name)
 }
 
 const normalizeSearchText = (value) => String(value || '').trim().toLowerCase()

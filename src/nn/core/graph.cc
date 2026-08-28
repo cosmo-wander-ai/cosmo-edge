@@ -36,7 +36,12 @@
 namespace cosmo::nn {
 
 Graph::~Graph() {
+    // Runtime nodes may own BMRT handles and device tensors. Release them
+    // first, then graph blobs, and only then return the graph-local Sophon
+    // handle lease to the process-lifetime pool.
     nodes.clear();
+    blob_store.reset();
+    shared_resource.reset();
 }
 
 Status Graph::Init(CombinedModelInfo& info, const std::string& model_path, DeviceType device_type,
