@@ -101,6 +101,7 @@ util::ErrorEnum CameraServiceImpl::SaveOrUpdateTask(const std::string& cameraId,
         LOG_INFO("{} Is Being Deleted", cameraId);
         return util::ErrorEnum::CameraNotExist;
     }
+    camera->WaitForSwitchThread();
 
     std::string scheduleName;
     if (!ServiceRegistry::Instance().Get<IScheduleService>().Exist(scheduleId, scheduleName)) {
@@ -186,6 +187,7 @@ util::ErrorEnum CameraServiceImpl::SaveOrUpdateTask(const std::string& cameraId,
 util::ErrorEnum CameraServiceImpl::ModifyTaskParam(const std::string& cameraId,
                                                    const std::string& algorithmId, MsgTaskConfig& params) {
     return WithCamera(cameraId, [&](const CameraEntityPtr& camera) {
+        camera->WaitForSwitchThread();
         std::lock_guard<std::shared_mutex> lock(camera->task_mtx_);
 
         auto it = std::find_if(camera->tasks_.begin(), camera->tasks_.end(),
@@ -234,6 +236,7 @@ util::ErrorEnum CameraServiceImpl::ModifyTaskArea(const std::string& cameraId, c
                                                   const std::vector<MsgTaskArea>& areas,
                                                   const std::vector<MsgTaskArea>& shieldedAreas) {
     return WithCamera(cameraId, [&](const CameraEntityPtr& camera) {
+        camera->WaitForSwitchThread();
         std::lock_guard<std::shared_mutex> lock(camera->task_mtx_);
 
         auto it = std::find_if(camera->tasks_.begin(), camera->tasks_.end(),
@@ -287,6 +290,7 @@ util::ErrorEnum CameraServiceImpl::ModifyTaskStrategy(const std::string& cameraI
     }
 
     return WithCamera(cameraId, [&](const CameraEntityPtr& camera) {
+        camera->WaitForSwitchThread();
         std::lock_guard<std::shared_mutex> lock(camera->task_mtx_);
 
         auto it = std::find_if(camera->tasks_.begin(), camera->tasks_.end(),
@@ -350,6 +354,7 @@ util::ErrorEnum CameraServiceImpl::SwitchTask(const std::string& cameraId, const
     if (camera->deleting_) {
         return util::ErrorEnum::CameraNotExist;
     }
+    camera->WaitForSwitchThread();
 
     {
         std::shared_lock<std::shared_mutex> lock(camera->task_mtx_);
@@ -742,13 +747,26 @@ void CameraServiceImpl::RebuildAlgorithmForReload(const CameraEntityPtr& camera,
 void CameraServiceImpl::StartTasksAfterReload(const CameraEntityPtr& camera,
                                               const std::vector<std::string>& taskIds) {
     for (const auto& taskId : taskIds) {
-        bool restartOk =
-            ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskStart(camera->videoChannelId, taskId);
-        std::lock_guard<std::shared_mutex> lock(camera->task_mtx_);
-        auto it = std::find_if(camera->tasks_.begin(), camera->tasks_.end(),
-                               [&](const CameraTaskPtr& t) { return t && t->task_id_ == taskId; });
-        if (it != camera->tasks_.end()) {
-            (*it)->status_ = restartOk ? CameraTaskStatus::kInService : CameraTaskStatus::kAbnormal;
+        CameraTaskPtr task;
+        {
+            std::shared_lock<std::shared_mutex> lock(camera->task_mtx_);
+            auto it = std::find_if(camera->tasks_.begin(), camera->tasks_.end(),
+                                   [&](const CameraTaskPtr& t) { return t && t->task_id_ == taskId; });
+            if (it != camera->tasks_.end()) {
+                task = *it;
+            }
+        }
+        if (task) {
+            if (!task->task_ || !task->task_->IsReady() || !task->task_->TaskEnableParam()) {
+                LOG_WARN("[{}/{}] AlgorithmChanged -> restart delayed until latest parameters apply",
+                         camera->videoChannelId, taskId);
+                task->status_ = CameraTaskStatus::kAbnormal;
+                continue;
+            }
+            PrepareCameraTaskOverview(camera, task);
+            const bool restart_ok =
+                ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskStart(camera->videoChannelId, taskId);
+            task->status_ = restart_ok ? CameraTaskStatus::kInService : CameraTaskStatus::kAbnormal;
         }
     }
 }
@@ -821,6 +839,7 @@ util::ErrorEnum CameraServiceImpl::BindTaskLibPara(const std::string& cameraId,
     if (camera->deleting_) {
         return util::ErrorEnum::NoSuchId;
     }
+    camera->WaitForSwitchThread();
 
     // Snapshot task_->task_ into a local shared_ptr under the shared lock so concurrent
     // RebuildAlgorithmForReload (which std::move/reset task_->task_ under the exclusive lock)

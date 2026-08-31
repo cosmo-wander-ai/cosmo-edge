@@ -64,7 +64,7 @@ public:
 
     [[nodiscard]] util::ErrorEnum GetStatus() const;
     [[nodiscard]] bool IsReady() const;
-    void TaskEnableParam();
+    [[nodiscard]] bool TaskEnableParam();
     void RefreshModels(std::vector<ModelInfo> models);
 
 private:
@@ -84,6 +84,7 @@ private:
                                        float& confidence) const;
 
 private:
+    std::mutex apply_mtx_;  // Serializes full parameter snapshots sent to the runtime task
     mutable std::shared_mutex mtx_;
     std::string conf_file_path_{};               // ${cameraCfgPath}/${cameraId}/${algorithmCode}
     std::string conf_area_file_{"area.json"};    //
@@ -97,7 +98,7 @@ private:
     CameraTaskUnitParam conf_param_{};
     CameraTaskUnitArea conf_area_{};
     CameraTaskUnitLibPara conf_lib_param_{};
-    size_t enable_sign_{0};  // Set to m_modifySign when applied to the task
+    size_t enable_sign_{0};  // Last configuration generation successfully applied to the task
     size_t modify_sign_{
         100};  // Incremented on each modification; initial value forces parameter setup on start
     // Ownership is acquired only after TaskCreate succeeds.  A failed duplicate

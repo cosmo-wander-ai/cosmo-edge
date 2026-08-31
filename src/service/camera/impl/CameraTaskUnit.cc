@@ -147,36 +147,54 @@ void CameraTaskUnit::LoadConfig() {
         return;
     }
     task_created_ = true;
-    TaskEnableParam();
+    (void)TaskEnableParam();
     task_status_ = util::ErrorEnum::Success;
 }
 
-void CameraTaskUnit::TaskEnableParam() {
-    if (task_status_ != util::ErrorEnum::Success) {
-        LOG_WARN("[{}_{}] Skip Set Param because task is not ready, status:{}", channel_id_, task_id_,
-                 static_cast<uint32_t>(task_status_));
-        return;
-    }
-    if (modify_sign_ == enable_sign_) {
-        return;
-    }
+bool CameraTaskUnit::TaskEnableParam() {
+    std::unique_lock<std::mutex> apply_lock(apply_mtx_);
 
-    MsgTaskConfig param;
-    {
-        std::shared_lock<std::shared_mutex> lock(mtx_);
-        param.params.insert(param.params.end(), conf_param_.params.begin(), conf_param_.params.end());
-        param.areas         = conf_area_.areas;
-        param.shieldedAreas = conf_area_.shieldedAreas;
-    }
-    LOG_INFO("[{}_{}] Set Param: ParamSize:{} AreaSize:{}", channel_id_, task_id_, param.params.size(),
-             param.areas.size());
-    EnableParamConfidences(param);
+    for (;;) {
+        MsgTaskConfig param;
+        size_t target_sign = 0;
+        {
+            std::shared_lock<std::shared_mutex> lock(mtx_);
+            if (task_status_ != util::ErrorEnum::Success) {
+                LOG_WARN("[{}_{}] Skip Set Param because task is not ready, status:{}", channel_id_, task_id_,
+                         static_cast<uint32_t>(task_status_));
+                return false;
+            }
+            if (modify_sign_ == enable_sign_) {
+                return true;
+            }
 
-    if (service::ServiceRegistry::Instance().Get<cosmo::service::ITaskLifecycle>().SetTaskParam(
-            channel_id_, task_id_, param)) {
-        enable_sign_ = modify_sign_;
-    } else {
-        LOG_WARN("[{}_{}] Set task parameters failed; keep change pending for retry", channel_id_, task_id_);
+            target_sign = modify_sign_;
+            param.params.insert(param.params.end(), conf_param_.params.begin(), conf_param_.params.end());
+            param.areas         = conf_area_.areas;
+            param.shieldedAreas = conf_area_.shieldedAreas;
+
+            // Confidence expansion reads models_, so it belongs to the same configuration snapshot.
+            EnableParamConfidences(param);
+        }
+
+        LOG_INFO("[{}_{}] Set Param Generation:{} ParamSize:{} AreaSize:{}", channel_id_, task_id_,
+                 target_sign, param.params.size(), param.areas.size());
+        if (!service::ServiceRegistry::Instance().Get<cosmo::service::ITaskLifecycle>().SetTaskParam(
+                channel_id_, task_id_, param)) {
+            LOG_WARN("[{}_{}] Set task parameters failed at generation {}; keep change pending for retry",
+                     channel_id_, task_id_, target_sign);
+            return false;
+        }
+
+        {
+            std::lock_guard<std::shared_mutex> lock(mtx_);
+            enable_sign_ = target_sign;
+            if (modify_sign_ == target_sign) {
+                return true;
+            }
+            LOG_INFO("[{}_{}] Configuration advanced from generation {} to {}; apply latest snapshot",
+                     channel_id_, task_id_, target_sign, modify_sign_);
+        }
     }
 }
 
@@ -194,7 +212,7 @@ void CameraTaskUnit::RefreshModels(std::vector<ModelInfo> models) {
         models_ = std::move(models);
         modify_sign_ += 1;
     }
-    TaskEnableParam();
+    (void)TaskEnableParam();
 }
 
 void CameraTaskUnit::EnableParamConfidences(MsgTaskConfig& param) {
