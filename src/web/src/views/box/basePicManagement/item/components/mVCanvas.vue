@@ -475,15 +475,18 @@ const unbindEvent = () => {
   canvasContext.value.unbindEvent()
 }
 
+const handleResetSelectPoints = () => {
+  selectPoints.value = []
+}
+
 // Lifecycle hooks
 onMounted(() => {
-  EventBus.$on('resetSelectPoints', () => {
-    selectPoints.value = []
-  })
+  EventBus.$on('resetSelectPoints', handleResetSelectPoints)
   init()
 })
 
 onBeforeUnmount(() => {
+  EventBus.$off('resetSelectPoints', handleResetSelectPoints)
   canvasContext.value.unbindEvent()
 })
 </script>
