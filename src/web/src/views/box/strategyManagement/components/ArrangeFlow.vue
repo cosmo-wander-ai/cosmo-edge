@@ -394,21 +394,7 @@ const handleCloseDetailPanel = (nodeId) => {
   }
 }
 
-EventBus.$on('flow:openDetailPanel', handleOpenDetailPanel)
-EventBus.$on('flow:closeDetailPanel', handleCloseDetailPanel)
-
-onBeforeUnmount(() => {
-  EventBus.$off('flow:openDetailPanel', handleOpenDetailPanel)
-  EventBus.$off('flow:closeDetailPanel', handleCloseDetailPanel)
-})
-
-EventBus.$on('edgeMenu:focus', (nodeId) => {
-  // requestAnimationFrame(() => {
-  //   focusNode(nodeId)
-  // })
-})
-
-EventBus.$on('flow:removeNodes', (ids) => {
+const handleRemoveNodes = (ids) => {
   if (!Array.isArray(ids) || ids.length === 0) return
   setNodes((ns) => ns.filter((n) => !ids.includes(n.id)))
   nodes.value = nodes.value.filter((n) => !ids.includes(n.id))
@@ -420,22 +406,19 @@ EventBus.$on('flow:removeNodes', (ids) => {
   nodes.value.forEach((n) => {
     if (n.data) n.data.atomicList = atomicList.value
   })
-})
+}
 
-EventBus.$on(
-  'flow:addComponentDialog:open',
-  ({ edgeId, x, y, mode, sourceId } = {}) => {
-    addDialogMode.value = mode || 'insert'
-    addDialogSourceId.value = sourceId || ''
-    addDialogEdgeId.value = edgeId || ''
-    addDialogX.value = Number(x || 0)
-    addDialogY.value = Number(y || 0)
-    addDialogVisible.value = true
-  }
-)
+const handleAddComponentDialogOpen = ({ edgeId, x, y, mode, sourceId } = {}) => {
+  addDialogMode.value = mode || 'insert'
+  addDialogSourceId.value = sourceId || ''
+  addDialogEdgeId.value = edgeId || ''
+  addDialogX.value = Number(x || 0)
+  addDialogY.value = Number(y || 0)
+  addDialogVisible.value = true
+}
 
 // 实时同步 atomicList：来自节点表单的更新
-EventBus.$on('flow:atomic:update', (payload = {}) => {
+const handleAtomicUpdate = (payload = {}) => {
   const { position, atomicCode, atomicName, labelList } = payload
   if (!position) return
   const list = atomicList.value || []
@@ -456,6 +439,20 @@ EventBus.$on('flow:atomic:update', (payload = {}) => {
   nodes.value.forEach((n) => {
     if (n.data) n.data.atomicList = atomicList.value
   })
+}
+
+EventBus.$on('flow:openDetailPanel', handleOpenDetailPanel)
+EventBus.$on('flow:closeDetailPanel', handleCloseDetailPanel)
+EventBus.$on('flow:removeNodes', handleRemoveNodes)
+EventBus.$on('flow:addComponentDialog:open', handleAddComponentDialogOpen)
+EventBus.$on('flow:atomic:update', handleAtomicUpdate)
+
+onBeforeUnmount(() => {
+  EventBus.$off('flow:openDetailPanel', handleOpenDetailPanel)
+  EventBus.$off('flow:closeDetailPanel', handleCloseDetailPanel)
+  EventBus.$off('flow:removeNodes', handleRemoveNodes)
+  EventBus.$off('flow:addComponentDialog:open', handleAddComponentDialogOpen)
+  EventBus.$off('flow:atomic:update', handleAtomicUpdate)
 })
 
 const getNodeTypeForAction = (action) => {

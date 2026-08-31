@@ -118,22 +118,24 @@ watch(() => props.condition?.keyL, (newVal) => {
   }
 })
 
+const handleCondition = () => {
+  if (props.condition?.rightType === 'check' && props.condition?.keyL) {
+    handleRightData(props.condition.keyL)
+  }
+  getCurrentInstance()?.proxy?.$forceUpdate()
+}
+
 // Lifecycle
 onMounted(() => {
   console.log('condition  mounted', props.condition?.keyL)
   handleTaskData()
   handleLeftData()
   handleRightData(props.condition?.keyL)
-  EventBus.$on('onCondition', () => {
-    if (props.condition?.rightType === 'check' && props.condition?.keyL) {
-      handleRightData(props.condition.keyL)
-    }
-    getCurrentInstance()?.proxy?.$forceUpdate()
-  })
+  EventBus.$on('onCondition', handleCondition)
 })
 
 onBeforeUnmount(() => {
-  EventBus.$off('onCondition')
+  EventBus.$off('onCondition', handleCondition)
 })
 
 // Methods
