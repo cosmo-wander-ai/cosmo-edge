@@ -1,7 +1,6 @@
-#include "catch_amalgamated.hpp"
-
 #include <array>
 
+#include "catch_amalgamated.hpp"
 #include "nn/device/sophon/sophon_normalize_utils.h"
 
 TEST_CASE("Sophon normalize maps image and coefficient channel order", "[nn][sophon][normalize]") {

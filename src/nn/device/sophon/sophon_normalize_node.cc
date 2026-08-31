@@ -122,11 +122,9 @@ Status SophonNormalizeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_b
     bmcv_convert_to_attr converto_attr;
     bm_model_input_scale = shared_resource->model_input_scale;  // from model for INT8 quantization
     // Keep Normalize semantics aligned with the naive backend: y = (x - mean) * scale.
-    const std::array<float, 3> model_alpha{bm_model_input_scale * std[0],
-                                           bm_model_input_scale * std[1],
+    const std::array<float, 3> model_alpha{bm_model_input_scale * std[0], bm_model_input_scale * std[1],
                                            bm_model_input_scale * std[2]};
-    const std::array<float, 3> model_beta{-mean[0] * std[0], -mean[1] * std[1],
-                                          -mean[2] * std[2]};
+    const std::array<float, 3> model_beta{-mean[0] * std[0], -mean[1] * std[1], -mean[2] * std[2]};
     // BMCV applies alpha/beta in source channel order before writing the converted format.
     const auto source_alpha = SophonNormalizeSourceChannelOrder(model_alpha, swap_rb);
     const auto source_beta  = SophonNormalizeSourceChannelOrder(model_beta, swap_rb);
@@ -144,8 +142,7 @@ Status SophonNormalizeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_b
     // Different source/destination formats request a real B/R conversion from BMCV.
     bm_image_format_ext convert_image_format = src_image_format;
     if (swap_rb) {
-        convert_image_format =
-            src_image_format == FORMAT_BGR_PLANAR ? FORMAT_RGB_PLANAR : FORMAT_BGR_PLANAR;
+        convert_image_format = src_image_format == FORMAT_BGR_PLANAR ? FORMAT_RGB_PLANAR : FORMAT_BGR_PLANAR;
     }
     bm_image_data_format_ext src_data_format     = DATA_TYPE_EXT_1N_BYTE;
     bm_image_data_format_ext convert_data_format = DATA_TYPE_EXT_FLOAT32;

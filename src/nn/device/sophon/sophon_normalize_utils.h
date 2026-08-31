@@ -16,8 +16,7 @@ template <typename T>
 inline constexpr std::array<T, 3> SophonNormalizeSourceChannelOrder(
     const std::array<T, 3>& model_channel_values, bool swap_red_blue) {
     return swap_red_blue
-               ? std::array<T, 3>{model_channel_values[2], model_channel_values[1],
-                                  model_channel_values[0]}
+               ? std::array<T, 3>{model_channel_values[2], model_channel_values[1], model_channel_values[0]}
                : model_channel_values;
 }
 
