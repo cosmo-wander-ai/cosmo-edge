@@ -179,6 +179,20 @@ const iconMap = {
 }
 const getIconComp = (icon) => iconMap[icon] || Menu
 
+const handleSidebarCollapse = () => {
+  if (!isCollapse.value) {
+    isCollapse.value = true
+    EventBus.$emit('layout:resize')
+  }
+}
+
+const handleSidebarExpand = () => {
+  if (isCollapse.value) {
+    isCollapse.value = false
+    EventBus.$emit('layout:resize')
+  }
+}
+
 // 组件挂载时初始化菜单状态
 onMounted(() => {
   initMenuState()
@@ -192,18 +206,8 @@ onMounted(() => {
   }
 
   // 子页面可通过事件控制侧边栏收起/展开
-  EventBus.$on('sidebar:collapse', () => {
-    if (!isCollapse.value) {
-      isCollapse.value = true
-      EventBus.$emit('layout:resize')
-    }
-  })
-  EventBus.$on('sidebar:expand', () => {
-    if (isCollapse.value) {
-      isCollapse.value = false
-      EventBus.$emit('layout:resize')
-    }
-  })
+  EventBus.$on('sidebar:collapse', handleSidebarCollapse)
+  EventBus.$on('sidebar:expand', handleSidebarExpand)
 })
 
 onBeforeUnmount(() => {
@@ -212,8 +216,8 @@ onBeforeUnmount(() => {
     clearInterval(rebootTimer)
     rebootTimer = null
   }
-  EventBus.$off && EventBus.$off('sidebar:collapse')
-  EventBus.$off && EventBus.$off('sidebar:expand')
+  EventBus.$off('sidebar:collapse', handleSidebarCollapse)
+  EventBus.$off('sidebar:expand', handleSidebarExpand)
 })
 
 const toggleUserMenu = (e) => {

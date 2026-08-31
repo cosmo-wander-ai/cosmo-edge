@@ -106,6 +106,25 @@ watch(
   { flush: 'post' }
 )
 
+let resizeTimer = null
+const layoutResizeTimers = new Set()
+
+const handleResize = () => {
+  if (resizeTimer) clearTimeout(resizeTimer)
+  resizeTimer = setTimeout(() => {
+    resizeTimer = null
+    updateCanvasSize()
+  }, 100)
+}
+
+const handleLayoutResize = () => {
+  const timer = setTimeout(() => {
+    layoutResizeTimers.delete(timer)
+    updateCanvasSize()
+  }, 150)
+  layoutResizeTimers.add(timer)
+}
+
 // Lifecycle
 onMounted(() => {
   supplier.value = route.query?.supplier
@@ -120,9 +139,7 @@ onMounted(() => {
   window.addEventListener('resize', handleResize)
   getActionList(algorithmUsage.value)
   getTemplateList()
-  EventBus.$on('layout:resize', () => {
-    setTimeout(() => updateCanvasSize(), 150)
-  })
+  EventBus.$on('layout:resize', handleLayoutResize)
   if (arrangeContentRef.value && typeof ResizeObserver !== 'undefined') {
     const ro = new ResizeObserver(() => updateCanvasSize())
     ro.observe(arrangeContentRef.value)
@@ -132,7 +149,13 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
-  EventBus.$off && EventBus.$off('layout:resize')
+  EventBus.$off('layout:resize', handleLayoutResize)
+  if (resizeTimer) {
+    clearTimeout(resizeTimer)
+    resizeTimer = null
+  }
+  layoutResizeTimers.forEach((timer) => clearTimeout(timer))
+  layoutResizeTimers.clear()
   if (arrangeContentRef.value && arrangeContentRef.value.__ro) {
     arrangeContentRef.value.__ro.disconnect()
     arrangeContentRef.value.__ro = null
@@ -140,12 +163,6 @@ onBeforeUnmount(() => {
   // 离开编排页面时恢复侧边栏
   EventBus.$emit('sidebar:expand')
 })
-
-let resizeTimer = null
-const handleResize = () => {
-  if (resizeTimer) clearTimeout(resizeTimer)
-  resizeTimer = setTimeout(() => updateCanvasSize(), 100)
-}
 
 const updateCanvasSize = () => {
   nextTick(() => {
