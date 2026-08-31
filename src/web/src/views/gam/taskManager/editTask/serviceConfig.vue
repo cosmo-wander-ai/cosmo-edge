@@ -137,6 +137,7 @@
 import { ref, watch, onMounted, getCurrentInstance, nextTick, computed } from 'vue'
 import { t, currentLocale } from '@/i18n'
 import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
+import { getLocationParam } from '@/utils/routeQuery'
 import { QuestionFilled, CircleCheckFilled } from '@element-plus/icons-vue'
 import areaSetting from './areaSetting2.vue'
 import paramSetting from './paramSetting.vue'
@@ -352,18 +353,7 @@ const init = () => {
 }
 
 const getParams = (name) => {
-  let search = window.location.search.substring(1)
-  if (!search) {
-    search = window.location.hash.split('?')[1]
-  }
-  if (search) {
-    const params = new URLSearchParams(search)
-    const obj = {}
-    for (const [key, value] of params.entries()) {
-      obj[key] = value
-    }
-    return name ? obj[name] : obj
-  }
+  return getLocationParam(window.location, name)
 }
 
 const normalizeSearchText = (value) => String(value || '').trim().toLowerCase()
