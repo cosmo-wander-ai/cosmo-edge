@@ -122,3 +122,29 @@ TEST_CASE("CameraTaskUnit keeps a failed generation pending for retry",
     FORBID_CALL(mocks.taskSvc, SetTaskParam("retry_channel", "retry_channel_test_alg", _));
     REQUIRE(unit.TaskEnableParam());
 }
+
+TEST_CASE("CameraTaskUnit reapplies an unchanged snapshot before each start",
+          "[CameraTaskUnit][task-parameters][restart]") {
+    const std::filesystem::path config_root = "/tmp/cosmo_test/conf/camera/test_task_unit_restart";
+    std::filesystem::remove_all(config_root);
+
+    cosmo::test::MockServiceRegistry mocks;
+    CameraTaskUnit unit(config_root.string(), "restart_channel", "test_alg", {});
+    REQUIRE(unit.SetParams(MakeThresholdConfig("5")) == util::ErrorEnum::Success);
+
+    std::vector<std::string> applied_values;
+    ALLOW_CALL(mocks.taskSvc, SetTaskParam("restart_channel", "restart_channel_test_alg", _))
+        .SIDE_EFFECT(applied_values.push_back(FindThresholdValue(_3)))
+        .RETURN(true);
+
+    REQUIRE(unit.TaskEnableParam());
+    const auto after_pending_apply = applied_values.size();
+    REQUIRE(unit.TaskEnableParam());
+    REQUIRE(applied_values.size() == after_pending_apply);
+
+    REQUIRE(unit.TaskEnableParam(CameraTaskUnit::ParamApplyMode::kBeforeStart));
+    REQUIRE(unit.TaskEnableParam(CameraTaskUnit::ParamApplyMode::kBeforeStart));
+    REQUIRE(applied_values.size() == after_pending_apply + 2);
+    CHECK(applied_values[after_pending_apply] == "5");
+    CHECK(applied_values[after_pending_apply + 1] == "5");
+}

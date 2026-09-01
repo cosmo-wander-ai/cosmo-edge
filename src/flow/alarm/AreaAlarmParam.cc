@@ -297,29 +297,9 @@ bool AreaAlarm::SetParam(const std::string& /*channelId*/, const std::string& /*
     return false;
 }
 
-// Set areas — clear previous areas and apply full replacement
-bool AreaAlarm::SetArea(const std::string& /*channelId*/, const std::string& taskId,
-                        std::vector<MsgTaskArea>& areas, std::vector<MsgTaskArea>& shieldedAreas) {
-    std::lock_guard<std::shared_mutex> lock(mtx);
-    has_area_                = !areas.empty();
-    task_area_.taskId        = taskId;
-    task_area_.areas         = areas;
-    task_area_.shieldedAreas = shieldedAreas;
-    // Synchronize with area_target_status_map_
-    // 1. Remove areas in area_target_status_map_ that no longer exist in task_area_
-    for (auto it = area_target_status_map_.begin(); it != area_target_status_map_.end();) {
-        auto iterFind =
-            std::find_if(task_area_.areas.begin(), task_area_.areas.end(),
-                         [&, it](const MsgTaskArea& localArea) { return localArea.areaId == it->first; });
-        // Not found in task_area_, meaning it is an extra area in area_target_status_map_
-        if (iterFind == task_area_.areas.end()) {
-            it = area_target_status_map_.erase(it);
-        } else {
-            ++it;
-        }
-    }
-
-    // 2. Add areas from task_area_
+void AreaAlarm::RebuildConfiguredAreaState() {
+    area_target_status_map_.clear();
+    pass_flow_areas_map_.clear();
     for (auto& area : task_area_.areas) {
         if ((MsgInputAreaType::Main == params_.input_area_type) ||
             (MsgInputAreaType::All == params_.input_area_type)) {
@@ -343,6 +323,17 @@ bool AreaAlarm::SetArea(const std::string& /*channelId*/, const std::string& tas
             pass_flow_areas_map_[area.areaId].associated_area = area.associatedAreas[0].areaId;
         }
     }
+}
+
+// Set areas — clear previous areas and apply full replacement
+bool AreaAlarm::SetArea(const std::string& /*channelId*/, const std::string& taskId,
+                        std::vector<MsgTaskArea>& areas, std::vector<MsgTaskArea>& shieldedAreas) {
+    std::lock_guard<std::shared_mutex> lock(mtx);
+    has_area_                = !areas.empty();
+    task_area_.taskId        = taskId;
+    task_area_.areas         = areas;
+    task_area_.shieldedAreas = shieldedAreas;
+    RebuildConfiguredAreaState();
 
     return true;
 }

@@ -151,7 +151,7 @@ void CameraTaskUnit::LoadConfig() {
     task_status_ = util::ErrorEnum::Success;
 }
 
-bool CameraTaskUnit::TaskEnableParam() {
+bool CameraTaskUnit::TaskEnableParam(ParamApplyMode mode) {
     std::unique_lock<std::mutex> apply_lock(apply_mtx_);
 
     for (;;) {
@@ -164,7 +164,7 @@ bool CameraTaskUnit::TaskEnableParam() {
                          static_cast<uint32_t>(task_status_));
                 return false;
             }
-            if (modify_sign_ == enable_sign_) {
+            if (mode == ParamApplyMode::kPendingOnly && modify_sign_ == enable_sign_) {
                 return true;
             }
 

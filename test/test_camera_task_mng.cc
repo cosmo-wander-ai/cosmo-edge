@@ -83,7 +83,7 @@ TEST_CASE("CameraServiceImpl basic task operations", "[CameraServiceImpl]") {
     }
 }
 
-TEST_CASE("CameraServiceImpl applies the latest saved parameters before restart",
+TEST_CASE("CameraServiceImpl reapplies unchanged saved parameters before every restart",
           "[CameraServiceImpl][task-parameters][restart]") {
     (void)!system("rm -rf /tmp/cosmo_test/conf/camera/test_camera_param_restart");
 
@@ -114,9 +114,6 @@ TEST_CASE("CameraServiceImpl applies the latest saved parameters before restart"
     REQUIRE(fx.svc.SaveOrUpdateTask(fx.cameraId, "test_alg", config, "sched1") == util::ErrorEnum::Success);
     DrainSwitchThreads(fx.svc);
 
-    config.params[0].value = "6";
-    REQUIRE(fx.svc.SaveOrUpdateTask(fx.cameraId, "test_alg", config, "sched1") == util::ErrorEnum::Success);
-
     ALLOW_CALL(fx.mocks.taskSvc, SetTaskParam(fx.cameraId, task_id, _))
         .SIDE_EFFECT(record_param(_3))
         .RETURN(true);
@@ -125,11 +122,13 @@ TEST_CASE("CameraServiceImpl applies the latest saved parameters before restart"
         .RETURN(true);
     ALLOW_CALL(fx.mocks.taskSvc, TaskStop(task_id)).SIDE_EFFECT(record_event("stop")).RETURN(true);
 
-    REQUIRE(fx.svc.SwitchTask(fx.cameraId, "test_alg", false) == util::ErrorEnum::Success);
-    REQUIRE(fx.svc.SwitchTask(fx.cameraId, "test_alg", true) == util::ErrorEnum::Success);
-    DrainSwitchThreads(fx.svc);
+    for (int restart = 0; restart < 2; ++restart) {
+        REQUIRE(fx.svc.SwitchTask(fx.cameraId, "test_alg", false) == util::ErrorEnum::Success);
+        REQUIRE(fx.svc.SwitchTask(fx.cameraId, "test_alg", true) == util::ErrorEnum::Success);
+        DrainSwitchThreads(fx.svc);
+    }
 
-    const std::vector<std::string> expected_events{"stop", "param:6", "start"};
+    const std::vector<std::string> expected_events{"stop", "param:5", "start", "stop", "param:5", "start"};
     std::lock_guard<std::mutex> lock(event_mtx);
     REQUIRE(events == expected_events);
 }
@@ -154,12 +153,17 @@ TEST_CASE("CameraServiceImpl refuses task start when parameter synchronization f
     const std::string task_id   = camera_id + "_test_alg";
     TestFixture fx(camera_id, "rtsp://127.0.0.1:1/test");
 
+    ALLOW_CALL(fx.mocks.scheduleSvc, Exist2("sched1", _)).LR_SIDE_EFFECT(_2 = "Schedule 1").RETURN(true);
+
     MsgTaskConfig config;
     MsgDynamicKeyValue threshold;
     threshold.key   = "param.threshold";
-    threshold.value = "6";
+    threshold.value = "5";
     config.params.push_back(threshold);
-    REQUIRE(fx.svc.ModifyTaskParam(fx.cameraId, "test_alg", config) == util::ErrorEnum::Success);
+    REQUIRE(fx.svc.SaveOrUpdateTask(fx.cameraId, "test_alg", config, "sched1") == util::ErrorEnum::Success);
+    DrainSwitchThreads(fx.svc);
+    REQUIRE(fx.svc.SwitchTask(fx.cameraId, "test_alg", false) == util::ErrorEnum::Success);
+    DrainSwitchThreads(fx.svc);
 
     ALLOW_CALL(fx.mocks.taskSvc, SetTaskParam(fx.cameraId, task_id, _))
         .SIDE_EFFECT(record_param_attempt(_3))
@@ -174,7 +178,7 @@ TEST_CASE("CameraServiceImpl refuses task start when parameter synchronization f
     REQUIRE(param_attempts.load(std::memory_order_relaxed) == 1);
     REQUIRE(start_attempts.load(std::memory_order_relaxed) == 0);
     std::lock_guard<std::mutex> lock(value_mtx);
-    REQUIRE(attempted_value == "6");
+    REQUIRE(attempted_value == "5");
 }
 
 TEST_CASE("CameraServiceImpl SaveOrUpdateTask commits configuration atomically",

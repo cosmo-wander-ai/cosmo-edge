@@ -757,7 +757,8 @@ void CameraServiceImpl::StartTasksAfterReload(const CameraEntityPtr& camera,
             }
         }
         if (task) {
-            if (!task->task_ || !task->task_->IsReady() || !task->task_->TaskEnableParam()) {
+            if (!task->task_ || !task->task_->IsReady() ||
+                !task->task_->TaskEnableParam(CameraTaskUnit::ParamApplyMode::kBeforeStart)) {
                 LOG_WARN("[{}/{}] AlgorithmChanged -> restart delayed until latest parameters apply",
                          camera->videoChannelId, taskId);
                 task->status_ = CameraTaskStatus::kAbnormal;

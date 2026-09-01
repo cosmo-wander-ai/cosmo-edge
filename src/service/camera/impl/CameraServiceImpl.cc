@@ -476,7 +476,7 @@ void CameraServiceImpl::SwitchCameraTask(const CameraEntityPtr& camera, CameraTa
         return;
     }
     if (task->is_enabled_) {
-        if (!task->task_->TaskEnableParam()) {
+        if (!task->task_->TaskEnableParam(CameraTaskUnit::ParamApplyMode::kBeforeStart)) {
             LOG_WARN("[{}/{}] Refuse task start because the latest parameters were not applied",
                      camera->videoChannelId, task->task_id_);
             task->status_ = CameraTaskStatus::kAbnormal;
@@ -565,11 +565,13 @@ void CameraServiceImpl::MonitorCameraEntity(const CameraEntityPtr& camera, bool 
             task->status_ = CameraTaskStatus::kAbnormal;
             continue;
         }
-        const bool paramsSynced = task->task_->TaskEnableParam();
         bool taskRunningStatus =
             ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskIsStart(task->task_id_);
         // Task is currently running
         if (taskRunningStatus) {
+            // Running tasks only need generation-based hot updates. Reapplying
+            // an unchanged snapshot on every monitor tick would be disruptive.
+            (void)task->task_->TaskEnableParam();
             // Stop if task is disabled, outside schedule window, or unauthorized
             if ((!task->is_enabled_) ||
                 (!ServiceRegistry::Instance().Get<IScheduleService>().InRunTime(task->schedule_id_) ||
@@ -617,7 +619,10 @@ void CameraServiceImpl::MonitorCameraEntity(const CameraEntityPtr& camera, bool 
             if ((task->is_enabled_) &&
                 (ServiceRegistry::Instance().Get<IScheduleService>().InRunTime(task->schedule_id_) &&
                  (isAuthed))) {
-                if (!paramsSynced) {
+                // TaskStop can reset runtime action state without changing the
+                // persisted generation, so every new start must force a full
+                // snapshot before TaskStart.
+                if (!task->task_->TaskEnableParam(CameraTaskUnit::ParamApplyMode::kBeforeStart)) {
                     LOG_WARN("[{}/{}] Delay task start until the latest parameters are applied",
                              camera->videoChannelId, task->task_id_);
                     task->status_ = CameraTaskStatus::kAbnormal;

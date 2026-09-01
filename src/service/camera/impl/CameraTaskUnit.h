@@ -49,6 +49,11 @@ struct CameraTaskUnitLibPara {
 
 class CameraTaskUnit {
 public:
+    enum class ParamApplyMode {
+        kPendingOnly,
+        kBeforeStart,
+    };
+
     CameraTaskUnit(const std::string& cameraCfgPath, const std::string& cameraId,
                    const std::string& algorithmCode, std::vector<ModelInfo> models);
     ~CameraTaskUnit();
@@ -64,7 +69,9 @@ public:
 
     [[nodiscard]] util::ErrorEnum GetStatus() const;
     [[nodiscard]] bool IsReady() const;
-    [[nodiscard]] bool TaskEnableParam();
+    // kBeforeStart resends the persisted snapshot even when its generation is
+    // unchanged because a restarted runtime task may have reset action state.
+    [[nodiscard]] bool TaskEnableParam(ParamApplyMode mode = ParamApplyMode::kPendingOnly);
     void RefreshModels(std::vector<ModelInfo> models);
 
 private:
