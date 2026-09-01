@@ -333,7 +333,42 @@ bool AreaAlarm::SetArea(const std::string& /*channelId*/, const std::string& tas
     task_area_.taskId        = taskId;
     task_area_.areas         = areas;
     task_area_.shieldedAreas = shieldedAreas;
-    RebuildConfiguredAreaState();
+    // Preserve existing runtime history for unchanged areas during a live Save.
+    // Full history reset/rebuild is reserved for ResetStateOnRestart().
+    for (auto it = area_target_status_map_.begin(); it != area_target_status_map_.end();) {
+        auto iterFind =
+            std::find_if(task_area_.areas.begin(), task_area_.areas.end(),
+                         [&, it](const MsgTaskArea& localArea) { return localArea.areaId == it->first; });
+        if (iterFind == task_area_.areas.end()) {
+            it = area_target_status_map_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
+    for (auto& area : task_area_.areas) {
+        if ((MsgInputAreaType::Main == params_.input_area_type) ||
+            (MsgInputAreaType::All == params_.input_area_type)) {
+            area_target_status_map_[area.areaId].area_id   = area.areaId;
+            area_target_status_map_[area.areaId].area_name = area.name;
+        }
+
+        if ((MsgInputAreaType::Asso == params_.input_area_type) ||
+            (MsgInputAreaType::All == params_.input_area_type)) {
+            for (auto& assoArea : area.associatedAreas) {
+                area_target_status_map_[assoArea.areaId].area_id   = assoArea.areaId;
+                area_target_status_map_[assoArea.areaId].area_name = assoArea.name;
+            }
+        }
+
+        pass_flow_areas_map_[area.areaId].area_id   = area.areaId;
+        pass_flow_areas_map_[area.areaId].area_name = area.name;
+        if (area.associatedAreas.empty()) {
+            pass_flow_areas_map_[area.areaId].associated_area = key::DEFAULT_AREA;
+        } else {
+            pass_flow_areas_map_[area.areaId].associated_area = area.associatedAreas[0].areaId;
+        }
+    }
 
     return true;
 }

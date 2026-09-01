@@ -8,7 +8,7 @@
 
 using namespace cosmo;
 
-TEST_CASE("AreaAlarm restart clears runtime history and rebuilds configured areas",
+TEST_CASE("AreaAlarm stop-start clears runtime history and rebuilds configured areas",
           "[AreaAlarm][task-parameters][restart]") {
     ActionNode action;
     action.actionName   = "area-alarm";
@@ -24,6 +24,12 @@ TEST_CASE("AreaAlarm restart clears runtime history and rebuilds configured area
 
     REQUIRE(alarm.area_target_status_map_.size() == 1);
     REQUIRE(alarm.pass_flow_areas_map_.size() == 1);
+
+    // Exercise the same lifecycle path used by TaskStop/TaskStart. The first
+    // Start uses the original queue; after Stop, the next Start recreates the
+    // queue and invokes ResetStateOnRestart().
+    REQUIRE(alarm.Start());
+    alarm.Stop();
 
     auto& target_status        = alarm.area_target_status_map_.at("area-1");
     target_status.target_count = 3;
@@ -43,7 +49,8 @@ TEST_CASE("AreaAlarm restart clears runtime history and rebuilds configured area
     alarm.area_target_status_map_["stale"].area_id = "stale";
     alarm.pass_flow_areas_map_["stale"].area_id    = "stale";
 
-    alarm.ResetStateOnRestart();
+    REQUIRE(alarm.Start());
+    alarm.Stop();
 
     REQUIRE(alarm.track_id_status_map_.empty());
     REQUIRE(alarm.area_target_status_map_.size() == 1);
