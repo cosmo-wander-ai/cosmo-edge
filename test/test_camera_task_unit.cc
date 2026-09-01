@@ -133,8 +133,11 @@ TEST_CASE("CameraTaskUnit reapplies an unchanged snapshot before each start",
     REQUIRE(unit.SetParams(MakeThresholdConfig("5")) == util::ErrorEnum::Success);
 
     std::vector<std::string> applied_values;
+    auto record_value = [&](const MsgTaskConfig& config) {
+        applied_values.push_back(FindThresholdValue(config));
+    };
     ALLOW_CALL(mocks.taskSvc, SetTaskParam("restart_channel", "restart_channel_test_alg", _))
-        .SIDE_EFFECT(applied_values.push_back(FindThresholdValue(_3)))
+        .SIDE_EFFECT(record_value(_3))
         .RETURN(true);
 
     REQUIRE(unit.TaskEnableParam());
