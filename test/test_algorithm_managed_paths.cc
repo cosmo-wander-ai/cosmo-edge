@@ -300,8 +300,7 @@ TEST_CASE("Algorithm layout save writes only to the managed algorithm root",
         REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail);
         request.algorithmMetadata = R"({"params":{}})";
         REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail);
-        request.algorithmMetadata =
-            R"({"params":[{"key":"param.threshold","legacyChannelEditable":2}]})";
+        request.algorithmMetadata = R"({"params":[{"key":"param.threshold","legacyChannelEditable":2}]})";
         REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail);
         REQUIRE(CountRegularFiles(fix.AlgorithmRoot()) == 0);
         REQUIRE(CountRegularFiles(fix.outside_root) == 0);
@@ -596,9 +595,8 @@ TEST_CASE("Algorithm layout save writes only to the managed algorithm root",
             {"algorithmName", "Existing"},
             {"algorithmMetadata", hiddenMetadata},
             {"configVersionList",
-             nlohmann::json::array({nlohmann::json{{"id", "alternate-505"},
-                                                    {"name", "Alternate"},
-                                                    {"algorithmMetadata", visibleMetadata}}})}};
+             nlohmann::json::array({nlohmann::json{
+                 {"id", "alternate-505"}, {"name", "Alternate"}, {"algorithmMetadata", visibleMetadata}}})}};
         REQUIRE(cosmo::util::JsonFileUtil::WriteJsonFile(layout_path.string(), previous) ==
                 cosmo::util::ErrorEnum::Success);
         request.algorithmMetadata =
@@ -610,8 +608,7 @@ TEST_CASE("Algorithm layout save writes only to the managed algorithm root",
         nlohmann::json saved;
         REQUIRE(cosmo::util::JsonFileUtil::ReadJsonFile(layout_path.string(), saved) ==
                 cosmo::util::ErrorEnum::Success);
-        const auto topMetadata =
-            nlohmann::json::parse(saved.at("algorithmMetadata").get<std::string>());
+        const auto topMetadata = nlohmann::json::parse(saved.at("algorithmMetadata").get<std::string>());
         CHECK(topMetadata.at("params").at(0).at("legacyChannelEditable") == false);
         REQUIRE(saved.at("configVersionList").size() == 1);
         const auto versionMetadata = nlohmann::json::parse(

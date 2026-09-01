@@ -205,11 +205,10 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
         std::filesystem::remove_all(config_root);
         REQUIRE(SeedSavedParams(config_root, "test_alg", {MakeParam("param.threshold", "10")}));
 
-        auto metadataParam = MakeMetadataParam("param.threshold", "20", true, 0);
+        auto metadataParam                  = MakeMetadataParam("param.threshold", "20", true, 0);
         metadataParam.legacyChannelEditable = true;
         cosmo::test::MockServiceRegistry mocks;
-        ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
-            .RETURN(MakeMetadataJson({metadataParam}));
+        ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeMetadataJson({metadataParam}));
 
         CameraTaskUnit unit(config_root.string(), "legacy_explicit_channel", "test_alg", {});
         REQUIRE(unit.IsReady());
@@ -227,11 +226,10 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
         std::filesystem::remove_all(config_root);
         REQUIRE(SeedSavedParams(config_root, "test_alg", {MakeParam("param.threshold", "10")}));
 
-        auto metadataParam = MakeMetadataParam("param.threshold", "20", true, 0);
+        auto metadataParam                  = MakeMetadataParam("param.threshold", "20", true, 0);
         metadataParam.legacyChannelEditable = false;
         cosmo::test::MockServiceRegistry mocks;
-        ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
-            .RETURN(MakeMetadataJson({metadataParam}));
+        ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeMetadataJson({metadataParam}));
 
         CameraTaskUnit unit(config_root.string(), "legacy_promoted_channel", "test_alg", {});
         REQUIRE(unit.IsReady());
@@ -282,18 +280,16 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
             "/tmp/cosmo_test/conf/camera/test_task_unit_legacy_reparented_child";
         std::filesystem::remove_all(config_root);
         REQUIRE(SeedSavedParams(config_root, "test_alg",
-                                {MakeParam("param.newParent", "0"),
-                                 MakeParam("param.child", "10")}));
+                                {MakeParam("param.newParent", "0"), MakeParam("param.child", "10")}));
 
-        auto parent = MakeMetadataParam("param.newParent", "1", true, 0, "switch");
+        auto parent                  = MakeMetadataParam("param.newParent", "1", true, 0, "switch");
         parent.legacyChannelEditable = false;
-        auto child = MakeMetadataParam("param.child", "20", true, 0);
-        child.legacyChannelEditable = true;
-        child.dependsOn.key         = "param.newParent";
-        child.dependsOn.value       = "1";
+        auto child                   = MakeMetadataParam("param.child", "20", true, 0);
+        child.legacyChannelEditable  = true;
+        child.dependsOn.key          = "param.newParent";
+        child.dependsOn.value        = "1";
         cosmo::test::MockServiceRegistry mocks;
-        ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
-            .RETURN(MakeMetadataJson({parent, child}));
+        ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeMetadataJson({parent, child}));
 
         CameraTaskUnit unit(config_root.string(), "legacy_reparented_channel", "test_alg", {});
         REQUIRE(unit.IsReady());
@@ -310,14 +306,12 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
             "/tmp/cosmo_test/conf/camera/test_task_unit_legacy_explicit_compatibility";
         std::filesystem::remove_all(config_root);
         REQUIRE(SeedSavedParams(config_root, "test_alg",
-                                {MakeParam("param.videoRepeatCount", "3"),
-                                 MakeParam("param.retro", "4")}));
+                                {MakeParam("param.videoRepeatCount", "3"), MakeParam("param.retro", "4")}));
 
         cosmo::test::MockServiceRegistry mocks;
         ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
-            .RETURN(MakeMetadataJson(
-                {MakeMetadataParam("param.videoRepeatCount", "30", true, 2),
-                 MakeMetadataParam("param.retro", "40", true, 1, "retroDirect")}));
+            .RETURN(MakeMetadataJson({MakeMetadataParam("param.videoRepeatCount", "30", true, 2),
+                                      MakeMetadataParam("param.retro", "40", true, 1, "retroDirect")}));
 
         CameraTaskUnit unit(config_root.string(), "legacy_compatibility_channel", "test_alg", {});
         REQUIRE(unit.IsReady());

@@ -155,8 +155,7 @@ void CameraTaskUnit::LoadConfig() {
         if (param.legacyChannelEditable.has_value()) {
             param.channelEditable = *param.legacyChannelEditable;
         } else if (param.channelEditable.has_value()) {
-            if (MsgDynamicElement::IsLegacyChannelEditableException(param.type,
-                                                                     param.key.ToRefString())) {
+            if (MsgDynamicElement::IsLegacyChannelEditableException(param.type, param.key.ToRefString())) {
                 param.channelEditable.reset();
             } else {
                 param.channelEditable = false;

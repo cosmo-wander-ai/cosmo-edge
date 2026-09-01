@@ -58,7 +58,7 @@ namespace {
                 // hint it cannot prove that an old value was submitted by the channel. The two legacy
                 // compatibility controls are deterministic exceptions to that ambiguity.
                 if (MsgDynamicElement::IsLegacyChannelEditableException(param.type,
-                                                                         param.key.ToRefString())) {
+                                                                        param.key.ToRefString())) {
                     param.channelEditable.reset();
                 } else {
                     param.channelEditable = false;
@@ -258,7 +258,7 @@ cosmo::util::ErrorEnum AlgorithmLayoutMng::LayoutSave(const algorithm::LayoutSav
     nlohmann::json existingDoc;
     nlohmann::json oldFormatDoc;
     bool oldFormatDocLoaded = false;
-    bool useExistingFile = false;
+    bool useExistingFile    = false;
     if (!foundPath.empty()) {
         std::string resolved_found_path;
         if (!ResolveManagedRegularFile(jsonFilePath, foundPath, true, resolved_found_path)) {
@@ -305,9 +305,8 @@ cosmo::util::ErrorEnum AlgorithmLayoutMng::LayoutSave(const algorithm::LayoutSav
     const bool targetExisted   = ret == cosmo::util::ErrorEnum::Success || useExistingFile;
     const auto previousDoc     = ret == cosmo::util::ErrorEnum::Success ? doc : existingDoc;
     const auto& ownershipSourceDoc =
-        !useExistingFile && ret != cosmo::util::ErrorEnum::Success && oldFormatDocLoaded
-            ? oldFormatDoc
-            : previousDoc;
+        !useExistingFile && ret != cosmo::util::ErrorEnum::Success && oldFormatDocLoaded ? oldFormatDoc
+                                                                                         : previousDoc;
     if (ret != cosmo::util::ErrorEnum::Success) {
         if (existingDoc.is_object() && !existingDoc.empty()) {
             doc = existingDoc;

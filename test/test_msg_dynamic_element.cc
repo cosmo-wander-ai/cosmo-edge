@@ -139,11 +139,11 @@ TEST_CASE("MsgDynamicElement: element with options", "[msg-dynamic-element]") {
 
 TEST_CASE("MsgDynamicElement: channel ownership JSON roundtrip", "[msg-dynamic-element][task-parameters]") {
     cosmo::MsgDynamicElement elem;
-    elem.key             = "param.sceneOwned";
-    elem.value           = "11";
-    elem.type            = "text";
-    elem.senior          = 2;
-    elem.channelEditable = false;
+    elem.key                   = "param.sceneOwned";
+    elem.value                 = "11";
+    elem.type                  = "text";
+    elem.senior                = 2;
+    elem.channelEditable       = false;
     elem.legacyChannelEditable = true;
 
     json j;
@@ -223,15 +223,14 @@ TEST_CASE("MsgDynamicElement: channel ownership compatibility rules",
 
     SECTION("null ownership fields reset a reused element") {
         cosmo::MsgDynamicElement elem;
-        elem.channelEditable = false;
+        elem.channelEditable       = false;
         elem.legacyChannelEditable = true;
-        elem.senior          = 2;
-        json legacy_null     = {
-            {"key", "param.legacy"},
-            {"type", "text"},
-            {"channelEditable", nullptr},
-            {"legacyChannelEditable", nullptr},
-            {"senior", nullptr}};
+        elem.senior                = 2;
+        json legacy_null           = {{"key", "param.legacy"},
+                                      {"type", "text"},
+                                      {"channelEditable", nullptr},
+                                      {"legacyChannelEditable", nullptr},
+                                      {"senior", nullptr}};
 
         from_json(legacy_null, elem);
         REQUIRE_FALSE(elem.channelEditable.has_value());
@@ -266,8 +265,7 @@ TEST_CASE("MsgDynamicElement: channel ownership compatibility rules",
     SECTION("invalid ownership encodings are rejected") {
         cosmo::MsgDynamicElement elem;
         REQUIRE_THROWS(from_json(json{{"key", "param.badBool"}, {"channelEditable", 2}}, elem));
-        REQUIRE_THROWS(
-            from_json(json{{"key", "param.badLegacyBool"}, {"legacyChannelEditable", 2}}, elem));
+        REQUIRE_THROWS(from_json(json{{"key", "param.badLegacyBool"}, {"legacyChannelEditable", 2}}, elem));
         REQUIRE_THROWS(from_json(json{{"key", "param.badBool"}, {"channelEditable", "yes"}}, elem));
         REQUIRE_THROWS(from_json(json{{"key", "param.badSenior"}, {"senior", "2tail"}}, elem));
         REQUIRE_THROWS(from_json(json{{"key", "param.badSenior"}, {"senior", 1.5}}, elem));
