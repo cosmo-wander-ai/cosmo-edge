@@ -4,6 +4,11 @@
  * (Formerly tested CameraTaskMng directly; now tests via CameraServiceImpl
  *  after CameraTaskMng was inlined.)
  */
+#include <algorithm>
+#include <atomic>
+#include <mutex>
+#include <vector>
+
 #include "mock/MockAppInfoService.h"
 #include "mock/MockConfigReadService.h"
 #include "mock/MockDeviceInfoService.h"
@@ -18,6 +23,16 @@ using namespace cosmo::service;
 using trompeloeil::_;
 
 namespace {
+std::string FindParamValue(const MsgTaskConfig& config, const std::string& key) {
+    auto it = std::find_if(config.params.begin(), config.params.end(),
+                           [&](const auto& param) { return param.key == key; });
+    return it == config.params.end() ? std::string{} : it->value.ToString();
+}
+
+void DrainSwitchThreads(CameraServiceImpl& service) {
+    service.NotifyAlgorithmsChanged({"__test_drain_only__"}, false);
+}
+
 // Helper: create a CameraServiceImpl + add a single camera for testing
 struct TestFixture {
     cosmo::test::MockServiceRegistry mocks;
@@ -67,6 +82,108 @@ TEST_CASE("CameraServiceImpl basic task operations", "[CameraServiceImpl]") {
         auto ret = fx.svc.DeleteTask(fx.cameraId, "non_existent");
         REQUIRE(ret == util::ErrorEnum::TaskNotExist);
     }
+}
+
+TEST_CASE("CameraServiceImpl reapplies unchanged saved parameters before every restart",
+          "[CameraServiceImpl][task-parameters][restart]") {
+    (void)!system("rm -rf /tmp/cosmo_test/conf/camera/test_camera_param_restart");
+
+    std::mutex event_mtx;
+    std::vector<std::string> events;
+    auto record_event = [&](std::string event) {
+        std::lock_guard<std::mutex> lock(event_mtx);
+        events.push_back(std::move(event));
+    };
+    auto record_param = [&](const MsgTaskConfig& config) {
+        const auto value = FindParamValue(config, "param.threshold");
+        if (!value.empty()) {
+            record_event("param:" + value);
+        }
+    };
+    const std::string camera_id = "test_camera_param_restart";
+    const std::string task_id   = camera_id + "_test_alg";
+    TestFixture fx(camera_id, "rtsp://127.0.0.1:1/test");
+
+    ALLOW_CALL(fx.mocks.scheduleSvc, Exist2("sched1", _)).LR_SIDE_EFFECT(_2 = "Schedule 1").RETURN(true);
+
+    MsgTaskConfig config;
+    MsgDynamicKeyValue threshold;
+    threshold.key   = "param.threshold";
+    threshold.value = "5";
+    config.params.push_back(threshold);
+
+    REQUIRE(fx.svc.SaveOrUpdateTask(fx.cameraId, "test_alg", config, "sched1") ==
+            util::ErrorEnum::Success);
+    DrainSwitchThreads(fx.svc);
+
+    ALLOW_CALL(fx.mocks.taskSvc, SetTaskParam(fx.cameraId, task_id, _))
+        .SIDE_EFFECT(record_param(_3))
+        .RETURN(true);
+    ALLOW_CALL(fx.mocks.taskSvc, TaskStart(fx.cameraId, task_id))
+        .SIDE_EFFECT(record_event("start"))
+        .RETURN(true);
+    ALLOW_CALL(fx.mocks.taskSvc, TaskStop(task_id)).SIDE_EFFECT(record_event("stop")).RETURN(true);
+
+    for (int restart = 0; restart < 2; ++restart) {
+        REQUIRE(fx.svc.SwitchTask(fx.cameraId, "test_alg", false) == util::ErrorEnum::Success);
+        DrainSwitchThreads(fx.svc);
+        REQUIRE(fx.svc.SwitchTask(fx.cameraId, "test_alg", true) == util::ErrorEnum::Success);
+        DrainSwitchThreads(fx.svc);
+    }
+
+    const std::vector<std::string> expected_events{"stop", "param:5", "start",
+                                                   "stop", "param:5", "start"};
+    std::lock_guard<std::mutex> lock(event_mtx);
+    REQUIRE(events == expected_events);
+}
+
+TEST_CASE("CameraServiceImpl refuses task start when parameter synchronization fails",
+          "[CameraServiceImpl][task-parameters][start-gate]") {
+    (void)!system("rm -rf /tmp/cosmo_test/conf/camera/test_camera_param_failure");
+
+    std::atomic<int> param_attempts{0};
+    std::atomic<int> start_attempts{0};
+    std::mutex value_mtx;
+    std::string attempted_value;
+    auto record_param_attempt = [&](const MsgTaskConfig& applied) {
+        {
+            std::lock_guard<std::mutex> lock(value_mtx);
+            attempted_value = FindParamValue(applied, "param.threshold");
+        }
+        param_attempts.fetch_add(1, std::memory_order_relaxed);
+    };
+    auto record_start_attempt   = [&]() { start_attempts.fetch_add(1, std::memory_order_relaxed); };
+    const std::string camera_id = "test_camera_param_failure";
+    const std::string task_id   = camera_id + "_test_alg";
+    TestFixture fx(camera_id, "rtsp://127.0.0.1:1/test");
+
+    ALLOW_CALL(fx.mocks.scheduleSvc, Exist2("sched1", _)).LR_SIDE_EFFECT(_2 = "Schedule 1").RETURN(true);
+
+    MsgTaskConfig config;
+    MsgDynamicKeyValue threshold;
+    threshold.key   = "param.threshold";
+    threshold.value = "5";
+    config.params.push_back(threshold);
+    REQUIRE(fx.svc.SaveOrUpdateTask(fx.cameraId, "test_alg", config, "sched1") ==
+            util::ErrorEnum::Success);
+    DrainSwitchThreads(fx.svc);
+    REQUIRE(fx.svc.SwitchTask(fx.cameraId, "test_alg", false) == util::ErrorEnum::Success);
+    DrainSwitchThreads(fx.svc);
+
+    ALLOW_CALL(fx.mocks.taskSvc, SetTaskParam(fx.cameraId, task_id, _))
+        .SIDE_EFFECT(record_param_attempt(_3))
+        .RETURN(false);
+    ALLOW_CALL(fx.mocks.taskSvc, TaskStart(fx.cameraId, task_id))
+        .SIDE_EFFECT(record_start_attempt())
+        .RETURN(true);
+
+    REQUIRE(fx.svc.SwitchTask(fx.cameraId, "test_alg", true) == util::ErrorEnum::Success);
+    DrainSwitchThreads(fx.svc);
+
+    REQUIRE(param_attempts.load(std::memory_order_relaxed) == 1);
+    REQUIRE(start_attempts.load(std::memory_order_relaxed) == 0);
+    std::lock_guard<std::mutex> lock(value_mtx);
+    REQUIRE(attempted_value == "5");
 }
 
 TEST_CASE("CameraServiceImpl SaveOrUpdateTask commits configuration atomically",

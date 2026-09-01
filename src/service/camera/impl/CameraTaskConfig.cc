@@ -742,13 +742,30 @@ void CameraServiceImpl::RebuildAlgorithmForReload(const CameraEntityPtr& camera,
 void CameraServiceImpl::StartTasksAfterReload(const CameraEntityPtr& camera,
                                               const std::vector<std::string>& taskIds) {
     for (const auto& taskId : taskIds) {
-        bool restartOk =
-            ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskStart(camera->videoChannelId, taskId);
-        std::lock_guard<std::shared_mutex> lock(camera->task_mtx_);
-        auto it = std::find_if(camera->tasks_.begin(), camera->tasks_.end(),
-                               [&](const CameraTaskPtr& t) { return t && t->task_id_ == taskId; });
-        if (it != camera->tasks_.end()) {
-            (*it)->status_ = restartOk ? CameraTaskStatus::kInService : CameraTaskStatus::kAbnormal;
+        CameraTaskPtr task;
+        {
+            std::shared_lock<std::shared_mutex> lock(camera->task_mtx_);
+            auto it = std::find_if(camera->tasks_.begin(), camera->tasks_.end(),
+                                   [&](const CameraTaskPtr& candidate) {
+                                       return candidate && candidate->task_id_ == taskId;
+                                   });
+            if (it != camera->tasks_.end()) {
+                task = *it;
+            }
+        }
+        if (!task) {
+            continue;
+        }
+
+        bool restartOk = task->task_ && task->task_->IsReady() &&
+                         task->task_->ApplyLatestTaskConfig(CameraTaskUnit::ParamApplyMode::kBeforeStart);
+        if (restartOk) {
+            restartOk = ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskStart(camera->videoChannelId,
+                                                                                     taskId);
+        }
+        {
+            std::lock_guard<std::shared_mutex> lock(camera->task_mtx_);
+            task->status_ = restartOk ? CameraTaskStatus::kInService : CameraTaskStatus::kAbnormal;
         }
     }
 }
