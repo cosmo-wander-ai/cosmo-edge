@@ -103,7 +103,8 @@ struct TestFixture {
     TestFixture(const std::string& id, const std::string& url,
                 std::string metadata = DefaultTestAlgorithmMetadata())
         : cameraId(id), algorithmMetadata(std::move(metadata)) {
-        ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(algorithmMetadata);
+        mocks.expectations.push_back(
+            NAMED_ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(algorithmMetadata));
         ALLOW_CALL(mocks.taskSvc, TaskCreate(_, _, _, _)).RETURN(util::ErrorEnum::Success);
         ALLOW_CALL(mocks.taskSvc, TaskIsStart(_)).RETURN(false);
         ALLOW_CALL(mocks.taskSvc, TaskStart(_, _)).RETURN(true);
