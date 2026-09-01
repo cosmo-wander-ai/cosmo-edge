@@ -297,6 +297,8 @@ void to_json(nlohmann::json& j, const MsgDynamicElement& e) {
     j["range"]        = e.range;
     if (e.channelEditable.has_value())
         j["channelEditable"] = *e.channelEditable;
+    if (e.legacyChannelEditable.has_value())
+        j["legacyChannelEditable"] = *e.legacyChannelEditable;
     if (e.senior.has_value())
         j["senior"] = *e.senior;
     // Conditional fields by type
@@ -350,6 +352,9 @@ void from_json(const nlohmann::json& j, MsgDynamicElement& e) {
     e.channelEditable.reset();
     if (j.contains("channelEditable") && !j["channelEditable"].is_null())
         e.channelEditable = DecodeLegacyBoolean(j.at("channelEditable"));
+    e.legacyChannelEditable.reset();
+    if (j.contains("legacyChannelEditable") && !j["legacyChannelEditable"].is_null())
+        e.legacyChannelEditable = DecodeLegacyBoolean(j.at("legacyChannelEditable"));
     e.senior.reset();
     if (j.contains("senior") && !j["senior"].is_null())
         e.senior = DecodeLegacyInteger(j.at("senior"));

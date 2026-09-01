@@ -199,15 +199,17 @@ TEST_CASE("CameraTaskUnit refreshes scene-owned values while retaining visible o
 
 TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visibility",
           "[CameraTaskUnit][task-parameters][ownership][migration]") {
-    SECTION("an explicitly editable descriptor retains a value that was visible before provenance") {
+    SECTION("a frozen legacy-editable descriptor retains its prior channel value") {
         const std::filesystem::path config_root =
             "/tmp/cosmo_test/conf/camera/test_task_unit_legacy_explicit_editable";
         std::filesystem::remove_all(config_root);
         REQUIRE(SeedSavedParams(config_root, "test_alg", {MakeParam("param.threshold", "10")}));
 
+        auto metadataParam = MakeMetadataParam("param.threshold", "20", true, 0);
+        metadataParam.legacyChannelEditable = true;
         cosmo::test::MockServiceRegistry mocks;
         ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
-            .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "20", true, 0)}));
+            .RETURN(MakeMetadataJson({metadataParam}));
 
         CameraTaskUnit unit(config_root.string(), "legacy_explicit_channel", "test_alg", {});
         REQUIRE(unit.IsReady());
@@ -219,15 +221,17 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
         CHECK(canonical.channelOverrideKeys.front() == "param.threshold");
     }
 
-    SECTION("a newly promoted descriptor starts from the latest scene value") {
+    SECTION("the real UI promotion shape starts from the latest scene value") {
         const std::filesystem::path config_root =
             "/tmp/cosmo_test/conf/camera/test_task_unit_legacy_promoted_editable";
         std::filesystem::remove_all(config_root);
         REQUIRE(SeedSavedParams(config_root, "test_alg", {MakeParam("param.threshold", "10")}));
 
+        auto metadataParam = MakeMetadataParam("param.threshold", "20", true, 0);
+        metadataParam.legacyChannelEditable = false;
         cosmo::test::MockServiceRegistry mocks;
         ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
-            .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "20", true, 2)}));
+            .RETURN(MakeMetadataJson({metadataParam}));
 
         CameraTaskUnit unit(config_root.string(), "legacy_promoted_channel", "test_alg", {});
         REQUIRE(unit.IsReady());
@@ -238,6 +242,22 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
         CHECK(canonical.channelOverrideKeys.empty());
     }
 
+    SECTION("explicit current ownership without frozen evidence fails closed") {
+        const std::filesystem::path config_root =
+            "/tmp/cosmo_test/conf/camera/test_task_unit_legacy_ambiguous_explicit";
+        std::filesystem::remove_all(config_root);
+        REQUIRE(SeedSavedParams(config_root, "test_alg", {MakeParam("param.threshold", "10")}));
+
+        cosmo::test::MockServiceRegistry mocks;
+        ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
+            .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "20", true, 0)}));
+
+        CameraTaskUnit unit(config_root.string(), "legacy_ambiguous_channel", "test_alg", {});
+        REQUIRE(unit.IsReady());
+        CHECK(FindParamValue(unit.GetParams(), "param.threshold") == "20");
+        CHECK(LoadSavedParams(config_root, "test_alg").channelOverrideKeys.empty());
+    }
+
     SECTION("an implicitly editable legacy descriptor retains its prior channel value") {
         const std::filesystem::path config_root =
             "/tmp/cosmo_test/conf/camera/test_task_unit_legacy_implicit_editable";
@@ -246,7 +266,7 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
 
         cosmo::test::MockServiceRegistry mocks;
         ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
-            .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "20", std::nullopt)}));
+            .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "20", std::nullopt, 0)}));
 
         CameraTaskUnit unit(config_root.string(), "legacy_implicit_channel", "test_alg", {});
         REQUIRE(unit.IsReady());
@@ -255,6 +275,58 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
         const auto canonical = LoadSavedParams(config_root, "test_alg");
         REQUIRE(canonical.channelOverrideKeys.size() == 1);
         CHECK(canonical.channelOverrideKeys.front() == "param.threshold");
+    }
+
+    SECTION("frozen child eligibility is not recomputed through a new parent") {
+        const std::filesystem::path config_root =
+            "/tmp/cosmo_test/conf/camera/test_task_unit_legacy_reparented_child";
+        std::filesystem::remove_all(config_root);
+        REQUIRE(SeedSavedParams(config_root, "test_alg",
+                                {MakeParam("param.newParent", "0"),
+                                 MakeParam("param.child", "10")}));
+
+        auto parent = MakeMetadataParam("param.newParent", "1", true, 0, "switch");
+        parent.legacyChannelEditable = false;
+        auto child = MakeMetadataParam("param.child", "20", true, 0);
+        child.legacyChannelEditable = true;
+        child.dependsOn.key         = "param.newParent";
+        child.dependsOn.value       = "1";
+        cosmo::test::MockServiceRegistry mocks;
+        ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
+            .RETURN(MakeMetadataJson({parent, child}));
+
+        CameraTaskUnit unit(config_root.string(), "legacy_reparented_channel", "test_alg", {});
+        REQUIRE(unit.IsReady());
+        CHECK(FindParamValue(unit.GetParams(), "param.newParent") == "1");
+        CHECK(FindParamValue(unit.GetParams(), "param.child") == "10");
+
+        const auto canonical = LoadSavedParams(config_root, "test_alg");
+        REQUIRE(canonical.channelOverrideKeys.size() == 1);
+        CHECK(canonical.channelOverrideKeys.front() == "param.child");
+    }
+
+    SECTION("legacy compatibility descriptors remain eligible without a frozen hint") {
+        const std::filesystem::path config_root =
+            "/tmp/cosmo_test/conf/camera/test_task_unit_legacy_explicit_compatibility";
+        std::filesystem::remove_all(config_root);
+        REQUIRE(SeedSavedParams(config_root, "test_alg",
+                                {MakeParam("param.videoRepeatCount", "3"),
+                                 MakeParam("param.retro", "4")}));
+
+        cosmo::test::MockServiceRegistry mocks;
+        ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
+            .RETURN(MakeMetadataJson(
+                {MakeMetadataParam("param.videoRepeatCount", "30", true, 2),
+                 MakeMetadataParam("param.retro", "40", true, 1, "retroDirect")}));
+
+        CameraTaskUnit unit(config_root.string(), "legacy_compatibility_channel", "test_alg", {});
+        REQUIRE(unit.IsReady());
+        CHECK(FindParamValue(unit.GetParams(), "param.videoRepeatCount") == "3");
+        CHECK(FindParamValue(unit.GetParams(), "param.retro") == "4");
+
+        const auto canonical = LoadSavedParams(config_root, "test_alg");
+        CHECK(HasOverrideKey(canonical, "param.videoRepeatCount"));
+        CHECK(HasOverrideKey(canonical, "param.retro"));
     }
 
     SECTION("an unreadable provenance marker falls back to the scene baseline") {

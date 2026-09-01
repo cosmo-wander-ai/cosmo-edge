@@ -300,6 +300,9 @@ TEST_CASE("Algorithm layout save writes only to the managed algorithm root",
         REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail);
         request.algorithmMetadata = R"({"params":{}})";
         REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail);
+        request.algorithmMetadata =
+            R"({"params":[{"key":"param.threshold","legacyChannelEditable":2}]})";
+        REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail);
         REQUIRE(CountRegularFiles(fix.AlgorithmRoot()) == 0);
         REQUIRE(CountRegularFiles(fix.outside_root) == 0);
     }
@@ -362,6 +365,258 @@ TEST_CASE("Algorithm layout save writes only to the managed algorithm root",
         REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::Success);
         REQUIRE(CountRegularFiles(fix.AlgorithmRoot()) == 1);
         REQUIRE(CountRegularFiles(fix.outside_root) == 0);
+    }
+
+    SECTION("a scene save freezes hidden legacy ownership before promotion") {
+        request.filePath       = fix.AlgorithmRoot().string();
+        const auto layout_path = fix.AlgorithmRoot() / "505_Existing_20260715.json";
+        const nlohmann::json previous{
+            {"algorithmCode", 505},
+            {"algorithmName", "Existing"},
+            {"algorithmMetadata",
+             R"({"params":[{"key":"param.threshold","value":"10","type":"text","senior":2}]})"},
+            {"configVersionList", nlohmann::json::array()}};
+        REQUIRE(cosmo::util::JsonFileUtil::WriteJsonFile(layout_path.string(), previous) ==
+                cosmo::util::ErrorEnum::Success);
+        request.algorithmMetadata =
+            R"({"params":[{"key":"param.threshold","value":"20","type":"text","senior":0,"channelEditable":true}]})";
+        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+            .RETURN(cosmo::util::ErrorEnum::Success);
+
+        REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::Success);
+        nlohmann::json saved;
+        REQUIRE(cosmo::util::JsonFileUtil::ReadJsonFile(layout_path.string(), saved) ==
+                cosmo::util::ErrorEnum::Success);
+        const auto metadata = nlohmann::json::parse(saved.at("algorithmMetadata").get<std::string>());
+        REQUIRE(metadata.at("params").size() == 1);
+        CHECK(metadata.at("params").at(0).at("legacyChannelEditable") == false);
+    }
+
+    SECTION("a scene save freezes visible legacy ownership before explicit metadata") {
+        request.filePath       = fix.AlgorithmRoot().string();
+        const auto layout_path = fix.AlgorithmRoot() / "505_Existing_20260715.json";
+        const nlohmann::json previous{
+            {"algorithmCode", 505},
+            {"algorithmName", "Existing"},
+            {"algorithmMetadata",
+             R"({"params":[{"key":"param.threshold","value":"10","type":"text","senior":0}]})"},
+            {"configVersionList", nlohmann::json::array()}};
+        REQUIRE(cosmo::util::JsonFileUtil::WriteJsonFile(layout_path.string(), previous) ==
+                cosmo::util::ErrorEnum::Success);
+        request.algorithmMetadata =
+            R"({"params":[{"key":"param.threshold","value":"20","type":"text","senior":0,"channelEditable":true}]})";
+        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+            .RETURN(cosmo::util::ErrorEnum::Success);
+
+        REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::Success);
+        nlohmann::json saved;
+        REQUIRE(cosmo::util::JsonFileUtil::ReadJsonFile(layout_path.string(), saved) ==
+                cosmo::util::ErrorEnum::Success);
+        const auto metadata = nlohmann::json::parse(saved.at("algorithmMetadata").get<std::string>());
+        REQUIRE(metadata.at("params").size() == 1);
+        CHECK(metadata.at("params").at(0).at("legacyChannelEditable") == true);
+    }
+
+    SECTION("a forged hint cannot grant a new ordinary parameter legacy eligibility") {
+        request.filePath       = fix.AlgorithmRoot().string();
+        const auto layout_path = fix.AlgorithmRoot() / "505_Existing_20260715.json";
+        const nlohmann::json previous{{"algorithmCode", 505},
+                                      {"algorithmName", "Existing"},
+                                      {"algorithmMetadata", R"({"params":[]})"},
+                                      {"configVersionList", nlohmann::json::array()}};
+        REQUIRE(cosmo::util::JsonFileUtil::WriteJsonFile(layout_path.string(), previous) ==
+                cosmo::util::ErrorEnum::Success);
+        request.algorithmMetadata =
+            R"({"params":[{"key":"param.newThreshold","value":"20","type":"text","senior":0,"channelEditable":true,"legacyChannelEditable":true}]})";
+        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+            .RETURN(cosmo::util::ErrorEnum::Success);
+
+        REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::Success);
+        nlohmann::json saved;
+        REQUIRE(cosmo::util::JsonFileUtil::ReadJsonFile(layout_path.string(), saved) ==
+                cosmo::util::ErrorEnum::Success);
+        const auto metadata = nlohmann::json::parse(saved.at("algorithmMetadata").get<std::string>());
+        CHECK(metadata.at("params").at(0).at("legacyChannelEditable") == false);
+    }
+
+    SECTION("legacy eligibility stays revoked after demotion and later promotion") {
+        request.filePath       = fix.AlgorithmRoot().string();
+        const auto layout_path = fix.AlgorithmRoot() / "505_Existing_20260715.json";
+        const nlohmann::json previous{
+            {"algorithmCode", 505},
+            {"algorithmName", "Existing"},
+            {"algorithmMetadata",
+             R"({"params":[{"key":"param.threshold","value":"10","type":"text","senior":0}]})"},
+            {"configVersionList", nlohmann::json::array()}};
+        REQUIRE(cosmo::util::JsonFileUtil::WriteJsonFile(layout_path.string(), previous) ==
+                cosmo::util::ErrorEnum::Success);
+        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+            .RETURN(cosmo::util::ErrorEnum::Success)
+            .TIMES(2);
+
+        request.algorithmMetadata =
+            R"({"params":[{"key":"param.threshold","value":"20","type":"text","senior":2,"channelEditable":false}]})";
+        REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::Success);
+
+        // Even a client-supplied hint cannot revive a stale markerless task value.
+        request.algorithmMetadata =
+            R"({"params":[{"key":"param.threshold","value":"30","type":"text","senior":0,"channelEditable":true,"legacyChannelEditable":true}]})";
+        REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::Success);
+
+        nlohmann::json saved;
+        REQUIRE(cosmo::util::JsonFileUtil::ReadJsonFile(layout_path.string(), saved) ==
+                cosmo::util::ErrorEnum::Success);
+        const auto metadata = nlohmann::json::parse(saved.at("algorithmMetadata").get<std::string>());
+        CHECK(metadata.at("params").at(0).at("legacyChannelEditable") == false);
+    }
+
+    SECTION("frozen eligibility survives a dependency re-parent without being re-inferred") {
+        request.filePath       = fix.AlgorithmRoot().string();
+        const auto layout_path = fix.AlgorithmRoot() / "505_Existing_20260715.json";
+        const nlohmann::json previous{
+            {"algorithmCode", 505},
+            {"algorithmName", "Existing"},
+            {"algorithmMetadata",
+             R"({"params":[{"key":"param.oldParent","value":"1","type":"switch","senior":0},{"key":"param.newParent","value":"0","type":"switch","senior":2},{"key":"param.child","value":"10","type":"text","senior":0,"dependsOn":{"key":"param.oldParent","value":"1"}}]})"},
+            {"configVersionList", nlohmann::json::array()}};
+        REQUIRE(cosmo::util::JsonFileUtil::WriteJsonFile(layout_path.string(), previous) ==
+                cosmo::util::ErrorEnum::Success);
+        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+            .RETURN(cosmo::util::ErrorEnum::Success)
+            .TIMES(2);
+
+        request.algorithmMetadata =
+            R"({"params":[{"key":"param.oldParent","value":"1","type":"switch","senior":2,"channelEditable":false,"legacyChannelEditable":false},{"key":"param.newParent","value":"1","type":"switch","senior":0,"channelEditable":true,"legacyChannelEditable":true},{"key":"param.child","value":"20","type":"text","senior":0,"channelEditable":true,"legacyChannelEditable":false,"dependsOn":{"key":"param.newParent","value":"1"}}]})";
+        REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::Success);
+        REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::Success);
+
+        nlohmann::json saved;
+        REQUIRE(cosmo::util::JsonFileUtil::ReadJsonFile(layout_path.string(), saved) ==
+                cosmo::util::ErrorEnum::Success);
+        const auto params =
+            nlohmann::json::parse(saved.at("algorithmMetadata").get<std::string>()).at("params");
+        REQUIRE(params.size() == 3);
+        CHECK(params.at(0).at("legacyChannelEditable") == false);
+        CHECK(params.at(1).at("legacyChannelEditable") == false);
+        CHECK(params.at(2).at("legacyChannelEditable") == true);
+    }
+
+    SECTION("old-format layouts remain the ownership source during filename migration") {
+        request.filePath       = fix.AlgorithmRoot().string();
+        const auto legacy_path = fix.AlgorithmRoot() / "505.json";
+        const nlohmann::json previous{
+            {"algorithmCode", 505},
+            {"algorithmName", "Legacy"},
+            {"algorithmMetadata",
+             R"({"params":[{"key":"param.threshold","value":"10","type":"text","senior":0}]})"},
+            {"configVersionList", nlohmann::json::array()}};
+        REQUIRE(cosmo::util::JsonFileUtil::WriteJsonFile(legacy_path.string(), previous) ==
+                cosmo::util::ErrorEnum::Success);
+        request.algorithmMetadata =
+            R"({"params":[{"key":"param.threshold","value":"20","type":"text","senior":0,"channelEditable":true}]})";
+        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+            .RETURN(cosmo::util::ErrorEnum::Success);
+
+        REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::Success);
+        REQUIRE(CountRegularFiles(fix.AlgorithmRoot()) == 2);
+        nlohmann::json saved;
+        for (const auto& entry : fs::directory_iterator(fix.AlgorithmRoot())) {
+            if (entry.path() == legacy_path) {
+                continue;
+            }
+            REQUIRE(cosmo::util::JsonFileUtil::ReadJsonFile(entry.path().string(), saved) ==
+                    cosmo::util::ErrorEnum::Success);
+        }
+        const auto metadata = nlohmann::json::parse(saved.at("algorithmMetadata").get<std::string>());
+        CHECK(metadata.at("params").at(0).at("legacyChannelEditable") == true);
+    }
+
+    SECTION("old-format migration rollback preserves the source and removes the new target") {
+        request.filePath       = fix.AlgorithmRoot().string();
+        const auto legacy_path = fix.AlgorithmRoot() / "505.json";
+        const nlohmann::json previous{
+            {"algorithmCode", 505},
+            {"algorithmName", "Legacy"},
+            {"algorithmMetadata",
+             R"({"params":[{"key":"param.threshold","value":"10","type":"text","senior":0}]})"},
+            {"configVersionList", nlohmann::json::array()}};
+        REQUIRE(cosmo::util::JsonFileUtil::WriteJsonFile(legacy_path.string(), previous) ==
+                cosmo::util::ErrorEnum::Success);
+        request.algorithmMetadata =
+            R"({"params":[{"key":"param.threshold","value":"20","type":"text","senior":0,"channelEditable":true}]})";
+        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+            .RETURN(cosmo::util::ErrorEnum::FileAnalysisFailed);
+
+        REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::FileAnalysisFailed);
+        REQUIRE(CountRegularFiles(fix.AlgorithmRoot()) == 1);
+        nlohmann::json restored;
+        REQUIRE(cosmo::util::JsonFileUtil::ReadJsonFile(legacy_path.string(), restored) ==
+                cosmo::util::ErrorEnum::Success);
+        CHECK(restored == previous);
+    }
+
+    SECTION("deterministic legacy compatibility controls retain migration eligibility") {
+        request.filePath       = fix.AlgorithmRoot().string();
+        const auto layout_path = fix.AlgorithmRoot() / "505_Existing_20260715.json";
+        const nlohmann::json previous{
+            {"algorithmCode", 505},
+            {"algorithmName", "Existing"},
+            {"algorithmMetadata",
+             R"({"params":[{"key":"param.retro","value":"1","type":"retroDirect","senior":1,"channelEditable":true}]})"},
+            {"configVersionList", nlohmann::json::array()}};
+        REQUIRE(cosmo::util::JsonFileUtil::WriteJsonFile(layout_path.string(), previous) ==
+                cosmo::util::ErrorEnum::Success);
+        request.algorithmMetadata =
+            R"({"params":[{"key":"param.retro","value":"2","type":"retroDirect","senior":1,"channelEditable":true},{"key":"param.videoRepeatCount","value":"3","type":"text","senior":2,"channelEditable":true}]})";
+        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+            .RETURN(cosmo::util::ErrorEnum::Success);
+
+        REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::Success);
+        nlohmann::json saved;
+        REQUIRE(cosmo::util::JsonFileUtil::ReadJsonFile(layout_path.string(), saved) ==
+                cosmo::util::ErrorEnum::Success);
+        const auto params =
+            nlohmann::json::parse(saved.at("algorithmMetadata").get<std::string>()).at("params");
+        REQUIRE(params.size() == 2);
+        CHECK(params.at(0).at("legacyChannelEditable") == true);
+        CHECK(params.at(1).at("legacyChannelEditable") == true);
+    }
+
+    SECTION("a historical configuration version cannot revive globally revoked eligibility") {
+        request.filePath          = fix.AlgorithmRoot().string();
+        request.confVersionId     = "alternate-505";
+        request.configVersionName = "Alternate";
+        const auto layout_path    = fix.AlgorithmRoot() / "505_Existing_20260715.json";
+        const auto hiddenMetadata =
+            R"({"params":[{"key":"param.threshold","value":"10","type":"text","senior":2,"legacyChannelEditable":false}]})";
+        const auto visibleMetadata =
+            R"({"params":[{"key":"param.threshold","value":"11","type":"text","senior":0,"legacyChannelEditable":true}]})";
+        const nlohmann::json previous{
+            {"algorithmCode", 505},
+            {"algorithmName", "Existing"},
+            {"algorithmMetadata", hiddenMetadata},
+            {"configVersionList",
+             nlohmann::json::array({nlohmann::json{{"id", "alternate-505"},
+                                                    {"name", "Alternate"},
+                                                    {"algorithmMetadata", visibleMetadata}}})}};
+        REQUIRE(cosmo::util::JsonFileUtil::WriteJsonFile(layout_path.string(), previous) ==
+                cosmo::util::ErrorEnum::Success);
+        request.algorithmMetadata =
+            R"({"params":[{"key":"param.threshold","value":"20","type":"text","senior":0,"channelEditable":true}]})";
+        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+            .RETURN(cosmo::util::ErrorEnum::Success);
+
+        REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::Success);
+        nlohmann::json saved;
+        REQUIRE(cosmo::util::JsonFileUtil::ReadJsonFile(layout_path.string(), saved) ==
+                cosmo::util::ErrorEnum::Success);
+        const auto topMetadata =
+            nlohmann::json::parse(saved.at("algorithmMetadata").get<std::string>());
+        CHECK(topMetadata.at("params").at(0).at("legacyChannelEditable") == false);
+        REQUIRE(saved.at("configVersionList").size() == 1);
+        const auto versionMetadata = nlohmann::json::parse(
+            saved.at("configVersionList").at(0).at("algorithmMetadata").get<std::string>());
+        CHECK(versionMetadata.at("params").at(0).at("legacyChannelEditable") == false);
     }
 
     SECTION("the portable default algorithm root is accepted") {

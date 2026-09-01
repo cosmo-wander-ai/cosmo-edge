@@ -50,6 +50,10 @@ struct MsgDynamicElement : public MsgDynamicKeyValue {
     float max{0.0f};
     bool isColumn{false};
     std::optional<bool> channelEditable;
+    // Eligibility for a markerless pre-ownership task snapshot to supply a
+    // channel override. Scene ownership changes may revoke this evidence,
+    // but a later promotion must never grant it again.
+    std::optional<bool> legacyChannelEditable;
     std::optional<int> senior;
     std::string range;
     std::vector<Option> options;

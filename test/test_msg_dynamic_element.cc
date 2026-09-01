@@ -144,17 +144,20 @@ TEST_CASE("MsgDynamicElement: channel ownership JSON roundtrip", "[msg-dynamic-e
     elem.type            = "text";
     elem.senior          = 2;
     elem.channelEditable = false;
+    elem.legacyChannelEditable = true;
 
     json j;
     to_json(j, elem);
 
     REQUIRE(j["senior"] == 2);
     REQUIRE(j["channelEditable"] == false);
+    REQUIRE(j["legacyChannelEditable"] == true);
 
     cosmo::MsgDynamicElement restored;
     from_json(j, restored);
     REQUIRE(restored.senior == 2);
     REQUIRE(restored.channelEditable == false);
+    REQUIRE(restored.legacyChannelEditable == true);
     REQUIRE_FALSE(restored.IsChannelEditable());
 }
 
@@ -221,12 +224,18 @@ TEST_CASE("MsgDynamicElement: channel ownership compatibility rules",
     SECTION("null ownership fields reset a reused element") {
         cosmo::MsgDynamicElement elem;
         elem.channelEditable = false;
+        elem.legacyChannelEditable = true;
         elem.senior          = 2;
         json legacy_null     = {
-            {"key", "param.legacy"}, {"type", "text"}, {"channelEditable", nullptr}, {"senior", nullptr}};
+            {"key", "param.legacy"},
+            {"type", "text"},
+            {"channelEditable", nullptr},
+            {"legacyChannelEditable", nullptr},
+            {"senior", nullptr}};
 
         from_json(legacy_null, elem);
         REQUIRE_FALSE(elem.channelEditable.has_value());
+        REQUIRE_FALSE(elem.legacyChannelEditable.has_value());
         REQUIRE_FALSE(elem.senior.has_value());
         REQUIRE(elem.IsChannelEditable());
     }
@@ -237,8 +246,12 @@ TEST_CASE("MsgDynamicElement: channel ownership compatibility rules",
                                                                {"1", true},  {"0", false}};
         for (const auto& [encoded, expected] : editableCases) {
             cosmo::MsgDynamicElement elem;
-            from_json(json{{"key", "param.compat"}, {"channelEditable", encoded}}, elem);
+            from_json(json{{"key", "param.compat"},
+                           {"channelEditable", encoded},
+                           {"legacyChannelEditable", encoded}},
+                      elem);
             REQUIRE(elem.channelEditable == expected);
+            REQUIRE(elem.legacyChannelEditable == expected);
         }
 
         cosmo::MsgDynamicElement numericSenior;
@@ -253,6 +266,8 @@ TEST_CASE("MsgDynamicElement: channel ownership compatibility rules",
     SECTION("invalid ownership encodings are rejected") {
         cosmo::MsgDynamicElement elem;
         REQUIRE_THROWS(from_json(json{{"key", "param.badBool"}, {"channelEditable", 2}}, elem));
+        REQUIRE_THROWS(
+            from_json(json{{"key", "param.badLegacyBool"}, {"legacyChannelEditable", 2}}, elem));
         REQUIRE_THROWS(from_json(json{{"key", "param.badBool"}, {"channelEditable", "yes"}}, elem));
         REQUIRE_THROWS(from_json(json{{"key", "param.badSenior"}, {"senior", "2tail"}}, elem));
         REQUIRE_THROWS(from_json(json{{"key", "param.badSenior"}, {"senior", 1.5}}, elem));

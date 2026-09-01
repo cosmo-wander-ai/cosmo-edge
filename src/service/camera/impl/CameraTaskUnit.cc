@@ -146,19 +146,32 @@ void CameraTaskUnit::LoadConfig() {
         return;
     }
     // A legacy param.json stores a full effective snapshot without provenance. Preserve only values
-    // that the old channel editor could actually expose. This keeps real historical channel overrides
-    // while preventing formerly hidden scene values from becoming overrides when channelEditable is
-    // introduced later.
+    // that the old channel editor could actually expose. A frozen legacyChannelEditable hint is
+    // authoritative because current senior/channelEditable may already describe a later ownership
+    // change. Explicit current ownership without a frozen hint is newer than the markerless snapshot
+    // and therefore fails closed instead of retroactively granting override authority.
     auto legacyOwnershipParams = metadata.params;
     for (auto& param : legacyOwnershipParams) {
-        param.channelEditable.reset();
+        if (param.legacyChannelEditable.has_value()) {
+            param.channelEditable = *param.legacyChannelEditable;
+        } else if (param.channelEditable.has_value()) {
+            if (MsgDynamicElement::IsLegacyChannelEditableException(param.type,
+                                                                     param.key.ToRefString())) {
+                param.channelEditable.reset();
+            } else {
+                param.channelEditable = false;
+            }
+        } else {
+            param.channelEditable.reset();
+        }
     }
     MsgDynamicElement::NormalizeLegacyChannelOwnership(legacyOwnershipParams);
     std::vector<bool> legacyChannelEditable;
     legacyChannelEditable.reserve(legacyOwnershipParams.size());
-    std::transform(legacyOwnershipParams.begin(), legacyOwnershipParams.end(),
-                   std::back_inserter(legacyChannelEditable),
-                   [](const auto& param) { return param.IsChannelEditable(); });
+    for (size_t index = 0; index < legacyOwnershipParams.size(); ++index) {
+        legacyChannelEditable.push_back(metadata.params[index].legacyChannelEditable.value_or(
+            legacyOwnershipParams[index].IsChannelEditable()));
+    }
     MsgDynamicElement::NormalizeLegacyChannelOwnership(metadata.params);
     metadata_params_ = std::move(metadata.params);
 
