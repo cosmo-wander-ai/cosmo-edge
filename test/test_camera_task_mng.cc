@@ -303,6 +303,7 @@ TEST_CASE("CameraServiceImpl rebuilds assigned tasks with the latest scene-manag
 
     const auto updated_metadata = MakeMetadataJson({MakeMetadataParam("param.sceneOwned", "12", false, 2),
                                                     MakeMetadataParam("param.visible", "1", true, 0)});
+    ALLOW_CALL(fx.mocks.algSvc, GetAlgorithmName("test_alg")).RETURN("Test Algorithm");
     REQUIRE_CALL(fx.mocks.algSvc, GetMetaData("test_alg")).RETURN(updated_metadata);
     REQUIRE_CALL(fx.mocks.taskSvc, TaskIsStart(task_id)).RETURN(true);
 
