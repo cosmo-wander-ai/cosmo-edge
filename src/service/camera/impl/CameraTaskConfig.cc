@@ -745,10 +745,9 @@ void CameraServiceImpl::StartTasksAfterReload(const CameraEntityPtr& camera,
         CameraTaskPtr task;
         {
             std::shared_lock<std::shared_mutex> lock(camera->task_mtx_);
-            auto it = std::find_if(camera->tasks_.begin(), camera->tasks_.end(),
-                                   [&](const CameraTaskPtr& candidate) {
-                                       return candidate && candidate->task_id_ == taskId;
-                                   });
+            auto it = std::find_if(
+                camera->tasks_.begin(), camera->tasks_.end(),
+                [&](const CameraTaskPtr& candidate) { return candidate && candidate->task_id_ == taskId; });
             if (it != camera->tasks_.end()) {
                 task = *it;
             }
@@ -760,8 +759,8 @@ void CameraServiceImpl::StartTasksAfterReload(const CameraEntityPtr& camera,
         bool restartOk = task->task_ && task->task_->IsReady() &&
                          task->task_->ApplyLatestTaskConfig(CameraTaskUnit::ParamApplyMode::kBeforeStart);
         if (restartOk) {
-            restartOk = ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskStart(camera->videoChannelId,
-                                                                                     taskId);
+            restartOk =
+                ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskStart(camera->videoChannelId, taskId);
         }
         {
             std::lock_guard<std::shared_mutex> lock(camera->task_mtx_);

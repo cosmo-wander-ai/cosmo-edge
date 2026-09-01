@@ -209,9 +209,8 @@ bool CameraTaskUnit::ApplyLatestTaskConfig(ParamApplyMode mode) {
 
     bool applied = false;
     try {
-        applied = service::ServiceRegistry::Instance()
-                      .Get<cosmo::service::ITaskLifecycle>()
-                      .SetTaskParam(channel_id_, task_id_, param);
+        applied = service::ServiceRegistry::Instance().Get<cosmo::service::ITaskLifecycle>().SetTaskParam(
+            channel_id_, task_id_, param);
     } catch (const std::exception& error) {
         LOG_WARN("[{}_{}] Set task parameters threw an exception: {}", channel_id_, task_id_, error.what());
     } catch (...) {
@@ -343,9 +342,10 @@ float CameraTaskUnit::CalcConfidence(const CameraTaskConfidenceConfig& config, f
     return confidenceUsing;
 }
 
-void CameraTaskUnit::EnableParamConfidences(
-    MsgTaskConfig& param, std::vector<std::string> labelsNeedConfidence,
-    const std::vector<CameraTaskConfidenceConfig>& confidenceConfigs, const std::vector<ModelInfo>& models) {
+void CameraTaskUnit::EnableParamConfidences(MsgTaskConfig& param,
+                                            std::vector<std::string> labelsNeedConfidence,
+                                            const std::vector<CameraTaskConfidenceConfig>& confidenceConfigs,
+                                            const std::vector<ModelInfo>& models) {
     for (auto needConfidenceLabel : labelsNeedConfidence)  // All labels requiring confidence config
     {
         for (auto& actionKeyParam : param.params) {

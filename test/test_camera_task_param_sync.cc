@@ -47,8 +47,7 @@ TEST_CASE("CameraTaskUnit pending apply does not wait for an in-flight service c
     std::condition_variable release_apply_cv;
     bool apply_entered = false;
     bool release_apply = false;
-    REQUIRE_CALL(mocks.taskSvc,
-                 SetTaskParam("single_flight_channel", "single_flight_channel_test_alg", _))
+    REQUIRE_CALL(mocks.taskSvc, SetTaskParam("single_flight_channel", "single_flight_channel_test_alg", _))
         .LR_SIDE_EFFECT({
             std::unique_lock<std::mutex> lock(gate_mtx);
             apply_entered = true;
@@ -63,8 +62,7 @@ TEST_CASE("CameraTaskUnit pending apply does not wait for an in-flight service c
     bool entered = false;
     {
         std::unique_lock<std::mutex> lock(gate_mtx);
-        entered = apply_entered_cv.wait_for(lock, std::chrono::seconds(5),
-                                            [&]() { return apply_entered; });
+        entered = apply_entered_cv.wait_for(lock, std::chrono::seconds(5), [&]() { return apply_entered; });
     }
 
     std::promise<bool> second_result_promise;
@@ -72,9 +70,7 @@ TEST_CASE("CameraTaskUnit pending apply does not wait for an in-flight service c
     std::thread second_apply;
     bool second_completed_while_first_was_in_service = false;
     if (entered) {
-        second_apply = std::thread([&]() {
-            second_result_promise.set_value(unit.ApplyLatestTaskConfig());
-        });
+        second_apply = std::thread([&]() { second_result_promise.set_value(unit.ApplyLatestTaskConfig()); });
         second_completed_while_first_was_in_service =
             second_result_future.wait_for(std::chrono::milliseconds(250)) == std::future_status::ready;
     }
@@ -107,21 +103,16 @@ TEST_CASE("CameraTaskUnit pending apply leaves a newer generation for the next c
     trompeloeil::sequence apply_sequence;
     std::vector<std::string> applied_values;
     bool callback_update_succeeded = false;
-    REQUIRE_CALL(mocks.taskSvc,
-                 SetTaskParam("bounded_apply_channel", "bounded_apply_channel_test_alg", _))
+    REQUIRE_CALL(mocks.taskSvc, SetTaskParam("bounded_apply_channel", "bounded_apply_channel_test_alg", _))
         .IN_SEQUENCE(apply_sequence)
         .LR_SIDE_EFFECT({
             applied_values.push_back(FindThresholdValue(_3));
-            callback_update_succeeded =
-                unit.SetParams(MakeThresholdConfig("7")) == util::ErrorEnum::Success;
+            callback_update_succeeded = unit.SetParams(MakeThresholdConfig("7")) == util::ErrorEnum::Success;
         })
         .RETURN(true);
-    REQUIRE_CALL(mocks.taskSvc,
-                 SetTaskParam("bounded_apply_channel", "bounded_apply_channel_test_alg", _))
+    REQUIRE_CALL(mocks.taskSvc, SetTaskParam("bounded_apply_channel", "bounded_apply_channel_test_alg", _))
         .IN_SEQUENCE(apply_sequence)
-        .LR_SIDE_EFFECT({
-            applied_values.push_back(FindThresholdValue(_3));
-        })
+        .LR_SIDE_EFFECT({ applied_values.push_back(FindThresholdValue(_3)); })
         .RETURN(true);
 
     CHECK_FALSE(unit.ApplyLatestTaskConfig());
@@ -149,8 +140,7 @@ TEST_CASE("CameraTaskUnit before-start apply waits for the current applier and t
     bool first_entered = false;
     bool release_first = false;
     size_t apply_count = 0;
-    REQUIRE_CALL(mocks.taskSvc,
-                 SetTaskParam("before_start_channel", "before_start_channel_test_alg", _))
+    REQUIRE_CALL(mocks.taskSvc, SetTaskParam("before_start_channel", "before_start_channel_test_alg", _))
         .TIMES(2)
         .LR_SIDE_EFFECT({
             std::unique_lock<std::mutex> lock(gate_mtx);
@@ -169,8 +159,7 @@ TEST_CASE("CameraTaskUnit before-start apply waits for the current applier and t
     bool entered = false;
     {
         std::unique_lock<std::mutex> lock(gate_mtx);
-        entered = first_entered_cv.wait_for(lock, std::chrono::seconds(5),
-                                            [&]() { return first_entered; });
+        entered = first_entered_cv.wait_for(lock, std::chrono::seconds(5), [&]() { return first_entered; });
     }
 
     auto before_start_result = std::async(std::launch::async, [&]() {
@@ -274,7 +263,7 @@ TEST_CASE("CameraTaskUnit serializes a burst of concurrent parameter applies",
     std::mutex start_mtx;
     std::condition_variable start_cv;
     size_t ready_count = 0;
-    bool start          = false;
+    bool start         = false;
     std::atomic<size_t> success_count{0};
     std::atomic<size_t> rejected_count{0};
     std::vector<std::thread> threads;
@@ -297,8 +286,8 @@ TEST_CASE("CameraTaskUnit serializes a burst of concurrent parameter applies",
 
     {
         std::unique_lock<std::mutex> lock(start_mtx);
-        REQUIRE(start_cv.wait_for(lock, std::chrono::seconds(5),
-                                  [&]() { return ready_count == kThreadCount; }));
+        REQUIRE(
+            start_cv.wait_for(lock, std::chrono::seconds(5), [&]() { return ready_count == kThreadCount; }));
         start = true;
     }
     start_cv.notify_all();
@@ -308,7 +297,6 @@ TEST_CASE("CameraTaskUnit serializes a burst of concurrent parameter applies",
 
     CHECK(success_count.load(std::memory_order_relaxed) >= 1);
     CHECK(rejected_count.load(std::memory_order_relaxed) >= 1);
-    CHECK(success_count.load(std::memory_order_relaxed) +
-              rejected_count.load(std::memory_order_relaxed) ==
+    CHECK(success_count.load(std::memory_order_relaxed) + rejected_count.load(std::memory_order_relaxed) ==
           kThreadCount);
 }
