@@ -30,7 +30,7 @@
 
           <!-- switch 新加 -->
           <el-form-item
-            v-if="item.type == 'switch' && item.isColumn == true && item.key != 'FaceCheck' && showForm(item.senior)">
+            v-if="item.type == 'switch' && item.isColumn == true && showLegacyParam(item) && showForm(item.senior)">
             <template #label>
               <span style="position:relative">
                 <span>{{ resolveParamText(item, 'name') }}</span>
@@ -72,7 +72,7 @@
 
           <!-- radio组 -->
           <el-form-item
-            v-if="item.type == 'radio' && item.isColumn == true && item.key != 'catchView' && showForm(item.senior)">
+            v-if="item.type == 'radio' && item.isColumn == true && showLegacyParam(item) && showForm(item.senior)">
             <template #label>
               <span style="position:relative">
                 <span>{{ resolveParamText(item, 'name') }}</span>
@@ -133,7 +133,7 @@
           <!-- 输入框组 -->
           <el-form label-position="right" size="small" :model="item" :label-width="labelWidth ? labelWidth : defaultLabelWidth"
             @submit.prevent
-            v-if="(item.type == 'number' || item.type == 'text') && item.key != 'minFaceWidth' && item.key != 'quality'">
+            v-if="(item.type == 'number' || item.type == 'text') && showLegacyParam(item)">
             <el-form-item
               v-if="(item.type == 'number' || item.type == 'text') && item.isColumn == true && item.key !== 'LeadsRadio' && showForm(item.senior)"
               prop="value"
@@ -218,7 +218,7 @@
             </template>
             <div class="confidence-div">
               <el-input v-model.trim="paramz[index].value" type="text" @input="handleInputChange"></el-input>
-              <el-button @click="openDistanceDialog(index)" type="primary" size="small">{{ t('action.measureDistance') }}</el-button>
+              <el-button @click="openDistanceDialog(item)" type="primary" size="small">{{ t('action.measureDistance') }}</el-button>
             </div>
           </el-form-item>
 
@@ -451,7 +451,7 @@
                   </template>
                   <div class="confidence-div">
                     <el-input v-model.trim="el.value" type="text" @input="handleInputChange"></el-input>
-                    <el-button @click="openDistanceDialog(childIdx)" type="primary" size="small">{{ t('action.measureDistance') }}</el-button>
+                    <el-button @click="openDistanceDialog(el)" type="primary" size="small">{{ t('action.measureDistance') }}</el-button>
                   </div>
                 </el-form-item>
 
@@ -545,6 +545,17 @@ import { QuestionFilled } from '@element-plus/icons-vue'
 import DistanceDialog from './distanceDialog.vue'
 import defaultImage from '@/assets/CatchPhoto.png'
 import { number } from 'echarts'
+import {
+  filterChannelEditableParams,
+  filterTaskParamsForSubmission,
+  flattenTaskParamTree,
+  getExplicitChannelEditable,
+  getParamDependencyCycleBreakIndexes,
+  getParamDependencyKey,
+  isLegacyUnrenderedParam,
+  resolveChannelEditableFlags,
+  serializeTaskParamTree
+} from '@/utils/taskParamOwnership'
 
 const { proxy } = getCurrentInstance()
 
@@ -601,7 +612,7 @@ const marks = computed(() => ({
   '100': t('glossary.strict')
 }))
 const networkOptions = ref([])
-const itemChangedIndex = ref(0)
+const distanceParamTarget = ref(null)
 const distanceDialogVisible = ref(false)
 
 const showForm = computed(() => {
@@ -616,6 +627,21 @@ const showForm = computed(() => {
   }
 })
 
+const getPlatformType = () => localStorage.getItem('platformType')
+
+const showLegacyParam = (param) =>
+  !isLegacyUnrenderedParam(param) ||
+  (String(getPlatformType() ?? '') !== '1' &&
+    getExplicitChannelEditable(param) === true)
+
+const getCurrentParams = () => {
+  const currentParams =
+    props.modelValue && props.modelValue.length > 0
+      ? props.modelValue
+      : props.params
+  return filterChannelEditableParams(currentParams, getPlatformType())
+}
+
 const init = () => {
   let custId = window.localStorage.getItem('taskCustId')
     ? window.localStorage.getItem('taskCustId')
@@ -628,7 +654,7 @@ const init = () => {
   }
 
   // 使用modelValue或params，优先使用modelValue
-  const currentParams = props.modelValue && props.modelValue.length > 0 ? props.modelValue : props.params
+  const currentParams = getCurrentParams()
 
   currentParams.forEach((item) => {
     if (item.type == 'commoditySet') {
@@ -701,7 +727,7 @@ const handleTransferData = () => {
   transferList.value = []
 
   // 使用modelValue或params，优先使用modelValue
-  const currentParams = props.modelValue && props.modelValue.length > 0 ? props.modelValue : props.params
+  const currentParams = getCurrentParams()
 
   if (currentParams.length === 0) {
     FaceSets.value.forEach((element) => {
@@ -735,17 +761,30 @@ const handleTransferData = () => {
 
 const switchMethods = (data) => {
   let arr = []
-  data.forEach((item) => {
+  const editableKeys = new Set(data.map((item) => String(item.key)))
+  const isPlatform = String(getPlatformType() ?? '') === '1'
+  const cycleBreakIndexes = isPlatform
+    ? new Set()
+    : getParamDependencyCycleBreakIndexes(data)
+  data.forEach((item, itemIndex) => {
     if (item.type == 'slider') {
       item.value = Number(item.value)
     }
     item.children = []
-    data.forEach((el) => {
-      if (el.dependsOn && item.key == el.dependsOn.key) {
+    data.forEach((el, childIndex) => {
+      if (
+        item.key == getParamDependencyKey(el) &&
+        (isPlatform || !cycleBreakIndexes.has(childIndex))
+      ) {
         item.children.push(el)
       }
     })
-    if (!item.dependsOn) {
+    const dependencyKey = getParamDependencyKey(item)
+    if (
+      dependencyKey === undefined ||
+      (!isPlatform && cycleBreakIndexes.has(itemIndex)) ||
+      (!isPlatform && !editableKeys.has(dependencyKey))
+    ) {
       arr.push(item)
     }
   })
@@ -783,18 +822,29 @@ const parseRegExpr = (rule) => {
 }
 const checkType = (rule) => parseRegExpr(rule)
 
+const buildParamPayload = (source = paramz.value) =>
+  serializeTaskParamTree(source, { faceSetIds: transferList.value })
+
+const emitParamUpdates = (
+  source = paramz.value,
+  { includeModelVal = true } = {}
+) => {
+  const payload = buildParamPayload(source)
+  emit('update:modelValue', payload)
+  emit('update:params', payload)
+  if (includeModelVal) emit('modelVal', payload)
+  return payload
+}
+
 const switchEvent = (item) => {
-  switchValue.value = item.value
-  // 立即触发更新
-  const cleanData = paramz.value.map(paramItem => ({
-    ...paramItem,
-    value: paramItem.type === 'confidenceConfig'
-      ? `${paramItem.confidenceConfigValue1 || 0},${paramItem.confidenceConfigValue2 || 0}`
-      : paramItem.value
-  }))
-  emit('update:modelValue', cleanData)
-  emit('update:params', cleanData)
-  emit('modelVal', cleanData)
+  if (item.key === 'isEnabled') {
+    switchValue.value = flattenTaskParamTree(paramz.value).some(
+      (param) => param.key === 'isEnabled' && String(param.value) === '1'
+    )
+      ? '1'
+      : '0'
+  }
+  emitParamUpdates()
 }
 
 // 通用的数据更新函数
@@ -802,51 +852,27 @@ const triggerUpdate = () => {
   // 防抖处理
   clearTimeout(updateTimer)
   updateTimer = setTimeout(() => {
-    const cleanData = paramz.value.map(paramItem => ({
-      ...paramItem,
-      value: paramItem.type === 'confidenceConfig'
-        ? `${paramItem.confidenceConfigValue1 || 0},${paramItem.confidenceConfigValue2 || 0}`
-        : paramItem.value
-    }))
-
     // 移除频繁的console.log，只在必要时输出
-    // console.log('dynamicForm触发更新:', cleanData)
-    emit('update:modelValue', cleanData)
-    emit('update:params', cleanData)
-    emit('modelVal', cleanData)
+    // console.log('dynamicForm触发更新:', buildParamPayload())
+    emitParamUpdates()
   }, 100)
 }
 
 // 处理输入框变化
 const handleInputChange = () => {
-  // 立即触发更新
-  const cleanData = paramz.value.map(paramItem => ({
-    ...paramItem,
-    value: paramItem.type === 'confidenceConfig'
-      ? `${paramItem.confidenceConfigValue1 || 0},${paramItem.confidenceConfigValue2 || 0}`
-      : paramItem.value
-  }))
-  emit('update:modelValue', cleanData)
-  emit('update:params', cleanData)
-  emit('modelVal', cleanData)
+  emitParamUpdates()
 }
 
 // 处理滑块变化
 const handleSliderChange = () => {
-  // 立即触发更新
-  const cleanData = paramz.value.map(paramItem => ({
-    ...paramItem,
-    value: paramItem.type === 'confidenceConfig'
-      ? `${paramItem.confidenceConfigValue1 || 0},${paramItem.confidenceConfigValue2 || 0}`
-      : paramItem.value
-  }))
-  emit('update:modelValue', cleanData)
-  emit('update:params', cleanData)
-  emit('modelVal', cleanData)
+  emitParamUpdates()
 }
 
 const dependsOn = (newVal) => {
-  const data = JSON.parse(JSON.stringify(newVal))
+  const data = filterChannelEditableParams(
+    JSON.parse(JSON.stringify(newVal || [])),
+    getPlatformType()
+  )
   for (var i = 0; i < data.length - 1; i++) {
     for (var j = i + 1; j < data.length; j++) {
       if (JSON.stringify(data[i].group) == JSON.stringify(data[j].group)) {
@@ -859,11 +885,16 @@ const dependsOn = (newVal) => {
   let endPoint = {}
   data.forEach((item) => {
     if (item.type === 'confidenceConfig') {
-      if (!item.value) {
-        item.value = item.defaultValue
-      }
-      item.confidenceConfigValue1 = Number(item.value.split(',')[0]) || 0
-      item.confidenceConfigValue2 = Number(item.value.split(',')[1]) || 0
+      item.value = item.value ?? item.defaultValue ?? '0,0'
+      const confidenceValues = String(item.value).split(',')
+      const confidenceValue1 = Number(confidenceValues[0])
+      const confidenceValue2 = Number(confidenceValues[1])
+      item.confidenceConfigValue1 = Number.isFinite(confidenceValue1)
+        ? confidenceValue1
+        : 0
+      item.confidenceConfigValue2 = Number.isFinite(confidenceValue2)
+        ? confidenceValue2
+        : 0
     }
     if (item.type == 'initialPoint') {
       initialPoint = item
@@ -872,14 +903,16 @@ const dependsOn = (newVal) => {
     } else {
       // 确保所有字段都有值，优先使用 value，其次使用 defaultValue
       if (item.value === null || item.value === undefined) {
-        item.value = item.defaultValue || ''
+        item.value = item.defaultValue ?? ''
       }
       arr.push(item)
     }
-    if (item.key == 'isEnabled') {
-      switchValue.value = item.value
-    }
   })
+  switchValue.value = data.some(
+    (item) => item.key === 'isEnabled' && String(item.value) === '1'
+  )
+    ? '1'
+    : '0'
   if (initialPoint.key) {
     initialPoint.correlation = endPoint
     arr.push(initialPoint)
@@ -889,58 +922,22 @@ const dependsOn = (newVal) => {
 }
 
 const resolution = () => {
-  let arr = []
-  let initialPoint = {}
-  let endPoint = {}
-  paramz.value.forEach((item) => {
-    if (item.type == 'initialPoint') {
-      initialPoint = item
-    } else {
-      arr.push(item)
-    }
-  })
-  if (initialPoint.key) {
-    endPoint = initialPoint.correlation
-    arr.push(initialPoint)
-  }
-  emit('modelVal', arr)
-  emit('update:params', arr)
-  emit('update:modelValue', arr)
+  emitParamUpdates()
 }
 
 const submitForm = () => {
   // 优先使用当前的 paramz 数据，因为它包含了最新的表单状态
-  let currentParams = []
-  if (paramz.value && paramz.value.length > 0) {
-    // 使用当前 paramz 的数据
-    currentParams = paramz.value.map(paramItem => ({
-      ...paramItem,
-      value: paramItem.type === 'confidenceConfig'
-        ? `${paramItem.confidenceConfigValue1 || 0},${paramItem.confidenceConfigValue2 || 0}`
-        : paramItem.type === 'faceSet'
-          ? (transferList.value || []).map(v => String(v)).join(',')
-          : (paramItem.value !== null && paramItem.value !== undefined) ? paramItem.value : (paramItem.defaultValue || '')
-    }))
-  } else {
-    // 如果 paramz 为空，使用 modelValue 或 params
-    currentParams = props.modelValue && props.modelValue.length > 0 ? props.modelValue : props.params
-  }
+  const source =
+    paramz.value && paramz.value.length > 0
+      ? paramz.value
+      : getCurrentParams()
+  const currentParams = buildParamPayload(source)
 
   console.log('submitForm 验证的数据:', JSON.parse(JSON.stringify(currentParams)))
 
   if (validInput(currentParams)) {
     // 将最终的面板值同步一次，避免父层读取旧数据
-    const finalParams = currentParams.map(paramItem => ({
-      ...paramItem,
-      value: paramItem.type === 'confidenceConfig'
-        ? `${paramItem.confidenceConfigValue1 || 0},${paramItem.confidenceConfigValue2 || 0}`
-        : paramItem.type === 'faceSet'
-          ? (transferList.value || []).map(v => String(v)).join(',')
-          : paramItem.value
-    }))
-    emit('update:modelValue', finalParams)
-    emit('update:params', finalParams)
-    emit('modelVal', finalParams)
+    emitParamUpdates(currentParams)
     return true
   } else {
     return false
@@ -958,16 +955,7 @@ const itemChange = (item) => {
     }
   }
 
-  // 立即触发数据更新
-  const cleanData = paramz.value.map(paramItem => ({
-    ...paramItem,
-    value: paramItem.type === 'confidenceConfig'
-      ? `${paramItem.confidenceConfigValue1 || 0},${paramItem.confidenceConfigValue2 || 0}`
-      : paramItem.value
-  }))
-  emit('update:modelValue', cleanData)
-  emit('update:params', cleanData)
-  emit('modelVal', cleanData)
+  emitParamUpdates()
   emit('itemChange', item)
 }
 
@@ -998,12 +986,12 @@ const validInput = (obj) => {
 
   if (obj && obj.length) {
     let platformType = localStorage.getItem('platformType')
-    let arr = []
-    if (platformType != 1) {
-      arr = obj.filter((item) => item.senior == null)
-    } else {
-      arr = obj
-    }
+    const arr =
+      platformType == 1
+        ? obj
+        : filterTaskParamsForSubmission(
+          filterChannelEditableParams(obj, platformType)
+        )
 
     console.log('过滤后的验证数据:', JSON.parse(JSON.stringify(arr)))
 
@@ -1030,11 +1018,6 @@ const validInput = (obj) => {
         }
       }
 
-      if (param.type == 'confidenceConfig') {
-        param.value = `${param.confidenceConfigValue1 || 0},${param.confidenceConfigValue2 || 0}`
-      } else if (param.type == 'faceSet') {
-        param.value = transferList.value.join(',')
-      }
     }
   }
   return true
@@ -1043,12 +1026,7 @@ const validInput = (obj) => {
 const getAllFormData = () => {
   // 如果有 paramz 数据，返回当前的 paramz 值
   if (paramz.value && paramz.value.length > 0) {
-    return paramz.value.map(paramItem => ({
-      ...paramItem,
-      value: paramItem.type === 'confidenceConfig'
-        ? `${paramItem.confidenceConfigValue1 || 0},${paramItem.confidenceConfigValue2 || 0}`
-        : paramItem.value
-    }))
+    return buildParamPayload()
   }
 
   // 否则返回原来的逻辑
@@ -1061,35 +1039,33 @@ const getAllFormData = () => {
       })
     })
   })
-  return newData
+  return buildParamPayload(newData)
 }
 
-const openDistanceDialog = (val) => {
-  itemChangedIndex.value = val
+const openDistanceDialog = (param) => {
+  distanceParamTarget.value = param
   distanceDialogVisible.value = true
 }
 
 const handleDistanceConfirm = (val) => {
-  paramz.value[itemChangedIndex.value].value = val
-  // 立即触发更新
-  const cleanData = paramz.value.map(paramItem => ({
-    ...paramItem,
-    value: paramItem.type === 'confidenceConfig'
-      ? `${paramItem.confidenceConfigValue1 || 0},${paramItem.confidenceConfigValue2 || 0}`
-      : paramItem.value
-  }))
-  emit('update:modelValue', cleanData)
-  emit('update:params', cleanData)
-  emit('modelVal', cleanData)
+  if (distanceParamTarget.value) distanceParamTarget.value.value = val
+  distanceParamTarget.value = null
+  emitParamUpdates()
 }
 
 const buildStructureSignature = (arr) => {
   try {
+    const list = Array.isArray(arr) ? arr : []
+    const ownershipFlags =
+      String(getPlatformType() ?? '') === '1'
+        ? list.map(() => true)
+        : resolveChannelEditableFlags(list)
     return JSON.stringify(
-      (arr || []).map((i) => ({
+      list.map((i, index) => ({
         key: i.key,
         type: i.type,
         senior: i.senior ?? null,
+        channelEditable: ownershipFlags[index],
         dependsOn: i.dependsOn ? { key: i.dependsOn.key, value: i.dependsOn.value } : null,
         optionsLen: Array.isArray(i.options) ? i.options.length : 0
       }))
@@ -1103,51 +1079,48 @@ const inited = ref(false)
 const modelSig = ref('')
 const paramsSig = ref('')
 
-watch(transferList, (list) => {
-  const ids = (list || []).map((v) => String(v)).join(',')
+const clearDynamicParams = () => {
+  paramz.value = []
+  transferList.value = []
+  transferData.value = []
+  switchValue.value = ''
+  modelSig.value = ''
+  paramsSig.value = ''
+  inited.value = false
+}
+
+watch(transferList, () => {
   if (paramz.value && paramz.value.length > 0) {
-    paramz.value.forEach((p, i) => {
-      if (p.type === 'faceSet') {
-        paramz.value[i].value = ids
-      }
-    })
-    const cleanData = paramz.value.map(paramItem => ({
-      ...paramItem,
-      value: paramItem.type === 'confidenceConfig'
-        ? `${paramItem.confidenceConfigValue1 || 0},${paramItem.confidenceConfigValue2 || 0}`
-        : paramItem.value
-    }))
-    emit('update:modelValue', cleanData)
-    emit('update:params', cleanData)
-    emit('modelVal', cleanData)
+    emitParamUpdates()
   }
 }, { deep: true })
 
-watch(() => props.params, (newVal) => {
-  if (!newVal || newVal.length === 0) return
-  const nextSig = buildStructureSignature(newVal)
-  nextTick(() => {
-    if (!inited.value || nextSig !== paramsSig.value) {
-      init()
-      paramsSig.value = nextSig
-      inited.value = true
+watch(
+  [() => props.params, () => props.modelValue],
+  () => {
+    const currentParams = getCurrentParams()
+    if (currentParams.length === 0) {
+      clearDynamicParams()
+      return
     }
-    dependsOn(newVal)
-  })
-}, { immediate: true, deep: true })
 
-watch(() => props.modelValue, (newVal) => {
-  if (!newVal || newVal.length === 0) return
-  const nextSig = buildStructureSignature(newVal)
-  nextTick(() => {
-    if (!inited.value || nextSig !== modelSig.value) {
-      init()
-      modelSig.value = nextSig
-      inited.value = true
-    }
-    dependsOn(newVal)
-  })
-}, { immediate: true, deep: true })
+    const nextSig = buildStructureSignature(currentParams)
+    nextTick(() => {
+      if (
+        !inited.value ||
+        nextSig !== paramsSig.value ||
+        nextSig !== modelSig.value
+      ) {
+        init()
+        paramsSig.value = nextSig
+        modelSig.value = nextSig
+        inited.value = true
+      }
+      dependsOn(currentParams)
+    })
+  },
+  { immediate: true, deep: true }
+)
 
 // 监听paramz变化，但避免循环更新
 watch(() => paramz.value, (newVal, oldVal) => {
@@ -1157,14 +1130,7 @@ watch(() => paramz.value, (newVal, oldVal) => {
     const hasChanged = JSON.stringify(newVal) !== JSON.stringify(oldVal)
     if (hasChanged) {
       // 立即同步到 modelValue，不使用防抖
-      const cleanData = newVal.map(paramItem => ({
-        ...paramItem,
-        value: paramItem.type === 'confidenceConfig'
-          ? `${paramItem.confidenceConfigValue1 || 0},${paramItem.confidenceConfigValue2 || 0}`
-          : paramItem.value
-      }))
-      emit('update:modelValue', cleanData)
-      emit('update:params', cleanData)
+      emitParamUpdates(newVal, { includeModelVal: false })
     }
   }
 }, { deep: true })

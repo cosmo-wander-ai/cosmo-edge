@@ -94,4 +94,13 @@ struct MsgAlgorithmMetaData {
     friend void from_json(const nlohmann::json& j, MsgAlgorithmMetaData& v);
 };
 
+// Decode the nested algorithm metadata contract used by both layout saves and
+// task construction. The root must be an object and params, when present, must
+// be an array.
+[[nodiscard]] bool DecodeAlgorithmMetadata(const std::string& encoded, MsgAlgorithmMetaData& metadata);
+
+// A persisted task snapshot identifies parameters only by key, so algorithm metadata must not
+// describe the same key more than once.
+[[nodiscard]] bool ValidateAlgorithmMetadataParams(const MsgAlgorithmMetaData& metadata);
+
 }  // namespace cosmo

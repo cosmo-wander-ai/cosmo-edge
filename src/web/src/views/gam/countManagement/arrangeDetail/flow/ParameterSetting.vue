@@ -222,6 +222,11 @@ import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { t, localeColon, currentLocale } from '@/i18n'
 import { resolveI18nOptionLabel, resolveI18nText } from '@/utils/i18nResource'
+import {
+  deriveChannelEditableFromVisibility,
+  getExplicitChannelEditable,
+  normalizeParamOwnershipList
+} from '@/utils/taskParamOwnership'
 
 // Props
 const props = defineProps({
@@ -423,8 +428,13 @@ const init = () => {
     props.algorithmMetadata.params &&
     props.algorithmMetadata.params.length > 0
   ) {
-    props.algorithmMetadata.params.forEach((item) => {
+    const normalizedParams = normalizeParamOwnershipList(
+      props.algorithmMetadata.params
+    )
+    normalizedParams.forEach((item, index) => {
       let a = []
+      const channelEditable = item.channelEditable
+      const checkedClient = item.senior ?? (channelEditable ? 0 : 2)
       let arr1 = {
         moduleType: item.type,
         keyValue: item.key,
@@ -442,6 +452,12 @@ const init = () => {
         regularVerify: item.regexpr ? item.regexpr : '',
         dependOn: '',
         level: item.level,
+        checkedClient,
+        initialCheckedClient: checkedClient,
+        channelEditable,
+        explicitChannelEditable: getExplicitChannelEditable(
+          props.algorithmMetadata.params[index]
+        ),
         showMore: false,
         showFather: false
       }
@@ -495,9 +511,6 @@ const init = () => {
         arr1.enumeration = str
         // 同时设置 options，避免在 watch 中修改
         arr1.options = item.options
-      }
-      if (item.senior !== null) {
-        arr1.checkedClient = item.senior
       }
       formData.value.push(arr1)
     })
@@ -638,14 +651,21 @@ const saveParamConfig = () => {
 
   let params = []
   formData.value.forEach((element) => {
+    const value =
+      element.moduleType === 'check'
+        ? Array.isArray(element.defaultValue)
+          ? element.defaultValue.join(',')
+          : element.defaultValue
+        : element.defaultValue
+    const senior = element.checkedClient ?? (element.channelEditable ? 0 : 2)
+    const visibilityChanged =
+      String(senior) !== String(element.initialCheckedClient)
+    const explicitChannelEditable = visibilityChanged
+      ? deriveChannelEditableFromVisibility({ senior })
+      : element.explicitChannelEditable
     let param = {
       beginValue: null,
-      defaultValue:
-        element.moduleType === 'check'
-          ? Array.isArray(element.defaultValue)
-            ? element.defaultValue.join(',')
-            : element.defaultValue
-          : element.defaultValue,
+      defaultValue: value,
       dependsOn: null,
       description: element.describe,
       endValue: null,
@@ -658,17 +678,15 @@ const saveParamConfig = () => {
       negative: null,
       options: null,
       range: null,
-      senior: element.checkedClient,
+      senior,
       regexpr: element.regularVerify,
       step: null,
       type: element.moduleType,
-      value:
-        element.moduleType === 'check'
-          ? Array.isArray(element.defaultValue)
-            ? element.defaultValue.join(',')
-            : element.defaultValue
-          : element.defaultValue,
+      value,
       level: element ? element.level : null
+    }
+    if (explicitChannelEditable !== undefined) {
+      param.channelEditable = explicitChannelEditable
     }
     copyParamI18nFields(element, param)
 

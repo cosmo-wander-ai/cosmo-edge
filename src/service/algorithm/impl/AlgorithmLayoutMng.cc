@@ -21,6 +21,7 @@
 #include "util/JsonFileUtil.h"
 #include "util/Log.h"
 #include "util/PathUtil.h"
+#include "util/dto/AlgorithmMsgTypes.h"
 
 namespace cosmo::service::detail {
 namespace alg = algorithm;
@@ -139,6 +140,13 @@ cosmo::util::ErrorEnum AlgorithmLayoutMng::LayoutSave(const algorithm::LayoutSav
         !cosmo::path::IsSafePathComponent(req.algorithmId)) {
         return cosmo::util::ErrorEnum::InvalidParam;
     }
+    MsgAlgorithmMetaData validatedMetadata;
+    if (!DecodeAlgorithmMetadata(req.algorithmMetadata, validatedMetadata)) {
+        return cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail;
+    }
+    if (!ValidateAlgorithmMetadataParams(validatedMetadata)) {
+        return cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail;
+    }
     std::string layoutFilePath = jsonFilePath;
     if (layoutFilePath.back() != '/')
         layoutFilePath += "/";
@@ -190,6 +198,8 @@ cosmo::util::ErrorEnum AlgorithmLayoutMng::LayoutSave(const algorithm::LayoutSav
     }
     nlohmann::json doc;
     cosmo::util::ErrorEnum ret = cosmo::util::JsonFileUtil::ReadJsonFile(layoutFilePath, doc);
+    const bool targetExisted   = ret == cosmo::util::ErrorEnum::Success || useExistingFile;
+    const auto previousDoc     = ret == cosmo::util::ErrorEnum::Success ? doc : existingDoc;
     if (ret != cosmo::util::ErrorEnum::Success) {
         if (existingDoc.is_object() && !existingDoc.empty()) {
             doc = existingDoc;
@@ -278,9 +288,26 @@ cosmo::util::ErrorEnum AlgorithmLayoutMng::LayoutSave(const algorithm::LayoutSav
     ret = cosmo::util::JsonFileUtil::WriteJsonFile(layoutFilePath, doc);
     if (ret != cosmo::util::ErrorEnum::Success)
         return ret;
-    cosmo::service::ServiceRegistry::Instance().Get<cosmo::service::IAlgorithmCrud>().ReloadAlgorithmFromFile(
-        layoutFilePath);
-    return cosmo::util::ErrorEnum::Success;
+    const auto reloadRet = cosmo::service::ServiceRegistry::Instance()
+                               .Get<cosmo::service::IAlgorithmCrud>()
+                               .ReloadAlgorithmFromFile(layoutFilePath);
+    if (reloadRet == cosmo::util::ErrorEnum::Success) {
+        return reloadRet;
+    }
+
+    bool rollbackSucceeded = false;
+    if (targetExisted) {
+        rollbackSucceeded = cosmo::util::JsonFileUtil::WriteJsonFile(layoutFilePath, previousDoc) ==
+                            cosmo::util::ErrorEnum::Success;
+    } else {
+        std::error_code error;
+        rollbackSucceeded = std::filesystem::remove(layoutFilePath, error) && !error;
+    }
+    if (!rollbackSucceeded) {
+        LOG_ERRO("{} failed to restore {} after algorithm hot-reload error:{}", __FUNCTION__, layoutFilePath,
+                 static_cast<uint32_t>(reloadRet));
+    }
+    return reloadRet;
 }
 
 cosmo::util::ErrorEnum AlgorithmLayoutMng::GetLayoutDetail(const std::string& id, const std::string& filePath,

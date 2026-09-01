@@ -691,6 +691,7 @@ export default {
     minTwoPoints: 'Draw at least 2 points',
     fieldInvalid: '{field} is invalid',
     regexInvalid: '{field} has an invalid regex',
+    duplicateTaskParamDescriptor: 'Parameter keys are duplicated or conflicting. Check the business flow and custom parameters.',
     enterTaskName: 'Please enter task name',
     enterAlgorithmId: 'Please enter algorithm ID',
     taskNameNoUnderscore: 'Task name cannot contain underscores',

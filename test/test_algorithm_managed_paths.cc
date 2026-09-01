@@ -8,7 +8,9 @@
 #include "catch_amalgamated.hpp"
 #include "mock/MockAlgorithmService.h"
 #include "mock/MockServiceRegistry.h"
+#include "nlohmann/json.hpp"
 #include "service/algorithm/impl/AlgorithmServiceImpl.h"
+#include "util/JsonFileUtil.h"
 #include "util/PathUtil.h"
 
 namespace {
@@ -255,6 +257,108 @@ TEST_CASE("Algorithm layout save writes only to the managed algorithm root",
         request.filePath = fix.AlgorithmRoot().string();
         REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
             .RETURN(cosmo::util::ErrorEnum::Success);
+        REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::Success);
+        REQUIRE(CountRegularFiles(fix.AlgorithmRoot()) == 1);
+        REQUIRE(CountRegularFiles(fix.outside_root) == 0);
+    }
+
+    SECTION("a hot-reload failure is returned to the caller") {
+        request.filePath = fix.AlgorithmRoot().string();
+        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+            .RETURN(cosmo::util::ErrorEnum::FileAnalysisFailed);
+        REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::FileAnalysisFailed);
+        REQUIRE(CountRegularFiles(fix.AlgorithmRoot()) == 0);
+        REQUIRE(CountRegularFiles(fix.outside_root) == 0);
+    }
+
+    SECTION("a hot-reload failure restores the previous layout") {
+        request.filePath       = fix.AlgorithmRoot().string();
+        const auto layout_path = fix.AlgorithmRoot() / "505_Existing_20260715.json";
+        const nlohmann::json previous{{"algorithmCode", 505},
+                                      {"algorithmName", "Existing"},
+                                      {"algorithmMetadata", "{\"old\":true}"},
+                                      {"configVersionList", nlohmann::json::array()}};
+        REQUIRE(cosmo::util::JsonFileUtil::WriteJsonFile(layout_path.string(), previous) ==
+                cosmo::util::ErrorEnum::Success);
+        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+            .RETURN(cosmo::util::ErrorEnum::FileAnalysisFailed);
+
+        REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::FileAnalysisFailed);
+        nlohmann::json restored;
+        REQUIRE(cosmo::util::JsonFileUtil::ReadJsonFile(layout_path.string(), restored) ==
+                cosmo::util::ErrorEnum::Success);
+        CHECK(restored == previous);
+        REQUIRE(CountRegularFiles(fix.AlgorithmRoot()) == 1);
+        REQUIRE(CountRegularFiles(fix.outside_root) == 0);
+    }
+
+    SECTION("invalid nested metadata is rejected before a new layout is written") {
+        request.filePath = fix.AlgorithmRoot().string();
+        FORBID_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_));
+
+        request.algorithmMetadata = "{not-json";
+        REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail);
+        request.algorithmMetadata = R"({"params":{}})";
+        REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail);
+        REQUIRE(CountRegularFiles(fix.AlgorithmRoot()) == 0);
+        REQUIRE(CountRegularFiles(fix.outside_root) == 0);
+    }
+
+    SECTION("invalid nested metadata leaves an existing layout unchanged") {
+        request.filePath       = fix.AlgorithmRoot().string();
+        const auto layout_path = fix.AlgorithmRoot() / "505_Existing_20260715.json";
+        const nlohmann::json previous{{"algorithmCode", 505},
+                                      {"algorithmName", "Existing"},
+                                      {"algorithmMetadata", "{}"},
+                                      {"configVersionList", nlohmann::json::array()}};
+        REQUIRE(cosmo::util::JsonFileUtil::WriteJsonFile(layout_path.string(), previous) ==
+                cosmo::util::ErrorEnum::Success);
+        FORBID_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_));
+
+        request.algorithmMetadata = R"({"params":null})";
+        REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail);
+        nlohmann::json unchanged;
+        REQUIRE(cosmo::util::JsonFileUtil::ReadJsonFile(layout_path.string(), unchanged) ==
+                cosmo::util::ErrorEnum::Success);
+        CHECK(unchanged == previous);
+        REQUIRE(CountRegularFiles(fix.AlgorithmRoot()) == 1);
+        REQUIRE(CountRegularFiles(fix.outside_root) == 0);
+    }
+
+    SECTION("duplicate metadata keys leave an existing layout unchanged") {
+        request.filePath       = fix.AlgorithmRoot().string();
+        const auto layout_path = fix.AlgorithmRoot() / "505_Existing_20260715.json";
+        const nlohmann::json previous{{"algorithmCode", 505},
+                                      {"algorithmName", "Existing"},
+                                      {"algorithmMetadata", "{}"},
+                                      {"configVersionList", nlohmann::json::array()}};
+        REQUIRE(cosmo::util::JsonFileUtil::WriteJsonFile(layout_path.string(), previous) ==
+                cosmo::util::ErrorEnum::Success);
+        FORBID_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_));
+
+        request.algorithmMetadata =
+            R"({"params":[{"key":"param.threshold","value":"10"},{"key":"param.threshold","value":"20"}]})";
+        CHECK(service.LayoutSave(request) == cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail);
+
+        request.algorithmMetadata =
+            R"({"params":[{"key":"param.mode","value":"0"},{"key":"param.threshold","value":"10","dependsOn":{"key":"param.mode","value":"1"}},{"key":"param.threshold","value":"20","dependsOn":{"key":"param.mode","value":"2"}}]})";
+        CHECK(service.LayoutSave(request) == cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail);
+
+        nlohmann::json unchanged;
+        REQUIRE(cosmo::util::JsonFileUtil::ReadJsonFile(layout_path.string(), unchanged) ==
+                cosmo::util::ErrorEnum::Success);
+        CHECK(unchanged == previous);
+        REQUIRE(CountRegularFiles(fix.AlgorithmRoot()) == 1);
+        REQUIRE(CountRegularFiles(fix.outside_root) == 0);
+    }
+
+    SECTION("a unique conditional metadata parameter can be saved") {
+        request.filePath = fix.AlgorithmRoot().string();
+        request.algorithmMetadata =
+            R"({"params":[{"key":"param.mode","value":"1"},{"key":"param.threshold","value":"10","dependsOn":{"key":"param.mode","value":"1"}}]})";
+        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+            .RETURN(cosmo::util::ErrorEnum::Success);
+
         REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::Success);
         REQUIRE(CountRegularFiles(fix.AlgorithmRoot()) == 1);
         REQUIRE(CountRegularFiles(fix.outside_root) == 0);

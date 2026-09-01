@@ -691,6 +691,7 @@ export default {
     minTwoPoints: '请至少绘制2个点',
     fieldInvalid: '{field} 填写有误',
     regexInvalid: '{field} 正则有误',
+    duplicateTaskParamDescriptor: '参数 key 重复或结构定义冲突，请检查业务流程和自定义参数',
     enterTaskName: '请输入任务名称',
     enterAlgorithmId: '请输入算法ID',
     taskNameNoUnderscore: '任务名称不能包含下划线',

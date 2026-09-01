@@ -31,6 +31,10 @@ std::string FindThresholdValue(const MsgTaskConfig& config) {
                            [](const auto& param) { return param.key == std::string{"param.threshold"}; });
     return it == config.params.end() ? std::string{} : it->value.ToString();
 }
+
+std::string MakeThresholdMetadata() {
+    return R"json({"params":[{"key":"param.threshold","value":"5","defaultValue":"5","type":"text","senior":0,"channelEditable":true}]})json";
+}
 }  // namespace
 
 TEST_CASE("CameraTaskUnit pending apply does not wait for an in-flight service call",
@@ -39,6 +43,7 @@ TEST_CASE("CameraTaskUnit pending apply does not wait for an in-flight service c
     std::filesystem::remove_all(config_root);
 
     cosmo::test::MockServiceRegistry mocks;
+    ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeThresholdMetadata());
     CameraTaskUnit unit(config_root.string(), "single_flight_channel", "test_alg", {});
     REQUIRE(unit.SetParams(MakeThresholdConfig("6")) == util::ErrorEnum::Success);
 
@@ -97,6 +102,7 @@ TEST_CASE("CameraTaskUnit pending apply leaves a newer generation for the next c
     std::filesystem::remove_all(config_root);
 
     cosmo::test::MockServiceRegistry mocks;
+    ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeThresholdMetadata());
     CameraTaskUnit unit(config_root.string(), "bounded_apply_channel", "test_alg", {});
     REQUIRE(unit.SetParams(MakeThresholdConfig("6")) == util::ErrorEnum::Success);
 
@@ -131,6 +137,7 @@ TEST_CASE("CameraTaskUnit before-start apply waits for the current applier and t
     std::filesystem::remove_all(config_root);
 
     cosmo::test::MockServiceRegistry mocks;
+    ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeThresholdMetadata());
     CameraTaskUnit unit(config_root.string(), "before_start_channel", "test_alg", {});
     REQUIRE(unit.SetParams(MakeThresholdConfig("6")) == util::ErrorEnum::Success);
 
@@ -192,6 +199,7 @@ TEST_CASE("CameraTaskUnit keeps a failed generation pending for retry",
     std::filesystem::remove_all(config_root);
 
     cosmo::test::MockServiceRegistry mocks;
+    ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeThresholdMetadata());
     CameraTaskUnit unit(config_root.string(), "retry_channel", "test_alg", {});
     REQUIRE(unit.SetParams(MakeThresholdConfig("6")) == util::ErrorEnum::Success);
 
@@ -215,6 +223,7 @@ TEST_CASE("CameraTaskUnit reapplies an unchanged snapshot before each start",
     std::filesystem::remove_all(config_root);
 
     cosmo::test::MockServiceRegistry mocks;
+    ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeThresholdMetadata());
     CameraTaskUnit unit(config_root.string(), "restart_channel", "test_alg", {});
     REQUIRE(unit.SetParams(MakeThresholdConfig("5")) == util::ErrorEnum::Success);
 
@@ -233,6 +242,7 @@ TEST_CASE("CameraTaskUnit rejects same-thread before-start reentry without deadl
     std::filesystem::remove_all(config_root);
 
     cosmo::test::MockServiceRegistry mocks;
+    ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeThresholdMetadata());
     CameraTaskUnit unit(config_root.string(), "reentry_channel", "test_alg", {});
     REQUIRE(unit.SetParams(MakeThresholdConfig("8")) == util::ErrorEnum::Success);
 
@@ -252,6 +262,7 @@ TEST_CASE("CameraTaskUnit serializes a burst of concurrent parameter applies",
     std::filesystem::remove_all(config_root);
 
     cosmo::test::MockServiceRegistry mocks;
+    ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeThresholdMetadata());
     CameraTaskUnit unit(config_root.string(), "burst_channel", "test_alg", {});
     REQUIRE(unit.SetParams(MakeThresholdConfig("9")) == util::ErrorEnum::Success);
 

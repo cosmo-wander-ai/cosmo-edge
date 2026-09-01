@@ -5,6 +5,9 @@
 #include <algorithm>
 #include <exception>
 #include <filesystem>
+#include <iterator>
+#include <string_view>
+#include <unordered_set>
 
 #include "service/algorithm/IAlgorithmQuery.h"
 #include "service/detail/ServiceRegistry.h"
@@ -18,6 +21,45 @@
 #include "util/TimeUtil.h"
 
 namespace cosmo {
+namespace {
+    bool SameParamSnapshot(const std::vector<MsgDynamicKeyValue>& lhs,
+                           const std::vector<MsgDynamicKeyValue>& rhs) {
+        return lhs.size() == rhs.size() &&
+               std::equal(lhs.begin(), lhs.end(), rhs.begin(), [](const auto& left, const auto& right) {
+                   return left.key == right.key && left.value == right.value;
+               });
+    }
+
+    bool HasDuplicateParamKeys(const std::vector<MsgDynamicKeyValue>& params) {
+        std::unordered_set<std::string> keys;
+        keys.reserve(params.size());
+        return std::any_of(params.begin(), params.end(),
+                           [&](const auto& param) { return !keys.emplace(param.key.ToRefString()).second; });
+    }
+
+    bool SameStringSnapshot(const std::vector<std::string>& lhs, const std::vector<std::string>& rhs) {
+        return lhs == rhs;
+    }
+
+    bool ContainsKey(const std::vector<std::string>& keys, std::string_view key) {
+        return std::any_of(keys.begin(), keys.end(),
+                           [&](const auto& candidate) { return std::string_view(candidate) == key; });
+    }
+
+    bool AddKey(std::vector<std::string>& keys, const std::string& key) {
+        if (ContainsKey(keys, key)) {
+            return false;
+        }
+        keys.push_back(key);
+        return true;
+    }
+
+    bool IsKeyOnlyChannelCompatibilityException(std::string_view key) {
+        return key == cosmo::key::CHANNEL_SOURCE_REPEAT;
+    }
+
+}  // namespace
+
 CameraTaskUnit::CameraTaskUnit(const std::string& cameraCfgPath, const std::string& cameraId,
                                const std::string& algorithmCode, std::vector<ModelInfo> models)
     : conf_file_path_((std::filesystem::path(cameraCfgPath) / algorithmCode).string()),
@@ -52,18 +94,22 @@ CameraTaskUnit::~CameraTaskUnit() {
     LOG_INFO("[{}_{}] CameraTaskUnit Delete", channel_id_, algorithm_code_);
 }
 
-void CameraTaskUnit::SaveArea() {
+bool CameraTaskUnit::SaveArea() {
     auto path = (std::filesystem::path(cosmo::path::GetCfgPath(conf_file_path_)) / conf_area_file_).string();
     if (!util::SaveStructToJsonFile(path, conf_area_)) {
         LOG_WARN("[{}_{}] Failed to save area config to {}", channel_id_, algorithm_code_, path);
+        return false;
     }
+    return true;
 }
 
-void CameraTaskUnit::SaveParam() {
+bool CameraTaskUnit::SaveParam() {
     auto path = (std::filesystem::path(cosmo::path::GetCfgPath(conf_file_path_)) / conf_param_file_).string();
     if (!util::SaveStructToJsonFile(path, conf_param_)) {
         LOG_WARN("[{}_{}] Failed to save param config to {}", channel_id_, algorithm_code_, path);
+        return false;
     }
+    return true;
 }
 
 void CameraTaskUnit::SaveLibPara() {
@@ -88,49 +134,105 @@ void CameraTaskUnit::LoadConfig() {
 
     LOG_INFO("[{}_{}] Load..", channel_id_, algorithm_code_);
 
-    // Load failure may occur if parameters have never been set yet
+    auto metadataStr =
+        service::ServiceRegistry::Instance().Get<service::IAlgorithmQuery>().GetMetaData(algorithm_code_);
+    MsgAlgorithmMetaData metadata;
+    if (!DecodeAlgorithmMetadata(metadataStr, metadata) || !ValidateAlgorithmMetadataParams(metadata)) {
+        LOG_WARN(
+            "[{}/{}] Invalid algorithm metadata; refuse to create task with an unverified parameter "
+            "ownership policy",
+            channel_id_, algorithm_code_);
+        task_status_ = util::ErrorEnum::ActionAlgArrangeConfigFail;
+        return;
+    }
+    // A legacy param.json stores a full effective snapshot without provenance. Preserve only values
+    // that the old channel editor could actually expose. This keeps real historical channel overrides
+    // while preventing formerly hidden scene values from becoming overrides when channelEditable is
+    // introduced later.
+    auto legacyOwnershipParams = metadata.params;
+    for (auto& param : legacyOwnershipParams) {
+        param.channelEditable.reset();
+    }
+    MsgDynamicElement::NormalizeLegacyChannelOwnership(legacyOwnershipParams);
+    std::vector<bool> legacyChannelEditable;
+    legacyChannelEditable.reserve(legacyOwnershipParams.size());
+    std::transform(legacyOwnershipParams.begin(), legacyOwnershipParams.end(),
+                   std::back_inserter(legacyChannelEditable),
+                   [](const auto& param) { return param.IsChannelEditable(); });
+    MsgDynamicElement::NormalizeLegacyChannelOwnership(metadata.params);
+    metadata_params_ = std::move(metadata.params);
+
+    // A missing or unreadable param file means that the metadata baseline is the whole snapshot. An
+    // existing empty snapshot and an algorithm with no metadata params are both valid.
     auto paramPath =
         (std::filesystem::path(cosmo::path::GetCfgPath(conf_file_path_)) / conf_param_file_).string();
-    if ((!util::LoadStructFromJsonFile(paramPath, conf_param_)) || (conf_param_.params.empty())) {
-        LOG_INFO("[{}/{}] Config load failed, fetching defaults from algorithm package", channel_id_,
-                 algorithm_code_);
-        {
-            auto metadataStr =
-                service::ServiceRegistry::Instance().Get<service::IAlgorithmQuery>().GetMetaData(
-                    algorithm_code_);
-            MsgAlgorithmMetaData metadata;
-            if (!util::DecodeJson(metadataStr, metadata)) {
-                task_status_ = util::ErrorEnum::ActionAlgArrangeConfigFail;
-                return;
-            }
-            conf_param_.params.insert(conf_param_.params.begin(), metadata.params.begin(),
-                                      metadata.params.end());
-            SaveParam();
-        }
-    } else {
-        // Config loaded successfully, but algorithm metadata may have added new parameters
-        // (e.g. filter.face.side.min). Merge new params into saved config to avoid old tasks
-        // missing new parameters.
-        auto metadataStr =
-            service::ServiceRegistry::Instance().Get<service::IAlgorithmQuery>().GetMetaData(algorithm_code_);
-        MsgAlgorithmMetaData metadata;
-        if (util::DecodeJson(metadataStr, metadata)) {
-            int mergedCount = 0;
-            for (const auto& metaParam : metadata.params) {
-                bool exists = std::any_of(
-                    conf_param_.params.begin(), conf_param_.params.end(),
-                    [&metaParam](const auto& localParam) { return localParam.key == metaParam.key; });
-                if (!exists) {
-                    conf_param_.params.push_back(metaParam);
-                    mergedCount++;
-                }
-            }
-            if (mergedCount > 0) {
-                LOG_INFO("[{}/{}] Merged {} new params from algorithm metadata, total: {}", channel_id_,
-                         algorithm_code_, mergedCount, conf_param_.params.size());
-                SaveParam();
+    CameraTaskUnitParam persisted;
+    const bool persistedLoaded = util::LoadStructFromJsonFile(paramPath, persisted);
+
+    std::vector<MsgDynamicKeyValue> effectiveParams;
+    std::vector<std::string> effectiveOverrideKeys;
+    effectiveParams.reserve(metadata_params_.size() + persisted.params.size());
+    effectiveOverrideKeys.reserve(metadata_params_.size());
+    for (size_t index = 0; index < metadata_params_.size(); ++index) {
+        const auto& metaParam             = metadata_params_[index];
+        MsgDynamicKeyValue effectiveParam = metaParam;
+        bool usePersistedOverride         = false;
+        if (persistedLoaded && metaParam.IsChannelEditable()) {
+            if (persisted.channelOverrideKeysPresent) {
+                usePersistedOverride =
+                    ContainsKey(persisted.channelOverrideKeys, metaParam.key.ToRefString());
+            } else {
+                // Legacy files contain only a full effective snapshot. The pre-provenance visibility
+                // policy is the strongest available evidence of whether this value came from the channel.
+                usePersistedOverride = legacyChannelEditable[index];
             }
         }
+        if (usePersistedOverride) {
+            auto localIt = std::find_if(
+                persisted.params.begin(), persisted.params.end(),
+                [&metaParam](const auto& localParam) { return localParam.key == metaParam.key; });
+            if (localIt != persisted.params.end()) {
+                effectiveParam.value = localIt->value;
+                effectiveOverrideKeys.push_back(metaParam.key.ToString());
+            }
+        }
+        effectiveParams.push_back(std::move(effectiveParam));
+    }
+
+    // Unknown historical keys cannot keep overriding the scene merely because an old full snapshot
+    // happened to contain them.  videoRepeatCount is the sole key-level compatibility exception;
+    // retroDirect remains compatible only while a descriptor of that type still exists above.
+    if (persistedLoaded) {
+        for (const auto& localParam : persisted.params) {
+            const bool described =
+                std::any_of(metadata_params_.begin(), metadata_params_.end(),
+                            [&localParam](const auto& metaParam) { return metaParam.key == localParam.key; });
+            const bool marked = !persisted.channelOverrideKeysPresent ||
+                                ContainsKey(persisted.channelOverrideKeys, localParam.key.ToRefString());
+            const bool alreadyAdded =
+                std::any_of(effectiveParams.begin(), effectiveParams.end(),
+                            [&localParam](const auto& param) { return param.key == localParam.key; });
+            if (!described && !alreadyAdded && marked &&
+                IsKeyOnlyChannelCompatibilityException(localParam.key.ToRefString())) {
+                effectiveParams.push_back(localParam);
+                AddKey(effectiveOverrideKeys, localParam.key.ToString());
+            }
+        }
+    }
+
+    const bool paramsChanged = !persistedLoaded || !SameParamSnapshot(persisted.params, effectiveParams) ||
+                               !persisted.channelOverrideKeysPresent ||
+                               !SameStringSnapshot(persisted.channelOverrideKeys, effectiveOverrideKeys);
+    conf_param_                            = persistedLoaded ? std::move(persisted) : CameraTaskUnitParam{};
+    conf_param_.params                     = std::move(effectiveParams);
+    conf_param_.channelOverrideKeys        = std::move(effectiveOverrideKeys);
+    conf_param_.channelOverrideKeysPresent = true;
+    if (paramsChanged) {
+        conf_param_.sign += 1;
+        modify_sign_ += 1;
+        LOG_INFO("[{}/{}] Rebuilt effective params from metadata, total:{} generation:{}", channel_id_,
+                 algorithm_code_, conf_param_.params.size(), modify_sign_);
+        (void)SaveParam();
     }
     auto algData =
         service::ServiceRegistry::Instance().Get<service::IAlgorithmQuery>().GetAlgorithm(algorithm_code_);
@@ -373,6 +475,8 @@ void CameraTaskUnit::EnableParamConfidences(MsgTaskConfig& param,
 util::ErrorEnum CameraTaskUnit::SetArea(const std::vector<MsgTaskArea>& areas,
                                         const std::vector<MsgTaskArea>& shieldedAreas) {
     std::lock_guard<std::shared_mutex> lock(mtx_);
+    const auto previousArea       = conf_area_;
+    const auto previousModifySign = modify_sign_;
 
     LOG_INFO("[{}_{}] Set Area Size From {} To {}", channel_id_, algorithm_code_, conf_area_.areas.size(),
              areas.size());
@@ -380,7 +484,11 @@ util::ErrorEnum CameraTaskUnit::SetArea(const std::vector<MsgTaskArea>& areas,
     conf_area_.shieldedAreas = shieldedAreas;
     conf_area_.sign += 1;
     modify_sign_ += 1;
-    SaveArea();
+    if (!SaveArea()) {
+        conf_area_   = previousArea;
+        modify_sign_ = previousModifySign;
+        return util::ErrorEnum::FileOpenFailed;
+    }
     return util::ErrorEnum::Success;
 }
 
@@ -394,11 +502,58 @@ util::ErrorEnum CameraTaskUnit::GetArea(std::vector<MsgTaskArea>& areas,
 }
 
 util::ErrorEnum CameraTaskUnit::SetParams(const MsgTaskConfig& params) {
-    auto ret = SetParams(params.params);
-    if (util::ErrorEnum::Success != ret) {
-        return ret;
+    // BindTaskLibPara uses this trusted path for channel-level library selectors.  It has the same
+    // ownership and transactional requirements as a channel form update.
+    return SetChannelParams(params);
+}
+
+util::ErrorEnum CameraTaskUnit::SetChannelParams(const MsgTaskConfig& params) {
+    if (HasDuplicateParamKeys(params.params)) {
+        LOG_WARN("[{}/{}] Reject channel parameter snapshot with duplicate keys", channel_id_,
+                 algorithm_code_);
+        return util::ErrorEnum::InvalidParam;
     }
-    return SetArea(params.areas, params.shieldedAreas);
+    std::lock_guard<std::shared_mutex> lock(mtx_);
+    const auto previousParam      = conf_param_;
+    const auto previousArea       = conf_area_;
+    const auto previousModifySign = modify_sign_;
+    const auto paramChangeCount   = MergeChannelParamsLocked(params.params);
+
+    LOG_INFO("[{}_{}] Set Area Size From {} To {}", channel_id_, algorithm_code_, conf_area_.areas.size(),
+             params.areas.size());
+    conf_area_.areas         = params.areas;
+    conf_area_.shieldedAreas = params.shieldedAreas;
+    conf_area_.sign += 1;
+    modify_sign_ += 1;
+    if (!SaveArea()) {
+        conf_param_  = previousParam;
+        conf_area_   = previousArea;
+        modify_sign_ = previousModifySign;
+        if (!SaveArea()) {
+            LOG_ERRO("[{}/{}] Failed to restore area config after channel update failure", channel_id_,
+                     algorithm_code_);
+        }
+        return util::ErrorEnum::FileOpenFailed;
+    }
+
+    if (paramChangeCount > 0) {
+        LOG_INFO("[{}/{}] Have {} Channel Params Changed", channel_id_, algorithm_code_, paramChangeCount);
+        conf_param_.sign += 1;
+        modify_sign_ += 1;
+        if (!SaveParam()) {
+            conf_param_              = previousParam;
+            conf_area_               = previousArea;
+            modify_sign_             = previousModifySign;
+            const bool areaRestored  = SaveArea();
+            const bool paramRestored = SaveParam();
+            if (!areaRestored || !paramRestored) {
+                LOG_ERRO("[{}/{}] Failed to fully restore persisted config after channel update failure",
+                         channel_id_, algorithm_code_);
+            }
+            return util::ErrorEnum::FileOpenFailed;
+        }
+    }
+    return util::ErrorEnum::Success;
 }
 
 util::ErrorEnum CameraTaskUnit::SetLibPara(std::vector<std::string>& libParaId) {
@@ -409,41 +564,128 @@ util::ErrorEnum CameraTaskUnit::SetLibPara(std::vector<std::string>& libParaId) 
 }
 
 util::ErrorEnum CameraTaskUnit::SetParams(std::vector<MsgDynamicKeyValue> params) {
-    std::lock_guard<std::shared_mutex> lock(mtx_);
-    int paramChangeCount = 0;
-    for (auto& paramUnit : params) {
-        bool bFindKey = false;
-        for (auto& localUnit : conf_param_.params) {
-            if (paramUnit.key != localUnit.key) {
-                continue;
-            }
+    return SetChannelParams(std::move(params));
+}
 
-            if (paramUnit.value != localUnit.value) {
-                LOG_INFO("[{}_{}] Param:{} Set From {} To {}", channel_id_, algorithm_code_, localUnit.key,
-                         localUnit.value, paramUnit.value);
-                localUnit.value = paramUnit.value;
-                paramChangeCount += 1;
-            }
-            bFindKey = true;
-            break;
+util::ErrorEnum CameraTaskUnit::SetChannelParams(std::vector<MsgDynamicKeyValue> params) {
+    if (HasDuplicateParamKeys(params)) {
+        LOG_WARN("[{}/{}] Reject channel parameter patch with duplicate keys", channel_id_, algorithm_code_);
+        return util::ErrorEnum::InvalidParam;
+    }
+    std::lock_guard<std::shared_mutex> lock(mtx_);
+    const auto previousParam      = conf_param_;
+    const auto previousModifySign = modify_sign_;
+    const auto paramChangeCount   = MergeChannelParamsLocked(std::move(params));
+    if (paramChangeCount > 0) {
+        LOG_INFO("[{}/{}] Have {} Channel Params Changed", channel_id_, algorithm_code_, paramChangeCount);
+        conf_param_.sign += 1;
+        modify_sign_ += 1;
+        if (!SaveParam()) {
+            conf_param_  = previousParam;
+            modify_sign_ = previousModifySign;
+            return util::ErrorEnum::FileOpenFailed;
+        }
+    }
+    return util::ErrorEnum::Success;
+}
+
+size_t CameraTaskUnit::MergeChannelParamsLocked(std::vector<MsgDynamicKeyValue> params) {
+    size_t paramChangeCount = 0;
+
+    conf_param_.channelOverrideKeysPresent = true;
+
+    // Metadata ownership may become stricter after an upgrade.  Never let a stale marker retain
+    // authority over a scene-owned or deleted key (apart from the one key-level compatibility item).
+    for (auto it = conf_param_.channelOverrideKeys.begin(); it != conf_param_.channelOverrideKeys.end();) {
+        const auto metaIt  = std::find_if(metadata_params_.begin(), metadata_params_.end(),
+                                          [&](const auto& metaParam) { return metaParam.key == *it; });
+        const bool allowed = metaIt != metadata_params_.end() ? metaIt->IsChannelEditable()
+                                                              : IsKeyOnlyChannelCompatibilityException(*it);
+        if (!allowed) {
+            it = conf_param_.channelOverrideKeys.erase(it);
+            paramChangeCount += 1;
+        } else {
+            ++it;
+        }
+    }
+
+    // Restore every scene-managed key defensively before considering the channel patch, including
+    // keys omitted by the caller.
+    for (const auto& metaParam : metadata_params_) {
+        if (metaParam.IsChannelEditable()) {
+            continue;
         }
 
-        if (false == bFindKey) {
-            LOG_WARN("[{}_{}] Param:{}({}) Not Found In Local", channel_id_, algorithm_code_, paramUnit.key,
-                     paramUnit.value);
-            conf_param_.params.push_back(paramUnit);
+        auto localIt =
+            std::find_if(conf_param_.params.begin(), conf_param_.params.end(),
+                         [&metaParam](const auto& localParam) { return localParam.key == metaParam.key; });
+        if (localIt == conf_param_.params.end()) {
+            conf_param_.params.push_back(metaParam);
+            paramChangeCount += 1;
+        } else if (localIt->value != metaParam.value) {
+            LOG_INFO("[{}_{}] Restore scene-managed param:{} From {} To {}", channel_id_, algorithm_code_,
+                     localIt->key, localIt->value, metaParam.value);
+            localIt->value = metaParam.value;
             paramChangeCount += 1;
         }
     }
 
-    if (paramChangeCount > 0) {
-        LOG_INFO("[{}/{}] Have {}'st Param Changed", channel_id_, algorithm_code_, paramChangeCount);
-        conf_param_.sign += 1;
-        modify_sign_ += 1;
-        paramChangeCount += 1;
-        SaveParam();
+    for (auto& paramUnit : params) {
+        const auto paramKey = paramUnit.key.ToString();
+        auto metaIt =
+            std::find_if(metadata_params_.begin(), metadata_params_.end(),
+                         [&paramUnit](const auto& metaParam) { return metaParam.key == paramUnit.key; });
+        if (metaIt != metadata_params_.end() && !metaIt->IsChannelEditable()) {
+            LOG_WARN("[{}_{}] Ignore channel update for scene-managed param:{} requested:{} baseline:{}",
+                     channel_id_, algorithm_code_, paramUnit.key, paramUnit.value, metaIt->value);
+            continue;
+        }
+
+        if (metaIt == metadata_params_.end() &&
+            !IsKeyOnlyChannelCompatibilityException(paramUnit.key.ToRefString())) {
+            LOG_WARN("[{}_{}] Ignore unknown channel param:{}({})", channel_id_, algorithm_code_,
+                     paramUnit.key, paramUnit.value);
+            continue;
+        }
+
+        auto localIt =
+            std::find_if(conf_param_.params.begin(), conf_param_.params.end(),
+                         [&paramUnit](const auto& localParam) { return localParam.key == paramUnit.key; });
+        if (localIt == conf_param_.params.end()) {
+            LOG_INFO("[{}_{}] Add channel param:{}({})", channel_id_, algorithm_code_, paramUnit.key,
+                     paramUnit.value);
+            conf_param_.params.push_back(std::move(paramUnit));
+            paramChangeCount += 1;
+        } else if (localIt->value != paramUnit.value) {
+            LOG_INFO("[{}_{}] Channel param:{} Set From {} To {}", channel_id_, algorithm_code_, localIt->key,
+                     localIt->value, paramUnit.value);
+            localIt->value = paramUnit.value;
+            paramChangeCount += 1;
+        }
+        if (AddKey(conf_param_.channelOverrideKeys, paramKey)) {
+            paramChangeCount += 1;
+        }
     }
-    return util::ErrorEnum::Success;
+
+    std::vector<std::string> canonicalOverrideKeys;
+    canonicalOverrideKeys.reserve(conf_param_.channelOverrideKeys.size());
+    for (const auto& metaParam : metadata_params_) {
+        if (ContainsKey(conf_param_.channelOverrideKeys, metaParam.key.ToRefString())) {
+            canonicalOverrideKeys.push_back(metaParam.key.ToString());
+        }
+    }
+    if (ContainsKey(conf_param_.channelOverrideKeys, cosmo::key::CHANNEL_SOURCE_REPEAT) &&
+        std::none_of(metadata_params_.begin(), metadata_params_.end(), [](const auto& metaParam) {
+            return std::string_view(metaParam.key.ToRefString()) == cosmo::key::CHANNEL_SOURCE_REPEAT;
+        })) {
+        canonicalOverrideKeys.emplace_back(std::string(cosmo::key::CHANNEL_SOURCE_REPEAT));
+    }
+    if (!SameStringSnapshot(conf_param_.channelOverrideKeys, canonicalOverrideKeys)) {
+        conf_param_.channelOverrideKeys = std::move(canonicalOverrideKeys);
+        paramChangeCount += 1;
+    }
+
+    return paramChangeCount;
 }
 
 std::vector<MsgDynamicKeyValue> CameraTaskUnit::GetParams() const {
@@ -459,12 +701,19 @@ std::vector<MsgDynamicKeyValue> CameraTaskUnit::GetParams() const {
 // Auto-generated JSON serialization
 namespace cosmo {
 void from_json(const nlohmann::json& j, CameraTaskUnitParam& v) {
+    v.params.clear();
     if (j.contains("params") && !j["params"].is_null())
         j.at("params").get_to(v.params);
+    v.channelOverrideKeys.clear();
+    v.channelOverrideKeysPresent = j.contains("channelOverrideKeys");
+    if (v.channelOverrideKeysPresent) {
+        j.at("channelOverrideKeys").get_to(v.channelOverrideKeys);
+    }
 }
 
 void to_json(nlohmann::json& j, const CameraTaskUnitParam& v) {
-    j["params"] = v.params;
+    j["params"]              = v.params;
+    j["channelOverrideKeys"] = v.channelOverrideKeys;
 }
 
 void from_json(const nlohmann::json& j, CameraTaskUnitArea& v) {

@@ -2,7 +2,10 @@
 
 #include "AlgorithmMsgTypes.h"
 
+#include <algorithm>
+#include <exception>
 #include <nlohmann/json.hpp>
+#include <unordered_set>
 
 #include "util/JsonFieldOpt.h"
 #include "util/LimitedTypeJson.h"
@@ -106,6 +109,30 @@ void to_json(nlohmann::json& j, const MsgAlgorithmMetaData& v) {
     j["scheduleSupport"]   = v.scheduleSupport;
     j["defaultFullScreen"] = v.defaultFullScreen;
     j["maxAreaCount"]      = v.maxAreaCount;
+}
+
+bool DecodeAlgorithmMetadata(const std::string& encoded, MsgAlgorithmMetaData& metadata) {
+    try {
+        const auto document = nlohmann::json::parse(encoded);
+        if (!document.is_object()) {
+            return false;
+        }
+        const auto params = document.find("params");
+        if (params != document.end() && !params->is_array()) {
+            return false;
+        }
+        document.get_to(metadata);
+        return true;
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
+bool ValidateAlgorithmMetadataParams(const MsgAlgorithmMetaData& metadata) {
+    std::unordered_set<std::string> keys;
+    keys.reserve(metadata.params.size());
+    return std::all_of(metadata.params.begin(), metadata.params.end(),
+                       [&](const auto& param) { return keys.emplace(param.key.ToRefString()).second; });
 }
 
 }  // namespace cosmo

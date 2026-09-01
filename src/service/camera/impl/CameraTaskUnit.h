@@ -30,6 +30,11 @@ struct CameraTaskConfidenceConfig {
 
 struct CameraTaskUnitParam {
     std::vector<MsgDynamicKeyValue> params;
+    // Keys whose values were explicitly supplied by the channel.  The
+    // presence bit distinguishes legacy full snapshots (field absent) from a
+    // canonical snapshot with no channel overrides (empty array).
+    std::vector<std::string> channelOverrideKeys;
+    bool channelOverrideKeysPresent{false};
     size_t sign{0};  // Incremented on each modification
     friend void to_json(nlohmann::json& j, const CameraTaskUnitParam& v);
     friend void from_json(const nlohmann::json& j, CameraTaskUnitParam& v);
@@ -65,6 +70,8 @@ public:
     util::ErrorEnum GetArea(std::vector<MsgTaskArea>& areas, std::vector<MsgTaskArea>& shieldedAreas);
     util::ErrorEnum SetParams(std::vector<MsgDynamicKeyValue> params);
     util::ErrorEnum SetParams(const MsgTaskConfig& params);
+    util::ErrorEnum SetChannelParams(std::vector<MsgDynamicKeyValue> params);
+    util::ErrorEnum SetChannelParams(const MsgTaskConfig& params);
     util::ErrorEnum SetLibPara(std::vector<std::string>& libParaId);
 
     [[nodiscard]] std::vector<MsgDynamicKeyValue> GetParams() const;
@@ -75,11 +82,12 @@ public:
     void RefreshModels(std::vector<ModelInfo> models);
 
 private:
-    void SaveParam();
-    void SaveArea();
+    [[nodiscard]] bool SaveParam();
+    [[nodiscard]] bool SaveArea();
     void SaveLibPara();
     void LoadConfig();
     void EnableParamConfidences(MsgTaskConfig& param, const std::vector<ModelInfo>& models);
+    size_t MergeChannelParamsLocked(std::vector<MsgDynamicKeyValue> params);
     void EnableParamConfidences(MsgTaskConfig& param, std::vector<std::string> labelsNeedConfidence,
                                 const std::vector<CameraTaskConfidenceConfig>& confidenceConfigs,
                                 const std::vector<ModelInfo>& models);
@@ -106,6 +114,7 @@ private:
     std::string task_id_{};
     util::ErrorEnum task_status_{util::ErrorEnum::Success};
     std::vector<ModelInfo> models_;
+    std::vector<MsgDynamicElement> metadata_params_;
     CameraTaskUnitParam conf_param_{};
     CameraTaskUnitArea conf_area_{};
     CameraTaskUnitLibPara conf_lib_param_{};

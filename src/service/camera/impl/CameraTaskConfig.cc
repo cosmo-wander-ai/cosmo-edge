@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <unordered_set>
 #include <utility>
 
 #include "flow/channel/AlgChannel.h"
@@ -39,6 +40,13 @@ namespace {
             }
         }
         return models;
+    }
+
+    bool ContainsDuplicateRequestParamKeys(const MsgTaskConfig& config) {
+        std::unordered_set<std::string> keys;
+        keys.reserve(config.params.size());
+        return std::any_of(config.params.begin(), config.params.end(),
+                           [&](const auto& param) { return !keys.emplace(param.key.ToRefString()).second; });
     }
 }  // namespace
 
@@ -90,6 +98,11 @@ util::ErrorEnum CameraServiceImpl::SaveOrUpdateTask(const std::string& cameraId,
                                                     const std::string& algorithmId,
                                                     const MsgTaskConfig& params,
                                                     const std::string& scheduleId) {
+    if (ContainsDuplicateRequestParamKeys(params)) {
+        LOG_WARN("[{}/{}] SaveOrUpdate rejected duplicate parameter keys", cameraId, algorithmId);
+        return util::ErrorEnum::InvalidParam;
+    }
+
     auto camera = GetCamera(cameraId);
     if (!camera) {
         LOG_INFO("{} Not Exist", cameraId);
@@ -140,18 +153,9 @@ util::ErrorEnum CameraServiceImpl::SaveOrUpdateTask(const std::string& cameraId,
         auto it = std::find_if(camera->tasks_.begin(), camera->tasks_.end(),
                                [&](const CameraTaskPtr& cfg) { return cfg->algorithm_code_ == algorithmId; });
         if (it != camera->tasks_.end()) {
-            task = *it;
-            MsgTaskConfig previous;
-            previous.params = task->task_->GetParams();
-            task->task_->GetArea(previous.areas, previous.shieldedAreas);
-
-            auto ret = task->task_->SetParams(params);
+            task     = *it;
+            auto ret = task->task_->SetChannelParams(params);
             if (util::ErrorEnum::Success != ret) {
-                auto rollback_ret = task->task_->SetParams(previous);
-                if (util::ErrorEnum::Success != rollback_ret) {
-                    LOG_ERRO("[{}/{}] SaveOrUpdate parameter rollback failed: {}", cameraId, algorithmId,
-                             static_cast<uint32_t>(rollback_ret));
-                }
                 return ret;
             }
         } else {
@@ -161,17 +165,18 @@ util::ErrorEnum CameraServiceImpl::SaveOrUpdateTask(const std::string& cameraId,
             if (util::ErrorEnum::Success != ret) {
                 return ret;
             }
-            ret = task->task_->SetParams(params);
+            ret = task->task_->SetChannelParams(params);
             if (util::ErrorEnum::Success != ret) {
                 return ret;
             }
             camera->tasks_.push_back(task);
         }
 
-        const bool was_enabled = task->is_enabled_.load(std::memory_order_acquire);
-        task->data_.taskConfig = params;
-        task->schedule_id_     = scheduleId;
-        task->schedule_name_   = scheduleName;
+        const bool was_enabled        = task->is_enabled_.load(std::memory_order_acquire);
+        task->data_.taskConfig        = params;
+        task->data_.taskConfig.params = task->task_->GetParams();
+        task->schedule_id_            = scheduleId;
+        task->schedule_name_          = scheduleName;
         task->is_enabled_.store(true, std::memory_order_release);
         SaveCameraTaskList(camera);
         start_task = !was_enabled;
@@ -185,6 +190,11 @@ util::ErrorEnum CameraServiceImpl::SaveOrUpdateTask(const std::string& cameraId,
 
 util::ErrorEnum CameraServiceImpl::ModifyTaskParam(const std::string& cameraId,
                                                    const std::string& algorithmId, MsgTaskConfig& params) {
+    if (ContainsDuplicateRequestParamKeys(params)) {
+        LOG_WARN("[{}/{}] SetParams rejected duplicate parameter keys", cameraId, algorithmId);
+        return util::ErrorEnum::InvalidParam;
+    }
+
     return WithCamera(cameraId, [&](const CameraEntityPtr& camera) {
         std::lock_guard<std::shared_mutex> lock(camera->task_mtx_);
 
@@ -195,7 +205,7 @@ util::ErrorEnum CameraServiceImpl::ModifyTaskParam(const std::string& cameraId,
                 LOG_WARN("[{}/{}] SetParams skipped because task unit is not ready", cameraId, algorithmId);
                 return util::ErrorEnum::TaskCreateFailed;
             }
-            return (*it)->task_->SetParams(params);
+            return (*it)->task_->SetChannelParams(params);
         }
         CameraTaskPtr task    = std::make_shared<CameraTask>();
         task->algorithm_code_ = algorithmId;
@@ -204,7 +214,11 @@ util::ErrorEnum CameraServiceImpl::ModifyTaskParam(const std::string& cameraId,
             return task_ret;
         }
         task->data_.taskConfig = params;
-        auto ret               = task->task_->SetParams(params);
+        auto ret               = task->task_->SetChannelParams(params);
+        if (util::ErrorEnum::Success != ret) {
+            return ret;
+        }
+        task->data_.taskConfig.params = task->task_->GetParams();
         camera->tasks_.push_back(task);
         SaveCameraTaskList(camera);
         return ret;
