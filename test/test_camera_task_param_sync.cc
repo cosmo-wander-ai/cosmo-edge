@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "catch_amalgamated.hpp"
+#include "mock/MockAlgorithmService.h"
 #include "mock/MockServiceRegistry.h"
 #include "mock/MockTaskService.h"
 #include "service/camera/impl/CameraTaskUnit.h"
