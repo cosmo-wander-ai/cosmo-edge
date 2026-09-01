@@ -147,86 +147,37 @@ void CameraTaskUnit::LoadConfig() {
         return;
     }
     task_created_ = true;
-    (void)ApplyLatestTaskConfig();
+    TaskEnableParam();
     task_status_ = util::ErrorEnum::Success;
 }
 
-bool CameraTaskUnit::ApplyLatestTaskConfig(ParamApplyMode mode) {
-    {
-        std::unique_lock<std::mutex> lock(apply_state_mtx_);
-        if (apply_in_progress_ && apply_owner_ == std::this_thread::get_id()) {
-            LOG_WARN("[{}_{}] Reject reentrant task parameter apply", channel_id_, task_id_);
-            return false;
-        }
-        if (mode == ParamApplyMode::kPendingOnly && apply_in_progress_) {
-            return false;
-        }
-        if (mode == ParamApplyMode::kBeforeStart) {
-            apply_state_cv_.wait(lock, [this]() { return !apply_in_progress_; });
-        }
-        apply_in_progress_ = true;
-        apply_owner_       = std::this_thread::get_id();
+void CameraTaskUnit::TaskEnableParam() {
+    if (task_status_ != util::ErrorEnum::Success) {
+        LOG_WARN("[{}_{}] Skip Set Param because task is not ready, status:{}", channel_id_, task_id_,
+                 static_cast<uint32_t>(task_status_));
+        return;
+    }
+    if (modify_sign_ == enable_sign_) {
+        return;
     }
 
-    struct ApplySlotGuard {
-        std::mutex& mutex;
-        std::condition_variable& cv;
-        bool& inProgress;
-        std::thread::id& owner;
-
-        ~ApplySlotGuard() {
-            {
-                std::lock_guard<std::mutex> lock(mutex);
-                inProgress = false;
-                owner      = std::thread::id{};
-            }
-            cv.notify_all();
-        }
-    } applySlotGuard{apply_state_mtx_, apply_state_cv_, apply_in_progress_, apply_owner_};
-
     MsgTaskConfig param;
-    std::vector<ModelInfo> models;
-    size_t targetGeneration = 0;
     {
         std::shared_lock<std::shared_mutex> lock(mtx_);
-        if (task_status_ != util::ErrorEnum::Success) {
-            LOG_WARN("[{}_{}] Skip Set Param because task is not ready, status:{}", channel_id_, task_id_,
-                     static_cast<uint32_t>(task_status_));
-            return false;
-        }
-        if (mode == ParamApplyMode::kPendingOnly && modify_sign_ == enable_sign_) {
-            return true;
-        }
-        targetGeneration = modify_sign_;
         param.params.insert(param.params.end(), conf_param_.params.begin(), conf_param_.params.end());
         param.areas         = conf_area_.areas;
         param.shieldedAreas = conf_area_.shieldedAreas;
-        models              = models_;
     }
     LOG_INFO("[{}_{}] Set Param: ParamSize:{} AreaSize:{}", channel_id_, task_id_, param.params.size(),
              param.areas.size());
-    EnableParamConfidences(param, models);
+    EnableParamConfidences(param);
 
-    bool applied = false;
-    try {
-        applied = service::ServiceRegistry::Instance()
-                      .Get<cosmo::service::ITaskLifecycle>()
-                      .SetTaskParam(channel_id_, task_id_, param);
-    } catch (const std::exception& error) {
-        LOG_WARN("[{}_{}] Set task parameters threw an exception: {}", channel_id_, task_id_, error.what());
-    } catch (...) {
-        LOG_WARN("[{}_{}] Set task parameters threw an unknown exception", channel_id_, task_id_);
-    }
-
-    bool latestGenerationApplied = false;
-    if (applied) {
-        std::lock_guard<std::shared_mutex> lock(mtx_);
-        enable_sign_            = targetGeneration;
-        latestGenerationApplied = modify_sign_ == targetGeneration;
+    if (service::ServiceRegistry::Instance().Get<cosmo::service::ITaskLifecycle>().SetTaskParam(
+            channel_id_, task_id_, param)) {
+        enable_sign_ = modify_sign_;
     } else {
         LOG_WARN("[{}_{}] Set task parameters failed; keep change pending for retry", channel_id_, task_id_);
     }
-    return applied && latestGenerationApplied;
 }
 
 util::ErrorEnum CameraTaskUnit::GetStatus() const {
@@ -243,10 +194,10 @@ void CameraTaskUnit::RefreshModels(std::vector<ModelInfo> models) {
         models_ = std::move(models);
         modify_sign_ += 1;
     }
-    (void)ApplyLatestTaskConfig();
+    TaskEnableParam();
 }
 
-void CameraTaskUnit::EnableParamConfidences(MsgTaskConfig& param, const std::vector<ModelInfo>& models) {
+void CameraTaskUnit::EnableParamConfidences(MsgTaskConfig& param) {
     std::vector<std::string>
         labelsNeedConfidence;  // Labels needing confidence (aiParam.xxx.confidence with empty value)
     std::vector<CameraTaskConfidenceConfig> confidenceConfigs;  // All aiParam.xxx.confidenceConfig entries
@@ -272,7 +223,7 @@ void CameraTaskUnit::EnableParamConfidences(MsgTaskConfig& param, const std::vec
         }
     }
 
-    EnableParamConfidences(param, labelsNeedConfidence, confidenceConfigs, models);
+    EnableParamConfidences(param, labelsNeedConfidence, confidenceConfigs);
 }
 
 CameraTaskConfidenceConfig CameraTaskUnit::GetConfidenceConfig(
@@ -292,9 +243,8 @@ CameraTaskConfidenceConfig CameraTaskUnit::GetConfidenceConfig(
 }
 
 // Retrieve high/low confidence thresholds from model labels
-bool CameraTaskUnit::GetConfidence(const std::string& label, const std::vector<ModelInfo>& models,
-                                   float& confidenceHigh, float& confidence) const {
-    for (const auto& model : models) {
+bool CameraTaskUnit::GetConfidence(const std::string& label, float& confidenceHigh, float& confidence) const {
+    for (auto& model : models_) {
         auto it = std::find_if(model.labels.begin(), model.labels.end(),
                                [&label](const auto& labelInfo) { return label == labelInfo.code; });
         if (it != model.labels.end()) {
@@ -345,7 +295,7 @@ float CameraTaskUnit::CalcConfidence(const CameraTaskConfidenceConfig& config, f
 
 void CameraTaskUnit::EnableParamConfidences(
     MsgTaskConfig& param, std::vector<std::string> labelsNeedConfidence,
-    const std::vector<CameraTaskConfidenceConfig>& confidenceConfigs, const std::vector<ModelInfo>& models) {
+    const std::vector<CameraTaskConfidenceConfig>& confidenceConfigs) {
     for (auto needConfidenceLabel : labelsNeedConfidence)  // All labels requiring confidence config
     {
         for (auto& actionKeyParam : param.params) {
@@ -357,7 +307,7 @@ void CameraTaskUnit::EnableParamConfidences(
                 float confidenceHigh  = 0.10f;
                 float confidence      = 0.10f;
                 // Retrieve strict/normal confidence from model labels
-                (void)GetConfidence(needConfidenceLabel, models, confidenceHigh, confidence);
+                (void)GetConfidence(needConfidenceLabel, confidenceHigh, confidence);
                 // Calculate confidence from confidenceConfig and strict/normal thresholds
                 actionKeyParam.value =
                     std::to_string(CalcConfidence(confidenceConfig, confidenceHigh, confidence));

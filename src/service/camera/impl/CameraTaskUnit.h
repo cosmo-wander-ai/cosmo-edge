@@ -2,12 +2,10 @@
 
 #pragma once
 
-#include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
 #include <string>
-#include <thread>
 
 #include "service/model/IModelService.h"
 #include "util/MsgBaseTypes.h"
@@ -51,11 +49,6 @@ struct CameraTaskUnitLibPara {
 
 class CameraTaskUnit {
 public:
-    enum class ParamApplyMode {
-        kPendingOnly,
-        kBeforeStart,
-    };
-
     CameraTaskUnit(const std::string& cameraCfgPath, const std::string& cameraId,
                    const std::string& algorithmCode, std::vector<ModelInfo> models);
     ~CameraTaskUnit();
@@ -71,7 +64,7 @@ public:
 
     [[nodiscard]] util::ErrorEnum GetStatus() const;
     [[nodiscard]] bool IsReady() const;
-    [[nodiscard]] bool ApplyLatestTaskConfig(ParamApplyMode mode = ParamApplyMode::kPendingOnly);
+    void TaskEnableParam();
     void RefreshModels(std::vector<ModelInfo> models);
 
 private:
@@ -79,24 +72,19 @@ private:
     void SaveArea();
     void SaveLibPara();
     void LoadConfig();
-    void EnableParamConfidences(MsgTaskConfig& param, const std::vector<ModelInfo>& models);
+    void EnableParamConfidences(MsgTaskConfig& param);
     void EnableParamConfidences(MsgTaskConfig& param, std::vector<std::string> labelsNeedConfidence,
-                                const std::vector<CameraTaskConfidenceConfig>& confidenceConfigs,
-                                const std::vector<ModelInfo>& models);
+                                const std::vector<CameraTaskConfidenceConfig>& confidenceConfigs);
 
     [[nodiscard]] CameraTaskConfidenceConfig GetConfidenceConfig(
         const std::string& label, const std::vector<CameraTaskConfidenceConfig>& confidenceConfigs) const;
-    [[nodiscard]] bool GetConfidence(const std::string& label, const std::vector<ModelInfo>& models,
-                                     float& confidenceHigh, float& confidence) const;
+    [[nodiscard]] bool GetConfidence(const std::string& label, float& confidenceHigh,
+                                     float& confidence) const;
     [[nodiscard]] float CalcConfidence(const CameraTaskConfidenceConfig& config, float& confidenceHigh,
                                        float& confidence) const;
 
 private:
     mutable std::shared_mutex mtx_;
-    std::mutex apply_state_mtx_;
-    std::condition_variable apply_state_cv_;
-    bool apply_in_progress_{false};
-    std::thread::id apply_owner_{};
     std::string conf_file_path_{};               // ${cameraCfgPath}/${cameraId}/${algorithmCode}
     std::string conf_area_file_{"area.json"};    //
     std::string conf_param_file_{"param.json"};  //
