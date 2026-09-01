@@ -21,6 +21,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, getCurrentInstance } from 'vue'
 import { t, currentLocale } from '@/i18n'
+import { filterDeviceInfoForDisplay } from '@/utils/deviceInfo'
 
 const { proxy } = getCurrentInstance()
 const $API = proxy.$API
@@ -76,7 +77,7 @@ const resolveAuthParts = (value = '') => {
 const getDeviceInfo = () => {
   $API.queryDeviceInfo().then((res) => {
     const { resData } = res
-    deviceInfo.value = resData?.devInfoList || []
+    deviceInfo.value = filterDeviceInfoForDisplay(resData?.devInfoList)
     startTimer()
   })
 }
