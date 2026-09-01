@@ -134,6 +134,7 @@ export class DeviceTrialExecutor {
         channelId,
         algorithmId: task.algorithmId,
         algorithmCode: task.algorithmCode,
+        taskKind: task.kind,
         timeoutSec: this.suite.defaults.readyTimeoutSec,
         pollIntervalSec: this.suite.defaults.readyPollIntervalSec,
         signal: this.signal,
@@ -459,6 +460,7 @@ export async function waitForAccuracyTaskReady({
   channelId,
   algorithmId,
   algorithmCode = algorithmId,
+  taskKind = 'cv',
   timeoutSec = 120,
   pollIntervalSec = 3,
   signal,
@@ -486,15 +488,24 @@ export async function waitForAccuracyTaskReady({
       const tasks = Array.isArray(detail) ? detail : detail?.status ?? [];
       const task = tasks.find((item) => String(item.taskId ?? '') === taskId)
         ?? tasks.find((item) => String(item.channelId ?? '') === String(channelId));
-      const action = (task?.actionStatus ?? []).find((item) => {
+      const progressed = (task?.actionStatus ?? []).filter((item) =>
+        Number(item.processCount ?? 0) > 0 || Number(item.processCountPeriod ?? 0) > 0);
+      const isMediaAction = (item) => {
         const label = `${item.name ?? ''} ${item.actionId ?? ''}`;
-        return /(Decode|Detect)/iu.test(label) && Number(item.processCountPeriod ?? 0) > 0;
-      });
+        return /(Decode|Demux)/iu.test(label)
+          || /^BA_00001(?:\s|$)/u.test(String(item.actionId ?? ''));
+      };
+      const action = taskKind === 'vlm'
+        ? progressed.find(isMediaAction)
+        : progressed.find((item) => !isMediaAction(item));
       if (action) return { ready: true, probes, taskId, actionId: action.actionId ?? null };
     }
     await sleep(Math.min(Number(pollIntervalSec) * 1000, Math.max(0, deadline - now())), signal);
   }
-  throw new Error(`accuracy task readiness timed out after ${timeoutSec}s`);
+  const expectedProgress = taskKind === 'vlm' ? 'decoded frames' : 'algorithm processing';
+  throw new Error(
+    `accuracy task readiness timed out after ${timeoutSec}s (${expectedProgress} did not advance)`,
+  );
 }
 
 async function verifyTaskRemoved(client, channelId, algorithmCode, sleep) {

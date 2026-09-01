@@ -44,7 +44,10 @@ function fixtureClient() {
       if (taskDeleted) return { status: [] };
       return { status: [{
         taskId: 'channel-1_15', channelId: 'channel-1',
-        actionStatus: [{ name: 'Decode', actionId: 'decode', processCountPeriod: 1 }],
+        actionStatus: [
+          { name: 'Decode', actionId: 'BA_00001 DECODE', processCountPeriod: 1 },
+          { name: 'AiDetector', actionId: 'AA_00001', processCountPeriod: 1 },
+        ],
       }] };
     },
     async eventPage() {
@@ -231,17 +234,43 @@ test('device trial fails closed when an early persisted event disappears at fina
   }
 });
 
-test('readiness times out instead of treating an online camera without decoded frames as ready', async () => {
+test('CV readiness rejects a decode-only online task', async () => {
   let now = 0;
   const client = {
     async cameraPage() { return { rows: [{ videoChannelId: 'c', channelStatus: 1 }] }; },
-    async taskRunningDetail() { return { status: [{ taskId: 'c_15', actionStatus: [] }] }; },
+    async taskRunningDetail() {
+      return { status: [{
+        taskId: 'c_15',
+        actionStatus: [{
+          name: 'Decode', actionId: 'BA_00001 DECODE', processCount: 20, processCountPeriod: 5,
+        }],
+      }] };
+    },
   };
   await assert.rejects(waitForAccuracyTaskReady({
     client, channelId: 'c', algorithmId: '15', timeoutSec: 2, pollIntervalSec: 1,
     now: () => now,
     sleep: async (ms) => { now += ms; },
   }), /readiness timed out/i);
+});
+
+test('VLM readiness accepts decode progress before its dedicated Qwen probe', async () => {
+  const client = {
+    async cameraPage() { return { rows: [{ videoChannelId: 'c', channelStatus: 1 }] }; },
+    async taskRunningDetail() {
+      return { status: [{
+        taskId: 'c_78510',
+        actionStatus: [{
+          name: 'Decode', actionId: 'BA_00001 DECODE', processCount: 1, processCountPeriod: 0,
+        }],
+      }] };
+    },
+  };
+  const result = await waitForAccuracyTaskReady({
+    client, channelId: 'c', algorithmId: '78510', taskKind: 'vlm', timeoutSec: 1,
+  });
+  assert.equal(result.ready, true);
+  assert.equal(result.actionId, 'BA_00001 DECODE');
 });
 
 test('readiness uses algorithmCode for the composed runtime task id', async () => {
