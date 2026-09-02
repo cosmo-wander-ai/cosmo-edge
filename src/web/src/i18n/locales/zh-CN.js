@@ -382,8 +382,6 @@ export default {
     displayLevel: '显示级别',
     unnamed: '未命名',
     notHidden: '不隐藏',
-    clientHidden: '客户端隐藏',
-    allHidden: '全隐藏',
     childShowCondition: '子组件出现条件',
     parentKey: '父组件key',
     matchValue: '匹配值',

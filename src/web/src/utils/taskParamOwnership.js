@@ -76,6 +76,21 @@ export const deriveChannelEditableFromVisibility = (param) => {
   return senior !== 1 && senior !== 2
 }
 
+// The scene editor exposes one binary control: checked means the parameter is
+// available in the channel editor, while unchecked means scene-owned/hidden.
+// Collapse both historical hidden states (senior 1 and 2) to the canonical
+// hidden value so the UI does not preserve an obsolete three-state choice.
+export const normalizeChannelVisibilitySelection = (param) => {
+  if (
+    param?.senior !== undefined &&
+    param?.senior !== null &&
+    param?.senior !== ''
+  ) {
+    return Number(param.senior) === 0 ? 0 : 2
+  }
+  return isChannelEditableParam(param) ? 0 : 2
+}
+
 export const isChannelEditableParam = (param) => {
   const explicit = getExplicitChannelEditable(param)
   if (explicit !== undefined) return explicit

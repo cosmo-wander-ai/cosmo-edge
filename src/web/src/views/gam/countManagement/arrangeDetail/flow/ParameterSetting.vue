@@ -58,11 +58,9 @@
               </div>
             </div>
             <div class="show-level">
-              <el-radio-group v-model="item.checkedClient">
-                <el-radio :value="0">{{ t('glossary.notHidden') }}</el-radio>
-                <!-- <el-radio :value="1">{{ t('glossary.clientHidden') }}</el-radio> -->
-                <el-radio :value="2">{{ t('glossary.allHidden') }}</el-radio>
-              </el-radio-group>
+              <el-checkbox v-model="item.checkedClient" :true-value="0" :false-value="2">
+                {{ t('glossary.notHidden') }}
+              </el-checkbox>
               <!-- <div v-if="item.level != '2'" class="delete-icon" @click="forkClick(item,index)">
                 <span>x</span>
               </div> -->
@@ -72,11 +70,9 @@
 
         <!-- 详细模式显示原有内容 -->
         <template v-else>
-          <el-radio-group v-model="item.checkedClient" class="hidden-top">
-            <el-radio :value="0">{{ t('glossary.notHidden') }}</el-radio>
-            <el-radio :value="1">{{ t('glossary.clientHidden') }}</el-radio>
-            <el-radio :value="2">{{ t('glossary.allHidden') }}</el-radio>
-          </el-radio-group>
+          <el-checkbox v-model="item.checkedClient" :true-value="0" :false-value="2" class="hidden-top">
+            {{ t('glossary.notHidden') }}
+          </el-checkbox>
           <div v-if="item.level != '2'" class="delete-icon" @click="forkClick(item,index)">
             <span>x</span>
           </div>
@@ -225,6 +221,7 @@ import { resolveI18nOptionLabel, resolveI18nText } from '@/utils/i18nResource'
 import {
   deriveChannelEditableFromVisibility,
   getExplicitChannelEditable,
+  normalizeChannelVisibilitySelection,
   normalizeParamOwnershipList
 } from '@/utils/taskParamOwnership'
 
@@ -434,7 +431,7 @@ const init = () => {
     normalizedParams.forEach((item, index) => {
       let a = []
       const channelEditable = item.channelEditable
-      const checkedClient = item.senior ?? (channelEditable ? 0 : 2)
+      const checkedClient = normalizeChannelVisibilitySelection(item)
       let arr1 = {
         moduleType: item.type,
         keyValue: item.key,
@@ -555,7 +552,7 @@ const addModule = () => {
     scopeMinValue: '',
     scopeMaxValue: '',
     enumeration: '',
-    checkedClient: 0,
+    checkedClient: 2,
     dependOn: '',
     showMore: true,
     showFather: false
@@ -588,7 +585,7 @@ const sonClick = (data) => {
       regularVerify: '',
       scopeMinValue: '',
       scopeMaxValue: '',
-      checkedClient: 0,
+      checkedClient: 2,
       dependOn: data.keyValue,
       dependOnType: data.moduleType,
       showValue: '1',
@@ -619,7 +616,7 @@ const sonClick = (data) => {
       scopeMinValue: '',
       scopeMaxValue: '',
       enumeration: '',
-      checkedClient: 0,
+      checkedClient: 2,
       dependOn: data.keyValue,
       enumerationOptions: arr,
       matchingValue: '',
@@ -657,7 +654,8 @@ const saveParamConfig = () => {
           ? element.defaultValue.join(',')
           : element.defaultValue
         : element.defaultValue
-    const senior = element.checkedClient ?? (element.channelEditable ? 0 : 2)
+    const senior =
+      element.checkedClient ?? normalizeChannelVisibilitySelection(element)
     const visibilityChanged =
       String(senior) !== String(element.initialCheckedClient)
     const explicitChannelEditable = visibilityChanged

@@ -382,8 +382,6 @@ export default {
     displayLevel: 'Display Level',
     unnamed: 'Unnamed',
     notHidden: 'Visible',
-    clientHidden: 'Client Hidden',
-    allHidden: 'All Hidden',
     childShowCondition: 'Child Show Condition',
     parentKey: 'Parent Key',
     matchValue: 'Match Value',

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {
   collapseTaskParamSchemasByKey,
   combineTaskParamSources,
@@ -12,11 +13,42 @@ import {
   isChannelParamRenderableAtDepth,
   mergeTaskParamSchemasByKey,
   normalizeChannelEditorVisibility,
+  normalizeChannelVisibilitySelection,
   normalizeParamOwnershipList,
   resolveChannelEditableFlags,
   resolveFinalTaskParamDependencies,
   serializeTaskParamTree
 } from '../src/utils/taskParamOwnership.js'
+
+const parameterSettingSource = readFileSync(
+  new URL(
+    '../src/views/gam/countManagement/arrangeDetail/flow/ParameterSetting.vue',
+    import.meta.url
+  ),
+  'utf8'
+)
+assert.doesNotMatch(parameterSettingSource, /glossary\.(?:allHidden|clientHidden)/)
+assert.doesNotMatch(
+  parameterSettingSource,
+  /el-radio-group\s+v-model="item\.checkedClient"/
+)
+assert.match(
+  parameterSettingSource,
+  /el-checkbox\s+v-model="item\.checkedClient"\s+:true-value="0"\s+:false-value="2"/
+)
+
+assert.equal(normalizeChannelVisibilitySelection({ senior: 0 }), 0)
+assert.equal(normalizeChannelVisibilitySelection({ senior: '0' }), 0)
+assert.equal(normalizeChannelVisibilitySelection({ senior: 1 }), 2)
+assert.equal(normalizeChannelVisibilitySelection({ senior: 2 }), 2)
+assert.equal(
+  normalizeChannelVisibilitySelection({ channelEditable: true }),
+  0
+)
+assert.equal(
+  normalizeChannelVisibilitySelection({ channelEditable: false }),
+  2
+)
 
 const equivalentSchemaA = {
   key: 'threshold',
