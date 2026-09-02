@@ -78,17 +78,31 @@ export const deriveChannelEditableFromVisibility = (param) => {
 
 // The scene editor exposes one binary control: checked means the parameter is
 // available in the channel editor, while unchecked means scene-owned/hidden.
-// Collapse both historical hidden states (senior 1 and 2) to the canonical
-// hidden value so the UI does not preserve an obsolete three-state choice.
+// New and legacy parameters default to checked. Only the canonical pair written
+// by this binary control (senior 2 + explicit channelEditable false) preserves
+// an intentional hidden selection.
 export const normalizeChannelVisibilitySelection = (param) => {
-  if (
-    param?.senior !== undefined &&
-    param?.senior !== null &&
-    param?.senior !== ''
-  ) {
-    return Number(param.senior) === 0 ? 0 : 2
-  }
-  return isChannelEditableParam(param) ? 0 : 2
+  return (
+    Number(param?.senior) === 2 &&
+    getExplicitChannelEditable(param) === false
+  )
+    ? 2
+    : 0
+}
+
+// Canonicalize scene metadata independently of whether the parameter tab has
+// been opened. This makes newly generated/imported descriptors follow the same
+// default as parameters edited directly in ParameterSetting.
+export const normalizeSceneParamVisibilityDefaults = (params) => {
+  const list = Array.isArray(params) ? params : []
+  return list.map((param) => {
+    const senior = normalizeChannelVisibilitySelection(param)
+    return {
+      ...param,
+      senior,
+      channelEditable: deriveChannelEditableFromVisibility({ senior })
+    }
+  })
 }
 
 export const isChannelEditableParam = (param) => {

@@ -60,6 +60,7 @@ import {
   combineTaskParamSources,
   mergeTaskParamSchemasByKey,
   normalizeParamOwnershipList,
+  normalizeSceneParamVisibilityDefaults,
   resolveFinalTaskParamDependencies
 } from '@/utils/taskParamOwnership'
 
@@ -323,7 +324,7 @@ const saveClick = (type) => {
   handleConfigData()
   if (!handleMetaData()) return
   algorithmMetadata.value.params = normalizeParamOwnershipList(
-    algorithmMetadata.value.params
+    normalizeSceneParamVisibilityDefaults(algorithmMetadata.value.params)
   )
 
   let params =

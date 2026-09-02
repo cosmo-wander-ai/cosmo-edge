@@ -220,7 +220,6 @@ import { t, localeColon, currentLocale } from '@/i18n'
 import { resolveI18nOptionLabel, resolveI18nText } from '@/utils/i18nResource'
 import {
   deriveChannelEditableFromVisibility,
-  getExplicitChannelEditable,
   normalizeChannelVisibilitySelection,
   normalizeParamOwnershipList
 } from '@/utils/taskParamOwnership'
@@ -431,7 +430,9 @@ const init = () => {
     normalizedParams.forEach((item, index) => {
       let a = []
       const channelEditable = item.channelEditable
-      const checkedClient = normalizeChannelVisibilitySelection(item)
+      const checkedClient = normalizeChannelVisibilitySelection(
+        props.algorithmMetadata.params[index]
+      )
       let arr1 = {
         moduleType: item.type,
         keyValue: item.key,
@@ -450,11 +451,7 @@ const init = () => {
         dependOn: '',
         level: item.level,
         checkedClient,
-        initialCheckedClient: checkedClient,
         channelEditable,
-        explicitChannelEditable: getExplicitChannelEditable(
-          props.algorithmMetadata.params[index]
-        ),
         showMore: false,
         showFather: false
       }
@@ -552,7 +549,7 @@ const addModule = () => {
     scopeMinValue: '',
     scopeMaxValue: '',
     enumeration: '',
-    checkedClient: 2,
+    checkedClient: 0,
     dependOn: '',
     showMore: true,
     showFather: false
@@ -585,7 +582,7 @@ const sonClick = (data) => {
       regularVerify: '',
       scopeMinValue: '',
       scopeMaxValue: '',
-      checkedClient: 2,
+      checkedClient: 0,
       dependOn: data.keyValue,
       dependOnType: data.moduleType,
       showValue: '1',
@@ -616,7 +613,7 @@ const sonClick = (data) => {
       scopeMinValue: '',
       scopeMaxValue: '',
       enumeration: '',
-      checkedClient: 2,
+      checkedClient: 0,
       dependOn: data.keyValue,
       enumerationOptions: arr,
       matchingValue: '',
@@ -656,11 +653,9 @@ const saveParamConfig = () => {
         : element.defaultValue
     const senior =
       element.checkedClient ?? normalizeChannelVisibilitySelection(element)
-    const visibilityChanged =
-      String(senior) !== String(element.initialCheckedClient)
-    const explicitChannelEditable = visibilityChanged
-      ? deriveChannelEditableFromVisibility({ senior })
-      : element.explicitChannelEditable
+    const explicitChannelEditable = deriveChannelEditableFromVisibility({
+      senior
+    })
     let param = {
       beginValue: null,
       defaultValue: value,
@@ -683,9 +678,7 @@ const saveParamConfig = () => {
       value,
       level: element ? element.level : null
     }
-    if (explicitChannelEditable !== undefined) {
-      param.channelEditable = explicitChannelEditable
-    }
+    param.channelEditable = explicitChannelEditable
     copyParamI18nFields(element, param)
 
     if (element.scopeMaxValue && element.scopeMinValue) {

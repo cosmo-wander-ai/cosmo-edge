@@ -15,6 +15,7 @@ import {
   normalizeChannelEditorVisibility,
   normalizeChannelVisibilitySelection,
   normalizeParamOwnershipList,
+  normalizeSceneParamVisibilityDefaults,
   resolveChannelEditableFlags,
   resolveFinalTaskParamDependencies,
   serializeTaskParamTree
@@ -39,16 +40,42 @@ assert.match(
 
 assert.equal(normalizeChannelVisibilitySelection({ senior: 0 }), 0)
 assert.equal(normalizeChannelVisibilitySelection({ senior: '0' }), 0)
-assert.equal(normalizeChannelVisibilitySelection({ senior: 1 }), 2)
-assert.equal(normalizeChannelVisibilitySelection({ senior: 2 }), 2)
+assert.equal(normalizeChannelVisibilitySelection({ senior: 1 }), 0)
+assert.equal(normalizeChannelVisibilitySelection({ senior: 2 }), 0)
 assert.equal(
   normalizeChannelVisibilitySelection({ channelEditable: true }),
   0
 )
 assert.equal(
   normalizeChannelVisibilitySelection({ channelEditable: false }),
+  0
+)
+assert.equal(
+  normalizeChannelVisibilitySelection({ senior: 2, channelEditable: false }),
   2
 )
+assert.equal(
+  normalizeChannelVisibilitySelection({ senior: 1, channelEditable: false }),
+  0
+)
+assert.deepEqual(
+  normalizeSceneParamVisibilityDefaults([
+    { key: 'legacy', type: 'text', senior: 1 },
+    { key: 'new', type: 'text' },
+    { key: 'hidden', type: 'text', senior: 2, channelEditable: false }
+  ]).map(({ key, senior, channelEditable }) => ({
+    key,
+    senior,
+    channelEditable
+  })),
+  [
+    { key: 'legacy', senior: 0, channelEditable: true },
+    { key: 'new', senior: 0, channelEditable: true },
+    { key: 'hidden', senior: 2, channelEditable: false }
+  ]
+)
+assert.doesNotMatch(parameterSettingSource, /checkedClient:\s*2/)
+assert.match(parameterSettingSource, /checkedClient:\s*0/g)
 
 const equivalentSchemaA = {
   key: 'threshold',
