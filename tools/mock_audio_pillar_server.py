@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """A dependency-free simulator for the HTTP network audio pillar used by CosmoEdge.
 
-The production platform posts health checks to ``/v1/check_alive`` and both
+The production platform gets health checks from ``/v1/check_alive`` and posts
 text-to-speech and audio URL commands to ``/v1/speech``.  This server implements
 that device-side contract and exposes received commands under ``/__mock__/`` so
 an operator or an automated test can verify the complete request path.
@@ -129,6 +129,10 @@ class AudioPillarHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
         path = urllib.parse.urlsplit(self.path).path
+        if path == "/v1/check_alive":
+            self.server.state.record_alive()
+            self._json(200, {"code": 200, "message": "alive"})
+            return
         if path == "/__mock__/events":
             events = self.server.state.snapshot()
             self._json(200, {"count": len(events), "events": events})
@@ -151,11 +155,6 @@ class AudioPillarHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
         path = urllib.parse.urlsplit(self.path).path
         try:
-            if path == "/v1/check_alive":
-                self._read_json(allow_empty=True)
-                self.server.state.record_alive()
-                self._json(200, {"code": 200, "message": "alive"})
-                return
             if path == "/__mock__/fail-next":
                 self._read_json(allow_empty=True)
                 self.server.state.set_failure()
