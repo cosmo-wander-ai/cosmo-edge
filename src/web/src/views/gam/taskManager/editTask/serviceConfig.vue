@@ -74,7 +74,7 @@
                       <el-option v-for="item in timeTemplateList" :key="item.scheduleId" :label="resolveScheduleName(item.scheduleName)" :value="item.scheduleId"></el-option>
                     </el-select>
                   </el-form-item>
-                  <el-form-item v-if="joinTypeS == -1" :label="t('field.playCount')">
+                  <el-form-item v-if="joinTypeS == -1 && videoRepeatCountChannelEditable" :label="t('field.playCount')">
                     <template #label>
                       <span style="position:relative">
                         <span>{{ t('field.playCount') }}</span>
@@ -144,6 +144,15 @@ import EventBus from '@/components/eventBus.js'
 import { v4 } from 'uuid'
 import Batch from './BatchApplication.vue'
 import { getLocationQueryParam } from '@/utils/locationQuery'
+import {
+  filterChannelEditableParams,
+  filterTaskParamsForSubmission,
+  flattenTaskParamTree,
+  isChannelEditableInContext,
+  normalizeChannelEditorVisibility,
+  normalizeParamOwnershipList,
+  resolveSceneParamValue
+} from '@/utils/taskParamOwnership'
 
 const { proxy } = getCurrentInstance()
 
@@ -178,6 +187,7 @@ const config = ref({
   regionType: ''
 })
 const videoRepeatCount = ref(0)
+const videoRepeatCountChannelEditable = ref(true)
 const activeName = ref('area')
 const confirmDialogVisible = ref(false)
 const timer = ref(null)
@@ -532,6 +542,8 @@ const getServeTypes = () => {
 
 const resetConfig = () => {
   config.value.taskParam = []
+  videoRepeatCount.value = 0
+  videoRepeatCountChannelEditable.value = true
   config.value.taskAreaRows = []
   config.value.taskAreaHeader = []
   config.value.shieldAreaRows = []
@@ -577,36 +589,80 @@ const getSelectConfig = () => {
       config.value.defaultFullScreen =
         resData.algorithmMetadata.defaultFullScreen
 
-      let metaData = resData.algorithmMetadata,
-        metaParams = metaData.params,
-        taskParam = resData.taskConfig.params
+      const metaData = resData.algorithmMetadata
+      const metaParams = Array.isArray(metaData.params) ? metaData.params : []
+      const normalizedMetaParams = normalizeParamOwnershipList(metaParams)
+      const taskParams = Array.isArray(resData.taskConfig?.params)
+        ? resData.taskConfig.params
+        : []
+      const taskParamByKey = new Map(
+        taskParams.map((item) => [item.key, item.value])
+      )
+      const videoRepeatCountMetadata = normalizedMetaParams.find(
+        (item) => item.key === 'param.videoRepeatCount'
+      )
+      videoRepeatCountChannelEditable.value = isChannelEditableInContext(
+        videoRepeatCountMetadata || { key: 'param.videoRepeatCount' },
+        platformType
+      )
+      const isVideoPlayback =
+        joinTypeS.value == -1 || joinTypeEdits.value == -1
+      const hasSavedVideoRepeatCount = taskParamByKey.has(
+        'param.videoRepeatCount'
+      )
+      if (
+        isVideoPlayback &&
+        videoRepeatCountChannelEditable.value &&
+        hasSavedVideoRepeatCount
+      ) {
+        videoRepeatCount.value = taskParamByKey.get('param.videoRepeatCount')
+      }
       taskId.value = resData.taskId
       taskEnableStatus.value = resData.taskEnableStatus
       config.value.scheduleId = resData.scheduleId || ''
       config.value.pollingId = resData.pollingId || ''
 
-      metaParams.forEach((metaItem) => {
-        taskParam.forEach((taskItem, index) => {
-          if (taskItem.key == metaItem.key) {
-            if (metaItem.type == 'slider') {
-              metaItem.value = Number(taskItem.value)
-            } else {
-              metaItem.value = taskItem.value
-            }
-          }
-          if (
-            (joinTypeS.value == -1 || joinTypeEdits.value == -1) &&
-            taskItem.key === 'param.videoRepeatCount'
-          ) {
-            videoRepeatCount.value = taskItem.value
-          }
-        })
+      normalizedMetaParams.forEach((metadataParam) => {
+        const metaItem = normalizeChannelEditorVisibility(
+          metadataParam,
+          platformType
+        )
+        const channelEditable = isChannelEditableInContext(
+          metaItem,
+          platformType
+        )
+        if (platformType !== '1') {
+          metaItem.value = resolveSceneParamValue(metaItem)
+        }
+
+        if (
+          channelEditable &&
+          taskParamByKey.has(metaItem.key)
+        ) {
+          metaItem.value = taskParamByKey.get(metaItem.key)
+        }
+
+        if (metaItem.type == 'slider') {
+          metaItem.value = Number(metaItem.value)
+        }
         if (metaItem.type == 'check') {
-          metaItem.value = metaItem.value == '' ? [] : metaItem.value.split(',')
+          metaItem.value = Array.isArray(metaItem.value)
+            ? metaItem.value
+            : metaItem.value == ''
+              ? []
+              : String(metaItem.value).split(',')
         }
 
         metaItem.isColumn = true
-        if (metaItem.key !== 'param.videoRepeatCount') {
+        if (metaItem.key === 'param.videoRepeatCount') {
+          if (
+            isVideoPlayback &&
+            videoRepeatCountChannelEditable.value &&
+            !hasSavedVideoRepeatCount
+          ) {
+            videoRepeatCount.value = metaItem.value
+          }
+        } else if (channelEditable) {
           config.value.taskParam.push(metaItem)
         }
       })
@@ -876,45 +932,57 @@ const newSave = (skipRefresh = false) => {
   }
 
   let flag = false
-  params.taskConfig.params = config.value.taskParam.map((item) => {
-    if (item.type === 'retroDirect') {
-      return {
-        key: item.key,
-        value: areaSettingRef.value.retroDirectType
+  const channelEditableParams = filterChannelEditableParams(
+    flattenTaskParamTree(config.value.taskParam),
+    platformType
+  )
+  params.taskConfig.params = (
+    String(platformType ?? '') === '1'
+      ? channelEditableParams
+      : filterTaskParamsForSubmission(channelEditableParams)
+  )
+    .map((item) => {
+      if (item.type === 'retroDirect') {
+        return {
+          key: item.key,
+          value: areaSettingRef.value.retroDirectType
+        }
+      } else if (item.type === 'check') {
+        return {
+          key: item.key,
+          value: item.value.join(',')
+        }
+      } else if (item.type === 'slider') {
+        return {
+          key: item.key,
+          value: item.value + ''
+        }
+      } else if (item.type == 'confidenceConfig') {
+        item.value =
+          `${item.confidenceConfigValue1 || 0},${item.confidenceConfigValue2 || 0}`
+        return {
+          key: item.key,
+          value: item.value
+        }
+      } else {
+        if (item.key === 'param.trippingWireType' && item.value == 2) {
+          flag = true
+        }
+        return {
+          key: item.key,
+          value: typeof item.value === 'number' ? String(item.value) : item.value
+        }
       }
-    } else if (item.type === 'check') {
-      return {
-        key: item.key,
-        value: item.value.join(',')
-      }
-    } else if (item.type === 'slider') {
-      return {
-        key: item.key,
-        value: item.value + ''
-      }
-    } else if (item.type == 'confidenceConfig') {
-      item.value =
-        `${item.confidenceConfigValue1 || 0},${item.confidenceConfigValue2 || 0}`
-      return {
-        key: item.key,
-        value: item.value
-      }
-    } else {
-      if (item.key === 'param.trippingWireType' && item.value == 2) {
-        flag = true
-      }
-      return {
-        key: item.key,
-        value: typeof item.value === 'number' ? String(item.value) : item.value
-      }
-    }
-  })
+    })
 
   if (flag == true && params.taskConfig.areas.length < 2) {
     return proxy.$message.error(t('validate.doubleLineRequireTwo'))
   }
 
-  if (joinTypeS.value == -1 || joinTypeEdits.value == -1) {
+  if (
+    (joinTypeS.value == -1 || joinTypeEdits.value == -1) &&
+    videoRepeatCountChannelEditable.value
+  ) {
     if (
       videoRepeatCount.value === '' || videoRepeatCount.value === null || videoRepeatCount.value === undefined ||
       Number(videoRepeatCount.value) > 100 ||
@@ -1035,21 +1103,23 @@ const BatchConfirm = async (data) => {
 }
 
 const resetParameter = () => {
-  config.value.taskParam.forEach((item) => {
-    if (item.type == 'check') {
-      item.value = item.defaultValue.split(',')
-    } else if (item.type == 'confidenceConfig') {
-      item.value = item.defaultValue
-      item.confidenceConfigValue1 = Number(item.defaultValue.split(',')[0])
-      item.confidenceConfigValue2 = Number(item.defaultValue.split(',')[1])
-    } else {
-      if (item.type == 'slider') {
-        item.value = Number(item.defaultValue)
-      } else {
+  filterChannelEditableParams(config.value.taskParam, platformType).forEach(
+    (item) => {
+      if (item.type == 'check') {
+        item.value = item.defaultValue.split(',')
+      } else if (item.type == 'confidenceConfig') {
         item.value = item.defaultValue
+        item.confidenceConfigValue1 = Number(item.defaultValue.split(',')[0])
+        item.confidenceConfigValue2 = Number(item.defaultValue.split(',')[1])
+      } else {
+        if (item.type == 'slider') {
+          item.value = Number(item.defaultValue)
+        } else {
+          item.value = item.defaultValue
+        }
       }
     }
-  })
+  )
 
   if (parm.value.$refs.submitForm) {
     parm.value.$refs.submitForm.transferList = []

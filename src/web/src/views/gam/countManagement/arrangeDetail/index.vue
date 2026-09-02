@@ -53,10 +53,16 @@ import Detection from './flow/Detection.vue'
 import ParameterSetting from './flow/ParameterSetting.vue'
 import { v4 } from 'uuid'
 import moment from 'moment'
-import _ from 'lodash'
 import EventBus from '@/components/eventBus.js'
 import { currentLocale, t } from '@/i18n'
 import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
+import {
+  combineTaskParamSources,
+  mergeTaskParamSchemasByKey,
+  normalizeParamOwnershipList,
+  normalizeSceneParamVisibilityDefaults,
+  resolveFinalTaskParamDependencies
+} from '@/utils/taskParamOwnership'
 
 const route = useRoute()
 const router = useRouter()
@@ -316,7 +322,10 @@ const saveClick = (type) => {
   // 先同步三个页签的数据，确保保存时数据最新
   handleDetcetionData()
   handleConfigData()
-  handleMetaData()
+  if (!handleMetaData()) return
+  algorithmMetadata.value.params = normalizeParamOwnershipList(
+    normalizeSceneParamVisibilityDefaults(algorithmMetadata.value.params)
+  )
 
   let params =
     showArrangeFlow.value &&
@@ -426,29 +435,43 @@ const handleConfigData = () => {
 }
 
 const handleMetaData = () => {
-  if (!showArrangeFlow.value) return
-  const metaData = flowRef.value.saveMetaDataParams()
-  let newMetaDataParams = []
-  //  先处理参数配置中的自定义参数，和业务流程中被删的参数
-  algorithmMetadata.value.params.forEach((item) => {
-    //  参数配置中自定义参数
-    if (!item.level) {
-      newMetaDataParams.push(item)
-    } else {
-      // 判断业务流程metaData中是否还存在，存在则添加，值也不做修改
-      const existParam = _.find(metaData, { key: item.key })
-      existParam && newMetaDataParams.push(item)
-    }
-  })
-  //  再处理业务流程中新增的参数
-  metaData.forEach((item) => {
-    const existFlag = _.find(algorithmMetadata.value.params, {
-      key: item.key
-    })
-    delete item.dependsOn
-    //  只添加业务流程metaData的数组新增的参数
-    !existFlag && newMetaDataParams.push(item)
-  })
+  if (!showArrangeFlow.value) return true
+  if (
+    !flowRef.value ||
+    typeof flowRef.value.saveMetaDataParams !== 'function'
+  ) {
+    return true
+  }
+  const currentParams = Array.isArray(algorithmMetadata.value.params)
+    ? algorithmMetadata.value.params
+    : []
+  const incomingParams = flowRef.value.saveMetaDataParams()
+  const customParams = currentParams
+    .filter((item) => !item.level)
+    .map((item) => ({ ...item }))
+  const generatedParams = currentParams.filter((item) => item.level)
+  const mergeResult = mergeTaskParamSchemasByKey(
+    generatedParams,
+    incomingParams
+  )
+  const combinedResult = combineTaskParamSources(
+    customParams,
+    mergeResult.params
+  )
+  const conflictKeys = [
+    ...new Set([
+      ...mergeResult.conflictKeys,
+      ...combinedResult.conflictKeys
+    ])
+  ]
+  if (conflictKeys.length > 0) {
+    console.error('Conflicting task parameter schemas', conflictKeys)
+    ElMessage.error(t('validate.duplicateTaskParamDescriptor'))
+    return false
+  }
+  const newMetaDataParams = resolveFinalTaskParamDependencies(
+    combinedResult.params
+  )
 
   // 兼容盒子不支持number类型，暂时未知是否有其他类型
   newMetaDataParams.forEach((item) => {
@@ -461,25 +484,48 @@ const handleMetaData = () => {
   })
 
   algorithmMetadata.value.params = newMetaDataParams
-  console.log(metaData, '===handleMetaData====', newMetaDataParams)
+  console.log(incomingParams, '===handleMetaData====', newMetaDataParams)
+  return true
 }
 
 const syncMetadata = (val) => {
   if (val && val.length > 0) {
-    val.forEach((obj) => {
-      // 判断是否已经存在的参数，存在则不覆盖用户自定义的值
-      const existFlag = _.find(algorithmMetadata.value.params, {
-        key: obj.key
-      })
-      if (!existFlag) {
-        let newObj = {}
-        newObj = Object.assign({}, obj)
-        delete newObj.position
-        algorithmMetadata.value.params.push(newObj)
-      }
-    })
+    const currentParams = Array.isArray(algorithmMetadata.value.params)
+      ? algorithmMetadata.value.params
+      : []
+    const customParams = currentParams
+      .filter((item) => !item.level)
+      .map((item) => ({ ...item }))
+    const generatedParams = currentParams.filter((item) => item.level)
+    const mergeResult = mergeTaskParamSchemasByKey(
+      generatedParams,
+      val,
+      { retainUnmatchedExisting: true }
+    )
+    const combinedResult = combineTaskParamSources(
+      customParams,
+      mergeResult.params
+    )
+    const conflictKeys = [
+      ...new Set([
+        ...mergeResult.conflictKeys,
+        ...combinedResult.conflictKeys
+      ])
+    ]
+    if (conflictKeys.length > 0) {
+      console.error(
+        'Conflicting task parameter schemas',
+        conflictKeys
+      )
+      ElMessage.error(t('validate.duplicateTaskParamDescriptor'))
+      return false
+    }
+    algorithmMetadata.value.params = resolveFinalTaskParamDependencies(
+      combinedResult.params
+    )
   }
   console.log(algorithmMetadata.value.params, 'algorithmMetadata.value')
+  return true
 }
 
 // 版本列表相关旧逻辑已移除（页面未使用）

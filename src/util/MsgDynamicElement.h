@@ -3,7 +3,10 @@
 #pragma once
 
 #include <nlohmann/json_fwd.hpp>
+#include <optional>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include "util/LimitedType.h"
 
@@ -46,14 +49,29 @@ struct MsgDynamicElement : public MsgDynamicKeyValue {
     float min{0.0f};
     float max{0.0f};
     bool isColumn{false};
+    std::optional<bool> channelEditable;
+    // Eligibility for a markerless pre-ownership task snapshot to supply a
+    // channel override. Scene ownership changes may revoke this evidence,
+    // but a later promotion must never grant it again.
+    std::optional<bool> legacyChannelEditable;
+    std::optional<int> senior;
     std::string range;
     std::vector<Option> options;
     DependsOn dependsOn;
+    // Internal decode state. This is intentionally not serialized: malformed
+    // dependency metadata must fail closed during ownership normalization.
+    bool malformedDependsOn{false};
     std::string onName;
     int onValue{1};
     std::string offName;
     int offValue{0};
     bool available{true};
+
+    [[nodiscard]] static bool IsLegacyChannelEditableException(std::string_view type,
+                                                               std::string_view key) noexcept;
+    static void NormalizeLegacyChannelOwnership(std::vector<MsgDynamicElement>& elements,
+                                                bool useLegacyVisibilityDefaults = false);
+    [[nodiscard]] bool IsChannelEditable() const noexcept;
 };
 
 // Conditional serialization: serialize different fields based on 'type'.

@@ -9,7 +9,9 @@
 #include <algorithm>
 #include <cstdio>
 #include <filesystem>
+#include <mutex>
 #include <system_error>
+#include <unordered_map>
 #include <unordered_set>
 
 #include "nlohmann/json.hpp"
@@ -21,6 +23,7 @@
 #include "util/JsonFileUtil.h"
 #include "util/Log.h"
 #include "util/PathUtil.h"
+#include "util/dto/AlgorithmMsgTypes.h"
 
 namespace cosmo::service::detail {
 namespace alg = algorithm;
@@ -36,6 +39,101 @@ namespace {
         if (v.is_number_integer())
             return std::to_string(v.get<int64_t>());
         return "";
+    }
+
+    using ChannelOwnership = std::unordered_map<std::string, bool>;
+
+    bool ReadLegacyChannelOwnership(const std::string& encoded, ChannelOwnership& ownership) {
+        MsgAlgorithmMetaData metadata;
+        if (!DecodeAlgorithmMetadata(encoded, metadata) || !ValidateAlgorithmMetadataParams(metadata)) {
+            return false;
+        }
+
+        auto legacyParams = metadata.params;
+        for (auto& param : legacyParams) {
+            if (param.legacyChannelEditable.has_value()) {
+                param.channelEditable = *param.legacyChannelEditable;
+            } else if (param.channelEditable.has_value()) {
+                // Current ownership was introduced after markerless task snapshots. Without a frozen
+                // hint it cannot prove that an old value was submitted by the channel. The two legacy
+                // compatibility controls are deterministic exceptions to that ambiguity.
+                if (MsgDynamicElement::IsLegacyChannelEditableException(param.type,
+                                                                        param.key.ToRefString())) {
+                    param.channelEditable.reset();
+                } else {
+                    param.channelEditable = false;
+                }
+            } else {
+                param.channelEditable.reset();
+            }
+        }
+        MsgDynamicElement::NormalizeLegacyChannelOwnership(legacyParams, true);
+
+        ownership.clear();
+        ownership.reserve(legacyParams.size());
+        for (size_t index = 0; index < legacyParams.size(); ++index) {
+            const auto& param  = legacyParams[index];
+            const auto& frozen = metadata.params[index].legacyChannelEditable;
+            ownership.emplace(param.key.ToString(), frozen.value_or(param.IsChannelEditable()));
+        }
+        return true;
+    }
+
+    bool FreezeLegacyChannelOwnership(const std::string& requested,
+                                      const MsgAlgorithmMetaData& requestedMetadata,
+                                      const nlohmann::json& previousDoc, std::string& persisted) {
+        nlohmann::json metadataDoc;
+        try {
+            metadataDoc = nlohmann::json::parse(requested);
+        } catch (const std::exception&) {
+            return false;
+        }
+
+        ChannelOwnership previousOwnership;
+        const auto previousMetadata = previousDoc.find("algorithmMetadata");
+        if (previousMetadata != previousDoc.end() && previousMetadata->is_string()) {
+            (void)ReadLegacyChannelOwnership(previousMetadata->get_ref<const std::string&>(),
+                                             previousOwnership);
+        }
+
+        auto currentParams = requestedMetadata.params;
+        MsgDynamicElement::NormalizeLegacyChannelOwnership(currentParams);
+        ChannelOwnership currentOwnership;
+        currentOwnership.reserve(currentParams.size());
+        for (const auto& param : currentParams) {
+            currentOwnership.emplace(param.key.ToString(), param.IsChannelEditable());
+        }
+
+        const auto params = metadataDoc.find("params");
+        if (params != metadataDoc.end()) {
+            if (!params->is_array()) {
+                return false;
+            }
+            for (auto& param : *params) {
+                const auto key = param.find("key");
+                if (key == param.end() || !key->is_string()) {
+                    return false;
+                }
+                const auto& keyValue = key->get_ref<const std::string&>();
+                const auto previous  = previousOwnership.find(keyValue);
+                const auto current   = currentOwnership.find(keyValue);
+                if (current == currentOwnership.end()) {
+                    return false;
+                }
+
+                // Eligibility is monotonic: once a parameter becomes scene-owned, an offline
+                // markerless task must never resurrect its stale value after a later promotion.
+                // A request cannot rewrite this migration evidence. videoRepeatCount is the sole
+                // key-only compatibility value that old task snapshots retain without a descriptor.
+                const bool wasEligible =
+                    previous != previousOwnership.end()
+                        ? previous->second
+                        : MsgDynamicElement::IsLegacyChannelEditableException("", keyValue);
+                param["legacyChannelEditable"] = wasEligible && current->second;
+            }
+        }
+        persisted = metadataDoc.dump();
+        return true;
     }
 }  // namespace
 
@@ -139,6 +237,18 @@ cosmo::util::ErrorEnum AlgorithmLayoutMng::LayoutSave(const algorithm::LayoutSav
         !cosmo::path::IsSafePathComponent(req.algorithmId)) {
         return cosmo::util::ErrorEnum::InvalidParam;
     }
+    MsgAlgorithmMetaData validatedMetadata;
+    if (!DecodeAlgorithmMetadata(req.algorithmMetadata, validatedMetadata)) {
+        return cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail;
+    }
+    if (!ValidateAlgorithmMetadataParams(validatedMetadata)) {
+        return cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail;
+    }
+    // LayoutSave is a read-modify-write transaction followed by hot reload and possible rollback.
+    // Serialize it independently from AlgorithmServiceImpl's reload lock so concurrent HTTP workers
+    // cannot lose config-version updates or re-grant revoked legacy ownership.
+    static std::mutex layoutSaveMutex;
+    const std::lock_guard layoutSaveLock(layoutSaveMutex);
     std::string layoutFilePath = jsonFilePath;
     if (layoutFilePath.back() != '/')
         layoutFilePath += "/";
@@ -146,7 +256,9 @@ cosmo::util::ErrorEnum AlgorithmLayoutMng::LayoutSave(const algorithm::LayoutSav
     std::string foundPath = cosmo::util::FindPrefixedJsonFile(jsonFilePath, req.algorithmId);
     std::string algorithmName;
     nlohmann::json existingDoc;
-    bool useExistingFile = false;
+    nlohmann::json oldFormatDoc;
+    bool oldFormatDocLoaded = false;
+    bool useExistingFile    = false;
     if (!foundPath.empty()) {
         std::string resolved_found_path;
         if (!ResolveManagedRegularFile(jsonFilePath, foundPath, true, resolved_found_path)) {
@@ -169,11 +281,11 @@ cosmo::util::ErrorEnum AlgorithmLayoutMng::LayoutSave(const algorithm::LayoutSav
         if (!ResolveManagedRegularFile(jsonFilePath, old_format_candidate, false, oldFormatFile)) {
             return cosmo::util::ErrorEnum::InvalidParam;
         }
-        nlohmann::json oldDoc;
-        if (cosmo::util::JsonFileUtil::ReadJsonFile(oldFormatFile, oldDoc) ==
-                cosmo::util::ErrorEnum::Success &&
-            oldDoc.contains("algorithmName") && oldDoc["algorithmName"].is_string())
-            algorithmName = oldDoc["algorithmName"].get<std::string>();
+        oldFormatDocLoaded = cosmo::util::JsonFileUtil::ReadJsonFile(oldFormatFile, oldFormatDoc) ==
+                             cosmo::util::ErrorEnum::Success;
+        if (oldFormatDocLoaded && oldFormatDoc.contains("algorithmName") &&
+            oldFormatDoc["algorithmName"].is_string())
+            algorithmName = oldFormatDoc["algorithmName"].get<std::string>();
         if (!algorithmName.empty() && !cosmo::path::IsSafePathComponent(algorithmName)) {
             return cosmo::util::ErrorEnum::InvalidParam;
         }
@@ -190,6 +302,11 @@ cosmo::util::ErrorEnum AlgorithmLayoutMng::LayoutSave(const algorithm::LayoutSav
     }
     nlohmann::json doc;
     cosmo::util::ErrorEnum ret = cosmo::util::JsonFileUtil::ReadJsonFile(layoutFilePath, doc);
+    const bool targetExisted   = ret == cosmo::util::ErrorEnum::Success || useExistingFile;
+    const auto previousDoc     = ret == cosmo::util::ErrorEnum::Success ? doc : existingDoc;
+    const auto& ownershipSourceDoc =
+        !useExistingFile && ret != cosmo::util::ErrorEnum::Success && oldFormatDocLoaded ? oldFormatDoc
+                                                                                         : previousDoc;
     if (ret != cosmo::util::ErrorEnum::Success) {
         if (existingDoc.is_object() && !existingDoc.empty()) {
             doc = existingDoc;
@@ -217,6 +334,11 @@ cosmo::util::ErrorEnum AlgorithmLayoutMng::LayoutSave(const algorithm::LayoutSav
             doc["configVersionList"] = nlohmann::json::array();
         }
     }
+    std::string persistedAlgorithmMetadata;
+    if (!FreezeLegacyChannelOwnership(req.algorithmMetadata, validatedMetadata, ownershipSourceDoc,
+                                      persistedAlgorithmMetadata)) {
+        return cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail;
+    }
     int64_t algorithmCode = 0;
     try {
         algorithmCode = std::stoll(req.algorithmId);
@@ -240,7 +362,7 @@ cosmo::util::ErrorEnum AlgorithmLayoutMng::LayoutSave(const algorithm::LayoutSav
     if (!algorithmName.empty())
         doc["algorithmName"] = algorithmName;
 
-    doc["algorithmMetadata"]    = req.algorithmMetadata;
+    doc["algorithmMetadata"]    = persistedAlgorithmMetadata;
     doc["algorithmProcessdata"] = req.algorithmProcessdata;
     doc["atomicList"]           = req.atomicList;
 
@@ -252,7 +374,7 @@ cosmo::util::ErrorEnum AlgorithmLayoutMng::LayoutSave(const algorithm::LayoutSav
         if (version.contains("id") && version["id"].is_string() &&
             version["id"].get<std::string>() == req.confVersionId) {
             version["name"]                 = req.configVersionName;
-            version["algorithmMetadata"]    = req.algorithmMetadata;
+            version["algorithmMetadata"]    = persistedAlgorithmMetadata;
             version["algorithmProcessdata"] = req.algorithmProcessdata;
             version["atomicList"]           = req.atomicList;
             version["algorithmUpdateTime"] =
@@ -266,7 +388,7 @@ cosmo::util::ErrorEnum AlgorithmLayoutMng::LayoutSave(const algorithm::LayoutSav
         newVersion["id"]                   = req.confVersionId;
         newVersion["name"]                 = req.configVersionName;
         newVersion["algorithmCode"]        = algorithmCode;
-        newVersion["algorithmMetadata"]    = req.algorithmMetadata;
+        newVersion["algorithmMetadata"]    = persistedAlgorithmMetadata;
         newVersion["algorithmProcessdata"] = req.algorithmProcessdata;
         newVersion["atomicList"]           = req.atomicList;
         newVersion["algorithmUpdateTime"] =
@@ -278,9 +400,26 @@ cosmo::util::ErrorEnum AlgorithmLayoutMng::LayoutSave(const algorithm::LayoutSav
     ret = cosmo::util::JsonFileUtil::WriteJsonFile(layoutFilePath, doc);
     if (ret != cosmo::util::ErrorEnum::Success)
         return ret;
-    cosmo::service::ServiceRegistry::Instance().Get<cosmo::service::IAlgorithmCrud>().ReloadAlgorithmFromFile(
-        layoutFilePath);
-    return cosmo::util::ErrorEnum::Success;
+    const auto reloadRet = cosmo::service::ServiceRegistry::Instance()
+                               .Get<cosmo::service::IAlgorithmCrud>()
+                               .ReloadAlgorithmFromFile(layoutFilePath);
+    if (reloadRet == cosmo::util::ErrorEnum::Success) {
+        return reloadRet;
+    }
+
+    bool rollbackSucceeded = false;
+    if (targetExisted) {
+        rollbackSucceeded = cosmo::util::JsonFileUtil::WriteJsonFile(layoutFilePath, previousDoc) ==
+                            cosmo::util::ErrorEnum::Success;
+    } else {
+        std::error_code error;
+        rollbackSucceeded = std::filesystem::remove(layoutFilePath, error) && !error;
+    }
+    if (!rollbackSucceeded) {
+        LOG_ERRO("{} failed to restore {} after algorithm hot-reload error:{}", __FUNCTION__, layoutFilePath,
+                 static_cast<uint32_t>(reloadRet));
+    }
+    return reloadRet;
 }
 
 cosmo::util::ErrorEnum AlgorithmLayoutMng::GetLayoutDetail(const std::string& id, const std::string& filePath,
