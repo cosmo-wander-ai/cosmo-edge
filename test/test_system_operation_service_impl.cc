@@ -47,6 +47,14 @@ fs::path AddUpgradeChecksumToName(const fs::path& archive, const fs::path& desti
 
 }  // namespace
 
+TEST_CASE("System reboot support follows the inference backend", "[system][reboot]") {
+#if defined(COSMO_NN_USE_SOPHON_BACKEND) || defined(COSMO_NN_USE_RKNN_BACKEND)
+    CHECK(cosmo::platform::SupportsSystemReboot());
+#else
+    CHECK_FALSE(cosmo::platform::SupportsSystemReboot());
+#endif
+}
+
 TEST_CASE("Factory reset preserves model authorization data", "[system][reset]") {
     const auto root        = fs::temp_directory_path() / "cosmo_factory_reset_test";
     const auto certificate = root / "model-guard" / "device-certificate.bin";
