@@ -28,7 +28,7 @@ Linux 普通用户若无权监听 80 端口，应由测试机管理员授予该�
 先在平台设备所在网络验证可达性，下面的 `TEST_HOST_IP` 替换成运行模拟器的 IPv4 地址：
 
 ```bash
-curl -sS -X POST http://TEST_HOST_IP/v1/check_alive
+curl -sS http://TEST_HOST_IP/v1/check_alive
 curl -sS http://TEST_HOST_IP/__mock__/status
 ```
 
