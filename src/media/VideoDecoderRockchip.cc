@@ -464,6 +464,18 @@ bool VideoDecoderRockchip::OpenMpp() {
         return false;
     }
 
+    // Some camera and MP4 streams are fully decodable but MPP marks every
+    // output frame with recoverable errinfo. Dropping those frames starves the
+    // algorithm graph even though discard is clear. Ask MPP to conceal such
+    // stream errors and keep discard as the authoritative unusable-frame mark.
+    RK_U32 disable_error = 1;
+    ret                  = state_->api->control(state_->context, MPP_DEC_SET_DISABLE_ERROR, &disable_error);
+    if (ret != MPP_OK) {
+        LOG_WARN("{} MPP decoder error concealment setup failed: {}", idx_name_, ret);
+        CleanMpp();
+        return false;
+    }
+
     // NV12 is the native Rockchip decoder output. It is deinterleaved during the
     // explicit Copy-out boundary, so downstream code still receives I420.
     MppFrameFormat output_format = MPP_FMT_YUV420SP;
