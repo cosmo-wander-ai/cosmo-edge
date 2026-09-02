@@ -220,7 +220,7 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
         CHECK(canonical.channelOverrideKeys.front() == "param.threshold");
     }
 
-    SECTION("the real UI promotion shape starts from the latest scene value") {
+    SECTION("the real UI promotion shape starts from the latest scene value then becomes channel-owned") {
         const std::filesystem::path config_root =
             "/tmp/cosmo_test/conf/camera/test_task_unit_legacy_promoted_editable";
         std::filesystem::remove_all(config_root);
@@ -228,19 +228,32 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
 
         auto metadataParam                  = MakeMetadataParam("param.threshold", "20", true, 0);
         metadataParam.legacyChannelEditable = false;
-        cosmo::test::MockServiceRegistry mocks;
-        ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeMetadataJson({metadataParam}));
+        {
+            cosmo::test::MockServiceRegistry mocks;
+            ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeMetadataJson({metadataParam}));
 
-        CameraTaskUnit unit(config_root.string(), "legacy_promoted_channel", "test_alg", {});
-        REQUIRE(unit.IsReady());
-        CHECK(FindParamValue(unit.GetParams(), "param.threshold") == "20");
+            CameraTaskUnit unit(config_root.string(), "legacy_promoted_channel", "test_alg", {});
+            REQUIRE(unit.IsReady());
+            CHECK(FindParamValue(unit.GetParams(), "param.threshold") == "20");
 
-        const auto canonical = LoadSavedParams(config_root, "test_alg");
-        CHECK(canonical.channelOverrideKeysPresent);
-        CHECK(canonical.channelOverrideKeys.empty());
+            const auto canonical = LoadSavedParams(config_root, "test_alg");
+            CHECK(canonical.channelOverrideKeysPresent);
+            REQUIRE(canonical.channelOverrideKeys.size() == 1);
+            CHECK(canonical.channelOverrideKeys.front() == "param.threshold");
+        }
+
+        {
+            cosmo::test::MockServiceRegistry mocks;
+            ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
+                .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "30", true, 0)}));
+            CameraTaskUnit reloaded(config_root.string(), "legacy_promoted_channel", "test_alg", {});
+            REQUIRE(reloaded.IsReady());
+            CHECK(FindParamValue(reloaded.GetParams(), "param.threshold") == "20");
+        }
     }
 
-    SECTION("explicit current ownership without frozen evidence fails closed") {
+    SECTION("explicit current ownership without frozen evidence initializes from scene then becomes "
+            "channel-owned") {
         const std::filesystem::path config_root =
             "/tmp/cosmo_test/conf/camera/test_task_unit_legacy_ambiguous_explicit";
         std::filesystem::remove_all(config_root);
@@ -253,7 +266,7 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
         CameraTaskUnit unit(config_root.string(), "legacy_ambiguous_channel", "test_alg", {});
         REQUIRE(unit.IsReady());
         CHECK(FindParamValue(unit.GetParams(), "param.threshold") == "20");
-        CHECK(LoadSavedParams(config_root, "test_alg").channelOverrideKeys.empty());
+        CHECK(HasOverrideKey(LoadSavedParams(config_root, "test_alg"), "param.threshold"));
     }
 
     SECTION("an implicitly editable legacy descriptor retains its prior channel value") {
@@ -297,8 +310,9 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
         CHECK(FindParamValue(unit.GetParams(), "param.child") == "10");
 
         const auto canonical = LoadSavedParams(config_root, "test_alg");
-        REQUIRE(canonical.channelOverrideKeys.size() == 1);
-        CHECK(canonical.channelOverrideKeys.front() == "param.child");
+        REQUIRE(canonical.channelOverrideKeys.size() == 2);
+        CHECK(HasOverrideKey(canonical, "param.newParent"));
+        CHECK(HasOverrideKey(canonical, "param.child"));
     }
 
     SECTION("legacy compatibility descriptors remain eligible without a frozen hint") {
@@ -344,7 +358,8 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
 
         const auto canonical = LoadSavedParams(config_root, "test_alg");
         CHECK(canonical.channelOverrideKeysPresent);
-        CHECK(canonical.channelOverrideKeys.empty());
+        REQUIRE(canonical.channelOverrideKeys.size() == 1);
+        CHECK(canonical.channelOverrideKeys.front() == "param.threshold");
     }
 
     SECTION("only the key-level compatibility item survives without a descriptor") {
@@ -387,20 +402,33 @@ TEST_CASE("CameraTaskUnit uses only canonical override markers after migration",
         CHECK(FindParamValue(unit.GetParams(), "param.threshold") == "10");
     }
 
-    SECTION("an explicit empty marker follows scene updates") {
+    SECTION("an explicit empty marker initializes from scene once then becomes channel-owned") {
         const std::filesystem::path config_root =
             "/tmp/cosmo_test/conf/camera/test_task_unit_empty_override_marker";
         std::filesystem::remove_all(config_root);
         REQUIRE(SeedSavedParams(config_root, "test_alg", {MakeParam("param.threshold", "10")},
                                 std::vector<std::string>{}));
 
-        cosmo::test::MockServiceRegistry mocks;
-        ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
-            .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "20", true)}));
-        CameraTaskUnit unit(config_root.string(), "empty_marker_channel", "test_alg", {});
+        {
+            cosmo::test::MockServiceRegistry mocks;
+            ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
+                .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "20", true)}));
+            CameraTaskUnit unit(config_root.string(), "empty_marker_channel", "test_alg", {});
 
-        REQUIRE(unit.IsReady());
-        CHECK(FindParamValue(unit.GetParams(), "param.threshold") == "20");
+            REQUIRE(unit.IsReady());
+            CHECK(FindParamValue(unit.GetParams(), "param.threshold") == "20");
+            CHECK(HasOverrideKey(LoadSavedParams(config_root, "test_alg"), "param.threshold"));
+        }
+
+        {
+            cosmo::test::MockServiceRegistry mocks;
+            ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
+                .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "30", true)}));
+            CameraTaskUnit unit(config_root.string(), "empty_marker_channel", "test_alg", {});
+
+            REQUIRE(unit.IsReady());
+            CHECK(FindParamValue(unit.GetParams(), "param.threshold") == "20");
+        }
     }
 
     SECTION("saving the baseline value still records an explicit channel override") {
@@ -449,6 +477,17 @@ TEST_CASE("CameraTaskUnit uses only canonical override markers after migration",
             cosmo::test::MockServiceRegistry mocks;
             ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
                 .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "30", true)}));
+            CameraTaskUnit unit(config_root.string(), "hidden_override_channel", "test_alg", {});
+
+            REQUIRE(unit.IsReady());
+            CHECK(FindParamValue(unit.GetParams(), "param.threshold") == "30");
+            CHECK(HasOverrideKey(LoadSavedParams(config_root, "test_alg"), "param.threshold"));
+        }
+
+        {
+            cosmo::test::MockServiceRegistry mocks;
+            ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
+                .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "40", true)}));
             CameraTaskUnit unit(config_root.string(), "hidden_override_channel", "test_alg", {});
 
             REQUIRE(unit.IsReady());

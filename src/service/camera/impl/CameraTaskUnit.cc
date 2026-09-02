@@ -145,11 +145,10 @@ void CameraTaskUnit::LoadConfig() {
         task_status_ = util::ErrorEnum::ActionAlgArrangeConfigFail;
         return;
     }
-    // A legacy param.json stores a full effective snapshot without provenance. Preserve only values
-    // that the old channel editor could actually expose. A frozen legacyChannelEditable hint is
-    // authoritative because current senior/channelEditable may already describe a later ownership
-    // change. Explicit current ownership without a frozen hint is newer than the markerless snapshot
-    // and therefore fails closed instead of retroactively granting override authority.
+    // A legacy param.json stores a full effective snapshot without provenance. Preserve a saved value
+    // only when the old channel editor could actually expose it. A newly visible parameter starts from
+    // the latest scene value, then becomes channel-owned immediately: visibility itself is the ownership
+    // switch, so later scene saves must not keep overriding an unhidden channel parameter.
     auto legacyOwnershipParams = metadata.params;
     for (auto& param : legacyOwnershipParams) {
         if (param.legacyChannelEditable.has_value()) {
@@ -205,8 +204,10 @@ void CameraTaskUnit::LoadConfig() {
                 [&metaParam](const auto& localParam) { return localParam.key == metaParam.key; });
             if (localIt != persisted.params.end()) {
                 effectiveParam.value = localIt->value;
-                effectiveOverrideKeys.push_back(metaParam.key.ToString());
             }
+        }
+        if (metaParam.IsChannelEditable()) {
+            effectiveOverrideKeys.push_back(metaParam.key.ToString());
         }
         effectiveParams.push_back(std::move(effectiveParam));
     }
