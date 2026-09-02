@@ -139,6 +139,25 @@ export class CosmoClient {
     this.signal = null;
   }
 
+  /**
+   * Return a token-authenticated client whose bounded requests are detached
+   * from the run signal. Concurrent trials keep using this client's original
+   * signal while one trial performs mandatory cleanup.
+   */
+  detachedCleanupClient() {
+    return new CosmoClient({
+      base: this.base,
+      token: this.mtk,
+      lang: this.lang,
+      uploadConcurrency: this.uploadConcurrency,
+      uploadAttempts: this.uploadAttempts,
+      uploadBackoffMs: this.uploadBackoffMs,
+      fetchImpl: this.fetchImpl,
+      sleepImpl: this.sleepImpl,
+      signal: null,
+    });
+  }
+
   /** Log in and store the mtk token. Returns the login response resData. */
   async login() {
     if (this.mtk) return { mtk: this.mtk };
@@ -291,8 +310,95 @@ export class CosmoClient {
     return (await this._post('/Task/RunningDetail', { tasks: taskIds })).resData;
   }
 
-  async eventPage(payload) {
-    return (await this._post('/event/page', payload)).resData;
+  async eventPage(payload, { signal } = {}) {
+    return (await this._post('/event/page', payload, { signal: signal ?? this.signal })).resData;
+  }
+
+  async algorithmPage(payload) {
+    return (await this._post('/Algorithm/Page', payload)).resData;
+  }
+
+  async schedulePage(payload) {
+    return (await this._post('/schedule/Page', payload)).resData;
+  }
+
+  async taskPage(payload) {
+    return (await this._post('/task/page', payload)).resData;
+  }
+
+  async taskSelectConfig(payload) {
+    return (await this._post('/Task/SelectConfigByAlgorithmId', payload)).resData;
+  }
+
+  async taskDelete(payload) {
+    return this._post('/Task/Delete', payload);
+  }
+
+  /**
+   * Download one device-owned report artifact without allowing cross-origin
+   * requests or unbounded response buffering.
+   */
+  async downloadArtifact(resource, { maxBytes = 20 * 1024 * 1024 } = {}) {
+    if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
+      throw new TypeError('maxBytes must be a positive safe integer');
+    }
+    const base = new URL(this.base);
+    const url = new URL(String(resource ?? ''), base);
+    if (url.origin !== base.origin) {
+      throw new Error('artifact URL must use the same device origin');
+    }
+    throwIfSignalAborted(this.signal);
+    const abortContext = requestAbortContext(DEFAULT_TIMEOUT_MS, this.signal);
+    const headers = { 'Accept-Language': this.lang };
+    if (this.mtk) {
+      headers.mtk = this.mtk;
+      headers.token = this.mtk;
+    }
+    try {
+      const response = await this.fetchImpl(url.href, {
+        method: 'GET',
+        headers,
+        signal: abortContext.signal,
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status} while downloading artifact`);
+      const advertised = Number(response.headers.get('content-length'));
+      if (Number.isFinite(advertised) && advertised > maxBytes) {
+        throw new Error(`artifact exceeds ${maxBytes}-byte limit`);
+      }
+      const chunks = [];
+      let size = 0;
+      if (response.body?.getReader) {
+        const reader = response.body.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          size += value.byteLength;
+          if (size > maxBytes) {
+            await reader.cancel('artifact size limit exceeded').catch(() => {});
+            throw new Error(`artifact exceeds ${maxBytes}-byte limit`);
+          }
+          chunks.push(Buffer.from(value));
+        }
+      } else {
+        const fallback = Buffer.from(await response.arrayBuffer());
+        size = fallback.length;
+        chunks.push(fallback);
+      }
+      const buffer = Buffer.concat(chunks, size);
+      if (buffer.length > maxBytes) throw new Error(`artifact exceeds ${maxBytes}-byte limit`);
+      return {
+        buffer,
+        contentType: response.headers.get('content-type')?.split(';', 1)[0] ?? 'application/octet-stream',
+      };
+    } catch (error) {
+      throwIfSignalAborted(this.signal);
+      if (abortContext.timedOut()) {
+        throw new Error(`Artifact download timed out after ${DEFAULT_TIMEOUT_MS}ms`);
+      }
+      throw new Error(`Artifact download failed: ${error.message}`);
+    } finally {
+      abortContext.cleanup();
+    }
   }
 
   /** Create or reuse one picture-analysis task. */
@@ -454,7 +560,7 @@ export class CosmoClient {
    * @param {object} body JSON body
    * @returns {Promise<object>} full wire response (with resCode/resData/resMsg)
    */
-  async _post(path, body) {
+  async _post(path, body, { signal = this.signal } = {}) {
     const url = path.startsWith('/v1/')
       ? `${this.base}${path}`
       : `${this.base}${API_PREFIX}${path}`;
@@ -469,8 +575,8 @@ export class CosmoClient {
       }
     }
     const timeout = LONG_TIMEOUT_ROUTES.has(path) ? LONG_TIMEOUT_MS : DEFAULT_TIMEOUT_MS;
-    throwIfSignalAborted(this.signal);
-    const abortContext = requestAbortContext(timeout, this.signal);
+    throwIfSignalAborted(signal);
+    const abortContext = requestAbortContext(timeout, signal);
     let resp;
     try {
       resp = await this.fetchImpl(url, {
@@ -480,7 +586,7 @@ export class CosmoClient {
         signal: abortContext.signal,
       });
     } catch (err) {
-      throwIfSignalAborted(this.signal);
+      throwIfSignalAborted(signal);
       if (abortContext.timedOut()) {
         throw new Error(`Request timed out after ${timeout}ms: POST ${path}`);
       }
@@ -490,13 +596,19 @@ export class CosmoClient {
     }
 
     if (!resp.ok) {
-      throw new Error(`HTTP ${resp.status} on POST ${path}`);
+      const error = new Error(`HTTP ${resp.status} on POST ${path}`);
+      const contentType = resp.headers.get('content-type')?.split(';', 1)[0].toLowerCase() ?? null;
+      error.httpStatus = resp.status;
+      error.responseContentType = contentType;
+      error.routeUnsupported = [404, 405].includes(resp.status)
+        || (resp.status === 400 && contentType === 'text/html');
+      throw error;
     }
     let data;
     try {
       data = await resp.json();
     } catch (error) {
-      throwIfSignalAborted(this.signal);
+      throwIfSignalAborted(signal);
       throw new Error(`Non-JSON response on POST ${path}`);
     }
     // Wire contract: resCode === 1 means success.

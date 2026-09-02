@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cosmowander.ai/schemas/cosmo-accuracy-summary-v4.json",
+  "title": "CosmoAccuracy measurement summary v4",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "protocolVersion",
+    "executionOutcome",
+    "executionReasons",
+    "execution",
+    "suite",
+    "tasks",
+    "cases",
+    "metrics",
+    "admission",
+    "performance"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 4 },
+    "protocolVersion": { "const": 4 },
+    "executionOutcome": { "enum": ["COMPLETED", "ERROR", "BLOCKED"] },
+    "executionReasons": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "execution": { "$ref": "#/$defs/execution" },
+    "suite": { "$ref": "#/$defs/suite" },
+    "tasks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/task" }
+    },
+    "cases": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/case" }
+    },
+    "metrics": { "$ref": "#/$defs/metrics" },
+    "admission": { "$ref": "#/$defs/admission" },
+    "performance": { "type": "object" }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "selection": {
+      "type": "object",
+      "required": ["count", "sha256"],
+      "properties": {
+        "count": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "required": ["profile", "concurrency", "selection", "measurementConfigSha256"],
+      "properties": {
+        "profile": { "enum": ["full", "quick"] },
+        "concurrency": { "enum": [1, 2, 4] },
+        "selection": { "$ref": "#/$defs/selection" },
+        "measurementConfigSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "suite": {
+      "type": "object",
+      "required": [
+        "id",
+        "displayName",
+        "suiteSha256",
+        "caseManifestSha256",
+        "caseSetSha256",
+        "sourceMode",
+        "targetChip"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "displayName": { "type": "string", "minLength": 1 },
+        "suiteSha256": { "$ref": "#/$defs/sha256" },
+        "caseManifestSha256": { "$ref": "#/$defs/sha256" },
+        "caseSetSha256": { "$ref": "#/$defs/sha256" },
+        "sourceMode": { "enum": ["local", "rtsp-deterministic"] },
+        "targetChip": { "type": "string", "minLength": 1 }
+      }
+    },
+    "countMetric": {
+      "type": "object",
+      "required": ["passed", "total", "rate"],
+      "properties": {
+        "passed": { "type": "integer", "minimum": 0 },
+        "total": { "type": "integer", "minimum": 0 },
+        "rate": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "task": {
+      "type": "object",
+      "required": [
+        "id",
+        "displayName",
+        "kind",
+        "algorithmId",
+        "algorithmCode",
+        "configSource",
+        "taskConfigHashes",
+        "positive",
+        "negative",
+        "custom",
+        "falsePositiveRate",
+        "errors",
+        "coverage"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "displayName": { "type": "string", "minLength": 1 },
+        "kind": { "enum": ["cv", "vlm"] },
+        "algorithmId": { "type": "string", "minLength": 1 },
+        "algorithmCode": { "type": "string", "minLength": 1 },
+        "configSource": { "enum": ["frozen", "device-default", "unknown"] },
+        "taskConfigHashes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/sha256" }
+        },
+        "positive": { "$ref": "#/$defs/countMetric" },
+        "negative": { "$ref": "#/$defs/countMetric" },
+        "custom": { "$ref": "#/$defs/countMetric" },
+        "falsePositiveRate": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "errors": { "type": "integer", "minimum": 0 },
+        "coverage": {
+          "type": "object",
+          "required": ["positive", "negative", "customCases", "totalCases"],
+          "properties": {
+            "positive": { "type": "boolean" },
+            "negative": { "type": "boolean" },
+            "customCases": { "type": "integer", "minimum": 0 },
+            "totalCases": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "expectation": {
+      "type": "object",
+      "properties": {
+        "minEvents": { "type": "integer", "minimum": 0 },
+        "maxEvents": { "type": "integer", "minimum": 0 }
+      },
+      "anyOf": [
+        { "required": ["minEvents"] },
+        { "required": ["maxEvents"] }
+      ]
+    },
+    "case": {
+      "type": "object",
+      "required": [
+        "id",
+        "task",
+        "expectation",
+        "status",
+        "cleanupBlocked",
+        "eventCount",
+        "trialCount",
+        "reasons",
+        "alertArtifacts",
+        "eventConvergence",
+        "cleanup"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "task": { "type": "string", "minLength": 1 },
+        "expectation": { "$ref": "#/$defs/expectation" },
+        "status": { "enum": ["PASS", "FAIL", "ERROR"] },
+        "cleanupBlocked": { "type": "boolean" },
+        "eventCount": { "type": ["integer", "null"], "minimum": 0 },
+        "trialCount": { "type": ["integer", "null"], "minimum": 0 },
+        "reasons": { "type": "array", "items": { "type": "string" } },
+        "alertArtifacts": { "type": "array" },
+        "eventConvergence": { "type": "object" },
+        "cleanup": { "type": "object" }
+      }
+    },
+    "rates": {
+      "type": "object",
+      "required": ["positiveHitRate", "negativeCleanRate", "negativeFalsePositiveRate"],
+      "properties": {
+        "positiveHitRate": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "negativeCleanRate": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "negativeFalsePositiveRate": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "required": ["micro", "macro", "coverage"],
+      "properties": {
+        "micro": { "$ref": "#/$defs/rates" },
+        "macro": { "$ref": "#/$defs/rates" },
+        "coverage": { "type": "object" }
+      }
+    },
+    "admission": {
+      "type": "object",
+      "required": [
+        "status",
+        "checkedAt",
+        "profile",
+        "concurrency",
+        "selection",
+        "media",
+        "checks",
+        "warnings"
+      ],
+      "properties": {
+        "status": { "enum": ["PASS", "FAIL", "UNVERIFIED"] },
+        "checkedAt": { "type": "string", "minLength": 1 },
+        "profile": { "enum": ["full", "quick"] },
+        "concurrency": { "enum": [1, 2, 4] },
+        "selection": { "$ref": "#/$defs/selection" },
+        "media": { "type": "object" },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "status", "blocking"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "status": { "enum": ["PASS", "FAIL", "UNVERIFIED"] },
+              "blocking": { "type": "boolean" }
+            }
+          }
+        },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

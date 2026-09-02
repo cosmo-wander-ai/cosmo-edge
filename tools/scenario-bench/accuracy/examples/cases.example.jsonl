@@ -1,0 +1,2 @@
+{"id":"helmet-positive-0001","task":"no-helmet","file":"videos/no-helmet/positive-0001.mp4","sha256":"replace-with-private-sample-sha256","expectation":{"minEvents":1},"tags":["warehouse","day","quick"]}
+{"id":"helmet-negative-0001","task":"no-helmet","file":"videos/no-helmet/negative-0001.mp4","sha256":"replace-with-private-sample-sha256","expectation":{"maxEvents":0},"tags":["warehouse","day"]}

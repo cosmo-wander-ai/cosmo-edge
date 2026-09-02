@@ -14,8 +14,17 @@
 
 import path from 'node:path';
 import fs from 'node:fs';
+import { performance } from 'node:perf_hooks';
 
 const UPLOAD_CHUNK_SIZE = 8 * 1024 * 1024;
+
+export class ChannelCleanupError extends Error {
+  constructor(message, result) {
+    super(message);
+    this.name = 'ChannelCleanupError';
+    this.result = result;
+  }
+}
 
 export class ChannelManager {
   /**
@@ -31,9 +40,23 @@ export class ChannelManager {
     this.prefix = opts.channelPrefix ?? 'bench';
     this.reuse = opts.reuse ?? true;
     this.cleanup = opts.cleanup ?? false;
+    this.strictCleanup = opts.strictCleanup ?? false;
+    this.cleanupVerifyAttempts = opts.cleanupVerifyAttempts ?? 3;
+    this.cleanupVerifyDelayMs = opts.cleanupVerifyDelayMs ?? 250;
+    this.sleep = opts.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+    this.monotonicNow = opts.monotonicNow ?? (() => performance.now());
+    this.recoverAmbiguousCreates = opts.recoverAmbiguousCreates ?? false;
     this.log = opts.logger;
     /** @type {Map<string, {videoChannelId:string, channelCode:string, channelName:string, mode:string}>} */
     this.created = new Map();
+    this.timingMs = { videoUpload: 0, cameraCreate: 0 };
+    this.pendingUploadIds = new Set();
+    this.uploadCancelAttempts = new Set();
+    this.cancelledUploadIds = new Set();
+  }
+
+  timingSnapshot() {
+    return { ...this.timingMs };
   }
 
   /**
@@ -56,22 +79,94 @@ export class ChannelManager {
     while (videoChannelIds.length < count) {
       const code = `${this.prefix}-${String(index + 1).padStart(2, '0')}`;
       const name = `${this.prefix}-${String(index + 1).padStart(2, '0')}`;
-      const id = await this._createOne(mode, code, name, videos, index);
+      const created = await this._createOne(mode, code, name, videos, index);
+      const id = created.id;
       videoChannelIds.push(id);
-      this.created.set(id, { videoChannelId: id, channelCode: code, channelName: name, mode });
+      this.created.set(id, {
+        videoChannelId: id,
+        channelCode: created.channelCode,
+        channelName: created.channelName,
+        mode,
+      });
       index++;
     }
     return videoChannelIds;
   }
 
   /** Tear down channels created by this manager (only if cleanup=true). */
-  async finish() {
-    if (!this.cleanup) return;
+  async finish({ client = this.client } = {}) {
+    const result = {
+      attempted: [],
+      deleted: false,
+      verified: this.cleanup ? null : true,
+      remaining: [],
+      warnings: [],
+      errors: [],
+      upload: {
+        attempted: [...this.uploadCancelAttempts],
+        cancelled: [...this.cancelledUploadIds],
+        remaining: [],
+        errors: [],
+      },
+    };
+    if (!this.cleanup) return result;
+    for (const uploadId of [...this.pendingUploadIds]) {
+      if (!result.upload.attempted.includes(uploadId)) result.upload.attempted.push(uploadId);
+      try {
+        await this._cancelUpload(uploadId, client);
+        if (!result.upload.cancelled.includes(uploadId)) result.upload.cancelled.push(uploadId);
+      } catch (error) {
+        result.upload.errors.push(`${uploadId}:${error.message}`);
+      }
+    }
+    result.upload.remaining = [...this.pendingUploadIds];
     const ids = [...this.created.keys()];
-    if (!ids.length) return;
-    try {
-      await this.client.cameraBatchDelete(ids);
-    } catch { /* best-effort; ignore */ }
+    result.attempted = ids;
+    if (ids.length) {
+      try {
+        await client.cameraBatchDelete(ids);
+        result.deleted = true;
+      } catch (error) {
+        result.warnings.push(`delete:${error.message}`);
+      }
+    } else {
+      result.deleted = true;
+    }
+    if (this.strictCleanup) {
+      if (ids.length) {
+        try {
+          for (let attempt = 1; attempt <= this.cleanupVerifyAttempts; attempt += 1) {
+            result.remaining = await this._findChannelIds(new Set(ids), client);
+            if (!result.remaining.length) break;
+            if (attempt < this.cleanupVerifyAttempts && this.cleanupVerifyDelayMs > 0) {
+              await this.sleep(this.cleanupVerifyDelayMs);
+            }
+          }
+        } catch (error) {
+          result.errors.push(`verify:${error.message}`);
+        }
+      }
+      result.verified = result.errors.length === 0
+        && result.remaining.length === 0
+        && result.upload.errors.length === 0
+        && result.upload.remaining.length === 0;
+      if (!result.verified) {
+        throw new ChannelCleanupError(
+          `strict channel cleanup failed (${[
+            ...result.errors,
+            ...result.upload.errors,
+            ...(result.remaining.length ? [`remaining=${result.remaining.join(',')}`] : []),
+            ...(result.upload.remaining.length
+              ? [`uploads=${result.upload.remaining.join(',')}`]
+              : []),
+          ].join('; ')})`,
+          result,
+        );
+      }
+    } else {
+      result.verified = result.upload.remaining.length === 0;
+    }
+    return result;
   }
 
   // ── internals ──────────────────────────────────────────────────────────
@@ -83,15 +178,31 @@ export class ChannelManager {
       if (!src.file) throw new Error(`scenario.yml channels: local source must define 'file'`);
       // AddVideo consumes the upload session, so every channel needs its own
       // upload even when all channels use the same local source.
-      const videoPayload = { uploadId: await this._uploadLocalVideo(src) };
-      const res = await this.client.cameraAddVideo({
-        channelName: this._channelNameForSource(name, src),
-        channelCode: code,
-        ...videoPayload,
-      });
-      const id = res?.resData?.id;
-      if (!id) throw new Error(`AddVideo for ${code} returned no id`);
-      return id;
+      const uploadId = await this._measure('videoUpload', () => this._uploadLocalVideo(src));
+      const videoPayload = { uploadId };
+      const channelName = this._channelNameForSource(name, src);
+      try {
+        const res = await this._measure('cameraCreate', () => this.client.cameraAddVideo({
+          channelName,
+          channelCode: code,
+          ...videoPayload,
+        }));
+        const id = res?.resData?.id;
+        if (!id) throw new Error(`AddVideo for ${code} returned no id`);
+        this.pendingUploadIds.delete(uploadId);
+        return { id, channelCode: code, channelName };
+      } catch (error) {
+        const recoveryClient = this.client.detachedCleanupClient?.() ?? this.client;
+        const recovered = this.recoverAmbiguousCreates
+          ? await this._findCreatedChannel(code, channelName, recoveryClient)
+          : null;
+        if (recovered) {
+          this.pendingUploadIds.delete(uploadId);
+          return recovered;
+        }
+        await this._cancelUploadBestEffort(uploadId);
+        throw error;
+      }
     }
     // rtsp-fidelity / rtsp-deterministic
     const src = videos.rtsp?.[index] ?? videos.rtsp?.[0];
@@ -102,10 +213,19 @@ export class ChannelManager {
       channelType: 0,  // RTSP camera
       url: src.url,
     };
-    const res = await this.client.cameraAdd(payload);
-    const id = res?.resData?.id;
-    if (!id) throw new Error(`Camera/Add for ${code} returned no id`);
-    return id;
+    try {
+      const res = await this._measure('cameraCreate', () => this.client.cameraAdd(payload));
+      const id = res?.resData?.id;
+      if (!id) throw new Error(`Camera/Add for ${code} returned no id`);
+      return { id, channelCode: code, channelName: payload.channelName };
+    } catch (error) {
+      const recoveryClient = this.client.detachedCleanupClient?.() ?? this.client;
+      const recovered = this.recoverAmbiguousCreates
+        ? await this._findCreatedChannel(code, payload.channelName, recoveryClient)
+        : null;
+      if (recovered) return recovered;
+      throw error;
+    }
   }
 
   _channelNameForSource(baseName, src) {
@@ -189,6 +309,7 @@ export class ChannelManager {
           throw new Error(`uploadTemp changed uploadId for ${fileName}`);
         }
         uploadId = responseUploadId;
+        this.pendingUploadIds.add(uploadId);
         const nextChunkIndex = Number(res?.resData?.nextChunkIndex);
         if (!Number.isInteger(nextChunkIndex)
           || nextChunkIndex <= chunkIndex
@@ -203,9 +324,7 @@ export class ChannelManager {
       }
     } catch (error) {
       if (uploadId) {
-        try {
-          await this.client.cancelUpload(uploadId);
-        } catch { /* preserve the upload failure */ }
+        await this._cancelUploadBestEffort(uploadId);
       }
       throw error;
     } finally {
@@ -245,5 +364,75 @@ export class ChannelManager {
       // Reuse is best-effort; fall through to create new.
     }
     return found;
+  }
+
+  async _findChannelIds(wanted, client = this.client) {
+    const found = [];
+    let pageNum = 1;
+    const pageSize = 200;
+    while (true) {
+      const res = await client.cameraPage({ pageNum, pageSize });
+      const list = res?.rows ?? res?.list ?? res?.data ?? [];
+      for (const channel of list) {
+        const id = channel.videoChannelId ?? channel.id;
+        if (id && wanted.has(id)) found.push(id);
+      }
+      if (list.length < pageSize) break;
+      pageNum += 1;
+    }
+    return found;
+  }
+
+  async _findCreatedChannel(channelCode, channelName, client = this.client) {
+    if (typeof client.cameraPage !== 'function') return null;
+    let pageNum = 1;
+    const pageSize = 200;
+    try {
+      while (true) {
+        const response = await client.cameraPage({ pageNum, pageSize });
+        const rows = response?.rows ?? response?.list ?? response?.data ?? [];
+        const row = rows.find((item) =>
+          String(item.channelCode ?? '') === String(channelCode)
+          || String(item.channelName ?? item.name ?? '') === String(channelName));
+        const id = row?.videoChannelId ?? row?.id;
+        if (id) {
+          return {
+            id,
+            channelCode: row.channelCode ?? channelCode,
+            channelName: row.channelName ?? row.name ?? channelName,
+          };
+        }
+        if (rows.length < pageSize) break;
+        pageNum += 1;
+      }
+    } catch { /* Preserve the original create failure. */ }
+    return null;
+  }
+
+  async _measure(name, action) {
+    const startedAt = this.monotonicNow();
+    try { return await action(); }
+    finally { this.timingMs[name] += this.monotonicNow() - startedAt; }
+  }
+
+  async _cancelUploadBestEffort(uploadId) {
+    const client = this.client.detachedCleanupClient?.() ?? this.client;
+    try { await this._cancelUpload(uploadId, client); }
+    catch { /* finish() retries and reports any remaining upload session. */ }
+  }
+
+  async _cancelUpload(uploadId, client) {
+    if (!uploadId || !this.pendingUploadIds.has(uploadId)) return;
+    this.uploadCancelAttempts.add(uploadId);
+    if (typeof client.cancelUpload === 'function') {
+      await client.cancelUpload(uploadId);
+    } else if (typeof client.cancelUploadBestEffort === 'function') {
+      const cancelled = await client.cancelUploadBestEffort(uploadId);
+      if (cancelled === false) throw new Error('upload cancellation was not confirmed');
+    } else {
+      throw new Error('client does not support upload cancellation');
+    }
+    this.pendingUploadIds.delete(uploadId);
+    this.cancelledUploadIds.add(uploadId);
   }
 }
