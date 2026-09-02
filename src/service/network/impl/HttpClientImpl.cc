@@ -6,6 +6,24 @@
 
 namespace cosmo::service {
 
+HttpResponse HttpClientImpl::Get(
+    const std::string& url, long connectTimeoutSec, long timeoutSec,
+    const std::vector<std::pair<std::string, std::string>>& headers) {
+    cosmo::network::http::HttpStringHandler handler;
+    cosmo::network::http::HttpRequest httpReq(url, handler);
+
+    for (const auto& header : headers) {
+        httpReq.AppendHeader(header.first, header.second);
+    }
+    httpReq.SetConnectTimeout(connectTimeoutSec);
+    httpReq.SetTimeout(timeoutSec);
+
+    HttpResponse response;
+    response.statusCode = httpReq.Submit(cosmo::network::http::HttpRequestMethod::kGet);
+    response.body       = handler.GetData();
+    return response;
+}
+
 HttpResponse HttpClientImpl::Post(const std::string& url, const std::string& data,
                                   const std::string& contentType, long connectTimeoutSec, long timeoutSec,
                                   const std::vector<std::pair<std::string, std::string>>& headers) {

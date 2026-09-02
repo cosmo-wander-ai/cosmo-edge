@@ -11,7 +11,9 @@
 #include <fstream>
 
 #include "mock/MockServiceRegistry.h"
+#include "service/detail/ServiceRegistry.h"
 #include "service/media/impl/AudioServiceImpl.h"
+#include "service/network/IHttpClient.h"
 
 using namespace cosmo::service;
 namespace fs = std::filesystem;
@@ -39,6 +41,40 @@ struct AudioTestFixture {
     }
 };
 
+class RecordingHttpClient final : public IHttpClient {
+public:
+    HttpResponse Get(
+        const std::string& url, long /*connectTimeoutSec*/, long /*timeoutSec*/,
+        const std::vector<std::pair<std::string, std::string>>& /*headers*/) override {
+        ++getCount;
+        lastUrl = url;
+        return {200, R"({"code":200,"message":"OK"})"};
+    }
+
+    HttpResponse Post(
+        const std::string& /*url*/, const std::string& /*data*/, const std::string& /*contentType*/,
+        long /*connectTimeoutSec*/, long /*timeoutSec*/,
+        const std::vector<std::pair<std::string, std::string>>& /*headers*/) override {
+        ++postCount;
+        return {500, {}};
+    }
+
+    int getCount{0};
+    int postCount{0};
+    std::string lastUrl;
+};
+
+class HttpClientRegistryGuard final {
+public:
+    explicit HttpClientRegistryGuard(IHttpClient& http_client) {
+        ServiceRegistry::Instance().Set<IHttpClient>(&http_client);
+    }
+
+    ~HttpClientRegistryGuard() {
+        ServiceRegistry::Instance().Set<IHttpClient>(nullptr);
+    }
+};
+
 }  // namespace
 
 TEST_CASE("AudioServiceImpl: construction and destruction", "[AudioService]") {
@@ -46,6 +82,18 @@ TEST_CASE("AudioServiceImpl: construction and destruction", "[AudioService]") {
     REQUIRE_NOTHROW([]() {
         // May warn about missing files, but should not crash
     }());
+}
+
+TEST_CASE("AudioServiceImpl: speaker health check uses GET", "[AudioService][HttpClient]") {
+    AudioTestFixture fix;
+    RecordingHttpClient http_client;
+    HttpClientRegistryGuard http_client_guard(http_client);
+    AudioServiceImpl sut;
+
+    REQUIRE(sut.CheckAudioDeviceAlive("192.0.2.10"));
+    REQUIRE(http_client.getCount == 1);
+    REQUIRE(http_client.postCount == 0);
+    REQUIRE(http_client.lastUrl == "http://192.0.2.10/v1/check_alive");
 }
 
 TEST_CASE("AudioServiceImpl: QueryAudioFiles with invalid pagination returns empty", "[AudioService]") {
