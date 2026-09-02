@@ -6,9 +6,8 @@
 
 namespace cosmo::service {
 
-HttpResponse HttpClientImpl::Get(
-    const std::string& url, long connectTimeoutSec, long timeoutSec,
-    const std::vector<std::pair<std::string, std::string>>& headers) {
+HttpResponse HttpClientImpl::Get(const std::string& url, long connectTimeoutSec, long timeoutSec,
+                                 const std::vector<std::pair<std::string, std::string>>& headers) {
     cosmo::network::http::HttpStringHandler handler;
     cosmo::network::http::HttpRequest httpReq(url, handler);
 

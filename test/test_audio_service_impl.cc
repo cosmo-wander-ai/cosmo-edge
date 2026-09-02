@@ -43,18 +43,16 @@ struct AudioTestFixture {
 
 class RecordingHttpClient final : public IHttpClient {
 public:
-    HttpResponse Get(
-        const std::string& url, long /*connectTimeoutSec*/, long /*timeoutSec*/,
-        const std::vector<std::pair<std::string, std::string>>& /*headers*/) override {
+    HttpResponse Get(const std::string& url, long /*connectTimeoutSec*/, long /*timeoutSec*/,
+                     const std::vector<std::pair<std::string, std::string>>& /*headers*/) override {
         ++getCount;
         lastUrl = url;
         return {200, R"({"code":200,"message":"OK"})"};
     }
 
-    HttpResponse Post(
-        const std::string& /*url*/, const std::string& /*data*/, const std::string& /*contentType*/,
-        long /*connectTimeoutSec*/, long /*timeoutSec*/,
-        const std::vector<std::pair<std::string, std::string>>& /*headers*/) override {
+    HttpResponse Post(const std::string& /*url*/, const std::string& /*data*/,
+                      const std::string& /*contentType*/, long /*connectTimeoutSec*/, long /*timeoutSec*/,
+                      const std::vector<std::pair<std::string, std::string>>& /*headers*/) override {
         ++postCount;
         return {500, {}};
     }

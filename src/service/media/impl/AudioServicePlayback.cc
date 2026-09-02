@@ -283,7 +283,7 @@ bool AudioServiceImpl::HttpSubmit(const std::string& url, const std::string& dat
 
 bool AudioServiceImpl::CheckAudioDeviceAlive(const std::string& ip) {
     std::string url = "http://" + ip + "/v1/check_alive";
-    auto response = ServiceRegistry::Instance().Get<cosmo::service::IHttpClient>().Get(url);
+    auto response   = ServiceRegistry::Instance().Get<cosmo::service::IHttpClient>().Get(url);
     return IsAudioDeviceResponseSuccessful(response, 0);
 }
 

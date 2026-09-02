@@ -20,9 +20,8 @@ public:
     virtual ~IHttpClient() = default;
 
     /// Send HTTP GET request, return status code and response body
-    virtual HttpResponse Get(
-        const std::string& url, long connectTimeoutSec = 2, long timeoutSec = 3,
-        const std::vector<std::pair<std::string, std::string>>& headers = {}) = 0;
+    virtual HttpResponse Get(const std::string& url, long connectTimeoutSec = 2, long timeoutSec = 3,
+                             const std::vector<std::pair<std::string, std::string>>& headers = {}) = 0;
 
     /// Send HTTP POST request (JSON body), return status code and response body
     virtual HttpResponse Post(const std::string& url, const std::string& data,
