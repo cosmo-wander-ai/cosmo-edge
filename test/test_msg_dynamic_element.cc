@@ -163,7 +163,7 @@ TEST_CASE("MsgDynamicElement: channel ownership JSON roundtrip", "[msg-dynamic-e
 
 TEST_CASE("MsgDynamicElement: channel ownership compatibility rules",
           "[msg-dynamic-element][task-parameters][compatibility]") {
-    SECTION("explicit channelEditable has highest priority") {
+    SECTION("only the canonical unchecked selection is hidden") {
         cosmo::MsgDynamicElement visible;
         visible.key             = "param.visible";
         visible.senior          = 2;
@@ -172,8 +172,15 @@ TEST_CASE("MsgDynamicElement: channel ownership compatibility rules",
 
         cosmo::MsgDynamicElement managed_special;
         managed_special.key             = "param.videoRepeatCount";
+        managed_special.senior          = 2;
         managed_special.channelEditable = false;
         REQUIRE_FALSE(managed_special.IsChannelEditable());
+
+        cosmo::MsgDynamicElement legacy_false;
+        legacy_false.key             = "param.legacyFalse";
+        legacy_false.senior          = 1;
+        legacy_false.channelEditable = false;
+        REQUIRE_FALSE(legacy_false.IsChannelEditable());
     }
 
     SECTION("special legacy parameters remain channel editable") {
@@ -189,16 +196,16 @@ TEST_CASE("MsgDynamicElement: channel ownership compatibility rules",
         REQUIRE(retro.IsChannelEditable());
     }
 
-    SECTION("legacy senior values infer ownership") {
+    SECTION("legacy senior values follow the visible default") {
         cosmo::MsgDynamicElement hidden_client;
         hidden_client.key    = "param.hiddenClient";
         hidden_client.senior = 1;
-        REQUIRE_FALSE(hidden_client.IsChannelEditable());
+        REQUIRE(hidden_client.IsChannelEditable());
 
         cosmo::MsgDynamicElement hidden_everywhere;
         hidden_everywhere.key    = "param.hiddenEverywhere";
         hidden_everywhere.senior = 2;
-        REQUIRE_FALSE(hidden_everywhere.IsChannelEditable());
+        REQUIRE(hidden_everywhere.IsChannelEditable());
 
         cosmo::MsgDynamicElement visible;
         visible.key    = "param.visible";
@@ -285,8 +292,9 @@ TEST_CASE("MsgDynamicElement: normalizes legacy channel ownership across metadat
         auto orphan          = makeElement("orphan");
         orphan.dependsOn.key = "missing";
 
-        auto parent         = makeElement("parent");
-        parent.senior       = 2;
+        auto parent               = makeElement("parent", "switch");
+        parent.senior             = 2;
+        parent.channelEditable    = false;
         auto child          = makeElement("child");
         child.dependsOn.key = "parent";
 
@@ -320,6 +328,7 @@ TEST_CASE("MsgDynamicElement: normalizes legacy channel ownership across metadat
         explicitOrphan.channelEditable = true;
 
         auto explicitManaged            = makeElement("param.videoRepeatCount");
+        explicitManaged.senior           = 2;
         explicitManaged.channelEditable = false;
 
         std::vector<cosmo::MsgDynamicElement> elements{explicitEditable, explicitOrphan, explicitManaged};
@@ -330,16 +339,16 @@ TEST_CASE("MsgDynamicElement: normalizes legacy channel ownership across metadat
         CHECK_FALSE(elements[2].IsChannelEditable());
     }
 
-    SECTION("legacy scene-only controls are excluded") {
+    SECTION("legacy scene-only controls follow the visible default") {
         std::vector<cosmo::MsgDynamicElement> elements{
             makeElement("FaceCheck", "switch"), makeElement("catchView", "radio"),
             makeElement("minFaceWidth", "text"), makeElement("quality", "number")};
         cosmo::MsgDynamicElement::NormalizeLegacyChannelOwnership(elements);
 
-        CHECK_FALSE(elements[0].IsChannelEditable());
-        CHECK_FALSE(elements[1].IsChannelEditable());
-        CHECK_FALSE(elements[2].IsChannelEditable());
-        CHECK_FALSE(elements[3].IsChannelEditable());
+        CHECK(elements[0].IsChannelEditable());
+        CHECK(elements[1].IsChannelEditable());
+        CHECK(elements[2].IsChannelEditable());
+        CHECK(elements[3].IsChannelEditable());
     }
 
     SECTION("legacy special controls remain channel editable") {
@@ -352,6 +361,19 @@ TEST_CASE("MsgDynamicElement: normalizes legacy channel ownership across metadat
         cosmo::MsgDynamicElement::NormalizeLegacyChannelOwnership(elements);
 
         CHECK(elements[0].IsChannelEditable());
+        CHECK(elements[1].IsChannelEditable());
+    }
+
+    SECTION("legacy snapshot classification preserves old visibility defaults") {
+        auto hiddenClient   = makeElement("param.hiddenClient");
+        hiddenClient.senior = 1;
+        auto visible        = makeElement("param.visible");
+        visible.senior      = 0;
+
+        std::vector<cosmo::MsgDynamicElement> elements{hiddenClient, visible};
+        cosmo::MsgDynamicElement::NormalizeLegacyChannelOwnership(elements, true);
+
+        CHECK_FALSE(elements[0].IsChannelEditable());
         CHECK(elements[1].IsChannelEditable());
     }
 
@@ -460,6 +482,7 @@ TEST_CASE("MsgDynamicElement: normalizes legacy channel ownership across metadat
 
     SECTION("an explicit child cannot override a scene-managed parent") {
         auto parent            = makeElement("parent", "switch");
+        parent.senior          = 2;
         parent.channelEditable = false;
         auto child             = makeElement("child", "text");
         child.dependsOn.key    = "parent";
@@ -494,6 +517,7 @@ TEST_CASE("MsgDynamicElement: normalizes legacy channel ownership across metadat
 
         auto managedInitial            = makeElement("managed-initial", "initialPoint");
         auto managedEnd                = makeElement("managed-end", "endPoint");
+        managedEnd.senior              = 2;
         managedEnd.channelEditable     = false;
         managedInitial.channelEditable = true;
         std::vector<cosmo::MsgDynamicElement> managedPair{managedInitial, managedEnd};

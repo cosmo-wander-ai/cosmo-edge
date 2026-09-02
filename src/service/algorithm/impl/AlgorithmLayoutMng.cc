@@ -67,7 +67,7 @@ namespace {
                 param.channelEditable.reset();
             }
         }
-        MsgDynamicElement::NormalizeLegacyChannelOwnership(legacyParams);
+        MsgDynamicElement::NormalizeLegacyChannelOwnership(legacyParams, true);
 
         ownership.clear();
         ownership.reserve(legacyParams.size());

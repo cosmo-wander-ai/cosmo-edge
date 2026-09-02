@@ -81,14 +81,12 @@ export const deriveChannelEditableFromVisibility = (param) => {
 // New and legacy parameters default to checked. Only the canonical pair written
 // by this binary control (senior 2 + explicit channelEditable false) preserves
 // an intentional hidden selection.
-export const normalizeChannelVisibilitySelection = (param) => {
-  return (
-    Number(param?.senior) === 2 &&
-    getExplicitChannelEditable(param) === false
-  )
-    ? 2
-    : 0
-}
+export const isExplicitlyHiddenChannelParam = (param) =>
+  Number(param?.senior) === 2 &&
+  getExplicitChannelEditable(param) === false
+
+export const normalizeChannelVisibilitySelection = (param) =>
+  isExplicitlyHiddenChannelParam(param) ? 2 : 0
 
 // Canonicalize scene metadata independently of whether the parameter tab has
 // been opened. This makes newly generated/imported descriptors follow the same
@@ -106,13 +104,7 @@ export const normalizeSceneParamVisibilityDefaults = (params) => {
 }
 
 export const isChannelEditableParam = (param) => {
-  const explicit = getExplicitChannelEditable(param)
-  if (explicit !== undefined) return explicit
-  // Legacy edge metadata keeps these special controls on the channel even when
-  // their historical visibility marker says otherwise.
-  if (isForcedChannelParam(param)) return true
-  if (isLegacyUnrenderedParam(param)) return false
-  return deriveChannelEditableFromVisibility(param)
+  return !isExplicitlyHiddenChannelParam(param)
 }
 
 export const getParamDependencyKey = (param) => {
@@ -514,19 +506,7 @@ export const resolveChannelEditableFlags = (params) => {
       flags[index] = false
       return false
     }
-    const explicit = getExplicitChannelEditable(param)
-    let ownEditable
-    if (explicit !== undefined) {
-      ownEditable = explicit
-    } else if (isForcedChannelParam(param)) {
-      ownEditable = true
-    } else {
-      ownEditable = !(
-        (dependencyDepths[index] === 0 &&
-          isLegacyUnrenderedParam(param)) ||
-        !deriveChannelEditableFromVisibility(param)
-      )
-    }
+    const ownEditable = isChannelEditableParam(param)
     if (!ownEditable) {
       states[index] = 2
       flags[index] = false
@@ -672,7 +652,7 @@ export const normalizeChannelEditorVisibility = (param, platformType) => {
   const normalized = { ...param }
   if (
     String(platformType ?? '') !== '1' &&
-    getExplicitChannelEditable(normalized) === true
+    isChannelEditableParam(normalized)
   ) {
     normalized.senior = 0
   }

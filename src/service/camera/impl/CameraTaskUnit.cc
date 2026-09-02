@@ -164,7 +164,7 @@ void CameraTaskUnit::LoadConfig() {
             param.channelEditable.reset();
         }
     }
-    MsgDynamicElement::NormalizeLegacyChannelOwnership(legacyOwnershipParams);
+    MsgDynamicElement::NormalizeLegacyChannelOwnership(legacyOwnershipParams, true);
     std::vector<bool> legacyChannelEditable;
     legacyChannelEditable.reserve(legacyOwnershipParams.size());
     for (size_t index = 0; index < legacyOwnershipParams.size(); ++index) {

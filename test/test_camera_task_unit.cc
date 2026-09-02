@@ -437,7 +437,7 @@ TEST_CASE("CameraTaskUnit uses only canonical override markers after migration",
         {
             cosmo::test::MockServiceRegistry mocks;
             ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
-                .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "20", false)}));
+                .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "20", false, 2)}));
             CameraTaskUnit unit(config_root.string(), "hidden_override_channel", "test_alg", {});
 
             REQUIRE(unit.IsReady());
@@ -489,7 +489,7 @@ TEST_CASE("CameraTaskUnit persists provenance created by channel and trusted bin
     std::filesystem::remove_all(config_root);
     const auto metadata = MakeMetadataJson({MakeMetadataParam("param.threshold", "5", true),
                                             MakeMetadataParam("param.faceSet", "", true, 0, "faceSet"),
-                                            MakeMetadataParam("param.sceneOwned", "20", false)});
+                                            MakeMetadataParam("param.sceneOwned", "20", false, 2)});
 
     {
         cosmo::test::MockServiceRegistry mocks;
@@ -636,7 +636,7 @@ TEST_CASE("CameraTaskUnit keeps legacy and special channel parameters editable",
 
     CHECK(FindParamValue(params, "param.legacy") == "1");
     CHECK(FindParamValue(params, "param.retroDirect") == "2");
-    CHECK(FindParamValue(params, "param.explicitRetro") == "40");
+    CHECK(FindParamValue(params, "param.explicitRetro") == "4");
     CHECK_FALSE(HasParam(params, "param.noDescriptor"));
 
     REQUIRE(unit.SetChannelParams(std::vector<MsgDynamicKeyValue>{

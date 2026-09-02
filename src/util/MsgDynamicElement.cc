@@ -65,6 +65,14 @@ namespace {
         }
         throw std::invalid_argument("senior must be an integer or a legacy integer string");
     }
+
+    // The current scene editor writes this exact pair when a user unchecks
+    // "visible in channel". Historical senior/channelEditable values were
+    // derived from older visibility modes and do not prove an intentional hide.
+    bool HasExplicitChannelHiddenSelection(const MsgDynamicElement& element) noexcept {
+        return element.senior.has_value() && *element.senior == 2 &&
+               element.channelEditable.has_value() && !*element.channelEditable;
+    }
 }  // namespace
 
 bool MsgDynamicElement::IsLegacyChannelEditableException(std::string_view type,
@@ -72,7 +80,8 @@ bool MsgDynamicElement::IsLegacyChannelEditableException(std::string_view type,
     return type == "retroDirect" || paramKey == cosmo::key::CHANNEL_SOURCE_REPEAT;
 }
 
-void MsgDynamicElement::NormalizeLegacyChannelOwnership(std::vector<MsgDynamicElement>& elements) {
+void MsgDynamicElement::NormalizeLegacyChannelOwnership(std::vector<MsgDynamicElement>& elements,
+                                                        bool useLegacyVisibilityDefaults) {
     enum class VisitState {
         kUnvisited,
         kVisiting,
@@ -211,16 +220,27 @@ void MsgDynamicElement::NormalizeLegacyChannelOwnership(std::vector<MsgDynamicEl
         states[index]    = VisitState::kVisiting;
         const auto depth = *dependencyDepths[index];
         bool result;
-        if (element.channelEditable.has_value()) {
-            result = *element.channelEditable;
-        } else if (depth == 0 && isLegacySceneOnlyRootControl(element)) {
-            result = false;
-        } else if (IsLegacyChannelEditableException(element.type, element.key.ToRefString())) {
-            result = true;
-        } else if (element.senior.has_value() && (*element.senior == 1 || *element.senior == 2)) {
-            result = false;
+        if (useLegacyVisibilityDefaults) {
+            // This mode is used only to classify provenance-less snapshots
+            // created by an older release. Preserve what that release could
+            // actually expose instead of applying today's visible default.
+            if (element.channelEditable.has_value()) {
+                result = *element.channelEditable;
+            } else if (depth == 0 && isLegacySceneOnlyRootControl(element)) {
+                result = false;
+            } else if (IsLegacyChannelEditableException(element.type, element.key.ToRefString())) {
+                result = true;
+            } else if (element.senior.has_value() &&
+                       (*element.senior == 1 || *element.senior == 2)) {
+                result = false;
+            } else {
+                result = true;
+            }
         } else {
-            result = true;
+            // Every renderable parameter is channel-editable by default. Only
+            // the canonical pair produced by an explicit unchecked selection
+            // remains scene-owned; legacy markers are promoted.
+            result = !HasExplicitChannelHiddenSelection(element);
         }
 
         // A child is reachable only through its complete editable parent chain. This check comes
@@ -265,10 +285,7 @@ bool MsgDynamicElement::IsChannelEditable() const noexcept {
     if (channelEditable.has_value()) {
         return *channelEditable;
     }
-    if (IsLegacyChannelEditableException(type, key.ToRefString())) {
-        return true;
-    }
-    return !senior.has_value() || (*senior != 1 && *senior != 2);
+    return true;
 }
 
 void to_json(nlohmann::json& j, const MsgDynamicKeyValue& v) {

@@ -69,7 +69,8 @@ struct MsgDynamicElement : public MsgDynamicKeyValue {
 
     [[nodiscard]] static bool IsLegacyChannelEditableException(std::string_view type,
                                                                std::string_view key) noexcept;
-    static void NormalizeLegacyChannelOwnership(std::vector<MsgDynamicElement>& elements);
+    static void NormalizeLegacyChannelOwnership(std::vector<MsgDynamicElement>& elements,
+                                                bool useLegacyVisibilityDefaults = false);
     [[nodiscard]] bool IsChannelEditable() const noexcept;
 };
 

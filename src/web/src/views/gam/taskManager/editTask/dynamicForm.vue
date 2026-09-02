@@ -272,8 +272,8 @@
           <div
             v-if="(item.type == 'switch' || item.type == 'select') && showForm(item.senior) && item.children.length > 0">
             <div v-for="(el, childIdx) in item.children" :key="childIdx">
-              <el-form v-if="el.dependsOn.value == item.value" label-position="right" size="small" :model="el"
-                :label-width="labelWidth ? labelWidth : defaultLabelWidth" @submit.prevent>
+              <el-form v-if="showChildParam(item, el)" :disabled="disableChildParam(item, el)" label-position="right"
+                size="small" :model="el" :label-width="labelWidth ? labelWidth : defaultLabelWidth" @submit.prevent>
                 <!-- select  -->
                 <el-form-item v-if="el.type == 'select' && el.isColumn == true && showForm(el.senior)">
                   <template #label>
@@ -549,7 +549,6 @@ import {
   filterChannelEditableParams,
   filterTaskParamsForSubmission,
   flattenTaskParamTree,
-  getExplicitChannelEditable,
   getParamDependencyCycleBreakIndexes,
   getParamDependencyKey,
   isLegacyUnrenderedParam,
@@ -631,8 +630,19 @@ const getPlatformType = () => localStorage.getItem('platformType')
 
 const showLegacyParam = (param) =>
   !isLegacyUnrenderedParam(param) ||
-  (String(getPlatformType() ?? '') !== '1' &&
-    getExplicitChannelEditable(param) === true)
+  String(getPlatformType() ?? '') !== '1'
+
+const dependencyMatches = (parent, child) => {
+  // Preserve the legacy form's loose matching for numeric/string switch values.
+  // eslint-disable-next-line eqeqeq
+  return child?.dependsOn?.value == parent?.value
+}
+
+const isEdgeChannelEditor = () => String(getPlatformType() ?? '') !== '1'
+const showChildParam = (parent, child) =>
+  isEdgeChannelEditor() || dependencyMatches(parent, child)
+const disableChildParam = (parent, child) =>
+  isEdgeChannelEditor() && !dependencyMatches(parent, child)
 
 const getCurrentParams = () => {
   const currentParams =

@@ -28,6 +28,13 @@ const parameterSettingSource = readFileSync(
   ),
   'utf8'
 )
+const dynamicFormSource = readFileSync(
+  new URL(
+    '../src/views/gam/taskManager/editTask/dynamicForm.vue',
+    import.meta.url
+  ),
+  'utf8'
+)
 assert.doesNotMatch(parameterSettingSource, /glossary\.(?:allHidden|clientHidden)/)
 assert.doesNotMatch(
   parameterSettingSource,
@@ -76,6 +83,15 @@ assert.deepEqual(
 )
 assert.doesNotMatch(parameterSettingSource, /checkedClient:\s*2/)
 assert.match(parameterSettingSource, /checkedClient:\s*0/g)
+assert.doesNotMatch(
+  dynamicFormSource,
+  /v-if="el\.dependsOn\.value == item\.value"/
+)
+assert.match(dynamicFormSource, /v-if="showChildParam\(item, el\)"/)
+assert.match(
+  dynamicFormSource,
+  /:disabled="disableChildParam\(item, el\)"/
+)
 
 const equivalentSchemaA = {
   key: 'threshold',
@@ -302,6 +318,7 @@ const hiddenChild = {
   key: 'sceneOnly',
   type: 'text',
   value: 'scene',
+  senior: 2,
   channelEditable: false
 }
 rootParam.children = [childParam, siblingParam, hiddenChild]
@@ -495,6 +512,13 @@ assert.deepEqual(
 )
 assert.deepEqual(
   normalizeChannelEditorVisibility(
+    { key: 'legacyVisible', senior: 1, channelEditable: false },
+    '15'
+  ),
+  { key: 'legacyVisible', senior: 0, channelEditable: false }
+)
+assert.deepEqual(
+  normalizeChannelEditorVisibility(
     { key: 'platformAdvanced', senior: 2, channelEditable: true },
     '1'
   ),
@@ -525,8 +549,8 @@ const ownershipByKey = (params) =>
     ])
   )
 
-// For a structurally valid root, explicit ownership is authoritative over
-// forced-channel and legacy-unrendered compatibility rules.
+// Only the canonical unchecked pair is hidden. Historical false markers that
+// were not written by the current binary control follow the visible default.
 assert.deepEqual(
   ownershipByKey([
     {
@@ -537,12 +561,13 @@ assert.deepEqual(
     },
     {
       key: 'param.videoRepeatCount',
-      senior: 0,
+      senior: 2,
       channelEditable: false
     },
     {
       key: 'retro',
       type: 'retroDirect',
+      senior: 2,
       channelEditable: 'false'
     }
   ]),
@@ -575,10 +600,10 @@ assert.deepEqual(
     { key: 'quality', type: 'number' }
   ]),
   {
-    FaceCheck: false,
-    catchView: false,
-    minFaceWidth: false,
-    quality: false
+    FaceCheck: true,
+    catchView: true,
+    minFaceWidth: true,
+    quality: true
   }
 )
 assert.deepEqual(
@@ -597,7 +622,7 @@ assert.deepEqual(
     { key: 'scene.senior1', type: 'text', senior: 1 },
     { key: 'scene.senior2', type: 'text', senior: '2' }
   ]),
-  [true, false, false]
+  [true, true, true]
 )
 
 // A legacy child is editable only when its complete dependency chain exists
@@ -660,7 +685,12 @@ assert.deepEqual(
 )
 assert.deepEqual(
   ownershipByKey([
-    { key: 'hiddenParent', type: 'switch', senior: 2 },
+    {
+      key: 'hiddenParent',
+      type: 'switch',
+      senior: 2,
+      channelEditable: false
+    },
     {
       key: 'legacyChild',
       type: 'text',
@@ -853,17 +883,26 @@ assert.deepEqual(
 )
 
 const edgeOnlyParams = [
-  { key: 'hidden', type: 'text', senior: 2 },
+  { key: 'hidden', type: 'text', senior: 2, channelEditable: false },
   { key: 'orphan', type: 'text', dependsOn: { key: 'missing', value: '1' } },
   { key: 'FaceCheck', type: 'switch' },
   { key: 'explicitFalse', type: 'text', channelEditable: false },
   { key: 'cycle', type: 'switch', dependsOn: { key: 'cycle', value: '1' } }
 ]
-assert.deepEqual(filterChannelEditableParams(edgeOnlyParams, '15'), [])
+assert.deepEqual(
+  filterChannelEditableParams(edgeOnlyParams, '15').map((param) => param.key),
+  ['FaceCheck', 'explicitFalse']
+)
 assert.deepEqual(filterChannelEditableParams(edgeOnlyParams, '1'), edgeOnlyParams)
 assert.deepEqual(filterChannelEditableParams(edgeOnlyParams, 1), edgeOnlyParams)
-assert.deepEqual(filterChannelEditableParams(edgeOnlyParams, '01'), [])
-assert.deepEqual(filterChannelEditableParams(edgeOnlyParams), [])
+assert.deepEqual(
+  filterChannelEditableParams(edgeOnlyParams, '01').map((param) => param.key),
+  ['FaceCheck', 'explicitFalse']
+)
+assert.deepEqual(
+  filterChannelEditableParams(edgeOnlyParams).map((param) => param.key),
+  ['FaceCheck', 'explicitFalse']
+)
 assert.equal(
   isChannelEditableInContext({ channelEditable: false }, '1'),
   true
