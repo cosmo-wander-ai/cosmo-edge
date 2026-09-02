@@ -1,5 +1,4 @@
 #include "catch_amalgamated.hpp"
-
 #include "flow/target/TargetFilter.h"
 #include "util/dto/ActionCodes.h"
 
@@ -23,10 +22,10 @@ cosmo::MsgDynamicKeyValue Param(const std::string& key, const std::string& value
 cosmo::ActionNode Action(std::string_view action_id, const std::string& flow_id,
                          std::vector<cosmo::MsgDynamicKeyValue> params) {
     cosmo::ActionNode action;
-    action.actionId                 = std::string(action_id);
-    action.actionName               = std::string(action_id);
-    action.flowActionId             = flow_id;
-    action.configObject.params      = std::move(params);
+    action.actionId            = std::string(action_id);
+    action.actionName          = std::string(action_id);
+    action.flowActionId        = flow_id;
+    action.configObject.params = std::move(params);
     return action;
 }
 
@@ -64,8 +63,7 @@ TEST_CASE("size filter only applies to selected categories", "[target-filter]") 
     auto action = Action(cosmo::BASizeFilter_Code, "size-node",
                          {Param("sizeFilter.size-node.1001.person.side.min", "60")});
     cosmo::TargetFilter filter("task", action);
-    auto input = Input(
-        {Target("person", 50, 50), Target("person", 60, 60), Target("car", 20, 20)});
+    auto input = Input({Target("person", 50, 50), Target("person", 60, 60), Target("car", 20, 20)});
 
     cosmo::TargetFilterTestPeer::Apply(filter, input);
 
@@ -77,8 +75,8 @@ TEST_CASE("size filter only applies to selected categories", "[target-filter]") 
 TEST_CASE("category and size filters compose independently", "[target-filter]") {
     auto category_action = Action(cosmo::BAFilter_Code, "category-node",
                                   {Param("categoryFilter.category-node.1001.person.enabled", "1")});
-    auto size_action = Action(cosmo::BASizeFilter_Code, "size-node",
-                              {Param("sizeFilter.size-node.1001.person.side.min", "60")});
+    auto size_action     = Action(cosmo::BASizeFilter_Code, "size-node",
+                                  {Param("sizeFilter.size-node.1001.person.side.min", "60")});
     cosmo::TargetFilter category_filter("task", category_action);
     cosmo::TargetFilter size_filter("task", size_action);
     auto input = Input({Target("person", 50, 50), Target("person", 80, 80), Target("car", 80, 80)});
@@ -103,11 +101,10 @@ TEST_CASE("size filter parameters are scoped to one flow node", "[target-filter]
 }
 
 TEST_CASE("legacy combined filter remains compatible", "[target-filter]") {
-    auto action = Action(cosmo::BAFilter_Code, "legacy-node",
-                         {Param("filter.person.side.min", "60")});
+    auto action = Action(cosmo::BAFilter_Code, "legacy-node", {Param("filter.person.side.min", "60")});
     cosmo::TargetFilter filter("task", action);
-    auto input = Input(
-        {Target("person", 50, 50, ""), Target("person", 80, 80, ""), Target("car", 80, 80, "")});
+    auto input =
+        Input({Target("person", 50, 50, ""), Target("person", 80, 80, ""), Target("car", 80, 80, "")});
 
     cosmo::TargetFilterTestPeer::Apply(filter, input);
 

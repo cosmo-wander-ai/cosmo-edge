@@ -103,7 +103,7 @@ void TaskBase::RegisterActionHandlers() {
 
     // --- BA (Business Algorithm) Actions ---
 
-    action_handlers_[BAFilter_Code] = MakeHandler<TargetFilterMng, TargetFilter>(filter_mng_);
+    action_handlers_[BAFilter_Code]     = MakeHandler<TargetFilterMng, TargetFilter>(filter_mng_);
     action_handlers_[BASizeFilter_Code] = MakeHandler<TargetFilterMng, TargetFilter>(filter_mng_);
     action_handlers_[BALogicalJudgment_Code] =
         MakeHandler<LogicalJudgmentMng, LogicalJudgment>(logical_judgment_mng_);

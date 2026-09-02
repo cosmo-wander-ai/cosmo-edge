@@ -59,8 +59,7 @@ private:
 
     void HandFrame(AlgDataPtr algData) override;
     bool AnalysisKey(const MsgDynamicKeyValue& param, BAFilterParam& filter_el) const;
-    bool AnalysisCategoryKey(const MsgDynamicKeyValue& param,
-                             BACategoryFilterParam& category_el) const;
+    bool AnalysisCategoryKey(const MsgDynamicKeyValue& param, BACategoryFilterParam& category_el) const;
     /** Convert BAFilterParam to MsgDynamicKeyValue (for writing back to workFlow to support layout saving) */
     static MsgDynamicKeyValue FilterParamToKeyValue(const BAFilterParam& p);
     MsgDynamicKeyValue SizeFilterParamToKeyValue(const BAFilterParam& p) const;

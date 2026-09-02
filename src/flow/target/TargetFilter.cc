@@ -25,26 +25,26 @@ static constexpr const char* kTag       = "TARGETFILTER ";
 static constexpr int kFilterLogInterval = 100;
 namespace cosmo {
 namespace {
-constexpr std::string_view kCategoryFilterKey = "categoryFilter";
-constexpr std::string_view kSizeFilterKey     = "sizeFilter";
-constexpr std::string_view kEnabledKey        = "enabled";
-constexpr std::string_view kEmptyAtomicCode   = "_";
+    constexpr std::string_view kCategoryFilterKey = "categoryFilter";
+    constexpr std::string_view kSizeFilterKey     = "sizeFilter";
+    constexpr std::string_view kEnabledKey        = "enabled";
+    constexpr std::string_view kEmptyAtomicCode   = "_";
 
-std::vector<std::string> ExpandedKeys(const MsgDynamicKeyValue& param) {
-    if (!param.keys.empty()) {
-        return param.keys;
+    std::vector<std::string> ExpandedKeys(const MsgDynamicKeyValue& param) {
+        if (!param.keys.empty()) {
+            return param.keys;
+        }
+        const auto parts = util::Split(param.key.ToRefString(), ".");
+        return {parts.begin(), parts.end()};
     }
-    const auto parts = util::Split(param.key.ToRefString(), ".");
-    return {parts.begin(), parts.end()};
-}
 
-std::string DecodeAtomicCode(const std::string& value) {
-    return value == kEmptyAtomicCode ? std::string{} : value;
-}
+    std::string DecodeAtomicCode(const std::string& value) {
+        return value == kEmptyAtomicCode ? std::string{} : value;
+    }
 
-std::string EncodeAtomicCode(const std::string& value) {
-    return value.empty() ? std::string{kEmptyAtomicCode} : value;
-}
+    std::string EncodeAtomicCode(const std::string& value) {
+        return value.empty() ? std::string{kEmptyAtomicCode} : value;
+    }
 }  // namespace
 
 TargetFilter::~TargetFilter() {
@@ -55,12 +55,10 @@ TargetFilter::~TargetFilter() {
 
 TargetFilter::TargetFilter(const std::string& taskId, ActionNode& action)
     : AlgActionBase(AlgActionType::AlgActionBAFilter, action, "", taskId),
-      mode_(action.actionId == BASizeFilter_Code ? TargetFilterMode::kSize
-                                                 : TargetFilterMode::kCategory) {
+      mode_(action.actionId == BASizeFilter_Code ? TargetFilterMode::kSize : TargetFilterMode::kCategory) {
     LoadConfiguredParams(action.configObject.params, true);
     action_status = util::ErrorEnum::ActionReady;
-    LOG_INFO("{}Task:{} Init mode:{}", kTag, task_id,
-             mode_ == TargetFilterMode::kSize ? "size" : "category");
+    LOG_INFO("{}Task:{} Init mode:{}", kTag, task_id, mode_ == TargetFilterMode::kSize ? "size" : "category");
 }
 
 /*
@@ -246,10 +244,9 @@ MsgDynamicKeyValue TargetFilter::SizeFilterParamToKeyValue(const BAFilterParam& 
         return kv;
     }
     kv.keys = {std::string(kSizeFilterKey), GetFlowActionId(), EncodeAtomicCode(p.alg_code), p.label,
-               std::string(part2), std::string(part3)};
-    kv.key = std::string(kSizeFilterKey) + "." + GetFlowActionId() + "." +
-             EncodeAtomicCode(p.alg_code) + "." + p.label + "." + std::string(part2) + "." +
-             std::string(part3);
+               std::string(part2),          std::string(part3)};
+    kv.key  = std::string(kSizeFilterKey) + "." + GetFlowActionId() + "." + EncodeAtomicCode(p.alg_code) +
+             "." + p.label + "." + std::string(part2) + "." + std::string(part3);
     if (p.type == BAFilterType::kConfidenceMin || p.type == BAFilterType::kConfidenceMax) {
         kv.value = std::to_string(p.f_value);
     } else {
@@ -262,8 +259,8 @@ MsgDynamicKeyValue TargetFilter::CategoryParamToKeyValue(const BACategoryFilterP
     MsgDynamicKeyValue kv;
     kv.keys = {std::string(kCategoryFilterKey), GetFlowActionId(), EncodeAtomicCode(p.alg_code), p.label,
                std::string(kEnabledKey)};
-    kv.key = std::string(kCategoryFilterKey) + "." + GetFlowActionId() + "." +
-             EncodeAtomicCode(p.alg_code) + "." + p.label + "." + std::string(kEnabledKey);
+    kv.key  = std::string(kCategoryFilterKey) + "." + GetFlowActionId() + "." + EncodeAtomicCode(p.alg_code) +
+             "." + p.label + "." + std::string(kEnabledKey);
     kv.value = "1";
     return kv;
 }
@@ -447,10 +444,9 @@ void TargetFilter::DoCategoryFilter(DataDetTrackClassifyPtr input) const {
         return;
     }
     for (auto& target : input->targets) {
-        const bool selected = std::any_of(category_params_.begin(), category_params_.end(),
-                                          [&](const auto& category) {
-                                              return MatchesTarget(category.alg_code, category.label, target);
-                                          });
+        const bool selected = std::any_of(
+            category_params_.begin(), category_params_.end(),
+            [&](const auto& category) { return MatchesTarget(category.alg_code, category.label, target); });
         if (!selected) {
             target.bFilter    = true;
             target.filterType = AIFilterType::TargetFilter;
