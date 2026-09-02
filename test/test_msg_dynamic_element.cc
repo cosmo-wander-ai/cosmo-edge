@@ -292,11 +292,11 @@ TEST_CASE("MsgDynamicElement: normalizes legacy channel ownership across metadat
         auto orphan          = makeElement("orphan");
         orphan.dependsOn.key = "missing";
 
-        auto parent               = makeElement("parent", "switch");
-        parent.senior             = 2;
-        parent.channelEditable    = false;
-        auto child          = makeElement("child");
-        child.dependsOn.key = "parent";
+        auto parent            = makeElement("parent", "switch");
+        parent.senior          = 2;
+        parent.channelEditable = false;
+        auto child             = makeElement("child");
+        child.dependsOn.key    = "parent";
 
         std::vector<cosmo::MsgDynamicElement> elements{orphan, parent, child};
         cosmo::MsgDynamicElement::NormalizeLegacyChannelOwnership(elements);
@@ -328,7 +328,7 @@ TEST_CASE("MsgDynamicElement: normalizes legacy channel ownership across metadat
         explicitOrphan.channelEditable = true;
 
         auto explicitManaged            = makeElement("param.videoRepeatCount");
-        explicitManaged.senior           = 2;
+        explicitManaged.senior          = 2;
         explicitManaged.channelEditable = false;
 
         std::vector<cosmo::MsgDynamicElement> elements{explicitEditable, explicitOrphan, explicitManaged};

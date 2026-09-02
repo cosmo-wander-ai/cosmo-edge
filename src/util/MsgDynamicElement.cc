@@ -70,8 +70,8 @@ namespace {
     // "visible in channel". Historical senior/channelEditable values were
     // derived from older visibility modes and do not prove an intentional hide.
     bool HasExplicitChannelHiddenSelection(const MsgDynamicElement& element) noexcept {
-        return element.senior.has_value() && *element.senior == 2 &&
-               element.channelEditable.has_value() && !*element.channelEditable;
+        return element.senior.has_value() && *element.senior == 2 && element.channelEditable.has_value() &&
+               !*element.channelEditable;
     }
 }  // namespace
 
@@ -230,8 +230,7 @@ void MsgDynamicElement::NormalizeLegacyChannelOwnership(std::vector<MsgDynamicEl
                 result = false;
             } else if (IsLegacyChannelEditableException(element.type, element.key.ToRefString())) {
                 result = true;
-            } else if (element.senior.has_value() &&
-                       (*element.senior == 1 || *element.senior == 2)) {
+            } else if (element.senior.has_value() && (*element.senior == 1 || *element.senior == 2)) {
                 result = false;
             } else {
                 result = true;

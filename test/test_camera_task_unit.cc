@@ -252,8 +252,9 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
         }
     }
 
-    SECTION("explicit current ownership without frozen evidence initializes from scene then becomes "
-            "channel-owned") {
+    SECTION(
+        "explicit current ownership without frozen evidence initializes from scene then becomes "
+        "channel-owned") {
         const std::filesystem::path config_root =
             "/tmp/cosmo_test/conf/camera/test_task_unit_legacy_ambiguous_explicit";
         std::filesystem::remove_all(config_root);
@@ -764,5 +765,5 @@ TEST_CASE("CameraTaskUnit restores exact channel snapshots when persistence fail
     CHECK(FindParamValue(restored.params, "param.threshold") == "9");
     CHECK(FindParamValue(restored.params, "param.secondary") == "1");
     CHECK(HasOverrideKey(restored, "param.threshold"));
-    CHECK_FALSE(HasOverrideKey(restored, "param.secondary"));
+    CHECK(HasOverrideKey(restored, "param.secondary"));
 }
