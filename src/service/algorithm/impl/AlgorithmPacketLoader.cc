@@ -205,9 +205,7 @@ std::vector<algorithm::AlgorithmPacketInfo> AlgorithmPacketLoader::LoadFromZipDi
             LOG_WARN("Load {} Get {}", model_path_name, ret.message());
             continue;
         }
-        if (algorithmInfo.processdata) {
-            ServiceRegistry::Instance().Get<IActionService>().UpdateActionAlg(*algorithmInfo.processdata);
-        }
+        ActivateProcessdata(algorithmInfo);
         // Backfill empty id from algorithmCode to prevent dedup false-positives.
         if (algorithmInfo.id.empty() && algorithmInfo.algorithmCode > 0) {
             algorithmInfo.id = std::to_string(algorithmInfo.algorithmCode);

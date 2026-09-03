@@ -14,6 +14,7 @@
  */
 #include "catch_amalgamated.hpp"
 #include "mock/MockAlgorithmService.h"
+#include "mock/MockModelService.h"
 #include "mock/MockServiceRegistry.h"
 #include "service/media/impl/PicTaskServiceImpl.h"
 #include "util/Keys.h"
@@ -337,6 +338,33 @@ TEST_CASE("PicTaskServiceImpl: ProcessPTaskCreate orchestration", "[PicTaskServi
 
         sut.ProcessPTaskCreate(data, errc);
         REQUIRE(errc == cosmo::util::ErrorEnum::ActionAlgLoadFailed);
+    }
+
+    SECTION("Start failure deletes the newly created task") {
+        auto alg           = std::make_shared<cosmo::ActionAlg>();
+        alg->algorithmName = "start_failure";
+        alg->algorithmCode = "start_failure";
+        cosmo::ActionNode action;
+        action.actionId        = "PA_00001";
+        action.actionName      = "Detector";
+        action.flowActionId    = "detect";
+        action.preFlowActionId = "-1";
+        action.atomicCode      = "missing-model";
+        alg->workFlow.push_back(action);
+
+        REQUIRE_CALL(mocks.algSvc, GetAlgorithm("start_failure")).RETURN(alg);
+        REQUIRE_CALL(mocks.modelSvc, GetModelCfg("missing-model", trompeloeil::_, trompeloeil::_))
+            .RETURN(false);
+
+        cosmo::MsgPTaskCreateRecv data;
+        data.taskId        = "start_failure_task";
+        data.algorithmCode = "start_failure";
+        std::error_condition errc;
+
+        sut.ProcessPTaskCreate(data, errc);
+
+        REQUIRE(errc == cosmo::util::ErrorEnum::TaskCreateFailed);
+        REQUIRE(sut.TaskCount() == 0);
     }
 }
 

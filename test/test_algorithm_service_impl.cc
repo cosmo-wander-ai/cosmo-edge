@@ -14,6 +14,8 @@
 #include <thread>
 #include <vector>
 
+#include "mock/MockActionService.h"
+#include "mock/MockModelService.h"
 #include "mock/MockServiceRegistry.h"
 #include "service/algorithm/impl/AlgorithmPacketLoader.h"
 #include "service/algorithm/impl/AlgorithmServiceImpl.h"
@@ -351,6 +353,30 @@ TEST_CASE("AlgorithmPacketLoader: LoadFromJsonDirectory scans nested folders",
 
     std::error_code ec;
     std::filesystem::remove_all(dir, ec);
+}
+
+TEST_CASE("AlgorithmPacketLoader: imported picture packets register with the picture action service",
+          "[AlgorithmService][AlgorithmPacketLoader]") {
+    cosmo::test::MockServiceRegistry mocks;
+    namespace fs    = std::filesystem;
+    const auto root = fs::temp_directory_path() / "cosmo_algorithm_picture_packet_test";
+    std::error_code ec;
+    fs::remove_all(root, ec);
+    fs::create_directories(root);
+    const auto packet = root / "9154_PictureDiagnostic.json";
+    std::ofstream(packet)
+        << R"({"id":"9154","algorithmCode":9154,"algorithmName":"PictureDiagnostic","algorithmCategory":2,"algorithmUsage":2,"algorithmUpdateTime":"1","algorithmMetadata":"{}","algorithmProcessdata":"[{\"actionId\":\"PA_00002\",\"flowActionId\":\"classify\",\"preFlowActionId\":\"-1\",\"configObject\":{\"params\":[{\"key\":\"atomicCode\",\"value\":\"2001036\"}]}}]","atomicList":"[]"})";
+
+    REQUIRE_CALL(mocks.modelSvc, ModelValid("2001036", trompeloeil::_)).RETURN(true);
+    REQUIRE_CALL(mocks.actionSvc, UpdatePicActionAlg2(trompeloeil::_)).RETURN(true);
+    FORBID_CALL(mocks.actionSvc, UpdateActionAlg2(trompeloeil::_));
+
+    const auto packets = cosmo::service::detail::AlgorithmPacketLoader::LoadFromZipDirectory(root.string());
+
+    REQUIRE(packets.size() == 1);
+    REQUIRE(packets[0].id == "9154");
+    REQUIRE(packets[0].algorithmUsage == 2);
+    fs::remove_all(root, ec);
 }
 
 TEST_CASE("AlgorithmPacketLoader validates archives before extraction",

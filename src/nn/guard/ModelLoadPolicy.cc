@@ -82,6 +82,10 @@ ModelLoadDecision ModelLoadPolicy::Evaluate(const std::string& model_path, Model
         decision.action = ModelLoadAction::kNativeRawBmodel;
         return decision;
     }
+    if (decision.magic == ModelMagic::kUnknown && intent == ModelLoadIntent::kRawRknn) {
+        decision.action = ModelLoadAction::kNativeRawRknn;
+        return decision;
+    }
     return Reject(std::move(decision), ModelPolicyError::kFormatRejected);
 }
 
