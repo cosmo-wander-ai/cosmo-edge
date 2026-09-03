@@ -65,6 +65,10 @@ RKNN_LICENSE_FILES = {
 }
 MODEL_GUARD_TERMS_FILE = "share/licenses/cosmo-model-guard/ARTIFACT-TERMS.md"
 MODEL_GUARD_RUNTIME_FILE = "lib/libcosmo_model_guard.so.2.0.0"
+MODEL_GUARD_RKNN_RUNTIME_FILE = "lib/libcosmo_model_guard_rknn.so.1.0.0"
+MODEL_GUARD_RUNTIME_HASH_FILE = "share/cosmo-model-guard/runtime.sha256"
+MODEL_GUARD_RKNN_SDK_MANIFEST_FILE = "share/cosmo-model-guard/SDK-MANIFEST.json"
+MODEL_GUARD_RKNN_HEADER_FILE = "share/cosmo-model-guard/cosmo_model_guard_rknn_v1.h"
 APPROVED_MODEL_GUARD_RUNTIME_SHA256 = (
     "74ff8b456548e615882e5c9ee6dd18a51a2caf8124d761d7243dad014310042c"
 )
@@ -154,12 +158,12 @@ def parse_runtime_paths(data: bytes) -> dict[str, str]:
 
 
 def verify_runtime_license_bundle(
-    contents: dict[str, bytes], target_chip: str | None
+    contents: dict[str, bytes], target_chip: str | None, profile: str
 ) -> None:
     required = set(REQUIRED_LICENSE_FILES)
     if target_chip in ("rk3576", "rv1126b"):
         required.update(RKNN_LICENSE_FILES)
-    if MODEL_GUARD_RUNTIME_FILE in contents:
+    if MODEL_GUARD_RUNTIME_FILE in contents or MODEL_GUARD_RKNN_RUNTIME_FILE in contents:
         required.add(MODEL_GUARD_TERMS_FILE)
 
     for filename in required:
@@ -229,6 +233,59 @@ def verify_runtime_license_bundle(
             raise PackageAuditError(
                 "packaged Model Guard runtime is not the approved artifact"
             )
+    if MODEL_GUARD_RKNN_RUNTIME_FILE in contents:
+        if target_chip != "rk3576" or profile != "production-release":
+            raise PackageAuditError(
+                "RKNN Model Guard is valid only in a protected RK3576 package"
+            )
+        terms = b" ".join(contents[MODEL_GUARD_TERMS_FILE].lower().split())
+        for marker in (
+            b"explicitly authorized cosmoedge fork",
+            b"not a general relicensing",
+            b"public distribution still requires a separate review",
+        ):
+            if marker not in terms:
+                raise PackageAuditError("RKNN Model Guard candidate terms are incomplete")
+        declaration = contents.get(MODEL_GUARD_RUNTIME_HASH_FILE)
+        expected = (
+            content_sha256(contents[MODEL_GUARD_RKNN_RUNTIME_FILE]).encode("ascii")
+            + b"  " + MODEL_GUARD_RKNN_RUNTIME_FILE.encode("ascii") + b"\n"
+        )
+        if declaration != expected:
+            raise PackageAuditError("RKNN Model Guard runtime hash declaration mismatch")
+        try:
+            sdk_manifest = json.loads(
+                contents[MODEL_GUARD_RKNN_SDK_MANIFEST_FILE].decode("utf-8")
+            )
+        except (KeyError, UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise PackageAuditError("RKNN Model Guard SDK manifest is missing or invalid") from error
+        required_sdk_components = (
+            MODEL_GUARD_RKNN_HEADER_FILE,
+            MODEL_GUARD_RKNN_RUNTIME_FILE,
+            "bin/cosmo-model-provision",
+        )
+        if any(name not in contents for name in required_sdk_components):
+            raise PackageAuditError("RKNN Model Guard SDK component is missing")
+        expected_components = {
+            "include/cosmo_model_guard_rknn_v1.h": content_sha256(
+                contents[MODEL_GUARD_RKNN_HEADER_FILE]
+            ),
+            "lib/libcosmo_model_guard_rknn.so.1.0.0": content_sha256(
+                contents[MODEL_GUARD_RKNN_RUNTIME_FILE]
+            ),
+            "bin/cosmo-model-provision": content_sha256(
+                contents["bin/cosmo-model-provision"]
+            ),
+        }
+        source = sdk_manifest.get("source", {})
+        if (
+            sdk_manifest.get("release_id") != "cmg-sdk-v2.4.0-rknn-abi1"
+            or sdk_manifest.get("components") != expected_components
+            or sdk_manifest.get("certificate_storage") != "caller-selected"
+            or source.get("repository") != "cosmo-model-guard"
+            or re.fullmatch(r"[0-9a-f]{40}", str(source.get("tree", ""))) is None
+        ):
+            raise PackageAuditError("RKNN Model Guard SDK manifest does not match package contents")
 
 
 def verify_model_bundle(
@@ -240,7 +297,7 @@ def verify_model_bundle(
     package_rknn_models = {
         name: data
         for name, data in contents.items()
-        if name.startswith("resource/models/") and name.endswith("/model.rknn")
+        if name.startswith("resource/models/") and name.endswith(".rknn")
     }
     if bundle_name not in contents:
         if target_chip == "rv1126b" and package_rknn_models:
@@ -429,7 +486,7 @@ def verify_package(
     elif runtime_paths["COSMO_PACKAGE_DATA_DIR"] not in RUNTIME_DATA_DIRS.values():
         raise PackageAuditError("runtime data directory is unsupported")
 
-    verify_runtime_license_bundle(contents, effective_chip)
+    verify_runtime_license_bundle(contents, effective_chip, profile)
 
     verify_model_bundle(entries, contents, effective_chip)
 
@@ -489,11 +546,20 @@ def verify_package(
         provision is None or not provision.isreg() or not (provision.mode & stat.S_IXUSR)
     ):
         raise PackageAuditError("Protected package requires cosmo-model-provision")
+    if profile == "public-runtime" and MODEL_GUARD_RKNN_RUNTIME_FILE in contents:
+        raise PackageAuditError("Open RK3576 package must not contain Model Guard")
+    if (
+        profile == "production-release"
+        and effective_chip == "rk3576"
+        and MODEL_GUARD_RKNN_RUNTIME_FILE not in contents
+    ):
+        raise PackageAuditError("Protected RK3576 package requires RKNN Model Guard")
 
     models = {
         name: data
         for name, data in contents.items()
-        if name.startswith("resource/models/") and name.endswith("/model.nn")
+        if name.startswith("resource/models/")
+        and (name.endswith("/model.nn") or name.endswith(".rknn"))
     }
     for name, data in models.items():
         encrypted = data.startswith(b"CEMC")
