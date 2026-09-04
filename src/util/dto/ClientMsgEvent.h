@@ -25,6 +25,7 @@ struct CMsgOnEventsPropertyFace {
 };
 
 struct CMsgOnEventsPropertyRecognition {
+    int matched{-1};           // -1: legacy/unknown, 0: stranger, 1: known person
     float matchDegree{-0.1f};  // Similarity
     std::string matchLibName;  // Name of the face library
     std::string matchId;

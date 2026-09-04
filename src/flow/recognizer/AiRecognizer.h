@@ -11,25 +11,17 @@
 #include "flow/action/AlgActionBase.h"
 #include "flow/common/AlgDataQueueDistributor.h"
 #include "flow/overview/OverviewRecordAiRst.h"
+#include "flow/recognizer/RecognitionAlarmDecision.h"
 #include "flow/task/TaskBaseParam.h"
 #include "infer/AiRecognizerInterface.h"
 #include "util/DurationStat.h"
 
 namespace cosmo {
-enum class MatchFlagType {
-    NotMatch = 0,  // Alarm on no match
-    Match,         // Alarm on match
-    All,           // Always alarm
-    Max,
-};
-constexpr bool IsValidMatchFlagType(int value) {
-    return value >= static_cast<int>(MatchFlagType::NotMatch) && value < static_cast<int>(MatchFlagType::Max);
-}
-
 struct AiRecognizerAlgParam {
     FeatureInputType feature_input{FeatureInputType::Face};
     MatchFlagType match_flag{MatchFlagType::Match};
     float limit_score{-1.0};
+    size_t stranger_confirm_count{3};
 };
 
 struct AiRecognizerParam {
@@ -64,10 +56,12 @@ public:
 
 protected:
     void HandFrame(AlgDataPtr alg_data) override;
+    void ResetStateOnRestart() override;
 
 private:
     void HandFace(AlgDataPtr alg_data);
-    bool GetRecodResult(bool compare_rst, size_t count, AiDetectMatchHighScoreInfo& match_info);
+    bool GetRecodResult(bool compare_rst, bool comparison_ready, int track_id,
+                        AiDetectMatchHighScoreInfo& match_info, const AiRecognizerAlgParam& alg_params);
     std::shared_mutex mtx_;
     std::string alg_code_;
     ActionNode action_info_;
@@ -81,6 +75,7 @@ private:
     util::DurationStat duration_stat_;
     OverviewRecordAiRst overview_rec_inst_;
     std::deque<DataDetTrackClassify> historys_;
+    RecognitionAlarmDecision alarm_decision_;
 };
 
 using AiRecognizerPtr = std::shared_ptr<AiRecognizer>;

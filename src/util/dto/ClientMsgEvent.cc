@@ -209,6 +209,7 @@ void to_json(nlohmann::json& j, const CMsgOnEventsPropertyFace& v) {
 }
 
 void from_json(const nlohmann::json& j, CMsgOnEventsPropertyRecognition& v) {
+    JSON_OPT(j, v, matched);
     JSON_OPT(j, v, matchDegree);
     JSON_OPT(j, v, matchLibName);
     JSON_OPT(j, v, matchId);
@@ -219,6 +220,7 @@ void from_json(const nlohmann::json& j, CMsgOnEventsPropertyRecognition& v) {
 }
 
 void to_json(nlohmann::json& j, const CMsgOnEventsPropertyRecognition& v) {
+    j["matched"]      = v.matched;
     j["matchDegree"]  = v.matchDegree;
     j["matchLibName"] = v.matchLibName;
     j["matchId"]      = v.matchId;

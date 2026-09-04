@@ -3585,5 +3585,17 @@
   "resource.param.ba_00004.llmopenai_timeout_ms.llmprovider.openai_vlm.description": "Request timeout in milliseconds",
   "resource.param.ba_00004.llmopenai_timeout_ms.llmprovider.openai_vlm.failedtip": "Please enter timeout",
   "resource.param.ba_00004.llmopenai_max_tokens.llmprovider.openai_vlm.description": "Maximum output token count",
-  "resource.param.ba_00004.llmopenai_max_tokens.llmprovider.openai_vlm.failedtip": "Please enter maximum output token count"
+  "resource.param.ba_00004.llmopenai_max_tokens.llmprovider.openai_vlm.failedtip": "Please enter maximum output token count",
+  "resource.param.2.2.param_matchflag.name": "Alarm Mode",
+  "resource.param.2.2.param_matchflag.description": "Choose how face comparison results trigger alarms",
+  "resource.param.2.2.param_matchflag.failedtip": "Select a valid value",
+  "resource.option.2.2.param_matchflag.0.options_name": "Stranger Alarm",
+  "resource.option.2.2.param_matchflag.1.options_name": "Known Person Alarm",
+  "resource.option.2.2.param_matchflag.2.options_name": "All Faces",
+  "resource.param.2.aa_00005.061f82a7.param_matchflag.name": "Alarm Mode",
+  "resource.param.2.aa_00005.061f82a7.param_matchflag.description": "Choose how face comparison results trigger alarms",
+  "resource.param.2.aa_00005.061f82a7.param_matchflag.failedtip": "Select a valid value",
+  "resource.option.2.aa_00005.061f82a7.param_matchflag.0.options_name": "Stranger Alarm",
+  "resource.option.2.aa_00005.061f82a7.param_matchflag.1.options_name": "Known Person Alarm",
+  "resource.option.2.aa_00005.061f82a7.param_matchflag.2.options_name": "All Faces"
 }

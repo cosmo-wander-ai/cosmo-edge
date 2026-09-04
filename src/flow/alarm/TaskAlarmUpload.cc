@@ -24,14 +24,17 @@ namespace cosmo {
 bool TaskAlarm::HandFace(CMsgOnEventsReq& msg, AlgDataPtr /*algData*/, DataAlarmUnit& alarmUnit) {
     LOG_INFO("{} trackId:{} feature:{} matchDegree {}", task_id, alarmUnit.trackId,
              alarmUnit.feature.feature.size(), alarmUnit.matchInfo.match_degree);
-    msg.property.type                     = OnEventsPropertyType::Face;
-    msg.property.recognition.matchDegree  = alarmUnit.matchInfo.match_degree;
-    msg.property.recognition.matchName    = alarmUnit.matchInfo.name;
-    msg.property.recognition.matchId      = alarmUnit.matchInfo.group_id;
-    msg.property.recognition.LibImage     = alarmUnit.matchInfo.base_image_url;
-    msg.property.recognition.matchLibName = alarmUnit.matchInfo.group_name;
-    msg.property.recognition.personId     = alarmUnit.matchInfo.person_id;
-    msg.property.recognition.personCode   = alarmUnit.matchInfo.person_code;
+    msg.property.type                    = OnEventsPropertyType::Face;
+    msg.property.recognition.matched     = alarmUnit.matchInfo.matched ? 1 : 0;
+    msg.property.recognition.matchDegree = alarmUnit.matchInfo.match_degree;
+    if (alarmUnit.matchInfo.matched) {
+        msg.property.recognition.matchName    = alarmUnit.matchInfo.name;
+        msg.property.recognition.matchId      = alarmUnit.matchInfo.group_id;
+        msg.property.recognition.LibImage     = alarmUnit.matchInfo.base_image_url;
+        msg.property.recognition.matchLibName = alarmUnit.matchInfo.group_name;
+        msg.property.recognition.personId     = alarmUnit.matchInfo.person_id;
+        msg.property.recognition.personCode   = alarmUnit.matchInfo.person_code;
+    }
     AiConfidence faceQuality;
     GetFaceQuality(alarmUnit.confidence, faceQuality);
     msg.property.face.quality = faceQuality.confidence;

@@ -519,6 +519,9 @@ const returnBaseInfo = (objProperty, key) => {
     const recognitionData = result?.recognition || {}
     const workClothesRecognitionData = result?.workClothesRecognition || {}
     if (checkObj(recognitionData)) {
+      if (key === 'matchName' && Number(recognitionData.matched) === 0) {
+        return t('event.stranger')
+      }
       return recognitionData[key] || ''
     } else if (checkObj(workClothesRecognitionData)) {
       return workClothesRecognitionData[key] || ''

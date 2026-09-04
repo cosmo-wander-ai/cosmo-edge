@@ -979,6 +979,7 @@ export default {
     sceneTask: '场景任务',
     searchKeyword: '输入关键词搜索',
     similarity: '相似度',
+    stranger: '陌生人',
     todayAlarmCount: '今日告警数：{n}',
     uploaded: '已上传',
     video: '视频',

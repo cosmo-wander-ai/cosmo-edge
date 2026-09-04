@@ -81,6 +81,8 @@ namespace alarm {
 namespace target {
     inline constexpr std::string_view FACE_SET{"faceSet"};
     inline constexpr std::string_view LIMIT_SCORE{"limitScore"};
+    inline constexpr std::string_view MATCH_FLAG{"matchFlag"};
+    inline constexpr std::string_view STRANGER_CONFIRM_COUNT{"strangerConfirmCount"};
     inline constexpr std::string_view PARAM_WORKCLOTHES_SET{"param.workClothesSet"};
     inline constexpr std::string_view PARAM_COMMODITY_SET{"param.commoditySet"};
 }  // namespace target

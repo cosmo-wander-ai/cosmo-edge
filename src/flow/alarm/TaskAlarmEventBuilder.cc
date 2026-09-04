@@ -318,8 +318,10 @@ void TaskAlarm::DispatchAlarmEvent(CMsgOnEventsReq& eventData) {
         if (!eventData.property.face.image.empty()) {
             eventData.property.face.image = eventData.detectedPicture;
         }
-        eventData.property.recognition.LibImage =
-            cosmo::path::GetBaseDir() + eventData.property.recognition.LibImage;
+        if (!eventData.property.recognition.LibImage.empty()) {
+            eventData.property.recognition.LibImage =
+                cosmo::path::GetBaseDir() + eventData.property.recognition.LibImage;
+        }
     }
 
     service::ServiceRegistry::Instance().Get<cosmo::service::IEventNotifier>().EventPush(eventData);

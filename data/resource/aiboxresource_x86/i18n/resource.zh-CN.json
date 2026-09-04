@@ -3585,5 +3585,17 @@
   "resource.param.ba_00004.llmopenai_timeout_ms.llmprovider.openai_vlm.description": "请求超时时间，单位毫秒",
   "resource.param.ba_00004.llmopenai_timeout_ms.llmprovider.openai_vlm.failedtip": "请输入超时时间",
   "resource.param.ba_00004.llmopenai_max_tokens.llmprovider.openai_vlm.description": "最大输出token数",
-  "resource.param.ba_00004.llmopenai_max_tokens.llmprovider.openai_vlm.failedtip": "请输入最大输出token数"
+  "resource.param.ba_00004.llmopenai_max_tokens.llmprovider.openai_vlm.failedtip": "请输入最大输出token数",
+  "resource.param.2.2.param_matchflag.name": "告警模式",
+  "resource.param.2.2.param_matchflag.description": "选择人脸比对后的告警方式",
+  "resource.param.2.2.param_matchflag.failedtip": "请选择正确的值",
+  "resource.option.2.2.param_matchflag.0.options_name": "陌生人告警",
+  "resource.option.2.2.param_matchflag.1.options_name": "已识别人员告警",
+  "resource.option.2.2.param_matchflag.2.options_name": "全部告警",
+  "resource.param.2.aa_00005.061f82a7.param_matchflag.name": "告警模式",
+  "resource.param.2.aa_00005.061f82a7.param_matchflag.description": "选择人脸比对后的告警方式",
+  "resource.param.2.aa_00005.061f82a7.param_matchflag.failedtip": "请选择正确的值",
+  "resource.option.2.aa_00005.061f82a7.param_matchflag.0.options_name": "陌生人告警",
+  "resource.option.2.aa_00005.061f82a7.param_matchflag.1.options_name": "已识别人员告警",
+  "resource.option.2.aa_00005.061f82a7.param_matchflag.2.options_name": "全部告警"
 }

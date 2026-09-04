@@ -979,6 +979,7 @@ export default {
     sceneTask: 'Scene Task',
     searchKeyword: 'Search by keyword',
     similarity: 'Similarity',
+    stranger: 'Stranger',
     todayAlarmCount: 'Today\'s alarms: {n}',
     uploaded: 'Uploaded',
     video: 'Video',
