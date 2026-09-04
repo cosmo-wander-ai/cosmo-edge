@@ -3,6 +3,7 @@ set -euo pipefail
 
 chip="rk3576"
 package_models="include"
+build_profile="${COSMO_MODEL_GUARD_BUILD_PROFILE:-public-runtime}"
 
 while (($#)); do
     case "$1" in
@@ -37,6 +38,13 @@ case "${chip}" in
     rk3576|rv1126b) ;;
     *)
         echo "ERROR: unsupported Rockchip target '${chip}'; expected rk3576 or rv1126b" >&2
+        exit 2
+        ;;
+esac
+case "${build_profile}" in
+    public-runtime|production-release) ;;
+    *)
+        echo "ERROR: unsupported Model Guard profile '${build_profile}'" >&2
         exit 2
         ;;
 esac
@@ -105,6 +113,7 @@ fi
 
 rm -rf "${PROJECT_ROOT_PATH}/build_rknn"
 COSMO_PACKAGE_MODELS="${package_models}" \
+COSMO_MODEL_GUARD_BUILD_PROFILE="${build_profile}" \
 COSMO_RKLLM_REQUIRED="${rkllm_required}" \
 RKNN_ROOT="${rknn_root}" \
 RKLLM_ROOT="${rkllm_root}" \
@@ -121,12 +130,16 @@ fi
 package="${packages[0]}"
 python3 "${PROJECT_ROOT_PATH}/scripts/verify_package_contents.py" \
     --archive "$(cd "$(dirname "${package}")" && pwd -P)/$(basename "${package}")" \
-    --build-profile public-runtime \
+    --build-profile "${build_profile}" \
     --target-chip "${chip}" \
     --target-policy-lock "${builder_lock}"
 
 output_root="${COSMO_BUILD_OUTPUT_ROOT:-/build_output}"
-output_dir="${output_root}/${chip}"
+if [ "${build_profile}" = "production-release" ]; then
+    output_dir="${output_root}/${build_profile}/${chip}"
+else
+    output_dir="${output_root}/${chip}"
+fi
 rm -rf "${output_dir}"
 mkdir -p "${output_dir}"
 cp -f -- "${package}" "${output_dir}/"

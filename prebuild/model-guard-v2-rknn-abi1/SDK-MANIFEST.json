@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "release_id": "cmg-sdk-v2.4.0-rknn-abi1",
+  "product_version": "2.4.0",
+  "abi": {
+    "soname": "libcosmo_model_guard_rknn.so.1",
+    "version_node": "CMGR_1.0",
+    "major": 1,
+    "exports": [
+      "CmgRknnV1CloseArtifact",
+      "CmgRknnV1GetArtifactInfo",
+      "CmgRknnV1LoadSegment",
+      "CmgRknnV1OpenArtifact"
+    ]
+  },
+  "source": {
+    "repository": "cosmo-model-guard",
+    "tree": "9a3fe1ba4ad234e1cad5d5327c462a1a2698b925"
+  },
+  "build": {
+    "image": "ghcr.io/cosmo-wander-ai/cosmo_edge-build-env_rockchip@sha256:0810c23042cbe86d3a1c91f848b9849a34d94222f3ad7b7418913a26da19e71b"
+  },
+  "components": {
+    "include/cosmo_model_guard_rknn_v1.h": "3edac87e284f58d6c3737f8a30aad3777df65e3aaa2d25e83fd3936e61c7a9f8",
+    "lib/libcosmo_model_guard_rknn.so.1.0.0": "49cb4f22d4c92bda89de74cd4058eca607dfd065087c58cbaaa1bd2facfe3ccd",
+    "bin/cosmo-model-provision": "e2255ea7d4c0fef787f32487961de0047b53db64c34802b16ed3b91b68044488"
+  },
+  "binding_contract": "internal-to-sdk",
+  "certificate_storage": "caller-selected"
+}

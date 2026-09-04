@@ -19,6 +19,8 @@ services:
       COSMO_RKNN_ARTIFACT_MANIFEST: "${COSMO_RKNN_ARTIFACT_MANIFEST:-}"
       COSMO_RKNN_MODELS_DIR: "${COSMO_RKNN_MODELS_DIR:-}"
       COSMO_RKNN_RESOURCE_OVERLAY_DIR: "${COSMO_RKNN_RESOURCE_OVERLAY_DIR:-}"
+      COSMO_MODEL_GUARD_BUILD_PROFILE: "${COSMO_MODEL_GUARD_BUILD_PROFILE:-public-runtime}"
+      COSMO_MODEL_GUARD_SDK_ROOT: "${COSMO_MODEL_GUARD_SDK_ROOT:-}"
     entrypoint: ["/workspace/scripts/build_rockchip_package.sh"]
     command:
       - --chip

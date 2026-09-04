@@ -10,6 +10,7 @@
 #include "mock/MockServiceRegistry.h"
 #include "nlohmann/json.hpp"
 #include "service/algorithm/impl/AlgorithmServiceImpl.h"
+#include "util/FileUtil.h"
 #include "util/JsonFileUtil.h"
 #include "util/PathUtil.h"
 
@@ -260,6 +261,11 @@ TEST_CASE("Algorithm layout save writes only to the managed algorithm root",
         REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::Success);
         REQUIRE(CountRegularFiles(fix.AlgorithmRoot()) == 1);
         REQUIRE(CountRegularFiles(fix.outside_root) == 0);
+        nlohmann::json saved;
+        REQUIRE(cosmo::util::JsonFileUtil::ReadJsonFile(
+                    cosmo::util::FindPrefixedJsonFile(fix.AlgorithmRoot().string(), request.algorithmId),
+                    saved) == cosmo::util::ErrorEnum::Success);
+        CHECK(saved.at("algorithmUsage") == request.algorithmUsage);
     }
 
     SECTION("a hot-reload failure is returned to the caller") {

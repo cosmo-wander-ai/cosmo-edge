@@ -88,6 +88,7 @@ class PackageProfileTests(unittest.TestCase):
         include_model_guard: bool = False,
         rknn_terms: bytes | None = None,
         model_guard_runtime: bytes | None = None,
+        model_file_name: str = "model.nn",
     ) -> pathlib.Path:
         root = "cosmo-V1.5.0"
         directory = pathlib.Path(tempfile.mkdtemp())
@@ -171,7 +172,7 @@ class PackageProfileTests(unittest.TestCase):
                 info.size = len(data)
                 info.mode = 0o755 if name in executable_files or name.endswith("provision") else 0o644
                 archive.addfile(info, io.BytesIO(data))
-            model_path = f"{root}/resource/models/preset/model.nn"
+            model_path = f"{root}/resource/models/preset/{model_file_name}"
             info = tarfile.TarInfo(model_path)
             info.size = len(model)
             info.mode = 0o644
@@ -374,6 +375,29 @@ class PackageProfileTests(unittest.TestCase):
             self.make_package("production-release", b"CEMC" + b"encrypted"),
             "production-release",
         )
+
+    def test_profile_checks_every_named_rknn_segment(self) -> None:
+        protected = self.make_package(
+            "production-release",
+            b"CEMC" + b"encrypted",
+            model_file_name="model0.rknn",
+        )
+        verifier.verify_package(protected, "production-release")
+
+        for profile, payload in (
+            ("production-release", b"plain"),
+            ("public-runtime", b"CEMC" + b"encrypted"),
+        ):
+            with self.subTest(profile=profile):
+                with self.assertRaises(verifier.PackageAuditError):
+                    verifier.verify_package(
+                        self.make_package(
+                            profile,
+                            payload,
+                            model_file_name="model1.rknn",
+                        ),
+                        profile,
+                    )
 
     def test_protected_rejects_plain_vllm_model(self) -> None:
         for model_type in ("qwen3vl", "qwen3_5"):
@@ -914,6 +938,9 @@ class PackageProfileTests(unittest.TestCase):
         self.assertIn('lib/librkllmrt.so LICENSE', build)
         self.assertIn('-DCOSMO_TARGET_CHIP="${TARGET_CHIP}"', build)
         self.assertIn('[-c rk3576|rv1126b]', build)
+        self.assertIn(
+            'COSMO_TARGET_CHIP_NORMALIZED STREQUAL "rk3576"', root_cmake
+        )
         self.assertIn('-DCOSMO_RKLLM_REQUIRED="${RKLLM_REQUIRED}"', build)
         self.assertGreaterEqual(
             root_cmake.count('PATTERN "model-artifacts" EXCLUDE'), 2

@@ -26,11 +26,20 @@
 #include "nn/utils/net_utils.h"
 #include "nn/utils/string_format.h"
 #include "util/DurationLogger.h"
+#include "util/PathUtil.h"
 
 #ifdef COSMO_NN_USE_SOPHON_BACKEND
 #include "nn/device/sophon/sophon_net_node.h"
 #include "nn/guard/CemV2SophonLoader.h"
 #include "nn/guard/ModelLoadPolicy.h"
+#endif
+
+#ifdef COSMO_NN_USE_RKNN_BACKEND
+#include "nn/device/rknn/rknn_net_node.h"
+#ifdef COSMO_HAS_MODEL_GUARD
+#include "nn/guard/CemRknnV1Loader.h"
+#include "nn/guard/ModelLoadPolicy.h"
+#endif
 #endif
 
 namespace cosmo::nn {
@@ -631,7 +640,7 @@ Status Graph::LoadWeight(const std::string& model_path) {
 
     std::string authorized_model_path;
 
-#ifdef COSMO_NN_USE_SOPHON_BACKEND
+#if defined(COSMO_NN_USE_SOPHON_BACKEND)
     // CEMC authorization belongs exclusively to Guard. Edge only routes by
     // file format and does not derive a second model identity.
     const ModelLoadDecision load_decision =
@@ -696,6 +705,119 @@ Status Graph::LoadWeight(const std::string& model_path) {
     if (load_decision.action != ModelLoadAction::kNativeCenn) {
         return Status(COSMO_NN_ERR_LOAD_MODEL, "model loader action is not available");
     }
+#elif defined(COSMO_NN_USE_RKNN_BACKEND)
+#ifdef COSMO_HAS_MODEL_GUARD
+    const auto load_policy = ModelLoadPolicy::Production();
+    std::vector<std::string> protected_model_paths;
+    ModelLoadAction selected_action = ModelLoadAction::kReject;
+    std::error_code path_error;
+    const std::filesystem::path requested_path(model_path);
+    if (std::filesystem::is_directory(requested_path, path_error) && !path_error) {
+        if (net_node_num <= 0 || net_node_num != static_cast<int>(model_infos_.size()))
+            return Status(COSMO_NN_ERR_LOAD_MODEL, "RKNN model directory does not match graph shape");
+        const std::filesystem::path absolute_directory =
+            std::filesystem::absolute(requested_path, path_error).lexically_normal();
+        if (path_error || absolute_directory.empty())
+            return Status(COSMO_NN_ERR_LOAD_MODEL, "RKNN model directory is invalid");
+        try {
+            protected_model_paths.reserve(model_infos_.size());
+        } catch (const std::bad_alloc&) {
+            return Status(COSMO_NN_ERR_OUT_OF_MEMORY, "protected RKNN path allocation failed");
+        }
+        for (const auto& model_info : model_infos_) {
+            const std::filesystem::path filename(model_info.filename);
+            if (filename.empty() || filename.is_absolute() || filename.has_parent_path() ||
+                filename.filename() != filename || filename.extension() != ".rknn") {
+                return Status(COSMO_NN_ERR_LOAD_MODEL, "multi-model RKNN filename is invalid");
+            }
+            const auto decision =
+                load_policy.Evaluate((absolute_directory / filename).string(), ModelLoadIntent::kRawRknn);
+            if (!decision.IsAllowed())
+                return Status(COSMO_NN_ERR_LOAD_MODEL, "multi-model RKNN format is not supported");
+            if (selected_action == ModelLoadAction::kReject)
+                selected_action = decision.action;
+            if (selected_action != decision.action)
+                return Status(COSMO_NN_ERR_LOAD_MODEL, "mixed protected and native RKNN files are rejected");
+            if (decision.action == ModelLoadAction::kGuardV2)
+                protected_model_paths.push_back(decision.model_path);
+        }
+        authorized_model_path = absolute_directory.string();
+    } else {
+        const auto decision = load_policy.Evaluate(model_path, ModelLoadIntent::kRawRknn);
+        if (!decision.IsAllowed())
+            return Status(COSMO_NN_ERR_LOAD_MODEL, "model format is not supported");
+        selected_action       = decision.action;
+        authorized_model_path = decision.model_path;
+        if (decision.action == ModelLoadAction::kGuardV2)
+            protected_model_paths.push_back(decision.model_path);
+    }
+
+    if (selected_action == ModelLoadAction::kGuardV2) {
+        if (net_node_num <= 0)
+            return Status(COSMO_NN_ERR_LOAD_MODEL, "protected RKNN graph shape is invalid");
+        std::vector<RknnNetNode*> target_nodes;
+        try {
+            target_nodes.reserve(static_cast<size_t>(net_node_num));
+        } catch (const std::bad_alloc&) {
+            return Status(COSMO_NN_ERR_OUT_OF_MEMORY, "protected RKNN graph allocation failed");
+        }
+        for (int index = 0; index < net_node_num; ++index) {
+            auto* node = dynamic_cast<RknnNetNode*>(GetNodeByName("net_" + std::to_string(index)));
+            if (!node)
+                return Status(COSMO_NN_ERR_LOAD_MODEL, "protected model requires RKNN network nodes");
+            target_nodes.push_back(node);
+        }
+
+        std::vector<GuardOwnedRknnContext> loaded_contexts;
+        std::vector<std::uint64_t> model_fingerprints;
+        try {
+            loaded_contexts.reserve(target_nodes.size());
+            model_fingerprints.reserve(target_nodes.size());
+        } catch (const std::bad_alloc&) {
+            return Status(COSMO_NN_ERR_OUT_OF_MEMORY, "protected RKNN context allocation failed");
+        }
+        {
+            cosmo::util::DurationLogger logger("Load protected RKNN CEM artifact");
+            const std::string certificate_path =
+                (std::filesystem::path(cosmo::path::GetBaseDir()) / "model-guard" / "device-certificate.bin")
+                    .string();
+            for (const auto& protected_path : protected_model_paths) {
+                auto loaded = LoadCemRknnV1Artifact(FrozenCmgRknnV1Api(), NativeRknnContextApi(),
+                                                    protected_path.c_str(), certificate_path.c_str());
+                const size_t expected_contexts = protected_model_paths.size() == 1 ? target_nodes.size() : 1;
+                if (!loaded.IsSuccess() || loaded.contexts.size() != expected_contexts) {
+                    if (loaded.IsOutOfMemory())
+                        return Status(COSMO_NN_ERR_OUT_OF_MEMORY, "protected RKNN load ran out of memory");
+                    return Status(COSMO_NN_ERR_LOAD_MODEL, "protected RKNN model load failed");
+                }
+                for (auto& context : loaded.contexts) {
+                    loaded_contexts.push_back(std::move(context));
+                    model_fingerprints.push_back(loaded.model_fingerprint);
+                }
+            }
+        }
+        if (loaded_contexts.size() != target_nodes.size())
+            return Status(COSMO_NN_ERR_LOAD_MODEL, "protected RKNN context count is invalid");
+        for (size_t index = 0; index < target_nodes.size(); ++index) {
+            const std::uint64_t raw_context = loaded_contexts[index].Get();
+            if (raw_context == 0 || raw_context > std::numeric_limits<rknn_context>::max()) {
+                nodes.clear();
+                return Status(COSMO_NN_ERR_LOAD_MODEL, "protected RKNN context is invalid");
+            }
+            Status attach_status = target_nodes[index]->AttachOwnedContext(
+                static_cast<rknn_context>(loaded_contexts[index].Release()), model_fingerprints[index]);
+            if (!attach_status) {
+                nodes.clear();
+                return attach_status;
+            }
+        }
+        return COSMO_NN_OK;
+    }
+    if (selected_action != ModelLoadAction::kNativeRawRknn)
+        return Status(COSMO_NN_ERR_LOAD_MODEL, "RKNN model loader action is not available");
+#else
+    authorized_model_path = model_path;
+#endif
 #else
     authorized_model_path = model_path;
 #endif

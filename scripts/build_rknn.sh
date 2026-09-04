@@ -8,6 +8,15 @@ RKNN_ROOT_PATH="${RKNN_ROOT:-}"
 ROCKCHIP_MEDIA_ROOT_PATH="${ROCKCHIP_MEDIA_ROOT:-}"
 RKLLM_ROOT_PATH="${RKLLM_ROOT:-}"
 RKLLM_REQUIRED="${COSMO_RKLLM_REQUIRED:-OFF}"
+MODEL_GUARD_BUILD_PROFILE="${COSMO_MODEL_GUARD_BUILD_PROFILE:-public-runtime}"
+case "${MODEL_GUARD_BUILD_PROFILE}" in
+    public-runtime|production-release) ;;
+    *)
+        echo "ERROR: COSMO_MODEL_GUARD_BUILD_PROFILE must be public-runtime or production-release" >&2
+        exit 1
+        ;;
+esac
+MODEL_GUARD_SDK_ROOT="${COSMO_MODEL_GUARD_SDK_ROOT:-}"
 DEV_MODE=OFF
 BUILD_TESTS_FLAG=OFF
 while getopts "c:m:r:p:tT" opt; do
@@ -24,6 +33,17 @@ done
 
 if [ -z "${PROJECT_ROOT_PATH:-}" ]; then
     PROJECT_ROOT_PATH=$(cd "$(dirname "$0")/.." && pwd)
+fi
+if [ -z "${MODEL_GUARD_SDK_ROOT}" ]; then
+    MODEL_GUARD_SDK_ROOT="${PROJECT_ROOT_PATH}/prebuild/model-guard-v2-rknn-abi1"
+fi
+MODEL_GUARD_CMAKE_ARGS=(
+    -DCOSMO_MODEL_GUARD_BUILD_PROFILE="${MODEL_GUARD_BUILD_PROFILE}"
+)
+if [ "${MODEL_GUARD_BUILD_PROFILE}" = "production-release" ]; then
+    MODEL_GUARD_CMAKE_ARGS+=(
+        -DCOSMO_MODEL_GUARD_SDK_ROOT="${MODEL_GUARD_SDK_ROOT}"
+    )
 fi
 
 BUILD_JOBS="${COSMO_BUILD_JOBS:-$(nproc)}"
@@ -144,6 +164,7 @@ cmake -S "${PROJECT_ROOT_PATH}" -B "${BUILD_DIR}" \
     -DCOSMO_RKLLM_REQUIRED="${RKLLM_REQUIRED}" \
     -DCOSMO_ROCKCHIP_MEDIA_ROOT="${ROCKCHIP_MEDIA_ROOT_PATH}" \
     -DCOSMO_DEV_MODE="${DEV_MODE}" \
+    "${MODEL_GUARD_CMAKE_ARGS[@]}" \
     -DCOSMO_PACKAGE_MODELS="${PACKAGE_MODELS}" \
     -DBUILD_TESTS="${BUILD_TESTS_FLAG}" \
     -DRESOURCE_DIR="${RESOURCE_DIR}" \

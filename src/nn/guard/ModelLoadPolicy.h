@@ -18,6 +18,7 @@ enum class ModelMagic {
 enum class ModelLoadIntent {
     kCosmoNn,
     kRawBmodel,
+    kRawRknn,
 };
 
 /// Loader action selected from the file format and consumer intent.
@@ -26,6 +27,7 @@ enum class ModelLoadAction {
     kGuardV2,
     kNativeCenn,
     kNativeRawBmodel,
+    kNativeRawRknn,
 };
 
 /// Stable reason for a rejected decision.
@@ -52,7 +54,7 @@ struct ModelLoadDecision {
 [[nodiscard]] ModelMagic DetectModelMagic(const std::array<std::uint8_t, 4>& bytes) noexcept;
 
 /// Minimal format router. CEMC always goes through Guard, while native CENN and
-/// raw bmodel loading follow the caller's already selected model type.
+/// raw bmodel/RKNN loading follow the caller's already selected model type.
 class ModelLoadPolicy final {
 public:
     [[nodiscard]] static ModelLoadPolicy Production();

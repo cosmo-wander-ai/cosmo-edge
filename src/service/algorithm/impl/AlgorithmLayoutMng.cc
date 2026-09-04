@@ -359,6 +359,9 @@ cosmo::util::ErrorEnum AlgorithmLayoutMng::LayoutSave(const algorithm::LayoutSav
     }
     doc["algorithmCategory"] = algorithmCategory;
 
+    if (!req.algorithmUsage.empty())
+        doc["algorithmUsage"] = req.algorithmUsage;
+
     if (!algorithmName.empty())
         doc["algorithmName"] = algorithmName;
 
