@@ -12,7 +12,6 @@ add_library(cosmo_infer OBJECT
     AiRecognizerInterface.cc        AiRecognizerInterface.h
     AiRecognizerUnify.cc            AiRecognizerUnify.h
     AiTrackerUnify.cc               AiTrackerUnify.h
-    AiVideoQualityUnify.cc          AiVideoQualityUnify.h
     BmodelTool.cc                   BmodelTool.h
     DinoDetectorUnify.cc            DinoDetectorUnify.h
     InferPoolTypes.h
