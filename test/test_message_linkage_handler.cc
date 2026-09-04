@@ -7,13 +7,18 @@
  */
 #include "api/MessageLinkageHandler.h"
 #include "mock/MockLinkageService.h"
-#include "mock/MockServiceRegistry.h"
 #include "util/ErrorCode.h"
 
 using namespace cosmo;
 
+namespace {
+struct LinkageHandlerMocks {
+    test::MockLinkageService linkageSvc;
+};
+}  // namespace
+
 TEST_CASE("MessageLinkageHandler: Add strategy", "[LinkageHandler]") {
-    test::MockServiceRegistry mocks;
+    LinkageHandlerMocks mocks;
     MessageLinkageHandler handler(mocks.linkageSvc);
 
     SECTION("Successful add returns generated id") {
@@ -46,7 +51,7 @@ TEST_CASE("MessageLinkageHandler: Add strategy", "[LinkageHandler]") {
 }
 
 TEST_CASE("MessageLinkageHandler: Delete strategy", "[LinkageHandler]") {
-    test::MockServiceRegistry mocks;
+    LinkageHandlerMocks mocks;
     MessageLinkageHandler handler(mocks.linkageSvc);
 
     SECTION("Successful delete") {
@@ -73,7 +78,7 @@ TEST_CASE("MessageLinkageHandler: Delete strategy", "[LinkageHandler]") {
 }
 
 TEST_CASE("MessageLinkageHandler: Update strategy", "[LinkageHandler]") {
-    test::MockServiceRegistry mocks;
+    LinkageHandlerMocks mocks;
     MessageLinkageHandler handler(mocks.linkageSvc);
 
     SECTION("Successful update") {
@@ -104,7 +109,7 @@ TEST_CASE("MessageLinkageHandler: Update strategy", "[LinkageHandler]") {
 }
 
 TEST_CASE("MessageLinkageHandler: Page query", "[LinkageHandler]") {
-    test::MockServiceRegistry mocks;
+    LinkageHandlerMocks mocks;
     MessageLinkageHandler handler(mocks.linkageSvc);
 
     std::vector<LinkageStrategyOutputUnit> mockResults;
@@ -130,7 +135,7 @@ TEST_CASE("MessageLinkageHandler: Page query", "[LinkageHandler]") {
 }
 
 TEST_CASE("MessageLinkageHandler: Storages query", "[LinkageHandler]") {
-    test::MockServiceRegistry mocks;
+    LinkageHandlerMocks mocks;
     MessageLinkageHandler handler(mocks.linkageSvc);
 
     ALLOW_CALL(mocks.linkageSvc, ReadSupportedStorage(trompeloeil::_, trompeloeil::_))
@@ -155,7 +160,7 @@ TEST_CASE("MessageLinkageHandler: Storages query", "[LinkageHandler]") {
 }
 
 TEST_CASE("MessageLinkageHandler: Switch strategy", "[LinkageHandler]") {
-    test::MockServiceRegistry mocks;
+    LinkageHandlerMocks mocks;
     MessageLinkageHandler handler(mocks.linkageSvc);
 
     SECTION("Enable strategy") {

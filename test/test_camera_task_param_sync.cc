@@ -10,14 +10,34 @@
 
 #include "catch_amalgamated.hpp"
 #include "mock/MockAlgorithmService.h"
-#include "mock/MockServiceRegistry.h"
 #include "mock/MockTaskService.h"
 #include "service/camera/impl/CameraTaskUnit.h"
+#include "support/MockDefaults.h"
+#include "support/ScopedServiceOverride.h"
+#include "util/PathUtil.h"
 
 using namespace cosmo;
 using trompeloeil::_;
 
 namespace {
+
+std::filesystem::path CameraConfigRoot() {
+    return std::filesystem::path(cosmo::path::GetCfgPath()) / "camera";
+}
+
+struct CameraTaskParamDependencies {
+    cosmo::test::MockAlgorithmService algSvc;
+    cosmo::test::MockTaskService taskSvc;
+    cosmo::test::NamedExpectations expectations;
+    cosmo::test::ScopedServiceOverride<service::IAlgorithmQuery> algorithmQuery{algSvc};
+    cosmo::test::ScopedServiceOverride<service::ITaskLifecycle> taskLifecycle{taskSvc};
+
+    CameraTaskParamDependencies() {
+        cosmo::test::AllowAlgorithmLookupDefaults(algSvc, expectations);
+        cosmo::test::AllowTaskMutationSuccess(taskSvc, expectations);
+    }
+};
+
 MsgTaskConfig MakeThresholdConfig(const std::string& value) {
     MsgTaskConfig config;
     MsgDynamicKeyValue threshold;
@@ -40,10 +60,10 @@ std::string MakeThresholdMetadata() {
 
 TEST_CASE("CameraTaskUnit pending apply does not wait for an in-flight service call",
           "[CameraTaskUnit][task-parameters][concurrency][liveness]") {
-    const std::filesystem::path config_root = "/tmp/cosmo_test/conf/camera/test_task_param_single_flight";
+    const std::filesystem::path config_root = (CameraConfigRoot() / "test_task_param_single_flight");
     std::filesystem::remove_all(config_root);
 
-    cosmo::test::MockServiceRegistry mocks;
+    CameraTaskParamDependencies mocks;
     ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeThresholdMetadata());
     CameraTaskUnit unit(config_root.string(), "single_flight_channel", "test_alg", {});
     REQUIRE(unit.SetParams(MakeThresholdConfig("6")) == util::ErrorEnum::Success);
@@ -99,10 +119,10 @@ TEST_CASE("CameraTaskUnit pending apply does not wait for an in-flight service c
 
 TEST_CASE("CameraTaskUnit pending apply leaves a newer generation for the next call",
           "[CameraTaskUnit][task-parameters][concurrency][liveness]") {
-    const std::filesystem::path config_root = "/tmp/cosmo_test/conf/camera/test_task_param_bounded_apply";
+    const std::filesystem::path config_root = (CameraConfigRoot() / "test_task_param_bounded_apply");
     std::filesystem::remove_all(config_root);
 
-    cosmo::test::MockServiceRegistry mocks;
+    CameraTaskParamDependencies mocks;
     ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeThresholdMetadata());
     CameraTaskUnit unit(config_root.string(), "bounded_apply_channel", "test_alg", {});
     REQUIRE(unit.SetParams(MakeThresholdConfig("6")) == util::ErrorEnum::Success);
@@ -134,10 +154,10 @@ TEST_CASE("CameraTaskUnit pending apply leaves a newer generation for the next c
 
 TEST_CASE("CameraTaskUnit before-start apply waits for the current applier and then completes",
           "[CameraTaskUnit][task-parameters][concurrency][deadlock]") {
-    const std::filesystem::path config_root = "/tmp/cosmo_test/conf/camera/test_task_param_before_start";
+    const std::filesystem::path config_root = (CameraConfigRoot() / "test_task_param_before_start");
     std::filesystem::remove_all(config_root);
 
-    cosmo::test::MockServiceRegistry mocks;
+    CameraTaskParamDependencies mocks;
     ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeThresholdMetadata());
     CameraTaskUnit unit(config_root.string(), "before_start_channel", "test_alg", {});
     REQUIRE(unit.SetParams(MakeThresholdConfig("6")) == util::ErrorEnum::Success);
@@ -196,10 +216,10 @@ TEST_CASE("CameraTaskUnit before-start apply waits for the current applier and t
 
 TEST_CASE("CameraTaskUnit keeps a failed generation pending for retry",
           "[CameraTaskUnit][task-parameters][retry]") {
-    const std::filesystem::path config_root = "/tmp/cosmo_test/conf/camera/test_task_param_retry";
+    const std::filesystem::path config_root = (CameraConfigRoot() / "test_task_param_retry");
     std::filesystem::remove_all(config_root);
 
-    cosmo::test::MockServiceRegistry mocks;
+    CameraTaskParamDependencies mocks;
     ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeThresholdMetadata());
     CameraTaskUnit unit(config_root.string(), "retry_channel", "test_alg", {});
     REQUIRE(unit.SetParams(MakeThresholdConfig("6")) == util::ErrorEnum::Success);
@@ -220,10 +240,10 @@ TEST_CASE("CameraTaskUnit keeps a failed generation pending for retry",
 
 TEST_CASE("CameraTaskUnit reapplies an unchanged snapshot before each start",
           "[CameraTaskUnit][task-parameters][restart]") {
-    const std::filesystem::path config_root = "/tmp/cosmo_test/conf/camera/test_task_param_restart";
+    const std::filesystem::path config_root = (CameraConfigRoot() / "test_task_param_restart");
     std::filesystem::remove_all(config_root);
 
-    cosmo::test::MockServiceRegistry mocks;
+    CameraTaskParamDependencies mocks;
     ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeThresholdMetadata());
     CameraTaskUnit unit(config_root.string(), "restart_channel", "test_alg", {});
     REQUIRE(unit.SetParams(MakeThresholdConfig("5")) == util::ErrorEnum::Success);
@@ -239,10 +259,10 @@ TEST_CASE("CameraTaskUnit reapplies an unchanged snapshot before each start",
 
 TEST_CASE("CameraTaskUnit rejects same-thread before-start reentry without deadlock",
           "[CameraTaskUnit][task-parameters][concurrency][deadlock][reentry]") {
-    const std::filesystem::path config_root = "/tmp/cosmo_test/conf/camera/test_task_param_reentry";
+    const std::filesystem::path config_root = (CameraConfigRoot() / "test_task_param_reentry");
     std::filesystem::remove_all(config_root);
 
-    cosmo::test::MockServiceRegistry mocks;
+    CameraTaskParamDependencies mocks;
     ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeThresholdMetadata());
     CameraTaskUnit unit(config_root.string(), "reentry_channel", "test_alg", {});
     REQUIRE(unit.SetParams(MakeThresholdConfig("8")) == util::ErrorEnum::Success);
@@ -259,10 +279,10 @@ TEST_CASE("CameraTaskUnit rejects same-thread before-start reentry without deadl
 
 TEST_CASE("CameraTaskUnit serializes a burst of concurrent parameter applies",
           "[CameraTaskUnit][task-parameters][concurrency][deadlock][stress]") {
-    const std::filesystem::path config_root = "/tmp/cosmo_test/conf/camera/test_task_param_burst";
+    const std::filesystem::path config_root = (CameraConfigRoot() / "test_task_param_burst");
     std::filesystem::remove_all(config_root);
 
-    cosmo::test::MockServiceRegistry mocks;
+    CameraTaskParamDependencies mocks;
     ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeThresholdMetadata());
     CameraTaskUnit unit(config_root.string(), "burst_channel", "test_alg", {});
     REQUIRE(unit.SetParams(MakeThresholdConfig("9")) == util::ErrorEnum::Success);

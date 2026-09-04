@@ -10,18 +10,26 @@
 #include <filesystem>
 
 #include "mock/MockDeviceInfoService.h"
-#include "mock/MockServiceRegistry.h"
 #include "service/network/impl/NetworkConfigServiceImpl.h"
+#include "support/MockDefaults.h"
+#include "support/ScopedPathOverride.h"
+#include "support/ScopedServiceOverride.h"
 
 using namespace cosmo::service;
 
 namespace {
 
-/// Helper to set up common mock expectations for NetworkConfigServiceImpl
-void SetupNetworkMocks(cosmo::test::MockServiceRegistry& mocks) {
-    ALLOW_CALL(mocks.deviceInfoSvc, GetMacs())
-        .RETURN((std::vector<std::pair<std::string, std::string>>{{"eth0", "00:11:22:33:44:55"}}));
-}
+struct NetworkConfigDependencies {
+    cosmo::test::MockDeviceInfoService deviceInfoSvc;
+    cosmo::test::NamedExpectations expectations;
+    cosmo::test::ScopedServiceOverride<IDeviceInfoService> deviceInfo{deviceInfoSvc};
+
+    NetworkConfigDependencies() {
+        expectations.push_back(
+            NAMED_ALLOW_CALL(deviceInfoSvc, GetMacs())
+                .RETURN((std::vector<std::pair<std::string, std::string>>{{"eth0", "00:11:22:33:44:55"}})));
+    }
+};
 
 }  // namespace
 
@@ -30,9 +38,8 @@ TEST_CASE("NetworkConfigServiceImpl: construction and destruction", "[network-co
                           std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
     std::filesystem::create_directories(testDir);
 
-    cosmo::test::MockServiceRegistry mocks;
-    SetupNetworkMocks(mocks);
-    cosmo::path::OverrideRootPathForTest(testDir, testDir);
+    cosmo::test::ScopedPathOverride path_override(testDir, testDir);
+    NetworkConfigDependencies mocks;
 
     REQUIRE_NOTHROW([&]() { NetworkConfigServiceImpl sut; }());
 
@@ -44,9 +51,8 @@ TEST_CASE("NetworkConfigServiceImpl: GetCfgDns returns default DNS", "[network-c
                           std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
     std::filesystem::create_directories(testDir);
 
-    cosmo::test::MockServiceRegistry mocks;
-    SetupNetworkMocks(mocks);
-    cosmo::path::OverrideRootPathForTest(testDir, testDir);
+    cosmo::test::ScopedPathOverride path_override(testDir, testDir);
+    NetworkConfigDependencies mocks;
 
     NetworkConfigServiceImpl sut;
     auto dns = sut.GetCfgDns();
@@ -61,9 +67,8 @@ TEST_CASE("NetworkConfigServiceImpl: SetDnss and verify", "[network-config]") {
                           std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
     std::filesystem::create_directories(testDir);
 
-    cosmo::test::MockServiceRegistry mocks;
-    SetupNetworkMocks(mocks);
-    cosmo::path::OverrideRootPathForTest(testDir, testDir);
+    cosmo::test::ScopedPathOverride path_override(testDir, testDir);
+    NetworkConfigDependencies mocks;
 
     NetworkConfigServiceImpl sut;
 

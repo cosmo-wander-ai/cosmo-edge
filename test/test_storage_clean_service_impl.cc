@@ -6,8 +6,8 @@
  * Actual cleanup logic depends on StorageSpace and file system state,
  * so we only verify Start/Stop contract and crash safety.
  */
-#include "mock/MockServiceRegistry.h"
 #include "service/infra/impl/StorageCleanServiceImpl.h"
+#include "support/ScopedPathOverride.h"
 
 using namespace cosmo::service;
 
@@ -16,7 +16,8 @@ TEST_CASE("StorageCleanServiceImpl: construction and destruction", "[StorageClea
 }
 
 TEST_CASE("StorageCleanServiceImpl: Start then Stop lifecycle", "[StorageCleanService]") {
-    cosmo::test::MockServiceRegistry mocks;
+    const std::string root = "/tmp/cosmo_storage_clean_service_test";
+    cosmo::test::ScopedPathOverride path_override(root, root);
 
     StorageCleanServiceImpl sut;
 
@@ -37,7 +38,8 @@ TEST_CASE("StorageCleanServiceImpl: Start then Stop lifecycle", "[StorageCleanSe
 }
 
 TEST_CASE("StorageCleanServiceImpl: destructor calls Stop", "[StorageCleanService]") {
-    cosmo::test::MockServiceRegistry mocks;
+    const std::string root = "/tmp/cosmo_storage_clean_service_test";
+    cosmo::test::ScopedPathOverride path_override(root, root);
 
     REQUIRE_NOTHROW([]() {
         StorageCleanServiceImpl sut;

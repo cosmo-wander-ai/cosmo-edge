@@ -6,15 +6,35 @@
 
 #include "catch_amalgamated.hpp"
 #include "mock/MockAlgorithmService.h"
-#include "mock/MockServiceRegistry.h"
 #include "mock/MockTaskService.h"
 #include "service/camera/impl/CameraTaskUnit.h"
+#include "support/MockDefaults.h"
+#include "support/ScopedServiceOverride.h"
 #include "util/JsonStructUtil.h"
+#include "util/PathUtil.h"
 
 using namespace cosmo;
 using trompeloeil::_;
 
 namespace {
+
+std::filesystem::path CameraConfigRoot() {
+    return std::filesystem::path(cosmo::path::GetCfgPath()) / "camera";
+}
+
+struct CameraTaskUnitDependencies {
+    cosmo::test::MockAlgorithmService algSvc;
+    cosmo::test::MockTaskService taskSvc;
+    cosmo::test::NamedExpectations expectations;
+    cosmo::test::ScopedServiceOverride<service::IAlgorithmQuery> algorithmQuery{algSvc};
+    cosmo::test::ScopedServiceOverride<service::ITaskLifecycle> taskLifecycle{taskSvc};
+
+    CameraTaskUnitDependencies() {
+        cosmo::test::AllowAlgorithmLookupDefaults(algSvc, expectations);
+        cosmo::test::AllowTaskMutationSuccess(taskSvc, expectations);
+    }
+};
+
 MsgDynamicKeyValue MakeParam(const std::string& key, const std::string& value) {
     MsgDynamicKeyValue param;
     param.key   = key;
@@ -92,14 +112,14 @@ CameraTaskUnitParam LoadSavedParams(const std::filesystem::path& config_root,
 
 TEST_CASE("CameraTaskUnit initializes a new task from the scene metadata value",
           "[CameraTaskUnit][task-parameters][ownership]") {
-    const std::filesystem::path config_root = "/tmp/cosmo_test/conf/camera/test_task_unit_scene_baseline";
+    const std::filesystem::path config_root = (CameraConfigRoot() / "test_task_unit_scene_baseline");
     std::filesystem::remove_all(config_root);
 
     auto scene_param         = MakeMetadataParam("param.sceneOwned", "11", false, 2);
     scene_param.defaultValue = "10";
     const auto metadata      = MakeMetadataJson({scene_param});
 
-    cosmo::test::MockServiceRegistry mocks;
+    CameraTaskUnitDependencies mocks;
     ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(metadata);
 
     std::vector<MsgTaskConfig> applied;
@@ -117,14 +137,14 @@ TEST_CASE("CameraTaskUnit initializes a new task from the scene metadata value",
 
 TEST_CASE("CameraTaskUnit applies only channel-editable values over the scene baseline",
           "[CameraTaskUnit][task-parameters][ownership][migration]") {
-    const std::filesystem::path config_root = "/tmp/cosmo_test/conf/camera/test_task_unit_ownership";
+    const std::filesystem::path config_root = (CameraConfigRoot() / "test_task_unit_ownership");
     std::filesystem::remove_all(config_root);
     REQUIRE(SeedSavedParams(config_root, "test_alg",
                             {MakeParam("param.sceneOwned", "5"), MakeParam("param.visible", "6")}));
 
     const auto metadata = MakeMetadataJson({MakeMetadataParam("param.sceneOwned", "11", false, 2),
                                             MakeMetadataParam("param.visible", "10", std::nullopt, 0)});
-    cosmo::test::MockServiceRegistry mocks;
+    CameraTaskUnitDependencies mocks;
     ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(metadata);
 
     std::vector<MsgTaskConfig> applied;
@@ -154,14 +174,14 @@ TEST_CASE("CameraTaskUnit applies only channel-editable values over the scene ba
 
 TEST_CASE("CameraTaskUnit refreshes scene-owned values while retaining visible overrides after rebuild",
           "[CameraTaskUnit][task-parameters][ownership][reload]") {
-    const std::filesystem::path config_root = "/tmp/cosmo_test/conf/camera/test_task_unit_scene_reload";
+    const std::filesystem::path config_root = (CameraConfigRoot() / "test_task_unit_scene_reload");
     std::filesystem::remove_all(config_root);
     REQUIRE(SeedSavedParams(config_root, "test_alg",
                             {MakeParam("param.sceneOwned", "5"), MakeParam("param.visible", "6")},
                             std::vector<std::string>{"param.visible"}));
 
     {
-        cosmo::test::MockServiceRegistry mocks;
+        CameraTaskUnitDependencies mocks;
         ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
             .RETURN(MakeMetadataJson({MakeMetadataParam("param.sceneOwned", "10", false, 2),
                                       MakeMetadataParam("param.visible", "1", true, 0)}));
@@ -178,7 +198,7 @@ TEST_CASE("CameraTaskUnit refreshes scene-owned values while retaining visible o
     }
 
     {
-        cosmo::test::MockServiceRegistry mocks;
+        CameraTaskUnitDependencies mocks;
         ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
             .RETURN(MakeMetadataJson({MakeMetadataParam("param.sceneOwned", "12", false, 2),
                                       MakeMetadataParam("param.visible", "1", true, 0)}));
@@ -201,13 +221,13 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
           "[CameraTaskUnit][task-parameters][ownership][migration]") {
     SECTION("a frozen legacy-editable descriptor retains its prior channel value") {
         const std::filesystem::path config_root =
-            "/tmp/cosmo_test/conf/camera/test_task_unit_legacy_explicit_editable";
+            (CameraConfigRoot() / "test_task_unit_legacy_explicit_editable");
         std::filesystem::remove_all(config_root);
         REQUIRE(SeedSavedParams(config_root, "test_alg", {MakeParam("param.threshold", "10")}));
 
         auto metadataParam                  = MakeMetadataParam("param.threshold", "20", true, 0);
         metadataParam.legacyChannelEditable = true;
-        cosmo::test::MockServiceRegistry mocks;
+        CameraTaskUnitDependencies mocks;
         ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeMetadataJson({metadataParam}));
 
         CameraTaskUnit unit(config_root.string(), "legacy_explicit_channel", "test_alg", {});
@@ -222,14 +242,14 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
 
     SECTION("the real UI promotion shape starts from the latest scene value then becomes channel-owned") {
         const std::filesystem::path config_root =
-            "/tmp/cosmo_test/conf/camera/test_task_unit_legacy_promoted_editable";
+            (CameraConfigRoot() / "test_task_unit_legacy_promoted_editable");
         std::filesystem::remove_all(config_root);
         REQUIRE(SeedSavedParams(config_root, "test_alg", {MakeParam("param.threshold", "10")}));
 
         auto metadataParam                  = MakeMetadataParam("param.threshold", "20", true, 0);
         metadataParam.legacyChannelEditable = false;
         {
-            cosmo::test::MockServiceRegistry mocks;
+            CameraTaskUnitDependencies mocks;
             ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeMetadataJson({metadataParam}));
 
             CameraTaskUnit unit(config_root.string(), "legacy_promoted_channel", "test_alg", {});
@@ -243,7 +263,7 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
         }
 
         {
-            cosmo::test::MockServiceRegistry mocks;
+            CameraTaskUnitDependencies mocks;
             ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
                 .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "30", true, 0)}));
             CameraTaskUnit reloaded(config_root.string(), "legacy_promoted_channel", "test_alg", {});
@@ -256,11 +276,11 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
         "explicit current ownership without frozen evidence initializes from scene then becomes "
         "channel-owned") {
         const std::filesystem::path config_root =
-            "/tmp/cosmo_test/conf/camera/test_task_unit_legacy_ambiguous_explicit";
+            (CameraConfigRoot() / "test_task_unit_legacy_ambiguous_explicit");
         std::filesystem::remove_all(config_root);
         REQUIRE(SeedSavedParams(config_root, "test_alg", {MakeParam("param.threshold", "10")}));
 
-        cosmo::test::MockServiceRegistry mocks;
+        CameraTaskUnitDependencies mocks;
         ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
             .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "20", true, 0)}));
 
@@ -272,11 +292,11 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
 
     SECTION("an implicitly editable legacy descriptor retains its prior channel value") {
         const std::filesystem::path config_root =
-            "/tmp/cosmo_test/conf/camera/test_task_unit_legacy_implicit_editable";
+            (CameraConfigRoot() / "test_task_unit_legacy_implicit_editable");
         std::filesystem::remove_all(config_root);
         REQUIRE(SeedSavedParams(config_root, "test_alg", {MakeParam("param.threshold", "10")}));
 
-        cosmo::test::MockServiceRegistry mocks;
+        CameraTaskUnitDependencies mocks;
         ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
             .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "20", std::nullopt, 0)}));
 
@@ -291,7 +311,7 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
 
     SECTION("frozen child eligibility is not recomputed through a new parent") {
         const std::filesystem::path config_root =
-            "/tmp/cosmo_test/conf/camera/test_task_unit_legacy_reparented_child";
+            (CameraConfigRoot() / "test_task_unit_legacy_reparented_child");
         std::filesystem::remove_all(config_root);
         REQUIRE(SeedSavedParams(config_root, "test_alg",
                                 {MakeParam("param.newParent", "0"), MakeParam("param.child", "10")}));
@@ -302,7 +322,7 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
         child.legacyChannelEditable  = true;
         child.dependsOn.key          = "param.newParent";
         child.dependsOn.value        = "1";
-        cosmo::test::MockServiceRegistry mocks;
+        CameraTaskUnitDependencies mocks;
         ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeMetadataJson({parent, child}));
 
         CameraTaskUnit unit(config_root.string(), "legacy_reparented_channel", "test_alg", {});
@@ -318,12 +338,12 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
 
     SECTION("legacy compatibility descriptors remain eligible without a frozen hint") {
         const std::filesystem::path config_root =
-            "/tmp/cosmo_test/conf/camera/test_task_unit_legacy_explicit_compatibility";
+            (CameraConfigRoot() / "test_task_unit_legacy_explicit_compatibility");
         std::filesystem::remove_all(config_root);
         REQUIRE(SeedSavedParams(config_root, "test_alg",
                                 {MakeParam("param.videoRepeatCount", "3"), MakeParam("param.retro", "4")}));
 
-        cosmo::test::MockServiceRegistry mocks;
+        CameraTaskUnitDependencies mocks;
         ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
             .RETURN(MakeMetadataJson({MakeMetadataParam("param.videoRepeatCount", "30", true, 2),
                                       MakeMetadataParam("param.retro", "40", true, 1, "retroDirect")}));
@@ -340,7 +360,7 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
 
     SECTION("an unreadable provenance marker falls back to the scene baseline") {
         const std::filesystem::path config_root =
-            "/tmp/cosmo_test/conf/camera/test_task_unit_invalid_legacy_marker";
+            (CameraConfigRoot() / "test_task_unit_invalid_legacy_marker");
         std::filesystem::remove_all(config_root);
         const auto task_config_dir = config_root / "test_alg";
         std::filesystem::create_directories(task_config_dir);
@@ -349,7 +369,7 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
             {"channelOverrideKeys", "not-an-array"}};
         REQUIRE(util::SaveStructToJsonFile((task_config_dir / "param.json").string(), invalid_snapshot));
 
-        cosmo::test::MockServiceRegistry mocks;
+        CameraTaskUnitDependencies mocks;
         ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
             .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "20", true, 0)}));
 
@@ -365,13 +385,13 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
 
     SECTION("only the key-level compatibility item survives without a descriptor") {
         const std::filesystem::path config_root =
-            "/tmp/cosmo_test/conf/camera/test_task_unit_legacy_unknown_compatibility";
+            (CameraConfigRoot() / "test_task_unit_legacy_unknown_compatibility");
         std::filesystem::remove_all(config_root);
         REQUIRE(SeedSavedParams(config_root, "test_alg",
                                 {MakeParam("param.videoRepeatCount", "3"),
                                  MakeParam("param.retroDirect", "4"), MakeParam("param.unknown", "5")}));
 
-        cosmo::test::MockServiceRegistry mocks;
+        CameraTaskUnitDependencies mocks;
         ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeMetadataJson({}));
 
         CameraTaskUnit unit(config_root.string(), "legacy_unknown_channel", "test_alg", {});
@@ -388,13 +408,12 @@ TEST_CASE("CameraTaskUnit migrates legacy snapshots using previous channel visib
 TEST_CASE("CameraTaskUnit uses only canonical override markers after migration",
           "[CameraTaskUnit][task-parameters][ownership][provenance]") {
     SECTION("a marked override wins over the latest scene baseline") {
-        const std::filesystem::path config_root =
-            "/tmp/cosmo_test/conf/camera/test_task_unit_marked_override";
+        const std::filesystem::path config_root = (CameraConfigRoot() / "test_task_unit_marked_override");
         std::filesystem::remove_all(config_root);
         REQUIRE(SeedSavedParams(config_root, "test_alg", {MakeParam("param.threshold", "10")},
                                 std::vector<std::string>{"param.threshold"}));
 
-        cosmo::test::MockServiceRegistry mocks;
+        CameraTaskUnitDependencies mocks;
         ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
             .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "20", true)}));
         CameraTaskUnit unit(config_root.string(), "marked_override_channel", "test_alg", {});
@@ -405,13 +424,13 @@ TEST_CASE("CameraTaskUnit uses only canonical override markers after migration",
 
     SECTION("an explicit empty marker initializes from scene once then becomes channel-owned") {
         const std::filesystem::path config_root =
-            "/tmp/cosmo_test/conf/camera/test_task_unit_empty_override_marker";
+            (CameraConfigRoot() / "test_task_unit_empty_override_marker");
         std::filesystem::remove_all(config_root);
         REQUIRE(SeedSavedParams(config_root, "test_alg", {MakeParam("param.threshold", "10")},
                                 std::vector<std::string>{}));
 
         {
-            cosmo::test::MockServiceRegistry mocks;
+            CameraTaskUnitDependencies mocks;
             ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
                 .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "20", true)}));
             CameraTaskUnit unit(config_root.string(), "empty_marker_channel", "test_alg", {});
@@ -422,7 +441,7 @@ TEST_CASE("CameraTaskUnit uses only canonical override markers after migration",
         }
 
         {
-            cosmo::test::MockServiceRegistry mocks;
+            CameraTaskUnitDependencies mocks;
             ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
                 .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "30", true)}));
             CameraTaskUnit unit(config_root.string(), "empty_marker_channel", "test_alg", {});
@@ -434,11 +453,11 @@ TEST_CASE("CameraTaskUnit uses only canonical override markers after migration",
 
     SECTION("saving the baseline value still records an explicit channel override") {
         const std::filesystem::path config_root =
-            "/tmp/cosmo_test/conf/camera/test_task_unit_baseline_override_marker";
+            (CameraConfigRoot() / "test_task_unit_baseline_override_marker");
         std::filesystem::remove_all(config_root);
 
         {
-            cosmo::test::MockServiceRegistry mocks;
+            CameraTaskUnitDependencies mocks;
             ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
                 .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "20", true)}));
             CameraTaskUnit unit(config_root.string(), "baseline_override_channel", "test_alg", {});
@@ -448,7 +467,7 @@ TEST_CASE("CameraTaskUnit uses only canonical override markers after migration",
         }
 
         {
-            cosmo::test::MockServiceRegistry mocks;
+            CameraTaskUnitDependencies mocks;
             ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
                 .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "30", true)}));
             CameraTaskUnit unit(config_root.string(), "baseline_override_channel", "test_alg", {});
@@ -458,13 +477,13 @@ TEST_CASE("CameraTaskUnit uses only canonical override markers after migration",
 
     SECTION("an editable key becoming hidden loses its old override") {
         const std::filesystem::path config_root =
-            "/tmp/cosmo_test/conf/camera/test_task_unit_override_becomes_hidden";
+            (CameraConfigRoot() / "test_task_unit_override_becomes_hidden");
         std::filesystem::remove_all(config_root);
         REQUIRE(SeedSavedParams(config_root, "test_alg", {MakeParam("param.threshold", "10")},
                                 std::vector<std::string>{"param.threshold"}));
 
         {
-            cosmo::test::MockServiceRegistry mocks;
+            CameraTaskUnitDependencies mocks;
             ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
                 .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "20", false, 2)}));
             CameraTaskUnit unit(config_root.string(), "hidden_override_channel", "test_alg", {});
@@ -475,7 +494,7 @@ TEST_CASE("CameraTaskUnit uses only canonical override markers after migration",
         }
 
         {
-            cosmo::test::MockServiceRegistry mocks;
+            CameraTaskUnitDependencies mocks;
             ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
                 .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "30", true)}));
             CameraTaskUnit unit(config_root.string(), "hidden_override_channel", "test_alg", {});
@@ -486,7 +505,7 @@ TEST_CASE("CameraTaskUnit uses only canonical override markers after migration",
         }
 
         {
-            cosmo::test::MockServiceRegistry mocks;
+            CameraTaskUnitDependencies mocks;
             ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
                 .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "40", true)}));
             CameraTaskUnit unit(config_root.string(), "hidden_override_channel", "test_alg", {});
@@ -497,8 +516,7 @@ TEST_CASE("CameraTaskUnit uses only canonical override markers after migration",
     }
 
     SECTION("deleted and unknown keys are removed except the key-level compatibility item") {
-        const std::filesystem::path config_root =
-            "/tmp/cosmo_test/conf/camera/test_task_unit_deleted_override";
+        const std::filesystem::path config_root = (CameraConfigRoot() / "test_task_unit_deleted_override");
         std::filesystem::remove_all(config_root);
         REQUIRE(SeedSavedParams(
             config_root, "test_alg",
@@ -508,7 +526,7 @@ TEST_CASE("CameraTaskUnit uses only canonical override markers after migration",
             std::vector<std::string>{"param.deleted", "param.unknown", "param.videoRepeatCount",
                                      "param.videoRepeatCount", "param.retroDirect"}));
 
-        cosmo::test::MockServiceRegistry mocks;
+        CameraTaskUnitDependencies mocks;
         ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeMetadataJson({}));
         CameraTaskUnit unit(config_root.string(), "deleted_override_channel", "test_alg", {});
 
@@ -524,15 +542,14 @@ TEST_CASE("CameraTaskUnit uses only canonical override markers after migration",
 
 TEST_CASE("CameraTaskUnit persists provenance created by channel and trusted binding updates",
           "[CameraTaskUnit][task-parameters][ownership][provenance][reload]") {
-    const std::filesystem::path config_root =
-        "/tmp/cosmo_test/conf/camera/test_task_unit_new_override_provenance";
+    const std::filesystem::path config_root = (CameraConfigRoot() / "test_task_unit_new_override_provenance");
     std::filesystem::remove_all(config_root);
     const auto metadata = MakeMetadataJson({MakeMetadataParam("param.threshold", "5", true),
                                             MakeMetadataParam("param.faceSet", "", true, 0, "faceSet"),
                                             MakeMetadataParam("param.sceneOwned", "20", false, 2)});
 
     {
-        cosmo::test::MockServiceRegistry mocks;
+        CameraTaskUnitDependencies mocks;
         ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(metadata);
         CameraTaskUnit unit(config_root.string(), "new_override_channel", "test_alg", {});
         REQUIRE(unit.IsReady());
@@ -553,7 +570,7 @@ TEST_CASE("CameraTaskUnit persists provenance created by channel and trusted bin
     }
 
     {
-        cosmo::test::MockServiceRegistry mocks;
+        CameraTaskUnitDependencies mocks;
         ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(metadata);
         CameraTaskUnit unit(config_root.string(), "new_override_channel", "test_alg", {});
         REQUIRE(unit.IsReady());
@@ -580,11 +597,11 @@ TEST_CASE("CameraTaskUnit fails closed when parameter ownership metadata is inva
     for (size_t index = 0; index < cases.size(); ++index) {
         const auto& test_case = cases[index];
         DYNAMIC_SECTION(test_case.name) {
-            const auto config_root = std::filesystem::path("/tmp/cosmo_test/conf/camera") /
-                                     ("test_task_unit_bad_metadata_" + std::to_string(index));
+            const auto config_root =
+                CameraConfigRoot() / ("test_task_unit_bad_metadata_" + std::to_string(index));
             std::filesystem::remove_all(config_root);
 
-            cosmo::test::MockServiceRegistry mocks;
+            CameraTaskUnitDependencies mocks;
             ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(test_case.metadata);
             FORBID_CALL(mocks.taskSvc, TaskCreate(_, _, _, _));
             FORBID_CALL(mocks.taskSvc, SetTaskParam(_, _, _));
@@ -605,11 +622,11 @@ TEST_CASE("CameraTaskUnit accepts empty object metadata roots",
 
     for (size_t index = 0; index < cases.size(); ++index) {
         DYNAMIC_SECTION("valid empty metadata " << index) {
-            const auto config_root = std::filesystem::path("/tmp/cosmo_test/conf/camera") /
-                                     ("test_task_unit_empty_metadata_" + std::to_string(index));
+            const auto config_root =
+                CameraConfigRoot() / ("test_task_unit_empty_metadata_" + std::to_string(index));
             std::filesystem::remove_all(config_root);
 
-            cosmo::test::MockServiceRegistry mocks;
+            CameraTaskUnitDependencies mocks;
             ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(cases[index]);
 
             CameraTaskUnit unit(config_root.string(), "empty_metadata_channel_" + std::to_string(index),
@@ -624,11 +641,10 @@ TEST_CASE("CameraTaskUnit accepts empty object metadata roots",
 
 TEST_CASE("CameraTaskUnit rejects ambiguous duplicate channel parameter keys before mutation",
           "[CameraTaskUnit][task-parameters][ownership][validation]") {
-    const std::filesystem::path config_root =
-        "/tmp/cosmo_test/conf/camera/test_task_unit_duplicate_channel_keys";
+    const std::filesystem::path config_root = (CameraConfigRoot() / "test_task_unit_duplicate_channel_keys");
     std::filesystem::remove_all(config_root);
 
-    cosmo::test::MockServiceRegistry mocks;
+    CameraTaskUnitDependencies mocks;
     ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
         .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "5", true)}));
     CameraTaskUnit unit(config_root.string(), "duplicate_key_channel", "test_alg", {});
@@ -656,7 +672,7 @@ TEST_CASE("CameraTaskUnit rejects ambiguous duplicate channel parameter keys bef
 
 TEST_CASE("CameraTaskUnit keeps legacy and special channel parameters editable",
           "[CameraTaskUnit][task-parameters][ownership][compatibility]") {
-    const std::filesystem::path config_root = "/tmp/cosmo_test/conf/camera/test_task_unit_legacy_ownership";
+    const std::filesystem::path config_root = (CameraConfigRoot() / "test_task_unit_legacy_ownership");
     std::filesystem::remove_all(config_root);
     REQUIRE(SeedSavedParams(config_root, "test_alg",
                             {MakeParam("param.legacy", "1"), MakeParam("param.retroDirect", "2"),
@@ -666,7 +682,7 @@ TEST_CASE("CameraTaskUnit keeps legacy and special channel parameters editable",
     auto retro          = MakeMetadataParam("param.retroDirect", "20", std::nullopt, 1, "retroDirect");
     auto explicit_retro = MakeMetadataParam("param.explicitRetro", "40", false, 0, "retroDirect");
 
-    cosmo::test::MockServiceRegistry mocks;
+    CameraTaskUnitDependencies mocks;
     ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
         .RETURN(MakeMetadataJson({legacy, retro, explicit_retro}));
 
@@ -691,10 +707,10 @@ TEST_CASE("CameraTaskUnit keeps legacy and special channel parameters editable",
 TEST_CASE("CameraTaskUnit restores exact channel snapshots when persistence fails",
           "[CameraTaskUnit][task-parameters][persistence]") {
     const std::filesystem::path config_root =
-        "/tmp/cosmo_test/conf/camera/test_task_unit_transactional_persistence";
+        (CameraConfigRoot() / "test_task_unit_transactional_persistence");
     std::filesystem::remove_all(config_root);
 
-    cosmo::test::MockServiceRegistry mocks;
+    CameraTaskUnitDependencies mocks;
     ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
         .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "5", true),
                                   MakeMetadataParam("param.secondary", "1", true)}));

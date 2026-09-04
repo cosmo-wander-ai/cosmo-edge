@@ -7,13 +7,16 @@
 // clang-format on
 #include "api/MessageNetworkHandler.h"
 #include "mock/MockNetworkService.h"
-#include "mock/MockServiceRegistry.h"
 #include "service/network/INetworkConfig.h"
 
 namespace cosmo::test {
 
+struct NetworkHandlerMocks {
+    MockNetworkService networkSvc;
+};
+
 TEST_CASE("MessageNetworkHandler: QueryNetCard", "[network-handler]") {
-    MockServiceRegistry mocks;
+    NetworkHandlerMocks mocks;
     MessageNetworkHandler handler(mocks.networkSvc);
 
     SECTION("returns two cards with correct DTO mapping") {
@@ -54,7 +57,7 @@ TEST_CASE("MessageNetworkHandler: QueryNetCard", "[network-handler]") {
 }
 
 TEST_CASE("MessageNetworkHandler: ModifyNetCard", "[network-handler]") {
-    MockServiceRegistry mocks;
+    NetworkHandlerMocks mocks;
     MessageNetworkHandler handler(mocks.networkSvc);
 
     SECTION("forwards card info to ApplyCardInfoAsync") {
@@ -77,7 +80,7 @@ TEST_CASE("MessageNetworkHandler: ModifyNetCard", "[network-handler]") {
 }
 
 TEST_CASE("MessageNetworkHandler: QueryNetDns", "[network-handler]") {
-    MockServiceRegistry mocks;
+    NetworkHandlerMocks mocks;
     MessageNetworkHandler handler(mocks.networkSvc);
 
     SECTION("returns empty when no DNS configured") {
@@ -112,7 +115,7 @@ TEST_CASE("MessageNetworkHandler: QueryNetDns", "[network-handler]") {
 }
 
 TEST_CASE("MessageNetworkHandler: ModifyNetDns", "[network-handler]") {
-    MockServiceRegistry mocks;
+    NetworkHandlerMocks mocks;
     MessageNetworkHandler handler(mocks.networkSvc);
 
     SECTION("sets DNS successfully") {
@@ -142,7 +145,7 @@ TEST_CASE("MessageNetworkHandler: ModifyNetDns", "[network-handler]") {
 }
 
 TEST_CASE("MessageNetworkHandler: NetworkQualityCheck", "[network-handler]") {
-    MockServiceRegistry mocks;
+    NetworkHandlerMocks mocks;
     MessageNetworkHandler handler(mocks.networkSvc);
 
     SECTION("returns probe result on success") {
@@ -184,7 +187,7 @@ TEST_CASE("MessageNetworkHandler: NetworkQualityCheck", "[network-handler]") {
 }
 
 TEST_CASE("MessageNetworkHandler: IpAccessibleCheck", "[network-handler]") {
-    MockServiceRegistry mocks;
+    NetworkHandlerMocks mocks;
     MessageNetworkHandler handler(mocks.networkSvc);
 
     SECTION("returns accessible=1 when reachable") {

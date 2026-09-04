@@ -12,9 +12,8 @@
 #include <filesystem>
 #include <nlohmann/json.hpp>
 
-#include "mock/MockServiceRegistry.h"
-#include "service/detail/ServiceRegistry.h"
 #include "service/infra/impl/LinkageServiceImpl.h"
+#include "support/ScopedPathOverride.h"
 
 using cosmo::service::LinkageServiceImpl;
 using cosmo::util::ErrorEnum;
@@ -70,21 +69,16 @@ std::string MakeLegacyTextWorkflow() {
 // Helper to create a temp test directory with required structure
 struct LinkageTestEnv {
     std::string baseDir;
+    cosmo::test::ScopedPathOverride pathOverride;
 
-    LinkageTestEnv() {
-        baseDir = std::string("/tmp/cosmo_linkage_") + std::to_string(getpid());
-        // NOTE: OverrideRootPathForTest is called AFTER MockServiceRegistry construction
-        // to avoid being overwritten by MockServiceRegistry's default path setup.
-    }
-
-    void SetupPaths() {
-        cosmo::path::OverrideRootPathForTest(baseDir, baseDir);
+    LinkageTestEnv()
+        : baseDir(std::string("/tmp/cosmo_linkage_") + std::to_string(getpid())),
+          pathOverride(baseDir, baseDir) {
         std::filesystem::remove_all(baseDir);
         std::filesystem::create_directories(baseDir + "/conf/linkAge");
     }
 
     ~LinkageTestEnv() {
-        cosmo::path::OverrideRootPathForTest("/tmp/cosmo_test", "/tmp/cosmo_test_app");
         std::error_code error;
         std::filesystem::remove_all(baseDir, error);
     }
@@ -94,10 +88,6 @@ struct LinkageTestEnv {
 
 TEST_CASE("LinkageServiceImpl: CRUD and query operations", "[linkage-service]") {
     LinkageTestEnv env;
-
-    cosmo::test::MockServiceRegistry mocks;
-    // Must call SetupPaths AFTER MockServiceRegistry to override its default paths
-    env.SetupPaths();
 
     LinkageServiceImpl sut;
 
@@ -299,8 +289,6 @@ TEST_CASE("LinkageServiceImpl: CRUD and query operations", "[linkage-service]") 
 
 TEST_CASE("LinkageServiceImpl: empty workflow draft survives reload", "[linkage-service]") {
     LinkageTestEnv env;
-    cosmo::test::MockServiceRegistry mocks;
-    env.SetupPaths();
 
     std::string id;
     {
@@ -320,8 +308,6 @@ TEST_CASE("LinkageServiceImpl: empty workflow draft survives reload", "[linkage-
 TEST_CASE("LinkageServiceImpl: persistence failure does not publish a ghost strategy",
           "[linkage-service][consistency]") {
     LinkageTestEnv env;
-    cosmo::test::MockServiceRegistry mocks;
-    env.SetupPaths();
 
     const auto config_path = std::filesystem::path(env.baseDir) / "conf/linkAge/linkAgeList.json";
     REQUIRE(std::filesystem::create_directory(config_path));
@@ -341,8 +327,6 @@ TEST_CASE("LinkageServiceImpl: persistence failure does not publish a ghost stra
 
 TEST_CASE("LinkageServiceImpl: Stop is idempotent and rejects new alarms", "[linkage-service][lifecycle]") {
     LinkageTestEnv env;
-    cosmo::test::MockServiceRegistry mocks;
-    env.SetupPaths();
 
     LinkageServiceImpl sut;
     REQUIRE_NOTHROW(sut.Stop());

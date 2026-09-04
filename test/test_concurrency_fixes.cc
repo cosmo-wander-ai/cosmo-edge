@@ -15,127 +15,15 @@
 #include <thread>
 #include <vector>
 
-#include "mock/MockServiceRegistry.h"
-#include "mock/MockTaskService.h"
+#include "mock/MockAlgorithmService.h"
 #include "service/camera/impl/CameraServiceImpl.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/system/impl/SystemServiceImpl.h"
-#include "service/task/ITaskService.h"
 #include "service/task/impl/TaskServiceImpl.h"
+#include "support/ScopedPathOverride.h"
+#include "support/ScopedServiceOverride.h"
 
 using namespace cosmo;
-
-namespace {
-class MockTaskService : public cosmo::service::ITaskService {
-public:
-    // ITaskLifecycle
-    void Shutdown() override {}
-    cosmo::util::ErrorEnum TaskCreate(const std::string&, const std::string&, const std::string&,
-                                      cosmo::ActionAlgPtr) override {
-        return cosmo::util::ErrorEnum::Success;
-    }
-    cosmo::util::ErrorEnum TaskDelete(const std::string&) override {
-        return cosmo::util::ErrorEnum::Success;
-    }
-    cosmo::MsgTaskCreateSend ProcessTaskCreate(cosmo::MsgTaskCreateRecv&, std::error_condition&) override {
-        return {};
-    }
-    cosmo::MsgTaskCancleSend ProcessTaskCancel(cosmo::MsgTaskCancleRecv&, std::error_condition&) override {
-        return {};
-    }
-    bool TaskStart(const std::string&, const std::string&) override {
-        return true;
-    }
-    bool TaskStop(const std::string&) override {
-        return true;
-    }
-    bool TaskIsStart(const std::string&) override {
-        return false;
-    }
-    bool SetTaskParam(const std::string&, const std::string&, cosmo::MsgTaskConfig&) override {
-        return true;
-    }
-    bool LogicTest(const std::string&, cosmo::MsgTarget&) override {
-        return true;
-    }
-    void ShowActions(cosmo::ActionAlgPtr) override {}
-    void RecordClearTaskData(const std::string&) override {}
-    void RecordTaskInfo(const std::string&, cosmo::MsgTaskCreateRecv&) override {}
-    void RecordTaskAction(const std::string&, cosmo::ActionAlgPtr) override {}
-
-    // ITaskChannel
-    void TaskChannelSetUrl(const std::string&, const std::string&) override {}
-    void TaskChannelSetParam(const std::string&, const std::string&, int) override {}
-    VideoFramePtr CaptureImage(const std::string&, int) override {
-        return nullptr;
-    }
-    bool GetChannelAttr(const std::string&, cosmo::MsgCameraAttr&) override {
-        return true;
-    }
-    bool TaskDataActive(const std::string&) override {
-        return false;
-    }
-    cosmo::AlgChannelPtr GetChannelInst(const std::string&) override {
-        return nullptr;
-    }
-    std::vector<std::string> GetChannelTasks(const std::string&) override {
-        return {};
-    }
-    cosmo::TaskAlarmPtr GetAlarmInst(const std::string&, const std::string&) override {
-        return nullptr;
-    }
-    std::string GetTaskChannel(const std::string&) override {
-        return "";
-    }
-    void GetCameraInfo(std::vector<cosmo::MsgCameraInfo>&) override {}
-
-    // ITaskQuery
-    std::vector<std::string> QueryTasks(bool) override {
-        return {};
-    }
-    bool GetTaskParam(const std::string&, const std::string&, cosmo::MsgTaskConfig&) override {
-        return true;
-    }
-    std::vector<cosmo::TaskStatus> GetTaskStatus(const std::vector<std::string>&, unsigned int) override {
-        return {};
-    }
-    std::vector<cosmo::MsgCameraInfo> CameraTaskInfo() override {
-        return {};
-    }
-    bool GetTaskFrameInfo(const std::string&, bool&, int64_t&, int64_t&, int64_t&, std::string&) override {
-        return false;
-    }
-    size_t TaskCount() override {
-        return 0;
-    }
-    int GetAlgorithmCount(const std::string&) override {
-        return 0;
-    }
-    void QueueStatus(std::vector<cosmo::AlgActionDataQueueStatus>&, unsigned int) override {}
-    void QueueStatusDto(std::vector<cosmo::AlgActionDataQueueStatusDto>&, unsigned int) override {}
-    void PacketStatus(size_t&, size_t&, size_t&, size_t&) override {}
-    std::vector<cosmo::MsgOverviewMem> GetTaskLiveOverviewInfo(const std::string&, int64_t, int64_t,
-                                                               int64_t) override {
-        return {};
-    }
-    std::vector<cosmo::DataDetTrackClassify> GetTaskDetHistory(const std::string&, const std::string&,
-                                                               int64_t, int64_t, int64_t) override {
-        return {};
-    }
-    std::vector<std::pair<std::string, cosmo::util::DurationStatInfo>> GetTaskActionDurations(
-        const std::string&, int) override {
-        return {};
-    }
-};
-
-struct GlobalMockInit {
-    MockTaskService* taskSvc;
-    GlobalMockInit() {
-        taskSvc = new MockTaskService();
-        service::ServiceRegistry::Instance().Set<service::ITaskService>(taskSvc);
-    }
-} g_mockInit;
-}  // namespace
 
 // ============================================================
 // CameraServiceImpl: NotifyAlgorithmsDeleted state consistency
@@ -144,7 +32,6 @@ struct GlobalMockInit {
 TEST_CASE("CameraServiceImpl: NotifyAlgorithmsDeleted marks all matching tasks atomically",
           "[CameraServiceImpl][concurrency]") {
     (void)!system("rm -rf /tmp/test_conc*");
-    cosmo::test::MockServiceRegistry mocks;
     cosmo::service::CameraServiceImpl svc;
 
     // Verify: deleting non-existent algorithm does not crash
@@ -165,7 +52,6 @@ TEST_CASE("CameraServiceImpl: NotifyAlgorithmsDeleted marks all matching tasks a
 
 TEST_CASE("CameraServiceImpl: concurrent GetTasks reads are safe", "[CameraServiceImpl][concurrency]") {
     (void)!system("rm -rf /tmp/test_conc*");
-    cosmo::test::MockServiceRegistry mocks;
     cosmo::service::CameraServiceImpl svc;
 
     std::atomic<bool> go{false};
@@ -218,7 +104,6 @@ TEST_CASE("CameraServiceImpl: concurrent GetTasks reads are safe", "[CameraServi
 TEST_CASE("CameraServiceImpl: NotifyAlgorithmsChanged with non-existent alg does not crash",
           "[CameraServiceImpl][concurrency]") {
     (void)!system("rm -rf /tmp/test_conc*");
-    cosmo::test::MockServiceRegistry mocks;
     cosmo::service::CameraServiceImpl svc;
 
     REQUIRE_NOTHROW(svc.NotifyAlgorithmsChanged({"non_existent_alg"}, false));
@@ -289,15 +174,13 @@ TEST_CASE("TaskServiceImpl: concurrent GetTaskLiveOverviewInfo is safe", "[TaskS
 
 TEST_CASE("SystemServiceImpl: concurrent Get/Set PictureQuality is safe",
           "[SystemConfigService][concurrency]") {
-    cosmo::test::MockServiceRegistry mocks;
-
     std::string dir = "/tmp/cosmo_conc_syscfg_test";
     std::filesystem::create_directories(dir + "/conf");
     std::ofstream(dir + "/conf/alarmParam.json") << R"({"overviewInfo":{},"videoRecordInfo":{}})";
     std::ofstream(dir + "/conf/devRebootParam.json")
         << R"({"isTimingRestart":true,"weekDay":0,"restartTimeSec":7200})";
     std::ofstream(dir + "/conf/devSystemParam.json") << "{}";
-    cosmo::path::OverrideRootPathForTest(dir, dir);
+    cosmo::test::ScopedPathOverride path_override(dir, dir);
 
     cosmo::service::SystemServiceImpl sut;
 
@@ -350,14 +233,12 @@ TEST_CASE("SystemServiceImpl: concurrent Get/Set PictureQuality is safe",
 
 TEST_CASE("SystemServiceImpl: concurrent DebugMode/ActionSwitch toggle is safe",
           "[SystemConfigService][concurrency]") {
-    cosmo::test::MockServiceRegistry mocks;
-
     std::string dir = "/tmp/cosmo_conc_debug_test";
     std::filesystem::create_directories(dir + "/conf");
     std::ofstream(dir + "/conf/alarmParam.json") << R"({"overviewInfo":{},"videoRecordInfo":{}})";
     std::ofstream(dir + "/conf/devRebootParam.json") << R"({})";
     std::ofstream(dir + "/conf/devSystemParam.json") << "{}";
-    cosmo::path::OverrideRootPathForTest(dir, dir);
+    cosmo::test::ScopedPathOverride path_override(dir, dir);
 
     cosmo::service::SystemServiceImpl sut;
 
@@ -414,7 +295,8 @@ TEST_CASE("SystemServiceImpl: concurrent DebugMode/ActionSwitch toggle is safe",
 // ============================================================
 
 TEST_CASE("ServiceRegistry: concurrent Get is safe", "[ServiceRegistry][concurrency]") {
-    cosmo::test::MockServiceRegistry mocks;
+    cosmo::test::MockAlgorithmService algorithm;
+    cosmo::test::ScopedServiceOverride<cosmo::service::IAlgorithmService> registration(algorithm);
 
     std::atomic<bool> stop{false};
     std::atomic<int> getCount{0};

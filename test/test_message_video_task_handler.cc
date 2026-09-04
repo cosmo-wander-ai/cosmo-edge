@@ -8,15 +8,19 @@
 #include "api/MessageVideoTaskHandler.h"
 #include "mock/MockAlgorithmService.h"
 #include "mock/MockCameraService.h"
-#include "mock/MockServiceRegistry.h"
 #include "mock/MockTaskService.h"
 #include "util/ErrorCode.h"
 
 namespace {
 
-// Helper: create handler wired to MockServiceRegistry mocks
+struct VideoTaskHandlerMocks {
+    cosmo::test::MockCameraService cameraSvc;
+    cosmo::test::MockAlgorithmService algSvc;
+    cosmo::test::MockTaskService taskSvc;
+};
+
 struct TestFixture {
-    cosmo::test::MockServiceRegistry mocks;
+    VideoTaskHandlerMocks mocks;
     cosmo::MessageVideoTaskHandler handler;
 
     TestFixture()

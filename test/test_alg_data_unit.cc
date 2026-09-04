@@ -5,7 +5,6 @@
 #include "flow/common/AlgDataRecord.h"
 #include "flow/common/AlgDataUnit.h"
 #include "flow/common/AreaLineUtil.h"
-#include "mock/MockServiceRegistry.h"
 
 using namespace cosmo;
 
@@ -175,8 +174,6 @@ TEST_CASE("GetAreasOsdLines: Multiple areas combined", "[AlgDataUnit]") {
 }
 
 TEST_CASE("GenRandomDetBoxs: Generates non-empty targets", "[AlgDataUnit]") {
-    cosmo::test::MockServiceRegistry mocks;
-
     auto result = GenRandomDetBoxs();
     REQUIRE(result != nullptr);
     REQUIRE_FALSE(result->targets.empty());

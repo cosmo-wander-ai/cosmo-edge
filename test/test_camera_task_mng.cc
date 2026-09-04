@@ -17,11 +17,13 @@
 #include "mock/MockConfigReadService.h"
 #include "mock/MockDeviceInfoService.h"
 #include "mock/MockScheduleService.h"
-#include "mock/MockServiceRegistry.h"
 #include "mock/MockTaskService.h"
 #include "service/camera/impl/CameraServiceImpl.h"
 #include "service/camera/impl/CameraTaskUnit.h"
+#include "support/MockDefaults.h"
+#include "support/ScopedServiceOverride.h"
 #include "util/JsonStructUtil.h"
+#include "util/PathUtil.h"
 #include "util/dto/ChannelStatusDto.h"
 
 using namespace cosmo;
@@ -29,6 +31,37 @@ using namespace cosmo::service;
 using trompeloeil::_;
 
 namespace {
+
+std::filesystem::path CameraConfigRoot() {
+    return std::filesystem::path(cosmo::path::GetCfgPath()) / "camera";
+}
+
+struct CameraTaskMngDependencies {
+    cosmo::test::MockTaskService taskSvc;
+    cosmo::test::MockAlgorithmService algSvc;
+    cosmo::test::MockScheduleService scheduleSvc;
+    cosmo::test::MockConfigReadService configReadSvc;
+    cosmo::test::MockDeviceInfoService deviceInfoSvc;
+    cosmo::test::MockAppInfoService appInfoSvc;
+    cosmo::test::NamedExpectations expectations;
+    cosmo::test::ScopedServiceOverride<ITaskLifecycle> taskLifecycle{taskSvc};
+    cosmo::test::ScopedServiceOverride<ITaskQuery> taskQuery{taskSvc};
+    cosmo::test::ScopedServiceOverride<ITaskChannel> taskChannel{taskSvc};
+    cosmo::test::ScopedServiceOverride<IAlgorithmQuery> algorithmQuery{algSvc};
+    cosmo::test::ScopedServiceOverride<IScheduleService> schedule{scheduleSvc};
+    cosmo::test::ScopedServiceOverride<IConfigReadService> configRead{configReadSvc};
+    cosmo::test::ScopedServiceOverride<IDeviceInfoService> deviceInfo{deviceInfoSvc};
+    cosmo::test::ScopedServiceOverride<IOverviewConfig> overviewConfig{appInfoSvc};
+
+    CameraTaskMngDependencies() {
+        cosmo::test::AllowTaskMutationSuccess(taskSvc, expectations);
+        cosmo::test::AllowAlgorithmLookupDefaults(algSvc, expectations);
+        cosmo::test::AllowOverviewDisabled(appInfoSvc, expectations);
+        expectations.push_back(NAMED_ALLOW_CALL(scheduleSvc, GetDefaultId()).RETURN("default_sched"));
+        expectations.push_back(NAMED_ALLOW_CALL(configReadSvc, GetResourceLimit()).RETURN(false));
+    }
+};
+
 MsgDynamicKeyValue MakeParam(const std::string& key, const std::string& value) {
     MsgDynamicKeyValue param;
     param.key   = key;
@@ -77,8 +110,7 @@ std::string DefaultTestAlgorithmMetadata() {
 
 bool SeedCameraTaskParams(const std::string& camera_id, const std::string& algorithm_code,
                           std::vector<MsgDynamicKeyValue> params) {
-    const auto task_config_dir =
-        std::filesystem::path("/tmp/cosmo_test/conf/camera") / camera_id / algorithm_code;
+    const auto task_config_dir = CameraConfigRoot() / camera_id / algorithm_code;
     std::error_code error;
     std::filesystem::create_directories(task_config_dir, error);
     if (error) {
@@ -95,7 +127,7 @@ void DrainSwitchThreads(CameraServiceImpl& service) {
 
 // Helper: create a CameraServiceImpl + add a single camera for testing
 struct TestFixture {
-    cosmo::test::MockServiceRegistry mocks;
+    CameraTaskMngDependencies mocks;
     CameraServiceImpl svc;
     std::string cameraId;
     std::string algorithmMetadata;
@@ -105,12 +137,6 @@ struct TestFixture {
         : cameraId(id), algorithmMetadata(std::move(metadata)) {
         mocks.expectations.push_back(
             NAMED_ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(algorithmMetadata));
-        ALLOW_CALL(mocks.taskSvc, TaskCreate(_, _, _, _)).RETURN(util::ErrorEnum::Success);
-        ALLOW_CALL(mocks.taskSvc, TaskIsStart(_)).RETURN(false);
-        ALLOW_CALL(mocks.taskSvc, TaskStart(_, _)).RETURN(true);
-        ALLOW_CALL(mocks.taskSvc, TaskStop(_)).RETURN(true);
-        ALLOW_CALL(mocks.taskSvc, TaskDelete(_)).RETURN(util::ErrorEnum::Success);
-        ALLOW_CALL(mocks.taskSvc, TaskChannelSetUrl(_, _));
 
         MsgCameraInfo config;
         config.videoChannelId = id;
@@ -124,7 +150,7 @@ struct TestFixture {
 }  // namespace
 
 TEST_CASE("CameraServiceImpl basic task operations", "[CameraServiceImpl]") {
-    (void)!system("rm -rf /tmp/cosmo_test/conf/camera/test_camera_01");
+    std::filesystem::remove_all(CameraConfigRoot() / "test_camera_01");
     TestFixture fx("test_camera_01", "rtsp://test");
 
     SECTION("GetTasks initially empty") {
@@ -151,7 +177,7 @@ TEST_CASE("CameraServiceImpl basic task operations", "[CameraServiceImpl]") {
 
 TEST_CASE("CameraServiceImpl reapplies unchanged saved parameters before every restart",
           "[CameraServiceImpl][task-parameters][restart]") {
-    (void)!system("rm -rf /tmp/cosmo_test/conf/camera/test_camera_param_restart");
+    std::filesystem::remove_all(CameraConfigRoot() / "test_camera_param_restart");
 
     std::mutex event_mtx;
     std::vector<std::string> events;
@@ -202,7 +228,7 @@ TEST_CASE("CameraServiceImpl reapplies unchanged saved parameters before every r
 
 TEST_CASE("CameraServiceImpl refuses task start when parameter synchronization fails",
           "[CameraServiceImpl][task-parameters][start-gate]") {
-    (void)!system("rm -rf /tmp/cosmo_test/conf/camera/test_camera_param_failure");
+    std::filesystem::remove_all(CameraConfigRoot() / "test_camera_param_failure");
 
     std::atomic<int> param_attempts{0};
     std::atomic<int> start_attempts{0};
@@ -251,7 +277,7 @@ TEST_CASE("CameraServiceImpl refuses task start when parameter synchronization f
 TEST_CASE("CameraServiceImpl preserves parameter ownership across saves",
           "[CameraServiceImpl][task-parameters][ownership]") {
     const std::string camera_id = "test_camera_param_ownership";
-    (void)!system("rm -rf /tmp/cosmo_test/conf/camera/test_camera_param_ownership");
+    std::filesystem::remove_all(CameraConfigRoot() / "test_camera_param_ownership");
 
     const auto metadata = MakeMetadataJson({MakeMetadataParam("param.sceneOwned", "10", false, 2),
                                             MakeMetadataParam("param.visible", "1", true, 0)});
@@ -288,7 +314,7 @@ TEST_CASE("CameraServiceImpl rebuilds assigned tasks with the latest scene-manag
           "[CameraServiceImpl][task-parameters][ownership][scene-reload]") {
     const std::string camera_id = "test_camera_scene_param_reload";
     const std::string task_id   = camera_id + "_test_alg";
-    (void)!system("rm -rf /tmp/cosmo_test/conf/camera/test_camera_scene_param_reload");
+    std::filesystem::remove_all(CameraConfigRoot() / "test_camera_scene_param_reload");
 
     const auto initial_metadata = MakeMetadataJson({MakeMetadataParam("param.sceneOwned", "10", false, 2),
                                                     MakeMetadataParam("param.visible", "1", true, 0)});
@@ -328,7 +354,7 @@ TEST_CASE("CameraServiceImpl rebuilds assigned tasks with the latest scene-manag
 
 TEST_CASE("CameraServiceImpl SaveOrUpdateTask commits configuration atomically",
           "[CameraServiceImpl][save-or-update]") {
-    (void)!system("rm -rf /tmp/cosmo_test/conf/camera/test_camera_atomic");
+    std::filesystem::remove_all(CameraConfigRoot() / "test_camera_atomic");
     TestFixture fx("test_camera_atomic", "rtsp://test");
 
     ALLOW_CALL(fx.mocks.scheduleSvc, Exist2("sched1", _)).LR_SIDE_EFFECT(_2 = "Schedule 1").RETURN(true);
@@ -393,7 +419,7 @@ TEST_CASE("CameraServiceImpl SaveOrUpdateTask commits configuration atomically",
 TEST_CASE("CameraServiceImpl rejects duplicate parameter keys before creating a task",
           "[CameraServiceImpl][task-parameters][validation]") {
     const std::string camera_id  = "test_camera_duplicate_param_new";
-    const auto camera_config_dir = std::filesystem::path("/tmp/cosmo_test/conf/camera") / camera_id;
+    const auto camera_config_dir = CameraConfigRoot() / camera_id;
     std::filesystem::remove_all(camera_config_dir);
 
     TestFixture fx(camera_id, "rtsp://127.0.0.1:1/test");
@@ -424,7 +450,7 @@ TEST_CASE("CameraServiceImpl rejects duplicate parameter keys before creating a 
 TEST_CASE("CameraServiceImpl duplicate parameter requests preserve an existing task snapshot",
           "[CameraServiceImpl][task-parameters][validation]") {
     const std::string camera_id  = "test_camera_duplicate_param_existing";
-    const auto camera_config_dir = std::filesystem::path("/tmp/cosmo_test/conf/camera") / camera_id;
+    const auto camera_config_dir = CameraConfigRoot() / camera_id;
     std::filesystem::remove_all(camera_config_dir);
 
     TestFixture fx(camera_id, "rtsp://127.0.0.1:1/test");
@@ -482,7 +508,7 @@ TEST_CASE("CameraServiceImpl duplicate parameter requests preserve an existing t
 #ifdef COSMO_NN_USE_SOPHON_BACKEND
 TEST_CASE("CameraServiceImpl resource rejection leaves no partial task",
           "[CameraServiceImpl][save-or-update][sophon]") {
-    (void)!system("rm -rf /tmp/cosmo_test/conf/camera/test_camera_resource");
+    std::filesystem::remove_all(CameraConfigRoot() / "test_camera_resource");
     TestFixture fx("test_camera_resource", "rtsp://test");
 
     ALLOW_CALL(fx.mocks.scheduleSvc, Exist2("sched1", _)).LR_SIDE_EFFECT(_2 = "Schedule 1").RETURN(true);
@@ -519,12 +545,8 @@ TEST_CASE("CameraServiceImpl resource rejection leaves no partial task",
 #endif
 
 TEST_CASE("CameraServiceImpl monitor logic", "[CameraServiceImpl]") {
-    (void)!system("rm -rf /tmp/cosmo_test/conf/camera/test_camera_01");
+    std::filesystem::remove_all(CameraConfigRoot() / "test_camera_01");
     TestFixture fx("test_camera_01", "rtsp://test");
-
-    ALLOW_CALL(fx.mocks.appInfoSvc, GetNumber()).RETURN(1);
-    ALLOW_CALL(fx.mocks.appInfoSvc, GetOverviewStructureRecord()).RETURN(false);
-    ALLOW_CALL(fx.mocks.appInfoSvc, GetModelDebug()).RETURN(false);
 
     // Setup schedule exist mock
     ALLOW_CALL(fx.mocks.scheduleSvc, Exist2("sched1", _)).LR_SIDE_EFFECT(_2 = "Schedule 1").RETURN(true);
@@ -555,7 +577,7 @@ TEST_CASE("CameraServiceImpl monitor logic", "[CameraServiceImpl]") {
 }
 
 TEST_CASE("CameraServiceImpl concurrent task operations", "[CameraServiceImpl][concurrency]") {
-    (void)!system("rm -rf /tmp/cosmo_test/conf/camera/test_camera_02");
+    std::filesystem::remove_all(CameraConfigRoot() / "test_camera_02");
     TestFixture fx("test_camera_02", "rtsp://test2");
 
     std::atomic<bool> stop{false};

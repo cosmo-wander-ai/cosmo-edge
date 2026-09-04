@@ -1,12 +1,35 @@
+#include <filesystem>
+#include <string>
+
 #include "catch_amalgamated.hpp"
-#include "mock/MockServiceRegistry.h"
 #include "service/face/impl/FaceLibServiceImpl.h"
+#include "support/ScopedPathOverride.h"
 #include "util/Exception.h"
 
 using namespace cosmo::service;
 
+namespace {
+
+class FaceLibTestEnvironment final {
+public:
+    FaceLibTestEnvironment() : path_override_(root_, root_) {
+        std::filesystem::remove_all(root_);
+    }
+
+    ~FaceLibTestEnvironment() {
+        std::error_code error;
+        std::filesystem::remove_all(root_, error);
+    }
+
+private:
+    std::string root_{"/tmp/cosmo_face_lib_service_test"};
+    cosmo::test::ScopedPathOverride path_override_;
+};
+
+}  // namespace
+
 TEST_CASE("FaceLibServiceImpl: Basic operations", "[FaceLibService]") {
-    cosmo::test::MockServiceRegistry mocks;
+    FaceLibTestEnvironment environment;
     FaceLibServiceImpl sut;
 
     SECTION("GetAllFaceLibs should not crash") {
@@ -24,7 +47,7 @@ TEST_CASE("FaceLibServiceImpl: Basic operations", "[FaceLibService]") {
 }
 
 TEST_CASE("FaceLibServiceImpl: Import status when idle", "[FaceLibService]") {
-    cosmo::test::MockServiceRegistry mocks;
+    FaceLibTestEnvironment environment;
     FaceLibServiceImpl sut;
 
     SECTION("ImportComplete returns true when no import running") {
@@ -48,7 +71,7 @@ TEST_CASE("FaceLibServiceImpl: Import status when idle", "[FaceLibService]") {
 }
 
 TEST_CASE("FaceLibServiceImpl: CreatePerson returns valid ptr", "[FaceLibService]") {
-    cosmo::test::MockServiceRegistry mocks;
+    FaceLibTestEnvironment environment;
     FaceLibServiceImpl sut;
 
     auto person = sut.CreatePerson();
@@ -70,7 +93,7 @@ TEST_CASE("FaceLibServiceImpl: CreatePerson returns valid ptr", "[FaceLibService
 }
 
 TEST_CASE("FaceLibServiceImpl: Stop rejects new face work and is idempotent", "[FaceLibService][lifecycle]") {
-    cosmo::test::MockServiceRegistry mocks;
+    FaceLibTestEnvironment environment;
     FaceLibServiceImpl sut;
 
     cosmo::AiFeature first;

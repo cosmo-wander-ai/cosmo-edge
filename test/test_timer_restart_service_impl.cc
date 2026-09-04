@@ -7,15 +7,15 @@
 #include <thread>
 
 #include "mock/MockConfigReadService.h"
-#include "mock/MockServiceRegistry.h"
-#include "service/detail/ServiceRegistry.h"
 #include "service/system/impl/TimerRestartServiceImpl.h"
+#include "support/ScopedServiceOverride.h"
 #include "trompeloeil.hpp"
 
 using cosmo::service::TimerRestartServiceImpl;
 
 TEST_CASE("TimerRestartServiceImpl: lifecycle", "[timer-restart]") {
-    cosmo::test::MockServiceRegistry mocks;
+    cosmo::test::MockConfigReadService configReadSvc;
+    cosmo::test::ScopedServiceOverride<cosmo::service::IConfigReadService> registration(configReadSvc);
 
     SECTION("Default construction does not start timer") {
         TimerRestartServiceImpl sut;
@@ -26,7 +26,7 @@ TEST_CASE("TimerRestartServiceImpl: lifecycle", "[timer-restart]") {
         // GetRebootParam will be called by the timer callback
         cosmo::CfgRebootParamInfo disabledReboot;
         disabledReboot.isTimingRestart = false;
-        ALLOW_CALL(mocks.configReadSvc, GetRebootParam()).RETURN(disabledReboot);
+        ALLOW_CALL(configReadSvc, GetRebootParam()).RETURN(disabledReboot);
 
         TimerRestartServiceImpl sut;
         sut.Start();
@@ -40,7 +40,7 @@ TEST_CASE("TimerRestartServiceImpl: lifecycle", "[timer-restart]") {
     SECTION("Destructor cleans up timer without crash") {
         cosmo::CfgRebootParamInfo disabledReboot;
         disabledReboot.isTimingRestart = false;
-        ALLOW_CALL(mocks.configReadSvc, GetRebootParam()).RETURN(disabledReboot);
+        ALLOW_CALL(configReadSvc, GetRebootParam()).RETURN(disabledReboot);
 
         {
             TimerRestartServiceImpl sut;
@@ -53,7 +53,7 @@ TEST_CASE("TimerRestartServiceImpl: lifecycle", "[timer-restart]") {
     SECTION("Stop is safe and idempotent") {
         cosmo::CfgRebootParamInfo disabledReboot;
         disabledReboot.isTimingRestart = false;
-        ALLOW_CALL(mocks.configReadSvc, GetRebootParam()).RETURN(disabledReboot);
+        ALLOW_CALL(configReadSvc, GetRebootParam()).RETURN(disabledReboot);
 
         TimerRestartServiceImpl sut;
         sut.Start();

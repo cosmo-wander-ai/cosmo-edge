@@ -181,18 +181,20 @@ bash scripts/build_cpu_test.sh
 
 ### Mock
 
-`ServiceRegistry::Set<T>(ptr)` 不持有所有权的注入方式是测试中替换真实服务的主要手段。
-每个常用接口在 `test/mock/Mock*Service.h` 中维护独立 mock；
-`test/mock/MockServiceRegistry.h` 和 `.cc` 负责把常用 mock 注册到测试用 `ServiceRegistry`。
+每个常用接口在 `test/mock/Mock*Service.h` 中维护独立 mock。构造注入的被测对象直接接收
+具体 mock；只有生产代码仍通过 `ServiceRegistry` 查询依赖时，测试才使用
+`ScopedServiceOverride<T>` 注册实际需要的窄接口。guard 不持有 mock，并在离开作用域时自动注销。
 
 ```cpp
-#include "mock/MockServiceRegistry.h"
+#include "mock/MockTaskService.h"
+#include "support/ScopedServiceOverride.h"
 
-cosmo::test::MockServiceRegistry mocks;
+cosmo::test::MockTaskService task;
+cosmo::test::ScopedServiceOverride<cosmo::service::ITaskQuery> task_query(task);
 ```
 
-新增服务时，为接口增加对应的窄 mock；只有多个测试都需要统一依赖装配时，才把它加入
-`MockServiceRegistry` 聚合器。
+同一 mock 实现多个接口时，每个实际使用的接口分别声明 guard。测试不得安装全局默认服务集、
+覆盖已有注册或依赖其他测试留下的状态；全局路径使用 `ScopedPathOverride` 并配合独立临时目录。
 
 ### 测试文件命名
 

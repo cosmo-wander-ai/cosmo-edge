@@ -6,15 +6,13 @@
 #include <thread>
 
 #include "mock/MockModelService.h"
-#include "mock/MockServiceRegistry.h"
 #include "service/ai/impl/LlmInferServiceImpl.h"
-#include "service/detail/ServiceRegistry.h"
+#include "support/ScopedServiceOverride.h"
 
 using cosmo::service::LlmInferServiceImpl;
 using cosmo::util::ErrorEnum;
 
 TEST_CASE("LlmInferServiceImpl: initial state", "[llm-infer]") {
-    cosmo::test::MockServiceRegistry mocks;
     LlmInferServiceImpl sut;
 
     SECTION("IsInitialized returns false before EnsureInit") {
@@ -39,7 +37,8 @@ TEST_CASE("LlmInferServiceImpl: initial state", "[llm-infer]") {
 }
 
 TEST_CASE("LlmInferServiceImpl: EnsureInit validation", "[llm-infer]") {
-    cosmo::test::MockServiceRegistry mocks;
+    cosmo::test::MockModelService modelSvc;
+    cosmo::test::ScopedServiceOverride<cosmo::service::IModelService> modelRegistration(modelSvc);
     LlmInferServiceImpl sut;
 
     SECTION("EnsureInit fails with empty atomic_code") {
@@ -50,7 +49,7 @@ TEST_CASE("LlmInferServiceImpl: EnsureInit validation", "[llm-infer]") {
     SECTION("EnsureInit fails permanently after empty code — no retry until Reset") {
         REQUIRE(sut.EnsureInit("") == false);
         // Even with a valid code, init_failed_ blocks retry
-        ALLOW_CALL(mocks.modelSvc, GetModelCfg(trompeloeil::_, trompeloeil::_, trompeloeil::_)).RETURN(true);
+        ALLOW_CALL(modelSvc, GetModelCfg(trompeloeil::_, trompeloeil::_, trompeloeil::_)).RETURN(true);
         REQUIRE(sut.EnsureInit("valid_code") == false);
     }
 
@@ -59,20 +58,19 @@ TEST_CASE("LlmInferServiceImpl: EnsureInit validation", "[llm-infer]") {
         sut.Reset();
         // After Reset, init_failed_ is cleared — would attempt GetModelCfg
         // GetModelCfg returns false → init fails again but for a different reason
-        ALLOW_CALL(mocks.modelSvc, GetModelCfg(trompeloeil::_, trompeloeil::_, trompeloeil::_)).RETURN(false);
+        ALLOW_CALL(modelSvc, GetModelCfg(trompeloeil::_, trompeloeil::_, trompeloeil::_)).RETURN(false);
         REQUIRE(sut.EnsureInit("some_code") == false);
         REQUIRE(sut.IsInitialized() == false);
     }
 
     SECTION("EnsureInit fails when GetModelCfg returns false") {
-        ALLOW_CALL(mocks.modelSvc, GetModelCfg(trompeloeil::_, trompeloeil::_, trompeloeil::_)).RETURN(false);
+        ALLOW_CALL(modelSvc, GetModelCfg(trompeloeil::_, trompeloeil::_, trompeloeil::_)).RETURN(false);
         REQUIRE(sut.EnsureInit("test_code") == false);
         REQUIRE(sut.IsInitialized() == false);
     }
 }
 
 TEST_CASE("LlmInferServiceImpl: worker lifecycle", "[llm-infer]") {
-    cosmo::test::MockServiceRegistry mocks;
     LlmInferServiceImpl sut;
 
     SECTION("NotifyWorkerStart increments count") {
@@ -115,7 +113,6 @@ TEST_CASE("LlmInferServiceImpl: worker lifecycle", "[llm-infer]") {
 }
 
 TEST_CASE("LlmInferServiceImpl: thread safety", "[llm-infer]") {
-    cosmo::test::MockServiceRegistry mocks;
     LlmInferServiceImpl sut;
 
     SECTION("Concurrent IsInitialized calls do not race") {

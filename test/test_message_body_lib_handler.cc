@@ -14,8 +14,8 @@
 #include "mock/MockBodyLibService.h"
 #include "mock/MockCameraService.h"
 #include "mock/MockPersonRecogDaoService.h"
-#include "mock/MockServiceRegistry.h"
 #include "mock/MockVideoFrameCodec.h"
+#include "support/ScopedPathOverride.h"
 #include "util/ErrorCode.h"
 #include "util/PathUtil.h"
 
@@ -25,25 +25,31 @@ using trompeloeil::_;
 
 namespace {
 
-/// Helper: create a handler with mock references from MockServiceRegistry.
-MessageBodyLibHandler MakeHandler(MockServiceRegistry& mocks) {
+struct BodyLibHandlerMocks {
+    MockPersonRecogDaoService personRecogDaoSvc;
+    MockBodyLibService bodyLibSvc;
+    MockCameraService cameraSvc;
+    MockVideoFrameCodec videoCodecSvc;
+};
+
+MessageBodyLibHandler MakeHandler(BodyLibHandlerMocks& mocks) {
     return MessageBodyLibHandler(mocks.personRecogDaoSvc, mocks.bodyLibSvc, mocks.cameraSvc,
                                  mocks.videoCodecSvc);
 }
 
 /// Redirect cosmo::path roots to a throwaway temp dir for the test's lifetime, so the handler's
 /// EnsureDir calls and file copies stay off the real /data tree. Restores defaults on destruction.
-struct ScopedPathOverride {
+struct BodyHandlerPathEnvironment {
     std::string tmp_dir;
+    cosmo::test::ScopedPathOverride path_override;
 
-    ScopedPathOverride() {
-        tmp_dir = "/tmp/cosmo_body_handler_" +
-                  std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+    BodyHandlerPathEnvironment()
+        : tmp_dir("/tmp/cosmo_body_handler_" +
+                  std::to_string(std::chrono::system_clock::now().time_since_epoch().count())),
+          path_override(tmp_dir, tmp_dir) {
         std::filesystem::create_directories(tmp_dir);
-        cosmo::path::OverrideRootPathForTest(tmp_dir, tmp_dir);
     }
-    ~ScopedPathOverride() {
-        cosmo::path::OverrideRootPathForTest("/data/cwaiuserdata", "/appfs/cosmo_wander/cwai_data");
+    ~BodyHandlerPathEnvironment() {
         std::error_code ec;
         std::filesystem::remove_all(tmp_dir, ec);
     }
@@ -52,7 +58,7 @@ struct ScopedPathOverride {
 }  // namespace
 
 TEST_CASE("BodyLibHandler: ModifyPersonLib Add", "[body-lib-handler]") {
-    MockServiceRegistry mocks;
+    BodyLibHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     SECTION("Normal add creates lib and invalidates cache") {
@@ -93,7 +99,7 @@ TEST_CASE("BodyLibHandler: ModifyPersonLib Add", "[body-lib-handler]") {
 }
 
 TEST_CASE("BodyLibHandler: ModifyPersonLib Update", "[body-lib-handler]") {
-    MockServiceRegistry mocks;
+    BodyLibHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     REQUIRE_CALL(mocks.personRecogDaoSvc, Begin());
@@ -111,7 +117,7 @@ TEST_CASE("BodyLibHandler: ModifyPersonLib Update", "[body-lib-handler]") {
 }
 
 TEST_CASE("BodyLibHandler: DeletePersonLib", "[body-lib-handler]") {
-    MockServiceRegistry mocks;
+    BodyLibHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     SECTION("Partial failure returns failed list") {
@@ -129,7 +135,7 @@ TEST_CASE("BodyLibHandler: DeletePersonLib", "[body-lib-handler]") {
 }
 
 TEST_CASE("BodyLibHandler: QueryPersonLibInfo", "[body-lib-handler]") {
-    MockServiceRegistry mocks;
+    BodyLibHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     db::PersonRecogLibQueryResult dbResult{};
@@ -153,7 +159,7 @@ TEST_CASE("BodyLibHandler: QueryPersonLibInfo", "[body-lib-handler]") {
 }
 
 TEST_CASE("BodyLibHandler: QueryPersonPictures bad pagination", "[body-lib-handler]") {
-    MockServiceRegistry mocks;
+    BodyLibHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     BodyLib::MsgQueryPersonPicturesRecv data{};
@@ -164,7 +170,7 @@ TEST_CASE("BodyLibHandler: QueryPersonPictures bad pagination", "[body-lib-handl
 }
 
 TEST_CASE("BodyLibHandler: BindTaskPersonLib searchAll", "[body-lib-handler]") {
-    MockServiceRegistry mocks;
+    BodyLibHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     REQUIRE_CALL(mocks.personRecogDaoSvc, GetAllPersonLibs()).RETURN(std::vector<std::string>{"l1", "l2"});
@@ -182,7 +188,7 @@ TEST_CASE("BodyLibHandler: BindTaskPersonLib searchAll", "[body-lib-handler]") {
 }
 
 TEST_CASE("BodyLibHandler: DeleteLibPerson removeAll", "[body-lib-handler]") {
-    MockServiceRegistry mocks;
+    BodyLibHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     SECTION("removeAll with specific libId") {
@@ -210,7 +216,7 @@ TEST_CASE("BodyLibHandler: DeleteLibPerson removeAll", "[body-lib-handler]") {
 }
 
 TEST_CASE("BodyLibHandler: DetectPerson empty image", "[body-lib-handler]") {
-    MockServiceRegistry mocks;
+    BodyLibHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     BodyLib::MsgDetectPersonRecv data{};
@@ -220,9 +226,9 @@ TEST_CASE("BodyLibHandler: DetectPerson empty image", "[body-lib-handler]") {
 }
 
 TEST_CASE("BodyLibHandler: AddLibPerson rejects path-traversal pictureUrl", "[body-lib-handler]") {
-    MockServiceRegistry mocks;
+    BodyHandlerPathEnvironment path_environment;
+    BodyLibHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
-    ScopedPathOverride path_override;
 
     // No file may be decoded or inserted when the resolved path escapes its allowed root.
     FORBID_CALL(mocks.videoCodecSvc, DecodeJpeg(_));
@@ -245,9 +251,9 @@ TEST_CASE("BodyLibHandler: AddLibPerson rejects path-traversal pictureUrl", "[bo
 }
 
 TEST_CASE("BodyLibHandler: AddLibPerson accepts legit in-root picture", "[body-lib-handler]") {
-    MockServiceRegistry mocks;
+    BodyHandlerPathEnvironment path_environment;
+    BodyLibHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
-    ScopedPathOverride path_override;
 
     // Plant a small source file inside the person-photo dir; filename() of pictureUrl must resolve to it.
     const auto photo_dir = cosmo::path::GetPersonLibPhotoDir();

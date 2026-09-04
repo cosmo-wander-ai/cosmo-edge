@@ -7,12 +7,19 @@
 
 #include "api/MessageImportFileHandler.h"
 #include "mock/MockFaceLibService.h"
-#include "mock/MockServiceRegistry.h"
+#include "support/ScopedServiceOverride.h"
 #include "util/ErrorCode.h"
 
 using namespace cosmo;
 using namespace cosmo::test;
 using trompeloeil::_;
+
+namespace {
+struct ImportFileHandlerMocks {
+    MockFaceLibService faceLibSvc;
+    ScopedServiceOverride<service::IFaceImport> faceImport{faceLibSvc};
+};
+}  // namespace
 
 TEST_CASE("ImportFileHandler: construction", "[import-file-handler]") {
     // MessageImportFileHandler has default constructor
@@ -20,7 +27,7 @@ TEST_CASE("ImportFileHandler: construction", "[import-file-handler]") {
 }
 
 TEST_CASE("ImportFileHandler: QueryImportStatus", "[import-file-handler]") {
-    MockServiceRegistry mocks;
+    ImportFileHandlerMocks mocks;
     MessageImportFileHandler handler;
 
     REQUIRE_CALL(mocks.faceLibSvc, GetImportStatus()).RETURN(std::make_pair(50, 100));
@@ -36,7 +43,7 @@ TEST_CASE("ImportFileHandler: QueryImportStatus", "[import-file-handler]") {
 }
 
 TEST_CASE("ImportFileHandler: QueryImportStatus when complete", "[import-file-handler]") {
-    MockServiceRegistry mocks;
+    ImportFileHandlerMocks mocks;
     MessageImportFileHandler handler;
 
     REQUIRE_CALL(mocks.faceLibSvc, GetImportStatus()).RETURN(std::make_pair(100, 100));

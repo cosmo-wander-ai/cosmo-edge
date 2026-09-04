@@ -24,6 +24,7 @@
 #include "mem/IDeviceContext.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/infra/impl/MemoryPoolServiceImpl.h"
+#include "support/ScopedServiceOverride.h"
 #endif
 
 namespace cosmo::media {
@@ -219,18 +220,11 @@ namespace {
 
     class SophonMediaFixture {
     public:
-        SophonMediaFixture() {
-            device_context_ = std::make_unique<mem::DeviceContext>();
-            service::ServiceRegistry::Instance().Set<mem::IDeviceContext>(device_context_.get());
+        SophonMediaFixture()
+            : device_context_(std::make_unique<mem::DeviceContext>()),
+              device_context_registration_(*device_context_) {
             memory_pool_ = std::make_unique<service::MemoryPoolServiceImpl>();
             frame_proc_  = std::make_unique<VideoFrameProcSophon>(device_context_->GetMediaHandle(), osd_);
-        }
-
-        ~SophonMediaFixture() {
-            frame_proc_.reset();
-            memory_pool_.reset();
-            service::ServiceRegistry::Instance().Set<mem::IDeviceContext>(nullptr);
-            device_context_.reset();
         }
 
         SophonMediaFixture(const SophonMediaFixture&)            = delete;
@@ -247,6 +241,7 @@ namespace {
     private:
         StubOsdTextRenderer osd_;
         std::unique_ptr<mem::DeviceContext> device_context_;
+        test::ScopedServiceOverride<mem::IDeviceContext> device_context_registration_;
         std::unique_ptr<service::MemoryPoolServiceImpl> memory_pool_;
         std::unique_ptr<VideoFrameProcSophon> frame_proc_;
     };

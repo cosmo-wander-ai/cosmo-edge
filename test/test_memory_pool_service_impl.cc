@@ -13,8 +13,8 @@
 
 #include "mem/DeviceContext.h"
 #include "mem/IDeviceContext.h"
-#include "service/detail/ServiceRegistry.h"
 #include "service/infra/impl/MemoryPoolServiceImpl.h"
+#include "support/ScopedServiceOverride.h"
 
 using namespace cosmo::service;
 
@@ -24,23 +24,15 @@ using namespace std::chrono_literals;
 
 class ScopedDeviceContext {
 public:
-    ScopedDeviceContext() {
-        if (ServiceRegistry::Instance().Has<cosmo::mem::IDeviceContext>()) {
-            throw std::logic_error("device context already registered by another test");
-        }
-        device_context_ = std::make_unique<cosmo::mem::DeviceContext>();
-        ServiceRegistry::Instance().Set<cosmo::mem::IDeviceContext>(device_context_.get());
-    }
-
-    ~ScopedDeviceContext() {
-        ServiceRegistry::Instance().Set<cosmo::mem::IDeviceContext>(nullptr);
-    }
+    ScopedDeviceContext()
+        : device_context_(std::make_unique<cosmo::mem::DeviceContext>()), registration_(*device_context_) {}
 
     ScopedDeviceContext(const ScopedDeviceContext&)            = delete;
     ScopedDeviceContext& operator=(const ScopedDeviceContext&) = delete;
 
 private:
     std::unique_ptr<cosmo::mem::DeviceContext> device_context_;
+    cosmo::test::ScopedServiceOverride<cosmo::mem::IDeviceContext> registration_;
 };
 
 class MemoryPoolFixture {

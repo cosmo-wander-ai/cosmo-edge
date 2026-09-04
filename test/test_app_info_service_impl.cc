@@ -6,12 +6,11 @@
 #include <thread>
 
 #include "mock/MockDeviceInfoService.h"
-#include "mock/MockServiceRegistry.h"
-#include "service/detail/ServiceRegistry.h"
 #include "service/system/impl/AppInfoServiceImpl.h"
+#include "support/ScopedPathOverride.h"
+#include "support/ScopedServiceOverride.h"
 
 TEST_CASE("AppInfoServiceImpl: State management", "[appinfo][service]") {
-    cosmo::test::MockServiceRegistry mocks;
     cosmo::service::AppInfoServiceImpl appInfoSvc;
 
     SECTION("GetHaveManager returns false by default") {
@@ -69,12 +68,11 @@ TEST_CASE("AppInfoServiceImpl: State management", "[appinfo][service]") {
 }
 
 TEST_CASE("AppInfoServiceImpl: Path delegation", "[appinfo][service]") {
-    cosmo::test::MockServiceRegistry mocks;
+    cosmo::test::ScopedPathOverride paths("/tmp/cosmo_app_info_test", "/tmp/cosmo_app_info_test_app");
     cosmo::service::AppInfoServiceImpl appInfoSvc;
 
     SECTION("UserDataPath returns base dir + /cwai") {
         auto path = appInfoSvc.UserDataPath();
-        // OverrideRootPathForTest sets /tmp/cosmo_test as base
         REQUIRE(path.find("/cwai") != std::string::npos);
     }
 
@@ -86,21 +84,22 @@ TEST_CASE("AppInfoServiceImpl: Path delegation", "[appinfo][service]") {
 }
 
 TEST_CASE("AppInfoServiceImpl: HW utilization delegates to DeviceInfoService", "[appinfo][service]") {
-    cosmo::test::MockServiceRegistry mocks;
+    cosmo::test::MockDeviceInfoService deviceInfoSvc;
+    cosmo::test::ScopedServiceOverride<cosmo::service::IDeviceInfoService> registration(deviceInfoSvc);
     cosmo::service::AppInfoServiceImpl appInfoSvc;
 
     SECTION("GetCpuUtilization delegates correctly") {
-        REQUIRE_CALL(mocks.deviceInfoSvc, GetCpuUtilization()).RETURN(45.5);
+        REQUIRE_CALL(deviceInfoSvc, GetCpuUtilization()).RETURN(45.5);
         REQUIRE(appInfoSvc.GetCpuUtilization() == Catch::Approx(45.5));
     }
 
     SECTION("GetAvailableGpuMemoryMB delegates correctly") {
-        REQUIRE_CALL(mocks.deviceInfoSvc, GetAvailableGpuMemoryMB()).RETURN(int64_t(4096));
+        REQUIRE_CALL(deviceInfoSvc, GetAvailableGpuMemoryMB()).RETURN(int64_t(4096));
         REQUIRE(appInfoSvc.GetAvailableGpuMemoryMB() == 4096);
     }
 
     SECTION("GetGpuNum delegates correctly") {
-        REQUIRE_CALL(mocks.deviceInfoSvc, GetGpuNum()).RETURN(size_t(2));
+        REQUIRE_CALL(deviceInfoSvc, GetGpuNum()).RETURN(size_t(2));
         REQUIRE(appInfoSvc.GetGpuNum() == 2);
     }
 
@@ -108,7 +107,7 @@ TEST_CASE("AppInfoServiceImpl: HW utilization delegates to DeviceInfoService", "
         cosmo::MsgMemoryInfo memInfo;
         memInfo.memtotal     = 16384;
         memInfo.memavailable = 8192;
-        REQUIRE_CALL(mocks.deviceInfoSvc, GetMemoryUtilization()).RETURN(memInfo);
+        REQUIRE_CALL(deviceInfoSvc, GetMemoryUtilization()).RETURN(memInfo);
 
         auto result = appInfoSvc.GetMemoryUtilization();
         REQUIRE(result.memtotal == 16384);
@@ -117,7 +116,6 @@ TEST_CASE("AppInfoServiceImpl: HW utilization delegates to DeviceInfoService", "
 }
 
 TEST_CASE("AppInfoServiceImpl: GetPagedLogs validation", "[appinfo][service]") {
-    cosmo::test::MockServiceRegistry mocks;
     cosmo::service::AppInfoServiceImpl appInfoSvc;
 
     SECTION("Invalid pageNum returns error") {
@@ -152,7 +150,6 @@ TEST_CASE("AppInfoServiceImpl: GetPagedLogs validation", "[appinfo][service]") {
 }
 
 TEST_CASE("AppInfoServiceImpl: GetSystemOverviewInfo device validation", "[appinfo][service]") {
-    cosmo::test::MockServiceRegistry mocks;
     cosmo::service::AppInfoServiceImpl appInfoSvc;
     appInfoSvc.SetDevId("CORRECT-DEV-ID");
 
@@ -167,7 +164,6 @@ TEST_CASE("AppInfoServiceImpl: GetSystemOverviewInfo device validation", "[appin
 }
 
 TEST_CASE("AppInfoServiceImpl: Thread safety of GetNumber", "[appinfo][service][thread]") {
-    cosmo::test::MockServiceRegistry mocks;
     cosmo::service::AppInfoServiceImpl appInfoSvc;
 
     constexpr int kThreadCount = 4;

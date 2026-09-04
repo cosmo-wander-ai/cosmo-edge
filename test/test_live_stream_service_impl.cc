@@ -19,13 +19,33 @@
 #undef private
 
 #include "flow/channel/AlgChannel.h"
+#include "mock/MockAppInfoService.h"
 #include "mock/MockCameraService.h"
-#include "mock/MockServiceRegistry.h"
+#include "support/MockDefaults.h"
+#include "support/ScopedServiceOverride.h"
 
 using namespace cosmo::service;
 
+namespace {
+
+struct LiveStreamDependencies {
+    cosmo::test::MockCameraService cameraSvc;
+    cosmo::test::MockAppInfoService appInfoSvc;
+    cosmo::test::NamedExpectations expectations;
+    cosmo::test::ScopedServiceOverride<ICameraTaskConfig> cameraTaskConfig{cameraSvc};
+    cosmo::test::ScopedServiceOverride<ICameraChannelQuery> cameraChannelQuery{cameraSvc};
+    cosmo::test::ScopedServiceOverride<IAppInfoService> appInfo{appInfoSvc};
+
+    LiveStreamDependencies() {
+        cosmo::test::AllowPreviewChannelDefaults(cameraSvc, expectations);
+        expectations.push_back(NAMED_ALLOW_CALL(appInfoSvc, GetNumber()).RETURN(1));
+    }
+};
+
+}  // namespace
+
 TEST_CASE("LiveStreamServiceImpl: 视频流管理核心逻辑", "[live-stream]") {
-    cosmo::test::MockServiceRegistry mocks;
+    LiveStreamDependencies mocks;
     LiveStreamServiceImpl sut;
 
     SECTION("ViewerCreate 返回 CameraNotExist 当 Channel 不存在") {

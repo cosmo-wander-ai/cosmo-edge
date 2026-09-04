@@ -14,19 +14,50 @@
  */
 #include "catch_amalgamated.hpp"
 #include "mock/MockAlgorithmService.h"
+#include "mock/MockAppInfoService.h"
 #include "mock/MockModelService.h"
-#include "mock/MockServiceRegistry.h"
+#include "mock/MockTaskService.h"
 #include "service/media/impl/PicTaskServiceImpl.h"
+#include "support/MockDefaults.h"
+#include "support/ScopedServiceOverride.h"
 #include "util/Keys.h"
 
 using namespace cosmo::service;
+
+namespace {
+
+struct PicTaskCreateDependencies {
+    cosmo::test::MockAlgorithmService algSvc;
+    cosmo::test::MockModelService modelSvc;
+    cosmo::test::MockTaskService taskSvc;
+    cosmo::test::NamedExpectations expectations;
+    cosmo::test::ScopedServiceOverride<IAlgorithmQuery> algorithmQuery{algSvc};
+    cosmo::test::ScopedServiceOverride<IModelService> model{modelSvc};
+    cosmo::test::ScopedServiceOverride<ITaskLifecycle> taskLifecycle{taskSvc};
+
+    PicTaskCreateDependencies() {
+        expectations.push_back(NAMED_ALLOW_CALL(taskSvc, RecordClearTaskData(trompeloeil::_)));
+        expectations.push_back(NAMED_ALLOW_CALL(taskSvc, RecordTaskAction(trompeloeil::_, trompeloeil::_)));
+    }
+};
+
+struct PicTaskCancelDependencies {
+    cosmo::test::MockAppInfoService appInfoSvc;
+    cosmo::test::NamedExpectations expectations;
+    cosmo::test::ScopedServiceOverride<IAppInfoService> appInfo{appInfoSvc};
+
+    PicTaskCancelDependencies() {
+        expectations.push_back(NAMED_ALLOW_CALL(appInfoSvc, GetHaveManager()).RETURN(false));
+    }
+};
+
+}  // namespace
 
 // ============================================================================
 // Construction
 // ============================================================================
 
 TEST_CASE("PicTaskServiceImpl: construction and destruction", "[PicTaskService]") {
-    cosmo::test::MockServiceRegistry mocks;
     REQUIRE_NOTHROW([]() { PicTaskServiceImpl sut; }());
 }
 
@@ -35,7 +66,6 @@ TEST_CASE("PicTaskServiceImpl: construction and destruction", "[PicTaskService]"
 // ============================================================================
 
 TEST_CASE("PicTaskServiceImpl: checksum round-trip", "[PicTaskService]") {
-    cosmo::test::MockServiceRegistry mocks;
     PicTaskServiceImpl sut;
 
     SECTION("Initial checksum is empty") {
@@ -69,7 +99,6 @@ TEST_CASE("PicTaskServiceImpl: checksum round-trip", "[PicTaskService]") {
 // ============================================================================
 
 TEST_CASE("PicTaskServiceImpl: empty state queries", "[PicTaskService]") {
-    cosmo::test::MockServiceRegistry mocks;
     PicTaskServiceImpl sut;
 
     SECTION("TaskCount is 0 on construction") {
@@ -96,7 +125,6 @@ TEST_CASE("PicTaskServiceImpl: empty state queries", "[PicTaskService]") {
 // ============================================================================
 
 TEST_CASE("PicTaskServiceImpl: TaskCreate input validation", "[PicTaskService]") {
-    cosmo::test::MockServiceRegistry mocks;
     PicTaskServiceImpl sut;
 
     SECTION("Empty taskId returns InvalidParam") {
@@ -124,7 +152,6 @@ TEST_CASE("PicTaskServiceImpl: TaskCreate input validation", "[PicTaskService]")
 // ============================================================================
 
 TEST_CASE("PicTaskServiceImpl: TaskDelete input validation", "[PicTaskService]") {
-    cosmo::test::MockServiceRegistry mocks;
     PicTaskServiceImpl sut;
 
     SECTION("Empty taskId returns InvalidParam") {
@@ -155,7 +182,6 @@ TEST_CASE("PicTaskServiceImpl: TaskDelete input validation", "[PicTaskService]")
 
 TEST_CASE("PicTaskServiceImpl: TaskDeleteAll is a terminal idempotent shutdown",
           "[PicTaskService][lifecycle]") {
-    cosmo::test::MockServiceRegistry mocks;
     PicTaskServiceImpl sut;
 
     auto alg1 = std::make_shared<cosmo::ActionAlg>();
@@ -178,7 +204,6 @@ TEST_CASE("PicTaskServiceImpl: TaskDeleteAll is a terminal idempotent shutdown",
 }
 
 TEST_CASE("PicTaskServiceImpl: destructor drains started tasks", "[PicTaskService][lifecycle]") {
-    cosmo::test::MockServiceRegistry mocks;
     {
         PicTaskServiceImpl sut;
         auto alg = std::make_shared<cosmo::ActionAlg>();
@@ -193,7 +218,6 @@ TEST_CASE("PicTaskServiceImpl: destructor drains started tasks", "[PicTaskServic
 // ============================================================================
 
 TEST_CASE("PicTaskServiceImpl: QueryTasks with tasks", "[PicTaskService]") {
-    cosmo::test::MockServiceRegistry mocks;
     PicTaskServiceImpl sut;
 
     auto alg = std::make_shared<cosmo::ActionAlg>();
@@ -228,7 +252,6 @@ TEST_CASE("PicTaskServiceImpl: QueryTasks with tasks", "[PicTaskService]") {
 // ============================================================================
 
 TEST_CASE("PicTaskServiceImpl: GetTaskParam / SetTaskParam validation", "[PicTaskService]") {
-    cosmo::test::MockServiceRegistry mocks;
     PicTaskServiceImpl sut;
 
     SECTION("SetTaskParam for non-existent task returns false") {
@@ -255,7 +278,6 @@ TEST_CASE("PicTaskServiceImpl: GetTaskParam / SetTaskParam validation", "[PicTas
 // ============================================================================
 
 TEST_CASE("PicTaskServiceImpl: TaskCreate duplicate handling", "[PicTaskService]") {
-    cosmo::test::MockServiceRegistry mocks;
     PicTaskServiceImpl sut;
 
     auto alg = std::make_shared<cosmo::ActionAlg>();
@@ -288,7 +310,7 @@ TEST_CASE("PicTaskServiceImpl: TaskCreate duplicate handling", "[PicTaskService]
 // ============================================================================
 
 TEST_CASE("PicTaskServiceImpl: ProcessPTaskCreate orchestration", "[PicTaskService]") {
-    cosmo::test::MockServiceRegistry mocks;
+    PicTaskCreateDependencies mocks;
     PicTaskServiceImpl sut;
 
     SECTION("Succeeds with valid algorithmCode") {
@@ -373,7 +395,7 @@ TEST_CASE("PicTaskServiceImpl: ProcessPTaskCreate orchestration", "[PicTaskServi
 // ============================================================================
 
 TEST_CASE("PicTaskServiceImpl: ProcessPTaskCancel orchestration", "[PicTaskService]") {
-    cosmo::test::MockServiceRegistry mocks;
+    PicTaskCancelDependencies mocks;
     PicTaskServiceImpl sut;
 
     SECTION("Cancel existing task succeeds") {
@@ -426,7 +448,7 @@ TEST_CASE("PicTaskServiceImpl: ProcessPTaskCancel orchestration", "[PicTaskServi
         data.mvDebug       = "not_debug";
         std::error_condition errc;
 
-        // GetHaveManager defaults to false via MockServiceRegistry
+        // GetHaveManager is explicitly configured as false by the fixture
         sut.ProcessPTaskCancel(data, errc);
         REQUIRE(errc == cosmo::util::ErrorEnum::MvDebugModel);
     }
@@ -437,7 +459,6 @@ TEST_CASE("PicTaskServiceImpl: ProcessPTaskCancel orchestration", "[PicTaskServi
 // ============================================================================
 
 TEST_CASE("PicTaskServiceImpl: DetectPic input validation", "[PicTaskService]") {
-    cosmo::test::MockServiceRegistry mocks;
     PicTaskServiceImpl sut;
 
     SECTION("Empty taskId returns InvalidParam") {

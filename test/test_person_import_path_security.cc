@@ -11,24 +11,23 @@
 #include "flow/face/PersonImport.h"
 #include "mock/MockFaceLibService.h"
 #include "mock/MockPersonDaoService.h"
-#include "mock/MockServiceRegistry.h"
+#include "mock/MockVideoFrameCodec.h"
+#include "support/ScopedPathOverride.h"
+#include "support/ScopedServiceOverride.h"
 #include "util/Exception.h"
 #include "util/PathUtil.h"
 
 namespace {
 
-class RootPathOverrideGuard {
-public:
-    RootPathOverrideGuard(const std::string& data_path, const std::string& app_data_path) {
-        cosmo::path::OverrideRootPathForTest(data_path, app_data_path);
-    }
-
-    ~RootPathOverrideGuard() {
-        cosmo::path::OverrideRootPathForTest("/data/cwaiuserdata", "/appfs/cosmo_wander/cwai_data");
-    }
-
-    RootPathOverrideGuard(const RootPathOverrideGuard&)            = delete;
-    RootPathOverrideGuard& operator=(const RootPathOverrideGuard&) = delete;
+struct PersonImportDependencies {
+    cosmo::test::MockFaceLibService faceLibSvc;
+    cosmo::test::MockPersonDaoService personDaoSvc;
+    cosmo::test::MockVideoFrameCodec videoCodecSvc;
+    cosmo::test::ScopedServiceOverride<cosmo::service::IFaceLibRepo> faceLibRepo{faceLibSvc};
+    cosmo::test::ScopedServiceOverride<cosmo::service::IPersonRepo> personRepo{faceLibSvc};
+    cosmo::test::ScopedServiceOverride<cosmo::service::IFaceFeature> faceFeature{faceLibSvc};
+    cosmo::test::ScopedServiceOverride<cosmo::service::IPersonDaoService> personDao{personDaoSvc};
+    cosmo::test::ScopedServiceOverride<cosmo::service::IVideoFrameCodec> videoCodec{videoCodecSvc};
 };
 
 void WriteLe16(std::ostream& stream, std::uint16_t value) {
@@ -124,7 +123,7 @@ TEST_CASE("PersonImport rejects and preserves unmanaged input paths", "[face][se
     const fs::path outside = fs::path("/tmp") / ("cosmo_person_import_outside_" + suffix + ".zip");
     fs::create_directories(root);
     std::ofstream(outside) << "not an owned upload";
-    const RootPathOverrideGuard root_override(root.string(), root.string());
+    const cosmo::test::ScopedPathOverride root_override(root.string(), root.string());
     const fs::path upload_link = fs::path(cosmo::path::GetUploadPath()) / "outside.zip";
     fs::create_symlink(outside, upload_link);
 
@@ -156,8 +155,8 @@ TEST_CASE("PersonImport Stop waits for an active import and rejects restart", "[
     fs::create_directories(root);
 
     {
-        cosmo::test::MockServiceRegistry mocks;
-        const RootPathOverrideGuard root_override(root.string(), root.string());
+        PersonImportDependencies mocks;
+        const cosmo::test::ScopedPathOverride root_override(root.string(), root.string());
         const auto archive = fs::path(cosmo::path::GetUploadPath()) / "faces.zip";
         // Archive validation intentionally rejects zero-byte-only archives.
         // Keep this lifecycle fixture structurally valid so the worker reaches

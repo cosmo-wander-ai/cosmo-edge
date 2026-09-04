@@ -9,12 +9,17 @@
 
 #include "db/PersonDao.h"
 #include "mock/MockDbService.h"
-#include "mock/MockServiceRegistry.h"
 #include "service/face/impl/PersonDaoServiceImpl.h"
+#include "support/ScopedServiceOverride.h"
 
 namespace cosmo::test {
 
 namespace {
+
+    struct DbDependency {
+        MockDbService dbSvc;
+        ScopedServiceOverride<service::IDbService> registration{dbSvc};
+    };
 
     /// Creates an in-memory SQLite database with PersonDao tables initialized.
     std::shared_ptr<SQLite::Database> MakeTestDb() {
@@ -29,7 +34,7 @@ namespace {
 
 TEST_CASE("PersonDaoService: face lib CRUD cycle", "[person-dao]") {
     auto testDb = MakeTestDb();
-    MockServiceRegistry mocks;
+    DbDependency mocks;
     ALLOW_CALL(mocks.dbSvc, GetDb()).RETURN(testDb);
 
     service::PersonDaoServiceImpl sut;
@@ -110,7 +115,7 @@ TEST_CASE("PersonDaoService: face lib CRUD cycle", "[person-dao]") {
 
 TEST_CASE("PersonDaoService: person CRUD cycle", "[person-dao]") {
     auto testDb = MakeTestDb();
-    MockServiceRegistry mocks;
+    DbDependency mocks;
     ALLOW_CALL(mocks.dbSvc, GetDb()).RETURN(testDb);
 
     service::PersonDaoServiceImpl sut;
@@ -211,7 +216,7 @@ TEST_CASE("PersonDaoService: person CRUD cycle", "[person-dao]") {
 
 TEST_CASE("PersonDaoService: transaction control", "[person-dao]") {
     auto testDb = MakeTestDb();
-    MockServiceRegistry mocks;
+    DbDependency mocks;
     ALLOW_CALL(mocks.dbSvc, GetDb()).RETURN(testDb);
 
     service::PersonDaoServiceImpl sut;

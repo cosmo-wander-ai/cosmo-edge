@@ -4,13 +4,18 @@
 
 #include "api/MessageAuthHandler.h"
 #include "mock/MockAuthService.h"
-#include "mock/MockServiceRegistry.h"
 #include "util/ErrorCode.h"
 
 using namespace cosmo;
 
+namespace {
+struct AuthHandlerMocks {
+    test::MockAuthService authSvc;
+};
+}  // namespace
+
 TEST_CASE("MessageAuthHandler: Login success", "[AuthHandler]") {
-    test::MockServiceRegistry mocks;
+    AuthHandlerMocks mocks;
     MessageAuthHandler handler(mocks.authSvc);
 
     REQUIRE_CALL(mocks.authSvc, Login("admin", "pass123"))
@@ -30,7 +35,7 @@ TEST_CASE("MessageAuthHandler: Login success", "[AuthHandler]") {
 }
 
 TEST_CASE("MessageAuthHandler: Login failure", "[AuthHandler]") {
-    test::MockServiceRegistry mocks;
+    AuthHandlerMocks mocks;
     MessageAuthHandler handler(mocks.authSvc);
 
     REQUIRE_CALL(mocks.authSvc, Login("admin", "wrongpwd"))
@@ -47,7 +52,7 @@ TEST_CASE("MessageAuthHandler: Login failure", "[AuthHandler]") {
 }
 
 TEST_CASE("MessageAuthHandler: Login frequency limit", "[AuthHandler]") {
-    test::MockServiceRegistry mocks;
+    AuthHandlerMocks mocks;
     MessageAuthHandler handler(mocks.authSvc);
 
     REQUIRE_CALL(mocks.authSvc, Login(trompeloeil::_, trompeloeil::_))
@@ -64,7 +69,7 @@ TEST_CASE("MessageAuthHandler: Login frequency limit", "[AuthHandler]") {
 }
 
 TEST_CASE("MessageAuthHandler: ChangePassword success", "[AuthHandler]") {
-    test::MockServiceRegistry mocks;
+    AuthHandlerMocks mocks;
     MessageAuthHandler handler(mocks.authSvc);
 
     REQUIRE_CALL(mocks.authSvc, ChangePasswd("tok", "old", "new")).RETURN(util::ErrorEnum::Success);
@@ -80,7 +85,7 @@ TEST_CASE("MessageAuthHandler: ChangePassword success", "[AuthHandler]") {
 }
 
 TEST_CASE("MessageAuthHandler: ChangePassword not logged in", "[AuthHandler]") {
-    test::MockServiceRegistry mocks;
+    AuthHandlerMocks mocks;
     MessageAuthHandler handler(mocks.authSvc);
 
     REQUIRE_CALL(mocks.authSvc, ChangePasswd("bad-tok", "old", "new")).RETURN(util::ErrorEnum::NotLogin);
@@ -96,7 +101,7 @@ TEST_CASE("MessageAuthHandler: ChangePassword not logged in", "[AuthHandler]") {
 }
 
 TEST_CASE("MessageAuthHandler: ChangePassword wrong old", "[AuthHandler]") {
-    test::MockServiceRegistry mocks;
+    AuthHandlerMocks mocks;
     MessageAuthHandler handler(mocks.authSvc);
 
     REQUIRE_CALL(mocks.authSvc, ChangePasswd("tok", "wrong", "new")).RETURN(util::ErrorEnum::OldPasswdWrong);

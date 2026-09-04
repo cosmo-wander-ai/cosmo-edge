@@ -2,25 +2,39 @@
 #include <filesystem>
 
 #include "catch_amalgamated.hpp"
-#include "mock/MockServiceRegistry.h"
 #include "service/task/impl/ScheduleServiceImpl.h"
+#include "support/ScopedCurrentPath.h"
+#include "support/ScopedPathOverride.h"
 #include "util/PathUtil.h"
 
 using namespace cosmo::service;
 using namespace cosmo;
+
+namespace {
+
+class ScopedDirectoryRemoval final {
+public:
+    explicit ScopedDirectoryRemoval(std::filesystem::path path) : path_(std::move(path)) {}
+
+    ~ScopedDirectoryRemoval() {
+        std::error_code error;
+        std::filesystem::remove_all(path_, error);
+    }
+
+private:
+    std::filesystem::path path_;
+};
+
+}  // namespace
 
 TEST_CASE("ScheduleServiceImpl: 时间模板 CRUD", "[schedule-service]") {
     // 设置测试专用的隔离目录
     std::string testBaseDir =
         "/tmp/cosmo_test_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
     std::filesystem::create_directories(testBaseDir);
-
-    // Change working directory so CfgSave writes to test directory
-    auto oldPath = std::filesystem::current_path();
-    std::filesystem::current_path(testBaseDir);
-
-    cosmo::test::MockServiceRegistry mocks;
-    cosmo::path::OverrideRootPathForTest(testBaseDir, testBaseDir);
+    ScopedDirectoryRemoval cleanup(testBaseDir);
+    cosmo::test::ScopedCurrentPath current_path(testBaseDir);
+    cosmo::test::ScopedPathOverride path_override(testBaseDir, testBaseDir);
     ScheduleServiceImpl sut;
 
     SECTION("Init 能够加载默认的模板") {
@@ -73,8 +87,4 @@ TEST_CASE("ScheduleServiceImpl: 时间模板 CRUD", "[schedule-service]") {
         // 全天候模板无论什么时间都应该是 true
         REQUIRE(sut.InRunTime(defaultId) == true);
     }
-
-    // 恢复工作目录
-    std::filesystem::current_path(oldPath);
-    std::filesystem::remove_all(testBaseDir);
 }

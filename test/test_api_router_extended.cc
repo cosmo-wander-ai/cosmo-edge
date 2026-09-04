@@ -8,7 +8,7 @@
 #include "api/ApiRouter.h"
 #include "mock/MockAuthService.h"
 #include "mock/MockScheduleService.h"
-#include "mock/MockServiceRegistry.h"
+#include "support/ApiRouterTestDependencies.h"
 #include "util/ErrorCode.h"
 #include "util/MsgBaseTypes.h"
 
@@ -19,7 +19,7 @@ using namespace cosmo;
 #define HandMessage DispatchRequest
 
 TEST_CASE("ApiRouter: Route registration completeness", "[ApiRouter][routes]") {
-    test::MockServiceRegistry mocks;
+    test::ApiRouterTestDependencies mocks;
     ApiRouter router(MessageFromType::MessageFromHttp);
 
     SECTION("Core routes registered") {
@@ -107,7 +107,7 @@ TEST_CASE("ApiRouter: Route registration completeness", "[ApiRouter][routes]") {
 }
 
 TEST_CASE("ApiRouter: Case-insensitive routing", "[ApiRouter][routes]") {
-    test::MockServiceRegistry mocks;
+    test::ApiRouterTestDependencies mocks;
     ApiRouter router(MessageFromType::MessageFromHttp);
 
     // All route lookups go through util::ToLower, so mixed case should work
@@ -117,7 +117,7 @@ TEST_CASE("ApiRouter: Case-insensitive routing", "[ApiRouter][routes]") {
 }
 
 TEST_CASE("ApiRouter: MQTT source bypasses auth check", "[ApiRouter][auth]") {
-    test::MockServiceRegistry mocks;
+    test::ApiRouterTestDependencies mocks;
     ApiRouter mqttRouter(MessageFromType::MessageFromMqtt);
 
     std::string response;
@@ -134,7 +134,7 @@ TEST_CASE("ApiRouter: MQTT source bypasses auth check", "[ApiRouter][auth]") {
 }
 
 TEST_CASE("ApiRouter: Handler() returns MessageHandler reference", "[ApiRouter]") {
-    test::MockServiceRegistry mocks;
+    test::ApiRouterTestDependencies mocks;
     ApiRouter router(MessageFromType::MessageFromHttp);
     MessageHandler& h = router.Handler();
     // Just verifying it doesn't crash and returns a valid reference
@@ -142,7 +142,7 @@ TEST_CASE("ApiRouter: Handler() returns MessageHandler reference", "[ApiRouter]"
 }
 
 TEST_CASE("ApiRouter: HandMessage(4-arg) unsupported route", "[ApiRouter]") {
-    test::MockServiceRegistry mocks;
+    test::ApiRouterTestDependencies mocks;
     ApiRouter router(MessageFromType::MessageFromHttp);
 
     std::string response;
@@ -153,7 +153,7 @@ TEST_CASE("ApiRouter: HandMessage(4-arg) unsupported route", "[ApiRouter]") {
 }
 
 TEST_CASE("ApiRouter: rejects a spoofed transport context", "[ApiRouter][auth]") {
-    test::MockServiceRegistry mocks;
+    test::ApiRouterTestDependencies mocks;
     ApiRouter router(MessageFromType::MessageFromHttp);
 
     RequestDispatchContext context;
@@ -167,7 +167,7 @@ TEST_CASE("ApiRouter: rejects a spoofed transport context", "[ApiRouter][auth]")
 }
 
 TEST_CASE("ApiRouter: DispatchJson with malformed JSON", "[ApiRouter][dispatch]") {
-    test::MockServiceRegistry mocks;
+    test::ApiRouterTestDependencies mocks;
     ApiRouter router(MessageFromType::MessageFromHttp);
 
     ALLOW_CALL(mocks.authSvc, IsValidToken("valid-token")).RETURN(true);
@@ -180,7 +180,7 @@ TEST_CASE("ApiRouter: DispatchJson with malformed JSON", "[ApiRouter][dispatch]"
 }
 
 TEST_CASE("ApiRouter: InterfaceTest returns success for valid JSON", "[ApiRouter][handler]") {
-    test::MockServiceRegistry mocks;
+    test::ApiRouterTestDependencies mocks;
     ApiRouter router(MessageFromType::MessageFromHttp);
 
     ALLOW_CALL(mocks.authSvc, IsValidToken("valid-token")).RETURN(true);
@@ -193,7 +193,7 @@ TEST_CASE("ApiRouter: InterfaceTest returns success for valid JSON", "[ApiRouter
 }
 
 TEST_CASE("ApiRouter: InterfaceTest with error trigger", "[ApiRouter][handler]") {
-    test::MockServiceRegistry mocks;
+    test::ApiRouterTestDependencies mocks;
     ApiRouter router(MessageFromType::MessageFromHttp);
 
     // test == "111" triggers ParameterLenError in MessageHandler::Handle
@@ -208,7 +208,7 @@ TEST_CASE("ApiRouter: InterfaceTest with error trigger", "[ApiRouter][handler]")
 }
 
 TEST_CASE("ApiRouter: Probe returns empty success", "[ApiRouter][handler]") {
-    test::MockServiceRegistry mocks;
+    test::ApiRouterTestDependencies mocks;
     ApiRouter router(MessageFromType::MessageFromHttp);
 
     std::string response;

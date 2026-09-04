@@ -10,10 +10,10 @@
 #include <filesystem>
 #include <fstream>
 
-#include "mock/MockServiceRegistry.h"
-#include "service/detail/ServiceRegistry.h"
 #include "service/media/impl/AudioServiceImpl.h"
 #include "service/network/IHttpClient.h"
+#include "support/ScopedPathOverride.h"
+#include "support/ScopedServiceOverride.h"
 
 using namespace cosmo::service;
 namespace fs = std::filesystem;
@@ -22,12 +22,12 @@ namespace {
 
 struct AudioTestFixture {
     std::string testDir;
-    cosmo::test::MockServiceRegistry mocks;
+    cosmo::test::ScopedPathOverride pathOverride;
 
-    AudioTestFixture() {
-        testDir = "/tmp/cosmo_audio_test_" +
-                  std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
-        cosmo::path::OverrideRootPathForTest(testDir, testDir);
+    AudioTestFixture()
+        : testDir("/tmp/cosmo_audio_test_" +
+                  std::to_string(std::chrono::system_clock::now().time_since_epoch().count())),
+          pathOverride(testDir, testDir) {
         fs::create_directories(testDir + "/conf");
         fs::create_directories(testDir + "/conf/audioMng");
 
@@ -62,17 +62,6 @@ public:
     std::string lastUrl;
 };
 
-class HttpClientRegistryGuard final {
-public:
-    explicit HttpClientRegistryGuard(IHttpClient& http_client) {
-        ServiceRegistry::Instance().Set<IHttpClient>(&http_client);
-    }
-
-    ~HttpClientRegistryGuard() {
-        ServiceRegistry::Instance().Set<IHttpClient>(nullptr);
-    }
-};
-
 }  // namespace
 
 TEST_CASE("AudioServiceImpl: construction and destruction", "[AudioService]") {
@@ -85,7 +74,7 @@ TEST_CASE("AudioServiceImpl: construction and destruction", "[AudioService]") {
 TEST_CASE("AudioServiceImpl: speaker health check uses GET", "[AudioService][HttpClient]") {
     AudioTestFixture fix;
     RecordingHttpClient http_client;
-    HttpClientRegistryGuard http_client_guard(http_client);
+    cosmo::test::ScopedServiceOverride<IHttpClient> http_client_guard(http_client);
     AudioServiceImpl sut;
 
     REQUIRE(sut.CheckAudioDeviceAlive("192.0.2.10"));

@@ -6,12 +6,11 @@
 #include <string>
 
 #include "catch_amalgamated.hpp"
-#include "mock/MockServiceRegistry.h"
 #include "platform/SystemReboot.h"
-#include "service/detail/ServiceRegistry.h"
 #include "service/system/impl/PacketUpgrade.h"
 #include "service/system/impl/SystemOperationServiceImpl.h"
 #include "service/system/impl/UpgradeStorage.h"
+#include "support/ScopedPathOverride.h"
 #include "util/Exec.h"
 #include "util/PathUtil.h"
 #include "util/ResourceBudget.h"
@@ -74,14 +73,13 @@ TEST_CASE("Factory reset preserves model authorization data", "[system][reset]")
 }
 
 TEST_CASE("SystemOperationServiceImpl: System operations", "[system][service]") {
-    cosmo::test::MockServiceRegistry mocks;
     cosmo::service::SystemOperationServiceImpl sysOpSvc;
 
     SECTION("ExportLogs creates tar file successfully") {
         std::string testRoot = "/tmp/cosmo sysop;test";
         std::error_code cleanup_error;
         fs::remove_all(testRoot, cleanup_error);
-        cosmo::path::OverrideRootPathForTest(testRoot, testRoot);
+        cosmo::test::ScopedPathOverride path_override(testRoot, testRoot);
 
         // Create directories that cosmo::path:: will return
         auto webDir = cosmo::path::GetWebLocalPath();
@@ -219,7 +217,7 @@ TEST_CASE("PacketUpgrade validates archive boundaries before extraction", "[syst
     std::error_code ec;
     fs::remove_all(root, ec);
     fs::create_directories(staging);
-    cosmo::path::OverrideRootPathForTest(data_root.string(), app_root.string());
+    cosmo::test::ScopedPathOverride path_override(data_root.string(), app_root.string());
 
     SECTION("accepts a valid package with the expected layout") {
         const auto source = root / "valid_source";
@@ -348,7 +346,6 @@ TEST_CASE("PacketUpgrade validates archive boundaries before extraction", "[syst
 }
 
 TEST_CASE("SystemOperationServiceImpl: ShowThreadDebugInfo does not crash", "[system][service]") {
-    cosmo::test::MockServiceRegistry mocks;
     cosmo::service::SystemOperationServiceImpl sysOpSvc;
     REQUIRE_NOTHROW(sysOpSvc.ShowThreadDebugInfo());
 }

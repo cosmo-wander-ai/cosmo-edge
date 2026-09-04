@@ -6,7 +6,6 @@
  * Construction is safe anywhere (just creates the wrapper object).
  * Start/Stop require the actual device, tagged [.device].
  */
-#include "mock/MockServiceRegistry.h"
 #include "service/system/impl/WatchDogServiceImpl.h"
 
 using namespace cosmo::service;

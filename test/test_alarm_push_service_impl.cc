@@ -11,30 +11,31 @@
 #include <filesystem>
 #include <fstream>
 
-#include "mock/MockServiceRegistry.h"
 #include "service/event/impl/AlarmPushServiceImpl.h"
+#include "support/ScopedPathOverride.h"
 
 namespace cosmo::test {
 
 namespace {
 
-    /// Creates a unique temporary directory for each test and returns its path.
-    /// Call Setup() AFTER MockServiceRegistry construction.
+    /// Creates a unique temporary directory and scoped root override for each test.
     struct TempDir {
         std::string path;
         std::string cfgPath;
-        TempDir() {
-            static int counter = 0;
-            path               = "/tmp/cosmo_test_alarm_" + std::to_string(++counter);
-            cfgPath            = path + "/conf";
-        }
-        void Setup() {
-            cosmo::path::OverrideRootPathForTest(path, path);
+        cosmo::test::ScopedPathOverride pathOverride;
+
+        TempDir() : path(NextPath()), cfgPath(path + "/conf"), pathOverride(path, path) {
             std::filesystem::create_directories(cfgPath);
         }
         ~TempDir() {
             std::error_code ec;
             std::filesystem::remove_all(path, ec);
+        }
+
+    private:
+        static std::string NextPath() {
+            static int counter = 0;
+            return "/tmp/cosmo_test_alarm_" + std::to_string(++counter);
         }
     };
 
@@ -50,8 +51,6 @@ namespace {
 
 TEST_CASE("AlarmPushService: default state when no config file exists", "[alarm-push]") {
     TempDir tmpDir;
-    MockServiceRegistry mocks;
-    tmpDir.Setup();
 
     service::AlarmPushServiceImpl sut;
 
@@ -66,8 +65,6 @@ TEST_CASE("AlarmPushService: default state when no config file exists", "[alarm-
 
 TEST_CASE("AlarmPushService: Stop is safe and idempotent before Init", "[alarm-push][lifecycle]") {
     TempDir tmpDir;
-    MockServiceRegistry mocks;
-    tmpDir.Setup();
 
     service::AlarmPushServiceImpl sut;
     REQUIRE_NOTHROW(sut.Stop());
@@ -77,8 +74,6 @@ TEST_CASE("AlarmPushService: Stop is safe and idempotent before Init", "[alarm-p
 
 TEST_CASE("AlarmPushService: loads existing config on construction", "[alarm-push]") {
     TempDir tmpDir;
-    MockServiceRegistry mocks;
-    tmpDir.Setup();
     WriteConfigFile(tmpDir.cfgPath, true, "http://example.com/alarm");
 
     // Verify the file was actually written before proceeding
@@ -97,8 +92,6 @@ TEST_CASE("AlarmPushService: loads existing config on construction", "[alarm-pus
 
 TEST_CASE("AlarmPushService: rejects invalid persisted endpoint", "[alarm-push]") {
     TempDir tmpDir;
-    MockServiceRegistry mocks;
-    tmpDir.Setup();
     WriteConfigFile(tmpDir.cfgPath, true, "file:///etc/passwd");
 
     service::AlarmPushServiceImpl sut;
@@ -108,8 +101,6 @@ TEST_CASE("AlarmPushService: rejects invalid persisted endpoint", "[alarm-push]"
 
 TEST_CASE("AlarmPushService: SetPush updates config", "[alarm-push]") {
     TempDir tmpDir;
-    MockServiceRegistry mocks;
-    tmpDir.Setup();
 
     service::AlarmPushServiceImpl sut;
 

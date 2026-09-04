@@ -7,13 +7,18 @@
 #include "api/ApiRouterInternal.h"
 #include "api/MessageLiveStreamHandler.h"
 #include "mock/MockLiveStreamService.h"
-#include "mock/MockServiceRegistry.h"
 #include "util/ErrorCode.h"
 
 using namespace cosmo;
 
+namespace {
+struct LiveStreamHandlerMocks {
+    test::MockLiveStreamService liveStreamSvc;
+};
+}  // namespace
+
 TEST_CASE("MessageLiveStreamHandler: Request stream success", "[LiveStreamHandler]") {
-    test::MockServiceRegistry mocks;
+    LiveStreamHandlerMocks mocks;
     MessageLiveStreamHandler handler(mocks.liveStreamSvc);
 
     ALLOW_CALL(mocks.liveStreamSvc, ViewerCreate("ch1", "alg1", trompeloeil::_))
@@ -40,7 +45,7 @@ TEST_CASE("MessageLiveStreamHandler: Request stream success", "[LiveStreamHandle
 }
 
 TEST_CASE("MessageLiveStreamHandler: Request stream without algorithm", "[LiveStreamHandler]") {
-    test::MockServiceRegistry mocks;
+    LiveStreamHandlerMocks mocks;
     MessageLiveStreamHandler handler(mocks.liveStreamSvc);
 
     ALLOW_CALL(mocks.liveStreamSvc, ViewerCreate("ch2", "", trompeloeil::_))
@@ -59,7 +64,7 @@ TEST_CASE("MessageLiveStreamHandler: Request stream without algorithm", "[LiveSt
 }
 
 TEST_CASE("MessageLiveStreamHandler: Request stream failure", "[LiveStreamHandler]") {
-    test::MockServiceRegistry mocks;
+    LiveStreamHandlerMocks mocks;
     MessageLiveStreamHandler handler(mocks.liveStreamSvc);
 
     ALLOW_CALL(mocks.liveStreamSvc, ViewerCreate("ch3", "", trompeloeil::_))
@@ -77,7 +82,7 @@ TEST_CASE("MessageLiveStreamHandler: Request stream failure", "[LiveStreamHandle
 }
 
 TEST_CASE("MessageLiveStreamHandler: KeepAlive success", "[LiveStreamHandler]") {
-    test::MockServiceRegistry mocks;
+    LiveStreamHandlerMocks mocks;
     MessageLiveStreamHandler handler(mocks.liveStreamSvc);
 
     ALLOW_CALL(mocks.liveStreamSvc, ViewerHeartBeat("ch1", "alg1")).RETURN(util::ErrorEnum::Success);
@@ -92,7 +97,7 @@ TEST_CASE("MessageLiveStreamHandler: KeepAlive success", "[LiveStreamHandler]") 
 }
 
 TEST_CASE("MessageLiveStreamHandler: KeepAlive failure", "[LiveStreamHandler]") {
-    test::MockServiceRegistry mocks;
+    LiveStreamHandlerMocks mocks;
     MessageLiveStreamHandler handler(mocks.liveStreamSvc);
 
     ALLOW_CALL(mocks.liveStreamSvc, ViewerHeartBeat("bad_ch", ""))
@@ -108,7 +113,7 @@ TEST_CASE("MessageLiveStreamHandler: KeepAlive failure", "[LiveStreamHandler]") 
 }
 
 TEST_CASE("MessageLiveStreamHandler: Stop stream", "[LiveStreamHandler]") {
-    test::MockServiceRegistry mocks;
+    LiveStreamHandlerMocks mocks;
     MessageLiveStreamHandler handler(mocks.liveStreamSvc);
 
     ALLOW_CALL(mocks.liveStreamSvc, ViewerDelete("ch1", "alg1")).RETURN(true);
@@ -124,7 +129,7 @@ TEST_CASE("MessageLiveStreamHandler: Stop stream", "[LiveStreamHandler]") {
 }
 
 TEST_CASE("MessageLiveStreamHandler: Stop stream propagates failure", "[LiveStreamHandler]") {
-    test::MockServiceRegistry mocks;
+    LiveStreamHandlerMocks mocks;
     MessageLiveStreamHandler handler(mocks.liveStreamSvc);
 
     ALLOW_CALL(mocks.liveStreamSvc, ViewerDelete("ch1", "alg1")).RETURN(false);

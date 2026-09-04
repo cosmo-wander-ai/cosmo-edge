@@ -8,14 +8,13 @@
 #include "api/MessageHandler.h"
 #include "mock/MockAppInfoService.h"
 #include "mock/MockLiveStreamService.h"
-#include "mock/MockServiceRegistry.h"
+#include "support/ScopedServiceOverride.h"
 #include "util/ErrorCode.h"
 #include "util/Exception.h"
 
 using namespace cosmo;
 
 TEST_CASE("MessageHandler: InterfaceTest success", "[CoreHandler]") {
-    test::MockServiceRegistry mocks;
     MessageHandler handler;
 
     MsgInterfaceTestRecv req{};
@@ -27,7 +26,6 @@ TEST_CASE("MessageHandler: InterfaceTest success", "[CoreHandler]") {
 }
 
 TEST_CASE("MessageHandler: InterfaceTest error trigger", "[CoreHandler]") {
-    test::MockServiceRegistry mocks;
     MessageHandler handler;
 
     MsgInterfaceTestRecv req{};
@@ -39,7 +37,6 @@ TEST_CASE("MessageHandler: InterfaceTest error trigger", "[CoreHandler]") {
 }
 
 TEST_CASE("MessageHandler: Probe returns empty", "[CoreHandler]") {
-    test::MockServiceRegistry mocks;
     MessageHandler handler;
 
     MsgProbeRecv req{};
@@ -51,10 +48,11 @@ TEST_CASE("MessageHandler: Probe returns empty", "[CoreHandler]") {
 }
 
 TEST_CASE("MessageHandler: ViewRoutes delegates to service", "[CoreHandler]") {
-    test::MockServiceRegistry mocks;
+    test::MockLiveStreamService live_stream;
+    test::ScopedServiceOverride<service::ILiveStreamService> registration(live_stream);
     MessageHandler handler;
 
-    REQUIRE_CALL(mocks.liveStreamSvc, SetViewCounts(4));
+    REQUIRE_CALL(live_stream, SetViewCounts(4));
 
     MsgViewRoutesRecv req{};
     req.viewCounts            = 4;
@@ -65,12 +63,13 @@ TEST_CASE("MessageHandler: ViewRoutes delegates to service", "[CoreHandler]") {
 }
 
 TEST_CASE("MessageHandler: OverviewStructureRecord toggle", "[CoreHandler]") {
-    test::MockServiceRegistry mocks;
+    test::MockAppInfoService app_info;
+    test::ScopedServiceOverride<service::IAppInfoService> registration(app_info);
     MessageHandler handler;
 
-    REQUIRE_CALL(mocks.appInfoSvc, SetOverviewStructureRecord(true));
-    REQUIRE_CALL(mocks.appInfoSvc, SetOverviewStructureFile(true));
-    ALLOW_CALL(mocks.appInfoSvc, GetTaskOverviewDataPath()).RETURN("/data/overview");
+    REQUIRE_CALL(app_info, SetOverviewStructureRecord(true));
+    REQUIRE_CALL(app_info, SetOverviewStructureFile(true));
+    ALLOW_CALL(app_info, GetTaskOverviewDataPath()).RETURN("/data/overview");
 
     MsgOverviewStructrueRecordRecv req{};
     req.functionSwitch        = true;
@@ -81,10 +80,11 @@ TEST_CASE("MessageHandler: OverviewStructureRecord toggle", "[CoreHandler]") {
 }
 
 TEST_CASE("MessageHandler: GraphicsMemory", "[CoreHandler]") {
-    test::MockServiceRegistry mocks;
+    test::MockAppInfoService app_info;
+    test::ScopedServiceOverride<service::IAppInfoService> registration(app_info);
     MessageHandler handler;
 
-    ALLOW_CALL(mocks.appInfoSvc, OutputMallocBuf()).RETURN("mem_debug_info");
+    ALLOW_CALL(app_info, OutputMallocBuf()).RETURN("mem_debug_info");
 
     MsgGraphicsMemoryRecv req{};
     req.test                  = "debug";
@@ -95,7 +95,6 @@ TEST_CASE("MessageHandler: GraphicsMemory", "[CoreHandler]") {
 }
 
 TEST_CASE("MessageHandler: overview file rejects path-like task ID", "[CoreHandler][security]") {
-    test::MockServiceRegistry mocks;
     MessageHandler handler;
 
     MsgQueryTaskOverviewFileRecv req{};

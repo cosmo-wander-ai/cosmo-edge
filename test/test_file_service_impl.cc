@@ -21,10 +21,10 @@
 
 #include "LoopbackHttpServer.h"
 #include "media/EncodedImageInfo.h"
-#include "mock/MockServiceRegistry.h"
 #include "network/http/HttpRequest.h"
 #include "network/http/HttpRequestHandler.h"
 #include "service/path/impl/FileServiceImpl.h"
+#include "support/ScopedPathOverride.h"
 #include "util/FileUtil.h"
 #include "util/PathUtil.h"
 
@@ -43,6 +43,19 @@ public:
 
     ScopedFileRemoval(const ScopedFileRemoval&)            = delete;
     ScopedFileRemoval& operator=(const ScopedFileRemoval&) = delete;
+
+private:
+    std::filesystem::path path_;
+};
+
+class ScopedDirectoryRemoval final {
+public:
+    explicit ScopedDirectoryRemoval(std::filesystem::path path) : path_(std::move(path)) {}
+
+    ~ScopedDirectoryRemoval() {
+        std::error_code error;
+        std::filesystem::remove_all(path_, error);
+    }
 
 private:
     std::filesystem::path path_;
@@ -113,7 +126,8 @@ TEST_CASE("FileServiceImpl: platform upload boundary rejects unmanaged files", "
     std::filesystem::remove_all(test_root, ec);
     std::filesystem::create_directories(test_root, ec);
     REQUIRE_FALSE(ec);
-    cosmo::path::OverrideRootPathForTest(test_root.string(), test_root.string());
+    ScopedDirectoryRemoval cleanup(test_root);
+    cosmo::test::ScopedPathOverride path_override(test_root.string(), test_root.string());
 
     const auto unmanaged = test_root.parent_path() / "unmanaged-platform-upload.jpg";
     REQUIRE(cosmo::util::WriteFile(unmanaged.string(), "not-an-image"));
@@ -133,7 +147,6 @@ TEST_CASE("FileServiceImpl: platform upload boundary rejects unmanaged files", "
     REQUIRE_FALSE(callback_result);
     std::filesystem::remove(unmanaged, ec);
     std::filesystem::remove_all(test_root, ec);
-    cosmo::path::OverrideRootPathForTest("/tmp/cosmo_test", "/tmp/cosmo_test_app");
 }
 
 TEST_CASE("FileServiceImpl: accepted uploads always receive a terminal callback",
@@ -144,22 +157,23 @@ TEST_CASE("FileServiceImpl: accepted uploads always receive a terminal callback"
     std::filesystem::remove_all(test_root, ec);
     std::filesystem::create_directories(test_root, ec);
     REQUIRE_FALSE(ec);
-    cosmo::path::OverrideRootPathForTest(test_root.string(), test_root.string());
+    cosmo::test::ScopedPathOverride path_override(test_root.string(), test_root.string());
 
     const auto local_file = std::filesystem::path(cosmo::path::GetRecordJsonPath()) / "event.jpg";
     REQUIRE(cosmo::util::WriteFile(local_file.string(), "image-data"));
 
-    FileServiceImpl sut;
-    std::promise<bool> completion;
-    auto future = completion.get_future();
-    sut.UploadFile(
-        "task-2", [&](const std::string&, bool success, void*) { completion.set_value(success); }, nullptr,
-        "jpg", local_file.string(), "gaf_commodity", "/remote/file.jpg");
+    auto completion = std::make_shared<std::promise<bool>>();
+    auto future     = completion->get_future();
+    {
+        FileServiceImpl sut;
+        sut.UploadFile(
+            "task-2",
+            [completion](const std::string&, bool success, void*) { completion->set_value(success); },
+            nullptr, "jpg", local_file.string(), "gaf_commodity", "/remote/file.jpg");
 
-    REQUIRE(future.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
-    REQUIRE_FALSE(future.get());
-    std::filesystem::remove_all(test_root, ec);
-    cosmo::path::OverrideRootPathForTest("/tmp/cosmo_test", "/tmp/cosmo_test_app");
+        REQUIRE(future.wait_for(std::chrono::seconds(5)) == std::future_status::ready);
+        REQUIRE_FALSE(future.get());
+    }
 }
 
 TEST_CASE("FileServiceImpl: rejected upload callback may re-enter UploadFile",
@@ -168,7 +182,7 @@ TEST_CASE("FileServiceImpl: rejected upload callback may re-enter UploadFile",
         std::filesystem::path("/tmp") / ("cosmo-file-service-reentrant-" + std::to_string(getpid()));
     std::error_code ec;
     std::filesystem::remove_all(test_root, ec);
-    cosmo::path::OverrideRootPathForTest(test_root.string(), test_root.string());
+    cosmo::test::ScopedPathOverride path_override(test_root.string(), test_root.string());
 
     const auto local_file = std::filesystem::path(cosmo::path::GetRecordJsonPath()) / "event.jpg";
     REQUIRE(cosmo::util::WriteFile(local_file.string(), "image-data"));
@@ -200,7 +214,6 @@ TEST_CASE("FileServiceImpl: rejected upload callback may re-enter UploadFile",
     REQUIRE(inner_called);
     REQUIRE_FALSE(inner_result);
     std::filesystem::remove_all(test_root, ec);
-    cosmo::path::OverrideRootPathForTest("/tmp/cosmo_test", "/tmp/cosmo_test_app");
 }
 
 TEST_CASE("HttpStringHandler: response size limit aborts before overflow", "[FileService][boundary]") {

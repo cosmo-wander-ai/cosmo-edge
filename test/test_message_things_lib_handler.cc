@@ -12,8 +12,8 @@
 #include "api/MessageThingsLibHandler.h"
 #include "mock/MockArticlesReidDaoService.h"
 #include "mock/MockCameraService.h"
-#include "mock/MockServiceRegistry.h"
 #include "mock/MockVideoFrameCodec.h"
+#include "support/ScopedPathOverride.h"
 #include "util/ErrorCode.h"
 #include "util/PathUtil.h"
 
@@ -23,7 +23,13 @@ using trompeloeil::_;
 
 namespace {
 
-MessageThingsLibHandler MakeHandler(MockServiceRegistry& mocks) {
+struct ThingsLibHandlerMocks {
+    MockArticlesReidDaoService articlesReidDaoSvc;
+    MockCameraService cameraSvc;
+    MockVideoFrameCodec videoCodecSvc;
+};
+
+MessageThingsLibHandler MakeHandler(ThingsLibHandlerMocks& mocks) {
     return MessageThingsLibHandler(mocks.articlesReidDaoSvc,
                                    static_cast<cosmo::service::ICameraTaskConfig&>(mocks.cameraSvc),
                                    mocks.videoCodecSvc);
@@ -31,17 +37,17 @@ MessageThingsLibHandler MakeHandler(MockServiceRegistry& mocks) {
 
 /// Redirect cosmo::path roots to a throwaway temp dir for the test's lifetime, so the handler's
 /// EnsureDir calls and file reads stay off the real /data tree. Restores defaults on destruction.
-struct ScopedPathOverride {
+struct ThingsHandlerPathEnvironment {
     std::string tmp_dir;
+    cosmo::test::ScopedPathOverride path_override;
 
-    ScopedPathOverride() {
-        tmp_dir = "/tmp/cosmo_things_handler_" +
-                  std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+    ThingsHandlerPathEnvironment()
+        : tmp_dir("/tmp/cosmo_things_handler_" +
+                  std::to_string(std::chrono::system_clock::now().time_since_epoch().count())),
+          path_override(tmp_dir, tmp_dir) {
         std::filesystem::create_directories(tmp_dir);
-        cosmo::path::OverrideRootPathForTest(tmp_dir, tmp_dir);
     }
-    ~ScopedPathOverride() {
-        cosmo::path::OverrideRootPathForTest("/data/cwaiuserdata", "/appfs/cosmo_wander/cwai_data");
+    ~ThingsHandlerPathEnvironment() {
         std::error_code ec;
         std::filesystem::remove_all(tmp_dir, ec);
     }
@@ -50,7 +56,7 @@ struct ScopedPathOverride {
 }  // namespace
 
 TEST_CASE("ThingsLibHandler: ModifyThingsLib Add", "[things-lib-handler]") {
-    MockServiceRegistry mocks;
+    ThingsLibHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     SECTION("Normal add creates lib") {
@@ -77,7 +83,7 @@ TEST_CASE("ThingsLibHandler: ModifyThingsLib Add", "[things-lib-handler]") {
 }
 
 TEST_CASE("ThingsLibHandler: ModifyThingsLib Update", "[things-lib-handler]") {
-    MockServiceRegistry mocks;
+    ThingsLibHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     REQUIRE_CALL(mocks.articlesReidDaoSvc, Begin());
@@ -94,7 +100,7 @@ TEST_CASE("ThingsLibHandler: ModifyThingsLib Update", "[things-lib-handler]") {
 }
 
 TEST_CASE("ThingsLibHandler: DeleteThingsLib", "[things-lib-handler]") {
-    MockServiceRegistry mocks;
+    ThingsLibHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     REQUIRE_CALL(mocks.articlesReidDaoSvc, RemoveArticlesReidLib("lib-1")).RETURN(true);
@@ -107,7 +113,7 @@ TEST_CASE("ThingsLibHandler: DeleteThingsLib", "[things-lib-handler]") {
 }
 
 TEST_CASE("ThingsLibHandler: QueryThingsLibInfo", "[things-lib-handler]") {
-    MockServiceRegistry mocks;
+    ThingsLibHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     db::ThingsLibQueryResult dbResult{};
@@ -130,9 +136,9 @@ TEST_CASE("ThingsLibHandler: QueryThingsLibInfo", "[things-lib-handler]") {
 }
 
 TEST_CASE("ThingsLibHandler: AddLibThings rejects path-traversal pictureUrl", "[things-lib-handler]") {
-    MockServiceRegistry mocks;
+    ThingsHandlerPathEnvironment path_environment;
+    ThingsLibHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
-    ScopedPathOverride path_override;
 
     // No file may be decoded or inserted when the resolved path escapes the base dir.
     FORBID_CALL(mocks.videoCodecSvc, DecodeJpeg(_));
@@ -155,9 +161,9 @@ TEST_CASE("ThingsLibHandler: AddLibThings rejects path-traversal pictureUrl", "[
 }
 
 TEST_CASE("ThingsLibHandler: AddLibThings reaches decode for legit in-base path", "[things-lib-handler]") {
-    MockServiceRegistry mocks;
+    ThingsHandlerPathEnvironment path_environment;
+    ThingsLibHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
-    ScopedPathOverride path_override;
 
     // Plant a small source file directly under the (overridden) base dir.
     const auto base_dir = cosmo::path::GetBaseDir();

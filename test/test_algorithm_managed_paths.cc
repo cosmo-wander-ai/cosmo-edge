@@ -7,9 +7,10 @@
 
 #include "catch_amalgamated.hpp"
 #include "mock/MockAlgorithmService.h"
-#include "mock/MockServiceRegistry.h"
 #include "nlohmann/json.hpp"
 #include "service/algorithm/impl/AlgorithmServiceImpl.h"
+#include "support/ScopedPathOverride.h"
+#include "support/ScopedServiceOverride.h"
 #include "util/FileUtil.h"
 #include "util/JsonFileUtil.h"
 #include "util/PathUtil.h"
@@ -19,30 +20,31 @@ namespace {
 namespace fs = std::filesystem;
 
 struct ManagedAlgorithmPathFixture {
-    cosmo::test::MockServiceRegistry mocks;
     fs::path root;
     fs::path data_root;
     fs::path app_root;
     fs::path outside_root;
+    cosmo::test::ScopedPathOverride path_override;
+    cosmo::test::MockAlgorithmService algSvc;
+    cosmo::test::ScopedServiceOverride<cosmo::service::IAlgorithmCrud> algorithmCrud{algSvc};
 
-    ManagedAlgorithmPathFixture() {
-        root = fs::temp_directory_path() /
+    ManagedAlgorithmPathFixture()
+        : root(fs::temp_directory_path() /
                ("cosmo_algorithm_managed_paths_" +
-                std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
-        data_root    = root / "data";
-        app_root     = root / "app";
-        outside_root = root / "outside";
+                std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()))),
+          data_root(root / "data"),
+          app_root(root / "app"),
+          outside_root(root / "outside"),
+          path_override(data_root.string(), app_root.string()) {
         fs::create_directories(data_root);
         fs::create_directories(app_root);
         fs::create_directories(outside_root);
-        cosmo::path::OverrideRootPathForTest(data_root.string(), app_root.string());
         fs::create_directories(cosmo::path::GetAlgorithmPath());
         fs::create_directories(fs::path(cosmo::path::GetResourcePath()) / "algorithm_template");
         fs::create_directories(cosmo::path::GetLayoutPath());
     }
 
     ~ManagedAlgorithmPathFixture() {
-        cosmo::path::OverrideRootPathForTest("/data/cwaiuserdata", "/appfs/cosmo_wander/cwai_data");
         std::error_code error;
         fs::remove_all(root, error);
     }
@@ -256,7 +258,7 @@ TEST_CASE("Algorithm layout save writes only to the managed algorithm root",
 
     SECTION("the exact algorithm root is accepted") {
         request.filePath = fix.AlgorithmRoot().string();
-        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+        REQUIRE_CALL(fix.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
             .RETURN(cosmo::util::ErrorEnum::Success);
         REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::Success);
         REQUIRE(CountRegularFiles(fix.AlgorithmRoot()) == 1);
@@ -270,7 +272,7 @@ TEST_CASE("Algorithm layout save writes only to the managed algorithm root",
 
     SECTION("a hot-reload failure is returned to the caller") {
         request.filePath = fix.AlgorithmRoot().string();
-        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+        REQUIRE_CALL(fix.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
             .RETURN(cosmo::util::ErrorEnum::FileAnalysisFailed);
         REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::FileAnalysisFailed);
         REQUIRE(CountRegularFiles(fix.AlgorithmRoot()) == 0);
@@ -286,7 +288,7 @@ TEST_CASE("Algorithm layout save writes only to the managed algorithm root",
                                       {"configVersionList", nlohmann::json::array()}};
         REQUIRE(cosmo::util::JsonFileUtil::WriteJsonFile(layout_path.string(), previous) ==
                 cosmo::util::ErrorEnum::Success);
-        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+        REQUIRE_CALL(fix.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
             .RETURN(cosmo::util::ErrorEnum::FileAnalysisFailed);
 
         REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::FileAnalysisFailed);
@@ -300,7 +302,7 @@ TEST_CASE("Algorithm layout save writes only to the managed algorithm root",
 
     SECTION("invalid nested metadata is rejected before a new layout is written") {
         request.filePath = fix.AlgorithmRoot().string();
-        FORBID_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_));
+        FORBID_CALL(fix.algSvc, ReloadAlgorithmFromFile(trompeloeil::_));
 
         request.algorithmMetadata = "{not-json";
         REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail);
@@ -321,7 +323,7 @@ TEST_CASE("Algorithm layout save writes only to the managed algorithm root",
                                       {"configVersionList", nlohmann::json::array()}};
         REQUIRE(cosmo::util::JsonFileUtil::WriteJsonFile(layout_path.string(), previous) ==
                 cosmo::util::ErrorEnum::Success);
-        FORBID_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_));
+        FORBID_CALL(fix.algSvc, ReloadAlgorithmFromFile(trompeloeil::_));
 
         request.algorithmMetadata = R"({"params":null})";
         REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail);
@@ -342,7 +344,7 @@ TEST_CASE("Algorithm layout save writes only to the managed algorithm root",
                                       {"configVersionList", nlohmann::json::array()}};
         REQUIRE(cosmo::util::JsonFileUtil::WriteJsonFile(layout_path.string(), previous) ==
                 cosmo::util::ErrorEnum::Success);
-        FORBID_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_));
+        FORBID_CALL(fix.algSvc, ReloadAlgorithmFromFile(trompeloeil::_));
 
         request.algorithmMetadata =
             R"({"params":[{"key":"param.threshold","value":"10"},{"key":"param.threshold","value":"20"}]})";
@@ -364,7 +366,7 @@ TEST_CASE("Algorithm layout save writes only to the managed algorithm root",
         request.filePath = fix.AlgorithmRoot().string();
         request.algorithmMetadata =
             R"({"params":[{"key":"param.mode","value":"1"},{"key":"param.threshold","value":"10","dependsOn":{"key":"param.mode","value":"1"}}]})";
-        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+        REQUIRE_CALL(fix.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
             .RETURN(cosmo::util::ErrorEnum::Success);
 
         REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::Success);
@@ -385,7 +387,7 @@ TEST_CASE("Algorithm layout save writes only to the managed algorithm root",
                 cosmo::util::ErrorEnum::Success);
         request.algorithmMetadata =
             R"({"params":[{"key":"param.threshold","value":"20","type":"text","senior":0,"channelEditable":true}]})";
-        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+        REQUIRE_CALL(fix.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
             .RETURN(cosmo::util::ErrorEnum::Success);
 
         REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::Success);
@@ -410,7 +412,7 @@ TEST_CASE("Algorithm layout save writes only to the managed algorithm root",
                 cosmo::util::ErrorEnum::Success);
         request.algorithmMetadata =
             R"({"params":[{"key":"param.threshold","value":"20","type":"text","senior":0,"channelEditable":true}]})";
-        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+        REQUIRE_CALL(fix.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
             .RETURN(cosmo::util::ErrorEnum::Success);
 
         REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::Success);
@@ -433,7 +435,7 @@ TEST_CASE("Algorithm layout save writes only to the managed algorithm root",
                 cosmo::util::ErrorEnum::Success);
         request.algorithmMetadata =
             R"({"params":[{"key":"param.newThreshold","value":"20","type":"text","senior":0,"channelEditable":true,"legacyChannelEditable":true}]})";
-        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+        REQUIRE_CALL(fix.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
             .RETURN(cosmo::util::ErrorEnum::Success);
 
         REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::Success);
@@ -455,7 +457,7 @@ TEST_CASE("Algorithm layout save writes only to the managed algorithm root",
             {"configVersionList", nlohmann::json::array()}};
         REQUIRE(cosmo::util::JsonFileUtil::WriteJsonFile(layout_path.string(), previous) ==
                 cosmo::util::ErrorEnum::Success);
-        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+        REQUIRE_CALL(fix.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
             .RETURN(cosmo::util::ErrorEnum::Success)
             .TIMES(2);
 
@@ -486,7 +488,7 @@ TEST_CASE("Algorithm layout save writes only to the managed algorithm root",
             {"configVersionList", nlohmann::json::array()}};
         REQUIRE(cosmo::util::JsonFileUtil::WriteJsonFile(layout_path.string(), previous) ==
                 cosmo::util::ErrorEnum::Success);
-        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+        REQUIRE_CALL(fix.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
             .RETURN(cosmo::util::ErrorEnum::Success)
             .TIMES(2);
 
@@ -519,7 +521,7 @@ TEST_CASE("Algorithm layout save writes only to the managed algorithm root",
                 cosmo::util::ErrorEnum::Success);
         request.algorithmMetadata =
             R"({"params":[{"key":"param.threshold","value":"20","type":"text","senior":0,"channelEditable":true}]})";
-        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+        REQUIRE_CALL(fix.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
             .RETURN(cosmo::util::ErrorEnum::Success);
 
         REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::Success);
@@ -549,7 +551,7 @@ TEST_CASE("Algorithm layout save writes only to the managed algorithm root",
                 cosmo::util::ErrorEnum::Success);
         request.algorithmMetadata =
             R"({"params":[{"key":"param.threshold","value":"20","type":"text","senior":0,"channelEditable":true}]})";
-        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+        REQUIRE_CALL(fix.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
             .RETURN(cosmo::util::ErrorEnum::FileAnalysisFailed);
 
         REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::FileAnalysisFailed);
@@ -573,7 +575,7 @@ TEST_CASE("Algorithm layout save writes only to the managed algorithm root",
                 cosmo::util::ErrorEnum::Success);
         request.algorithmMetadata =
             R"({"params":[{"key":"param.retro","value":"2","type":"retroDirect","senior":1,"channelEditable":true},{"key":"param.videoRepeatCount","value":"3","type":"text","senior":2,"channelEditable":true}]})";
-        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+        REQUIRE_CALL(fix.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
             .RETURN(cosmo::util::ErrorEnum::Success);
 
         REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::Success);
@@ -607,7 +609,7 @@ TEST_CASE("Algorithm layout save writes only to the managed algorithm root",
                 cosmo::util::ErrorEnum::Success);
         request.algorithmMetadata =
             R"({"params":[{"key":"param.threshold","value":"20","type":"text","senior":0,"channelEditable":true}]})";
-        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+        REQUIRE_CALL(fix.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
             .RETURN(cosmo::util::ErrorEnum::Success);
 
         REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::Success);
@@ -624,7 +626,7 @@ TEST_CASE("Algorithm layout save writes only to the managed algorithm root",
 
     SECTION("the portable default algorithm root is accepted") {
         request.filePath.clear();
-        REQUIRE_CALL(fix.mocks.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
+        REQUIRE_CALL(fix.algSvc, ReloadAlgorithmFromFile(trompeloeil::_))
             .RETURN(cosmo::util::ErrorEnum::Success);
         REQUIRE(service.LayoutSave(request) == cosmo::util::ErrorEnum::Success);
         REQUIRE(CountRegularFiles(fix.AlgorithmRoot()) == 1);

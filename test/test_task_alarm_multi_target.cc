@@ -10,13 +10,30 @@
 
 #include "flow/alarm/TaskAlarm.h"
 #include "mock/MockAlarmRecordService.h"
+#include "mock/MockAppInfoService.h"
 #include "mock/MockCameraService.h"
 #include "mock/MockConfigReadService.h"
-#include "mock/MockServiceRegistry.h"
-#include "service/detail/ServiceRegistry.h"
 #include "service/event/IEventNotifier.h"
+#include "support/MockDefaults.h"
+#include "support/ScopedServiceOverride.h"
 
 namespace {
+
+struct TaskAlarmDependencies {
+    cosmo::test::MockAlarmRecordService alarmRecordSvc;
+    cosmo::test::MockCameraService cameraSvc;
+    cosmo::test::MockConfigReadService configReadSvc;
+    cosmo::test::MockAppInfoService appInfoSvc;
+    cosmo::test::NamedExpectations expectations;
+    cosmo::test::ScopedServiceOverride<cosmo::service::IAlarmRecordService> alarmRecord{alarmRecordSvc};
+    cosmo::test::ScopedServiceOverride<cosmo::service::ICameraChannelQuery> cameraQuery{cameraSvc};
+    cosmo::test::ScopedServiceOverride<cosmo::service::IConfigReadService> configRead{configReadSvc};
+    cosmo::test::ScopedServiceOverride<cosmo::service::IOverviewConfig> overviewConfig{appInfoSvc};
+
+    TaskAlarmDependencies() {
+        cosmo::test::AllowOverviewDisabled(appInfoSvc, expectations);
+    }
+};
 
 class CapturingEventNotifier final : public cosmo::service::IEventNotifier {
 public:
@@ -48,16 +65,6 @@ public:
 
     std::vector<cosmo::CMsgOnEventsReq> websocketEvents;
     std::vector<cosmo::CMsgOnEventsReq> httpEvents;
-};
-
-class ScopedEventNotifierRegistration {
-public:
-    explicit ScopedEventNotifierRegistration(cosmo::service::IEventNotifier& notifier) {
-        cosmo::service::ServiceRegistry::Instance().Set<cosmo::service::IEventNotifier>(&notifier);
-    }
-    ~ScopedEventNotifierRegistration() {
-        cosmo::service::ServiceRegistry::Instance().Set<cosmo::service::IEventNotifier>(nullptr);
-    }
 };
 
 cosmo::DataAlarmUnit MakeTaskAlarmUnit(int trackId, std::string trackIdText, cosmo::util::Box box) {
@@ -104,9 +111,9 @@ cosmo::AlgDataPtr MakeUntrackedTaskAlarmFrame() {
 }  // namespace
 
 TEST_CASE("TaskAlarm emits one event with all same-frame abnormal targets", "[alarm][batch][event]") {
-    cosmo::test::MockServiceRegistry mocks;
+    TaskAlarmDependencies mocks;
     CapturingEventNotifier notifier;
-    ScopedEventNotifierRegistration notifierRegistration(notifier);
+    cosmo::test::ScopedServiceOverride<cosmo::service::IEventNotifier> notifierRegistration(notifier);
 
     REQUIRE_CALL(mocks.cameraSvc, GetChannelName("channel")).RETURN("Camera");
     REQUIRE_CALL(mocks.configReadSvc, IsNetworkModel()).RETURN(true);
@@ -145,9 +152,9 @@ TEST_CASE("TaskAlarm emits one event with all same-frame abnormal targets", "[al
 
 TEST_CASE("TaskAlarm emits one event for any number of untracked same-frame targets",
           "[alarm][batch][event][untracked]") {
-    cosmo::test::MockServiceRegistry mocks;
+    TaskAlarmDependencies mocks;
     CapturingEventNotifier notifier;
-    ScopedEventNotifierRegistration notifierRegistration(notifier);
+    cosmo::test::ScopedServiceOverride<cosmo::service::IEventNotifier> notifierRegistration(notifier);
 
     REQUIRE_CALL(mocks.cameraSvc, GetChannelName("channel")).RETURN("Camera");
     REQUIRE_CALL(mocks.configReadSvc, IsNetworkModel()).RETURN(true);

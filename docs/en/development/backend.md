@@ -182,18 +182,22 @@ bash scripts/build_cpu_test.sh
 
 ### Mocking
 
-The `ServiceRegistry::Set<T>(ptr)` non-owning injection is the primary mechanism for replacing real services
-with mocks in tests. Common interfaces have focused `test/mock/Mock*Service.h` files, while
-`test/mock/MockServiceRegistry.h` and `.cc` register the commonly shared mocks in the test `ServiceRegistry`.
+Common interfaces have focused `test/mock/Mock*Service.h` files. Pass concrete mocks directly to
+constructor-injected subjects. Use `ScopedServiceOverride<T>` only when production code still resolves a
+dependency through `ServiceRegistry`; the guard registers one required narrow interface without taking
+ownership and unregisters it when the scope exits.
 
 ```cpp
-#include "mock/MockServiceRegistry.h"
+#include "mock/MockTaskService.h"
+#include "support/ScopedServiceOverride.h"
 
-cosmo::test::MockServiceRegistry mocks;
+cosmo::test::MockTaskService task;
+cosmo::test::ScopedServiceOverride<cosmo::service::ITaskQuery> task_query(task);
 ```
 
-When adding a service, add a narrow mock for its interface. Add it to the `MockServiceRegistry` aggregate only
-when multiple tests need the same dependency assembly.
+When one mock implements multiple interfaces, declare a separate guard for each interface the test actually
+uses. Tests must not install a global default service set, replace an existing registration, or depend on state
+left by another test. Use `ScopedPathOverride` with a dedicated temporary directory for global path roots.
 
 ### Test File Naming
 
