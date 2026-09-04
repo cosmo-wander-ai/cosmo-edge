@@ -106,8 +106,8 @@
 
         </el-form-item>
 
-        <!-- labelFilterList 标签过滤定制组件 -->
-        <el-form-item v-else-if="(item.type === 'labelFilterList' || item.type === 'labelAdjust') && showFormItem(item)" :prop="item.key" label-width="90px">
+        <!-- 类别筛选、尺寸过滤和置信度调整定制组件 -->
+        <el-form-item v-else-if="(item.type === 'labelFilterList' || item.type === 'sizeFilterList' || item.type === 'labelAdjust') && showFormItem(item)" :prop="item.key" label-width="90px">
           <template #label>
             <span style="display:inline-block;">
               {{ resolveI18nText(item, 'name') }}
@@ -122,7 +122,7 @@
           <div class="collapse-body">
             <div v-for="(subItem, index) in targetLabelArr" :key="index">
               <div class="collapse-top">
-                <el-icon class="collapse-arrow" @click="toggleCollapse(subItem)">
+                <el-icon v-if="item.type !== 'labelFilterList'" class="collapse-arrow" @click="toggleCollapse(subItem)">
                   <ArrowDown v-if="subItem.collapse" />
                   <ArrowRight v-else />
                 </el-icon>
@@ -144,9 +144,9 @@
                 </el-icon>
               </div>
               <div class="collapse-content" v-show="subItem.collapse">
-                <div v-if="item.type === 'labelFilterList'">
-                  <span>{{ t('glossary.minSizeEnabled') }}{{ localeColon }}</span>
-                  <el-switch v-model="subItem.sideMinIsEnable" active-value="1" inactive-value="0"></el-switch>
+                <div v-if="item.type === 'sizeFilterList'" class="size-filter-row">
+                  <span>{{ t('glossary.minSize') }}{{ localeColon }}</span>
+                  <el-input-number v-model="subItem.sideMinValue" :min="0" :max="10000" :step="1" controls-position="right" size="small" />
                 </div>
                 <div v-else-if="item.type === 'labelAdjust'">
                   <span>{{ t('glossary.confidenceAdjust') }}{{ localeColon }}</span>
@@ -389,6 +389,7 @@ const conditionRef = ref(null)
 // Data
 const specialTypes = ref([
   'labelFilterList',
+  'sizeFilterList',
   'labelList',
   'labelAdjust',
   'labelTargetLimit',
@@ -411,6 +412,7 @@ const targetLabelArr = ref([
     labelCode: '',
     labelName: '',
     sideMinIsEnable: '0',
+    sideMinValue: 60,
     collapse: true,
     confidenceValue: '1'
   }
@@ -421,6 +423,7 @@ const savedWebLabelList = ref([])
 // 标记 modelSelect 的算法清单是否已加载完成；未完成前不向上 emit config，避免空 labelList 覆盖已保存配置
 const modelListLoaded = ref(false)
 const labelFilterListType = ref(false)
+const sizeFilterListType = ref(false)
 const labelAdjustType = ref(false)
 const labelListType = ref(false)
 const trackSelectType = ref(false)
@@ -530,6 +533,27 @@ onMounted(() => {
         })
       }
     )
+    if (targetLabelArrTemp.length > 0) {
+      targetLabelArr.value = targetLabelArrTemp
+    }
+  }
+
+  const sizeFilterListItem = _.find(paramConfigs.value, {
+    type: 'sizeFilterList'
+  })
+  if (sizeFilterListItem) {
+    sizeFilterListType.value = true
+    labelFilterList.value = props.atomicList
+    const targetLabelArrTemp = []
+    const savedSizeFilters =
+      props.actionDetail.configObject?.webConfig?.sizeFilterList || []
+    savedSizeFilters.forEach((item) => {
+      targetLabelArrTemp.push({
+        ...item,
+        sideMinValue: Number(item.sideMinValue ?? 60),
+        collapse: true
+      })
+    })
     if (targetLabelArrTemp.length > 0) {
       targetLabelArr.value = targetLabelArrTemp
     }
@@ -1054,7 +1078,12 @@ watch(
 watch(
   atomicListRef,
   (val) => {
-    if (labelFilterListType.value || labelAdjustType.value || labelListType.value) {
+    if (
+      labelFilterListType.value ||
+      sizeFilterListType.value ||
+      labelAdjustType.value ||
+      labelListType.value
+    ) {
       labelFilterList.value = Array.isArray(val) ? val : []
     }
     if (trackSelectType.value) {
@@ -1104,6 +1133,7 @@ const addTargetLabel = (type) => {
       labelName: '',
       position: '',
       sideMinIsEnable: '0',
+      sideMinValue: 60,
       confidenceValue: '1',
       collapse: true
     })
@@ -1131,6 +1161,7 @@ const deleteTargetLabel = (index, type) => {
         labelCode: '',
         labelName: '',
         sideMinIsEnable: '0',
+        sideMinValue: 60,
         confidenceValue: '1',
         collapse: true
       }
@@ -1266,6 +1297,7 @@ const submitForm = ({ persist = true } = {}) => {
     webConfig: {
       labelList: [],
       labelFilterList: [],
+      sizeFilterList: [],
       metaDataParams: [],
       atomic: {}
     },
@@ -1435,24 +1467,39 @@ const submitForm = ({ persist = true } = {}) => {
     }
   } else if (labelFilterListType.value) {
     targetLabelArr.value.forEach((item) => {
+      if (!item.labelCode) return
       configObject.webConfig.labelFilterList.push({
         ...item
       })
-
-      if (item.sideMinIsEnable == '1') {
-        configObject.webConfig.metaDataParams.push({
-          key: `filter.${item.labelCode}.side.min`,
-          value: '60',
-          name: t('glossary.minLabelSize', { name: item.labelName }),
-          defaultValue: '60',
-          description: t('glossary.minLabelSizeDesc', { name: item.labelName }),
-          type: 'text',
-          regexpr:
-            '/^(0|[1-9]|[1-9][0-9]|[1-9][0-9][0-9]|[1-9][0-9][0-9][0-9]|10000)$/',
-          level: '2',
-          failedTip: t('validate.enterInt0to10000')
-        })
-      }
+      const atomicCode = item.atomicCode || '_'
+      configObject.params.push({
+        key: `categoryFilter.${props.actionDetail.flowActionId}.${atomicCode}.${item.labelCode}.enabled`,
+        value: '1'
+      })
+    })
+  } else if (sizeFilterListType.value) {
+    targetLabelArr.value.forEach((item) => {
+      if (!item.labelCode) return
+      const sideMinValue = String(item.sideMinValue ?? 60)
+      const atomicCode = item.atomicCode || '_'
+      const key = `sizeFilter.${props.actionDetail.flowActionId}.${atomicCode}.${item.labelCode}.side.min`
+      configObject.webConfig.sizeFilterList.push({
+        ...item,
+        sideMinValue
+      })
+      configObject.params.push({ key, value: sideMinValue })
+      configObject.webConfig.metaDataParams.push({
+        key,
+        value: sideMinValue,
+        name: t('glossary.minLabelSize', { name: item.labelName }),
+        defaultValue: sideMinValue,
+        description: t('glossary.minLabelSizeDesc', { name: item.labelName }),
+        type: 'text',
+        regexpr:
+          '/^(0|[1-9]|[1-9][0-9]|[1-9][0-9][0-9]|[1-9][0-9][0-9][0-9]|10000)$/',
+        level: '2',
+        failedTip: t('validate.enterInt0to10000')
+      })
     })
   } else if (labelAdjustType.value) {
     targetLabelArr.value.forEach((item) => {
@@ -1649,6 +1696,13 @@ defineExpose({
 .collapse-content {
   margin-left: 20px;
   font-size: 13px;
+}
+
+.size-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
 }
 
 .collapse-select {
