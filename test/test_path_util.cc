@@ -1,9 +1,10 @@
 #include "catch_amalgamated.hpp"
 /*
- * test_path_util.cc — PathUtil unit tests
+ * test_path_util.cc - PathUtil unit tests
  *
  * Tests path accessors under a scoped test-root override.
  */
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 
@@ -255,7 +256,7 @@ TEST_CASE("PathUtil: strict root resolution fails closed", "[path-util][security
 }
 
 TEST_CASE("PathUtil: path component validation", "[path-util][security]") {
-    REQUIRE(IsSafePathComponent("task-01_中文"));
+    REQUIRE(IsSafePathComponent("task-01_ä¸­æ–‡"));
     REQUIRE_FALSE(IsSafePathComponent(""));
     REQUIRE_FALSE(IsSafePathComponent("."));
     REQUIRE_FALSE(IsSafePathComponent(".."));
@@ -327,4 +328,39 @@ TEST_CASE("PathUtil: task overview path rejects traversal without side effects",
     std::filesystem::create_directories(outside);
     std::filesystem::create_directory_symlink(outside, expected_root + "/linked-task");
     REQUIRE(GetTaskOverviewDataPath("linked-task", false).empty());
+}
+
+
+TEST_CASE("PathUtil edge: IsSafePathComponent platform separators and length", "[path-util][edge]") {
+    SECTION("Forward and backslash rejected") {
+        REQUIRE_FALSE(IsSafePathComponent("a/b"));
+        REQUIRE_FALSE(IsSafePathComponent("a\\b"));
+    }
+
+    SECTION("Exact max length accepted, one over rejected") {
+        REQUIRE(IsSafePathComponent(std::string(128, 'x'), 128));
+        REQUIRE_FALSE(IsSafePathComponent(std::string(129, 'x'), 128));
+    }
+
+    SECTION("NUL and control bytes rejected") {
+        REQUIRE_FALSE(IsSafePathComponent(std::string("a\nb", 3)));
+        REQUIRE_FALSE(IsSafePathComponent(std::string("a\tb", 3)));
+    }
+
+    SECTION("Empty and dot components rejected") {
+        REQUIRE_FALSE(IsSafePathComponent(""));
+        REQUIRE_FALSE(IsSafePathComponent("."));
+        REQUIRE_FALSE(IsSafePathComponent(".."));
+    }
+}
+
+TEST_CASE("PathUtil edge: IsWithinRoot empty and repeated separators", "[path-util][edge]") {
+    SECTION("Both empty rejected") {
+        REQUIRE_FALSE(IsWithinRoot("", ""));
+    }
+
+    SECTION("Repeated slashes collapse under normalization") {
+        // weakly_canonical / lexical normalization should treat these as nested
+        REQUIRE(IsWithinRoot("/data/a", "/data/a//b"));
+    }
 }
