@@ -1,6 +1,7 @@
 add_library(cosmo_platform OBJECT
     NetCardOp.cc          NetCardOp.h
     NetCardOpConfig.cc
+    NetworkManagerConfig.h
     NetCardOpInternal.h
     SystemReboot.cc       SystemReboot.h
     SystemTime.cc         SystemTime.h

@@ -3,6 +3,7 @@
 
 #include <arpa/inet.h>
 #include <ifaddrs.h>
+#include <net/if.h>
 
 #include <algorithm>
 #include <cstdio>
@@ -14,6 +15,7 @@
 
 #include "platform/NetCardOp.h"
 #include "platform/NetCardOpInternal.h"
+#include "platform/NetworkManagerConfig.h"
 #include "platform/PlatformConstants.h"
 #include "util/Exec.h"
 #include "util/FileUtil.h"
@@ -27,8 +29,61 @@ bool ModifyNetCfg(const NetCardInfo& main, const NetCardInfo& sub);
 
 namespace internal = cosmo::platform::internal;
 
+#ifdef COSMO_NN_USE_RKNN_BACKEND
+bool internal::ApplyNetworkManagerCard(const NetCardInfo& info) {
+    if (!internal::IsValidNetworkName(info.eth_name) || (info.dhcp != 0 && info.dhcp != 1) ||
+        (!info.gateway.empty() && !internal::IsValidIpAddress(info.gateway))) {
+        LOG_WARN("Invalid NetworkManager configuration for {}", info.eth_name);
+        return false;
+    }
+    std::string address;
+    if (!info.dhcp) {
+        if (!internal::IsValidIpAddress(info.ip_addr) || !internal::IsValidSubnetMask(info.net_mask)) {
+            LOG_WARN("Invalid NetworkManager address or mask for {}", info.eth_name);
+            return false;
+        }
+        in_addr mask{};
+        inet_pton(AF_INET, info.net_mask.c_str(), &mask);
+        auto bits       = ntohl(mask.s_addr);
+        unsigned prefix = 0;
+        while (bits) {
+            ++prefix;
+            bits <<= 1;
+        }
+        address = info.ip_addr + "/" + std::to_string(prefix);
+    }
+    std::string dns;
+    for (const auto& server : info.dnss) {
+        if (!internal::IsValidIpAddress(server))
+            return false;
+        if (!dns.empty())
+            dns += ",";
+        dns += server;
+    }
+    internal::NetworkManagerConfig manager(
+        [](const auto& argv, auto& out) { return cosmo::util::Exec(argv, out); });
+    if (!manager.Apply(info.eth_name, info.dhcp != 0, address, info.gateway, dns, info.is_main)) {
+        LOG_WARN("NetworkManager apply failed for {}: {}", info.eth_name, manager.Error());
+        return false;
+    }
+    LOG_INFO("NetworkManager applied configuration for {}", info.eth_name);
+    return true;
+}
+#endif
+
 int DoNetCards(const NetCardInfo& main, const NetCardInfo& sub) {
-#ifndef COSMO_NN_USE_SOPHON_BACKEND
+#ifdef COSMO_NN_USE_RKNN_BACKEND
+    // Single-port boards do not have eth1.
+    if (if_nametoindex(main.eth_name.c_str()) == 0) {
+        LOG_WARN("Main network interface {} is missing", main.eth_name);
+        return -1;
+    }
+    if (!internal::ApplyNetworkManagerCard(main))
+        return -1;
+    if (if_nametoindex(sub.eth_name.c_str()) != 0 && !internal::ApplyNetworkManagerCard(sub))
+        return -1;
+    return 0;
+#elif !defined(COSMO_NN_USE_SOPHON_BACKEND)
     LOG_WARN("{}", "Network card configuration is not supported on x86 platform.");
     return -1;
 #else
@@ -95,7 +150,23 @@ int DoNetCards(const NetCardInfo& main, const NetCardInfo& sub) {
 }
 
 void DnsEffect(const std::vector<std::string>& dns_servers) {
-#ifndef COSMO_NN_USE_SOPHON_BACKEND
+#ifdef COSMO_NN_USE_RKNN_BACKEND
+    std::string dns;
+    for (const auto& server : dns_servers) {
+        if (!internal::IsValidIpAddress(server)) {
+            LOG_WARN("{}", "Invalid NetworkManager DNS address");
+            return;
+        }
+        if (!dns.empty())
+            dns += ",";
+        dns += server;
+    }
+    internal::NetworkManagerConfig manager(
+        [](const auto& argv, auto& out) { return cosmo::util::Exec(argv, out); });
+    if (!manager.SetDns(kNetworkMainEthName, dns)) {
+        LOG_WARN("NetworkManager DNS apply failed: {}", manager.Error());
+    }
+#elif !defined(COSMO_NN_USE_SOPHON_BACKEND)
     LOG_WARN("{}", "DNS configuration modification is not supported on x86 platform.");
     return;
 #else
@@ -248,6 +319,11 @@ NetCardOpResult NetCardEffect(const NetCardInfo& info) {
 }
 
 bool GetNetProtoShellFile(const std::string& eth_name) {
+#ifdef COSMO_NN_USE_RKNN_BACKEND
+    internal::NetworkManagerConfig manager(
+        [](const auto& argv, auto& out) { return cosmo::util::Exec(argv, out); });
+    return manager.IsDhcp(eth_name);
+#else
     std::ifstream file(kDhclientLeases);
     if (file.is_open()) {
         std::string line;
@@ -258,6 +334,7 @@ bool GetNetProtoShellFile(const std::string& eth_name) {
         }
     }
     return false;
+#endif
 }
 
 std::vector<NetCardInfo> GetIpInfos() {

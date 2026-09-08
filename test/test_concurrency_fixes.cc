@@ -55,10 +55,11 @@ TEST_CASE("CameraServiceImpl: concurrent GetTasks reads are safe", "[CameraServi
     cosmo::service::CameraServiceImpl svc;
 
     std::atomic<bool> go{false};
-    std::atomic<bool> stop{false};
     std::atomic<int> readCount{0};
     std::atomic<int> readyCount{0};
-    constexpr int kReaderCount = 4;
+    std::atomic<int> unexpectedTaskCount{0};
+    constexpr int kReaderCount    = 4;
+    constexpr int kReadsPerReader = 100;
 
     // Start multiple reader threads concurrently calling GetTasks
     std::vector<std::thread> readers;
@@ -68,10 +69,13 @@ TEST_CASE("CameraServiceImpl: concurrent GetTasks reads are safe", "[CameraServi
             while (!go.load(std::memory_order_acquire)) {
                 std::this_thread::yield();
             }
-            while (!stop.load(std::memory_order_acquire)) {
+            // Every reader completes its workload even if the writer finishes
+            // before this thread is scheduled (common on constrained CI runners).
+            for (int read = 0; read < kReadsPerReader; ++read) {
                 auto tasks = svc.GetTasks("non_existent_camera");
-                // tasks should be empty but not crash
-                (void)tasks;
+                if (!tasks.empty()) {
+                    unexpectedTaskCount.fetch_add(1, std::memory_order_relaxed);
+                }
                 readCount.fetch_add(1, std::memory_order_relaxed);
             }
         });
@@ -88,13 +92,13 @@ TEST_CASE("CameraServiceImpl: concurrent GetTasks reads are safe", "[CameraServi
         svc.NotifyAlgorithmsDeleted({"alg_" + std::to_string(i)});
     }
 
-    stop.store(true, std::memory_order_release);
     for (auto& t : readers) {
         t.join();
     }
 
-    // Verify: reader threads actually ran
-    REQUIRE(readCount.load() > 0);
+    // Check results on the test thread after all reader work has completed.
+    REQUIRE(readCount.load() == kReaderCount * kReadsPerReader);
+    REQUIRE(unexpectedTaskCount.load() == 0);
 }
 
 // ============================================================
