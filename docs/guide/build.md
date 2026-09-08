@@ -136,7 +136,7 @@ cat "build_output/public-runtime/${chip}/TARGET_CHIP"
 (cd "build_output/public-runtime/${chip}" && sha256sum -c SHA256SUMS)
 ```
 
-SSH 安装、Web 升级、恢复边界和重启后的版本验收统一见[部署指南](./deployment.md#ssh安装路径)。
+SSH 安装、Web 升级、恢复边界和重启后的版本验收统一见[部署指南](./deployment.md#ssh-安装路径)。
 构建指南不重复维护设备安装命令，避免构建入口和部署流程独立演进后出现两套口径。
 
 维护人员在包含完整 Guard SDK 和授权工具的受控环境中使用一条命令构建：
