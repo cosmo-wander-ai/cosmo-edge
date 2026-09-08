@@ -20,10 +20,15 @@ This document describes the model and resource organization that can be confirme
 | `data/resource/aiboxresource_bm1688` | Resources for the Sophon BM1688 release package. |
 | `data/resource/aiboxresource_cv186x` | Resources for the Sophon CV186X release package. |
 | `data/resource/aiboxresource_x86` | Resources for the x86 Docker / CPU backend. |
+| `data/resource/aiboxresource_rknn` | Rockchip target resources and model overlays, combined with base templates |
 
 The resource directory is selected through `RESOURCE_DIR` at build time.
 
+RKNN builds reuse base templates from `aiboxresource_x86` and apply target-specific resources. RK3576 uses `aiboxresource_rknn`; RV1126B generates `output/platform-artifacts/rv1126b/resource-overlay` from its platform profile and artifact manifest. Base templates, target overlays and the model directory determine the packaged resources. Refer to the package manifest for its actual contents.
+
 ## Model Templates
+
+A template defines configuration and parsing options. It does not mean the weights are included or the model is supported on every platform; availability depends on the backend, target chip, runtime and installed resources.
 
 Model templates are located at:
 

@@ -18,12 +18,14 @@
     "linkage-flow:check": "node scripts/linkage_flow_layout_check.mjs",
     "linkage-form:check": "node scripts/linkage_form_compatibility_check.mjs",
     "task-param-ownership:check": "node scripts/task_param_ownership_check.mjs",
-    "prebuild": "npm run upgrade-package:check && npm run route-query:check && npm run device-info:check && npm run task-card-layout:check && npm run linkage-flow:check && npm run linkage-form:check && npm run task-param-ownership:check && npm run i18n:check",
+    "prebuild": "npm run api-contract:check && npm run request-behavior:check && npm run upgrade-package:check && npm run route-query:check && npm run device-info:check && npm run task-card-layout:check && npm run linkage-flow:check && npm run linkage-form:check && npm run task-param-ownership:check && npm run i18n:check",
     "build": "vite build",
     "preview": "vite preview",
     "resource-i18n:check": "node scripts/resource_i18n_sync.mjs --check",
     "resource-i18n:sync": "node scripts/resource_i18n_sync.mjs --sync",
-    "area-rule:check": "node scripts/area_rule_compatibility_check.mjs"
+    "area-rule:check": "node scripts/area_rule_compatibility_check.mjs",
+    "api-contract:check": "node --experimental-vm-modules scripts/api_contract_check.mjs",
+    "request-behavior:check": "node --experimental-vm-modules scripts/request_behavior_check.mjs"
   },
   "dependencies": {
     "@vue-flow/background": "^1.3.2",

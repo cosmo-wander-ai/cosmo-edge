@@ -28,8 +28,6 @@ src/web/
     ├── assets/               # 图片、图标、音频资源
     ├── components/           # 共享组件
     ├── i18n/                 # vue-i18n 配置、locale 文件、short-scopes
-    ├── micro/
-    │   └── state.js          # 轻量全局状态
     ├── router/
     │   └── index.js          # Hash 模式路由
     ├── styles/
@@ -162,10 +160,9 @@ API 模块位于 `src/web/src/api/`。每个模块默认导出一个由请求函
 
 | 模块       | 文件             | 领域                              |
 | ---------- | ---------------- | --------------------------------- |
-| 认证       | `login.js`       | 登录/登出、验证码、密码重置、用户信息 |
-| 设备管理   | `box.js`         | 摄像头、事件、系统设置、音频、联动 |
+| 设备管理   | `box.js`         | 登录（`dologin`）、摄像头、事件、系统设置、音频、联动 |
 | AI 管理    | `gam.js`         | 算法、任务、模型、编排、图片分析 |
-| 算法管理   | `countManage.js` | 算法增删改查、许可证、硬件信息     |
+| 算法管理   | `countManage.js` | 算法、编排、模型配置、授权查看     |
 | 底库       | `basePic.js`     | 人脸库、人体库、物品库、文件导入   |
 | 实时流     | `screen.js`      | 摄像头列表、拉流生命周期、WebSocket |
 | 首次引导   | `onboarding.js`  | 引导状态查询、完成和重置             |
@@ -190,7 +187,6 @@ export default {
 import myModule from './myModule'
 
 export default {
-  ...login,
   ...box,
   ...screen,
   ...basePic,
@@ -204,7 +200,7 @@ export default {
 展开后组件通过 `proxy.$API.queryMyData(data)` 调用；当前 API 层不是
 `proxy.$API.myModule.queryMyData(data)` 这种命名空间结构。
 
-所有 API 调用共用 `utils/request.js` 中的 Axios 实例，会自动附加 `mtk`、`token`、`fileMode`、`lang` 等请求头，并处理认证失败的跳转。
+请求函数使用 `utils/request.js` 中的 Axios 实例，自动附加 `mtk`、`token`、`fileMode`、`lang` 和 `Accept-Language` 请求头。默认超时为 20 秒，配置的长请求端点使用 10 分钟超时。业务错误和 HTTP 错误会被 reject，并按既有错误规则显示提示。`silentError` 抑制普通错误提示；只有 `suppressAuthRedirect: true` 才抑制认证过期提示与跳转。返回 URL 的导出辅助函数继续供直接下载请求使用。
 
 ## 国际化（i18n）
 
@@ -269,15 +265,15 @@ export default {
 
 未使用 Pinia 或 Vuex。状态通过以下方式管理：
 
-- **localStorage**：认证 token（`mtk`）、账户信息、语言偏好、运行模式。
-- **`micro/state.js`**：轻量全局响应式对象，管理 loading 和登录状态，供 Axios 拦截器控制加载遮罩。
-- **组件内状态**：大部分 UI 状态在各视图组件内通过 `reactive()` / `ref()` 管理。
+- **localStorage**：认证信息（`mtk` 和 `token`）、账户信息、语言偏好、运行模式。
+- **组件内状态**：各视图通过 `data()`、`reactive()` 或 `ref()` 管理 UI 状态，包括操作的加载状态。
+- **认证跳转**：路由进入受保护页面前检查已存储的 token。请求工具在认证过期时清除 `mtk` 和 `token`，并跳转到 `#/boxLogin`；请求显式抑制认证跳转时除外。
 
 ## 关键工具
 
 | 文件                            | 用途                                                          |
 | ------------------------------- | ------------------------------------------------------------- |
-| `utils/request.js`              | Axios 实例，自动附加 `mtk`/`token`/`lang` 等头，处理认证失效跳转，上传/升级等长时间请求不显示 loading |
+| `utils/request.js`              | Axios 封装，附加请求头，处理超时、错误提示和认证失效跳转 |
 | `utils/message.js`              | 单例去重的 `ElMessage` 封装                                    |
 | `utils/imagePreview.js`         | 全屏图片预览                                                  |
 | `utils/resourceLocaleLoader.js` | 应用启动时从服务端拉取动态 i18n JSON 并合并到 vue-i18n        |

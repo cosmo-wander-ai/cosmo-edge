@@ -20,8 +20,11 @@ next:
 | `data/resource/aiboxresource_bm1688` | Sophon BM1688 发布包资源 |
 | `data/resource/aiboxresource_cv186x` | Sophon CV186X 发布包资源 |
 | `data/resource/aiboxresource_x86` | x86 Docker/CPU 后端资源 |
+| `data/resource/aiboxresource_rknn` | Rockchip 目标资源与模型覆盖，结合基础模板使用 |
 
-构建时通过 `RESOURCE_DIR` 选择资源目录。
+构建时通过 `RESOURCE_DIR` 选择基础资源目录。
+
+RKNN 构建复用 `aiboxresource_x86` 的基础模板，再叠加目标资源。RK3576 使用 `aiboxresource_rknn`；RV1126B 依据平台 profile 与 artifact manifest 在 `output/platform-artifacts/rv1126b/resource-overlay` 生成覆盖资源。基础模板、目标 overlay 与模型目录共同决定随包内容，实际资源以对应安装包清单为准。
 
 ## 模型模板
 
@@ -31,7 +34,7 @@ next:
 data/resource/*/model_template
 ```
 
-当前模板文件（两个资源目录内容一致，共 14 个）：
+当前仓库可见以下模型模板。模板定义配置和解析入口，不表示对应权重已随包提供，也不表示所有平台都支持该模型。实际可用性取决于后端、芯片、运行时和已安装模型：
 
 - 检测：`yolov5_det`、`yolov8_det`、`yolov9_det`、`yolov11_det`、`yolov12_det`、`yolo26_det`
 - 分类：`classify`（基于 YOLOv8 的分类模板）

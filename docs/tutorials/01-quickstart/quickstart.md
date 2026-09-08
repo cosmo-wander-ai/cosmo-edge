@@ -11,6 +11,17 @@ next:
 
 # 快速开始：部署、登录与首次检测
 
+## 你准备如何开始？ {#choose-path}
+
+<div class="start-path-cards">
+<a href="#computer"><strong>在电脑上体验</strong><span>准备 Docker 与项目代码，用测试视频了解系统流程。</span></a>
+<a href="#device"><strong>使用预装设备</strong><span>连接设备，接入视频并启动随附任务。</span></a>
+<a href="#self-deploy"><strong>在自有边缘硬件上部署</strong><span>先确认平台与基础系统，再选择对应安装方式。</span></a>
+</div>
+
+选择下面对应的步骤展开；电脑体验无需配置设备静态 IP。
+
+
 | 项目 | 说明 |
 | --- | --- |
 | 适合谁 | 第一次部署或使用 CosmoEdge 的用户、实施人员和开发者 |
@@ -31,6 +42,9 @@ next:
 默认密码修改、边缘设备网络设置和时间校对是正式使用前的必要操作；人流量统计示例属于完整补充练习，不阻塞“未戴安全帽”首次检测的验收。
 
 ## 1. 部署或连接系统
+
+<details id="computer" class="start-path">
+<summary>在电脑上体验：Linux、Windows、Mac Preview</summary>
 
 ### 1.1 路径 A：x86 主机使用 Docker
 
@@ -85,6 +99,14 @@ docker compose -f docker-compose.x86.windows.yml ps
 
 ### 1.2 路径 B：Apple Silicon macOS Preview
 
+如果尚未获取代码，先执行以下命令；已进入仓库目录则跳过：
+
+```bash
+git clone https://gitee.com/cosmo-wander-ai/cosmo-edge.git
+# 也可使用 https://github.com/cosmo-wander-ai/cosmo-edge.git
+cd cosmo-edge
+```
+
 Mac 使用隔离的 `linux/amd64` Docker Preview。先阅读
 [Mac 准入、许可和能力边界](/guide/macos-docker-preview)，再运行：
 
@@ -97,36 +119,14 @@ Mac 使用隔离的 `linux/amd64` Docker Preview。先阅读
 成功后只从本机打开 `http://127.0.0.1:8080`。这条路径面向单路离线视频体验，
 不是原生 macOS 二进制、Sophon/Rockchip NPU 部署或生产性能证据。
 
+</details>
+
+<details id="device" class="start-path">
+<summary>使用预装设备：连接网络与电源</summary>
+
 ### 1.3 路径 C：预装 CosmoEdge 的边缘设备
 
-CosmoEdge 当前支持 Sophon BM1688 和 CV186X 两种芯片。下图是旧版教程使用的 BM1688 双网口边缘设备示例；
-不同批次的外壳、接口标识和硬件参数可能不同，应以设备标签与交付清单为准。
-
-如果需要从源码构建升级包，在仓库根目录通过 `--chip <型号>` 选项指定目标芯片：
-
-```bash
-# BM1688
-./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package --chip bm1688
-
-# CV186X
-./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package --chip cv186x
-
-find build_output/public-runtime -mindepth 2 -maxdepth 2 -type f -print
-```
-
-省略芯片型号参数时默认使用 `bm1688`。构建脚本会根据型号选择对应的模型资源目录，
-无需手动填写模型路径。
-
-构建包中的模型资源必须与目标芯片匹配；BM1688 与 CV186X 的产物不可互换。
-
-把构建日志列出的唯一包名用于安装。需要通过 SSH 安装到已准备好的 Sophon Linux
-设备时，请按[部署指南：SSH 安装路径](/guide/deployment#ssh安装路径)操作。文件传输、
-解压、安装、重启、基础系统前提和恢复边界统一在该章节维护。
-
-已有 CosmoEdge 正常运行时，也可以登录管理页面，进入
-**系统管理 → 系统维护 → 软件升级**，选择同一个安装包并确认。升级期间保持供电；设备重启并
-重新登录后，在设备信息中核对 **软件版本** 与安装包版本一致。SSH安装器面向已经准备好基础
-系统的Sophon设备，并不是任意空白硬件的操作系统镜像安装器。
+本节以 BM1688 预装设备演示首次连接。其他机型请按对应交付说明操作；完整平台支持与安装方式见[平台支持表](https://www.cosmowander.ai/zh/releases/v1.1/#平台与安装边界)。下图为旧版教程使用的 BM1688 双网口设备，外壳、接口标识和参数以实际设备标签与交付清单为准。
 
 ![BM1688 边缘设备接口面板示例](images/img_01.webp)
 
@@ -190,6 +190,18 @@ Windows 操作路径：
 macOS 或 Linux 的目标相同：只修改与设备相连的网卡，为它配置一个未占用的
 `192.168.100.x/24` 地址。保留原网络参数记录，完成设备网络迁移后再恢复。
 
+
+</details>
+
+<details id="self-deploy" class="start-path">
+<summary>在自有边缘硬件上部署</summary>
+
+先查看[平台支持与安装方式](https://www.cosmowander.ai/zh/releases/v1.1/#平台与安装边界)，确认目标芯片和基础系统，再按[部署指南](/guide/deployment)安装。安装包需要与芯片匹配；已准备好的 Linux 设备可以按对应安装步骤操作。软件安装包不是任意硬件的操作系统镜像。
+
+安装后确认控制台可访问，并检查本例需要的模型与场景任务，再继续下面的登录和首次检测。
+
+</details>
+
 ## 2. 登录并完成首次系统设置
 
 ### 2.1 打开登录页
@@ -242,6 +254,15 @@ macOS 或 Linux 的目标相同：只修改与设备相连的网卡，为它配�
 无法访问管理页时依次检查：电脑和设备是否同网段、网线和指示灯、电脑代理设置、地址是否冲突、浏览器访问的是 `http` 还是 `https`，以及本机是否同时存在优先级更高的 VPN 路由。
 
 ## 3. 添加测试视频
+
+本例使用“未戴安全帽 / No Safety Helmet”场景任务，以及人员检测和安全帽分类两个模型。默认 x86 与 Mac Preview 构建使用仓库内的 ONNX 示例资源；Mac Preview 面向单路离线视频，不提供本地 VLM。预装设备请先按交付清单确认对应芯片的模型和场景任务。
+
+如果任务列表中没有该场景，先查看[模型资源说明](/reference/models)，核对已安装资源与平台；使用自己的模型时按[模型接入教程](/tutorials/05-model-porting/model-porting)准备。模板文件本身不包含模型权重。
+
+<a class="sample-download" href="https://www.cosmowander.ai/downloads/safety-helmet.mp4" download="Safety Helmet.mp4">下载安全帽测试视频（MP4，19.1 MiB）</a>
+
+[GitHub 固定版本备用下载](https://raw.githubusercontent.com/cosmo-wander-ai/cosmo-edge/v1.1.0/data/test-video/Safety%20Helmet.mp4)。已克隆仓库的用户也可使用下面的本地文件。
+
 
 仓库内提供可复现的安全帽测试素材：
 
@@ -338,6 +359,37 @@ data/test-video/Safety Helmet.mp4
 ![事件中心中的检测事件或计数统计入口](images/img_32.webp)
 
 ![按通道和算法服务查询事件或统计结果](images/img_33.webp)
+
+<details class="start-path">
+<summary>补充：从源码构建 Sophon 升级包</summary>
+
+如果需要从源码构建升级包，在仓库根目录通过 `--chip <型号>` 选项指定目标芯片：
+
+```bash
+# BM1688
+./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package --chip bm1688
+
+# CV186X
+./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package --chip cv186x
+
+find build_output/public-runtime -mindepth 2 -maxdepth 2 -type f -print
+```
+
+省略芯片型号参数时默认使用 `bm1688`。构建脚本会根据型号选择对应的模型资源目录，
+无需手动填写模型路径。
+
+构建包中的模型资源必须与目标芯片匹配；BM1688 与 CV186X 的产物不可互换。
+
+把构建日志列出的唯一包名用于安装。需要通过 SSH 安装到已准备好的 Sophon Linux
+设备时，请按[部署指南：SSH 安装路径](/guide/deployment#ssh-安装路径)操作。文件传输、
+解压、安装、重启、基础系统前提和恢复边界统一在该章节维护。
+
+已有 CosmoEdge 正常运行时，也可以登录管理页面，进入
+**系统管理 → 系统维护 → 软件升级**，选择同一个安装包并确认。升级期间保持供电；设备重启并
+重新登录后，在设备信息中核对 **软件版本** 与安装包版本一致。SSH安装器面向已经准备好基础
+系统的Sophon设备，并不是任意空白硬件的操作系统镜像安装器。
+
+</details>
 
 ## 6. 完整补充示例：人流量统计
 

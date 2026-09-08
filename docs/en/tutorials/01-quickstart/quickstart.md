@@ -11,6 +11,17 @@ next:
 
 # Quick Start: Deployment, Sign-In, and First Detection
 
+## How would you like to start? {#choose-path}
+
+<div class="start-path-cards">
+<a href="#computer"><strong>Try it on a computer</strong><span>Prepare Docker and the repository, then explore with a sample video.</span></a>
+<a href="#device"><strong>Use a provisioned device</strong><span>Connect your device, add video and start an included task.</span></a>
+<a href="#self-deploy"><strong>Deploy on your edge hardware</strong><span>Check the platform and base system, then choose an installation path.</span></a>
+</div>
+
+Expand the steps for your path below. Computer previews do not require device static-IP setup.
+
+
 | Item | Details |
 | --- | --- |
 | Who this is for | First-time CosmoEdge users, deployment engineers, and developers |
@@ -31,6 +42,9 @@ The goal is not merely to open the UI. It is to complete a **verifiable first de
 Changing the default password, setting the device network, and correcting device time are required before production use. The people-counting walkthrough later on this page is a complete additional exercise and does not block the first No Safety Helmet acceptance test.
 
 ## 1. Deploy or Connect to CosmoEdge
+
+<details id="computer" class="start-path">
+<summary>Computer preview: Linux, Windows and Mac Preview</summary>
 
 ### 1.1 Path A: Docker on an x86 Host
 
@@ -85,6 +99,13 @@ Success conditions:
 
 ### 1.2 Path B: Apple Silicon macOS Preview
 
+If you have not obtained the repository yet, run the following first. Skip this step if you are already in its directory:
+
+```bash
+git clone https://github.com/cosmo-wander-ai/cosmo-edge.git
+cd cosmo-edge
+```
+
 The Mac path uses an isolated `linux/amd64` Docker Preview. Read its
 [admission, licensing, and capability boundaries](/en/guide/macos-docker-preview),
 then run:
@@ -99,41 +120,14 @@ When healthy, open `http://127.0.0.1:8080` on the same Mac. This path is for
 single-video local evaluation; it is not a native macOS binary, a Sophon or
 Rockchip NPU deployment, or production performance evidence.
 
+</details>
+
+<details id="device" class="start-path">
+<summary>Provisioned device: connect network and power</summary>
+
 ### 1.3 Path C: A Provisioned Edge Device
 
-CosmoEdge currently supports two Sophon chips: BM1688 and CV186X. The following images show the BM1688 dual-Ethernet device used in the earlier walkthrough. Enclosures, labels, and specifications can differ by shipment; use the label and delivery manifest for the actual unit.
-
-To build an upgrade package from source, select the target chip with the
-`--chip <model>` option at the repository root:
-
-```bash
-# BM1688
-./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package --chip bm1688
-
-# CV186X
-./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package --chip cv186x
-
-find build_output/public-runtime -mindepth 2 -maxdepth 2 -type f -print
-```
-
-Omitting the chip argument defaults to `bm1688`. The build script selects the
-matching model resource directory; you do not need to provide a model path.
-
-The model resources in the package must match the target chip. BM1688 and
-CV186X artifacts are not interchangeable.
-
-Use the one package name reported by the build for installation. To install it
-over SSH on a prepared Sophon Linux device, follow the
-[Deployment Guide: SSH Installation Path](/en/guide/deployment#ssh-installation-path).
-That section is the single source of truth for transfer, extraction, installation,
-reboot, base-system prerequisites, and recovery boundaries.
-
-When CosmoEdge is already running, you can instead open **System Management →
-System Maintenance → Software Upgrade** and upload the same package. Keep power
-connected during installation. After reboot and sign-in, verify that **Software
-Version** matches the package version. The SSH installer targets a Sophon device
-with its base Linux system already prepared; it is not an OS-image installer for
-arbitrary blank hardware.
+This section demonstrates first connection using a provisioned BM1688 device. Follow the delivery instructions for other models; see the [platform support table](https://www.cosmowander.ai/releases/v1.1/#platform-and-installation-boundary). The images show an earlier BM1688 dual-Ethernet device. Use the actual label and delivery list for its enclosure, connectors and specifications.
 
 ![Example BM1688 edge-device connector panel](images/img_01.webp)
 
@@ -151,9 +145,9 @@ The earlier example device had the following advertised configuration. It is ret
 | Network | Two 10/100/1000 Mbps adaptive Ethernet ports |
 | Other I/O | Two USB 3.0, one USB Type-C, one HDMI, one TF, and one SIM slot |
 
-The open-source software does not require a hardware purchase. For a provisioned device, see the
-[CosmoEdge-ready certified device](https://item.taobao.com/item.htm?id=1066672051450), or contact
-[hello@cosmowander.ai](mailto:hello@cosmowander.ai) about project deployment.
+The open-source software does not require a hardware purchase. For international purchases of ready devices, contact us by email; international online checkout is not currently available.
+Explore [hardware configurations](https://www.cosmowander.ai/devices/) or use your own compatible hardware.
+Contact [hello@cosmowander.ai](mailto:hello@cosmowander.ai) for purchase enquiries or to discuss project deployment.
 
 #### Connect Network and Power
 
@@ -195,6 +189,18 @@ On Windows:
    ![Assigning a 192.168.100.x static address to the setup computer](images/img_09.webp)
 
 The goal is the same on macOS or Linux: assign an unused `192.168.100.x/24` address only to the adapter connected to the device. Record the original settings so that they can be restored after the device is moved to the production LAN.
+
+
+</details>
+
+<details id="self-deploy" class="start-path">
+<summary>Deploy on your edge hardware</summary>
+
+Check [platforms and installation paths](https://www.cosmowander.ai/releases/v1.1/#platform-and-installation-boundary), confirm the target chip and base system, then follow the [deployment guide](/en/guide/deployment). The package must match your chip and prepared Linux environment; it is not an operating-system image for arbitrary hardware.
+
+After installation, confirm that the console is reachable and the models and scenario for this example are available, then continue with sign-in and first detection below.
+
+</details>
 
 ## 2. Sign In and Complete Initial System Settings
 
@@ -246,6 +252,15 @@ After the network change takes effect, `192.168.100.1` will normally be unreacha
 If the page is unreachable, check in this order: computer and device subnet, cable and link indicators, proxy settings, address conflicts, `http` versus `https`, and whether a VPN route is taking priority over the directly connected adapter.
 
 ## 3. Add the Test Video
+
+This example uses the “No Safety Helmet” scenario, a person detector and a helmet classifier. Default x86 and Mac Preview builds use the repository’s ONNX example resources. Mac Preview covers a single offline stream and does not provide local VLM inference. For a provisioned device, confirm the chip-specific models and scenario in its delivery list.
+
+If the scenario is missing, check the [model resources](/en/reference/models) and confirm the installed assets match your platform. For your own models, follow the [integration guide](/en/tutorials/05-model-porting/model-porting). Template files do not contain model weights.
+
+<a class="sample-download" href="https://www.cosmowander.ai/downloads/safety-helmet.mp4" download="Safety Helmet.mp4">Download the safety-helmet sample video (MP4, 19.1 MiB)</a>
+
+[Alternative: fixed-version GitHub download](https://raw.githubusercontent.com/cosmo-wander-ai/cosmo-edge/v1.1.0/data/test-video/Safety%20Helmet.mp4). If you cloned the repository, you can use the local file below.
+
 
 The repository contains a reproducible safety-helmet sample:
 
@@ -340,6 +355,43 @@ Open **Event Center** and query by channel, service, and time range. An event is
 ![Event or counting entry in Event Center](images/img_32.webp)
 
 ![Querying events or counts by channel and algorithm service](images/img_33.webp)
+
+<details class="start-path">
+<summary>Additional: build a Sophon upgrade package from source</summary>
+
+To build an upgrade package from source, select the target chip with the
+`--chip <model>` option at the repository root:
+
+```bash
+# BM1688
+./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package --chip bm1688
+
+# CV186X
+./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package --chip cv186x
+
+find build_output/public-runtime -mindepth 2 -maxdepth 2 -type f -print
+```
+
+Omitting the chip argument defaults to `bm1688`. The build script selects the
+matching model resource directory; you do not need to provide a model path.
+
+The model resources in the package must match the target chip. BM1688 and
+CV186X artifacts are not interchangeable.
+
+Use the one package name reported by the build for installation. To install it
+over SSH on a prepared Sophon Linux device, follow the
+[Deployment Guide: SSH Installation Path](/en/guide/deployment#ssh-installation-path).
+That section is the single source of truth for transfer, extraction, installation,
+reboot, base-system prerequisites, and recovery boundaries.
+
+When CosmoEdge is already running, you can instead open **System Management →
+System Maintenance → Software Upgrade** and upload the same package. Keep power
+connected during installation. After reboot and sign-in, verify that **Software
+Version** matches the package version. The SSH installer targets a Sophon device
+with its base Linux system already prepared; it is not an OS-image installer for
+arbitrary blank hardware.
+
+</details>
 
 ## 6. Complete Additional Example: People Counting
 

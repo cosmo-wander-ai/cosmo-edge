@@ -1,6 +1,5 @@
 import axios from 'axios' // 引入 axios
 import { message } from '@/utils/message'
-import actions from '@/micro/state.js'
 import { currentLocale, t, translateApiMessage } from '@/i18n'
 import { formatActionableApiError, normalizeApiError } from '@/utils/apiError'
 
@@ -15,21 +14,6 @@ const longTimeoutApi = [
   '/gtw/cwai/atomic/model/importModel',
   '/gtw/cwai/algorithm/Upload',
   '/gtw/cwai/algorithm/version/add'
-]
-
-const silentApi = [
-  '/gtw/cwai/System/Upgrade',
-  '/gtw/cwai/System/CheckUpgradeSpace',
-  '/gtw/cwai/System/QueryHardwareResource',
-  '/gtw/cwai/network/IpAccessibleCheck',
-  '/gtw/cwai/System/QueryDeviceStatus',
-  '/gtw/cwai/LiveStream/RequestLiveStream',
-  '/gtw/cwai/LiveStream/StreamKeepAlive',
-  '/gtw/cwai/LiveStream/StreamStop',
-  '/gtw/cwai/File/QueryImportStatus',
-  '/gtw/cwai/File/ImportFile',
-  '/gtw/cwai/atomic/model/uploadTemp',
-  '/gtw/cwai/atomic/model/cancelUpload'
 ]
 
 const service = axios.create({
@@ -59,7 +43,6 @@ service.interceptors.request.use(config => {
  */
 
 const clearLoginInfo = () => {
-  actions.setGlobalState({ loading: false, loginState: true })
   localStorage.removeItem('mtk')
   localStorage.removeItem('token')
   // 使用 hash 路由跳转
@@ -68,9 +51,7 @@ const clearLoginInfo = () => {
 
 export const request = params => {
   return new Promise((resolve, reject) => {
-    const isSilent = silentApi.includes(params.url)
     const suppressAuthRedirect = params.suppressAuthRedirect === true
-    if (!isSilent) actions.setGlobalState({ loading: true }) // 开启过渡效果
     service(params)
       .then(res => {
         const data = res?.data || {}
@@ -109,9 +90,6 @@ export const request = params => {
           return reject(err)
         }
         return reject(err)
-      })
-      .finally(() => {
-        if (!isSilent) actions.setGlobalState({ loading: false })
       })
   })
 }

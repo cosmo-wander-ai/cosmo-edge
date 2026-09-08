@@ -102,15 +102,19 @@ The frontend build output is installed into the release package's `web` director
 
 ## Inference and Models
 
-Two inference backend paths currently exist in the project:
+CosmoEdge selects an inference backend at build time:
 
-- x86 CPU backend, using ONNX Runtime.
-- Sophon backend, used for aarch64/Sophon release packages.
+- x86: ONNX Runtime CPU, loading ONNX models directly.
+- Sophon BM1688/CV186X: BMRT with chip-specific model artifacts.
+- Rockchip RK3576/RV1126B: RKNN Runtime with target-specific RKNN models.
+
+VLM on RK3576 uses a separate RKLLM path and requires matching runtime and model resources. Confirm backend support, included assets and VLM availability separately.
 
 Resource directories:
 
 - `data/resource/aiboxresource_bm1688`
 - `data/resource/aiboxresource_cv186x`
 - `data/resource/aiboxresource_x86`
+- `data/resource/aiboxresource_rknn` (Rockchip target overlays, combined with base templates)
 
 The current templates cover detection (YOLO v5/v8/v9/v11/v12/v26), classification, keypoints, feature, segmentation (SAM2), object localization (DINO), and vision-language models (Qwen3VL, Qwen3.5). The complete list is subject to the actual files under each `data/resource/aiboxresource_*/model_template/` directory.
