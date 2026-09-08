@@ -1,14 +1,8 @@
 <template>
   <div ref="topBarRef" class="topBar-wrap" :class="{ expanded: isOpen }" :style="{ height: topBarHeight + 'px', paddingBottom: isOpen ? '16px' : '0' }">
     <div ref="searchRef" class="form-search">
-      <div :class="platformType === '1' ? 'formDiv' : form.clientele ? 'formDiv1' : 'formDiv'"
-        v-for="(form, index) in dataSouce.formList" :key="index">
-        <span v-if="form.clientele && platformType === '1'" :ref="el => setLabelRef(el, index)" class="formTitle">
-          <span class="star" :style="{ width: myLabelWidth ? myLabelWidth + 'px' : '85px' }"
-            v-if="form.require">*</span>
-          {{ formLabel(form) }}:
-        </span>
-        <span v-if="!form.clientele" :ref="el => setLabelRef(el, index)" class="formTitle">
+      <div class="formDiv" v-for="(form, index) in dataSouce.formList" :key="index">
+        <span class="formTitle">
           <span class="star" :style="{ width: myLabelWidth ? myLabelWidth + 'px' : '85px' }"
             v-if="form.require">*</span>
           {{ formLabel(form) }}:
@@ -22,57 +16,15 @@
           size="small" />
 
         <!-- 下拉选择 -->
-        <el-select class="el-form" v-if="form.type == 'select' && cascadeControl && !form.clientele"
+        <el-select class="el-form" v-if="form.type == 'select'"
           v-model.trim="formData[form.model]" :placeholder="form.placeholder || placeholderText('select', formLabel(form))"
           :title="form.placeholder || placeholderText('select', formLabel(form))"
           :clearable="form.clearable === false ? false : true" :filterable="!!form.filterable"
-          :multiple="!!form.multiple" collapse-tags size="small" :disabled="!!form.disabled"
-          @change="(value) => selectChange(value, form.model)">
+          :multiple="!!form.multiple" collapse-tags size="small" :disabled="!!form.disabled">
           <el-option v-for="(item, idx) in form.dataList" :key="idx"
             :label="optionLabel(form, item)"
             :value="form.valueKey ? item[form.valueKey] : item.value" />
         </el-select>
-
-        <!-- 选择客户 -->
-        <el-select class="el-form"
-          v-if="form.type == 'select' && cascadeControl && form.clientele && platformType === '1'"
-          v-model.trim="formData[form.model]" :placeholder="form.placeholder || placeholderText('select', formLabel(form))"
-          :title="form.placeholder || placeholderText('select', formLabel(form))"
-          :clearable="form.clearable === false ? false : true" :filterable="!!form.filterable"
-          :multiple="!!form.multiple" collapse-tags size="small" :disabled="!!form.disabled" @change="custChange">
-          <el-option v-for="(item, idx) in form.dataList" :key="idx"
-            :label="optionLabel(form, item)"
-            :value="form.valueKey ? item[form.valueKey] : item.value" />
-        </el-select>
-
-        <!-- 级联选择器 -->
-        <el-cascader class="el-form" v-if="form.type == 'cascader' && cascadeControl"
-          v-model.trim="formData[form.model]" :placeholder="form.placeholder || placeholderText('select', formLabel(form))"
-          :title="form.placeholder || placeholderText('select', formLabel(form))" :options="form.dataList || []"
-          :props="form.props ? form.props : { children: 'children', label: 'regionName', value: 'id', expandTrigger: 'hover', checkStrictly: true }"
-          :show-all-levels="false" :clearable="form.clearable === false ? false : true" filterable size="small"
-          :disabled="!!form.disabled" />
-
-        <!-- 日期时间选择器 -->
-        <el-date-picker class="el-form" v-if="form.type == 'datetime'" v-model.trim="formData[form.model]"
-          type="datetime" :placeholder="form.placeholder || placeholderText('select', formLabel(form))"
-          :title="form.placeholder || placeholderText('select', formLabel(form))" :value-format="form.valueFormat"
-          :clearable="form.clearable === false ? false : true" align="right" size="small" :disabled="!!form.disabled"
-          @change="(date) => form.change && form.change(date)" />
-
-        <!-- 月份选择器 -->
-        <el-date-picker class="el-form" v-if="form.type == 'month'" v-model.trim="formData[form.model]" type="month"
-          :placeholder="form.placeholder || placeholderText('select', formLabel(form))"
-          :title="form.placeholder || placeholderText('select', formLabel(form))" :value-format="form.valueFormat"
-          :clearable="form.clearable === false ? false : true" align="right" size="small" :disabled="!!form.disabled"
-          @change="(date) => form.change && form.change(date)" />
-
-        <!-- 日期范围选择器 -->
-        <el-date-picker class="el-formDate" v-if="form.type == 'daterange'" v-model.trim="formData[form.model]"
-          type="daterange" :range-separator="form.rangeSeparator || '-'"
-          :start-placeholder="form.startPlaceholder || t('placeholder.startTime')" :end-placeholder="form.endPlaceholder || t('placeholder.endTime')"
-          :value-format="form.valueFormat || 'YYYY-MM-DD'" :clearable="form.clearable === false ? false : true"
-          align="right" size="small" :disabled="!!form.disabled" @change="(date) => form.change && form.change(date)" />
 
         <!-- 日期时间范围选择器 -->
         <el-date-picker class="el-formDate" :style="{ width: myLabelWidth !== 0 ? myLabelWidth + 340 + 'px' : '400px' }"
@@ -82,44 +34,11 @@
           :clearable="form.clearable === false ? false : true" align="right" size="small"
           :default-time="[new Date(2000, 0, 1, 0, 0, 0), new Date(2000, 0, 1, 23, 59, 59)]" :disabled="!!form.disabled"
           @change="(date) => form.change && form.change(date)" />
-
-        <!-- 树形选择器 -->
-        <tree-select class="el-form" v-model.trim="formData[form.model]" v-if="form.type == 'tree-select'"
-          :clearable="form.clearable" :data="form.dataList" />
-
-        <!-- 双数字输入 -->
-        <div class="doublesNum" v-if="form.type == 'doublesNum'" style="display:flex">
-          <el-input-number class="el-form" v-model.trim="formData[form.model1]" :placeholder="t('field.min')" :precision="0"
-            :controls="false" :min="0" size="small" />
-          <div class="doublesText-line">-</div>
-          <el-input-number class="el-form" v-model.trim="formData[form.model2]" :placeholder="t('field.max')" :precision="0"
-            :controls="false" :min="1" size="small" />
-        </div>
-
-        <!-- 双数字匹配度 -->
-        <div class="doublesNum" v-if="form.type == 'doublesMat'" style="display:flex">
-          <el-input-number class="el-form" v-model.trim="formData[form.model1]" :placeholder="form.placeholder1"
-            :precision="2" :controls="false" :max="100" :min="0" size="small" />
-          <div class="doublesText-line">-</div>
-          <el-input-number class="el-form" v-model.trim="formData[form.model2]" :placeholder="form.placeholder2"
-            :precision="2" :max="100" :controls="false" :min="0" size="small" />
-        </div>
       </div>
     </div>
 
     <!-- 按钮栏 -->
     <div class="btnBar">
-      <div class="customBtn" v-for="item in faceAttrFilter" :key="item.title">
-        <el-button v-if="item.show" type="primary" size="small" @click="emit(item.func)">
-          {{ item.title }}
-        </el-button>
-      </div>
-
-      <!-- 生成按钮 -->
-      <el-button v-if="generate" type="primary" icon="el-icon-download" size="small" @click="emit('generate')">
-        {{ t('action.generate') }}
-      </el-button>
-
       <slot name="btnTools"></slot>
 
       <el-button class="mv-el-button" type="primary" size="small" @click="getFormData">
@@ -145,7 +64,6 @@
 <script setup>
 import { ref, reactive, onMounted, watch } from 'vue'
 import { ArrowDown } from '@element-plus/icons-vue'
-import TreeSelect from './TreeSelect.vue'
 import { currentLocale, t, tShort } from '@/i18n'
 
 // TODO(i18n): Phase 2 should pass labelKey instead of raw form.label so
@@ -171,19 +89,6 @@ const props = defineProps({
     type: Number,
     default: 0
   },
-  generate: {
-    type: Boolean,
-    default: false
-  },
-  faceAttrFilter: {
-    type: Array,
-    default: () => []
-  },
-  // 重置动态数据
-  replacement: {
-    type: Boolean,
-    default: false
-  },
   // 默认展开且不显示折叠按钮
   defaultExpand: {
     type: Boolean,
@@ -191,13 +96,12 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['search', 'reset', 'generate', 'replacementState'])
+const emit = defineEmits(['search', 'reset'])
 
 const searchHeight = 56
 
 const topBarRef = ref(null)
 const searchRef = ref(null)
-const labelRefs = reactive({})
 
 const propsFromData = { ...props.formData }
 const topBarHeight = ref(searchHeight)
@@ -205,9 +109,7 @@ const myLabelWidth = ref(null)
 const showOpen = ref(false)
 const isOpen = ref(false)
 const formListChildCount = ref(0)
-const cascadeControl = ref(true)
 const defaultTimes = reactive({})
-const platformType = ref(window.localStorage.getItem('platformType'))
 
 const vowel = {
   a: true,
@@ -215,13 +117,6 @@ const vowel = {
   i: true,
   o: true,
   u: true
-}
-
-// 设置 label ref
-const setLabelRef = (el, index) => {
-  if (el) {
-    labelRefs[`labelRef${index}`] = el
-  }
 }
 
 // 转换标签为小写
@@ -295,44 +190,30 @@ const getFormData = () => {
 
 // 重置表单数据
 const resetFormData = () => {
-  if (props.replacement) {
-    emit('replacementState', props.formData)
-  } else {
-    let index = 0
-    for (const key in props.formData) {
-      if (props.formData.hasOwnProperty(key)) {
-        if (defaultTimes.hasOwnProperty(key)) {
-          props.formData[key] = propsFromData[key]
-        }
-        const element = props.dataSouce.formList[index]
-        // 不可清空并且disabled的文本框重置时不清除
-        if (element && (element.clearable === false || element.disabled)) {
-          index++
-          continue
-        }
-        if (!defaultTimes.hasOwnProperty(key)) {
-          props.formData[key] = propsFromData[key]
-          if (props.formData[key] === localStorage.getItem('currentCustId')) {
-            props.formData[key] = ''
-            propsFromData[key] = ''
-            localStorage.setItem('currentCustId', '')
-          }
-        }
-        index++
+  let index = 0
+  for (const key in props.formData) {
+    if (props.formData.hasOwnProperty(key)) {
+      if (defaultTimes.hasOwnProperty(key)) {
+        props.formData[key] = propsFromData[key]
       }
+      const element = props.dataSouce.formList[index]
+      // 不可清空并且disabled的文本框重置时不清除
+      if (element && (element.clearable === false || element.disabled)) {
+        index++
+        continue
+      }
+      if (!defaultTimes.hasOwnProperty(key)) {
+        props.formData[key] = propsFromData[key]
+        if (props.formData[key] === localStorage.getItem('currentCustId')) {
+          props.formData[key] = ''
+          propsFromData[key] = ''
+          localStorage.setItem('currentCustId', '')
+        }
+      }
+      index++
     }
-    emit('reset')
   }
-}
-
-// 改变高度
-const changeHeight = (num) => {
-  topBarHeight.value = topBarHeight.value + num * 24
-}
-
-// 显示级联
-const showCascade = (isShow) => {
-  cascadeControl.value = isShow
+  emit('reset')
 }
 
 // 展开/收起
@@ -345,31 +226,13 @@ const openFn = () => {
   }
 }
 
-// 客户改变
-const custChange = (val) => {
-  localStorage.setItem('currentCustId', val || '')
-}
-
-// 选择改变
-const selectChange = (value, key) => {
-  if (key === 'custId') {
-    localStorage.setItem('currentCustId', value || '')
-  }
-}
-
-// 暴露方法给父组件
-defineExpose({
-  changeHeight,
-  showCascade
-})
-
 onMounted(() => {
   getHeight()
   getLabelMaxWidth()
 
   const formItems = props.dataSouce.formList
     .map((item) => {
-      if (['datetimerange', 'datetime', 'month', 'daterange'].indexOf(item.type) !== -1) {
+      if (item.type === 'datetimerange') {
         return {
           type: item.type,
           model: item.model
@@ -436,15 +299,6 @@ onMounted(() => {
       .el-formDate {
         width: 420px;
       }
-
-      .doublesNum {
-        .doublesText-line {
-          width: 30px;
-          height: 32px;
-          line-height: 32px;
-          text-align: center;
-        }
-      }
     }
   }
 
@@ -472,14 +326,6 @@ onMounted(() => {
       }
     }
   }
-}
-
-.formDiv1 {
-  margin-right: 0px;
-}
-
-.customBtn {
-  margin-right: 10px;
 }
 
 .star {

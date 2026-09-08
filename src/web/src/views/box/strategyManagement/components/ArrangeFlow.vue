@@ -43,6 +43,7 @@ import '@vue-flow/controls/dist/style.css'
 
 import EventBus from '@/components/eventBus.js'
 import { generateActionId } from '@/views/gam/countManagement/arrangeDetail/flow/dataTools.js'
+import { insertNodeEdges } from '@/utils/graphEdges.js'
 import ActionView from '@/views/gam/countManagement/arrangeDetail/flow/ActionView.vue'
 import CustomFormNode from '@/views/gam/countManagement/arrangeDetail/flow/CustomFormNode.vue'
 import StartNode from '@/views/gam/countManagement/arrangeDetail/flow/StartNode.vue'
@@ -548,30 +549,12 @@ const addComponentFromDialog = (type, label, action) => {
   nodes.value = [...nodes.value, newNode]
 
   if (mode === 'insert') {
-    // 找到当前被点击的边，按源→新节点→目标的方式重连
-    const currentEdge = edges.value.find((e) => e.id === edgeId)
-    const rest = edges.value.filter((e) => e.id !== edgeId)
-    const nextEdges = [...rest]
-    const edgeType = currentEdge?.type || 'action'
-
-    if (source) {
-      nextEdges.push({
-        id: generateActionId(),
-        type: edgeType,
-        source,
-        target: newNodeId
-      })
-    }
-    // 如果存在目标，再连 新节点→目标
-    if (target ?? currentEdge?.target) {
-      nextEdges.push({
-        id: generateActionId(),
-        type: edgeType,
-        source: newNodeId,
-        target: target ?? currentEdge?.target
-      })
-    }
-    edges.value = nextEdges
+    edges.value = insertNodeEdges(
+      edges.value,
+      { edgeId, source, target },
+      newNodeId,
+      generateActionId
+    )
   } else {
     // 分支模式：从 sourceId 发出一条新分支到新节点，并默认再添加一个结束节点
     const newEndId = generateActionId()
