@@ -1,21 +1,17 @@
 /// @file IModelQuery.h
 /// @brief Model query and validation interface.
 ///        ISP split from IModelService.
-///        Consumed by AlgorithmValidator, CameraServiceImpl, MessageModelHandler.
+///        Consumed by AlgorithmValidator and camera task construction/notifications.
 #pragma once
 
-#include <cstdint>
+#include <cstddef>
 #include <string>
 #include <vector>
 
 #include "service/detail/ServiceRegistry.h"
 #include "service/model/dto/ModelDto.h"
+#include "service/model/dto/ModelInfo.h"
 #include "util/ErrorCode.h"
-
-// Forward declaration — full definition lives in IModelService.h
-namespace cosmo {
-struct ModelInfo;
-}
 
 namespace cosmo::service {
 
