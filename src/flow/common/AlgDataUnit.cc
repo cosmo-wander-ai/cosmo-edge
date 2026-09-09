@@ -17,36 +17,14 @@ DataDetTrackClassifyPtr AlgDataCopyDetTrackData(DataDetTrackClassifyPtr input) {
     if (!input)
         return nullptr;
 
-    DataDetTrackClassifyPtr detData = std::make_shared<DataDetTrackClassify>();
-
-    detData->bHaveArea         = input->bHaveArea;
-    detData->bHaveShieldedArea = input->bHaveShieldedArea;
-    detData->streamIndex       = input->streamIndex;
-    detData->frameIndex        = input->frameIndex;
-    detData->timestamp         = input->timestamp;
-    detData->picWidth          = input->picWidth;
-    detData->picHeight         = input->picHeight;
-    detData->dataType          = input->dataType;
-    detData->targets           = input->targets;
-    detData->groupTargets      = input->groupTargets;
-    detData->reportType        = input->reportType;
-    detData->areaInfo          = input->areaInfo;
-
-    return detData;
+    return std::make_shared<DataDetTrackClassify>(*input);
 }
 
 DataAlarmPtr AlgDataCopyAlarmData(DataAlarmPtr input) {
     if (!input)
         return nullptr;
 
-    DataAlarmPtr alarmData = std::make_shared<DataAlarm>();
-
-    alarmData->type         = input->type;
-    alarmData->flowActionId = input->flowActionId;
-    alarmData->multiAlarms  = input->multiAlarms;
-    alarmData->alarms       = input->alarms;
-
-    return alarmData;
+    return std::make_shared<DataAlarm>(*input);
 }
 
 AlgDataPtr AlgDataCopy(AlgDataPtr input) {
