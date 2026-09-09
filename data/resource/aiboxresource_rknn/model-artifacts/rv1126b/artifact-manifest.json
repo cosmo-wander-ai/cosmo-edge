@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "bundle_id": "cosmo-community-example-rv1126b-v1",
+  "chip": "rv1126b",
+  "usage_scope": "community-example",
+  "commercial_delivery": false,
+  "license": {
+    "spdx": "AGPL-3.0-only",
+    "path": "data/resource/aiboxresource_rknn/model-artifacts/LICENSES/AGPL-3.0.txt",
+    "sha256": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0",
+    "upstream": "https://github.com/ultralytics/ultralytics/blob/main/LICENSE"
+  },
+  "qualification": {
+    "status": "candidate-validated",
+    "public_record": "docs/benchmarks/scenario-bench/v1.1/models/rv1126b.json"
+  },
+  "models": [
+    {
+      "model": "helmet",
+      "package_directory": "prod_RV1126B_7982161_helmet_V1.0.0",
+      "spec": {
+        "path": "config/rknn/models/helmet.json",
+        "sha256": "50bdfab0729e5acb5e4dfb896a811052fb2cffd98d27eb0770b90bc96e424243"
+      },
+      "source": {
+        "path": "data/resource/aiboxresource_x86/models/prod_X86_7982161_helmet_V1.0.0/model.onnx",
+        "sha256": "a0ea37d99416371c6ef073d5ac87b486b77bb822b1f8aa29f2f30a8a06c97cdd",
+        "size_bytes": 5779190
+      },
+      "artifact": {
+        "path": "data/resource/aiboxresource_rknn/model-artifacts/rv1126b/prod_RV1126B_7982161_helmet_V1.0.0/model.rknn",
+        "sha256": "9468f6a465521966515f29e3eebede32af2bbb81069a5e36825fef89527d9eeb",
+        "size_bytes": 2139966
+      }
+    },
+    {
+      "model": "yolov8",
+      "package_directory": "prod_RV1126B_9275710_YOLOV8_V1.0.0",
+      "spec": {
+        "path": "config/rknn/models/yolov8.json",
+        "sha256": "5f83a415fbdb9a67f13e31c2a910ad4d71d6d2284893b25492df5112935f2920"
+      },
+      "source": {
+        "path": "data/resource/aiboxresource_x86/models/prod_X86_9275710_YOLOV8_V1.0.0/model.onnx",
+        "sha256": "5f8e91cb4507596b66cd5e3b7193bb16f7bd4779ed3b78e3613fcc51b83db8e1",
+        "size_bytes": 12851046
+      },
+      "artifact": {
+        "path": "data/resource/aiboxresource_rknn/model-artifacts/rv1126b/prod_RV1126B_9275710_YOLOV8_V1.0.0/model.rknn",
+        "sha256": "db6ddca0aacd01bea2e7f990834406c6a5d5965a131800279d8c0f77d4a396cf",
+        "size_bytes": 4340372
+      }
+    }
+  ]
+}

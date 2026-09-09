@@ -86,6 +86,7 @@
 #include "service/system/IConfigNetworkService.h"
 #include "service/system/IConfigReadService.h"
 #include "service/system/IConfigWriteService.h"
+#include "service/system/IDeviceHardware.h"
 #include "service/system/IDeviceInfoService.h"
 #include "service/system/IHardwareQuery.h"
 #include "service/system/IMemoryDiag.h"
@@ -217,6 +218,8 @@ static void RegisterBusinessServices() {
 
     registry.Register<cosmo::service::IDeviceInfoService>(
         std::make_unique<cosmo::service::DeviceInfoServiceImpl>());
+    auto& deviceInfo = registry.Get<cosmo::service::IDeviceInfoService>();
+    registry.Set<cosmo::service::IDeviceHardware>(static_cast<cosmo::service::IDeviceHardware*>(&deviceInfo));
     registry.Register<cosmo::service::ITimeService>(std::make_unique<cosmo::service::TimeServiceImpl>());
     // ISP split: SystemServiceImpl implements 3 narrow interfaces.
     // Register under IConfigReadService (owning), then alias the other two.
@@ -275,7 +278,7 @@ static void RegisterBusinessServices() {
         std::make_unique<cosmo::service::ClientMessageServiceImpl>());
 
     auto appInfoService = std::make_unique<cosmo::service::AppInfoServiceImpl>();
-    appInfoService->SetDevId(registry.Get<cosmo::service::IDeviceInfoService>().GetDevSn());
+    appInfoService->SetDevId(registry.Get<cosmo::service::IDeviceHardware>().GetDevSn());
     appInfoService->SetEngineType(cosmo::util::kEngineType);
     registry.Register<cosmo::service::IAppInfoService>(std::move(appInfoService));
     // ISP split: AppInfoServiceImpl implements 3 narrow interfaces.

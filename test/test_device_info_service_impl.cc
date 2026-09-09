@@ -10,20 +10,22 @@
 #include <algorithm>
 #include <thread>
 
-#include "mock/MockServiceRegistry.h"
+#include "mock/MockAppInfoService.h"
 #include "mock/MockTaskService.h"
 #include "service/system/impl/DeviceInfoServiceImpl.h"
+#include "support/ScopedServiceOverride.h"
 
 using namespace cosmo::service;
 using trompeloeil::_;
 
 TEST_CASE("DeviceInfoServiceImpl: construction and destruction", "[DeviceInfoService][.device]") {
-    cosmo::test::MockServiceRegistry mocks;
     REQUIRE_NOTHROW([]() { DeviceInfoServiceImpl sut; }());
 }
 
 TEST_CASE("DeviceInfoServiceImpl: GetDeviceInfo returns populated struct", "[DeviceInfoService][.device]") {
-    cosmo::test::MockServiceRegistry mocks;
+    cosmo::test::MockAppInfoService appInfoSvc;
+    cosmo::test::ScopedServiceOverride<IAppInfoService> registration(appInfoSvc);
+    ALLOW_CALL(appInfoSvc, GetAppRuntime()).RETURN(0);
     DeviceInfoServiceImpl sut;
 
     auto info = sut.GetDeviceInfo();
@@ -32,7 +34,6 @@ TEST_CASE("DeviceInfoServiceImpl: GetDeviceInfo returns populated struct", "[Dev
 }
 
 TEST_CASE("DeviceInfoServiceImpl: GetDevSn and GetDevModel", "[DeviceInfoService][.device]") {
-    cosmo::test::MockServiceRegistry mocks;
     DeviceInfoServiceImpl sut;
 
     SECTION("GetDevModel returns non-empty") {
@@ -42,7 +43,6 @@ TEST_CASE("DeviceInfoServiceImpl: GetDevSn and GetDevModel", "[DeviceInfoService
 }
 
 TEST_CASE("DeviceInfoServiceImpl: GetCpuUtilization returns valid range", "[DeviceInfoService][.device]") {
-    cosmo::test::MockServiceRegistry mocks;
     DeviceInfoServiceImpl sut;
 
     // Give monitor thread time to poll
@@ -54,7 +54,6 @@ TEST_CASE("DeviceInfoServiceImpl: GetCpuUtilization returns valid range", "[Devi
 }
 
 TEST_CASE("DeviceInfoServiceImpl: GetGpuNum returns at least 1", "[DeviceInfoService][.device]") {
-    cosmo::test::MockServiceRegistry mocks;
     DeviceInfoServiceImpl sut;
 
     REQUIRE(sut.GetGpuNum() >= 1);
@@ -62,8 +61,9 @@ TEST_CASE("DeviceInfoServiceImpl: GetGpuNum returns at least 1", "[DeviceInfoSer
 
 #ifdef COSMO_NN_USE_RKNN_BACKEND
 TEST_CASE("DeviceInfoServiceImpl: RKNN shared memory is exposed once", "[DeviceInfoService][.device][rknn]") {
-    cosmo::test::MockServiceRegistry mocks;
-    ALLOW_CALL(mocks.taskSvc, PacketStatus(_, _, _, _)).LR_SIDE_EFFECT(_1 = 0; _2 = 0; _3 = 0; _4 = 0);
+    cosmo::test::MockTaskService taskSvc;
+    cosmo::test::ScopedServiceOverride<ITaskQuery> registration(taskSvc);
+    ALLOW_CALL(taskSvc, PacketStatus(_, _, _, _)).LR_SIDE_EFFECT(_1 = 0; _2 = 0; _3 = 0; _4 = 0);
     DeviceInfoServiceImpl sut;
     std::this_thread::sleep_for(std::chrono::seconds(1));
 

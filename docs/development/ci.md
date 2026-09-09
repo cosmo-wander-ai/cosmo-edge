@@ -24,7 +24,7 @@ next:
 | CPU 测试构建 | `scripts/build_cpu_test.sh`、`build_cpu/cosmo-tests` | Pull request / 手动 |
 | x86 Docker | `docker compose -f docker-compose.x86.yml up -d --build` (Windows 下为 `docker-compose.x86.windows.yml`) | 手动 / release 前 |
 | Sophon 发布包 | `./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package [--chip <型号>]`，支持 `bm1688` / `cv186x`（默认 `bm1688`） | 手动 / self-hosted |
-| Rockchip 发布包 | `COSMO_TARGET_CHIP=<rk3576|rv1126b> docker compose -f docker-compose.rockchip.yml run --rm cosmo-rockchip-package` | 相关 PR / 每日 02:12（北京时间）/ 手动 |
+| Rockchip 发布包 | `COSMO_TARGET_CHIP=<rk3576|rv1126b> docker compose -f docker-compose.rockchip.yml run --rm cosmo-rockchip-package` | 每日 02:12（北京时间）/ 手动 |
 
 ## 文档站检查
 
@@ -193,7 +193,7 @@ Sophon 发布包构建依赖交叉编译环境和 Sophon SDK。型号决定内�
 ## Rockchip 交叉编译矩阵
 
 `.github/workflows/ci-build-rockchip.yml` 使用共享 Rockchip Compose 入口，对
-RK3576 和 RV1126B 分别运行矩阵任务。它会在相关 PR、手动触发及每日北京时间 02:12
+RK3576 和 RV1126B 分别运行矩阵任务。它会在手动触发及每日北京时间 02:12
 （UTC 前一日 18:12）运行。定时工作流只有进入 GitHub 默认分支后才会生效。
 
 本地使用固定 digest 的公开 GHCR 镜像，无需 registry 登录：
@@ -215,8 +215,10 @@ COSMO_TARGET_CHIP=rk3576 docker compose -f docker-compose.rockchip.yml \
 5. RK3576 包必须包含 RKLLM 运行库与许可证；RV1126B 包必须不包含它们。
 6. 上传每个芯片的包、身份文件、校验和及三个验证程序，保留 7 天。
 
-RV1126B 矩阵使用 `COSMO_PACKAGE_MODELS=preserve` 验证公开源码和工具链，因为目标模型
-overlay 不进入 Git；可部署候选仍必须在已授权环境中用真实模型重新构建并上板。
-普通构建任务只有 `contents: read`；仅默认分支发布或手动发布任务获得
+RV1126B 矩阵使用 `COSMO_PACKAGE_MODELS=include`，从已归档的 AGPL-3.0 社区示例
+artifact manifest 生成 overlay，并校验两个模型、bundle 清单和许可证是否随包交付。
+该矩阵只证明公开示例包可构建，不把示例模型描述为商业交付或自研模型。商业/专有模型仍需
+使用独立清单，在已授权环境中构建并上板验证。
+普通构建任务只有 `contents: read`；仅手动发布任务获得
 `packages: write`，将通过矩阵的共享镜像推送到 GHCR。同一分支的重叠运行会取消旧任务。
 GitHub 托管的 x86 runner 只交叉编译和审计，不执行 aarch64 程序。

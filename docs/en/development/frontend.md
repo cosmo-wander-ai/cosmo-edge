@@ -28,8 +28,6 @@ src/web/
     ├── assets/               # Images, icons, audio
     ├── components/           # Shared components
     ├── i18n/                 # vue-i18n setup, locales, short-scopes
-    ├── micro/
-    │   └── state.js          # Minimal global state
     ├── router/
     │   └── index.js          # Hash-based router
     ├── styles/
@@ -162,10 +160,9 @@ Usage in components: `this.$API.dologin(params)` or `proxy.$API.dologin(params)`
 
 | Module          | File           | Domain                                           |
 | --------------- | -------------- | ------------------------------------------------ |
-| Auth            | `login.js`     | Login/logout, captcha, password reset, user info |
-| Device          | `box.js`       | Cameras, events, system settings, audio, linkage |
+| Device          | `box.js`       | Login (`dologin`), cameras, events, system settings, audio, linkage |
 | AI Management   | `gam.js`       | Algorithms, tasks, models, orchestration, image analysis |
-| Algorithm Admin | `countManage.js` | Algorithm CRUD, licenses, hardware info         |
+| Algorithm Admin | `countManage.js` | Algorithms, orchestration, model configuration, license status         |
 | Base Libraries  | `basePic.js`   | Face library, body library, item library, file imports |
 | Live Stream     | `screen.js`    | Camera list, live stream lifecycle, WebSocket     |
 | Onboarding      | `onboarding.js`| Guide status, completion, and reset                |
@@ -190,7 +187,6 @@ export default {
 import myModule from './myModule'
 
 export default {
-  ...login,
   ...box,
   ...screen,
   ...basePic,
@@ -204,7 +200,7 @@ export default {
 After flattening, components call `proxy.$API.queryMyData(data)`. The current API layer does not use a
 `proxy.$API.myModule.queryMyData(data)` namespace.
 
-All API calls share the Axios instance in `utils/request.js`, which automatically attaches the `mtk`, `token`, `fileMode`, and `lang` request headers and handles the auth-failure redirect.
+Request functions use the Axios instance in `utils/request.js`, which attaches the `mtk`, `token`, `fileMode`, `lang`, and `Accept-Language` headers. The default timeout is 20 seconds; configured long-running endpoints use 10 minutes. Business and HTTP errors are rejected and displayed according to the existing error rules. `silentError` suppresses ordinary error messages; only `suppressAuthRedirect: true` suppresses the authentication-expired message and redirect. URL-returning export helpers remain available for direct download requests.
 
 ## Internationalization (i18n)
 
@@ -269,15 +265,15 @@ The app reads `VITE_APP_BASE_URL` at build time and uses `VITE_APP_API_URL` for 
 
 No Pinia or Vuex stores are used. State is managed through:
 
-- **localStorage**: Auth token (`mtk`), account info, locale preference, run mode.
-- **`micro/state.js`**: A minimal global reactive object that manages loading and login state, consumed by the Axios interceptor to control the loading overlay.
-- **Component-local state**: Most UI state is managed inside each view component via `reactive()` / `ref()`.
+- **localStorage**: Authentication values (`mtk` and `token`), account info, locale preference, and run mode.
+- **Component-local state**: Views manage UI state, including operation loading state, through `data()`, `reactive()`, or `ref()`.
+- **Authentication redirects**: The router checks the stored token before entering protected routes. The request utility clears `mtk` and `token` on authentication expiry and navigates to `#/boxLogin`, unless the request explicitly suppresses that redirect.
 
 ## Key Utilities
 
 | File                          | Purpose                                                          |
 | ----------------------------- | ------------------------------------------------------------- |
-| `utils/request.js`            | Axios instance; auto-attaches `mtk`/`token`/`lang` headers, handles auth-failure redirects; long-running requests such as uploads and upgrades do not show the loading overlay |
+| `utils/request.js`            | Axios wrapper; attaches request headers and handles timeouts, error messages, and authentication-expiry redirects |
 | `utils/message.js`            | Singleton-deduped `ElMessage` wrapper                        |
 | `utils/imagePreview.js`       | Full-screen image preview                                    |
 | `utils/resourceLocaleLoader.js` | Fetches dynamic i18n JSON from the server at app start and merges it into vue-i18n |

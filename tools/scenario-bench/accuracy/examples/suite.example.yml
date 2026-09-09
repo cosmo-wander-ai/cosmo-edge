@@ -1,0 +1,31 @@
+schemaVersion: 3
+id: internal-helmet-measurement-v4
+displayName: Internal helmet video-sample measurement
+sourceMode: local
+targetPlatforms:
+  - bm1688
+
+defaults:
+  observeSec: 45
+  eventFlushTimeoutSec: 15
+  eventPollIntervalSec: 1
+  eventSettleMinSec: 5
+  earlyStopPollIntervalSec: 5
+  readyTimeoutSec: 120
+  readyPollIntervalSec: 1
+  infrastructureRetriesPerTrial: 1
+
+tasks:
+  - id: no-helmet
+    displayName: No-safety-helmet detection
+    kind: cv
+    algorithmId: "15"
+    scheduleId: "replace-with-private-schedule-id"
+    taskConfig: task-configs/replace-with-private-export.json
+    thresholdDiagnostic:
+      parameterKeys:
+        - aiParam.detector.confidence
+      values: [0.5, 0.4, 0.3, 0.2, 0.1]
+
+dataset:
+  manifest: cases.example.jsonl

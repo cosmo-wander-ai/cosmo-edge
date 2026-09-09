@@ -2,7 +2,6 @@
 // Unit tests for ActionServiceImpl — video/pic algorithm orchestration management.
 // Tests exercise the in-memory CRUD operations without external dependencies.
 
-#include "mock/MockServiceRegistry.h"
 #include "service/algorithm/impl/ActionServiceImpl.h"
 
 using namespace cosmo::service;
@@ -22,7 +21,6 @@ cosmo::ActionAlg MakeAlg(const std::string& code, const std::string& version,
 }  // namespace
 
 TEST_CASE("ActionServiceImpl: Video alg CRUD", "[action-service]") {
-    cosmo::test::MockServiceRegistry mocks;
     ActionServiceImpl sut;
 
     SECTION("GetActionAlg returns nullptr for empty code") {
@@ -88,7 +86,6 @@ TEST_CASE("ActionServiceImpl: Video alg CRUD", "[action-service]") {
 }
 
 TEST_CASE("ActionServiceImpl: Pic alg CRUD", "[action-service]") {
-    cosmo::test::MockServiceRegistry mocks;
     ActionServiceImpl sut;
 
     SECTION("GetPicActionAlg returns nullptr for empty code") {
@@ -139,7 +136,6 @@ TEST_CASE("ActionServiceImpl: Pic alg CRUD", "[action-service]") {
 }
 
 TEST_CASE("ActionServiceImpl: Multiple algorithms coexist", "[action-service]") {
-    cosmo::test::MockServiceRegistry mocks;
     ActionServiceImpl sut;
 
     // Store multiple video algorithms

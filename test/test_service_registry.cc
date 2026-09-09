@@ -170,7 +170,11 @@ public:
 // RAII guard to clean up registry after each test
 struct RegistryGuard {
     RegistryGuard() {
-        cosmo::service::ServiceRegistry::Instance().ShutdownAll();
+        const auto& registry = cosmo::service::ServiceRegistry::Instance();
+        if (registry.GetLifecycleState() != cosmo::service::ServiceRegistry::LifecycleState::kRegistering ||
+            registry.Size() != 0) {
+            throw std::logic_error("service registry was not clean before registry contract test");
+        }
     }
 
     ~RegistryGuard() {

@@ -50,6 +50,7 @@ import dagre from 'dagre'
 import EventBus from '@/components/eventBus.js'
 import _ from 'lodash'
 import { generateActionId } from './dataTools.js'
+import { insertNodeEdges } from '@/utils/graphEdges.js'
 import { t } from '@/i18n'
 
 import '@vue-flow/core/dist/style.css'
@@ -571,37 +572,37 @@ const centerView = () => {
   }
 }
 
-EventBus.$on('edgeMenu:focus', (nodeId) => {
+const handleEdgeMenuFocus = (nodeId) => {
   requestAnimationFrame(() => {
     markNodeSelected(nodeId)
     // focusNode(nodeId)
   })
-})
+}
 
-EventBus.$on('flow:layout:request', () => {
+const handleLayoutRequest = () => {
   requestAnimationFrame(() => {
     applyLayout()
   })
-})
+}
 
-EventBus.$on('flow:collapseAll', (payload = {}) => {
+const handleCollapseAll = (payload = {}) => {
   closeDetailPanel()
-})
+}
 
-EventBus.$on('flow:openDetailPanel', (nodeId) => {
+const handleOpenDetailPanel = (nodeId) => {
   openDetailPanel(nodeId)
-})
+}
 
-EventBus.$on('flow:closeDetailPanel', (deletedNodeId) => {
+const handleCloseDetailPanel = (deletedNodeId) => {
   // 如果删除的正是当前面板展示的节点，关闭面板（不保存）
   if (detailPanelNodeId.value === deletedNodeId) {
     detailPanelNodeId.value = null
     detailPanelNodeData.value = null
     clearNodeSelected()
   }
-})
+}
 
-EventBus.$on('flow:removeNodes', (ids) => {
+const handleRemoveNodes = (ids) => {
   if (!Array.isArray(ids) || ids.length === 0) return
   setNodes((ns) => ns.filter((n) => !ids.includes(n.id)))
   nodes.value = nodes.value.filter((n) => !ids.includes(n.id))
@@ -613,23 +614,20 @@ EventBus.$on('flow:removeNodes', (ids) => {
   nodes.value.forEach((n) => {
     if (n.data) n.data.atomicList = atomicList.value
   })
-})
+}
 
-EventBus.$on(
-  'flow:addComponentDialog:open',
-  ({ edgeId, x, y, mode, sourceId } = {}) => {
-    addDialogMode.value = mode || 'insert'
-    addDialogSourceId.value = sourceId || ''
-    addDialogEdgeId.value = edgeId || ''
-    addDialogX.value = Number(x || 0)
-    addDialogY.value = Number(y || 0)
-    addDialogVisible.value = true
-    closeDetailPanel()
-  }
-)
+const handleAddComponentDialogOpen = ({ edgeId, x, y, mode, sourceId } = {}) => {
+  addDialogMode.value = mode || 'insert'
+  addDialogSourceId.value = sourceId || ''
+  addDialogEdgeId.value = edgeId || ''
+  addDialogX.value = Number(x || 0)
+  addDialogY.value = Number(y || 0)
+  addDialogVisible.value = true
+  closeDetailPanel()
+}
 
 // 实时同步 atomicList：来自节点表单的更新
-EventBus.$on('flow:atomic:update', (payload = {}) => {
+const handleAtomicUpdate = (payload = {}) => {
   const { position, atomicCode, atomicName, labelList } = payload
   if (!position) return
   const list = atomicList.value || []
@@ -651,6 +649,26 @@ EventBus.$on('flow:atomic:update', (payload = {}) => {
   nodes.value.forEach((n) => {
     if (n.data) n.data.atomicList = atomicList.value
   })
+}
+
+EventBus.$on('edgeMenu:focus', handleEdgeMenuFocus)
+EventBus.$on('flow:layout:request', handleLayoutRequest)
+EventBus.$on('flow:collapseAll', handleCollapseAll)
+EventBus.$on('flow:openDetailPanel', handleOpenDetailPanel)
+EventBus.$on('flow:closeDetailPanel', handleCloseDetailPanel)
+EventBus.$on('flow:removeNodes', handleRemoveNodes)
+EventBus.$on('flow:addComponentDialog:open', handleAddComponentDialogOpen)
+EventBus.$on('flow:atomic:update', handleAtomicUpdate)
+
+onBeforeUnmount(() => {
+  EventBus.$off('edgeMenu:focus', handleEdgeMenuFocus)
+  EventBus.$off('flow:layout:request', handleLayoutRequest)
+  EventBus.$off('flow:collapseAll', handleCollapseAll)
+  EventBus.$off('flow:openDetailPanel', handleOpenDetailPanel)
+  EventBus.$off('flow:closeDetailPanel', handleCloseDetailPanel)
+  EventBus.$off('flow:removeNodes', handleRemoveNodes)
+  EventBus.$off('flow:addComponentDialog:open', handleAddComponentDialogOpen)
+  EventBus.$off('flow:atomic:update', handleAtomicUpdate)
 })
 
 const getNodeTypeForAction = (action) => {
@@ -890,30 +908,12 @@ const addComponentFromDialog = (type, label, action) => {
   nodes.value = [...nodes.value, newNode]
 
   if (mode === 'insert') {
-    // 找到当前被点击的边，按源→新节点→目标的方式重连
-    const currentEdge = edges.value.find((e) => e.id === edgeId)
-    const rest = edges.value.filter((e) => e.id !== edgeId)
-    const nextEdges = [...rest]
-    const edgeType = currentEdge?.type || 'action'
-
-    if (source) {
-      nextEdges.push({
-        id: generateActionId(),
-        type: edgeType,
-        source,
-        target: newNodeId
-      })
-    }
-    // 如果存在目标，再连 新节点→目标
-    if (target ?? currentEdge?.target) {
-      nextEdges.push({
-        id: generateActionId(),
-        type: edgeType,
-        source: newNodeId,
-        target: target ?? currentEdge?.target
-      })
-    }
-    edges.value = nextEdges
+    edges.value = insertNodeEdges(
+      edges.value,
+      { edgeId, source, target },
+      newNodeId,
+      generateActionId
+    )
   } else {
     // 分支模式：从 sourceId 发出一条新分支到新节点，并默认再添加一个结束节点
     const newEndId = generateActionId()

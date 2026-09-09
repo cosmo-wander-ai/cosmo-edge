@@ -11,7 +11,7 @@
 #include <unordered_map>
 
 #include "service/detail/ServiceRegistry.h"
-#include "service/model/IModelService.h"
+#include "service/model/IModelPathMapping.h"
 #include "service/system/IConfigReadService.h"
 #include "service/system/IHardwareQuery.h"
 #include "util/EnvUtil.h"
@@ -204,7 +204,7 @@ bool AiDetector::AiSdkInit() {
 
     std::string cfgPath   = "";
     std::string modelPath = "";
-    auto cfgRet           = service::ServiceRegistry::Instance().Get<service::IModelService>().GetModelCfg(
+    auto cfgRet = service::ServiceRegistry::Instance().Get<service::IModelPathMapping>().GetModelCfg(
         alg_code_, cfgPath, modelPath);
     if (!cfgRet) {
         LOG_WARN("{}Get Model Configure Failed. AlgCode:{} code:{}", kTag, alg_code_, cfgRet);

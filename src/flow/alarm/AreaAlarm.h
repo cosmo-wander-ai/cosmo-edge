@@ -216,6 +216,7 @@ private:
     // Reset per-run tracking state when task is stopped and restarted (switch ON/OFF).
     // Otherwise stale track history from previous run can block alarm conditions.
     void ResetStateOnRestart() override;
+    void RebuildConfiguredAreaState();
 
     // Age tracking IDs in m_mapTrackIdStatus
     void TargetOldHistory();

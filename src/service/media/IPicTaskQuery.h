@@ -1,6 +1,7 @@
 /// @file IPicTaskQuery.h
 /// @brief Image analysis task query, parameter, and status interface.
 ///        ISP split from IPicTaskService.
+///        Consumed by MessageHandler for request task parameters.
 #pragma once
 
 #include <string>

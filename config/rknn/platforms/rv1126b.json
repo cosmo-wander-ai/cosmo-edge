@@ -23,6 +23,7 @@
     "resource_template_directory": "data/resource/aiboxresource_rknn",
     "resource_overlay_directory": "output/platform-artifacts/rv1126b/resource-overlay",
     "resource_manifest_required": true,
+    "artifact_manifest": "data/resource/aiboxresource_rknn/model-artifacts/rv1126b/artifact-manifest.json",
     "legacy_models_directory": "output/platform-artifacts/rv1126b/resource-overlay/models"
   },
   "device": {

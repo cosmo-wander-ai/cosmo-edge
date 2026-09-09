@@ -63,6 +63,7 @@ public:
     DeviceType GetTopBlobDeviceType() override;
     Status InferTopShapes() override;
     Status LoadWeight(const char* data, size_t size) override;
+    Status AttachOwnedContext(rknn_context context, uint64_t model_fingerprint);
     Status Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
                    std::vector<std::shared_ptr<Blob>>& top_blobs) override;
     bool EnsureRgaBoundInput(int height, int width, std::string& reason) override;
@@ -86,6 +87,7 @@ private:
     void PublishRgaBoundInputTarget();
     void ClearRgaBoundInputTarget();
     void DestroyContext();
+    Status InitializeLoadedContext(uint64_t context_sequence);
 
     rknn_context context_{0};
     rknn_input_output_num io_count_{};

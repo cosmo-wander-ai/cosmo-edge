@@ -5,7 +5,6 @@
 #include <utility>
 
 #include "api/HttpUploadClaim.h"
-#include "service/algorithm/AlgorithmMapper.h"
 #include "service/algorithm/IAlgorithmCrud.h"
 #include "service/algorithm/IAlgorithmLayout.h"
 #include "service/algorithm/IAlgorithmQuery.h"
@@ -169,7 +168,7 @@ Algorithm::MsgLayoutDetailSend MessageAlgorithmHandler::Handle(Algorithm::MsgLay
     service::algorithm::LayoutDetailResult res;
     errc = algorithm_layout_.GetLayoutDetail(data.id, data.filePath, res);
     if (errc == util::ErrorEnum::Success) {
-        service::algorithm::ToWire(res, retData.resData);
+        retData.resData = std::move(res);
     }
     return retData;
 }
@@ -181,7 +180,7 @@ Algorithm::MsgLayoutListSend MessageAlgorithmHandler::Handle(Algorithm::MsgLayou
     service::algorithm::LayoutListResult res;
     errc = algorithm_layout_.GetLayoutList(data.supplier, data.algorithmUsage, data.filePath, res);
     if (errc == util::ErrorEnum::Success) {
-        service::algorithm::ToWire(res, retData.resData.list);
+        retData.resData = std::move(res);
     }
     return retData;
 }
@@ -222,7 +221,7 @@ Algorithm::MsgAtomicActionListSend MessageAlgorithmHandler::Handle(Algorithm::Ms
     service::algorithm::AtomicActionListResult res;
     errc = algorithm_layout_.GetAtomicActionList(data.actionUsage, data.filePath, res);
     if (errc == util::ErrorEnum::Success) {
-        service::algorithm::ToWire(res, retData.resData.list);
+        retData.resData = std::move(res);
     }
     return retData;
 }

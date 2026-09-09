@@ -12,7 +12,6 @@ add_library(cosmo_infer OBJECT
     AiRecognizerInterface.cc        AiRecognizerInterface.h
     AiRecognizerUnify.cc            AiRecognizerUnify.h
     AiTrackerUnify.cc               AiTrackerUnify.h
-    AiVideoQualityUnify.cc          AiVideoQualityUnify.h
     BmodelTool.cc                   BmodelTool.h
     DinoDetectorUnify.cc            DinoDetectorUnify.h
     InferPoolTypes.h
@@ -44,6 +43,10 @@ endif()
 if(COSMO_NN_USE_RKLLM_BACKEND)
     target_sources(cosmo_infer PRIVATE RkllmVlmBackend.cc RkllmVlmBackend.h)
     target_link_libraries(cosmo_infer PRIVATE rknnrt rkllmrt)
+    if(COSMO_MODEL_GUARD)
+        target_compile_definitions(cosmo_infer PRIVATE COSMO_HAS_MODEL_GUARD=1)
+        target_link_libraries(cosmo_infer PRIVATE ${COSMO_MODEL_GUARD_LINK_TARGET})
+    endif()
 elseif(COSMO_NN_USE_RKNN_BACKEND)
     target_link_libraries(cosmo_infer PRIVATE rknnrt)
 endif()

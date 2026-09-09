@@ -1,6 +1,5 @@
 # Common sources (always compiled)
 set(MEM_COMMON_SOURCES
-    BlockFreqCalc.cc     BlockFreqCalc.h
     FixedBlockPool.cc    FixedBlockPool.h
     MemoryPoolMng.cc     MemoryPoolMng.h
     AllocatorCpu.cc      AllocatorCpu.h

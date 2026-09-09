@@ -13,8 +13,8 @@
 #include <memory>
 #include <thread>
 
-#include "mock/MockServiceRegistry.h"
 #include "service/infra/impl/DbServiceImpl.h"
+#include "support/ScopedPathOverride.h"
 
 using namespace cosmo::service;
 
@@ -23,8 +23,7 @@ TEST_CASE("DbServiceImpl: construction creates DB and GetDb returns valid ptr", 
         "/tmp/cosmo_db_test_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
     std::filesystem::create_directories(testDir);
 
-    cosmo::test::MockServiceRegistry mocks;
-    cosmo::path::OverrideRootPathForTest(testDir, testDir);
+    cosmo::test::ScopedPathOverride path_override(testDir, testDir);
 
     DbServiceImpl sut;
 
@@ -58,8 +57,7 @@ TEST_CASE("DbServiceImpl: concurrent GetDb access", "[DbService]") {
         "/tmp/cosmo_db_test_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
     std::filesystem::create_directories(testDir);
 
-    cosmo::test::MockServiceRegistry mocks;
-    cosmo::path::OverrideRootPathForTest(testDir, testDir);
+    cosmo::test::ScopedPathOverride path_override(testDir, testDir);
 
     DbServiceImpl sut;
 
@@ -88,8 +86,7 @@ TEST_CASE("DbServiceImpl: Init creates required directories", "[DbService]") {
         "/tmp/cosmo_db_test_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
     std::filesystem::create_directories(testDir);
 
-    cosmo::test::MockServiceRegistry mocks;
-    cosmo::path::OverrideRootPathForTest(testDir, testDir);
+    cosmo::test::ScopedPathOverride path_override(testDir, testDir);
 
     DbServiceImpl sut;
     sut.Init();

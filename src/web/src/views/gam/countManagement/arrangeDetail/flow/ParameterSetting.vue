@@ -58,11 +58,9 @@
               </div>
             </div>
             <div class="show-level">
-              <el-radio-group v-model="item.checkedClient">
-                <el-radio :value="0">{{ t('glossary.notHidden') }}</el-radio>
-                <!-- <el-radio :value="1">{{ t('glossary.clientHidden') }}</el-radio> -->
-                <el-radio :value="2">{{ t('glossary.allHidden') }}</el-radio>
-              </el-radio-group>
+              <el-checkbox v-model="item.checkedClient" :true-value="0" :false-value="2">
+                {{ t('glossary.notHidden') }}
+              </el-checkbox>
               <!-- <div v-if="item.level != '2'" class="delete-icon" @click="forkClick(item,index)">
                 <span>x</span>
               </div> -->
@@ -72,11 +70,9 @@
 
         <!-- 详细模式显示原有内容 -->
         <template v-else>
-          <el-radio-group v-model="item.checkedClient" class="hidden-top">
-            <el-radio :value="0">{{ t('glossary.notHidden') }}</el-radio>
-            <el-radio :value="1">{{ t('glossary.clientHidden') }}</el-radio>
-            <el-radio :value="2">{{ t('glossary.allHidden') }}</el-radio>
-          </el-radio-group>
+          <el-checkbox v-model="item.checkedClient" :true-value="0" :false-value="2" class="hidden-top">
+            {{ t('glossary.notHidden') }}
+          </el-checkbox>
           <div v-if="item.level != '2'" class="delete-icon" @click="forkClick(item,index)">
             <span>x</span>
           </div>
@@ -222,6 +218,11 @@ import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { t, localeColon, currentLocale } from '@/i18n'
 import { resolveI18nOptionLabel, resolveI18nText } from '@/utils/i18nResource'
+import {
+  deriveChannelEditableFromVisibility,
+  normalizeChannelVisibilitySelection,
+  normalizeParamOwnershipList
+} from '@/utils/taskParamOwnership'
 
 // Props
 const props = defineProps({
@@ -423,8 +424,15 @@ const init = () => {
     props.algorithmMetadata.params &&
     props.algorithmMetadata.params.length > 0
   ) {
-    props.algorithmMetadata.params.forEach((item) => {
+    const normalizedParams = normalizeParamOwnershipList(
+      props.algorithmMetadata.params
+    )
+    normalizedParams.forEach((item, index) => {
       let a = []
+      const channelEditable = item.channelEditable
+      const checkedClient = normalizeChannelVisibilitySelection(
+        props.algorithmMetadata.params[index]
+      )
       let arr1 = {
         moduleType: item.type,
         keyValue: item.key,
@@ -442,6 +450,8 @@ const init = () => {
         regularVerify: item.regexpr ? item.regexpr : '',
         dependOn: '',
         level: item.level,
+        checkedClient,
+        channelEditable,
         showMore: false,
         showFather: false
       }
@@ -495,9 +505,6 @@ const init = () => {
         arr1.enumeration = str
         // 同时设置 options，避免在 watch 中修改
         arr1.options = item.options
-      }
-      if (item.senior !== null) {
-        arr1.checkedClient = item.senior
       }
       formData.value.push(arr1)
     })
@@ -638,14 +645,20 @@ const saveParamConfig = () => {
 
   let params = []
   formData.value.forEach((element) => {
+    const value =
+      element.moduleType === 'check'
+        ? Array.isArray(element.defaultValue)
+          ? element.defaultValue.join(',')
+          : element.defaultValue
+        : element.defaultValue
+    const senior =
+      element.checkedClient ?? normalizeChannelVisibilitySelection(element)
+    const explicitChannelEditable = deriveChannelEditableFromVisibility({
+      senior
+    })
     let param = {
       beginValue: null,
-      defaultValue:
-        element.moduleType === 'check'
-          ? Array.isArray(element.defaultValue)
-            ? element.defaultValue.join(',')
-            : element.defaultValue
-          : element.defaultValue,
+      defaultValue: value,
       dependsOn: null,
       description: element.describe,
       endValue: null,
@@ -658,18 +671,14 @@ const saveParamConfig = () => {
       negative: null,
       options: null,
       range: null,
-      senior: element.checkedClient,
+      senior,
       regexpr: element.regularVerify,
       step: null,
       type: element.moduleType,
-      value:
-        element.moduleType === 'check'
-          ? Array.isArray(element.defaultValue)
-            ? element.defaultValue.join(',')
-            : element.defaultValue
-          : element.defaultValue,
+      value,
       level: element ? element.level : null
     }
+    param.channelEditable = explicitChannelEditable
     copyParamI18nFields(element, param)
 
     if (element.scopeMaxValue && element.scopeMinValue) {

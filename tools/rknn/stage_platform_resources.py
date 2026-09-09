@@ -15,6 +15,7 @@ from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_SCHEMA_VERSION = 2
+ARTIFACT_MANIFEST_SCHEMA_VERSION = 1
 
 
 def sha256(path: Path) -> str:
@@ -144,6 +145,103 @@ def verify_file_record(root: Path, document: dict[str, Any], field: str) -> Path
     return path
 
 
+def load_artifact_manifest(
+    raw_manifest_path: str | Path, expected_chip: str | None = None
+) -> tuple[Path, dict[str, Any], list[tuple[str, Path]], Path]:
+    manifest_file = repository_path(raw_manifest_path, "--artifact-manifest")
+    if not manifest_file.is_file():
+        raise ValueError(f"artifact manifest does not exist: {manifest_file}")
+    document = json.loads(manifest_file.read_text(encoding="utf-8"))
+    if document.get("schema_version") != ARTIFACT_MANIFEST_SCHEMA_VERSION:
+        raise ValueError(
+            "artifact manifest schema is stale: "
+            f"expected {ARTIFACT_MANIFEST_SCHEMA_VERSION}, "
+            f"got {document.get('schema_version')}"
+        )
+    chip = document.get("chip")
+    if not isinstance(chip, str) or not chip:
+        raise ValueError("artifact manifest has no chip")
+    if expected_chip is not None and chip != expected_chip:
+        raise ValueError(
+            f"artifact manifest chip does not match the platform profile: {chip}"
+        )
+    usage_scope = document.get("usage_scope")
+    if usage_scope not in {"community-example", "external"}:
+        raise ValueError("artifact manifest has an unsupported usage_scope")
+
+    license_record = document.get("license")
+    if not isinstance(license_record, dict):
+        raise ValueError("artifact manifest has no license record")
+    license_path = verify_file_record(
+        PROJECT_ROOT, license_record, "artifact_manifest.license"
+    )
+    spdx = license_record.get("spdx")
+    if not isinstance(spdx, str) or not spdx:
+        raise ValueError("artifact manifest license has no SPDX identifier")
+
+    model_records = document.get("models")
+    if not isinstance(model_records, list) or not model_records:
+        raise ValueError("artifact manifest has no model records")
+    artifacts: list[tuple[str, Path]] = []
+    seen_models: set[str] = set()
+    for index, record in enumerate(model_records):
+        field = f"artifact_manifest.models[{index}]"
+        if not isinstance(record, dict):
+            raise ValueError(f"{field} must be an object")
+        model_name = record.get("model")
+        if (
+            not isinstance(model_name, str)
+            or not model_name
+            or model_name in seen_models
+        ):
+            raise ValueError(f"{field} has an invalid or duplicate model")
+        seen_models.add(model_name)
+        package_directory = record.get("package_directory")
+        if not isinstance(package_directory, str) or not re.fullmatch(
+            r"[A-Za-z0-9._-]+", package_directory
+        ):
+            raise ValueError(f"{field} has an invalid package_directory")
+
+        spec_record = record.get("spec")
+        source_record = record.get("source")
+        artifact_record = record.get("artifact")
+        if not all(
+            isinstance(value, dict)
+            for value in (spec_record, source_record, artifact_record)
+        ):
+            raise ValueError(f"{field} has incomplete file records")
+        spec_path = verify_file_record(PROJECT_ROOT, spec_record, f"{field}.spec")
+        spec = json.loads(spec_path.read_text(encoding="utf-8"))
+        spec_name = spec.get("name")
+        if spec_name is not None and spec_name != model_name:
+            raise ValueError(f"{field} model name differs from its spec")
+
+        source_path = verify_file_record(
+            PROJECT_ROOT, source_record, f"{field}.source"
+        )
+        expected_source_path = repository_path(
+            str(spec.get("source_repository_path", "")),
+            f"{field}.spec.source_repository_path",
+        )
+        if source_path != expected_source_path:
+            raise ValueError(f"{field} references a different source model")
+        if source_record.get("size_bytes") != source_path.stat().st_size:
+            raise ValueError(f"{field} source model size mismatch")
+        if spec.get("source_sha256") != source_record.get("sha256"):
+            raise ValueError(f"{field} source model differs from its spec")
+
+        artifact_path = verify_file_record(
+            PROJECT_ROOT, artifact_record, f"{field}.artifact"
+        )
+        if artifact_path.suffix.lower() != ".rknn":
+            raise ValueError(f"{field} artifact must be an .rknn file")
+        if artifact_record.get("size_bytes") != artifact_path.stat().st_size:
+            raise ValueError(f"{field} artifact size mismatch")
+        artifacts.append((model_name, artifact_path))
+
+    return manifest_file, document, artifacts, license_path
+
+
 def verify_staged_resources(
     raw_profile_path: str | Path, raw_output_dir: str | Path | None = None
 ) -> dict[str, Any]:
@@ -199,6 +297,56 @@ def verify_staged_resources(
     source_token = str(template_record.get("source_chip", ""))
     if not source_token:
         raise ValueError("staged resource manifest has no source chip token")
+
+    artifact_bundle_record = manifest.get("artifact_bundle")
+    bundle_models: dict[str, dict[str, Any]] | None = None
+    bundle_usage_scope: str | None = None
+    if artifact_bundle_record is not None:
+        if not isinstance(artifact_bundle_record, dict):
+            raise ValueError("staged resource manifest has an invalid artifact_bundle")
+        source_manifest_record = artifact_bundle_record.get("source")
+        packaged_manifest_record = artifact_bundle_record.get("packaged_manifest")
+        packaged_license_record = artifact_bundle_record.get("packaged_license")
+        if not all(
+            isinstance(value, dict)
+            for value in (
+                source_manifest_record,
+                packaged_manifest_record,
+                packaged_license_record,
+            )
+        ):
+            raise ValueError("staged artifact bundle has incomplete file records")
+        source_manifest_path = verify_file_record(
+            PROJECT_ROOT, source_manifest_record, "artifact_bundle.source"
+        )
+        (
+            loaded_manifest_path,
+            bundle_document,
+            _,
+            source_license_path,
+        ) = load_artifact_manifest(source_manifest_path, str(profile.get("chip", "")))
+        if loaded_manifest_path != source_manifest_path:
+            raise ValueError("staged artifact bundle references a different manifest")
+        packaged_manifest_path = verify_file_record(
+            output_dir,
+            packaged_manifest_record,
+            "artifact_bundle.packaged_manifest",
+        )
+        if packaged_manifest_path.read_bytes() != source_manifest_path.read_bytes():
+            raise ValueError("packaged artifact manifest differs from its source")
+        packaged_license_path = verify_file_record(
+            output_dir,
+            packaged_license_record,
+            "artifact_bundle.packaged_license",
+        )
+        if packaged_license_path.read_bytes() != source_license_path.read_bytes():
+            raise ValueError("packaged model license differs from its source")
+        if packaged_license_record.get("spdx") != bundle_document["license"]["spdx"]:
+            raise ValueError("packaged model license SPDX identifier changed")
+        bundle_usage_scope = str(bundle_document.get("usage_scope", ""))
+        bundle_models = {
+            str(record["model"]): record for record in bundle_document["models"]
+        }
 
     model_records = manifest.get("models")
     if not isinstance(model_records, list) or not model_records:
@@ -261,6 +409,22 @@ def verify_staged_resources(
             raise ValueError(f"resource manifest {field} artifact size mismatch")
         if artifact_record.get("source_sha256") != artifact_record.get("sha256"):
             raise ValueError(f"resource manifest {field} artifact differs from its source")
+        if bundle_models is not None:
+            bundle_model = bundle_models.get(model_name)
+            if bundle_model is None:
+                raise ValueError(f"resource manifest {field} is absent from its bundle")
+            if (
+                artifact_record.get("source_sha256")
+                != bundle_model["artifact"].get("sha256")
+            ):
+                raise ValueError(f"resource manifest {field} differs from its bundle")
+            expected_model_path = (
+                f"models/{bundle_model['package_directory']}/model.rknn"
+            )
+            if artifact_record.get("path") != expected_model_path:
+                raise ValueError(
+                    f"resource manifest {field} package directory changed"
+                )
         expected_model_files.update(
             {
                 target_config_path.relative_to(output_dir).as_posix(),
@@ -275,6 +439,8 @@ def verify_staged_resources(
     }
     if actual_model_files != expected_model_files:
         raise ValueError("staged model inventory does not match the resource manifest")
+    if bundle_models is not None and seen_models != set(bundle_models):
+        raise ValueError("staged model selection does not match the artifact bundle")
 
     algorithm_records = manifest.get("algorithms")
     skipped_records = manifest.get("skipped_algorithms")
@@ -332,13 +498,16 @@ def verify_staged_resources(
     if actual_algorithm_files != expected_algorithm_files:
         raise ValueError("staged algorithm inventory does not match the resource manifest")
 
-    return {
+    result = {
         "status": "PASS",
         "chip": profile["chip"],
         "manifest": resource_manifest_path.relative_to(PROJECT_ROOT).as_posix(),
         "models": sorted(seen_models),
         "algorithms": len(algorithm_records),
     }
+    if bundle_usage_scope is not None:
+        result["usage_scope"] = bundle_usage_scope
+    return result
 
 
 def stage_platform_resources(
@@ -346,6 +515,7 @@ def stage_platform_resources(
     artifacts: list[tuple[str, Path]],
     raw_output_dir: str | Path | None = None,
     force: bool = False,
+    raw_artifact_manifest: str | Path | None = None,
 ) -> dict[str, Any]:
     profile_path, profile, template_root, output_dir, target_token = platform_context(
         raw_profile_path, raw_output_dir
@@ -359,6 +529,21 @@ def stage_platform_resources(
         ) from error
     if output_dir == template_root or template_root in output_dir.parents:
         raise ValueError("generated platform resources must not overwrite the resource template")
+
+    artifact_bundle_path: Path | None = None
+    artifact_bundle: dict[str, Any] | None = None
+    artifact_license_path: Path | None = None
+    if raw_artifact_manifest is not None:
+        if artifacts:
+            raise ValueError(
+                "--artifact-manifest cannot be combined with explicit artifacts"
+            )
+        (
+            artifact_bundle_path,
+            artifact_bundle,
+            artifacts,
+            artifact_license_path,
+        ) = load_artifact_manifest(raw_artifact_manifest, str(profile.get("chip", "")))
     if output_dir.exists():
         if not force:
             raise ValueError(f"output already exists: {output_dir}; pass --force to replace it")
@@ -382,7 +567,21 @@ def stage_platform_resources(
     staged_codes: set[str] = set()
     records: list[dict[str, Any]] = []
     for model_name, artifact_path in sorted(supplied.items()):
-        spec_path = PROJECT_ROOT / "config" / "rknn" / "models" / f"{model_name}.json"
+        bundle_model = None
+        if artifact_bundle is not None:
+            bundle_model = next(
+                record
+                for record in artifact_bundle["models"]
+                if record["model"] == model_name
+            )
+            spec_path = repository_path(
+                bundle_model["spec"]["path"],
+                f"artifact bundle spec for {model_name}",
+            )
+        else:
+            spec_path = (
+                PROJECT_ROOT / "config" / "rknn" / "models" / f"{model_name}.json"
+            )
         if not spec_path.is_file():
             raise ValueError(f"model spec does not exist: {spec_path}")
         spec = json.loads(spec_path.read_text(encoding="utf-8"))
@@ -394,6 +593,11 @@ def stage_platform_resources(
         source_dir, source_config = templates[code]
         source_config_path = source_dir / "config.json"
         target_dir_name = source_dir.name.replace(source_token, target_token)
+        if bundle_model is not None:
+            if bundle_model["package_directory"] != target_dir_name:
+                raise ValueError(
+                    f"artifact bundle package directory changed for {model_name}"
+                )
         target_dir = output_dir / "models" / target_dir_name
         target_config = replace_platform_tokens(source_config, source_token, target_token)
         target_config["chip_type"] = target_token
@@ -457,6 +661,37 @@ def stage_platform_resources(
             }
         )
 
+    artifact_bundle_record = None
+    if (
+        artifact_bundle_path is not None
+        and artifact_bundle is not None
+        and artifact_license_path is not None
+    ):
+        packaged_manifest_path = output_dir / "model-bundle.json"
+        packaged_license_path = (
+            output_dir / "licenses" / "model-assets" / artifact_license_path.name
+        )
+        packaged_manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        packaged_license_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(artifact_bundle_path, packaged_manifest_path)
+        shutil.copyfile(artifact_license_path, packaged_license_path)
+        artifact_bundle_record = {
+            "source": {
+                "path": artifact_bundle_path.relative_to(PROJECT_ROOT).as_posix(),
+                "sha256": sha256(artifact_bundle_path),
+            },
+            "packaged_manifest": {
+                "path": packaged_manifest_path.relative_to(output_dir).as_posix(),
+                "sha256": sha256(packaged_manifest_path),
+            },
+            "packaged_license": {
+                "path": packaged_license_path.relative_to(output_dir).as_posix(),
+                "sha256": sha256(packaged_license_path),
+                "spdx": artifact_bundle["license"]["spdx"],
+            },
+            "usage_scope": artifact_bundle["usage_scope"],
+        }
+
     manifest = {
         "schema_version": MANIFEST_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -473,6 +708,7 @@ def stage_platform_resources(
         "models": records,
         "algorithms": algorithm_records,
         "skipped_algorithms": skipped_algorithms,
+        "artifact_bundle": artifact_bundle_record,
     }
     write_json(output_dir / "resource-manifest.json", manifest)
     verify_staged_resources(profile_path, output_dir)
@@ -483,18 +719,26 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--platform-profile", required=True)
     parser.add_argument("--artifact", action="append", type=parse_artifact, default=[])
+    parser.add_argument("--artifact-manifest")
     parser.add_argument("--output-dir")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--verify", action="store_true")
     args = parser.parse_args()
     try:
         if args.verify:
-            if args.artifact or args.force:
-                parser.error("--verify cannot be combined with --artifact or --force")
+            if args.artifact or args.artifact_manifest or args.force:
+                parser.error(
+                    "--verify cannot be combined with --artifact, "
+                    "--artifact-manifest, or --force"
+                )
             result = verify_staged_resources(args.platform_profile, args.output_dir)
         else:
             result = stage_platform_resources(
-                args.platform_profile, args.artifact, args.output_dir, args.force
+                args.platform_profile,
+                args.artifact,
+                args.output_dir,
+                args.force,
+                args.artifact_manifest,
             )
     except (OSError, ValueError, json.JSONDecodeError) as error:
         parser.error(str(error))

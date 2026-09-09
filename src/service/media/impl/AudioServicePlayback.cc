@@ -248,18 +248,18 @@ struct AudioDeviceRsp {
     NLOHMANN_DEFINE_TYPE_INTRUSIVE_WITH_DEFAULT(AudioDeviceRsp, code, message)
 };
 
-bool AudioServiceImpl::HttpSubmit(const std::string& url, const std::string& data) {
-    auto response = ServiceRegistry::Instance().Get<cosmo::service::IHttpClient>().Post(url, data);
+static bool IsAudioDeviceResponseSuccessful(const cosmo::service::HttpResponse& response,
+                                            size_t request_bytes) {
     if (response.statusCode != 200) {
         LOG_ERRO("Audio HTTP request failed, status:{} request_bytes:{} response_bytes:{}",
-                 response.statusCode, data.size(), response.body.size());
+                 response.statusCode, request_bytes, response.body.size());
         return false;
     }
 
     // Get result
     auto ret_json = response.body;
     LOG_DEBUG("Audio HTTP completed, status:{} request_bytes:{} response_bytes:{}", response.statusCode,
-              data.size(), ret_json.size());
+              request_bytes, ret_json.size());
     AudioDeviceRsp rsp;
     try {
         auto j = nlohmann::json::parse(ret_json);
@@ -276,10 +276,15 @@ bool AudioServiceImpl::HttpSubmit(const std::string& url, const std::string& dat
     return true;
 }
 
+bool AudioServiceImpl::HttpSubmit(const std::string& url, const std::string& data) {
+    auto response = ServiceRegistry::Instance().Get<cosmo::service::IHttpClient>().Post(url, data);
+    return IsAudioDeviceResponseSuccessful(response, data.size());
+}
+
 bool AudioServiceImpl::CheckAudioDeviceAlive(const std::string& ip) {
     std::string url = "http://" + ip + "/v1/check_alive";
-    std::string data;
-    return HttpSubmit(url, data);
+    auto response   = ServiceRegistry::Instance().Get<cosmo::service::IHttpClient>().Get(url);
+    return IsAudioDeviceResponseSuccessful(response, 0);
 }
 
 bool AudioServiceImpl::PlayAudioDevice(cosmo::AudioDevicePlay& info) {

@@ -4,11 +4,8 @@
 
 #include <unistd.h>
 
-#include <algorithm>
-#include <cctype>
 #include <exception>
 #include <filesystem>
-#include <string_view>
 #include <utility>
 
 #include "service/algorithm/IAlgorithmQuery.h"
@@ -20,6 +17,7 @@
 #include "util/CipherUtil.h"
 #include "util/DateTimeFormat.h"
 #include "util/FormatString.h"
+#include "util/HttpUrlUtil.h"
 #include "util/JsonStructUtil.h"
 #include "util/Log.h"
 #include "util/PathUtil.h"
@@ -33,43 +31,6 @@ namespace {
     constexpr int kOfflinePushIntervalMs = 60 * 1000;           // 1 minute
     constexpr int64_t kRetryWindowMs     = 24 * 3600 * 1000LL;  // 24 hours
     constexpr int64_t kMinEventAgeMs     = 60 * 1000;           // 1 minute
-    constexpr size_t kMaxPushUrlBytes    = 2048;
-
-    bool IsValidPushUrl(const std::string& url) {
-        if (url.empty() || url.size() > kMaxPushUrlBytes || url.find('\\') != std::string::npos) {
-            return false;
-        }
-        if (std::any_of(url.begin(), url.end(), [](char character) {
-                const auto byte = static_cast<unsigned char>(character);
-                return byte < 0x20 || byte == 0x7f;
-            })) {
-            return false;
-        }
-
-        constexpr std::string_view kHttpPrefix{"http://"};
-        constexpr std::string_view kHttpsPrefix{"https://"};
-        size_t authority_begin = 0;
-        if (url.compare(0, kHttpPrefix.size(), kHttpPrefix) == 0) {
-            authority_begin = kHttpPrefix.size();
-        } else if (url.compare(0, kHttpsPrefix.size(), kHttpsPrefix) == 0) {
-            authority_begin = kHttpsPrefix.size();
-        } else {
-            return false;
-        }
-        const auto authority_end = url.find_first_of("/?#", authority_begin);
-        const auto authority = std::string_view(url).substr(authority_begin, authority_end - authority_begin);
-        if (authority.empty() || authority.find('@') != std::string_view::npos) {
-            return false;
-        }
-        const bool syntax_valid = std::all_of(authority.begin(), authority.end(), [](char character) {
-            const auto byte = static_cast<unsigned char>(character);
-            return std::isalnum(byte) != 0 || character == '.' || character == '-' || character == '_' ||
-                   character == ':' || character == '[' || character == ']';
-        });
-        return syntax_valid && std::any_of(authority.begin(), authority.end(), [](char character) {
-                   return std::isalnum(static_cast<unsigned char>(character)) != 0;
-               });
-    }
 }  // namespace
 
 AlarmPushServiceImpl::AlarmPushServiceImpl() : event_post_que_("HTTP EVENT POST QUE", 100) {
@@ -78,7 +39,7 @@ AlarmPushServiceImpl::AlarmPushServiceImpl() : event_post_que_("HTTP EVENT POST 
     if (!cosmo::util::LoadStructFromJsonFile(cfg_path, loaded)) {
         LOG_WARN("Failed to load alarm push config from {}", cfg_path);
     } else if ((loaded.is_open && loaded.url.empty()) ||
-               (!loaded.url.empty() && !IsValidPushUrl(loaded.url))) {
+               (!loaded.url.empty() && !cosmo::util::IsValidHttpUrl(loaded.url))) {
         LOG_WARN("Reject invalid alarm push config from {}", cfg_path);
     } else {
         config_ = std::move(loaded);
@@ -154,7 +115,7 @@ std::string AlarmPushServiceImpl::GetUrl() {
 }
 
 cosmo::util::ErrorEnum AlarmPushServiceImpl::SetPush(bool enable, const std::string& url) {
-    if ((enable || !url.empty()) && !IsValidPushUrl(url)) {
+    if ((enable || !url.empty()) && !cosmo::util::IsValidHttpUrl(url)) {
         return cosmo::util::ErrorEnum::InvalidParam;
     }
     AlarmPushParam info;

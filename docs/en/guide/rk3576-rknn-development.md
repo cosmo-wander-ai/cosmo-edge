@@ -32,7 +32,7 @@ channels at 5 FPS for the single person-detection workload and 8 channels at 5 F
 for a concurrent mixed workload. Each mixed-workload channel runs person detection alongside
 no-safety-helmet analysis, whose pipeline contains detection followed by classification. These
 are measured boundaries for the stated models and gates, not replacements for a recommended
-profile. See [ScenarioBench v1.1](/benchmarks/scenario-bench/v1.1/report.html).
+profile. See [ScenarioBench v1.1](https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/report.html).
 
 ## Repository and Evidence Boundary
 

@@ -9,7 +9,8 @@
 #include "mock/MockModelAuthorizationService.h"
 #include "mock/MockModelService.h"
 #include "mock/MockScheduleService.h"
-#include "mock/MockServiceRegistry.h"
+#include "support/ApiRouterTestDependencies.h"
+#include "support/ScopedPathOverride.h"
 #include "util/ErrorCode.h"
 #include "util/Exception.h"
 #include "util/MsgBaseTypes.h"  // For MessageFromType
@@ -66,7 +67,7 @@ TEST_CASE("ApiRouter: Actionable transfer errors retain machine-readable facts",
 }
 
 TEST_CASE("ApiRouter: Basic Routing and Dispatch", "[ApiRouter]") {
-    cosmo::test::MockServiceRegistry mocks;
+    cosmo::test::ApiRouterTestDependencies mocks;
     // 构建 ApiRouter，来源选择 Client (通常为 HTTP 来源)
     ApiRouter router(cosmo::MessageFromType::MessageFromHttp);
 
@@ -102,6 +103,12 @@ TEST_CASE("ApiRouter: Basic Routing and Dispatch", "[ApiRouter]") {
     SECTION("DispatchFileDownload should be able to transform local file payload") {
         REQUIRE(router.SupportsRoute("/gtw/cwai/algorithm/layout/export") == true);
     }
+}
+
+TEST_CASE("ApiRouter: HTTP file responses", "[ApiRouter][file-response]") {
+    cosmo::test::ScopedPathOverride paths("/tmp/cosmo_api_router_test", "/tmp/cosmo_api_router_test_app");
+    cosmo::test::ApiRouterTestDependencies mocks;
+    ApiRouter router(cosmo::MessageFromType::MessageFromHttp);
 
     SECTION("HTTP file exports stay on disk for bounded streaming") {
         namespace fs = std::filesystem;
@@ -232,7 +239,7 @@ TEST_CASE("ApiRouter: Basic Routing and Dispatch", "[ApiRouter]") {
 }
 
 TEST_CASE("ApiRouter: Authentication Scenarios", "[ApiRouter]") {
-    cosmo::test::MockServiceRegistry mocks;
+    cosmo::test::ApiRouterTestDependencies mocks;
     ApiRouter router(cosmo::MessageFromType::MessageFromHttp);
 
     std::string response;

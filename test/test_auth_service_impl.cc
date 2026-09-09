@@ -7,8 +7,8 @@
 #include <fstream>
 #include <nlohmann/json.hpp>
 
-#include "mock/MockServiceRegistry.h"
 #include "service/network/impl/AuthServiceImpl.h"
+#include "support/ScopedPathOverride.h"
 #include "util/CipherUtil.h"
 #include "util/StringUtil.h"
 
@@ -22,14 +22,13 @@ static std::string Md5Upper(const std::string& input) {
 
 // Helper: create a unique temp config dir so Load()/Save() don't touch device data.
 struct IsolatedAuthEnv {
-    cosmo::test::MockServiceRegistry mocks;
     std::string tmpDir;
+    cosmo::test::ScopedPathOverride pathOverride;
 
-    IsolatedAuthEnv() {
-        tmpDir = "/tmp/cosmo_auth_test_" +
-                 std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
-        // Override paths so AuthServiceImpl reads/writes to our temp dir
-        cosmo::path::OverrideRootPathForTest(tmpDir, tmpDir);
+    IsolatedAuthEnv()
+        : tmpDir("/tmp/cosmo_auth_test_" +
+                 std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())),
+          pathOverride(tmpDir, tmpDir) {
         fs::create_directories(tmpDir + "/conf");
     }
 

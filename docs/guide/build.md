@@ -136,7 +136,7 @@ cat "build_output/public-runtime/${chip}/TARGET_CHIP"
 (cd "build_output/public-runtime/${chip}" && sha256sum -c SHA256SUMS)
 ```
 
-SSH 安装、Web 升级、恢复边界和重启后的版本验收统一见[部署指南](./deployment.md#ssh安装路径)。
+SSH 安装、Web 升级、恢复边界和重启后的版本验收统一见[部署指南](./deployment.md#ssh-安装路径)。
 构建指南不重复维护设备安装命令，避免构建入口和部署流程独立演进后出现两套口径。
 
 维护人员在包含完整 Guard SDK 和授权工具的受控环境中使用一条命令构建：
@@ -211,9 +211,12 @@ sha256sum build_output/rv1126b/cosmo-*.tar.gz
   `cosmo-rknn-fastpath-qualify` 三个 aarch64 验证程序。
 - 使用宿主机网络解析构建依赖，但不发布应用端口。
 
-RV1126B 的可部署包需要先把该芯片模型放入平台 profile 指定的 ignored overlay。
-CI 可使用 `COSMO_PACKAGE_MODELS=preserve` 只验证代码、工具链和打包结构，但该模式不替代
-带模型的设备验收。旧 `docker-compose.rk3576.yml` 仅作为薄兼容入口保留。
+RV1126B 的 `include` 构建从平台 profile 的 artifact manifest 自动生成并验证 overlay。
+仓库默认清单归档两个 AGPL-3.0 社区示例模型，只用于公开示例和 CI，不属于商业模型交付；
+包内保留 `resource/model-bundle.json` 和模型许可证。商业或专有模型通过
+`COSMO_RKNN_ARTIFACT_MANIFEST` 指向 ignored 任务目录中的独立清单，并接受同样的芯片、
+大小和哈希审计。`preserve` 仍可只验证代码、工具链和包结构，但不能替代带模型的设备验收。
+旧 `docker-compose.rk3576.yml` 仅作为薄兼容入口保留。
 
 稳定版支持范围、运行时选择、模型约定和板端证据边界见
 [RK3576 / RKNN 集成指南](./rk3576-rknn-development.md)。

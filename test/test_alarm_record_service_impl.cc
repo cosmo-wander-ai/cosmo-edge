@@ -12,12 +12,17 @@
 #include <thread>
 
 #include "mock/MockDbService.h"
-#include "mock/MockServiceRegistry.h"
 #include "service/event/impl/AlarmRecordServiceImpl.h"
+#include "support/ScopedServiceOverride.h"
 
 using namespace cosmo::service;
 
 namespace {
+
+struct DbDependency {
+    cosmo::test::MockDbService dbSvc;
+    cosmo::test::ScopedServiceOverride<IDbService> registration{dbSvc};
+};
 
 // Helper: create an in-memory SQLite database for testing.
 std::shared_ptr<SQLite::Database> MakeMemoryDb() {
@@ -49,7 +54,7 @@ cosmo::AlarmRecordUnit MakeAlarmUnit(const std::string& id, const std::string& c
 
 TEST_CASE("AlarmRecordServiceImpl: construction creates tables", "[AlarmRecordService]") {
     auto memDb = MakeMemoryDb();
-    cosmo::test::MockServiceRegistry mocks;
+    DbDependency mocks;
     ALLOW_CALL(mocks.dbSvc, GetDb()).RETURN(memDb);
 
     REQUIRE_NOTHROW([]() {
@@ -60,7 +65,7 @@ TEST_CASE("AlarmRecordServiceImpl: construction creates tables", "[AlarmRecordSe
 
 TEST_CASE("AlarmRecordServiceImpl: Insert and QueryAlarmRecords", "[AlarmRecordService]") {
     auto memDb = MakeMemoryDb();
-    cosmo::test::MockServiceRegistry mocks;
+    DbDependency mocks;
     ALLOW_CALL(mocks.dbSvc, GetDb()).RETURN(memDb);
 
     AlarmRecordServiceImpl sut;
@@ -87,7 +92,7 @@ TEST_CASE("AlarmRecordServiceImpl: Insert and QueryAlarmRecords", "[AlarmRecordS
 
 TEST_CASE("AlarmRecordServiceImpl: UpdateAlarmReportStatus", "[AlarmRecordService]") {
     auto memDb = MakeMemoryDb();
-    cosmo::test::MockServiceRegistry mocks;
+    DbDependency mocks;
     ALLOW_CALL(mocks.dbSvc, GetDb()).RETURN(memDb);
 
     AlarmRecordServiceImpl sut;
@@ -102,7 +107,7 @@ TEST_CASE("AlarmRecordServiceImpl: UpdateAlarmReportStatus", "[AlarmRecordServic
 
 TEST_CASE("AlarmRecordServiceImpl: InsertPassFlow and QueryPassengerFlow", "[AlarmRecordService]") {
     auto memDb = MakeMemoryDb();
-    cosmo::test::MockServiceRegistry mocks;
+    DbDependency mocks;
     ALLOW_CALL(mocks.dbSvc, GetDb()).RETURN(memDb);
 
     AlarmRecordServiceImpl sut;
@@ -125,7 +130,7 @@ TEST_CASE("AlarmRecordServiceImpl: InsertPassFlow and QueryPassengerFlow", "[Ala
 
 TEST_CASE("AlarmRecordServiceImpl: RemoveItems", "[AlarmRecordService]") {
     auto memDb = MakeMemoryDb();
-    cosmo::test::MockServiceRegistry mocks;
+    DbDependency mocks;
     ALLOW_CALL(mocks.dbSvc, GetDb()).RETURN(memDb);
 
     AlarmRecordServiceImpl sut;
@@ -143,7 +148,7 @@ TEST_CASE("AlarmRecordServiceImpl: RemoveItems", "[AlarmRecordService]") {
 
 TEST_CASE("AlarmRecordServiceImpl: concurrent Insert safety", "[AlarmRecordService][concurrency]") {
     auto memDb = MakeMemoryDb();
-    cosmo::test::MockServiceRegistry mocks;
+    DbDependency mocks;
     ALLOW_CALL(mocks.dbSvc, GetDb()).RETURN(memDb);
 
     AlarmRecordServiceImpl sut;

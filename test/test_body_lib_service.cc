@@ -3,12 +3,17 @@
 // Validates cache behavior, TTL, invalidation, and match logic.
 
 #include "mock/MockPersonRecogDaoService.h"
-#include "mock/MockServiceRegistry.h"
 #include "service/face/impl/BodyLibServiceImpl.h"
+#include "support/ScopedServiceOverride.h"
 
 namespace cosmo::test {
 
 namespace {
+
+    struct BodyLibDaoDependency {
+        MockPersonRecogDaoService personRecogDaoSvc;
+        ScopedServiceOverride<service::IPersonRecogDaoService> registration{personRecogDaoSvc};
+    };
 
     // Helper to create a simple compare function that returns a fixed score
     service::CompareFeatureFunc MakeFixedCompare(float score) {
@@ -29,7 +34,6 @@ namespace {
 }  // namespace
 
 TEST_CASE("BodyLibService: empty lib_ids returns false", "[body-lib]") {
-    MockServiceRegistry mocks;
     service::BodyLibServiceImpl sut;
 
     AiFeature runtime_feature;
@@ -41,7 +45,6 @@ TEST_CASE("BodyLibService: empty lib_ids returns false", "[body-lib]") {
 }
 
 TEST_CASE("BodyLibService: SetCacheTtlMs updates TTL", "[body-lib]") {
-    MockServiceRegistry mocks;
     service::BodyLibServiceImpl sut;
 
     // Should not throw
@@ -49,7 +52,6 @@ TEST_CASE("BodyLibService: SetCacheTtlMs updates TTL", "[body-lib]") {
 }
 
 TEST_CASE("BodyLibService: InvalidateCache removes specific entry", "[body-lib]") {
-    MockServiceRegistry mocks;
     service::BodyLibServiceImpl sut;
 
     // Should not throw on non-existent key
@@ -57,7 +59,6 @@ TEST_CASE("BodyLibService: InvalidateCache removes specific entry", "[body-lib]"
 }
 
 TEST_CASE("BodyLibService: InvalidateAll clears all entries", "[body-lib]") {
-    MockServiceRegistry mocks;
     service::BodyLibServiceImpl sut;
 
     // Should not throw
@@ -65,7 +66,7 @@ TEST_CASE("BodyLibService: InvalidateAll clears all entries", "[body-lib]") {
 }
 
 TEST_CASE("BodyLibService: BodyCompare with match above threshold returns true", "[body-lib]") {
-    MockServiceRegistry mocks;
+    BodyLibDaoDependency mocks;
     service::BodyLibServiceImpl sut;
     sut.SetCacheTtlMs(60000);  // Long TTL to avoid re-fetch
 
@@ -106,7 +107,7 @@ TEST_CASE("BodyLibService: BodyCompare with match above threshold returns true",
 }
 
 TEST_CASE("BodyLibService: BodyCompare with match below threshold returns false", "[body-lib]") {
-    MockServiceRegistry mocks;
+    BodyLibDaoDependency mocks;
     service::BodyLibServiceImpl sut;
     sut.SetCacheTtlMs(60000);
 
@@ -139,7 +140,7 @@ TEST_CASE("BodyLibService: BodyCompare with match below threshold returns false"
 }
 
 TEST_CASE("BodyLibService: limit_score overrides lib threshold", "[body-lib]") {
-    MockServiceRegistry mocks;
+    BodyLibDaoDependency mocks;
     service::BodyLibServiceImpl sut;
     sut.SetCacheTtlMs(60000);
 
@@ -176,7 +177,7 @@ TEST_CASE("BodyLibService: limit_score overrides lib threshold", "[body-lib]") {
 }
 
 TEST_CASE("BodyLibService: cache hit avoids redundant DB queries", "[body-lib]") {
-    MockServiceRegistry mocks;
+    BodyLibDaoDependency mocks;
     service::BodyLibServiceImpl sut;
     sut.SetCacheTtlMs(60000);  // Long TTL
 
@@ -209,7 +210,7 @@ TEST_CASE("BodyLibService: cache hit avoids redundant DB queries", "[body-lib]")
 }
 
 TEST_CASE("BodyLibService: InvalidateCache forces cache refresh", "[body-lib]") {
-    MockServiceRegistry mocks;
+    BodyLibDaoDependency mocks;
     service::BodyLibServiceImpl sut;
     sut.SetCacheTtlMs(60000);
 

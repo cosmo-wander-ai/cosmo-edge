@@ -21,9 +21,61 @@ SophonDevice::SophonDevice(DeviceType device_type_) : AbstractDevice(device_type
 }
 
 SophonDevice::~SophonDevice() {
-    // free handle
+    // Runtime handles are deliberately retained until device-registry teardown
+    // so ordinary task stop/start never closes a graph BM context while media
+    // pipelines are still active.
+    {
+        std::lock_guard<std::mutex> lock(runtime_handles_mutex_);
+        for (auto& entry : runtime_handles_) {
+            if (entry.handle != nullptr) {
+                bm_dev_free(entry.handle);
+                entry.handle = nullptr;
+            }
+        }
+        runtime_handles_.clear();
+    }
+
     if (bm_handle) {
         bm_dev_free(bm_handle);
+        bm_handle = nullptr;
+    }
+}
+
+bm_handle_t SophonDevice::AcquireRuntimeHandle(int device_id) {
+    std::lock_guard<std::mutex> lock(runtime_handles_mutex_);
+    for (auto& entry : runtime_handles_) {
+        if (!entry.in_use && entry.device_id == device_id && entry.handle != nullptr) {
+            entry.in_use = true;
+            return entry.handle;
+        }
+    }
+
+    bm_handle_t handle = nullptr;
+    const int ret      = bm_dev_request(&handle, device_id);
+    if (ret != BM_SUCCESS || handle == nullptr) {
+        throw std::runtime_error("Sophon runtime handle request failed");
+    }
+
+    try {
+        runtime_handles_.push_back({handle, device_id, true});
+    } catch (...) {
+        bm_dev_free(handle);
+        throw;
+    }
+    return handle;
+}
+
+void SophonDevice::ReleaseRuntimeHandle(bm_handle_t handle) noexcept {
+    if (handle == nullptr) {
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(runtime_handles_mutex_);
+    for (auto& entry : runtime_handles_) {
+        if (entry.handle == handle) {
+            entry.in_use = false;
+            return;
+        }
     }
 }
 

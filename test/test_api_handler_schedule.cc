@@ -7,13 +7,19 @@
 #include "api/MessageScheduleHandler.h"
 #include "mock/MockCameraService.h"
 #include "mock/MockScheduleService.h"
-#include "mock/MockServiceRegistry.h"
 #include "util/ErrorCode.h"
 
 using namespace cosmo;
 
+namespace {
+struct ScheduleHandlerMocks {
+    test::MockScheduleService scheduleSvc;
+    test::MockCameraService cameraSvc;
+};
+}  // namespace
+
 TEST_CASE("MessageScheduleHandler: Add", "[ScheduleHandler]") {
-    test::MockServiceRegistry mocks;
+    ScheduleHandlerMocks mocks;
     MessageScheduleHandler handler(mocks.scheduleSvc,
                                    static_cast<service::ICameraTaskConfig&>(mocks.cameraSvc));
 
@@ -44,7 +50,7 @@ TEST_CASE("MessageScheduleHandler: Add", "[ScheduleHandler]") {
 }
 
 TEST_CASE("MessageScheduleHandler: Update", "[ScheduleHandler]") {
-    test::MockServiceRegistry mocks;
+    ScheduleHandlerMocks mocks;
     MessageScheduleHandler handler(mocks.scheduleSvc,
                                    static_cast<service::ICameraTaskConfig&>(mocks.cameraSvc));
 
@@ -60,7 +66,7 @@ TEST_CASE("MessageScheduleHandler: Update", "[ScheduleHandler]") {
 }
 
 TEST_CASE("MessageScheduleHandler: Page query", "[ScheduleHandler]") {
-    test::MockServiceRegistry mocks;
+    ScheduleHandlerMocks mocks;
     MessageScheduleHandler handler(mocks.scheduleSvc,
                                    static_cast<service::ICameraTaskConfig&>(mocks.cameraSvc));
 
@@ -85,7 +91,7 @@ TEST_CASE("MessageScheduleHandler: Page query", "[ScheduleHandler]") {
 }
 
 TEST_CASE("MessageScheduleHandler: Delete in-use schedule", "[ScheduleHandler]") {
-    test::MockServiceRegistry mocks;
+    ScheduleHandlerMocks mocks;
     MessageScheduleHandler handler(mocks.scheduleSvc,
                                    static_cast<service::ICameraTaskConfig&>(mocks.cameraSvc));
 
@@ -114,7 +120,7 @@ TEST_CASE("MessageScheduleHandler: Delete in-use schedule", "[ScheduleHandler]")
 }
 
 TEST_CASE("MessageScheduleHandler: SelectScheduleInfo returns all", "[ScheduleHandler]") {
-    test::MockServiceRegistry mocks;
+    ScheduleHandlerMocks mocks;
     MessageScheduleHandler handler(mocks.scheduleSvc,
                                    static_cast<service::ICameraTaskConfig&>(mocks.cameraSvc));
 

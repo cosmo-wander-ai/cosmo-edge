@@ -100,5 +100,5 @@ CV186X Sophon Open 包由构建脚本根据 `cv186x` 型号自动选择对应资
 - 若服务未恢复，先检查 `systemctl status cosmo.service` 与服务日志；不要重复上传同一
   包掩盖首次失败。
 - 完整目录、端口、持久化、失败恢复和回滚边界见[部署指南](/guide/deployment)。
-- 当前公开容量结果见 [ScenarioBench v1.1](/benchmarks/scenario-bench/v1.1/report.zh-CN.html)；短时最高点
+- 当前公开容量结果见 [ScenarioBench v1.1](https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/report.zh-CN.html)；短时最高点
   不是官方推荐配置，生产容量需按实际模型、视频和精度要求复验。

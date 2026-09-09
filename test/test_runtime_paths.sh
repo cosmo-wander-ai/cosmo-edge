@@ -30,15 +30,24 @@ resolve_paths() {
     )
 }
 
-mapfile -t rk_paths < <(resolve_paths "$rk_install")
+rk_paths=()
+while IFS= read -r resolved_path; do
+    rk_paths[${#rk_paths[@]}]="$resolved_path"
+done < <(resolve_paths "$rk_install")
 test "${rk_paths[0]}" = /userdata/cwaiuserdata
 test "${rk_paths[1]}" = /appfs/cosmo_wander/cwai_data
 
-mapfile -t sophon_paths < <(resolve_paths "$sophon_install")
+sophon_paths=()
+while IFS= read -r resolved_path; do
+    sophon_paths[${#sophon_paths[@]}]="$resolved_path"
+done < <(resolve_paths "$sophon_install")
 test "${sophon_paths[0]}" = /data/cwaiuserdata
 test "${sophon_paths[1]}" = /appfs/cosmo_wander/cwai_data
 
-mapfile -t override_paths < <(
+override_paths=()
+while IFS= read -r resolved_path; do
+    override_paths[${#override_paths[@]}]="$resolved_path"
+done < <(
     COSMO_DATA_DIR=/mnt/cosmo-data \
         COSMO_APP_DATA_DIR=/opt/cosmo-app \
         resolve_paths "$rk_install"
@@ -74,6 +83,7 @@ cp "${repo}/cmake/srs.conf.in" "${render_install}/bin/srs_conf/srs.conf"
 render_data_dir="${root}/userdata/cwaiuserdata"
 (
     unset COSMO_PACKAGE_DATA_DIR COSMO_PACKAGE_APP_DATA_DIR
+    # shellcheck disable=SC2034  # consumed by sourced common.sh
     COSMO_INSTALL_DIR="$render_install"
     COSMO_DATA_DIR="$render_data_dir"
     # shellcheck source=../scripts/common.sh
@@ -87,13 +97,19 @@ render_data_dir="${root}/userdata/cwaiuserdata"
     grep -Fq "alias ${render_data_dir}/event;" "$COSMO_RUNTIME_NGINX_UPSTREAM_CONF"
     grep -Fq "pid                 ${render_data_dir}/log/logs/srs.pid;" \
         "$COSMO_RUNTIME_SRS_CONF"
-    ! grep -R -Fq '@COSMO_DATA_DIR@' "$COSMO_RUNTIME_NGINX_PREFIX" "$COSMO_RUNTIME_SRS_CONF"
-    ! grep -R -Fq '/data/cwaiuserdata' "$COSMO_RUNTIME_NGINX_PREFIX" "$COSMO_RUNTIME_SRS_CONF"
+    if grep -R -Fq '@COSMO_DATA_DIR@' "$COSMO_RUNTIME_NGINX_PREFIX" "$COSMO_RUNTIME_SRS_CONF"; then
+        exit 1
+    fi
+    if grep -R -Fq '/data/cwaiuserdata' "$COSMO_RUNTIME_NGINX_PREFIX" "$COSMO_RUNTIME_SRS_CONF"; then
+        exit 1
+    fi
     grep -Fq 'enabled off;' "$COSMO_RUNTIME_SRS_CONF"
     grep -Fq 'listen 9001;' "$COSMO_RUNTIME_SRS_CONF"
     grep -Fq 'listen 5060;' "$COSMO_RUNTIME_SRS_CONF"
     grep -Fq 'candidate *;' "$COSMO_RUNTIME_SRS_CONF"
-    ! grep -Fq '@COSMO_GB28181_' "$COSMO_RUNTIME_SRS_CONF"
+    if grep -Fq '@COSMO_GB28181_' "$COSMO_RUNTIME_SRS_CONF"; then
+        exit 1
+    fi
 )
 
 gb_data_dir="${root}/gb28181/cwaiuserdata"

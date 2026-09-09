@@ -11,6 +11,7 @@ add_library(cosmo_util OBJECT
     FpsCalc.cc           FpsCalc.h
     FpsCtrl.cc           FpsCtrl.h
     GeometricPos.cc      GeometricPos.h
+    HttpUrlUtil.cc       HttpUrlUtil.h
     JsonFileUtil.cc      JsonFileUtil.h
     Log.cc               Log.h
     NToL.cc              NToL.h

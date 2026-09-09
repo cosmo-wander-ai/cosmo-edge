@@ -8,6 +8,15 @@ RKNN_ROOT_PATH="${RKNN_ROOT:-}"
 ROCKCHIP_MEDIA_ROOT_PATH="${ROCKCHIP_MEDIA_ROOT:-}"
 RKLLM_ROOT_PATH="${RKLLM_ROOT:-}"
 RKLLM_REQUIRED="${COSMO_RKLLM_REQUIRED:-OFF}"
+MODEL_GUARD_BUILD_PROFILE="${COSMO_MODEL_GUARD_BUILD_PROFILE:-public-runtime}"
+case "${MODEL_GUARD_BUILD_PROFILE}" in
+    public-runtime|production-release) ;;
+    *)
+        echo "ERROR: COSMO_MODEL_GUARD_BUILD_PROFILE must be public-runtime or production-release" >&2
+        exit 1
+        ;;
+esac
+MODEL_GUARD_SDK_ROOT="${COSMO_MODEL_GUARD_SDK_ROOT:-}"
 DEV_MODE=OFF
 BUILD_TESTS_FLAG=OFF
 while getopts "c:m:r:p:tT" opt; do
@@ -25,6 +34,17 @@ done
 if [ -z "${PROJECT_ROOT_PATH:-}" ]; then
     PROJECT_ROOT_PATH=$(cd "$(dirname "$0")/.." && pwd)
 fi
+if [ -z "${MODEL_GUARD_SDK_ROOT}" ]; then
+    MODEL_GUARD_SDK_ROOT="${PROJECT_ROOT_PATH}/prebuild/model-guard-v2-rknn-abi1"
+fi
+MODEL_GUARD_CMAKE_ARGS=(
+    -DCOSMO_MODEL_GUARD_BUILD_PROFILE="${MODEL_GUARD_BUILD_PROFILE}"
+)
+if [ "${MODEL_GUARD_BUILD_PROFILE}" = "production-release" ]; then
+    MODEL_GUARD_CMAKE_ARGS+=(
+        -DCOSMO_MODEL_GUARD_SDK_ROOT="${MODEL_GUARD_SDK_ROOT}"
+    )
+fi
 
 BUILD_JOBS="${COSMO_BUILD_JOBS:-$(nproc)}"
 if ! [[ "${BUILD_JOBS}" =~ ^[1-9][0-9]*$ ]]; then
@@ -38,7 +58,7 @@ if [ ! -f "${PLATFORM_PROFILE}" ]; then
     echo "ERROR: unsupported RKNN platform profile: ${TARGET_CHIP}" >&2
     exit 1
 fi
-IFS=$'\t' read -r PROFILE_CHIP PROFILE_MEDIA_DEFAULT PROFILE_OVERLAY PROFILE_MODELS < <(
+IFS=$'\t' read -r PROFILE_CHIP PROFILE_MEDIA_DEFAULT PROFILE_OVERLAY PROFILE_MODELS PROFILE_ARTIFACT_MANIFEST < <(
     python3 - "${PLATFORM_PROFILE}" <<'PY'
 import json
 import pathlib
@@ -50,6 +70,7 @@ values = (
     profile["media"]["default_backend"],
     profile["packaging"]["resource_overlay_directory"],
     profile["packaging"]["legacy_models_directory"],
+    profile["packaging"].get("artifact_manifest", "-"),
 )
 if any("\t" in str(value) or "\n" in str(value) for value in values):
     raise SystemExit("platform profile values must be single-line fields")
@@ -96,17 +117,31 @@ fi
 
 RESOURCE_MODELS_DIR="${COSMO_RKNN_MODELS_DIR:-${PROJECT_ROOT_PATH}/${PROFILE_MODELS}}"
 RESOURCE_OVERLAY_DIR="${COSMO_RKNN_RESOURCE_OVERLAY_DIR:-${PROJECT_ROOT_PATH}/${PROFILE_OVERLAY}}"
-PACKAGE_MODELS="${COSMO_PACKAGE_MODELS:-include}"
-if [ "${PACKAGE_MODELS}" = "include" ] && [ ! -d "${RESOURCE_MODELS_DIR}" ]; then
-    echo "ERROR: target-specific model directory is missing: ${RESOURCE_MODELS_DIR}" >&2
-    echo "Convert and stage ${TARGET_CHIP} models first, or set COSMO_PACKAGE_MODELS=preserve for a code-only build." >&2
-    exit 1
+ARTIFACT_MANIFEST="${COSMO_RKNN_ARTIFACT_MANIFEST:-${PROFILE_ARTIFACT_MANIFEST}}"
+if [ "${ARTIFACT_MANIFEST}" = "none" ] || [ "${ARTIFACT_MANIFEST}" = "-" ]; then
+    ARTIFACT_MANIFEST=""
+elif [ "${ARTIFACT_MANIFEST#/}" = "${ARTIFACT_MANIFEST}" ]; then
+    ARTIFACT_MANIFEST="${PROJECT_ROOT_PATH}/${ARTIFACT_MANIFEST}"
 fi
+PACKAGE_MODELS="${COSMO_PACKAGE_MODELS:-include}"
 if [ "${PACKAGE_MODELS}" = "include" ]; then
-    python3 "${PROJECT_ROOT_PATH}/tools/rknn/stage_platform_resources.py" \
-        --platform-profile "${PLATFORM_PROFILE}" \
-        --output-dir "${RESOURCE_OVERLAY_DIR}" \
-        --verify
+    if [ -n "${ARTIFACT_MANIFEST}" ]; then
+        python3 "${PROJECT_ROOT_PATH}/tools/rknn/stage_platform_resources.py" \
+            --platform-profile "${PLATFORM_PROFILE}" \
+            --artifact-manifest "${ARTIFACT_MANIFEST}" \
+            --output-dir "${RESOURCE_OVERLAY_DIR}" \
+            --force
+    else
+        python3 "${PROJECT_ROOT_PATH}/tools/rknn/stage_platform_resources.py" \
+            --platform-profile "${PLATFORM_PROFILE}" \
+            --output-dir "${RESOURCE_OVERLAY_DIR}" \
+            --verify
+    fi
+    if [ ! -d "${RESOURCE_MODELS_DIR}" ]; then
+        echo "ERROR: target-specific model directory is missing: ${RESOURCE_MODELS_DIR}" >&2
+        echo "Provide a staged target model bundle, or set COSMO_PACKAGE_MODELS=preserve for a code-only build." >&2
+        exit 1
+    fi
 fi
 BUILD_DIR="${PROJECT_ROOT_PATH}/build_rknn"
 INSTALL_DIR="${BUILD_DIR}/install"
@@ -129,6 +164,7 @@ cmake -S "${PROJECT_ROOT_PATH}" -B "${BUILD_DIR}" \
     -DCOSMO_RKLLM_REQUIRED="${RKLLM_REQUIRED}" \
     -DCOSMO_ROCKCHIP_MEDIA_ROOT="${ROCKCHIP_MEDIA_ROOT_PATH}" \
     -DCOSMO_DEV_MODE="${DEV_MODE}" \
+    "${MODEL_GUARD_CMAKE_ARGS[@]}" \
     -DCOSMO_PACKAGE_MODELS="${PACKAGE_MODELS}" \
     -DBUILD_TESTS="${BUILD_TESTS_FLAG}" \
     -DRESOURCE_DIR="${RESOURCE_DIR}" \

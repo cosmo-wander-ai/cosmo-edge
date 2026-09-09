@@ -152,6 +152,7 @@
       :url="currentEvent?.video || ''"
       :structureDataUrl="currentEvent?.videostructured || ''" 
       :title="downloadName"
+      :show-custom-title="false"
     />
   </div>
 </template>
@@ -160,7 +161,7 @@
 import { ref, reactive, onMounted, getCurrentInstance } from 'vue'
 import TopBar from '@/components/TopBar.vue'
 import moment from 'moment'
-import videoFrequency from '../components/videoPlaying265.vue'
+import videoFrequency from '@/components/videoPlaying265.vue'
 import CarDetailDialog from '../components/carDetailDialog.vue'
 import { t, currentLocale } from '@/i18n'
 

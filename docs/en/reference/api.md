@@ -125,7 +125,7 @@ Byte counts in `uploadCapabilities` are returned as decimal strings. Important f
 | `maxEncodedImageBytes` | Encoded-image byte capability of the current media pipeline |
 | `maxImagePixels` | Maximum decodable pixel count of the current media pipeline |
 
-The default policy does not impose arbitrary total quotas by model, video, or image type. Admission is based on the target filesystem's live resources while preserving `max(512 MB, 5%)` as a disk safety reserve. Clients must query capabilities before an upload and must not turn a previously observed storage or image value into a product constant.
+The default policy does not impose arbitrary total quotas by model, video, or image type. Admission is based on the target filesystem's live resources with a fixed `512 MB` disk safety reserve by default; the percentage reserve defaults to `0%`. Clients must query capabilities before an upload and must not turn a previously observed storage or image value into a product constant.
 
 Current production defaults are centralized instead of defining separate fine-grained limits for each business type:
 
@@ -138,7 +138,7 @@ Current production defaults are centralized instead of defining separate fine-gr
 | Per-session metadata budget | `64 MB` | Prevents a malformed session from consuming unbounded memory |
 | Idle / absolute timeout | `30 minutes` / `0` | Progress renews the session; no absolute lifetime |
 | Restart persistence | enabled | Persists manifests and supports idempotent resume |
-| Disk safety reserve | `max(512 MB, 5%)` | Prevents uploads from exhausting the target filesystem |
+| Disk safety reserve | `512 MB` (percentage reserve defaults to `0%`) | Prevents uploads from exhausting the target filesystem; use the capability response's `reserveBytes` value |
 
 The first chunk should carry a stable `clientRequestId`. The server returns an opaque `uploadId` and `nextChunkIndex`. After a disconnect or engine restart, resend chunk 0 for the same file with the same `clientRequestId`; the server returns the existing session and its next required chunk. Delete the local resume identity after completion or cancellation.
 

@@ -1,6 +1,6 @@
 version: 2
-name: vlm-0p1fps-current-route-observation
-displayName: VLM 0.1 FPS current-route runtime observation
+name: vlm-0p1fps-validated-performance
+displayName: VLM 0.1 FPS validated performance
 sampleIntervalSec: 3
 
 channels:
@@ -42,15 +42,15 @@ loadProfile:
 thresholds:
   pass:
     avgDiscardRate: 0.05
+    maxPacketDiscardRate: 0.01
+    maxDiskUsedPercent: 99
   taskTypes:
     vlm:
-      minFpsRatio: null
+      minFpsRatio: 0.8
       maxMissingRate: 0
+      avgDiscardRate: 0.05
 
-# Analysis FPS is observed but deliberately excluded from PASS/FAIL. The current
-# tool waits for each newly added route to complete task-local inference and
-# expose direct Qwen latency before formal sampling. Results must remain labelled
-# Experimental runtime observation, never validated VLM capacity or an official
-# supported-channel claim. Release pages may conservatively post-evaluate the
-# recorded minimum active-route FPS against an 80% reference, but that does not
-# rewrite this executed scenario as an FPS-gated run.
+# Before each formal hold window, the newly added route must advance its
+# task-local completion counter and expose direct Qwen latency. The 80% FPS
+# threshold is an executed gate. The last passing level and the adjacent first
+# gate failure form the short-run capacity boundary for the frozen candidate.

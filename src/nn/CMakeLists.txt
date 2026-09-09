@@ -65,7 +65,7 @@ endif()
 
 if(COSMO_MODEL_GUARD)
     target_compile_definitions(cosmo_nn PRIVATE COSMO_HAS_MODEL_GUARD=1)
-    target_link_libraries(cosmo_nn PRIVATE cosmo_model_guard_v2)
+    target_link_libraries(cosmo_nn PRIVATE ${COSMO_MODEL_GUARD_LINK_TARGET})
 endif()
 
 if(COSMO_NN_USE_CPU_BACKEND)

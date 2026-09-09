@@ -136,10 +136,9 @@ namespace {
         return fingerprint;
     }
 
-    uint64_t NextModelContextSequence(const std::vector<unsigned char>& model) {
+    uint64_t NextModelContextSequence(uint64_t fingerprint) {
         static std::mutex sequence_mutex;
         static std::unordered_map<uint64_t, uint64_t> model_sequences;
-        const auto fingerprint = ModelFingerprint(model);
         std::lock_guard<std::mutex> lock(sequence_mutex);
         auto& sequence = model_sequences[fingerprint];
         return sequence++;
@@ -732,10 +731,24 @@ Status RknnNetNode::LoadWeight(const char* data, size_t size) {
         DestroyContext();
         return RknnError("rknn_init", result);
     }
-    const uint64_t context_sequence = NextModelContextSequence(model_data_);
-    bool core_mode_valid            = true;
-    const char* core_mode_env       = std::getenv("COSMO_RKNN_CORE_MODE");
-    const auto core_mode = ParseRknnCoreMode(core_mode_env ? core_mode_env : "auto", &core_mode_valid);
+    return InitializeLoadedContext(NextModelContextSequence(ModelFingerprint(model_data_)));
+}
+
+Status RknnNetNode::AttachOwnedContext(rknn_context context, uint64_t model_fingerprint) {
+    if (context == 0)
+        return Status(COSMO_NN_ERR_LOAD_MODEL, "Protected RKNN context is invalid");
+    std::lock_guard<std::mutex> lock(mutex_);
+    DestroyContext();
+    context_ = context;
+    model_data_.clear();
+    return InitializeLoadedContext(NextModelContextSequence(model_fingerprint));
+}
+
+Status RknnNetNode::InitializeLoadedContext(uint64_t context_sequence) {
+    int result                = RKNN_SUCC;
+    bool core_mode_valid      = true;
+    const char* core_mode_env = std::getenv("COSMO_RKNN_CORE_MODE");
+    const auto core_mode      = ParseRknnCoreMode(core_mode_env ? core_mode_env : "auto", &core_mode_valid);
     if (!core_mode_valid) {
         LOG_WARN("Invalid COSMO_RKNN_CORE_MODE value:{}, fallback:auto", core_mode_env ? core_mode_env : "");
     }

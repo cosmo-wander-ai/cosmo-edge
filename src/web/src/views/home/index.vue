@@ -178,6 +178,7 @@
       :url="currentEvent?.video || ''"
       :structureDataUrl="currentEvent?.videostructured || ''"
       :title="videoTitle"
+      :show-custom-title="false"
     />
   </div>
 </template>
@@ -188,7 +189,7 @@ import { useRouter } from 'vue-router'
 import { t, localeColon, currentLocale } from '@/i18n'
 import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
 import DetailDialog from '../box/eventQuery/components/detailDialog.vue'
-import VideoFrequency from '../box/eventQuery/components/videoPlaying265.vue'
+import VideoFrequency from '@/components/videoPlaying265.vue'
 
 const { proxy } = getCurrentInstance()
 const router = useRouter()

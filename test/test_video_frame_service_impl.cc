@@ -13,8 +13,8 @@
 #include "media/IOsdTextRenderer.h"
 #include "mem/DeviceContext.h"
 #include "mem/IDeviceContext.h"
-#include "service/detail/ServiceRegistry.h"
 #include "service/media/impl/VideoFrameServiceImpl.h"
+#include "support/ScopedServiceOverride.h"
 
 #if defined(COSMO_MEDIA_USE_CPU_BACKEND)
 #include <chrono>
@@ -54,40 +54,15 @@ public:
 
 class ScopedDeviceContext {
 public:
-    ScopedDeviceContext() {
-        if (ServiceRegistry::Instance().Has<cosmo::mem::IDeviceContext>()) {
-            throw std::logic_error("device context already registered by another test");
-        }
-        device_context_ = std::make_unique<cosmo::mem::DeviceContext>();
-        ServiceRegistry::Instance().Set<cosmo::mem::IDeviceContext>(device_context_.get());
-    }
-
-    ~ScopedDeviceContext() {
-        ServiceRegistry::Instance().Set<cosmo::mem::IDeviceContext>(nullptr);
-    }
+    ScopedDeviceContext()
+        : device_context_(std::make_unique<cosmo::mem::DeviceContext>()), registration_(*device_context_) {}
 
     ScopedDeviceContext(const ScopedDeviceContext&)            = delete;
     ScopedDeviceContext& operator=(const ScopedDeviceContext&) = delete;
 
 private:
     std::unique_ptr<cosmo::mem::DeviceContext> device_context_;
-};
-
-class ScopedOsdRegistration {
-public:
-    explicit ScopedOsdRegistration(cosmo::media::IOsdTextRenderer& osd) {
-        if (ServiceRegistry::Instance().Has<cosmo::media::IOsdTextRenderer>()) {
-            throw std::logic_error("OSD renderer already registered by another test");
-        }
-        ServiceRegistry::Instance().Set<cosmo::media::IOsdTextRenderer>(&osd);
-    }
-
-    ~ScopedOsdRegistration() {
-        ServiceRegistry::Instance().Set<cosmo::media::IOsdTextRenderer>(nullptr);
-    }
-
-    ScopedOsdRegistration(const ScopedOsdRegistration&)            = delete;
-    ScopedOsdRegistration& operator=(const ScopedOsdRegistration&) = delete;
+    cosmo::test::ScopedServiceOverride<cosmo::mem::IDeviceContext> registration_;
 };
 
 class VideoFrameServiceFixture {
@@ -104,7 +79,7 @@ public:
 private:
     ScopedDeviceContext device_context_;
     StubOsdTextRenderer osd_;
-    ScopedOsdRegistration osd_registration_;
+    cosmo::test::ScopedServiceOverride<cosmo::media::IOsdTextRenderer> osd_registration_;
     VideoFrameServiceImpl service_;
 };
 
@@ -185,17 +160,13 @@ TEST_CASE("VideoFrameServiceImpl serializes complete concurrent OSD sessions",
     cosmo::mem::MemoryPoolMng memory_pool(std::make_unique<cosmo::mem::AllocatorCpu>(),
                                           {static_cast<int>(frameSize)});
     cosmo::mem::SetMemoryPoolContext(&memory_pool);
-    auto& registry = cosmo::service::ServiceRegistry::Instance();
-    registry.Set<cosmo::mem::IDeviceContext>(&device_context);
-    registry.Set<cosmo::media::IOsdTextRenderer>(&text_renderer);
     struct ContextReset {
         ~ContextReset() {
-            auto& registry = cosmo::service::ServiceRegistry::Instance();
-            registry.Set<cosmo::media::IOsdTextRenderer>(nullptr);
-            registry.Set<cosmo::mem::IDeviceContext>(nullptr);
             cosmo::mem::SetMemoryPoolContext(nullptr);
         }
     } context_reset;
+    cosmo::test::ScopedServiceOverride<cosmo::mem::IDeviceContext> device_registration(device_context);
+    cosmo::test::ScopedServiceOverride<cosmo::media::IOsdTextRenderer> text_registration(text_renderer);
 
     VideoFrameServiceImpl sut;
     auto first =

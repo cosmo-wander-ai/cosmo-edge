@@ -6,13 +6,11 @@ This project follows a release-note style inspired by Keep a Changelog.
 
 ## [Unreleased]
 
-### 1.1.0 release candidate
+## [1.1.0] - 2026-08-24
 
-Multi-platform release candidate for BM1688, CV186X, RK3576, RV1126B, and x86, plus a scoped
-Apple Silicon macOS Docker Preview. RV1126B and the macOS Preview have completed multiple lab
-validation rounds; those results are not yet part of the public evidence pack. VLM stress and
-long-running qualification are still in progress. Capacity claims remain bound to the models,
-packages, environments, thresholds, and durations recorded in their linked evidence.
+CosmoEdge 1.1 adds CV186X, RK3576, and RV1126B release-platform support, expands the BMRT/RKNN
+media and inference paths, and publishes multi-platform short-run capacity, validated VLM performance, and
+controlled 72-hour fixed-profile evidence. Apple Silicon macOS receives a scoped Docker Preview.
 
 ### Added
 
@@ -24,9 +22,7 @@ packages, environments, thresholds, and durations recorded in their linked evide
   qualification fixtures.
 - Rockchip RV1126B release-platform support with target-specific RKNN artifacts, cross-build and
   board-operation paths, MPP/RGA media integration, and measured short-run workload evidence.
-- Apple Silicon macOS Docker Preview for an isolated `linux/amd64` single-local-video workflow;
-  it is not a native macOS/NPU path, a multi-channel deployment claim, or production-performance
-  evidence.
+- Apple Silicon macOS Docker Preview for an isolated `linux/amd64` single-local-video workflow.
 - Platform-neutral host/backend and media-factory contracts, derived model-artifact identities,
   accelerator and preview-pipeline metrics, and ScenarioBench preview validation for additional
   accelerator families.
@@ -68,12 +64,18 @@ packages, environments, thresholds, and durations recorded in their linked evide
 - Unified Sophon package upgrades on the legacy-compatible permanent-MD5 lifecycle, including
   legacy installer invocation, safe internal symlinks, upgrade recovery, and Open/Protected model
   lifecycle checks. Application archives themselves remain unsigned.
+- Added a fail-closed Rockchip data-root bridge for prerelease installations: durable state is
+  transactionally copied from `/data/cwaiuserdata` to `/userdata/cwaiuserdata`, the source remains
+  available for recovery, transient upload/runtime data is excluded, and ambiguous dual-root
+  persistent state is rejected before service shutdown. A rejected installation resumes the
+  previously active application instead of leaving the service in an upgrade retry loop.
 - Simplified linkage runtime task handling and made task saves atomic under resource pressure.
 - Hardened change validation, sharded Sophon tests, and aligned ScenarioBench capacity, VLM
   throughput, preview-load, report, and cleanup behavior with the current staging protocol.
-- Refreshed the controlled-input VLM observations for BM1688, CV186X, and RK3576, and strengthened
-  ScenarioBench with per-route readiness, task-local completion counters, and current-route FPS.
-  Public summaries now report the gate-passing channel count from each run.
+- Validated VLM support on BM1688, CV186X, and RK3576 using one controlled-input protocol with
+  per-route readiness, task-local completion counters, and an executed 80% FPS gate. Exact
+  short-run boundaries are 6, 6, and 4 channels; each platform's fixed candidate package also passes model
+  load, task creation, valid inference, event/alarm output, and task recovery after service restart.
 
 ### Fixed
 
@@ -111,10 +113,12 @@ packages, environments, thresholds, and durations recorded in their linked evide
 - Expanded and restored the bilingual system guide, region-alarm tutorials, runtime localization,
   and model/resource references.
 - Added the bilingual CosmoEdge 1.1 multi-platform ScenarioBench report, sanitized single-detector,
-  dual-detector, and Experimental VLM attachments, environment/model identities, reproduction
+  dual-detector, and validated VLM performance reports, environment/model identities, reproduction
   descriptors, release manifest, and file checksums.
 - Added the agent-assisted development entry, environment and model-conversion guidance, and a
   contributor pre-commit hook guide.
+- Added the bilingual v1.0.0-to-v1.1.0 upgrade and recovery guide, maintainer-ready per-platform
+  v1.1.0 release-note drafts, and an explicit GitHub Discussions English-support boundary.
 
 ## [1.0.0] - 2026-07-03
 
@@ -122,7 +126,7 @@ First stable public release: a security and CI hardening pass plus feature, refa
 
 ### Added
 
-- `tools/scenario-bench` capacity/benchmark tool with pluggable CV/VLM task strategies, multi-task workloads, capacity reporting, VLM inference metrics, a 30s VLM warmup delay, and a workload design doc.
+- `tools/scenario-bench` capacity/benchmark tool with pluggable CV/VLM task strategies, multi-task workloads, capacity reporting, VLM inference metrics, initial VLM readiness support, and a workload design doc.
 - Sophon BM1688 safety-helmet detection algorithm and models.
 - x86 preset algorithm pack with ONNX models.
 - Error-message i18n infrastructure for the web console.

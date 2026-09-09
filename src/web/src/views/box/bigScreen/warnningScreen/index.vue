@@ -80,7 +80,7 @@
                 </template>
               </el-input>
               <div class="tree-body">
-                <el-tree id="onboarding-camera-tree" ref="tree" class="filter-tree" :data="camearList" :highlight-current="true" node-key="id" default-expand-all :filter-node-method="filterNode" draggable @node-drag-start="handleDragStart" :allow-drop="handleDrop">
+                <el-tree id="onboarding-camera-tree" ref="tree" class="filter-tree" :data="camearList" :highlight-current="true" node-key="id" default-expand-all :filter-node-method="filterNode">
                   <template #default="{ node, data }">
                     <div class="custom-tree-node" :class="{'padding-left-18': nodeLabel(data) !== t('common.all')}" @dblclick="handleCameraNodeClick(data)">
                       <div v-if="data.channelType == 0 && data.status == 0" class="stnode">
@@ -296,8 +296,9 @@ const isVideoFullScreen = ref(null)
 const detailDialogVisible = ref(false)
 const captureDialogVisible = ref(false)
 const showAlert = ref(false)
-const alertPosition = ref(-383)
 const alertTimer = ref(null)
+const alertEnterTimer = ref(null)
+const alertExitTimer = ref(null)
 const socket = ref(null)
 const socketTimer = ref(null)
 const reconnectTimer = ref(null)
@@ -328,7 +329,33 @@ const selectedAlgorithmList = ref([])
 const detailData = ref({})
 const currentSocketData = ref({})
 const audioUnlocked = ref(false)
-let _unlockAudio = null
+const ALERT_ENTER_DELAY_MS = 50
+const ALERT_EXIT_DELAY_MS = 500
+let alertAnimationFrame = null
+
+const clearAlertTimers = () => {
+  if (alertAnimationFrame !== null) {
+    cancelAnimationFrame(alertAnimationFrame)
+    alertAnimationFrame = null
+  }
+  const timers = [alertTimer, alertEnterTimer, alertExitTimer]
+  timers.forEach((timer) => {
+    if (timer.value) {
+      clearTimeout(timer.value)
+      timer.value = null
+    }
+  })
+}
+
+const scheduleAlertDismiss = () => {
+  alertTimer.value = setTimeout(() => {
+    alertTimer.value = null
+    alertExitTimer.value = setTimeout(() => {
+      alertExitTimer.value = null
+      showAlert.value = false
+    }, ALERT_EXIT_DELAY_MS)
+  }, realSettingForm.value.popUpDuration * 1000)
+}
 
 // Validation
 const validatePopUpDuration = (rule, value, callback) => {
@@ -536,15 +563,13 @@ const handleCameraNodeClick = (node) => {
 }
 
 const handleSettingClick = () => {
-  playAudio()
+  unlockAudio()
+  clearAlertTimers()
   showAlert.value = false
   settingForm.value = { ...realSettingForm.value }
   settingFormRef.value && settingFormRef.value.clearValidate()
   settingDialogVisible.value = true
 }
-
-const handleDragStart = () => {}
-const handleDrop = () => {}
 
 const handleInput = (val, key) => {
   settingForm.value[key] = val.replace(/[^\d]/g, '')
@@ -852,9 +877,7 @@ const socketOnMessage = (data) => {
     eventList.value.unshift(currentSocketData.value)
   }
 
-  if (alertTimer.value) {
-    clearTimeout(alertTimer.value)
-  }
+  clearAlertTimers()
 
   if (realSettingForm.value.audioPlay == 1 && audioUnlocked.value) {
     const audioEl = audio.value
@@ -872,37 +895,22 @@ const socketOnMessage = (data) => {
     return
 
   if (showAlert.value) {
-    alertTimer.value && clearTimeout(alertTimer.value)
-    alertTimer.value = setTimeout(() => {
-      alertPosition.value = window.innerWidth
-      setTimeout(() => {
-        showAlert.value = false
-      }, 500)
-    }, realSettingForm.value.popUpDuration * 1000)
+    scheduleAlertDismiss()
     return
   }
 
-  alertPosition.value = window.innerWidth
   showAlert.value = true
 
-  requestAnimationFrame(() => {
-    setTimeout(() => {
-      // 居中位置 = (窗口宽度 - 弹窗宽度) / 2
-      alertPosition.value = (window.innerWidth - 900) / 2
-
-      alertTimer.value = setTimeout(() => {
-        alertPosition.value = window.innerWidth
-
-        setTimeout(() => {
-          showAlert.value = false
-        }, 500)
-      }, realSettingForm.value.popUpDuration * 1000)
-    }, 50)
+  alertAnimationFrame = requestAnimationFrame(() => {
+    alertAnimationFrame = null
+    alertEnterTimer.value = setTimeout(() => {
+      alertEnterTimer.value = null
+      scheduleAlertDismiss()
+    }, ALERT_ENTER_DELAY_MS)
   })
 }
 
-const playAudio = () => {
-  // handleSettingClick 是用户点击触发的，利用此交互解锁音频
+const unlockAudio = () => {
   const audioEl = audio.value
   if (audioEl && !audioUnlocked.value) {
     audioEl.muted = true
@@ -913,6 +921,8 @@ const playAudio = () => {
       audioUnlocked.value = true
     }).catch(() => {})
   }
+  document.removeEventListener('click', unlockAudio)
+  document.removeEventListener('touchstart', unlockAudio)
 }
 
 const checkPropertyKey = (data, key) => {
@@ -936,23 +946,9 @@ onMounted(() => {
   )
   window.addEventListener('mozfullscreenchange', handleFullScreenChange)
 
-  // 用户首次交互时解锁音频元素，使后续 WebSocket 回调中的 play() 不会被浏览器拦截
-  _unlockAudio = () => {
-    const audioEl = audio.value
-    if (audioEl && !audioUnlocked.value) {
-      audioEl.muted = true
-      audioEl.play().then(() => {
-        audioEl.pause()
-        audioEl.muted = false
-        audioEl.currentTime = 0
-        audioUnlocked.value = true
-      }).catch(() => {})
-    }
-    document.removeEventListener('click', _unlockAudio)
-    document.removeEventListener('touchstart', _unlockAudio)
-  }
-  document.addEventListener('click', _unlockAudio)
-  document.addEventListener('touchstart', _unlockAudio)
+  // Unlock audio on the first user interaction so WebSocket callbacks can play it.
+  document.addEventListener('click', unlockAudio)
+  document.addEventListener('touchstart', unlockAudio)
 
   // 点击通道列表外部时自动收起
   document.addEventListener('click', handleClickOutside)
@@ -960,6 +956,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   EventBus.$emit('changeScreen', false)
+  clearAlertTimers()
   timeInterval.value && clearInterval(timeInterval.value)
   socketTimer.value && clearInterval(socketTimer.value)
   reconnectTimer.value && clearTimeout(reconnectTimer.value)
@@ -982,11 +979,8 @@ onBeforeUnmount(() => {
     'mozfullscreenchange',
     handleFullScreenChange
   )
-  // 清理音频解锁监听器
-  if (_unlockAudio) {
-    document.removeEventListener('click', _unlockAudio)
-    document.removeEventListener('touchstart', _unlockAudio)
-  }
+  document.removeEventListener('click', unlockAudio)
+  document.removeEventListener('touchstart', unlockAudio)
   document.removeEventListener('click', handleClickOutside)
 })
 </script>

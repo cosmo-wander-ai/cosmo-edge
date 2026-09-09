@@ -102,15 +102,19 @@ src/web
 
 ## 推理和模型
 
-当前项目存在两条推理后端路径：
+CosmoEdge 在构建时选择推理后端：
 
-- x86 CPU 后端，使用 ONNX Runtime。
-- Sophon 后端，用于 aarch64/Sophon 发布包。
+- x86：ONNX Runtime CPU，直接加载 ONNX 模型。
+- Sophon BM1688/CV186X：BMRT，使用与目标芯片匹配的模型产物。
+- Rockchip RK3576/RV1126B：RKNN Runtime，使用目标平台的 RKNN 模型。
+
+RK3576 的 VLM 使用独立的 RKLLM 路径，并需要匹配的运行时和模型。后端支持、随包模型和 VLM 能力应分别确认。
 
 资源目录：
 
 - `data/resource/aiboxresource_bm1688`
 - `data/resource/aiboxresource_cv186x`
 - `data/resource/aiboxresource_x86`
+- `data/resource/aiboxresource_rknn`（Rockchip 目标覆盖资源，结合基础模板使用）
 
 当前模板覆盖检测（YOLO v5/v8/v9/v11/v12/26）、分类、关键点、特征、分割（SAM2）、目标定位（DINO）以及视觉语言模型（Qwen3VL、Qwen3.5）。完整清单以各 `data/resource/aiboxresource_*/model_template/` 目录下的实际文件为准。

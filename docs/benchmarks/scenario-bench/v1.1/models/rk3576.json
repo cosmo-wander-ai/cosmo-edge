@@ -34,8 +34,11 @@
       "input": "catalog contract 1x3x224x224 plus text prompt/tokenizer",
       "output": "catalog contract 1x1; semantic text result handled by the runtime",
       "precision": "not recorded by device catalog",
-      "sha256": null,
-      "verification": "device catalog identity verified; model bytes unavailable for hashing",
+      "sha256": "ef6c1b234620f51749093b0a5210e5ea40c474c85cc91b3187260be8c7cfdb02",
+      "visionSha256": "a64fa9ebd58314b80f5e002c37c13ac98df2445b3f7de1ba9a685e921782778f",
+      "tokenizerSha256": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42",
+      "configSha256": "996f59bda0494d9d56519a6ae026c0c64369c935cc3f8bbf7127e094cbcb267a",
+      "verification": "full model, vision encoder, tokenizer, and config hashes recomputed after installing the frozen V1.1.0 candidate",
       "redistribution": "not included"
     }
   ]

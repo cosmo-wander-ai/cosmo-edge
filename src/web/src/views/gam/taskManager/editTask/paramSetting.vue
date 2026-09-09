@@ -53,24 +53,24 @@ watch(() => props.algorithmCode, (newVal) => {
   }
 })
 
-onMounted(() => {
-  EventBus.$on('validTaskParam', () => {
-    if (submitForm.value == undefined) {
-      console.log('submitForm:undefined')
-    } else {
-      if (props.config) {
-        props.config.isValited = submitForm.value.submitForm()
-      }
+const handleValidTaskParam = () => {
+  if (submitForm.value == undefined) {
+    console.log('submitForm:undefined')
+  } else {
+    if (props.config) {
+      props.config.isValited = submitForm.value.submitForm()
     }
-  })
+  }
+}
 
+onMounted(() => {
+  EventBus.$on('validTaskParam', handleValidTaskParam)
   document.addEventListener('keydown', handleKeyDown)
 })
 
 onBeforeUnmount(() => {
-  if (props.activeName === 'params') {
-    document.removeEventListener('keydown', handleKeyDown)
-  }
+  EventBus.$off('validTaskParam', handleValidTaskParam)
+  document.removeEventListener('keydown', handleKeyDown)
 })
 
 const resetForm = (data) => {

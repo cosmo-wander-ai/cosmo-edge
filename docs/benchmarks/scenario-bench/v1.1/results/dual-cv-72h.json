@@ -1,0 +1,380 @@
+{
+  "schemaVersion": 2,
+  "evidenceStatus": "completed-private-source",
+  "title": "CosmoEdge 1.1 dual-CV 72-hour controlled long-run observation",
+  "claim": {
+    "class": "controlled-72h-local-loop-stability-observation",
+    "configuredWorkloadPass": true,
+    "capacityClaimAllowed": false,
+    "rtspResilienceClaimAllowed": false,
+    "productReleaseQualified": false,
+    "interpretation": "The configured channel count completed the controlled 72-hour observation; this is not a maximum-capacity, RTSP-resilience, or production-profile claim."
+  },
+  "window": {
+    "startedAt": "2026-08-20T17:44:30.341Z",
+    "endedAt": "2026-08-23T17:44:30.341Z",
+    "durationHours": 72,
+    "sampleIntervalSeconds": 60,
+    "expectedSamples": 4320,
+    "minimumCoverageRatio": 0.95,
+    "boundaryGraceSeconds": 180,
+    "maximumGapSeconds": 180
+  },
+  "source": {
+    "repository": "https://github.com/cosmo-wander-ai/cosmo-edge",
+    "branch": "main",
+    "commit": "44209759f450e96cda265acfa8bc6d17a1138888",
+    "tree": "5cbdefeaefaf642407356c22c271ccc7d57935b0"
+  },
+  "input": {
+    "datasetId": "cosmoedge-controlled-1080p24-v1",
+    "sha256": "3e1c5b97cd5bcc081e47ec631f84c36e72f075c8b9da6a19de3d9705fb887f92",
+    "codec": "H.264 High",
+    "width": 1920,
+    "height": 1080,
+    "sourceFps": 24,
+    "mode": "local infinite loop",
+    "previewLoad": false
+  },
+  "workload": {
+    "businessTasksPerChannel": 2,
+    "modelStagesPerChannel": 3,
+    "targetFpsPerTask": 5,
+    "businessTasks": [
+      "person detection",
+      "no-safety-helmet analysis"
+    ]
+  },
+  "executionPolicy": {
+    "monitor": {
+      "kind": "private multi-platform controller",
+      "standardScenarioBenchCliUsed": false,
+      "launchBytesFrozen": false,
+      "identityLimitation": "The ScenarioBench source snapshot is frozen, but the private controller files were updated after the long-running process started and no launch-time controller digest was emitted."
+    },
+    "disk": {
+      "executedIntegrityGateEnabled": false,
+      "projectionReportThresholdPercent": 99,
+      "futureSafeguardThresholdPercent": 90,
+      "futureSafeguardEffectiveAfterObservation": true,
+      "futureSafeguardAppliedRetroactively": false,
+      "interpretation": "Disk utilization was observational during this run. The later 90% safeguard applies to future executions and does not retroactively reclassify this observation."
+    },
+    "scheduledRestart": {
+      "initialStateDisabledOnAllPlatforms": true,
+      "controlledState": "disabled",
+      "restorationRequired": false,
+      "restartResilienceClaimAllowed": false
+    },
+    "projection": {
+      "kind": "post-run deterministic projection",
+      "source": "complete private metrics.jsonl and final private state",
+      "publicArtifactHashesReferToProjection": true
+    }
+  },
+  "integrityPolicy": {
+    "minimumFpsRatio": 0.8,
+    "maximumDiscardRate": 0,
+    "minimumSampleCoverageRatio": 0.95,
+    "maximumBoundaryLagSeconds": 180,
+    "maximumSamplingGapSeconds": 180,
+    "maximumCollectorErrorSamples": 0,
+    "maximumIncompleteBindingSamples": 0,
+    "maximumMissingBindingSamples": 0,
+    "maximumOpenCriticalIncidents": 0
+  },
+  "observations": [
+    {
+      "platformId": "bm1688",
+      "platform": "BM1688",
+      "status": "PASS",
+      "configuredChannels": 8,
+      "businessTaskBindings": 16,
+      "samples": {
+        "expected": 4320,
+        "observed": 4316,
+        "coverageRatio": 0.999074,
+        "firstSampleLagSeconds": 111.988,
+        "finalSampleLagSeconds": 59.868,
+        "maximumGapSeconds": 60.058
+      },
+      "fps": {
+        "minimum": 4.68,
+        "average": 5.086,
+        "maximum": 5.49
+      },
+      "observedResourcePeaksPercent": {
+        "cpu": 30,
+        "memory": 44,
+        "disk": 96
+      },
+      "diskTrendPercent": {
+        "first": 96,
+        "last": 96,
+        "minimum": 96,
+        "maximum": 96,
+        "changes": 0
+      },
+      "telemetry": {
+        "maximumDiscardRate": 0,
+        "collectorErrorSamples": 0,
+        "incompleteBindingSamples": 0,
+        "missingBindingSamples": 0,
+        "openCriticalIncidents": 0
+      },
+      "integrity": {
+        "monitorPass": true,
+        "monitorChecksPassed": 8,
+        "monitorChecksTotal": 8,
+        "publicationPass": true
+      },
+      "timedRestart": {
+        "initialState": "disabled",
+        "checks": 80,
+        "failures": 0,
+        "corrections": 0,
+        "finalState": "disabled",
+        "restorationRequired": false,
+        "restartResilienceClaimAllowed": false
+      },
+      "cleanupRecord": {
+        "status": "completed",
+        "errors": 0,
+        "disabledTaskBindings": 16,
+        "requestedChannelDeletions": 8,
+        "remainingOwnedChannels": 0,
+        "layoutsRestored": true,
+        "independentFinalStateArtifactEmitted": false
+      },
+      "sourceArtifacts": {
+        "metricsJsonlSha256": "bb72a12f3dda0972df5d11f6ad04647fe9c35ba345019ae36a31c7c1cb030fea",
+        "summarySha256": "67f2f30e9cfdfaab05e1d7476eab177686875317a1dbc0f1db52b376de81bbb7",
+        "reportSha256": "bca4122862edfc872a25008089942e3f1b901b41c778547e1834f733564fea7f",
+        "restartGuardSha256": "7f31ef8cc504eb9636a0f6a10d42f32166638c455dd8fe2897438730e4e96995",
+        "cleanupSha256": "6e273e4c0c3feda89c085ff0c62593d024e12ca9eef2527df5f2382ae3562b22"
+      }
+    },
+    {
+      "platformId": "cv186x",
+      "platform": "CV186X",
+      "status": "PASS",
+      "configuredChannels": 8,
+      "businessTaskBindings": 16,
+      "samples": {
+        "expected": 4320,
+        "observed": 4316,
+        "coverageRatio": 0.999074,
+        "firstSampleLagSeconds": 111.993,
+        "finalSampleLagSeconds": 59.868,
+        "maximumGapSeconds": 60.061
+      },
+      "fps": {
+        "minimum": 4.54,
+        "average": 5.085,
+        "maximum": 5.29
+      },
+      "observedResourcePeaksPercent": {
+        "cpu": 43,
+        "memory": 44,
+        "disk": 96
+      },
+      "diskTrendPercent": {
+        "first": 96,
+        "last": 96,
+        "minimum": 96,
+        "maximum": 96,
+        "changes": 0
+      },
+      "telemetry": {
+        "maximumDiscardRate": 0,
+        "collectorErrorSamples": 0,
+        "incompleteBindingSamples": 0,
+        "missingBindingSamples": 0,
+        "openCriticalIncidents": 0
+      },
+      "integrity": {
+        "monitorPass": true,
+        "monitorChecksPassed": 8,
+        "monitorChecksTotal": 8,
+        "publicationPass": true
+      },
+      "timedRestart": {
+        "initialState": "disabled",
+        "checks": 80,
+        "failures": 0,
+        "corrections": 0,
+        "finalState": "disabled",
+        "restorationRequired": false,
+        "restartResilienceClaimAllowed": false
+      },
+      "cleanupRecord": {
+        "status": "completed",
+        "errors": 0,
+        "disabledTaskBindings": 16,
+        "requestedChannelDeletions": 8,
+        "remainingOwnedChannels": 0,
+        "layoutsRestored": true,
+        "independentFinalStateArtifactEmitted": false
+      },
+      "sourceArtifacts": {
+        "metricsJsonlSha256": "940e2ad4333f9fff7d3f60a2009981231d677e76872494d60b9b01bf68ded989",
+        "summarySha256": "bf14f42fa981f9bb023ca69d7e4881cbcaf04ea85e478e153ed26204182db8f2",
+        "reportSha256": "95b387f880957a99e3b1fcf846995de41bca3f4e1c542ceae5a5a28fa1fc537c",
+        "restartGuardSha256": "669928a6f158b8b45a074eedf277275ebe0ce16f467f95d16ab0d261c3565694",
+        "cleanupSha256": "785af78ee73edace6bd85ea4f6b0d2d899c0862b8775a27b0a57148f4490ef0b"
+      }
+    },
+    {
+      "platformId": "rk3576",
+      "platform": "RK3576",
+      "status": "PASS",
+      "configuredChannels": 8,
+      "businessTaskBindings": 16,
+      "samples": {
+        "expected": 4320,
+        "observed": 4316,
+        "coverageRatio": 0.999074,
+        "firstSampleLagSeconds": 111.99,
+        "finalSampleLagSeconds": 59.867,
+        "maximumGapSeconds": 60.058
+      },
+      "fps": {
+        "minimum": 5,
+        "average": 5.098,
+        "maximum": 5.17
+      },
+      "observedResourcePeaksPercent": {
+        "cpu": 46,
+        "memory": 30,
+        "disk": 15
+      },
+      "diskTrendPercent": {
+        "first": 14,
+        "last": 15,
+        "minimum": 14,
+        "maximum": 15,
+        "changes": 5
+      },
+      "telemetry": {
+        "maximumDiscardRate": 0,
+        "collectorErrorSamples": 0,
+        "incompleteBindingSamples": 0,
+        "missingBindingSamples": 0,
+        "openCriticalIncidents": 0
+      },
+      "integrity": {
+        "monitorPass": true,
+        "monitorChecksPassed": 8,
+        "monitorChecksTotal": 8,
+        "publicationPass": true
+      },
+      "timedRestart": {
+        "initialState": "disabled",
+        "checks": 80,
+        "failures": 0,
+        "corrections": 0,
+        "finalState": "disabled",
+        "restorationRequired": false,
+        "restartResilienceClaimAllowed": false
+      },
+      "cleanupRecord": {
+        "status": "completed",
+        "errors": 0,
+        "disabledTaskBindings": 16,
+        "requestedChannelDeletions": 8,
+        "remainingOwnedChannels": 0,
+        "layoutsRestored": true,
+        "independentFinalStateArtifactEmitted": false
+      },
+      "sourceArtifacts": {
+        "metricsJsonlSha256": "7095b3a119bfebe508fb5d4d38306287c928e0467ae6087df434aba499ca7c5b",
+        "summarySha256": "e44698bb3dd6eee21fa6f7fa765f398957cacb697196e6eb037d5946bc1d6fb5",
+        "reportSha256": "fa79c8c08f505881b5bc4f237d01e430d630c2596d17419dda24d93fa354e8ef",
+        "restartGuardSha256": "3d9401895a5946583194b5fd41054c40d47a704315412fbe65c0650fee7fbb84",
+        "cleanupSha256": "763eaa2e869d3950619d7408092cd59bef8d9d60fdfeb448d808e4052b271dd6"
+      }
+    },
+    {
+      "platformId": "rv1126b",
+      "platform": "RV1126B",
+      "status": "PASS",
+      "configuredChannels": 4,
+      "businessTaskBindings": 8,
+      "samples": {
+        "expected": 4320,
+        "observed": 4316,
+        "coverageRatio": 0.999074,
+        "firstSampleLagSeconds": 111.995,
+        "finalSampleLagSeconds": 59.866,
+        "maximumGapSeconds": 60.067
+      },
+      "fps": {
+        "minimum": 4.85,
+        "average": 5.23,
+        "maximum": 5.37
+      },
+      "observedResourcePeaksPercent": {
+        "cpu": 41,
+        "memory": 41,
+        "disk": 47
+      },
+      "diskTrendPercent": {
+        "first": 46,
+        "last": 47,
+        "minimum": 46,
+        "maximum": 47,
+        "changes": 7
+      },
+      "telemetry": {
+        "maximumDiscardRate": 0,
+        "collectorErrorSamples": 0,
+        "incompleteBindingSamples": 0,
+        "missingBindingSamples": 0,
+        "openCriticalIncidents": 0
+      },
+      "integrity": {
+        "monitorPass": true,
+        "monitorChecksPassed": 8,
+        "monitorChecksTotal": 8,
+        "publicationPass": true
+      },
+      "timedRestart": {
+        "initialState": "disabled",
+        "checks": 80,
+        "failures": 0,
+        "corrections": 0,
+        "finalState": "disabled",
+        "restorationRequired": false,
+        "restartResilienceClaimAllowed": false
+      },
+      "cleanupRecord": {
+        "status": "completed",
+        "errors": 0,
+        "disabledTaskBindings": 8,
+        "requestedChannelDeletions": 4,
+        "remainingOwnedChannels": 0,
+        "layoutsRestored": true,
+        "independentFinalStateArtifactEmitted": false
+      },
+      "sourceArtifacts": {
+        "metricsJsonlSha256": "613675df48c840486b495c7e897742332229c1ff8f2a6b81fa9029bff7516052",
+        "summarySha256": "59517e9b3f609cae55f122f2f3bfe44f33d1497faf3fe536135149c4033218ab",
+        "reportSha256": "e4afff34a773414e009642d8201e2a1148e4f09d9c453901776753e666194734",
+        "restartGuardSha256": "80aa5e31f8e07adfd595c2b2aa09f2c66d899d06d960ce548bda6109b71bcf6b",
+        "cleanupSha256": "b84a2b820666981fbc72b1175ad14391e873d454ce472115e61c5b6eb75bbeeb"
+      }
+    }
+  ],
+  "privateEvidence": {
+    "publicationState": "verified-private-not-published",
+    "rawArtifactsIncludedInRepository": false,
+    "runManifestSha256": "faaa6fd15c03843d44068b6da9ae7aee30f40f79442d694b7fe9c0a65de6afdb",
+    "suiteStateSha256": "9becf4cb17064ba515646d309b082136f9882f2d85d0449d651317116c21ccd7",
+    "suiteSummarySha256": "d28144149aeee9d693e7537b578c736d65daaecdf8d8c81be2047d7767167fb8",
+    "projectionToolSha256": "7305f6811b53f70eb0e2fd52ce14c194da0345205df306fc63e39ca783bf4448",
+    "verification": "The suite files and every platform metrics, summary, report, restart-guard, and cleanup artifact were verified read-only by exact SHA-256 against the private run directory.",
+    "monitorLaunchBytesFrozen": false,
+    "cleanupEvidence": "private monitor record",
+    "cleanupLimitation": "The completed monitor recorded cleanup with zero remaining owned channels and no errors, but did not emit an independent final-state artifact."
+  }
+}

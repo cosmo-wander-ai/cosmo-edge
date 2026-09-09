@@ -2,21 +2,33 @@
 
 #pragma once
 
-#include <list>
+#include <atomic>
 #include <memory>
 #include <string>
 #include <vector>
 
 #include "flow/action/AlgActionBase.h"
-#include "flow/overview/OverviewRecordAiRst.h"
-#include "flow/task/TaskBaseParam.h"
-#include "infer/AiVideoQualityUnify.h"
 
 namespace cosmo {
 
+enum class AiVideoQualityType {
+    kBlur = 0,
+    kSnow,
+    kStripe,
+    kBrightness,
+    kOcclusion,
+    kContrast,
+    kDeviation,
+    kMax,
+};
+
+constexpr bool IsValidVideoQualityType(int value) {
+    return value >= static_cast<int>(AiVideoQualityType::kBlur) &&
+           value < static_cast<int>(AiVideoQualityType::kDeviation);
+}
+
 struct AiVideoQualityParam {
-    infer::AiVideoQualityType type{infer::AiVideoQualityType::kBlur};  // Input type
-    bool is_param_changed{false};
+    AiVideoQualityType type{AiVideoQualityType::kBlur};
     float threshold{-1.0f};
     float threshold_ext{-1.0f};
 };
@@ -29,7 +41,8 @@ public:
     AiVideoQuality(const AiVideoQuality&)            = delete;
     AiVideoQuality& operator=(const AiVideoQuality&) = delete;
 
-    bool AiSdkInit();
+    [[nodiscard]] bool Start() override;
+    [[nodiscard]] bool AiSdkInit();
 
     bool AnalysisKey(const MsgDynamicKeyValue& param);
     bool ModifyParam(const std::string& channel_id, const std::string& task_id,
@@ -40,10 +53,6 @@ public:
     bool SetArea(const std::string& channel_id, const std::string& task_id, std::vector<MsgTaskArea>& areas,
                  std::vector<MsgTaskArea>& shielded_areas) override;
 
-    [[nodiscard]] std::string GetFlowActionId() const {
-        return action_info_.flowActionId;
-    }
-
     // Get overlay info
     MsgOverviewMem GetOverviewInfo(const std::string& channel_id, const std::string& task_id,
                                    int64_t stream_index = -1, int64_t from = -1, int64_t to = -1) override;
@@ -51,17 +60,8 @@ public:
 private:
     void HandFrame(AlgDataPtr alg_data) override;
 
-    [[nodiscard]] std::vector<MsgTaskArea> GetAssoAreas(const std::vector<MsgTaskArea>& areas) const;
-    TaskBaseArea GetArea();
-
-    ActionNode action_info_;
-    infer::AiVideoQualityUnifyPtr inst_;  // Classifier
-
-    int pic_width_{0};
-    int pic_height_{0};
     AiVideoQualityParam params_;
-    TaskBaseArea task_area_;
-    OverviewRecordAiRst overview_rec_inst_;
+    std::atomic<bool> unsupported_reported_{false};
 };
 using AiVideoQualityPtr = std::shared_ptr<AiVideoQuality>;
 }  // namespace cosmo

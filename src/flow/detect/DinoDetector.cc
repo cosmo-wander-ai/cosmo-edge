@@ -14,7 +14,6 @@
 #include "media/VideoFrame.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/model/IModelPathMapping.h"
-#include "service/model/IModelService.h"
 #include "service/system/IHardwareQuery.h"
 #include "util/GeometricPos.h"
 #include "util/Keys.h"
@@ -128,7 +127,7 @@ bool DinoDetector::DinoSdkInit() {
 
     std::string cfgPath   = "";
     std::string modelPath = "";
-    auto cfgRet           = service::ServiceRegistry::Instance().Get<service::IModelService>().GetModelCfg(
+    auto cfgRet = service::ServiceRegistry::Instance().Get<service::IModelPathMapping>().GetModelCfg(
         alg_code_, cfgPath, modelPath);
     if (!cfgRet) {
         LOG_WARN("{}Get Model Configure Failed. AlgCode:{} code:{}", kTag, alg_code_, cfgRet);

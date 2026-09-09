@@ -34,6 +34,7 @@
       "precision": "target artifact precision not exposed by the device catalog",
       "sha256": "8d258ab0d16bb8836fe8de4e66b241890d71e64f016961e7d63588b6f7f76f1b",
       "tokenizerSha256": "cb16258a9df7062f4c4d291a1501b07fb0750c9a8b247c5639dba0369e42f0cb",
+      "configSha256": "b2cdea93d82808d62e47b3abff616a9c13838f7c10af094f15138fda3f5d226b",
       "sizeBytes": 980885504,
       "redistribution": "not included; user-installed model"
     }

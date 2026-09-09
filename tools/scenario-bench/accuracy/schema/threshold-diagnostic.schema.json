@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cosmowander.ai/schemas/cosmo-accuracy-threshold-diagnostic-v1.json",
+  "title": "CosmoAccuracy threshold diagnostic v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "protocolVersion", "evidenceKind", "evidenceStatus",
+    "executionOutcome", "executionReasons", "appliedAutomatically", "runId",
+    "sourceRunSha256", "caseId", "parameterKeys", "execution", "admission",
+    "suite", "points", "stablePassValues", "stableFailValues", "flakyValues",
+    "device", "toolIdentitySha256", "repository"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "protocolVersion": { "const": 4 },
+    "evidenceKind": { "const": "cosmo-accuracy-threshold-diagnostic" },
+    "evidenceStatus": { "const": "DIAGNOSTIC" },
+    "executionOutcome": { "enum": ["COMPLETED", "ERROR", "BLOCKED"] },
+    "executionReasons": { "$ref": "#/$defs/stringArray" },
+    "appliedAutomatically": { "const": false },
+    "runId": { "type": "string", "minLength": 1 },
+    "sourceRunSha256": { "$ref": "#/$defs/sha256" },
+    "caseId": { "type": "string", "minLength": 1 },
+    "parameterKeys": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "execution": { "type": "object" },
+    "admission": { "type": "object" },
+    "suite": { "type": "object" },
+    "points": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/point" }
+    },
+    "stablePassValues": { "$ref": "#/$defs/numberArray" },
+    "stableFailValues": { "$ref": "#/$defs/numberArray" },
+    "flakyValues": { "$ref": "#/$defs/numberArray" },
+    "device": { "type": "object" },
+    "toolIdentitySha256": { "$ref": "#/$defs/sha256" },
+    "repository": { "type": "object" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "stringArray": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string" }
+    },
+    "numberArray": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "number" }
+    },
+    "point": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["threshold", "status", "trialStatuses"],
+      "properties": {
+        "threshold": { "type": "number" },
+        "status": { "enum": ["STABLE_PASS", "STABLE_FAIL", "FLAKY", "ERROR"] },
+        "trialStatuses": {
+          "type": "array",
+          "items": { "enum": ["PASS", "FAIL", "ERROR"] }
+        }
+      }
+    }
+  }
+}

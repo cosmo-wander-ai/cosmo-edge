@@ -17,14 +17,13 @@ constexpr char kModelAuthorizationDirectory[] = "model-guard";
 
 // Execute an immediate system reboot via the `reboot` command.
 void ImmReboot() {
-#ifndef COSMO_NN_USE_SOPHON_BACKEND
-    LOG_WARN("{}", "System reboot is disabled on x86 platform.");
-    return;
-#else
+    if (!cosmo::platform::SupportsSystemReboot()) {
+        LOG_WARN("{}", "System reboot is disabled on the current backend.");
+        return;
+    }
     sync();
     std::string out;
     cosmo::util::Exec(std::vector<std::string>{"reboot"}, out);
-#endif
 }
 
 }  // namespace

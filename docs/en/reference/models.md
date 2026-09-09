@@ -20,10 +20,15 @@ This document describes the model and resource organization that can be confirme
 | `data/resource/aiboxresource_bm1688` | Resources for the Sophon BM1688 release package. |
 | `data/resource/aiboxresource_cv186x` | Resources for the Sophon CV186X release package. |
 | `data/resource/aiboxresource_x86` | Resources for the x86 Docker / CPU backend. |
+| `data/resource/aiboxresource_rknn` | Rockchip target resources and model overlays, combined with base templates |
 
 The resource directory is selected through `RESOURCE_DIR` at build time.
 
+RKNN builds reuse base templates from `aiboxresource_x86` and apply target-specific resources. RK3576 uses `aiboxresource_rknn`; RV1126B generates `output/platform-artifacts/rv1126b/resource-overlay` from its platform profile and artifact manifest. Base templates, target overlays and the model directory determine the packaged resources. Refer to the package manifest for its actual contents.
+
 ## Model Templates
+
+A template defines configuration and parsing options. It does not mean the weights are included or the model is supported on every platform; availability depends on the backend, target chip, runtime and installed resources.
 
 Model templates are located at:
 
@@ -101,8 +106,16 @@ The code shows the differences between handling x86 ONNX files and Sophon model 
 
 ## Resource Licensing Notes
 
-The model templates, algorithm templates, and layout configuration files in the resource directory describe the metadata of models and algorithms; they do not contain model weights. Some resource files are for example purposes only:
+The resource tree contains model, algorithm, and layout templates as well as
+selected public example weights and chip-converted artifacts. The repository's
+Apache-2.0 source-code license does not automatically cover model files; use
+the bundle manifest and directory-level license as the authority:
 
 - Prebuilt components in the `prebuild/` directory require separate distribution-license review.
+- Ultralytics YOLOv8 chip artifacts under
+  `data/resource/aiboxresource_rknn/model-artifacts/` are AGPL-3.0 community
+  examples, not commercial model deliverables.
+- Commercial or proprietary models use independent source, weight, training,
+  and license records and do not reuse the community example bundle identity.
 - Whether the model encryption feature is included in the current build depends on the CMake option `COSMO_MODEL_GUARD`.
 - If you introduce models from a third-party model ecosystem, follow the license requirements of the corresponding models.

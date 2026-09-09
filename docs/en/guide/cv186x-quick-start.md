@@ -116,6 +116,6 @@ full contract.
   attempting another upload.
 - See the [Deployment Guide](/en/guide/deployment) for directories, ports, persistence, failure
   recovery, and rollback boundaries.
-- Public workload results are in [ScenarioBench v1.1](/benchmarks/scenario-bench/v1.1/report.html).
+- Public workload results are in [ScenarioBench v1.1](https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/report.html).
   A highest short-run point is not an official recommended profile; size production deployments
   with the actual models, streams, and accuracy requirements.

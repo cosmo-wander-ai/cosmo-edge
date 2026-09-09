@@ -90,8 +90,15 @@ if [ -z "$package_root" ] || [ ! -x "${package_root}/scripts/install.sh" ]; then
 fi
 
 cosmo_log "$log_tag" "Installing compatible package $(basename "$archive")" "$log_file"
-"${COSMO_INSTALL_DIR}/scripts/stop.sh"
-"${package_root}/scripts/install.sh" "$log_file"
+if "${package_root}/scripts/install.sh" "$log_file"; then
+    cosmo_log "$log_tag" "Compatible package installation completed" "$log_file"
+else
+    install_status=$?
+    cosmo_log "$log_tag" \
+        "Package installation failed with status ${install_status}; restoring the active application" \
+        "$log_file"
+    run_active
+fi
 mkdir -p -- "$(dirname "$COSMO_UPGRADE_SIGN")"
 : >"$COSMO_UPGRADE_SIGN"
 sync

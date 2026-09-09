@@ -30,6 +30,20 @@ required to reconstruct, sign, or deploy a production package. This README
 does not grant or alter artifact licensing or redistribution rights; those
 require separately approved terms from the artifact owner.
 
+## Distribution approval record
+
+The separately approved CosmoEdge distribution record is public
+[Issue #59](https://github.com/cosmo-wander-ai/cosmo-edge/issues/59), which
+states that CosmoEdge may distribute the approved Model Guard runtime library
+and public header. The implementation containing this exact runtime was then
+approved and merged through
+[PR #101](https://github.com/cosmo-wander-ai/cosmo-edge/pull/101).
+
+The approved `libcosmo_model_guard.so.2.0.0` SHA-256 is
+`74ff8b456548e615882e5c9ee6dd18a51a2caf8124d761d7243dad014310042c`.
+This project-specific approval record is not a general relicensing of the
+runtime, its private implementation, provisioning inputs, or signing material.
+
 ## Verification
 
 The canonical public Sophon build invokes

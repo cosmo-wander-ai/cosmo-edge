@@ -7,7 +7,6 @@
 #include <vector>
 
 #include "mem/Allocator.h"
-#include "mem/BlockFreqCalc.h"
 #include "mem/FixedBlockPool.h"
 #include "util/AsyncQueue.h"
 #include "util/VideoInfo.h"
@@ -77,8 +76,6 @@ private:
     cosmo::AsyncQueue<BlockOp> block_op_queue_;
 
     std::unique_ptr<Allocator> allocator_;
-
-    BlockFreqCalc freq_calc_;
 };
 
 // Infra DI Mechanism

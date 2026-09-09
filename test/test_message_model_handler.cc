@@ -7,7 +7,6 @@
 
 #include "api/MessageModelHandler.h"
 #include "mock/MockModelService.h"
-#include "mock/MockServiceRegistry.h"
 #include "util/ErrorCode.h"
 
 using namespace cosmo;
@@ -16,14 +15,18 @@ using trompeloeil::_;
 
 namespace {
 
-MessageModelHandler MakeHandler(MockServiceRegistry& mocks) {
+struct ModelHandlerMocks {
+    MockModelService modelSvc;
+};
+
+MessageModelHandler MakeHandler(ModelHandlerMocks& mocks) {
     return MessageModelHandler(mocks.modelSvc);
 }
 
 }  // namespace
 
 TEST_CASE("ModelHandler: QueryModels pagination", "[model-handler]") {
-    MockServiceRegistry mocks;
+    ModelHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     REQUIRE_CALL(mocks.modelSvc, QueryModels(_, _, _, _, _, _))
@@ -39,7 +42,7 @@ TEST_CASE("ModelHandler: QueryModels pagination", "[model-handler]") {
 }
 
 TEST_CASE("ModelHandler: QueryModels with name filter", "[model-handler]") {
-    MockServiceRegistry mocks;
+    ModelHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     REQUIRE_CALL(mocks.modelSvc, QueryModels(_, _, _, _, _, _)).SIDE_EFFECT(_5 = 0);
@@ -54,7 +57,7 @@ TEST_CASE("ModelHandler: QueryModels with name filter", "[model-handler]") {
 }
 
 TEST_CASE("ModelHandler: ListModels", "[model-handler]") {
-    MockServiceRegistry mocks;
+    ModelHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     REQUIRE_CALL(mocks.modelSvc, QueryAtomicModels(trompeloeil::_, trompeloeil::_, trompeloeil::_))
@@ -67,7 +70,7 @@ TEST_CASE("ModelHandler: ListModels", "[model-handler]") {
 }
 
 TEST_CASE("ModelHandler: DeleteModel", "[model-handler]") {
-    MockServiceRegistry mocks;
+    ModelHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     REQUIRE_CALL(mocks.modelSvc, DeleteModel("model-1")).RETURN(cosmo::util::ErrorEnum::Success);
@@ -80,7 +83,7 @@ TEST_CASE("ModelHandler: DeleteModel", "[model-handler]") {
 }
 
 TEST_CASE("ModelHandler: GetModelConfig", "[model-handler]") {
-    MockServiceRegistry mocks;
+    ModelHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     REQUIRE_CALL(mocks.modelSvc, GetModelConfig("model-1", _, _, _))
@@ -96,7 +99,7 @@ TEST_CASE("ModelHandler: GetModelConfig", "[model-handler]") {
 }
 
 TEST_CASE("ModelHandler: SaveModelConfig", "[model-handler]") {
-    MockServiceRegistry mocks;
+    ModelHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     REQUIRE_CALL(mocks.modelSvc, SaveModelConfig("model-1", _)).RETURN(cosmo::util::ErrorEnum::Success);
@@ -110,7 +113,7 @@ TEST_CASE("ModelHandler: SaveModelConfig", "[model-handler]") {
 }
 
 TEST_CASE("ModelHandler: GetModelComponents", "[model-handler]") {
-    MockServiceRegistry mocks;
+    ModelHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     REQUIRE_CALL(mocks.modelSvc, GetModelComponents()).RETURN(std::vector<Model::MsgModelComponent>{});

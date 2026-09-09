@@ -43,6 +43,7 @@ namespace {
         return *provider;
     }
 
+#if defined(COSMO_NN_USE_RKNN_BACKEND)
     std::string ReadDeviceTreeText(const std::string& path, char separator = ' ') {
         std::ifstream stream(path, std::ios::binary);
         if (!stream)
@@ -54,6 +55,7 @@ namespace {
         const auto first = value.find_first_not_of(" \t\r\n");
         return first == std::string::npos ? std::string{} : value.substr(first);
     }
+#endif
 
 }  // namespace
 

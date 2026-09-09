@@ -189,12 +189,7 @@ const handleLogin = async () => {
       return
     }
 
-    // // try {
-    // //   const modeRes = await proxy.$API.queryRunModeParam({})
-    // //   localStorage.setItem('runMode', modeRes.resData.runMode)
-    // // } catch {
-      localStorage.setItem('runMode', '0')
-    // // }
+    localStorage.setItem('runMode', '0')
 
     // Check onboarding status before navigating to home
     try {

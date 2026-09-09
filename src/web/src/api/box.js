@@ -200,29 +200,6 @@ const system = {
       data,
     })
   },
-  // 下载设备信息 
-  downloadDeviceInfo(data) {
-    return request({
-      url: '/gtw/cwai/System/DownloadDeviceInfo',
-      method: 'post',
-      data,
-    })
-  },
-  // 授权文件上传
-  lisenceUpload(data) {
-    return request({
-      url: '/gtw/cwai/System/LisenceUpload',
-      method: 'post',
-      data,
-    })
-  },
-  // 授权状态查询
-  queryAuthServiceStatus() {
-    return request({
-      url: '/gtw/cwai/System/QueryAuthServiceStatus',
-      method: 'post',
-    })
-  },
   queryModelAuthorization() {
     return request({ url: '/gtw/cwai/System/QueryModelAuthorization', method: 'post', data: {} })
   },
@@ -289,14 +266,6 @@ const system = {
   setHttpInterfaceParam(data) {
     return request({
       url: '/gtw/cwai/System/SetHttpInterfaceParam',
-      method: 'post',
-      data,
-    })
-  },
-  // 查询文档url
-  queryDocumentUrl(data) {
-    return request({
-      url: '/gtw/cwai/System/QueryDocumentUrl',
       method: 'post',
       data,
     })

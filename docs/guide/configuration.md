@@ -100,9 +100,12 @@ ${INSTALLPATH}/scripts/run_start.sh start /data/cwaiuserdata/log/logs/INTE_RUN_c
 | `COSMO_PACKAGE_MODELS` | `include` | `include` 或仅用于代码/结构验证的 `preserve` |
 | `COSMO_BUILD_JOBS` | `4` | 交叉构建并行度 |
 | `COSMO_ROCKCHIP_BUILDER_IMAGE` | 仓库固定 digest 的 GHCR 镜像 | 受控覆盖构建镜像 |
+| `COSMO_RKNN_ARTIFACT_MANIFEST` | 平台 profile 中的清单 | 选择带来源、哈希、用途和许可证的模型 bundle；商业/专有输入应指向 ignored 任务目录中的独立清单 |
 
-构建器还使用与 Sophon 相同的 npm 缓存/重试变量。RV1126B 的可部署构建需要
-`output/platform-artifacts/rv1126b/resource-overlay` 中的目标模型 overlay；`preserve` 不能替代设备验收。
+构建器还使用与 Sophon 相同的 npm 缓存/重试变量。RV1126B 的 `include` 构建会从
+选定 artifact manifest 生成并校验 `output/platform-artifacts/rv1126b/resource-overlay`；
+`preserve` 只验证代码和包结构，不能替代设备验收。仓库默认清单是 AGPL-3.0
+社区示例，不属于商业模型交付；商业/专有模型必须使用独立清单和许可记录。
 
 ## 资源目录
 
@@ -112,9 +115,11 @@ ${INSTALLPATH}/scripts/run_start.sh start /data/cwaiuserdata/log/logs/INTE_RUN_c
 | Sophon BM1688 | `data/resource/aiboxresource_bm1688` |
 | Sophon CV186X | `data/resource/aiboxresource_cv186x` |
 | Rockchip RK3576 | `data/resource/aiboxresource_rknn` |
-| Rockchip RV1126B | `data/resource/aiboxresource_rknn` + ignored 目标 overlay |
+| Rockchip RV1126B | `data/resource/aiboxresource_rknn` 共享模板 + `model-artifacts/rv1126b` 社区示例清单；目标 overlay 自动生成 |
 
-构建脚本把选定目录作为 `RESOURCE_DIR` 交给安装规则。不同芯片的模型产物仍必须独立生成和验证。
+构建脚本把选定目录作为 `RESOURCE_DIR` 交给安装规则。不同芯片的二进制产物仍必须
+独立生成和验证，但算法、配置模板及 staging 代码保持共享。模型包会携带
+`resource/model-bundle.json` 及对应许可证，包审计同时校验模型清单、大小和 SHA-256。
 
 ## 运行目录
 

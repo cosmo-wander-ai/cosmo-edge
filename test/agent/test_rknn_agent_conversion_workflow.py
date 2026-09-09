@@ -198,8 +198,17 @@ class RknnAgentConversionWorkflowTest(unittest.TestCase):
         )
         spec_path = root / "config/rknn/models/yolov8.json"
         spec_path.parent.mkdir(parents=True)
+        source_path = root / "data/resource/source/yolov8.onnx"
+        source_path.parent.mkdir(parents=True)
+        source_path.write_bytes(b"onnx-fixture")
         spec_path.write_text(
-            json.dumps({"packaging": {"algorithm_code": "9275710"}}),
+            json.dumps(
+                {
+                    "source_repository_path": source_path.relative_to(root).as_posix(),
+                    "source_sha256": staging.sha256(source_path),
+                    "packaging": {"algorithm_code": "9275710"},
+                }
+            ),
             encoding="utf-8",
         )
         template_config = (
@@ -234,6 +243,63 @@ class RknnAgentConversionWorkflowTest(unittest.TestCase):
         artifact_path.write_bytes(b"rknn-fixture")
         return profile_path, template_config, artifact_path
 
+    def _artifact_manifest_fixture(
+        self, root: Path, artifact_path: Path
+    ) -> Path:
+        spec_path = root / "config/rknn/models/yolov8.json"
+        spec = json.loads(spec_path.read_text(encoding="utf-8"))
+        source_path = root / spec["source_repository_path"]
+        license_path = root / "data/resource/model-artifacts/LICENSES/AGPL-3.0.txt"
+        license_path.parent.mkdir(parents=True)
+        license_path.write_text("fixture AGPL-3.0 text\n", encoding="utf-8")
+        archive_path = (
+            root
+            / "data/resource/model-artifacts/rv1126b/"
+            "prod_RV1126B_9275710_YOLOV8_V1.0.0/model.rknn"
+        )
+        archive_path.parent.mkdir(parents=True)
+        archive_path.write_bytes(artifact_path.read_bytes())
+        manifest_path = archive_path.parents[1] / "artifact-manifest.json"
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "chip": "rv1126b",
+                    "usage_scope": "community-example",
+                    "commercial_delivery": False,
+                    "license": {
+                        "spdx": "AGPL-3.0-only",
+                        "path": license_path.relative_to(root).as_posix(),
+                        "sha256": staging.sha256(license_path),
+                    },
+                    "models": [
+                        {
+                            "model": "yolov8",
+                            "package_directory": (
+                                "prod_RV1126B_9275710_YOLOV8_V1.0.0"
+                            ),
+                            "spec": {
+                                "path": spec_path.relative_to(root).as_posix(),
+                                "sha256": staging.sha256(spec_path),
+                            },
+                            "source": {
+                                "path": source_path.relative_to(root).as_posix(),
+                                "sha256": staging.sha256(source_path),
+                                "size_bytes": source_path.stat().st_size,
+                            },
+                            "artifact": {
+                                "path": archive_path.relative_to(root).as_posix(),
+                                "sha256": staging.sha256(archive_path),
+                                "size_bytes": archive_path.stat().st_size,
+                            },
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return manifest_path
+
     def test_staged_resource_manifest_proves_current_source_and_artifact(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
@@ -250,6 +316,48 @@ class RknnAgentConversionWorkflowTest(unittest.TestCase):
             source_record = manifest["models"][0]["source_template"]
             self.assertTrue(source_record["path"].endswith("config.json"))
             self.assertEqual(len(source_record["sha256"]), 64)
+
+    def test_artifact_manifest_stages_models_license_and_usage_scope(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            profile_path, _, artifact_path = self._resource_staging_fixture(root)
+            artifact_manifest = self._artifact_manifest_fixture(root, artifact_path)
+            with mock.patch.object(staging, "PROJECT_ROOT", root):
+                manifest = staging.stage_platform_resources(
+                    profile_path,
+                    [],
+                    raw_artifact_manifest=artifact_manifest,
+                )
+                result = staging.verify_staged_resources(profile_path)
+            self.assertEqual(result["usage_scope"], "community-example")
+            self.assertEqual(
+                manifest["artifact_bundle"]["packaged_license"]["spdx"],
+                "AGPL-3.0-only",
+            )
+            output = root / "output/platform-artifacts/rv1126b/resource-overlay"
+            self.assertEqual(
+                (output / "model-bundle.json").read_bytes(),
+                artifact_manifest.read_bytes(),
+            )
+            self.assertTrue(
+                (output / "licenses/model-assets/AGPL-3.0.txt").is_file()
+            )
+
+    def test_artifact_manifest_rejects_tampered_archived_model(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            profile_path, _, artifact_path = self._resource_staging_fixture(root)
+            artifact_manifest = self._artifact_manifest_fixture(root, artifact_path)
+            document = json.loads(artifact_manifest.read_text(encoding="utf-8"))
+            archived_model = root / document["models"][0]["artifact"]["path"]
+            archived_model.write_bytes(b"tampered")
+            with mock.patch.object(staging, "PROJECT_ROOT", root):
+                with self.assertRaisesRegex(ValueError, "hash mismatch"):
+                    staging.stage_platform_resources(
+                        profile_path,
+                        [],
+                        raw_artifact_manifest=artifact_manifest,
+                    )
 
     def test_staged_resource_verification_rejects_changed_source_config(self):
         with tempfile.TemporaryDirectory() as directory:

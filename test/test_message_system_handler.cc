@@ -11,7 +11,6 @@
 #include "mock/MockConfigReadService.h"
 #include "mock/MockConfigWriteService.h"
 #include "mock/MockDeviceInfoService.h"
-#include "mock/MockServiceRegistry.h"
 #include "mock/MockSystemOperationService.h"
 #include "mock/MockTimeService.h"
 #include "nn/core/inference_pipeline_metrics.h"
@@ -23,7 +22,16 @@ using trompeloeil::_;
 
 namespace {
 
-MessageSystemHandler MakeHandler(MockServiceRegistry& mocks) {
+struct SystemHandlerMocks {
+    MockConfigReadService configReadSvc;
+    MockConfigWriteService configWriteSvc;
+    MockConfigNetworkService configNetSvc;
+    MockDeviceInfoService deviceInfoSvc;
+    MockSystemOperationService systemOpSvc;
+    MockTimeService timeSvc;
+};
+
+MessageSystemHandler MakeHandler(SystemHandlerMocks& mocks) {
     return MessageSystemHandler(mocks.configReadSvc, mocks.configWriteSvc, mocks.configNetSvc,
                                 mocks.deviceInfoSvc, mocks.systemOpSvc, mocks.timeSvc);
 }
@@ -31,7 +39,7 @@ MessageSystemHandler MakeHandler(MockServiceRegistry& mocks) {
 }  // namespace
 
 TEST_CASE("SystemHandler: QueryDeviceInfo", "[system-handler]") {
-    MockServiceRegistry mocks;
+    SystemHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     service::DeviceBasicInfo info;
@@ -47,7 +55,7 @@ TEST_CASE("SystemHandler: QueryDeviceInfo", "[system-handler]") {
 }
 
 TEST_CASE("SystemHandler: QueryHardwareResource exposes accelerator preview telemetry", "[system-handler]") {
-    MockServiceRegistry mocks;
+    SystemHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     service::HwResourceItem system_memory{
@@ -120,7 +128,7 @@ TEST_CASE("SystemHandler: QueryHardwareResource exposes accelerator preview tele
 }
 
 TEST_CASE("SystemHandler: CheckUpgradeSpace exposes cleanup decision facts", "[system-handler][upgrade]") {
-    MockServiceRegistry mocks;
+    SystemHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     REQUIRE_CALL(mocks.systemOpSvc, CheckUpgradeSpace(2048, true, _))
@@ -143,7 +151,7 @@ TEST_CASE("SystemHandler: CheckUpgradeSpace exposes cleanup decision facts", "[s
 }
 
 TEST_CASE("SystemHandler: QueryPictureQuality", "[system-handler]") {
-    MockServiceRegistry mocks;
+    SystemHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     cosmo::CfgAlarmParamOverviewInfo quality;
@@ -156,7 +164,7 @@ TEST_CASE("SystemHandler: QueryPictureQuality", "[system-handler]") {
 }
 
 TEST_CASE("SystemHandler: SetPictureQuality", "[system-handler]") {
-    MockServiceRegistry mocks;
+    SystemHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     REQUIRE_CALL(mocks.configWriteSvc, SetPictureQuality(_)).RETURN(cosmo::util::ErrorEnum::Success);
@@ -168,7 +176,7 @@ TEST_CASE("SystemHandler: SetPictureQuality", "[system-handler]") {
 }
 
 TEST_CASE("SystemHandler: ResetPictureQuality", "[system-handler]") {
-    MockServiceRegistry mocks;
+    SystemHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     REQUIRE_CALL(mocks.configWriteSvc, ResetPictureQuality()).RETURN(cosmo::util::ErrorEnum::Success);
@@ -180,7 +188,7 @@ TEST_CASE("SystemHandler: ResetPictureQuality", "[system-handler]") {
 }
 
 TEST_CASE("SystemHandler: QueryDebugMode", "[system-handler]") {
-    MockServiceRegistry mocks;
+    SystemHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     REQUIRE_CALL(mocks.configReadSvc, GetDebugMode()).RETURN(false);
@@ -192,7 +200,7 @@ TEST_CASE("SystemHandler: QueryDebugMode", "[system-handler]") {
 }
 
 TEST_CASE("SystemHandler: ModifyDebugMode", "[system-handler]") {
-    MockServiceRegistry mocks;
+    SystemHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     REQUIRE_CALL(mocks.configWriteSvc, SetDebugMode(true));
@@ -205,7 +213,7 @@ TEST_CASE("SystemHandler: ModifyDebugMode", "[system-handler]") {
 }
 
 TEST_CASE("SystemHandler: QueryAlarmVideoDuration", "[system-handler]") {
-    MockServiceRegistry mocks;
+    SystemHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     cosmo::CfgAlarmParamVideoRecordInfo duration;
@@ -218,7 +226,7 @@ TEST_CASE("SystemHandler: QueryAlarmVideoDuration", "[system-handler]") {
 }
 
 TEST_CASE("SystemHandler: QueryDevRebootParam", "[system-handler]") {
-    MockServiceRegistry mocks;
+    SystemHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     cosmo::CfgRebootParamInfo reboot;
@@ -231,7 +239,7 @@ TEST_CASE("SystemHandler: QueryDevRebootParam", "[system-handler]") {
 }
 
 TEST_CASE("SystemHandler: ModifyDevRestartParam accepts strict HH:MM", "[system-handler]") {
-    MockServiceRegistry mocks;
+    SystemHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     REQUIRE_CALL(mocks.configWriteSvc, SetRebootParam(_))
@@ -252,7 +260,7 @@ TEST_CASE("SystemHandler: ModifyDevRestartParam accepts strict HH:MM", "[system-
 }
 
 TEST_CASE("SystemHandler: ModifyDevRestartParam rejects malformed HH:MM", "[system-handler]") {
-    MockServiceRegistry mocks;
+    SystemHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     for (const auto* invalid : {"", "9:05", "09:5", "09:05 ", "09-05", "0a:05", "24:00", "23:60"}) {
@@ -268,7 +276,7 @@ TEST_CASE("SystemHandler: ModifyDevRestartParam rejects malformed HH:MM", "[syst
 }
 
 TEST_CASE("SystemHandler: QuerySystemLogo", "[system-handler]") {
-    MockServiceRegistry mocks;
+    SystemHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     cosmo::service::SystemLogoInfo logo;
@@ -281,7 +289,7 @@ TEST_CASE("SystemHandler: QuerySystemLogo", "[system-handler]") {
 }
 
 TEST_CASE("SystemHandler: QueryRunModeParam", "[system-handler]") {
-    MockServiceRegistry mocks;
+    SystemHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     REQUIRE_CALL(mocks.configReadSvc, GetRunMode()).RETURN(cosmo::RunMode::RunModeStandAlone);
@@ -293,7 +301,7 @@ TEST_CASE("SystemHandler: QueryRunModeParam", "[system-handler]") {
 }
 
 TEST_CASE("SystemHandler: QueryHttpInterfaceParam", "[system-handler]") {
-    MockServiceRegistry mocks;
+    SystemHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     cosmo::service::HttpPushParam httpParam;
@@ -306,7 +314,7 @@ TEST_CASE("SystemHandler: QueryHttpInterfaceParam", "[system-handler]") {
 }
 
 TEST_CASE("SystemHandler: QueryMqttAdapterParam", "[system-handler]") {
-    MockServiceRegistry mocks;
+    SystemHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
     cosmo::service::MqttParam mqttParam;

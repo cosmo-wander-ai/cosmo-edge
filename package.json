@@ -15,15 +15,20 @@
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs && node scripts/copy-static-benchmark-assets.mjs && node scripts/generate-v1.1-benchmark-pages.mjs",
     "docs:preview": "vitepress preview docs",
+    "gitee:readme:generate": "node scripts/generate-gitee-readme.mjs",
+    "gitee:readme:check": "node scripts/generate-gitee-readme.mjs --check",
     "macos:check": "node scripts/check-macos-docker-preview.mjs",
     "docs:check": "node scripts/check-tutorial-docs.mjs",
     "docs:smoke": "node scripts/smoke-tutorial-pages.mjs",
+    "docs:copy-check": "node scripts/check-public-benchmark-copy.mjs",
     "benchmarks:v1.1:smoke": "node scripts/smoke-benchmark-pages.mjs",
     "benchmarks:v1.1:generate": "node scripts/generate-v1.1-benchmark-pages.mjs",
     "benchmarks:v1.1:checksums": "node scripts/generate-v1.1-benchmark-pages.mjs --write-source-checksums",
     "models:sophon:verify": "node scripts/run-python.mjs scripts/verify_sophon_open_benchmark_models.py",
+    "benchmarks:v1.1:verify-long-run-private": "node scripts/verify-v1.1-dual-cv-72h-private.mjs",
+    "benchmarks:v1.1:verify-vlm-private": "node scripts/verify-v1.1-vlm-private.mjs",
     "benchmarks:v1.1:validate": "node scripts/validate-public-v1.1-multistream-benchmark.mjs",
-    "docs:verify": "npm run models:sophon:verify && npm run benchmarks:v1.1:validate && npm run macos:check && npm run docs:check && npm run docs:build && npm run docs:smoke && npm run benchmarks:v1.1:smoke"
+    "docs:verify": "npm run gitee:readme:check && npm run models:sophon:verify && npm run benchmarks:v1.1:validate && npm run macos:check && npm run docs:check && npm run docs:build && npm run docs:copy-check && npm run docs:smoke && npm run benchmarks:v1.1:smoke"
   },
   "devDependencies": {
     "vitepress": "^1.6.4"

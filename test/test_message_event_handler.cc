@@ -9,7 +9,6 @@
 #include "mock/MockAlarmRecordService.h"
 #include "mock/MockAlgorithmService.h"
 #include "mock/MockNetworkService.h"
-#include "mock/MockServiceRegistry.h"
 #include "util/ErrorCode.h"
 
 using namespace cosmo;
@@ -18,14 +17,20 @@ using trompeloeil::_;
 
 namespace {
 
-MessageEventHandler MakeHandler(MockServiceRegistry& mocks) {
+struct EventHandlerMocks {
+    MockAlarmRecordService alarmRecordSvc;
+    MockAlgorithmService algSvc;
+    MockNetworkService networkSvc;
+};
+
+MessageEventHandler MakeHandler(EventHandlerMocks& mocks) {
     return MessageEventHandler(mocks.alarmRecordSvc, mocks.algSvc, mocks.networkSvc);
 }
 
 }  // namespace
 
 TEST_CASE("EventHandler: QueryAlarmEvent with valid pagination", "[event-handler]") {
-    MockServiceRegistry mocks;
+    EventHandlerMocks mocks;
     ALLOW_CALL(mocks.algSvc, GetAlgorithmName(trompeloeil::_)).RETURN("");
     auto handler = MakeHandler(mocks);
 
@@ -43,7 +48,7 @@ TEST_CASE("EventHandler: QueryAlarmEvent with valid pagination", "[event-handler
 }
 
 TEST_CASE("EventHandler: QueryAlarmEvent empty result", "[event-handler]") {
-    MockServiceRegistry mocks;
+    EventHandlerMocks mocks;
     ALLOW_CALL(mocks.algSvc, GetAlgorithmName(trompeloeil::_)).RETURN("");
     auto handler = MakeHandler(mocks);
 
@@ -61,7 +66,7 @@ TEST_CASE("EventHandler: QueryAlarmEvent empty result", "[event-handler]") {
 }
 
 TEST_CASE("EventHandler: QueryPassengerFlow", "[event-handler]") {
-    MockServiceRegistry mocks;
+    EventHandlerMocks mocks;
     ALLOW_CALL(mocks.algSvc, GetAlgorithmName(trompeloeil::_)).RETURN("");
     auto handler = MakeHandler(mocks);
 

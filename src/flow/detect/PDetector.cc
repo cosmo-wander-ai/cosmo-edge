@@ -4,7 +4,6 @@
 
 #include "service/detail/ServiceRegistry.h"
 #include "service/model/IModelPathMapping.h"
-#include "service/model/IModelService.h"
 #include "util/GeometricPos.h"
 #include "util/Keys.h"
 #include "util/Log.h"
@@ -37,7 +36,7 @@ bool PDetector::ActionInit() {
 
     std::string cfgPath   = "";
     std::string modelPath = "";
-    auto cfgRet           = service::ServiceRegistry::Instance().Get<service::IModelService>().GetModelCfg(
+    auto cfgRet = service::ServiceRegistry::Instance().Get<service::IModelPathMapping>().GetModelCfg(
         GetAtomicCode(), cfgPath, modelPath);
     if (!cfgRet) {
         LOG_WARN("Get Model Configure Failed. AlgCode:{} code:{}", GetAtomicCode(), cfgRet);

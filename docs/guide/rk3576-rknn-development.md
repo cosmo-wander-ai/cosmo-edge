@@ -25,7 +25,7 @@ RK3576 集成增加了面向生产的 CV 后端，不改变 CPU、CUDA 或 Sopho
 推荐部署起点为已完成 12 小时验证的 4 路 × 5 FPS 人员检测配置。最新短时阶梯中，
 人员检测单任务覆盖到 16 路 × 5 FPS；并发混合任务覆盖到 8 路 × 每任务 5 FPS，
 其中每路同时运行人员检测，以及由检测与分类组成的未佩戴安全帽分析。这些是指定
-模型与门禁下的实测边界，不直接替代推荐配置。详见 [ScenarioBench v1.1](/benchmarks/scenario-bench/v1.1/report.zh-CN.html)。
+模型与门禁下的实测边界，不直接替代推荐配置。详见 [ScenarioBench v1.1](https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/report.zh-CN.html)。
 
 ## 仓库与证据边界
 

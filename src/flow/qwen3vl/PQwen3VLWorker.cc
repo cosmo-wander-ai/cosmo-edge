@@ -212,8 +212,9 @@ util::ErrorEnum PQwen3VLWorker::HandPic(AlgDataPtr alg_data) {
     }
 
     auto frame = alg_data->chanDataDec.frame;
-    if (!service::ServiceRegistry::Instance().Get<service::IVideoFrameTransform>().EnsureHostData(frame) ||
-        !frame->GetHostData()) {
+    // Host-backed CPU/RK frames expose pixels through GetData(), while Sophon uses
+    // a separate GetHostData() copy. The transform validates access for each backend.
+    if (!service::ServiceRegistry::Instance().Get<service::IVideoFrameTransform>().EnsureHostData(frame)) {
         LOG_WARN("[{} {}] Qwen3VL EnsureHostData failed on picture frame", GetTaskId(), GetFlowActionId());
         return util::ErrorEnum::InvalidParam;
     }

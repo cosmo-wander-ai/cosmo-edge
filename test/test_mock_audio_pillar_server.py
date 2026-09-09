@@ -74,7 +74,7 @@ class AudioPillarContractTest(unittest.TestCase):
 
     def test_alive_matches_platform_contract(self) -> None:
         status, response = request_json(
-            f"{self.base_url}/v1/check_alive", method="POST"
+            f"{self.base_url}/v1/check_alive", method="GET"
         )
         self.assertEqual(status, 200)
         self.assertEqual(response["code"], 200)

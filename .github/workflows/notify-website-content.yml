@@ -1,0 +1,76 @@
+name: Notify website content sync
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - docs/**
+      - README.md
+      - README.zh-CN.md
+      - CHANGELOG.md
+      - .github/release-notes/**
+      - scripts/generate-v1.1-benchmark-pages.mjs
+      - scripts/validate-public-v1.1-multistream-benchmark.mjs
+      - tools/scenario-bench/**
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Exact source ref to send to cosmo-edge-website
+        required: false
+        default: main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notify-website-content
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch exact source identity
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.WEBSITE_SYNC_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_SOURCE_REF: ${{ inputs.source_ref }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice::WEBSITE_SYNC_TOKEN is not configured; the website's scheduled pull remains active."
+            {
+              echo "### Website dispatch skipped"
+              echo
+              echo "\`WEBSITE_SYNC_TOKEN\` is not configured. The website repository will pick up \`main\` through its scheduled pull workflow."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          source_ref="main"
+          source_sha=""
+          if [ "$EVENT_NAME" = "push" ]; then
+            source_ref="$GITHUB_REF_NAME"
+            source_sha="$GITHUB_SHA"
+          elif [ "$EVENT_NAME" = "release" ]; then
+            source_ref="$RELEASE_TAG"
+          elif [ -n "$INPUT_SOURCE_REF" ]; then
+            source_ref="$INPUT_SOURCE_REF"
+          fi
+
+          payload=$(jq -n \
+            --arg event_type "cosmo-edge-docs-updated" \
+            --arg source_ref "$source_ref" \
+            --arg source_sha "$source_sha" \
+            --arg source_event "$EVENT_NAME" \
+            '{event_type: $event_type, client_payload: {source_ref: $source_ref, source_sha: $source_sha, source_event: $source_event}}')
+
+          gh api \
+            --method POST \
+            repos/cosmo-wander-ai/cosmo-edge-website/dispatches \
+            --input - <<<"$payload"
