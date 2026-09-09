@@ -41,32 +41,6 @@ void from_json(const nlohmann::json& j, MsgPassFlowListSend& v) {
     JSON_OPT(j, v, resData);
 }
 
-void from_json(const nlohmann::json& j, MsgAtomicAction& v) {
-    JSON_OPT(j, v, id);
-    JSON_OPT(j, v, name);
-    JSON_OPT(j, v, actionName);
-    JSON_OPT(j, v, inputParamConfig);
-    JSON_OPT(j, v, actionUsage);
-    JSON_OPT(j, v, actionType);
-}
-
-void to_json(nlohmann::json& j, const MsgAtomicAction& v) {
-    j["id"]               = v.id;
-    j["name"]             = v.name;
-    j["actionName"]       = v.actionName;
-    j["inputParamConfig"] = v.inputParamConfig;
-    j["actionUsage"]      = v.actionUsage;
-    j["actionType"]       = v.actionType;
-}
-
-void from_json(const nlohmann::json& j, MsgAtomicActionListSend::ResData& v) {
-    JSON_OPT(j, v, list);
-}
-
-void to_json(nlohmann::json& j, const MsgAtomicActionListSend::ResData& v) {
-    j["list"] = v.list;
-}
-
 void from_json(const nlohmann::json& j, MsgPassFlowListSend::MsgPassFlowUnit& v) {
     JSON_OPT(j, v, algorithmId);
     JSON_OPT(j, v, algorithmName);
