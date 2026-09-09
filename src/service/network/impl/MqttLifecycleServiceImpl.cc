@@ -22,7 +22,7 @@
 #include "service/system/IAppInfoService.h"
 #include "service/system/IConfigNetworkService.h"
 #include "service/system/IConfigReadService.h"
-#include "service/system/IDeviceInfoService.h"
+#include "service/system/IDeviceHardware.h"
 #include "util/JsonStructUtil.h"
 #include "util/Log.h"
 #include "util/SafeParse.h"
@@ -233,7 +233,7 @@ void MqttLifecycleServiceImpl::MqttStart() {
     }
     desired_running_.store(true, std::memory_order_release);
     Disconnect();
-    std::string device_sn = ServiceRegistry::Instance().Get<IDeviceInfoService>().GetDevSn();
+    std::string device_sn = ServiceRegistry::Instance().Get<IDeviceHardware>().GetDevSn();
     Connect(device_sn, url, port, auth_mode, client_id, user_name, passwd);
 }
 
@@ -545,7 +545,7 @@ bool MqttLifecycleServiceImpl::Register() {
     sendmsg.body.engine_type =
         cosmo::service::ServiceRegistry::Instance().Get<service::IAppInfoService>().GetEngineType();
     sendmsg.body.device_model =
-        cosmo::service::ServiceRegistry::Instance().Get<service::IDeviceInfoService>().GetDevModel();
+        cosmo::service::ServiceRegistry::Instance().Get<service::IDeviceHardware>().GetDevModel();
     sendmsg.body.dev_type = 2;
 
     pub_msg.payload = nlohmann::json(sendmsg).dump();

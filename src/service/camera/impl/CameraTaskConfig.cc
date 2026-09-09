@@ -10,7 +10,7 @@
 #include "service/algorithm/IAlgorithmQuery.h"
 #include "service/camera/impl/CameraServiceImpl.h"
 #include "service/detail/ServiceRegistry.h"
-#include "service/model/IModelService.h"
+#include "service/model/IModelQuery.h"
 #include "service/system/IConfigReadService.h"
 #include "service/system/IDeviceInfoService.h"
 #include "service/task/IScheduleService.h"
@@ -29,7 +29,7 @@ namespace {
             return models;
         }
 
-        auto& modelSvc = ServiceRegistry::Instance().Get<IModelService>();
+        auto& modelSvc = ServiceRegistry::Instance().Get<IModelQuery>();
         for (const auto& workFlow : algData->workFlow) {
             if (workFlow.atomicCode.empty()) {
                 continue;

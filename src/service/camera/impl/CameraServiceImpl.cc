@@ -28,7 +28,6 @@
 #include "service/detail/ServiceRegistry.h"
 #include "service/media/IVideoFrameCodec.h"
 #include "service/model/IModelQuery.h"
-#include "service/model/IModelService.h"
 #include "service/system/IConfigReadService.h"
 #include "service/task/IScheduleService.h"
 #include "service/task/ITaskChannel.h"
@@ -422,8 +421,7 @@ util::ErrorEnum CameraServiceImpl::MakeCameraTask(const CameraEntityPtr& camera,
         if (!workFlow.atomicCode.empty()) {
             LOG_INFO("[{}/{}] [{}/{}]", workFlow.actionId, workFlow.actionName, workFlow.atomicCode,
                      workFlow.atomAlgName);
-            auto modelInfo =
-                ServiceRegistry::Instance().Get<IModelService>().GetModelInfo(workFlow.atomicCode);
+            auto modelInfo = ServiceRegistry::Instance().Get<IModelQuery>().GetModelInfo(workFlow.atomicCode);
             if (modelInfo.id == workFlow.atomicCode) {
                 models.push_back(modelInfo);
             }

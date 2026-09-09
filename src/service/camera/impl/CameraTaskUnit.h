@@ -9,7 +9,7 @@
 #include <string>
 #include <thread>
 
-#include "service/model/IModelService.h"
+#include "service/model/dto/ModelInfo.h"
 #include "util/MsgBaseTypes.h"
 #include "util/dto/FilterTypes.h"
 #include "util/dto/OverviewTypes.h"

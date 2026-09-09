@@ -13,8 +13,6 @@
 #include "flow/common/AlgDataRecord.h"
 #include "media/VideoFrame.h"
 #include "service/detail/ServiceRegistry.h"
-#include "service/model/IModelPathMapping.h"
-#include "service/model/IModelService.h"
 #include "util/Log.h"
 #include "util/TimingConstants.h"
 #include "util/UuidUtil.h"

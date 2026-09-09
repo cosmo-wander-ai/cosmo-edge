@@ -13,8 +13,6 @@
 #include "flow/detect/DinoDetector.h"
 #include "media/VideoFrame.h"
 #include "service/detail/ServiceRegistry.h"
-#include "service/model/IModelPathMapping.h"
-#include "service/model/IModelService.h"
 #include "util/GeometricPos.h"
 #include "util/Log.h"
 #include "util/TimeUtil.h"

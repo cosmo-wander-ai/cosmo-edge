@@ -5,7 +5,7 @@
 #include "service/detail/ServiceRegistry.h"
 #include "service/network/INetworkService.h"
 #include "service/network/impl/DeviceDiscoveryServiceImpl.h"
-#include "service/system/IDeviceInfoService.h"
+#include "service/system/IDeviceHardware.h"
 #include "util/ErrorCode.h"
 #include "util/Log.h"
 #include "util/Version.h"
@@ -36,10 +36,10 @@ void DeviceDiscoveryServiceImpl::HandleProbe(DiscoveryProbeRecv&& data) {
         errc = util::ErrorEnum::Failed;
     } else {
         ret_data.resData.devInfoList.push_back(
-            {"deviceType", "设备型号", ServiceRegistry::Instance().Get<IDeviceInfoService>().GetDevModel()});
+            {"deviceType", "设备型号", ServiceRegistry::Instance().Get<IDeviceHardware>().GetDevModel()});
         ret_data.resData.devInfoList.push_back({"softwareVersion", "软件版本", util::GetAbbrVersion()});
         ret_data.resData.devInfoList.push_back(
-            {"deviceSn", "设备SN", ServiceRegistry::Instance().Get<IDeviceInfoService>().GetDevSn()});
+            {"deviceSn", "设备SN", ServiceRegistry::Instance().Get<IDeviceHardware>().GetDevSn()});
     }
 
     ret_data.resCode = errc.value();

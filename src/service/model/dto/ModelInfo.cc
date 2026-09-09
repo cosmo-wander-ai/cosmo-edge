@@ -1,10 +1,8 @@
-// IModelService — Model service interface — full CRUD, import/export, chunked upload,
+// Model metadata JSON serialization.
 
-#include "IModelService.h"
+#include "service/model/dto/ModelInfo.h"
 
 #include <nlohmann/json.hpp>
-
-#include "util/LimitedTypeJson.h"
 
 // Auto-generated JSON serialization
 namespace cosmo {

@@ -10,7 +10,6 @@
 #include "mem/MemoryPoolMng.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/model/IModelPathMapping.h"
-#include "service/model/IModelService.h"
 #include "service/system/IDeviceInfoService.h"
 #include "service/task/ITaskQuery.h"
 #include "util/DateTimeFormat.h"
@@ -194,7 +193,7 @@ size_t AppInfoServiceImpl::GetGpuNum() {
 // ── ModelPathUtil ──
 
 void AppInfoServiceImpl::SetModelPath(const std::string& algCode, const std::string& modelPath) {
-    ServiceRegistry::Instance().Get<IModelService>().SetModelPathMapping(algCode, modelPath);
+    ServiceRegistry::Instance().Get<IModelPathMapping>().SetModelPathMapping(algCode, modelPath);
 }
 
 // ── MemoryPoolMng ──

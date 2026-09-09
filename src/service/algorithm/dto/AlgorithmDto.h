@@ -6,6 +6,7 @@
 #include <system_error>
 #include <vector>
 
+#include "util/dto/AlgorithmPacketDto.h"
 #include "util/dto/ServerMsgTypes.h"
 
 namespace cosmo {
@@ -158,33 +159,10 @@ namespace Algorithm {
 
     void to_json(nlohmann::json& j, const MsgLayoutDetailRecv& v);
     void from_json(const nlohmann::json& j, MsgLayoutDetailRecv& v);
-    struct MsgLayoutDetailVersion {
-        std::string id;
-        std::string name;
-        std::string algorithmCode;
-        std::string algorithmMetadata;
-        std::string algorithmProcessdata;
-        std::string atomicList;
-        uint64_t algorithmUpdateTime{0};
-        friend void to_json(nlohmann::json& j, const MsgLayoutDetailVersion& v);
-        friend void from_json(const nlohmann::json& j, MsgLayoutDetailVersion& v);
-    };
+    using MsgLayoutDetailVersion = service::algorithm::LayoutDetailVersion;
     struct MsgLayoutDetailSend : public MsgSendHead {
-        struct ResData {
-            std::string algorithmCode;
-            std::string algorithmName;
-            std::string algorithmCategory;
-            std::string algorithmUsage;
-            std::string supplier;
-            std::string remark;
-            std::string confVersionId;
-            std::string algorithmMetadata;
-            std::string algorithmProcessdata;
-            std::string atomicList;
-            std::vector<MsgLayoutDetailVersion> configVersionList;
-            friend void to_json(nlohmann::json& j, const ResData& v);
-            friend void from_json(const nlohmann::json& j, ResData& v);
-        } resData;
+        using ResData = service::algorithm::LayoutDetailResult;
+        ResData resData;
     };
 
     void to_json(nlohmann::json& j, const MsgLayoutDetailSend& v);
@@ -199,21 +177,10 @@ namespace Algorithm {
 
     void to_json(nlohmann::json& j, const MsgLayoutListRecv& v);
     void from_json(const nlohmann::json& j, MsgLayoutListRecv& v);
-    struct MsgLayoutListItem {
-        std::string algorithmCode;
-        std::string algorithmName;
-        std::string supplier;
-        std::string algorithmUsage;
-        std::string description;
-        friend void to_json(nlohmann::json& j, const MsgLayoutListItem& v);
-        friend void from_json(const nlohmann::json& j, MsgLayoutListItem& v);
-    };
+    using MsgLayoutListItem = service::algorithm::LayoutListItem;
     struct MsgLayoutListSend : public MsgSendHead {
-        struct ResData {
-            std::vector<MsgLayoutListItem> list;
-            friend void to_json(nlohmann::json& j, const ResData& v);
-            friend void from_json(const nlohmann::json& j, ResData& v);
-        } resData;
+        using ResData = service::algorithm::LayoutListResult;
+        ResData resData;
     };
 
     void to_json(nlohmann::json& j, const MsgLayoutListSend& v);
@@ -267,22 +234,10 @@ namespace Algorithm {
 
     void to_json(nlohmann::json& j, const MsgAtomicActionListRecv& v);
     void from_json(const nlohmann::json& j, MsgAtomicActionListRecv& v);
-    struct MsgAtomicAction {
-        std::string id;
-        std::string name;
-        std::string actionName;
-        std::string inputParamConfig;
-        int actionUsage{0};
-        int actionType{0};
-        friend void to_json(nlohmann::json& j, const MsgAtomicAction& v);
-        friend void from_json(const nlohmann::json& j, MsgAtomicAction& v);
-    };
+    using MsgAtomicAction = service::algorithm::AtomicAction;
     struct MsgAtomicActionListSend : public MsgSendHead {
-        struct ResData {
-            std::vector<MsgAtomicAction> list;
-            friend void to_json(nlohmann::json& j, const ResData& v);
-            friend void from_json(const nlohmann::json& j, ResData& v);
-        } resData;
+        using ResData = service::algorithm::AtomicActionListResult;
+        ResData resData;
     };
 
     void to_json(nlohmann::json& j, const MsgAtomicActionListSend& v);

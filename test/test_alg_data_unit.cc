@@ -5,6 +5,8 @@
 #include "flow/common/AlgDataRecord.h"
 #include "flow/common/AlgDataUnit.h"
 #include "flow/common/AreaLineUtil.h"
+#include "mem/AllocatorCpu.h"
+#include "mem/MemoryPoolMng.h"
 
 using namespace cosmo;
 
@@ -74,6 +76,215 @@ TEST_CASE("AlgDataCopy: Deep copies taskResults map", "[AlgDataUnit]") {
     REQUIRE(copyDet.get() != det.get());  // Deep copy, not same ptr
     REQUIRE(copyDet->streamIndex == 42);
     REQUIRE(copyDet->frameIndex == 100);
+}
+
+namespace {
+
+std::vector<DataDetTrackClassifyPtr> DetectionResults(const AlgData& data) {
+    std::vector<DataDetTrackClassifyPtr> results{data.legacyDetect.detRet, data.chanDataDetect.detRet,
+                                                 data.taskAiFilter.targetRst,
+                                                 data.taskDataClassifyMultPic.classifyRst};
+    for (int type = static_cast<int>(AlgDataType::TaskDataTrack);
+         type <= static_cast<int>(AlgDataType::TaskDataClassifyMultPic); ++type) {
+        results.push_back(data.GetTaskResult(static_cast<AlgDataType>(type)));
+    }
+    return results;
+}
+
+void SetDetectionResults(AlgData& data, const DataDetTrackClassifyPtr& result) {
+    data.legacyDetect.detRet                 = result;
+    data.chanDataDetect.detRet               = result;
+    data.taskAiFilter.targetRst              = result;
+    data.taskDataClassifyMultPic.classifyRst = result;
+    for (int type = static_cast<int>(AlgDataType::TaskDataTrack);
+         type <= static_cast<int>(AlgDataType::TaskDataClassifyMultPic); ++type) {
+        data.SetTaskResult(static_cast<AlgDataType>(type), result);
+    }
+}
+
+}  // namespace
+
+TEST_CASE("AlgDataCopy: preserves multi-related flag at every detection location",
+          "[AlgDataUnit][LeafCopy]") {
+    const bool multi_related      = GENERATE(false, true);
+    auto src                      = std::make_shared<AlgData>();
+    auto result                   = std::make_shared<DataDetTrackClassify>();
+    result->targetHaveMultRelated = multi_related;
+    SetDetectionResults(*src, result);
+
+    auto copy = AlgDataCopy(src);
+    for (const auto& copied : DetectionResults(*copy)) {
+        REQUIRE(copied);
+        CHECK(copied->targetHaveMultRelated == multi_related);
+    }
+}
+
+TEST_CASE("AlgDataCopy: branches own separate leaves and nested values", "[AlgDataUnit][LeafCopy]") {
+    auto src    = std::make_shared<AlgData>();
+    auto result = std::make_shared<DataDetTrackClassify>();
+    AiDetectRstEl target;
+    target.targetId = "original";
+    target.relatedEls.resize(1);
+    target.relatedEls[0].classifyRst.resize(1);
+    target.relatedEls[0].classifyRst[0].label = "nested";
+    result->targets.push_back(target);
+    AiGroupEl group;
+    group.groupId = 7;
+    group.srcTargets.push_back(target);
+    result->groupTargets.push_back(group);
+    SetDetectionResults(*src, result);
+    src->taskDataAlarm.alarmData               = std::make_shared<DataAlarm>();
+    src->taskDataAlarm.alarmData->flowActionId = "alarm-action";
+    src->taskDataAlarm.alarmData->multiAlarms  = 2;
+    src->taskDataAlarm.alarmData->alarms.emplace_back();
+    src->taskDataAlarm.alarmData->alarms[0].targetHistory.emplace_back();
+    src->taskDataAlarm.alarmData->alarms[0].targetHistory[0].friends.resize(1);
+    src->taskDataAlarm.alarmData->alarms[0].targetHistory[0].friends[0].width = 12;
+
+    auto first          = AlgDataCopy(src);
+    auto second         = AlgDataCopy(src);
+    auto first_results  = DetectionResults(*first);
+    auto second_results = DetectionResults(*second);
+    REQUIRE(first_results.size() == second_results.size());
+    for (size_t i = 0; i < first_results.size(); ++i) {
+        CAPTURE(i);
+        REQUIRE(first_results[i]);
+        REQUIRE(second_results[i]);
+        CHECK(first_results[i] != result);
+        CHECK(second_results[i] != result);
+        CHECK(first_results[i] != second_results[i]);
+        for (size_t j = 0; j < i; ++j) {
+            CHECK(first_results[i] != first_results[j]);
+        }
+        first_results[i]->targets[0].targetId                           = "changed";
+        first_results[i]->targets[0].relatedEls[0].classifyRst[0].label = "changed";
+        first_results[i]->groupTargets[0].groupId                       = 99;
+        first_results[i]->groupTargets[0].srcTargets[0].targetId        = "changed";
+        CHECK(second_results[i]->targets[0].targetId == "original");
+        CHECK(second_results[i]->targets[0].relatedEls[0].classifyRst[0].label == "nested");
+        CHECK(second_results[i]->groupTargets[0].groupId == 7);
+        CHECK(second_results[i]->groupTargets[0].srcTargets[0].targetId == "original");
+    }
+    CHECK(result->targets[0].targetId == "original");
+    CHECK(result->targets[0].relatedEls[0].classifyRst[0].label == "nested");
+    CHECK(result->groupTargets[0].groupId == 7);
+    CHECK(result->groupTargets[0].srcTargets[0].targetId == "original");
+    REQUIRE(first->taskDataAlarm.alarmData != src->taskDataAlarm.alarmData);
+    REQUIRE(second->taskDataAlarm.alarmData != src->taskDataAlarm.alarmData);
+    REQUIRE(first->taskDataAlarm.alarmData != second->taskDataAlarm.alarmData);
+    CHECK(first->taskDataAlarm.alarmData->flowActionId == "alarm-action");
+    CHECK(first->taskDataAlarm.alarmData->multiAlarms == 2);
+    first->taskDataAlarm.alarmData->alarms[0].targetHistory[0].friends[0].width = 99;
+    CHECK(src->taskDataAlarm.alarmData->alarms[0].targetHistory[0].friends[0].width == 12);
+    CHECK(second->taskDataAlarm.alarmData->alarms[0].targetHistory[0].friends[0].width == 12);
+    first->taskDataAlarm.alarmData->alarms.clear();
+    CHECK(src->taskDataAlarm.alarmData->alarms.size() == 1);
+    CHECK(second->taskDataAlarm.alarmData->alarms.size() == 1);
+}
+
+TEST_CASE("AlgDataCopy: preserves null leaves, empty containers and absent keys", "[AlgDataUnit][LeafCopy]") {
+    auto src  = std::make_shared<AlgData>();
+    auto copy = AlgDataCopy(src);
+    CHECK(copy->taskResults.empty());
+    for (const auto& result : DetectionResults(*copy)) {
+        CHECK_FALSE(result);
+    }
+    CHECK_FALSE(copy->taskDataAlarm.alarmData);
+    CHECK_FALSE(copy->chanDataOrig.packet);
+    CHECK_FALSE(copy->chanDataDec.frame);
+    CHECK_FALSE(copy->chanDataDec.native_buffer);
+    CHECK_FALSE(copy->taskDataClassifyMultPic.baseFrame);
+
+    src->SetTaskResult(AlgDataType::TaskDataTrack, nullptr);
+    src->SetTaskResult(AlgDataType::TaskDataClassify, std::make_shared<DataDetTrackClassify>());
+    src->taskDataAlarm.alarmData = std::make_shared<DataAlarm>();
+    copy                         = AlgDataCopy(src);
+    CHECK(copy->taskResults.size() == 2);
+    CHECK(copy->taskResults.count(AlgDataType::TaskDataTrack) == 1);
+    CHECK_FALSE(copy->GetTaskResult(AlgDataType::TaskDataTrack));
+    CHECK(copy->taskResults.count(AlgDataType::TaskDataOcr) == 0);
+    REQUIRE(copy->GetTaskResult(AlgDataType::TaskDataClassify));
+    CHECK(copy->GetTaskResult(AlgDataType::TaskDataClassify)->targets.empty());
+    CHECK(copy->GetTaskResult(AlgDataType::TaskDataClassify)->groupTargets.empty());
+    REQUIRE(copy->taskDataAlarm.alarmData);
+    CHECK(copy->taskDataAlarm.alarmData->alarms.empty());
+}
+
+TEST_CASE("AlgDataCopy: shares frame, packet and native owners until the last branch",
+          "[AlgDataUnit][LeafCopy]") {
+    constexpr int pool_size = 4 * 4 * 3 / 2;
+    mem::MemoryPoolMng memory_pool(std::make_unique<mem::AllocatorCpu>(), {pool_size});
+    mem::SetMemoryPoolContext(&memory_pool);
+    struct PoolReset {
+        ~PoolReset() {
+            mem::SetMemoryPoolContext(nullptr);
+        }
+    } pool_reset;
+    auto src      = std::make_shared<AlgData>();
+    auto frame    = std::make_shared<media::VideoFrame>(4, 4, media::PixelFormat::PIXEL_I420);
+    auto packet   = std::make_shared<media::VideoPacket>();
+    auto owner    = std::make_shared<int>(42);
+    auto native   = std::make_shared<media::NativeVideoBuffer>();
+    native->owner = owner;
+    std::weak_ptr<media::VideoFrame> weak_frame   = frame;
+    std::weak_ptr<media::VideoPacket> weak_packet = packet;
+    std::weak_ptr<int> weak_owner                 = owner;
+    src->chanDataOrig.packet                      = packet;
+    src->chanDataDec.frame                        = frame;
+    src->chanDataDec.native_buffer                = native;
+    src->taskDataClassifyMultPic.baseFrame        = frame;
+    auto result                                   = std::make_shared<DataDetTrackClassify>();
+    result->areaInfo.intoAreaFrame                = frame;
+    result->areaInfo.outAreaFrame                 = frame;
+    result->targets.resize(1);
+    result->targets[0].bestEl.bestFrame = frame;
+    result->groupTargets.resize(1);
+    result->groupTargets[0].srcTargets = result->targets;
+    SetDetectionResults(*src, result);
+    auto alarm = std::make_shared<DataAlarm>();
+    alarm->alarms.emplace_back();
+    alarm->alarms[0].ocrImage  = frame;
+    alarm->alarms[0].baseFrame = frame;
+    alarm->alarms[0].bestInfos.push_back(result->targets[0].bestEl);
+    alarm->alarms[0].areaInfo    = result->areaInfo;
+    src->taskDataAlarm.alarmData = alarm;
+
+    auto first  = AlgDataCopy(src);
+    auto second = AlgDataCopy(src);
+    for (const auto& branch : {first, second}) {
+        CHECK(branch->chanDataOrig.packet == packet);
+        CHECK(branch->chanDataDec.frame == frame);
+        CHECK(branch->chanDataDec.native_buffer == native);
+        CHECK(branch->chanDataDec.native_buffer->owner == owner);
+        CHECK(branch->taskDataClassifyMultPic.baseFrame == frame);
+        for (const auto& copied : DetectionResults(*branch)) {
+            CHECK(copied->areaInfo.intoAreaFrame == frame);
+            CHECK(copied->areaInfo.outAreaFrame == frame);
+            CHECK(copied->targets[0].bestEl.bestFrame == frame);
+            CHECK(copied->groupTargets[0].srcTargets[0].bestEl.bestFrame == frame);
+        }
+        const auto& copied_alarm = branch->taskDataAlarm.alarmData->alarms[0];
+        CHECK(copied_alarm.ocrImage == frame);
+        CHECK(copied_alarm.baseFrame == frame);
+        CHECK(copied_alarm.bestInfos[0].bestFrame == frame);
+        CHECK(copied_alarm.areaInfo.intoAreaFrame == frame);
+        CHECK(copied_alarm.areaInfo.outAreaFrame == frame);
+    }
+    result.reset();
+    alarm.reset();
+    frame.reset();
+    packet.reset();
+    owner.reset();
+    native.reset();
+    src.reset();
+    first.reset();
+    CHECK_FALSE(weak_frame.expired());
+    CHECK_FALSE(weak_packet.expired());
+    CHECK_FALSE(weak_owner.expired());
+    second.reset();
+    CHECK(weak_frame.expired());
+    CHECK(weak_packet.expired());
+    CHECK(weak_owner.expired());
 }
 
 TEST_CASE("AlgData::GetTaskResult: Returns nullptr for missing key", "[AlgDataUnit]") {

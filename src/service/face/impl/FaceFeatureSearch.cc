@@ -10,8 +10,6 @@
 #include "service/media/IVideoFrameCodec.h"
 #include "service/media/IVideoFrameTransform.h"
 #include "service/media/dto/DetectMsgTypes.h"
-#include "service/model/IModelPathMapping.h"
-#include "service/model/IModelService.h"
 #include "util/AiTypes.h"
 #include "util/CipherUtil.h"
 #include "util/DurationLogger.h"

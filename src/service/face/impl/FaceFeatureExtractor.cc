@@ -9,7 +9,6 @@
 #include "service/detail/ServiceRegistry.h"
 #include "service/media/dto/DetectMsgTypes.h"
 #include "service/model/IModelPathMapping.h"
-#include "service/model/IModelService.h"
 #include "util/AiTypes.h"
 #include "util/CipherUtil.h"
 #include "util/DurationLogger.h"
@@ -103,7 +102,7 @@ bool FaceFeatureExtractor::InitModel(std::shared_ptr<T>& instance, const std::st
     }
     std::string cfg_path;
     std::string model_path;
-    auto cfg_ret = service::ServiceRegistry::Instance().Get<service::IModelService>().GetModelCfg(
+    auto cfg_ret = service::ServiceRegistry::Instance().Get<service::IModelPathMapping>().GetModelCfg(
         algCode, cfg_path, model_path);
     if (!cfg_ret) {
         LOG_WARN("{}[{}] Get Model Configure Failed. AlgCode:{} ret:{}", kTag, name_, algCode, cfg_ret);
