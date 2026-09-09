@@ -81,7 +81,8 @@ TEST_CASE("MessageHandler: OverviewStructureRecord toggle", "[CoreHandler]") {
 
 TEST_CASE("MessageHandler: GraphicsMemory", "[CoreHandler]") {
     test::MockAppInfoService app_info;
-    test::ScopedServiceOverride<service::IAppInfoService> registration(app_info);
+    test::ScopedServiceOverride<service::IMemoryDiag> registration(app_info);
+    REQUIRE_FALSE(service::ServiceRegistry::Instance().Has<service::IAppInfoService>());
     MessageHandler handler;
 
     ALLOW_CALL(app_info, OutputMallocBuf()).RETURN("mem_debug_info");
@@ -102,4 +103,35 @@ TEST_CASE("MessageHandler: overview file rejects path-like task ID", "[CoreHandl
     std::error_condition errc = util::ErrorEnum::Success;
 
     REQUIRE_THROWS_AS(handler.Handle(std::move(req), errc), util::ErrorMessage);
+}
+
+TEST_CASE("MessageHandler: memory pools use only diagnostics", "[CoreHandler][narrow-interface]") {
+    test::MockAppInfoService app_info;
+    test::ScopedServiceOverride<service::IMemoryDiag> registration(app_info);
+    REQUIRE_FALSE(service::ServiceRegistry::Instance().Has<service::IAppInfoService>());
+    MessageHandler handler;
+    std::vector<service::PoolStatusDto> pools;
+    const bool populated = GENERATE(false, true);
+    if (populated) {
+        pools = {{128, 3, 2, {{11, 23, 99}, {12, 24, 100}}}, {512, 1, 1, {{13, 25, 101}}}};
+    }
+    REQUIRE_CALL(app_info, GetMemoryPoolStatus()).RETURN(pools);
+    std::error_condition errc = util::ErrorEnum::Success;
+    auto response             = handler.Handle(MsgQueryDeviceMemStatusRecv{}, errc);
+    REQUIRE(errc == util::ErrorEnum::Success);
+    REQUIRE(response.status.size() == pools.size());
+    REQUIRE(response.totalMalloc == (populated ? 1664 : 0));
+    REQUIRE(response.totalInUsing == (populated ? 768 : 0));
+    for (size_t i = 0; i < pools.size(); ++i) {
+        const auto& actual = response.status[i];
+        REQUIRE(actual.poolSize == pools[i].pool_size);
+        REQUIRE(actual.mallocCnt == pools[i].used_cnt);
+        REQUIRE(actual.freeCnt == pools[i].idle_cnt);
+        REQUIRE(actual.mallocPoolStatus.size() == pools[i].used_nodes_status.size());
+        for (size_t j = 0; j < actual.mallocPoolStatus.size(); ++j) {
+            REQUIRE(actual.mallocPoolStatus[j].threadId == pools[i].used_nodes_status[j].thread_id);
+            REQUIRE(actual.mallocPoolStatus[j].duration == pools[i].used_nodes_status[j].duration);
+            REQUIRE(actual.mallocPoolStatus[j].backtrace.empty());
+        }
+    }
 }

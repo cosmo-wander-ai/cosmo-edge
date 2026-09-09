@@ -26,6 +26,35 @@ Layer 3 (Interface)     cosmo_api
 
 Each object library maps to a source directory under `src/`. The layer order ensures that higher layers can depend on lower ones, but not vice versa.
 
+### Narrow interfaces and data ownership
+
+Image requests use `IPicTaskDetect` for creation, cancellation and detection; nonempty task
+configuration is written through `IPicTaskQuery` before detection. Model validation and information
+use `IModelQuery`, while model configuration and paths use `IModelPathMapping`. Memory diagnostics
+use `IMemoryDiag`; network configuration, discovery and MQTT identity queries use `IDeviceHardware`.
+Startup registers each owning service once and aliases its interface base subobjects without
+changing initialization, shutdown or destruction order.
+
+`MessageModelHandler` retains the aggregate model interface for queries and mutations.
+`MessageSystemHandler` retains device overview and utilization access through the aggregate device
+interface. Application overview, logs and paths still use `IAppInfoService`. Aggregate interfaces
+remain appropriate for composition and operations spanning capabilities.
+
+`service/model/dto/ModelInfo.h` owns `ModelLabel/ModelInfo` independently; including `IModelQuery.h`
+provides complete types. JSON still excludes label names, label values and model paths, and missing
+or null fields preserve existing values. `util/dto/AlgorithmPacketDto.h` is the single payload
+source for layout details, layout lists and atomic action lists. Existing wire names are aliases,
+with serialization in the actual types' namespace. Handlers move temporary results only on success,
+so partial service output never escapes through error responses. Stringified JSON, empty lists,
+defaults and ordering are preserved. The aliases change C++ type identity and require rebuilding
+and relinking related targets.
+
+Flow branches still copy result objects at each level. Detection and alarm leaves use copy
+construction, including `targetHaveMultRelated`. Value containers remain isolated, while frames,
+original packets and device buffers retain their shared ownership. Null results and explicit null
+map entries remain intact; results at different storage locations are not deduplicated.
+
+
 ## Build System
 
 ### Entry Points

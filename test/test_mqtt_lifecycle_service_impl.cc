@@ -35,7 +35,7 @@ struct MqttDependencies {
     cosmo::test::MockDeviceInfoService deviceInfoSvc;
     cosmo::test::ScopedServiceOverride<IConfigReadService> configRead{configReadSvc};
     cosmo::test::ScopedServiceOverride<IConfigNetworkService> configNetwork{configNetSvc};
-    cosmo::test::ScopedServiceOverride<IDeviceInfoService> deviceInfo{deviceInfoSvc};
+    cosmo::test::ScopedServiceOverride<IDeviceHardware> deviceInfo{deviceInfoSvc};
 };
 
 class StubDispatcher : public cosmo::IRequestDispatcher {
@@ -299,7 +299,8 @@ TEST_CASE("MqttLifecycleServiceImpl: Stop interrupts reconnect backoff promptly"
     mqtt_param.url    = "127.0.0.1";
     mqtt_param.port   = server.Port();
     ALLOW_CALL(mocks.configNetSvc, GetMqttParam()).RETURN(mqtt_param);
-    ALLOW_CALL(mocks.deviceInfoSvc, GetDevSn()).RETURN("SN-MQTT-STOP-TEST");
+    REQUIRE_FALSE(ServiceRegistry::Instance().Has<IDeviceInfoService>());
+    REQUIRE_CALL(mocks.deviceInfoSvc, GetDevSn()).RETURN("SN-MQTT-STOP-TEST");
 
     MqttLifecycleServiceImpl sut([]() { return std::make_unique<StubDispatcher>(); });
     sut.MqttStart();

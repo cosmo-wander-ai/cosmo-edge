@@ -4,7 +4,6 @@
 
 #include "service/detail/ServiceRegistry.h"
 #include "service/model/IModelPathMapping.h"
-#include "service/model/IModelService.h"
 #include "service/system/IAppInfoService.h"
 #include "util/Log.h"
 
@@ -37,7 +36,8 @@ bool LlmInferServiceImpl::EnsureInit(const std::string& atomic_code) {
     }
 
     std::string cfg_path, model_path;
-    if (!ServiceRegistry::Instance().Get<IModelService>().GetModelCfg(atomic_code, cfg_path, model_path)) {
+    if (!ServiceRegistry::Instance().Get<IModelPathMapping>().GetModelCfg(atomic_code, cfg_path,
+                                                                          model_path)) {
         LOG_WARN("{}EnsureInit: GetModelCfg failed for {}", kTag, atomic_code);
         init_failed_ = true;
         return false;

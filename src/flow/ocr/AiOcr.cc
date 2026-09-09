@@ -6,7 +6,7 @@
 
 #include "flow/common/AlgDataUnit.h"
 #include "service/detail/ServiceRegistry.h"
-#include "service/model/IModelService.h"
+#include "service/model/IModelPathMapping.h"
 #include "util/Log.h"
 
 namespace cosmo {
@@ -40,7 +40,7 @@ bool AiOcr::AiSdkInit() {
     std::string cfg_path;
     std::string model_path;
     std::string word_dict_path;
-    if (!service::ServiceRegistry::Instance().Get<service::IModelService>().GetModelCfg(
+    if (!service::ServiceRegistry::Instance().Get<service::IModelPathMapping>().GetModelCfg(
             alg_code_, cfg_path, model_path, word_dict_path)) {
         LOG_WARN("{}Get model configuration failed. AlgCode:{}", kTag, alg_code_);
         return false;

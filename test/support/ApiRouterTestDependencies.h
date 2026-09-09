@@ -68,6 +68,8 @@ struct ApiRouterTestDependencies {
     ScopedServiceOverride<service::ICameraChannelQuery> cameraChannelQuery{cameraSvc};
     ScopedServiceOverride<service::ITaskQuery> taskQuery{taskSvc};
     ScopedServiceOverride<service::IModelService> model{modelSvc};
+    ScopedServiceOverride<service::IModelQuery> modelQuery{modelSvc};
+    ScopedServiceOverride<service::IModelPathMapping> modelPathMapping{modelSvc};
     ScopedServiceOverride<service::IScheduleService> schedule{scheduleSvc};
     ScopedServiceOverride<service::IAlarmRecordService> alarmRecord{alarmRecordSvc};
     ScopedServiceOverride<service::IConfigReadService> configRead{configReadSvc};

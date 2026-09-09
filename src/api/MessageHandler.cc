@@ -11,9 +11,11 @@
 #include "service/algorithm/IActionService.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/media/ILiveStreamService.h"
-#include "service/media/IPicTaskService.h"
+#include "service/media/IPicTaskDetect.h"
+#include "service/media/IPicTaskQuery.h"
 #include "service/network/IClientMessageService.h"
 #include "service/system/IAppInfoService.h"
+#include "service/system/IMemoryDiag.h"
 #include "service/task/ITaskLifecycle.h"
 #include "service/task/ITaskQuery.h"
 #include "util/CipherUtil.h"
@@ -86,14 +88,12 @@ MsgTaskCancleSend MessageHandler::Handle(MsgTaskCancleRecv&& data, std::error_co
 
 // Create task
 MsgPTaskCreateSend MessageHandler::Handle(MsgPTaskCreateRecv&& data, std::error_condition& errc) {
-    return service::ServiceRegistry::Instance().Get<service::IPicTaskService>().ProcessPTaskCreate(data,
-                                                                                                   errc);
+    return service::ServiceRegistry::Instance().Get<service::IPicTaskDetect>().ProcessPTaskCreate(data, errc);
 }
 
 // Delete task
 MsgPTaskCancleSend MessageHandler::Handle(MsgPTaskCancleRecv&& data, std::error_condition& errc) {
-    return service::ServiceRegistry::Instance().Get<service::IPicTaskService>().ProcessPTaskCancel(data,
-                                                                                                   errc);
+    return service::ServiceRegistry::Instance().Get<service::IPicTaskDetect>().ProcessPTaskCancel(data, errc);
 }
 
 MsgOperateNodeSend MessageHandler::Handle(MsgOperateNodeRecv&& data, std::error_condition& /*errc*/) {
@@ -112,12 +112,12 @@ MsgPTaskDetectPicSend MessageHandler::Handle(MsgPTaskDetectPicRecv&& data, std::
     }
     if (!IsTaskConfigEmpty(data.taskConfig))  // Set parameter if not empty
     {
-        service::ServiceRegistry::Instance().Get<service::IPicTaskService>().SetTaskParam(data.taskId,
-                                                                                          data.taskConfig);
+        service::ServiceRegistry::Instance().Get<service::IPicTaskQuery>().SetTaskParam(data.taskId,
+                                                                                        data.taskConfig);
     }
 
-    errc = service::ServiceRegistry::Instance().Get<service::IPicTaskService>().DetectPic(data.taskId, data,
-                                                                                          retData);
+    errc = service::ServiceRegistry::Instance().Get<service::IPicTaskDetect>().DetectPic(data.taskId, data,
+                                                                                         retData);
     return retData;
 }
 
@@ -143,8 +143,7 @@ MsgPTaskDetectPicSend MessageHandler::Handle(MsgPTaskDetectPicRecv&& data,
 
 // China Mobile picture detection interface
 MsgDetectSend MessageHandler::Handle(MsgDetectRecv&& data, std::error_condition& errc) {
-    return service::ServiceRegistry::Instance().Get<service::IPicTaskService>().ProcessDetectGroup(data,
-                                                                                                   errc);
+    return service::ServiceRegistry::Instance().Get<service::IPicTaskDetect>().ProcessDetectGroup(data, errc);
 }
 
 // Info query
@@ -162,8 +161,7 @@ MsgProbeSend MessageHandler::Handle(MsgProbeRecv&& /*data*/, std::error_conditio
 // VRAM utilization
 MsgGraphicsMemorySend MessageHandler::Handle(MsgGraphicsMemoryRecv&& data, std::error_condition& /*errc*/) {
     MsgGraphicsMemorySend retData{};
-    retData.debugMessage =
-        service::ServiceRegistry::Instance().Get<service::IAppInfoService>().OutputMallocBuf();
+    retData.debugMessage = service::ServiceRegistry::Instance().Get<service::IMemoryDiag>().OutputMallocBuf();
 
     LOG_INFO("GraphicsMemory receive messae is:{}", data.test);
 
@@ -391,7 +389,7 @@ MsgQueryDeviceMemStatusSend MessageHandler::Handle(MsgQueryDeviceMemStatusRecv&&
     MsgQueryDeviceMemStatusSend retData{};
 
     auto vram_statuses =
-        service::ServiceRegistry::Instance().Get<service::IAppInfoService>().GetMemoryPoolStatus();
+        service::ServiceRegistry::Instance().Get<service::IMemoryDiag>().GetMemoryPoolStatus();
     for (auto& vram_pool : vram_statuses) {
         DeviceMemPoolStatus poolStatus;
         poolStatus.poolSize  = vram_pool.pool_size;

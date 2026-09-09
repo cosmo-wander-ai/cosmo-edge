@@ -32,10 +32,11 @@ struct PicTaskCreateDependencies {
     cosmo::test::MockTaskService taskSvc;
     cosmo::test::NamedExpectations expectations;
     cosmo::test::ScopedServiceOverride<IAlgorithmQuery> algorithmQuery{algSvc};
-    cosmo::test::ScopedServiceOverride<IModelService> model{modelSvc};
+    cosmo::test::ScopedServiceOverride<IModelPathMapping> model{modelSvc};
     cosmo::test::ScopedServiceOverride<ITaskLifecycle> taskLifecycle{taskSvc};
 
     PicTaskCreateDependencies() {
+        REQUIRE_FALSE(ServiceRegistry::Instance().Has<IModelService>());
         expectations.push_back(NAMED_ALLOW_CALL(taskSvc, RecordClearTaskData(trompeloeil::_)));
         expectations.push_back(NAMED_ALLOW_CALL(taskSvc, RecordTaskAction(trompeloeil::_, trompeloeil::_)));
     }

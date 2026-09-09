@@ -10,7 +10,6 @@
 #include "service/face/IBodyLibService.h"
 #include "service/face/IFaceLibService.h"
 #include "service/model/IModelPathMapping.h"
-#include "service/model/IModelService.h"
 #include "util/Keys.h"
 #include "util/Log.h"
 #include "util/SafeParse.h"
@@ -66,7 +65,7 @@ bool AiRecognizer::AiSdkInit() {
 
     std::string cfg_path;
     std::string model_path;
-    auto cfg_ret = service::ServiceRegistry::Instance().Get<service::IModelService>().GetModelCfg(
+    auto cfg_ret = service::ServiceRegistry::Instance().Get<service::IModelPathMapping>().GetModelCfg(
         alg_code_, cfg_path, model_path);
     if (!cfg_ret) {
         LOG_WARN("{}Get Model Configure Failed. AlgCode:{} ret:{}", kTag, alg_code_, cfg_ret);

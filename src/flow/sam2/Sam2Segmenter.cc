@@ -11,7 +11,6 @@
 #include "media/VideoFrame.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/model/IModelPathMapping.h"
-#include "service/model/IModelService.h"
 #include "service/system/IHardwareQuery.h"
 #include "util/Log.h"
 #include "util/TimeUtil.h"
@@ -85,7 +84,7 @@ bool Sam2Segmenter::Sam2SdkInit() {
 
     std::string cfg_path;
     std::string model_path;
-    auto cfg_ret = service::ServiceRegistry::Instance().Get<service::IModelService>().GetModelCfg(
+    auto cfg_ret = service::ServiceRegistry::Instance().Get<service::IModelPathMapping>().GetModelCfg(
         alg_code_, cfg_path, model_path);
     if (!cfg_ret) {
         LOG_WARN("{}Get Model Configure Failed. AlgCode:{} code:{}", kTag, alg_code_, cfg_ret);

@@ -27,7 +27,7 @@ struct NetworkServiceDependencies {
     cosmo::test::MockDeviceInfoService deviceInfoSvc;
     cosmo::test::ScopedServiceOverride<IConfigReadService> configRead{configReadSvc};
     cosmo::test::ScopedServiceOverride<IConfigNetworkService> configNetwork{configNetSvc};
-    cosmo::test::ScopedServiceOverride<IDeviceInfoService> deviceInfo{deviceInfoSvc};
+    cosmo::test::ScopedServiceOverride<IDeviceHardware> deviceInfo{deviceInfoSvc};
 };
 
 class ClosedLoopbackPort final {

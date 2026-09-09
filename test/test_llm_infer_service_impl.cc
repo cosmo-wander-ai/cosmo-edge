@@ -38,7 +38,8 @@ TEST_CASE("LlmInferServiceImpl: initial state", "[llm-infer]") {
 
 TEST_CASE("LlmInferServiceImpl: EnsureInit validation", "[llm-infer]") {
     cosmo::test::MockModelService modelSvc;
-    cosmo::test::ScopedServiceOverride<cosmo::service::IModelService> modelRegistration(modelSvc);
+    cosmo::test::ScopedServiceOverride<cosmo::service::IModelPathMapping> modelRegistration(modelSvc);
+    REQUIRE_FALSE(cosmo::service::ServiceRegistry::Instance().Has<cosmo::service::IModelService>());
     LlmInferServiceImpl sut;
 
     SECTION("EnsureInit fails with empty atomic_code") {
@@ -49,7 +50,7 @@ TEST_CASE("LlmInferServiceImpl: EnsureInit validation", "[llm-infer]") {
     SECTION("EnsureInit fails permanently after empty code — no retry until Reset") {
         REQUIRE(sut.EnsureInit("") == false);
         // Even with a valid code, init_failed_ blocks retry
-        ALLOW_CALL(modelSvc, GetModelCfg(trompeloeil::_, trompeloeil::_, trompeloeil::_)).RETURN(true);
+        FORBID_CALL(modelSvc, GetModelCfg(trompeloeil::_, trompeloeil::_, trompeloeil::_));
         REQUIRE(sut.EnsureInit("valid_code") == false);
     }
 
@@ -58,13 +59,23 @@ TEST_CASE("LlmInferServiceImpl: EnsureInit validation", "[llm-infer]") {
         sut.Reset();
         // After Reset, init_failed_ is cleared — would attempt GetModelCfg
         // GetModelCfg returns false → init fails again but for a different reason
-        ALLOW_CALL(modelSvc, GetModelCfg(trompeloeil::_, trompeloeil::_, trompeloeil::_)).RETURN(false);
+#if (defined(COSMO_NN_USE_HOST_BACKEND) && !defined(COSMO_NN_USE_RKNN_BACKEND)) ||                           \
+    (defined(COSMO_NN_USE_RKNN_BACKEND) && !defined(COSMO_NN_USE_RKLLM_BACKEND))
+        FORBID_CALL(modelSvc, GetModelCfg(trompeloeil::_, trompeloeil::_, trompeloeil::_));
+#else
+        REQUIRE_CALL(modelSvc, GetModelCfg(trompeloeil::_, trompeloeil::_, trompeloeil::_)).RETURN(false);
+#endif
         REQUIRE(sut.EnsureInit("some_code") == false);
         REQUIRE(sut.IsInitialized() == false);
     }
 
     SECTION("EnsureInit fails when GetModelCfg returns false") {
-        ALLOW_CALL(modelSvc, GetModelCfg(trompeloeil::_, trompeloeil::_, trompeloeil::_)).RETURN(false);
+#if (defined(COSMO_NN_USE_HOST_BACKEND) && !defined(COSMO_NN_USE_RKNN_BACKEND)) ||                           \
+    (defined(COSMO_NN_USE_RKNN_BACKEND) && !defined(COSMO_NN_USE_RKLLM_BACKEND))
+        FORBID_CALL(modelSvc, GetModelCfg(trompeloeil::_, trompeloeil::_, trompeloeil::_));
+#else
+        REQUIRE_CALL(modelSvc, GetModelCfg(trompeloeil::_, trompeloeil::_, trompeloeil::_)).RETURN(false);
+#endif
         REQUIRE(sut.EnsureInit("test_code") == false);
         REQUIRE(sut.IsInitialized() == false);
     }

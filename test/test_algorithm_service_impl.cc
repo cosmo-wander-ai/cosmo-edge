@@ -30,7 +30,7 @@ struct AlgorithmPacketDependencies {
     cosmo::test::MockActionService actionSvc;
     cosmo::test::MockModelService modelSvc;
     cosmo::test::ScopedServiceOverride<IActionService> action{actionSvc};
-    cosmo::test::ScopedServiceOverride<IModelService> model{modelSvc};
+    cosmo::test::ScopedServiceOverride<IModelQuery> model{modelSvc};
 };
 
 uint32_t ZipCrc32(std::string_view data) {

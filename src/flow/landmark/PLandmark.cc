@@ -7,7 +7,6 @@
 #include "service/ai/IInferPoolService.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/model/IModelPathMapping.h"
-#include "service/model/IModelService.h"
 #include "util/Log.h"
 
 namespace cosmo {
@@ -35,7 +34,7 @@ bool PLandmark::ActionInit() {
 
     std::string cfg_path;
     std::string model_path;
-    auto cfg_ret = service::ServiceRegistry::Instance().Get<service::IModelService>().GetModelCfg(
+    auto cfg_ret = service::ServiceRegistry::Instance().Get<service::IModelPathMapping>().GetModelCfg(
         GetAtomicCode(), cfg_path, model_path);
     if (!cfg_ret) {
         LOG_WARN("Get Model Configure Failed. AlgCode:{} code:{}", GetAtomicCode(), cfg_ret);

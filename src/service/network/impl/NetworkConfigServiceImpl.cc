@@ -8,7 +8,7 @@
 
 #include "platform/NetCardOp.h"
 #include "service/detail/ServiceRegistry.h"
-#include "service/system/IDeviceInfoService.h"
+#include "service/system/IDeviceHardware.h"
 #include "service/system/ISystemOperationService.h"
 #include "util/Exec.h"
 #include "util/JsonStructUtil.h"
@@ -37,7 +37,7 @@ void NetworkConfigServiceImpl::StopAsyncApply() {
 
 void NetworkConfigServiceImpl::GetMacs() {
     if (mac_infos_.empty() || main_mac_.empty() || sub_mac_.empty()) {
-        mac_infos_ = ServiceRegistry::Instance().Get<IDeviceInfoService>().GetMacs();
+        mac_infos_ = ServiceRegistry::Instance().Get<IDeviceHardware>().GetMacs();
         for (const auto& macInfo : mac_infos_) {
             if (macInfo.first == platform::kNetworkMainEthName) {
                 main_mac_ = macInfo.second;

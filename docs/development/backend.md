@@ -26,6 +26,30 @@ Layer 3 (接口层)         cosmo_api
 
 每个对象库对应 `src/` 下的一个源码目录。
 
+### 窄接口与数据归属
+
+图片请求通过 `IPicTaskDetect` 执行创建、取消和检测，非空任务配置通过
+`IPicTaskQuery` 在检测前写入。模型校验和信息读取依赖 `IModelQuery`，模型配置与路径
+依赖 `IModelPathMapping`；`IMemoryDiag` 提供内存诊断，网络配置、发现和 MQTT 的身份查询
+依赖 `IDeviceHardware`。启动装配对实现只注册一次 owning 服务，再注册基类子对象的
+非 owning 别名；初始化、停止和销毁顺序保持不变。
+
+`MessageModelHandler` 仍使用模型聚合接口处理查询和修改，`MessageSystemHandler` 的设备
+概况和资源利用率仍使用设备聚合接口。应用概况、日志和路径仍依赖 `IAppInfoService`。
+聚合接口用于装配或跨能力操作，单项消费者按实际能力选择接口。
+
+`service/model/dto/ModelInfo.h` 独立拥有 `ModelLabel/ModelInfo`；仅包含 `IModelQuery.h`
+即可使用完整类型。JSON 仍忽略标签名称、标签数值和模型路径，缺失或 null 字段保留原值。
+`util/dto/AlgorithmPacketDto.h` 是布局详情、布局列表和动作列表的唯一 payload 定义；
+旧 wire 名称为类型别名，序列化函数位于真实类型的命名空间。Handler 成功后才移动临时
+结果，服务失败前写入的数据不会进入响应。字符串化 JSON、空列表、字段默认值及顺序保持。
+类型别名改变 C++ 类型身份，相关目标需重新编译和链接。
+
+流程分支仍逐层复制结果对象。检测和告警叶对象采用拷贝构造，包含
+`targetHaveMultRelated`；值容器隔离，帧、原始包及设备缓冲区继续按原共享指针规则持有。
+空结果和显式空指针 map 条目保留，不对不同存储位置的结果去重。
+
+
 ## 构建系统
 
 ### 构建入口

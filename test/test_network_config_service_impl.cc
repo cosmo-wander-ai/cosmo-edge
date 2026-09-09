@@ -22,7 +22,7 @@ namespace {
 struct NetworkConfigDependencies {
     cosmo::test::MockDeviceInfoService deviceInfoSvc;
     cosmo::test::NamedExpectations expectations;
-    cosmo::test::ScopedServiceOverride<IDeviceInfoService> deviceInfo{deviceInfoSvc};
+    cosmo::test::ScopedServiceOverride<IDeviceHardware> deviceInfo{deviceInfoSvc};
 
     NetworkConfigDependencies() {
         expectations.push_back(
