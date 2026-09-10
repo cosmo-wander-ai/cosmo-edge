@@ -58,29 +58,9 @@ target_include_directories(cosmo_nn PRIVATE
 # ── Backend-specific configuration ──
 target_compile_definitions(cosmo_nn PRIVATE COSMO_NN_NAIVE_ENABLE)
 
-if(COSMO_NN_USE_SOPHON_BACKEND)
-    target_compile_definitions(cosmo_nn PRIVATE COSMO_NN_USE_SOPHON_BACKEND)
-    # Sophon headers provided by bmlib IMPORTED target
-endif()
-
 if(COSMO_MODEL_GUARD)
     target_compile_definitions(cosmo_nn PRIVATE COSMO_HAS_MODEL_GUARD=1)
     target_link_libraries(cosmo_nn PRIVATE ${COSMO_MODEL_GUARD_LINK_TARGET})
-endif()
-
-if(COSMO_NN_USE_CPU_BACKEND)
-    target_compile_definitions(cosmo_nn PRIVATE
-        COSMO_NN_USE_CPU_BACKEND
-        COSMO_NN_USE_HOST_BACKEND
-        COSMO_NN_USE_ONNX_BACKEND)
-    # ORT headers provided by onnxruntime IMPORTED target
-endif()
-
-if(COSMO_NN_USE_RKNN_BACKEND)
-    target_compile_definitions(cosmo_nn PRIVATE
-        COSMO_NN_USE_RKNN_BACKEND
-        COSMO_NN_USE_HOST_BACKEND
-        COSMO_NN_USE_RAW_MODEL_BACKEND)
 endif()
 
 # Symbol hiding + suppress C++11-era warnings

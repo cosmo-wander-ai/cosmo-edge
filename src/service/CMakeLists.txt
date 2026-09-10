@@ -16,25 +16,11 @@ target_link_libraries(cosmo_service PRIVATE cosmo_common
     ffmpeg_avcodec ffmpeg_avformat ffmpeg_avutil
     event_core event_extra event
 )
-# Backend compile definitions and link libraries
-# (MemoryPoolServiceImpl needs allocator selection, HardwareQueryUtil needs device info,
-#  NnBackendConstants.h needs backend selection for directory prefix / engine type)
+# Backend link dependencies for memory allocation and hardware queries
 if(COSMO_NN_USE_SOPHON_BACKEND)
     target_link_libraries(cosmo_service PRIVATE bmlib)
-    target_compile_definitions(cosmo_service PRIVATE COSMO_NN_USE_SOPHON_BACKEND)
-endif()
-
-if(COSMO_NN_USE_CPU_BACKEND)
-    target_compile_definitions(cosmo_service PRIVATE
-        COSMO_NN_USE_CPU_BACKEND
-        COSMO_NN_USE_HOST_BACKEND
-        COSMO_NN_USE_ONNX_BACKEND)
 endif()
 
 if(COSMO_NN_USE_RKNN_BACKEND)
     target_link_libraries(cosmo_service PRIVATE rknnrt)
-    target_compile_definitions(cosmo_service PRIVATE
-        COSMO_NN_USE_RKNN_BACKEND
-        COSMO_NN_USE_HOST_BACKEND
-        COSMO_NN_USE_RAW_MODEL_BACKEND)
 endif()

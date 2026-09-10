@@ -26,18 +26,13 @@ target_include_directories(cosmo_infer PRIVATE
 
 target_link_libraries(cosmo_infer PRIVATE cosmo_common)
 
-# Backend configure (libraries and definitions used by AiComponment.cc and BmodelTool.cc)
+# Backend link dependencies used by AiComponment.cc and BmodelTool.cc
 if(COSMO_NN_USE_SOPHON_BACKEND)
     target_link_libraries(cosmo_infer PRIVATE bmlib bmcv)
-    target_compile_definitions(cosmo_infer PRIVATE COSMO_NN_USE_SOPHON_BACKEND)
 endif()
 
 if(COSMO_NN_USE_CPU_BACKEND)
     target_link_libraries(cosmo_infer PRIVATE onnxruntime)
-    target_compile_definitions(cosmo_infer PRIVATE
-        COSMO_NN_USE_CPU_BACKEND
-        COSMO_NN_USE_HOST_BACKEND
-        COSMO_NN_USE_ONNX_BACKEND)
 endif()
 
 if(COSMO_NN_USE_RKLLM_BACKEND)
@@ -49,11 +44,4 @@ if(COSMO_NN_USE_RKLLM_BACKEND)
     endif()
 elseif(COSMO_NN_USE_RKNN_BACKEND)
     target_link_libraries(cosmo_infer PRIVATE rknnrt)
-endif()
-
-if(COSMO_NN_USE_RKNN_BACKEND)
-    target_compile_definitions(cosmo_infer PRIVATE
-        COSMO_NN_USE_RKNN_BACKEND
-        COSMO_NN_USE_HOST_BACKEND
-        COSMO_NN_USE_RAW_MODEL_BACKEND)
 endif()

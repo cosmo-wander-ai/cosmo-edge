@@ -611,23 +611,12 @@ target_include_directories(${EXECUTABLE_NAME} PRIVATE
 target_link_libraries(${EXECUTABLE_NAME} PRIVATE nlohmann stb uWebSockets)
 if(COSMO_NN_USE_SOPHON_BACKEND)
     target_link_directories(${EXECUTABLE_NAME} PRIVATE ${DEVICE_LIB_DIR})
-    target_compile_definitions(${EXECUTABLE_NAME} PRIVATE COSMO_NN_USE_SOPHON_BACKEND)
 endif()
 if(COSMO_MODEL_GUARD)
     target_compile_definitions(${EXECUTABLE_NAME} PRIVATE COSMO_HAS_MODEL_GUARD=1)
     target_link_libraries(${EXECUTABLE_NAME} PRIVATE ${COSMO_MODEL_GUARD_LINK_TARGET})
 endif()
-if(COSMO_NN_USE_CPU_BACKEND)
-    target_compile_definitions(${EXECUTABLE_NAME} PRIVATE
-        COSMO_NN_USE_CPU_BACKEND
-        COSMO_NN_USE_HOST_BACKEND
-        COSMO_NN_USE_ONNX_BACKEND)
-endif()
 if(COSMO_NN_USE_RKNN_BACKEND)
-    target_compile_definitions(${EXECUTABLE_NAME} PRIVATE
-        COSMO_NN_USE_RKNN_BACKEND
-        COSMO_NN_USE_HOST_BACKEND
-        COSMO_NN_USE_RAW_MODEL_BACKEND)
     set_target_properties(${EXECUTABLE_NAME} PROPERTIES
         BUILD_RPATH "${COSMO_RKNN_ROOT}/lib"
         INSTALL_RPATH "$ORIGIN/../lib")
@@ -646,10 +635,6 @@ if(COSMO_NN_USE_RKNN_BACKEND)
         tools/rknn/cosmo_rknn_backend_smoke.cc
         ${ALL_OBJECTS})
     target_include_directories(cosmo-rknn-backend-smoke PRIVATE ${CMAKE_SOURCE_DIR}/src)
-    target_compile_definitions(cosmo-rknn-backend-smoke PRIVATE
-        COSMO_NN_USE_RKNN_BACKEND
-        COSMO_NN_USE_HOST_BACKEND
-        COSMO_NN_USE_RAW_MODEL_BACKEND)
     target_link_libraries(cosmo-rknn-backend-smoke PRIVATE
         nlohmann stb uWebSockets ${COMMON_LIBS})
     if(COSMO_MODEL_GUARD)
@@ -665,10 +650,6 @@ if(COSMO_NN_USE_RKNN_BACKEND)
             tools/rknn/cosmo_rknn_fastpath_qualify.cc
             ${ALL_OBJECTS})
         target_include_directories(cosmo-rknn-fastpath-qualify PRIVATE ${CMAKE_SOURCE_DIR}/src)
-        target_compile_definitions(cosmo-rknn-fastpath-qualify PRIVATE
-            COSMO_NN_USE_RKNN_BACKEND
-            COSMO_NN_USE_HOST_BACKEND
-            COSMO_NN_USE_RAW_MODEL_BACKEND)
         target_link_libraries(cosmo-rknn-fastpath-qualify PRIVATE
             nlohmann stb uWebSockets ${COMMON_LIBS})
         if(COSMO_MODEL_GUARD)
@@ -705,23 +686,12 @@ if(BUILD_TESTS)
     target_link_libraries(cosmo-tests PRIVATE nlohmann stb uWebSockets)
     if(COSMO_NN_USE_SOPHON_BACKEND)
         target_link_directories(cosmo-tests PRIVATE ${DEVICE_LIB_DIR})
-        target_compile_definitions(cosmo-tests PRIVATE COSMO_NN_USE_SOPHON_BACKEND)
     endif()
     if(COSMO_MODEL_GUARD)
         target_compile_definitions(cosmo-tests PRIVATE COSMO_HAS_MODEL_GUARD=1)
         target_link_libraries(cosmo-tests PRIVATE ${COSMO_MODEL_GUARD_LINK_TARGET})
     endif()
-    if(COSMO_NN_USE_CPU_BACKEND)
-        target_compile_definitions(cosmo-tests PRIVATE
-            COSMO_NN_USE_CPU_BACKEND
-            COSMO_NN_USE_HOST_BACKEND
-            COSMO_NN_USE_ONNX_BACKEND)
-    endif()
     if(COSMO_NN_USE_RKNN_BACKEND)
-        target_compile_definitions(cosmo-tests PRIVATE
-            COSMO_NN_USE_RKNN_BACKEND
-            COSMO_NN_USE_HOST_BACKEND
-            COSMO_NN_USE_RAW_MODEL_BACKEND)
         set_target_properties(cosmo-tests PROPERTIES
             BUILD_RPATH "${COSMO_RKNN_ROOT}/lib")
     endif()
