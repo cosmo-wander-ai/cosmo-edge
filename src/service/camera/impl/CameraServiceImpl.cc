@@ -29,6 +29,7 @@
 #include "service/gb28181/IGb28181SourceService.h"
 #include "service/media/IVideoFrameCodec.h"
 #include "service/model/IModelQuery.h"
+#include "service/onvif/IOnvifService.h"
 #include "service/system/IConfigReadService.h"
 #include "service/task/IScheduleService.h"
 #include "service/task/ITaskChannel.h"
@@ -251,6 +252,14 @@ namespace {
 
 bool CameraServiceImpl::ResolveSourceUrl(MsgCameraType sourceType, const std::string& source,
                                          std::string& logicalUrl, std::string& mediaUrl) const {
+    if (sourceType == MsgCameraType::MsgCameraTypeOnvif) {
+        auto& registry = ServiceRegistry::Instance();
+        if (!registry.Has<IOnvifService>() || registry.Get<IOnvifService>().Revision(source) == 0)
+            return false;
+        logicalUrl = source;
+        mediaUrl   = source;  // Resolved only on the demux thread, outside CRUD/monitor locks.
+        return true;
+    }
     if (sourceType == MsgCameraType::MsgCameraTypeGb28181) {
         Gb28181Source resolved;
         if (!ServiceRegistry::Instance().Get<IGb28181SourceService>().Resolve(source, resolved)) {
@@ -267,6 +276,11 @@ bool CameraServiceImpl::ResolveSourceUrl(MsgCameraType sourceType, const std::st
 }
 
 bool CameraServiceImpl::IsCameraSourceOnline(const CameraEntityPtr& camera) {
+    if (static_cast<MsgCameraType>(camera->channelType) == MsgCameraType::MsgCameraTypeOnvif) {
+        MsgCameraAttr attr;
+        return ServiceRegistry::Instance().Get<ITaskChannel>().GetChannelAttr(camera->videoChannelId, attr) &&
+               attr.channelStatus == ChannelStatus::ChannelStatusOnline;
+    }
     if (static_cast<MsgCameraType>(camera->channelType) == MsgCameraType::MsgCameraTypeGb28181) {
         return ServiceRegistry::Instance().Get<IGb28181SourceService>().IsStreamActive(camera->url);
     }

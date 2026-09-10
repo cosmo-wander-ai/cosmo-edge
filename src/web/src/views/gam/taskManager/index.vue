@@ -114,8 +114,8 @@
             <div class="operation-tools">
               <el-button link class="primary-text" @click="handleDetailChannel(scope.row)">{{ t('action.details') }}</el-button>
               <el-button v-if="runMode != 1" link class="primary-text" @click="handleEditChannel(scope.row)">{{ t('action.edit') }}</el-button>
-              <el-button :disabled="scope.row.channelStatus == 3 || (scope.row.channelStatus == 0 && scope.row.channelType !== 3)" link class="primary-text" @click="handleChannelPic(scope.row)">{{ t('action.snapshot') }}</el-button>
-              <el-button id="onboarding-allocate-btn" v-if="runMode != 1" :disabled="scope.row.channelStatus == 3 || (scope.row.channelStatus == 0 && scope.row.channelType !== 3)" link class="primary-text" @click="handleAllocateClick(scope.row)">{{ t('action.allocateTask') }}</el-button>
+              <el-button :disabled="scope.row.channelStatus == 3 || (scope.row.channelStatus == 0 && ![2, 3].includes(scope.row.channelType))" link class="primary-text" @click="handleChannelPic(scope.row)">{{ t('action.snapshot') }}</el-button>
+              <el-button id="onboarding-allocate-btn" v-if="runMode != 1" :disabled="scope.row.channelStatus == 3 || (scope.row.channelStatus == 0 && ![2, 3].includes(scope.row.channelType))" link class="primary-text" @click="handleAllocateClick(scope.row)">{{ t('action.allocateTask') }}</el-button>
               <el-button v-if="scope.row.channelType == 3 && runMode != 1" link class="primary-text" @click="handleVideoDownload(scope.row)">{{ t('action.videoDownload') }}</el-button>
               <el-button v-if="runMode != 1" link class="danger-text" @click="handleDeleteChannel(scope.row)">{{ t('action.delete') }}</el-button>
             </div>
@@ -137,6 +137,7 @@
         <el-form-item :label="t('glossary.accessType') + localeColon" prop="channelType">
           <el-select id="onboarding-channel-type" popper-class="onboarding-type-popper" class="form-item-content" v-model="channelForm.channelType" :disabled="channelDialogMode === 'edit'" :placeholder="t('placeholder.select', { field: t('glossary.accessType') })" size="small" @change="channelTypeChange">
             <el-option label="RTSP" :value="0"></el-option>
+            <el-option label="ONVIF" :value="2"></el-option>
             <el-option label="HLS" :value="1"></el-option>
             <el-option label="GB28181" :value="7"></el-option>
             <el-option :label="t('glossary.usbCamera')" :value="6"></el-option>
@@ -201,6 +202,7 @@
     </el-dialog>
 
     <chanel-detail-dialog v-model:visible="channelDetailVisible" :detailChannel="channelDetailObj"></chanel-detail-dialog>
+    <OnvifDialog ref="onvifDialog" @saved="init" />
   </div>
 </template>
 <script setup>
@@ -222,6 +224,8 @@ import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
 import TopBar from './components/algorithmTopBar.vue'
 import chanelDetailDialog from './components/chanelDetailDialog.vue'
 import defaultImage from '@/assets/CatchPhoto.png'
+import OnvifDialog from './components/OnvifDialog.vue'
+const onvifDialog = ref()
 
 // Map backend default schedule names → i18n keys
 const SCHEDULE_NAME_MAP = {
@@ -340,6 +344,8 @@ const channelTypeLabel = (value) => {
       return 'RTSP'
     case 1:
       return 'HLS'
+    case 2:
+      return 'ONVIF'
     case 6:
       return t('glossary.usbCamera')
     case 7:
@@ -508,6 +514,11 @@ const queryUsbCameraList = () => {
 }
 
 const channelTypeChange = (val) => {
+  if (val === 2) {
+    channelDialogVisible.value = false
+    nextTick(() => onvifDialog.value.open())
+    return
+  }
   if (val === 6) {
     queryUsbCameraList()
   }
@@ -555,6 +566,10 @@ const handleDetailChannel = (row) => {
 }
 
 const handleEditChannel = (row) => {
+  if (row.channelType === 2) {
+    onvifDialog.value.open(row)
+    return
+  }
   channelDialogVisible.value = true
   channelFormRef.value && channelFormRef.value.resetFields?.()
   channelDialogMode.value = 'edit'
@@ -623,7 +638,7 @@ const handleAllocateClick = (row) => {
       resetUrl: proxy.$route.path,
       channelId: row.videoChannelId,
       channelName: row.channelName,
-      joinType: (row.channelType == 0 || row.channelType == 6 || row.channelType == 7) ? 0 : -1
+      joinType: ([0, 2, 6, 7].includes(row.channelType)) ? 0 : -1
     }
   })
 }

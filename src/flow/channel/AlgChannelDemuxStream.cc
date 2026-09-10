@@ -4,6 +4,7 @@
 #include "flow/channel/AlgChannelDemux.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/event/IEventNotifier.h"
+#include "service/onvif/IOnvifService.h"
 #include "service/system/IConfigReadService.h"
 #include "service/task/ITaskChannel.h"
 #include "util/Log.h"
@@ -66,6 +67,8 @@ void AlgChannelDemux::SetStatusInfo(service::camera::AlgDemuxStatus status) {
 }
 
 void AlgChannelDemux::RequestUrl() {
+    if (url_.rfind("onvif://", 0) == 0)
+        return;
     if (!service::ServiceRegistry::Instance().Get<service::IConfigReadService>().IsNetworkModel()) {
         return;
     }
@@ -176,6 +179,10 @@ bool AlgChannelDemux::IsDataActive() const {
 void AlgChannelDemux::run() {
     bool streamOpened = false;
     while (is_running_) {
+        if (streamOpened && url_.rfind("onvif://", 0) == 0 &&
+            service::ServiceRegistry::Instance().Get<service::IOnvifService>().Revision(url_) !=
+                onvif_revision_)
+            is_url_changed_ = true;
         // Stream open or read failed; need to re-fetch URL.
         if (((service::camera::AlgDemuxStatus::AlgDemuxOpenFailed == status_.status) ||
              (service::camera::AlgDemuxStatus::AlgDemuxOpenUnauthorized == status_.status) ||
@@ -258,6 +265,8 @@ VideoPacketPtr AlgChannelDemux::GetLastFrame() const {
 }
 
 bool AlgChannelDemux::IsLiveStream() const {
+    if (url_.rfind("onvif://", 0) == 0)
+        return true;
     return demuxer_.IsLiveStream();
 }
 

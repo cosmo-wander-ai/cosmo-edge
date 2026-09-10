@@ -1,4 +1,28 @@
 export default {
+  onvif: {
+    manualTab: 'Manual setup', autoTab: 'Auto discovery', ipAddress: 'IP address',
+    manualTip: 'Enter channel and account details. Adding the channel automatically retrieves its video stream; no playback URL is needed.',
+    autoTip: 'Discover devices, check each device’s credentials in the list, then select devices to add. Streams are retrieved automatically when adding.',
+    namePlaceholder: 'For example: Entrance camera', searchHint: 'Searches all available interfaces automatically.',
+    autoProfile: 'Automatic stream', searchEmpty: 'Click Discover devices to see results here; no credentials are needed.',
+    awaitingCredentials: 'Awaiting credentials', credentialsRequired: 'Enter the ONVIF username and password', rtspCredentialsRequired: 'Enter the separate RTSP username and password',
+    selectionHint: 'Username and password are prefilled with admin / admin, not discovered credentials. Verify them before adding. Expand a row for separate RTSP credentials. Correct credentials before retrying authentication failures.',
+    added: 'Added', batchSummary: 'Added {added} device(s); {failed} failed. Failure details appear below the corresponding device names.',
+    connecting: 'Retrieving stream…', addChannel: 'Add channel', saveChanges: 'Save changes',
+    unsupportedStream: 'No supported video codec or valid resolution found',
+    title: 'ONVIF video access', tip: 'Enable ONVIF and configure a camera account first. TCP streaming uses the existing preview and analysis tasks.',
+    username: 'ONVIF username', password: 'ONVIF password', keepPassword: 'Leave blank to keep the saved password',
+    separateRtsp: 'Use separate RTSP credentials', rtspUsername: 'RTSP username', rtspPassword: 'RTSP password',
+    interface: 'Network interface', allInterfaces: 'All available interfaces', discover: 'Discover devices', endpoint: 'Device address', addManual: 'Add manually',
+    channelName: 'Channel name', profile: 'Video profile', probeFirst: 'Query and select a profile', status: 'Result',
+    saved: 'Saved; ready for preview or tasks', ready: 'Profiles retrieved', pending: 'Not queried', probe: 'Query selected profiles', saveSelected: 'Add selected devices',
+    cancelPending: 'Stop remaining work', cancelNotice: 'Stop after current requests finish. Saved channels will be kept.',
+    unauthorized: 'Authentication failed; check the ONVIF account and permissions', timeout: 'Connection timed out', networkError: 'Connection failed; check address, network or certificate',
+    invalidEndpoint: 'Enter an IP or HTTP(S) device address', noInterface: 'Selected interface is unavailable', noProfiles: 'No video profiles found',
+    duplicate: 'This device profile is already added', busy: 'Too many device requests; retry shortly', storageError: 'Could not save configuration', sourceNotFound: 'Source configuration not found',
+    unsupported: 'ONVIF service unavailable or incompatible response', invalidParameter: 'Enter a channel name, IP address and the required credentials', saveFailed: 'Could not save channel',
+    failed: 'Operation failed; retry', noDevices: 'No devices found. Check ONVIF, network interface and multicast connectivity, or add manually.'
+  },
   locale: {
     'zh-CN': 'Chinese',
     'en-US': 'English'

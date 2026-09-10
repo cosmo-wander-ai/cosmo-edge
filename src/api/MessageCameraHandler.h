@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "service/camera/dto/CameraDto.h"
+#include "service/onvif/dto/OnvifDto.h"
 #include "util/IRequestDispatcher.h"
 
 namespace cosmo::service {
@@ -22,6 +23,11 @@ public:
                          service::ICameraTaskConfig& task_cfg, service::ITaskQuery& task_query);
 
     camera::MsgAddSend Handle(camera::MsgAddRecv&& data, std::error_condition& errc);
+    camera::OnvifResponse Handle(camera::MsgOnvifInterfacesRecv&& data, std::error_condition& errc);
+    camera::OnvifResponse Handle(camera::MsgOnvifDiscoverRecv&& data, std::error_condition& errc);
+    camera::OnvifResponse Handle(camera::MsgOnvifProbeRecv&& data, std::error_condition& errc);
+    camera::OnvifResponse Handle(camera::MsgOnvifGetRecv&& data, std::error_condition& errc);
+    camera::OnvifResponse Handle(camera::MsgOnvifSaveRecv&& data, std::error_condition& errc);
     camera::MsgUpdateSend Handle(camera::MsgUpdateRecv&& data, std::error_condition& errc);
     camera::MsgPageSend Handle(camera::MsgPageRecv&& data, std::error_condition& errc);
     camera::MsgDeleteSend Handle(camera::MsgDeleteRecv&& data, std::error_condition& errc);

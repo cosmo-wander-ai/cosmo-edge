@@ -9,6 +9,7 @@
 
 #include "service/camera/impl/CameraServiceImpl.h"
 #include "service/detail/ServiceRegistry.h"
+#include "service/onvif/IOnvifService.h"
 #include "service/task/ITaskChannel.h"
 #include "util/FileUtil.h"
 #include "util/Log.h"
@@ -32,7 +33,9 @@ static int DetermineTaskStatus(int current_status, int data_status, MsgCameraTyp
         return current_status;
     }
     bool is_demux_error = IsDemuxError(data_status);
-    if (channel_type == MsgCameraType::MsgCameraTypeLive || channel_type == MsgCameraType::MsgCameraTypeUsb ||
+    if (channel_type == MsgCameraType::MsgCameraTypeLive ||
+        channel_type == MsgCameraType::MsgCameraTypeOnvif ||
+        channel_type == MsgCameraType::MsgCameraTypeUsb ||
         channel_type == MsgCameraType::MsgCameraTypeGb28181) {
         if (is_demux_error) {
             return static_cast<int>(CameraTaskStatus::kAbnormal);
@@ -228,6 +231,14 @@ util::ErrorEnum CameraServiceImpl::Delete(const std::string& videoChannelId) {
 
     // Save config (thread-safe)
     SaveConfig();
+    if (static_cast<MsgCameraType>(target->channelType) == MsgCameraType::MsgCameraTypeOnvif &&
+        ServiceRegistry::Instance().Has<IOnvifService>()) {
+        try {
+            ServiceRegistry::Instance().Get<IOnvifService>().Remove(target->url);
+        } catch (const std::exception&) {
+            LOG_WARN("{}", "ONVIF orphan configuration cleanup failed");
+        }
+    }
     LOG_INFO("Delete completed for camera: {}", videoChannelId);
     return util::ErrorEnum::Success;
 }

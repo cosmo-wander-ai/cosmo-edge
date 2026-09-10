@@ -111,7 +111,8 @@ private:
     int video_repeat_count_{1};  // Maximum video repeat count
     int video_read_count_{0};    // Current repeat iteration
     int no_data_count_{0};
-    int open_failed_count_{0};  // Consecutive open-failure count
+    int open_failed_count_{0};    // Consecutive open-failure count
+    uint64_t onvif_revision_{0};  // Demux-thread-owned version of prepared credentials/profile.
     size_t read_frames_{0};
     mutable size_t check_active_frame_{0};
     mutable int64_t check_active_ts_{0};

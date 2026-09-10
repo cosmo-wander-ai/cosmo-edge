@@ -1,4 +1,28 @@
 export default {
+  onvif: {
+    manualTab: '手动添加', autoTab: '自动发现', ipAddress: 'IP 地址',
+    manualTip: '填写通道和账号信息，添加时自动获取视频码流，无需填写播放地址。',
+    autoTip: '直接搜索设备，再在列表中确认每台设备的账号并勾选添加。添加时自动获取码流，无需手动查询。',
+    namePlaceholder: '例如：大门摄像机', searchHint: '自动搜索所有可用网卡，无需选择网卡。',
+    autoProfile: '自动选择的码流', searchEmpty: '直接点击“搜索设备”，无需填写账号，结果将在这里显示。',
+    awaitingCredentials: '待填写认证信息', credentialsRequired: '请填写 ONVIF 用户名和密码', rtspCredentialsRequired: '请填写独立的 RTSP 用户名和密码',
+    selectionHint: '账号和密码预填 admin / admin，仅为输入默认值，不代表设备的实际账号。请核对后添加；独立 RTSP 账号可展开该行设置。认证失败后请修改账号再重试。',
+    added: '已添加', batchSummary: '已添加 {added} 台，失败 {failed} 台。失败原因见对应设备名称下方。',
+    connecting: '正在获取码流…', addChannel: '添加通道', saveChanges: '保存修改',
+    unsupportedStream: '未找到受支持的视频编码或有效分辨率',
+    title: 'ONVIF 视频接入', tip: '请先在摄像机启用 ONVIF 并配置用户。接入使用 TCP，复用现有预览和算法任务。',
+    username: 'ONVIF 用户名', password: 'ONVIF 密码', keepPassword: '留空保留已保存的密码',
+    separateRtsp: '使用独立的 RTSP 账号', rtspUsername: 'RTSP 用户名', rtspPassword: 'RTSP 密码',
+    interface: '搜索网卡', allInterfaces: '所有可用网卡', discover: '搜索设备', endpoint: '设备地址', addManual: '手工添加',
+    channelName: '通道名称', profile: '视频码流', probeFirst: '先查询码流并选择', status: '结果',
+    saved: '已保存，可预览或分配任务', ready: '已获取码流', pending: '待查询', probe: '查询所选设备码流', saveSelected: '添加所选设备',
+    cancelPending: '停止后续操作', cancelNotice: '当前请求完成后停止；已保存的通道将保留。',
+    unauthorized: '认证失败，请检查 ONVIF 账号和权限', timeout: '连接超时', networkError: '连接失败，请检查地址、网络或证书',
+    invalidEndpoint: '请输入有效的 IP 或 HTTP(S) 设备地址', noInterface: '所选网卡不可用', noProfiles: '未找到视频码流',
+    duplicate: '该设备码流已添加', busy: '设备请求繁忙，请稍后重试', storageError: '配置保存失败', sourceNotFound: '接入配置不存在',
+    unsupported: 'ONVIF 服务不可用或响应不兼容', invalidParameter: '请填写通道名称、IP 地址和所需账号密码', saveFailed: '通道保存失败',
+    failed: '操作失败，请重试', noDevices: '未发现设备。请检查 ONVIF 开关、网卡和组播网络，或使用手工添加。'
+  },
   locale: {
     'zh-CN': '中文',
     'en-US': 'English'

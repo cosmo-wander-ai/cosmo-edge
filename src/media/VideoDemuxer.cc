@@ -9,6 +9,7 @@
 #include "media/RtspDemuxStrategy.h"
 #include "media/UsbDemuxStrategy.h"
 #include "util/Log.h"
+#include "util/RtspUrlUtil.h"
 #include "util/TimeUtil.h"
 
 static constexpr const char* kTag = "[DEMUX] ";
@@ -27,24 +28,26 @@ namespace media {
 
     // Stop video stream on destruction
     VideoDemuxer::~VideoDemuxer() {
-        LOG_INFO("{}Read {} closed.", kTag, filename_);
+        LOG_INFO("{}Read {} closed.", kTag, util::RedactRtspUrl(filename_));
 
         CloseStream();
-        LOG_INFO("{}Read {} Delete.", kTag, filename_);
+        LOG_INFO("{}Read {} Delete.", kTag, util::RedactRtspUrl(filename_));
     }
 
     void VideoDemuxer::SetFile(const std::string& videoFile) {
         if (videoFile != filename_) {
-            LOG_INFO("{}Change File From {} To {}", kTag, filename_, videoFile);
+            LOG_INFO("{}Change File From {} To {}", kTag, util::RedactRtspUrl(filename_),
+                     util::RedactRtspUrl(videoFile));
             filename_ = videoFile;
         }
-        LOG_INFO("{}Ready To Read {}", kTag, filename_);
+        LOG_INFO("{}Ready To Read {}", kTag, util::RedactRtspUrl(filename_));
         return;
     }
 
     void VideoDemuxer::SetForceFps(float new_fps) {
         if (video_force_fps_ != new_fps) {
-            LOG_INFO("{}:{} VideoFps Change From {} To {}", kTag, filename_, video_force_fps_, new_fps);
+            LOG_INFO("{}:{} VideoFps Change From {} To {}", kTag, util::RedactRtspUrl(filename_),
+                     video_force_fps_, new_fps);
             video_force_fps_ = new_fps;
         }
     }
@@ -61,11 +64,11 @@ namespace media {
         if (bsf_ctx_) {
             av_bsf_free(&bsf_ctx_);
             bsf_ctx_ = nullptr;
-            LOG_INFO("{}Stream {} bsf_ctx_ Closed.", kTag, filename_);
+            LOG_INFO("{}Stream {} bsf_ctx_ Closed.", kTag, util::RedactRtspUrl(filename_));
         }
 
         SafeCloseContext();
-        LOG_INFO("{}Stream {} Closed.", kTag, filename_);
+        LOG_INFO("{}Stream {} Closed.", kTag, util::RedactRtspUrl(filename_));
         return;
     }
 
@@ -120,11 +123,12 @@ namespace media {
             // Seek back to the beginning of the file
             int seekRet = av_seek_frame(fmt_ctx_, video_stream_idx_, 0, AVSEEK_FLAG_BACKWARD);
             if (seekRet < 0) {
-                LOG_WARN("{}Seek to beginning failed for {}: [{}]", kTag, filename_, GetAvErr(seekRet));
+                LOG_WARN("{}Seek to beginning failed for {}: [{}]", kTag, util::RedactRtspUrl(filename_),
+                         GetAvErr(seekRet));
                 seekRet = avformat_seek_file(fmt_ctx_, video_stream_idx_, INT64_MIN, 0, INT64_MAX, 0);
                 if (seekRet < 0) {
-                    LOG_WARN("{}avformat_seek_file also failed for {}: [{}]", kTag, filename_,
-                             GetAvErr(seekRet));
+                    LOG_WARN("{}avformat_seek_file also failed for {}: [{}]", kTag,
+                             util::RedactRtspUrl(filename_), GetAvErr(seekRet));
                     opened_ = false;
                     ready_  = false;
                     return util::ErrorEnum::DemuxOpenStreamFail;

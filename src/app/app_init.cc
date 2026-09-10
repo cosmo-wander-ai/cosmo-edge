@@ -80,6 +80,7 @@
 #include "service/network/impl/NetworkServiceImpl.h"
 #include "service/onboarding/IOnboardingService.h"
 #include "service/onboarding/impl/OnboardingServiceImpl.h"
+#include "service/onvif/impl/OnvifServiceImpl.h"
 #include "service/path/IUploadStagingService.h"
 #include "service/path/impl/FileServiceImpl.h"
 #include "service/path/impl/UploadStagingServiceImpl.h"
@@ -178,6 +179,7 @@ static void RegisterInfrastructureServices() {
     registry.Register<cosmo::service::IHttpClient>(std::make_unique<cosmo::service::HttpClientImpl>());
     registry.Register<cosmo::service::IGb28181SourceService>(
         std::make_unique<cosmo::service::Gb28181SourceServiceImpl>());
+    registry.Register<cosmo::service::IOnvifService>(std::make_unique<cosmo::service::OnvifServiceImpl>());
 }
 
 static void RegisterBusinessServices() {
@@ -295,6 +297,11 @@ static void RegisterBusinessServices() {
 
 static void InitializeServices() {
     auto& registry = cosmo::service::ServiceRegistry::Instance();
+    try {
+        registry.Get<cosmo::service::IOnvifService>().Init();
+    } catch (const std::exception&) {
+        LOG_ERRO("{}", "ONVIF configuration unavailable; restore its configuration and key together");
+    }
 
     // OSD TrueType text renderer initialization
     auto& osd                               = registry.Get<cosmo::media::IOsdTextRenderer>();

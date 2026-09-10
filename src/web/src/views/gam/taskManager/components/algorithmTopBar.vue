@@ -93,6 +93,7 @@ const schedulePollingList = ref([])
 const channelTypeList = computed(() => [
   { label: t('common.all'), value: '' },
   { label: 'RTSP', value: 0 },
+  { label: 'ONVIF', value: 2 },
   { label: t('glossary.offlineVideo'), value: 3 }
 ])
 const algorithmCategoryList = computed(() => [
