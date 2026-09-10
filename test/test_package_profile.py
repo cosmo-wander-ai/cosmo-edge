@@ -82,6 +82,13 @@ class PackageProfileTests(unittest.TestCase):
         platform_runtime: str | None = None,
         runtime_data_dir: str | None = None,
         runtime_app_data_dir: str = "/appfs/cosmo_wander/cwai_data",
+        model_bundle_scope: str | None = None,
+        include_bundle_license: bool = True,
+        omit_required_file: str | None = None,
+        include_model_guard: bool = False,
+        rknn_terms: bytes | None = None,
+        model_guard_runtime: bytes | None = None,
+        model_file_name: str = "model.nn",
     ) -> pathlib.Path:
         root = "cosmo-V1.5.0"
         directory = pathlib.Path(tempfile.mkdtemp())
@@ -99,9 +106,21 @@ class PackageProfileTests(unittest.TestCase):
                 info.mode = 0o755
                 archive.addfile(info)
             files = set(executable_files) | set(regular_files)
+            files.add("lib/libavcodec.so.58.134.100")
+            if target_chip in ("rk3576", "rv1126b"):
+                files.update(verifier.RKNN_LICENSE_FILES)
+            if include_model_guard:
+                files.update(
+                    {
+                        "lib/libcosmo_model_guard.so.2.0.0",
+                        verifier.MODEL_GUARD_TERMS_FILE,
+                    }
+                )
             if profile == "production-release":
                 files.add("bin/cosmo-model-provision")
             for name in sorted(files):
+                if name == omit_required_file:
+                    continue
                 if name == "share/cosmo/runtime-paths.env":
                     selected_data_dir = runtime_data_dir or (
                         "/userdata/cwaiuserdata"
@@ -112,6 +131,37 @@ class PackageProfileTests(unittest.TestCase):
                         f"COSMO_PACKAGE_DATA_DIR={selected_data_dir}\n"
                         f"COSMO_PACKAGE_APP_DATA_DIR={runtime_app_data_dir}\n"
                     ).encode()
+                elif name in ("LICENSE", "share/licenses/cosmo-edge/LICENSE"):
+                    data = b"Apache License\nVersion 2.0\nfixture\n"
+                elif name in ("NOTICE", "share/licenses/cosmo-edge/NOTICE"):
+                    data = b"CosmoEdge\nThird-party software\nfixture\n"
+                elif name.endswith("ffmpeg/COPYING.LGPLv2.1"):
+                    data = b"GNU LESSER GENERAL PUBLIC LICENSE\nfixture\n"
+                elif name == "lib/libavcodec.so.58.134.100":
+                    data = b"libavcodec license: LGPL version 2.1 or later\n"
+                elif name.endswith("rknn-runtime/LICENSE"):
+                    data = rknn_terms or (
+                        b"RKNN SDK License\n"
+                        b"1. License Grant\n"
+                        b"redistribute its modifications or derivative works\n"
+                        b"compatible with Products\n"
+                    )
+                elif name == verifier.MODEL_GUARD_TERMS_FILE:
+                    data = (
+                        REPOSITORY / "prebuild/model-guard-v2/README.md"
+                    ).read_bytes()
+                elif name == verifier.MODEL_GUARD_RUNTIME_FILE:
+                    data = (
+                        model_guard_runtime
+                        if model_guard_runtime is not None
+                        else (
+                            REPOSITORY
+                            / "prebuild/model-guard-v2/lib/"
+                            "libcosmo_model_guard.so.2.0.0"
+                        ).read_bytes()
+                    )
+                elif name in verifier.REQUIRED_LICENSE_FILES:
+                    data = b"fixture runtime license\n"
                 else:
                     data = (
                         b"#!/bin/sh\n"
@@ -122,7 +172,7 @@ class PackageProfileTests(unittest.TestCase):
                 info.size = len(data)
                 info.mode = 0o755 if name in executable_files or name.endswith("provision") else 0o644
                 archive.addfile(info, io.BytesIO(data))
-            model_path = f"{root}/resource/models/preset/model.nn"
+            model_path = f"{root}/resource/models/preset/{model_file_name}"
             info = tarfile.TarInfo(model_path)
             info.size = len(model)
             info.mode = 0o644
@@ -154,6 +204,49 @@ class PackageProfileTests(unittest.TestCase):
                 info.size = len(platform)
                 info.mode = 0o644
                 archive.addfile(info, io.BytesIO(platform))
+            if model_bundle_scope is not None:
+                rknn = b"rv1126b-rknn-fixture"
+                package_directory = "prod_RV1126B_9275710_YOLOV8_V1.0.0"
+                package_model = f"{root}/resource/models/{package_directory}/model.rknn"
+                info = tarfile.TarInfo(package_model)
+                info.size = len(rknn)
+                info.mode = 0o644
+                archive.addfile(info, io.BytesIO(rknn))
+                license_data = b"fixture model license\n"
+                if include_bundle_license:
+                    info = tarfile.TarInfo(
+                        f"{root}/resource/licenses/model-assets/AGPL-3.0.txt"
+                    )
+                    info.size = len(license_data)
+                    info.mode = 0o644
+                    archive.addfile(info, io.BytesIO(license_data))
+                bundle = json.dumps(
+                    {
+                        "schema_version": 1,
+                        "chip": target_chip,
+                        "usage_scope": model_bundle_scope,
+                        "commercial_delivery": False,
+                        "license": {
+                            "spdx": "AGPL-3.0-only",
+                            "path": "model-artifacts/LICENSES/AGPL-3.0.txt",
+                            "sha256": hashlib.sha256(license_data).hexdigest(),
+                        },
+                        "models": [
+                            {
+                                "model": "yolov8",
+                                "package_directory": package_directory,
+                                "artifact": {
+                                    "sha256": hashlib.sha256(rknn).hexdigest(),
+                                    "size_bytes": len(rknn),
+                                },
+                            }
+                        ],
+                    }
+                ).encode()
+                info = tarfile.TarInfo(f"{root}/resource/model-bundle.json")
+                info.size = len(bundle)
+                info.mode = 0o644
+                archive.addfile(info, io.BytesIO(bundle))
         digest = hashlib.md5(initial.read_bytes(), usedforsecurity=False).hexdigest()
         final = directory / f"{root}-{digest}.tar.gz"
         initial.rename(final)
@@ -162,11 +255,149 @@ class PackageProfileTests(unittest.TestCase):
     def test_open_accepts_plain_model(self) -> None:
         verifier.verify_package(self.make_package("public-runtime"), "public-runtime")
 
+    def test_distribution_license_bundle_is_mandatory(self) -> None:
+        for required in (
+            "LICENSE",
+            "NOTICE",
+            "share/licenses/third-party/ffmpeg/COPYING.LGPLv2.1",
+        ):
+            with self.subTest(required=required):
+                package = self.make_package(
+                    "public-runtime", omit_required_file=required
+                )
+                with self.assertRaisesRegex(
+                    verifier.PackageAuditError, "required file is missing"
+                ):
+                    verifier.verify_package(package, "public-runtime")
+
+        cmake = (REPOSITORY / "CMakeLists.txt").read_text(encoding="utf-8")
+        self.assertIn("cosmo_install_runtime_license", cmake)
+        self.assertIn("COPYING.LGPLv2.1", cmake)
+        self.assertIn("DESTINATION share/licenses/cosmo-edge", cmake)
+
+        rockchip_license = next(iter(verifier.RKNN_LICENSE_FILES))
+        package = self.make_package(
+            "public-runtime",
+            target_chip="rv1126b",
+            platform_chip="rv1126b",
+            omit_required_file=rockchip_license,
+        )
+        with self.assertRaisesRegex(
+            verifier.PackageAuditError, "runtime license is empty"
+        ):
+            verifier.verify_package(
+                package, "public-runtime", target_chip="rv1126b"
+            )
+
+        model_guard = self.make_package(
+            "public-runtime",
+            target_chip="bm1688",
+            include_model_guard=True,
+            omit_required_file=verifier.MODEL_GUARD_TERMS_FILE,
+        )
+        with self.assertRaisesRegex(
+            verifier.PackageAuditError, "runtime license is empty"
+        ):
+            verifier.verify_package(
+                model_guard, "public-runtime", target_chip="bm1688"
+            )
+
+    def test_rockchip_rejects_incomplete_rknn_sdk_terms(self) -> None:
+        package = self.make_package(
+            "public-runtime",
+            target_chip="rk3576",
+            platform_chip="rk3576",
+            platform_runtime="rk3576-mpp-rga",
+            rknn_terms=b"Copyright Statement\nfixture\n",
+        )
+        with self.assertRaisesRegex(
+            verifier.PackageAuditError, "RKNN runtime terms are invalid"
+        ):
+            verifier.verify_package(
+                package, "public-runtime", target_chip="rk3576"
+            )
+
+    def test_model_guard_requires_approved_runtime_identity(self) -> None:
+        approved = self.make_package(
+            "public-runtime",
+            target_chip="bm1688",
+            include_model_guard=True,
+        )
+        verifier.verify_package(
+            approved, "public-runtime", target_chip="bm1688"
+        )
+
+        unapproved = self.make_package(
+            "public-runtime",
+            target_chip="bm1688",
+            include_model_guard=True,
+            model_guard_runtime=b"unapproved-runtime\n",
+        )
+        with self.assertRaisesRegex(
+            verifier.PackageAuditError, "not the approved artifact"
+        ):
+            verifier.verify_package(
+                unapproved, "public-runtime", target_chip="bm1688"
+            )
+
+    def test_rv1126b_accepts_identified_community_example_bundle(self) -> None:
+        package = self.make_package(
+            "public-runtime",
+            target_chip="rv1126b",
+            platform_chip="rv1126b",
+            model_bundle_scope="community-example",
+        )
+        verifier.verify_package(
+            package,
+            "public-runtime",
+            target_chip="rv1126b",
+        )
+
+    def test_rv1126b_rejects_bundle_without_packaged_license(self) -> None:
+        package = self.make_package(
+            "public-runtime",
+            target_chip="rv1126b",
+            platform_chip="rv1126b",
+            model_bundle_scope="community-example",
+            include_bundle_license=False,
+        )
+        with self.assertRaisesRegex(
+            verifier.PackageAuditError, "packaged model license is missing"
+        ):
+            verifier.verify_package(
+                package,
+                "public-runtime",
+                target_chip="rv1126b",
+            )
+
     def test_protected_accepts_encrypted_model(self) -> None:
         verifier.verify_package(
             self.make_package("production-release", b"CEMC" + b"encrypted"),
             "production-release",
         )
+
+    def test_profile_checks_every_named_rknn_segment(self) -> None:
+        protected = self.make_package(
+            "production-release",
+            b"CEMC" + b"encrypted",
+            model_file_name="model0.rknn",
+        )
+        verifier.verify_package(protected, "production-release")
+
+        for profile, payload in (
+            ("production-release", b"plain"),
+            ("public-runtime", b"CEMC" + b"encrypted"),
+        ):
+            with self.subTest(profile=profile):
+                with self.assertRaises(verifier.PackageAuditError):
+                    verifier.verify_package(
+                        self.make_package(
+                            profile,
+                            payload,
+                            model_file_name="model1.rknn",
+                        ),
+                        profile,
+                    )
 
     def test_protected_rejects_plain_vllm_model(self) -> None:
         for model_type in ("qwen3vl", "qwen3_5"):
@@ -630,6 +861,7 @@ class PackageProfileTests(unittest.TestCase):
             )
         )
         build = (REPOSITORY / "scripts/build_rknn.sh").read_text(encoding="utf-8")
+        root_cmake = (REPOSITORY / "CMakeLists.txt").read_text(encoding="utf-8")
         cmake = (REPOSITORY / "cmake/rkllm.cmake").read_text(encoding="utf-8")
         media_cmake = (REPOSITORY / "cmake/rockchip_media.cmake").read_text(
             encoding="utf-8"
@@ -650,25 +882,26 @@ class PackageProfileTests(unittest.TestCase):
         self.assertIn('command: ["--chip", "rk3576"', compatibility_compose)
         self.assertIn("rk3576", workflow)
         self.assertIn("rv1126b", workflow)
+        self.assertRegex(
+            workflow,
+            r"- chip: rv1126b\s+models: include",
+        )
         self.assertIn("cosmo_edge-build-env_rockchip", workflow)
         self.assertIn("packages: write", workflow)
-        pull_request_paths = workflow.split("  pull_request:", 1)[1].split(
-            "  push:", 1
-        )[0]
-        self.assertNotIn("- 'scripts/**'", pull_request_paths)
-        for build_input in (
-            "scripts/*.sh",
-            "scripts/**/*.sh",
-            "scripts/install_rkllm_sdk.py",
-            "scripts/verify_model_guard_v2_sdk.py",
-            "scripts/verify_package_contents.py",
+        workflow_triggers = workflow.split("\npermissions:", 1)[0]
+        self.assertIn("  schedule:", workflow_triggers)
+        self.assertIn("    - cron: '12 18 * * *'", workflow_triggers)
+        self.assertIn("  workflow_dispatch:", workflow_triggers)
+        for disabled_trigger in (
+            "  pull_request:",
+            "  push:",
+            "  workflow_call:",
         ):
-            self.assertIn(f"- '{build_input}'", pull_request_paths)
-        for docs_only_input in (
-            "scripts/generate-v1.1-benchmark-pages.mjs",
-            "scripts/check-public-benchmark-copy.mjs",
-        ):
-            self.assertNotIn(docs_only_input, pull_request_paths)
+            self.assertNotIn(disabled_trigger, workflow_triggers)
+        self.assertIn(
+            "if: github.event_name == 'workflow_dispatch'",
+            workflow,
+        )
         self.assertIn(
             '(cd "build_output/${CHIP}" && sha256sum -c SHA256SUMS)',
             workflow,
@@ -705,7 +938,13 @@ class PackageProfileTests(unittest.TestCase):
         self.assertIn('lib/librkllmrt.so LICENSE', build)
         self.assertIn('-DCOSMO_TARGET_CHIP="${TARGET_CHIP}"', build)
         self.assertIn('[-c rk3576|rv1126b]', build)
+        self.assertIn(
+            'COSMO_TARGET_CHIP_NORMALIZED STREQUAL "rk3576"', root_cmake
+        )
         self.assertIn('-DCOSMO_RKLLM_REQUIRED="${RKLLM_REQUIRED}"', build)
+        self.assertGreaterEqual(
+            root_cmake.count('PATTERN "model-artifacts" EXCLUDE'), 2
+        )
         self.assertIn('set(RKLLM_RUNTIME_LICENSE "${COSMO_RKLLM_ROOT}/LICENSE")', cmake)
         self.assertIn("media_sysroot_lock.py", build)
         self.assertIn("rockchip-media-manifest.json", media_cmake)
@@ -759,6 +998,29 @@ class PackageProfileTests(unittest.TestCase):
             rk3576["packaging"]["legacy_models_directory"],
             rv1126b["packaging"]["legacy_models_directory"],
         )
+        rv_artifact_manifest_path = (
+            REPOSITORY / rv1126b["packaging"]["artifact_manifest"]
+        )
+        rv_artifact_manifest = json.loads(
+            rv_artifact_manifest_path.read_text(encoding="utf-8")
+        )
+        self.assertEqual(rv_artifact_manifest["chip"], "rv1126b")
+        self.assertEqual(
+            rv_artifact_manifest["usage_scope"], "community-example"
+        )
+        self.assertFalse(rv_artifact_manifest["commercial_delivery"])
+        self.assertEqual(
+            {record["model"] for record in rv_artifact_manifest["models"]},
+            {"helmet", "yolov8"},
+        )
+        for record in rv_artifact_manifest["models"]:
+            artifact = record["artifact"]
+            artifact_path = REPOSITORY / artifact["path"]
+            self.assertEqual(artifact_path.stat().st_size, artifact["size_bytes"])
+            self.assertEqual(
+                hashlib.sha256(artifact_path.read_bytes()).hexdigest(),
+                artifact["sha256"],
+            )
         for profile in (rk3576, rv1126b):
             chip = profile["chip"]
             self.assertEqual(

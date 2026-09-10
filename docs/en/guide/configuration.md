@@ -101,9 +101,13 @@ variables described by older guides. Diagnose GHCR pulls, npm-cache population, 
 | `COSMO_PACKAGE_MODELS` | `include` | `include` or `preserve`, which is only for code/structure validation |
 | `COSMO_BUILD_JOBS` | `4` | Cross-build parallelism |
 | `COSMO_ROCKCHIP_BUILDER_IMAGE` | Repository-pinned GHCR digest | Controlled builder-image override |
+| `COSMO_RKNN_ARTIFACT_MANIFEST` | Manifest from the platform profile | Selects a model bundle with source, hash, usage, and license identity; commercial or proprietary inputs use a separate manifest in an ignored task directory |
 
-The builder also uses the npm cache/retry variables listed for Sophon. A deployable RV1126B build needs the
-target model overlay under `output/platform-artifacts/rv1126b/resource-overlay`; `preserve` is not device acceptance.
+The builder also uses the npm cache/retry variables listed for Sophon. An RV1126B `include` build generates
+and verifies `output/platform-artifacts/rv1126b/resource-overlay` from the selected artifact manifest;
+`preserve` validates only code and package structure and is not device acceptance. The repository default is
+an AGPL-3.0 community example bundle, not a commercial model deliverable. Commercial or proprietary models
+require an independent manifest and license record.
 
 ## Resource Directories
 
@@ -113,10 +117,12 @@ target model overlay under `output/platform-artifacts/rv1126b/resource-overlay`;
 | Sophon BM1688 | `data/resource/aiboxresource_bm1688` |
 | Sophon CV186X | `data/resource/aiboxresource_cv186x` |
 | Rockchip RK3576 | `data/resource/aiboxresource_rknn` |
-| Rockchip RV1126B | `data/resource/aiboxresource_rknn` plus an ignored target overlay |
+| Rockchip RV1126B | Shared `data/resource/aiboxresource_rknn` templates plus the `model-artifacts/rv1126b` community example manifest; the target overlay is generated |
 
-The build scripts pass the selected path as `RESOURCE_DIR` to the install rules. Models for different chips still
-require separate conversion and validation.
+The build scripts pass the selected path as `RESOURCE_DIR` to the install rules. Binary models for different
+chips still require separate conversion and validation, while algorithm/config templates and staging code remain
+shared. Packages retain `resource/model-bundle.json` and the applicable license, and package audit verifies model
+inventory, size, and SHA-256.
 
 ## Runtime Directories
 

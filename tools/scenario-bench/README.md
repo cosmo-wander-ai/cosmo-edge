@@ -421,6 +421,117 @@ VLM 模式还执行有效性校验：缺少直接 VLM 节点遥测时，不会�
 - 对外引用结果时优先使用 `summary.json` 和 `report.html` 首页结论。
 - 如需做版本趋势对比，使用 `summary.json` 汇总，不直接解析 HTML。
 
+## 视频样本级算法表现测量（cosmo-accuracy，protocol v4）
+
+`cosmo-accuracy` 只做一件事：把视频样本送到真实 CosmoEdge 设备，按持久化事件统计
+正检命中率、误检无告警率和每个样本的 PASS/FAIL。它不是帧级标注工具，不计算
+Precision、Recall、F1 或 mAP，也不承担产品门禁、批准基线或发布认证。
+
+### 准备 suite
+
+私有 suite 和视频放在仓库外。仓库只提供
+`accuracy/schema/` 和 `accuracy/examples/` 下的 schema 与脱敏示例。可从旧式目录生成草稿：
+
+```bash
+node src/accuracy-cli.js init-suite \
+  --input-root /private/dataset \
+  --output /private/suite-draft \
+  --target-chip bm1688
+```
+
+草稿不会创建伪 taskConfig，也不会猜算法 ID 或计划 ID。补全这些设备必需值后，把
+`suite.draft.yml` 改名为 `suite.yml`。每个 case 需要相对视频路径、SHA-256 和事件期望：
+
+```json
+{"id":"helmet-positive-0001","task":"no-helmet","file":"videos/no-helmet/positive-0001.mp4","sha256":"<sha256>","expectation":{"minEvents":1},"tags":["quick"]}
+```
+
+正检通常使用 `minEvents: 1`，误检通常使用 `maxEvents: 0`。suite 不需要 gates 或
+trial policy；旧 suite 中这两个字段仍可保留，但运行时忽略。
+
+### 检查与运行
+
+```bash
+export COSMO_ACCURACY_TOKEN='<short-lived-token>'
+
+node src/accuracy-cli.js doctor \
+  --profile full \
+  --concurrency 1 \
+  --suite /private/suite/suite.yml \
+  --data-root /private/dataset \
+  --target-chip bm1688 \
+  --device "${COSMO_DEVICE_URL}" \
+  --token-env COSMO_ACCURACY_TOKEN
+
+node src/accuracy-cli.js run \
+  --profile full \
+  --concurrency 2 \
+  --suite /private/suite/suite.yml \
+  --data-root /private/dataset \
+  --target-chip bm1688 \
+  --device "${COSMO_DEVICE_URL}" \
+  --token-env COSMO_ACCURACY_TOKEN \
+  --output /private/runs/helmet-v1
+```
+
+也可以用 `--user <account> --password-stdin`。命令不接受明文 `--password`。
+
+`doctor` 只预检实际选中的样本，并检查视频可读性、哈希、设备登录、算法、计划、上传空间
+和 Event/Page。设备上已有的 `acc-*` 对象只产生警告，不阻止使用新唯一通道开始测量。
+
+每个样本取得一个有效结果。基础设施 ERROR 可按 suite 默认值重试，但算法 FAIL 不会自动
+再跑第二轮；FAIL 本身就是要统计的数据。命中率只使用有效 PASS/FAIL，ERROR 单独显示。
+完整测量即使含 FAIL 也退出 0，只有无法完成
+测量或 trial 严格清理失败才退出 2。
+
+`--profile quick` 选择带 `quick` tag 的代表样本，`--profile full` 运行完整选集。
+`--case`、`--task` 和 `--tag` 可直接过滤。并发可设为 1、2 或 4；它只并行 CV case，
+VLM 始终等 CV 完成后逐个执行。并发不会改变结果资格，因为工具没有资格/基线概念。
+
+trial 使用唯一通道，等待 Decode/Detector readiness，在观察窗口内从 Event/Page 读取事件，
+按通道、算法和时间再次过滤并去重。达到不可逆结论时可提前结束，最终仍等待事件集合收敛。
+每个 trial 都删除自己的任务和通道并反查；该清理失败会使该 case 为 ERROR。
+
+### 结果
+
+每次运行输出：
+
+| 文件 | 说明 |
+| --- | --- |
+| `run.private.json` | 完整 case、trial、事件、实际配置 hash 和清理结果 |
+| `run.partial.json` | 可恢复的限频原子断点；完成后保存结果 hash |
+| `summary.json` | 脱敏后的样本、算法、配置、micro/macro 指标和耗时 |
+| `report.html` | 可离线查看的结果报告 |
+| `integrity.json` | 已生成文件和图片的 hash 清单 |
+| `artifacts/alerts/` | 有告警图片时按内容 hash 保存 |
+
+`run.private.json` 和 `summary.json` 先保存。摘要验证、HTML 或 integrity 生成失败只警告，
+不会抹掉已经完成的测量。summary 不包含密码、token、设备地址、SN、内部通道 ID、绝对路径
+或告警 URL。
+
+### 对比与阈值诊断
+
+比较同一组选中视频的多次测量：
+
+```bash
+node src/accuracy-cli.js compare \
+  --reference /private/runs/reference/summary.json \
+  --candidate /private/runs/algorithm-b/summary.json \
+  --candidate /private/runs/concurrency-2/summary.json \
+  --output /private/comparisons/algorithm-and-speed
+```
+
+对比只要求选中的视频样本一致。算法 ID、实际 taskConfig hash、并发、软件版本、source mode、
+目标芯片和工具版本都作为变化维度显示，不作为拒绝比较的资格条件。输出为
+`comparison.json`、`report.html` 和 `integrity.json`。
+
+`render` 可从 `summary.json` 离线重绘报告。`diagnose-threshold` 可对任意已测得的 FAIL
+case 扫描 suite 明确列出的阈值；每个值运行三次以显示稳定或波动情况，但不会修改 suite、
+设备默认配置或正式测量结果。
+
+`local` 直接上传原始视频，是默认路径。`rtsp-deterministic` 是可选的摄取链路专项；
+比较工具会明确显示 source mode 的差异，而不会把它变成产品资格限制。
+
 ## 当前限制
 
 - 当前主要验证 `local` 视频模式。

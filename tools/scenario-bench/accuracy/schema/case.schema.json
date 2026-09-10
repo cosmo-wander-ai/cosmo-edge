@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cosmowander.ai/schemas/cosmo-accuracy-case-v3.json",
+  "title": "CosmoAccuracy case v3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "task", "file", "sha256", "expectation"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "task": { "type": "string", "minLength": 1 },
+    "file": { "type": "string", "minLength": 1 },
+    "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+    "expectation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "minEvents": { "type": "integer", "minimum": 0 },
+        "maxEvents": { "type": "integer", "minimum": 0 }
+      },
+      "anyOf": [
+        { "required": ["minEvents"] },
+        { "required": ["maxEvents"] }
+      ]
+    },
+    "critical": {
+      "type": "boolean",
+      "deprecated": true,
+      "description": "Legacy quick-selection marker; it does not trigger repeated measurement."
+    },
+    "tags": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "observeSec": { "type": "number", "exclusiveMinimum": 0 }
+  }
+}

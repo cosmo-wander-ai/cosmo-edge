@@ -4,15 +4,36 @@
 
 #include "catch_amalgamated.hpp"
 #include "mock/MockAlgorithmService.h"
+#include "mock/MockAppInfoService.h"
 #include "mock/MockCameraService.h"
-#include "mock/MockServiceRegistry.h"
 #include "service/model/impl/ModelServiceImpl.h"
+#include "support/MockDefaults.h"
+#include "support/ScopedPathOverride.h"
+#include "support/ScopedServiceOverride.h"
 #include "util/FileUtil.h"
 #include "util/NnBackendConstants.h"
 #include "util/PathUtil.h"
 
 using namespace cosmo::service;
 using namespace cosmo;
+
+namespace {
+
+struct ModelServiceDependencies {
+    cosmo::test::MockAlgorithmService algSvc;
+    cosmo::test::MockCameraService cameraSvc;
+    cosmo::test::MockAppInfoService appInfoSvc;
+    cosmo::test::NamedExpectations expectations;
+    cosmo::test::ScopedServiceOverride<IAlgorithmQuery> algorithmQuery{algSvc};
+    cosmo::test::ScopedServiceOverride<ICameraTaskConfig> cameraTaskConfig{cameraSvc};
+    cosmo::test::ScopedServiceOverride<IAppInfoService> appInfo{appInfoSvc};
+
+    ModelServiceDependencies() {
+        expectations.push_back(NAMED_ALLOW_CALL(appInfoSvc, GetModelDebug()).RETURN(false));
+    }
+};
+
+}  // namespace
 
 // Helper: create a minimal model directory with config.json on disk
 static std::string CreateTestModelOnDisk(const std::string& modelsDir, const std::string& modelCode,
@@ -49,10 +70,10 @@ TEST_CASE("ModelServiceImpl: 模型服务核心逻辑", "[model-service]") {
     std::string testBaseDir =
         "/tmp/cosmo_test_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
 
-    cosmo::test::MockServiceRegistry mocks;
     // Redirect path roots to test directory
     // Separate user (data) and preset (app) roots so preset-path checks are testable.
-    cosmo::path::OverrideRootPathForTest(testBaseDir + "/udata", testBaseDir + "/adata");
+    cosmo::test::ScopedPathOverride path_override(testBaseDir + "/udata", testBaseDir + "/adata");
+    ModelServiceDependencies mocks;
     // GetModelPath()         -> udata/resource/models  (user models: exportable/deletable)
     // GetPresetModelPath()   -> adata/resource/models  (preset models: protected)
     // GetModelTemplatePath() -> adata/resource/model_template

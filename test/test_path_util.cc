@@ -2,12 +2,13 @@
 /*
  * test_path_util.cc - PathUtil unit tests
  *
- * Tests path accessors after OverrideRootPathForTest().
+ * Tests path accessors under a scoped test-root override.
  */
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 
+#include "support/ScopedPathOverride.h"
 #include "util/PathUtil.h"
 
 using namespace cosmo::path;
@@ -16,16 +17,16 @@ namespace {
 
 struct TestPathFixture {
     std::string test_dir;
+    cosmo::test::ScopedPathOverride path_override;
 
-    TestPathFixture() {
-        test_dir = "/tmp/cosmo_path_test_" +
-                   std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+    TestPathFixture()
+        : test_dir("/tmp/cosmo_path_test_" +
+                   std::to_string(std::chrono::system_clock::now().time_since_epoch().count())),
+          path_override(test_dir, test_dir) {
         std::filesystem::create_directories(test_dir);
-        OverrideRootPathForTest(test_dir, test_dir);
     }
 
     ~TestPathFixture() {
-        OverrideRootPathForTest("/data/cwaiuserdata", "/appfs/cosmo_wander/cwai_data");
         std::filesystem::remove_all(test_dir);
     }
 };

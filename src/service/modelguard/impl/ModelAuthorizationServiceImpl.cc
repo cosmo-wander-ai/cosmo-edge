@@ -11,6 +11,10 @@ namespace cosmo::service {
 namespace {
     constexpr std::uintmax_t kDeviceRequestSize = 48;
     constexpr std::uintmax_t kCertificateSize   = 236;
+
+    std::string CertificateStoreDirectory() {
+        return (std::filesystem::path(path::GetBaseDir()) / "model-guard").string();
+    }
 }  // namespace
 
 ModelAuthorizationServiceImpl::ModelAuthorizationServiceImpl(std::string provision_tool)
@@ -28,7 +32,8 @@ ModelAuthorizationStatus ModelAuthorizationServiceImpl::Status() {
         return {};
     }
     std::string output;
-    const int result = util::Exec({provision_tool_, "status"}, output);
+    const int result =
+        util::Exec({provision_tool_, "status", "--store-dir", CertificateStoreDirectory()}, output);
     if (result == 0 && output.rfind("valid ", 0) == 0) {
         return {true, true, "valid"};
     }
@@ -75,7 +80,9 @@ util::ErrorEnum ModelAuthorizationServiceImpl::InstallCertificate(const std::str
         return util::ErrorEnum::FileAnalysisFailed;
     }
     std::string output;
-    return util::Exec({provision_tool_, "install", "--certificate", file_path}, output) == 0
+    return util::Exec({provision_tool_, "install", "--certificate", file_path, "--store-dir",
+                       CertificateStoreDirectory()},
+                      output) == 0
                ? util::ErrorEnum::Success
                : util::ErrorEnum::Failed;
 }

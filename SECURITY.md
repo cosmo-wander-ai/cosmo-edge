@@ -1,6 +1,6 @@
 # Security Policy
 
-CosmoEdge `v1.1.0` is the next release line and is still prepared but unpublished. Until its tag and release artifacts are published, `v1.0.x` remains the current public stable line. Please avoid disclosing security-sensitive details publicly before maintainers have had time to review them. This policy describes how to report vulnerabilities privately and what to expect.
+CosmoEdge `v1.1.x` is the current public stable line and receives security fixes. Security maintenance for `v1.0.x` ended when `v1.1.0` was published on 2026-08-25; users should upgrade to `v1.1.x`. Please avoid disclosing security-sensitive details publicly before maintainers have had time to review them. This policy describes how to report vulnerabilities privately and what to expect.
 
 ## Reporting a Vulnerability
 
@@ -47,12 +47,12 @@ Please do not include sensitive data in public issues, pull requests, screenshot
 
 The table below shows the versions that receive security fixes. Builds made directly from `main` between releases are not individually patched; fixes land on `main` and ship in the next release.
 
-| Version | Supported          | Notes                                                  |
-| ------- | ------------------ | ------------------------------------------------------ |
-| 1.1.x   | :warning:          | Release candidate; supported after `v1.1.0` publication |
-| 1.0.x   | :white_check_mark: | Current public stable line until `v1.1.0` is published |
-| 0.1.x   | :x:                | Superseded by v1.0.0; only critical fixes on request   |
-| < 0.1   | :x:                | Not publicly released                                  |
+| Version | Supported          | Notes                                                                                   |
+| ------- | ------------------ | --------------------------------------------------------------------------------------- |
+| 1.1.x   | :white_check_mark: | Current public stable line; receives security fixes                                     |
+| 1.0.x   | :x:                | Security maintenance ended on 2026-08-25 with `v1.1.0` publication; upgrade to `v1.1.x` |
+| 0.1.x   | :x:                | Superseded by v1.0.0; only critical fixes on request                                    |
+| < 0.1   | :x:                | Not publicly released                                                                   |
 
 ## Deployment Hardening Notes
 

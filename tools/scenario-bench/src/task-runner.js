@@ -123,7 +123,8 @@ export class TaskRunner {
    * @param {() => Promise<{stop:boolean, reason?:string}|void>} [hooks.onSample]
    * @param {(step:object, active:string[], entries:object[]) => Promise<{stop:boolean, reason?:string}|void>} [hooks.onStepEnd]
    * @param {number} sampleIntervalSec
-   * @returns {Promise<{bottleneckStep?:number, bottleneckReason?:string}>}
+   * @returns {Promise<{bottleneckStep?:number, bottleneckReason?:string,
+   *   bottleneckSource?:string, bottleneckGates?:object[]}>}
    */
   async runStaircase(loadProfile, hooks, sampleIntervalSec) {
     let active = [];
@@ -158,6 +159,7 @@ export class TaskRunner {
               bottleneckStep: i,
               bottleneckChannels: active.length,
               bottleneckPhase: 'ramp',
+              bottleneckSource: 'task-binding',
               bottleneckReason: `任务绑定失败 (可能达到设备并发授权上限): ${failedIds}`,
             };
             return bottleneck;
@@ -173,6 +175,8 @@ export class TaskRunner {
                 bottleneckStep: i,
                 bottleneckChannels: active.length,
                 bottleneckPhase: 'ramp',
+                bottleneckSource: decision.source ?? 'quick-fuse',
+                bottleneckGates: decision.gates ?? [],
                 bottleneckReason: decision.reason ?? 'ramp fuse tripped',
               };
               return bottleneck;
@@ -206,6 +210,8 @@ export class TaskRunner {
                   bottleneckStep: i,
                   bottleneckChannels: active.length,
                   bottleneckPhase: 'hold',
+                  bottleneckSource: decision.source ?? 'quick-fuse',
+                  bottleneckGates: decision.gates ?? [],
                   bottleneckReason: decision.reason ?? 'hold fuse tripped',
                 };
                 return bottleneck;
@@ -229,6 +235,8 @@ export class TaskRunner {
               bottleneckStep: i,
               bottleneckChannels: step.channels,
               bottleneckPhase: 'hold',
+              bottleneckSource: decision.source ?? 'runtime-threshold',
+              bottleneckGates: decision.gates ?? [],
               bottleneckReason: decision.reason ?? 'threshold breached',
             };
             break;

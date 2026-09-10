@@ -11,7 +11,7 @@
   >
     <template #header>
       <div class="mini-video-play-header">
-        <div class="mini-video-play-title">{{ props.title || t('event.videoPlayback') }}</div>
+        <div class="mini-video-play-title">{{ props.showCustomTitle && props.title ? props.title : t('event.videoPlayback') }}</div>
         <el-button 
           class="mini-video-play-download" 
           type="primary" 
@@ -118,6 +118,11 @@ const props = defineProps({
   title: {
     type: String,
     default: ''
+  },
+  // Whether to use title as the dialog header
+  showCustomTitle: {
+    type: Boolean,
+    default: true
   },
   // 是否点击遮罩层关闭
   closable: {

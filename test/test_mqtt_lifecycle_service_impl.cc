@@ -21,13 +21,22 @@
 #include "mock/MockConfigNetworkService.h"
 #include "mock/MockConfigReadService.h"
 #include "mock/MockDeviceInfoService.h"
-#include "mock/MockServiceRegistry.h"
 #include "service/network/impl/MqttLifecycleServiceImpl.h"
+#include "support/ScopedServiceOverride.h"
 #include "util/IRequestDispatcher.h"
 
 using namespace cosmo::service;
 
 namespace {
+
+struct MqttDependencies {
+    cosmo::test::MockConfigReadService configReadSvc;
+    cosmo::test::MockConfigNetworkService configNetSvc;
+    cosmo::test::MockDeviceInfoService deviceInfoSvc;
+    cosmo::test::ScopedServiceOverride<IConfigReadService> configRead{configReadSvc};
+    cosmo::test::ScopedServiceOverride<IConfigNetworkService> configNetwork{configNetSvc};
+    cosmo::test::ScopedServiceOverride<IDeviceHardware> deviceInfo{deviceInfoSvc};
+};
 
 class StubDispatcher : public cosmo::IRequestDispatcher {
 public:
@@ -233,7 +242,7 @@ TEST_CASE("MqttLifecycleServiceImpl: concurrent permanent shutdown is serialized
 }
 
 TEST_CASE("MqttLifecycleServiceImpl: MqttStart and MqttStop lifecycle", "[mqtt-lifecycle]") {
-    cosmo::test::MockServiceRegistry mocks;
+    MqttDependencies mocks;
 
     ALLOW_CALL(mocks.configReadSvc, GetRunMode()).RETURN(cosmo::RunMode::RunModeStandAlone);
     cosmo::service::MqttParam mqttP;
@@ -248,7 +257,7 @@ TEST_CASE("MqttLifecycleServiceImpl: MqttStart and MqttStop lifecycle", "[mqtt-l
 
 TEST_CASE("MqttLifecycleServiceImpl: concurrent disabled start and stop is serialized",
           "[mqtt-lifecycle][concurrency]") {
-    cosmo::test::MockServiceRegistry mocks;
+    MqttDependencies mocks;
 
     ALLOW_CALL(mocks.configReadSvc, GetRunMode()).RETURN(cosmo::RunMode::RunModeStandAlone);
     cosmo::service::MqttParam mqtt_param;
@@ -279,7 +288,7 @@ TEST_CASE("MqttLifecycleServiceImpl: concurrent disabled start and stop is seria
 
 TEST_CASE("MqttLifecycleServiceImpl: Stop interrupts reconnect backoff promptly",
           "[mqtt-lifecycle][lifecycle]") {
-    cosmo::test::MockServiceRegistry mocks;
+    MqttDependencies mocks;
 
     LoopbackResetServer server;
     REQUIRE(server.Start());
@@ -290,7 +299,8 @@ TEST_CASE("MqttLifecycleServiceImpl: Stop interrupts reconnect backoff promptly"
     mqtt_param.url    = "127.0.0.1";
     mqtt_param.port   = server.Port();
     ALLOW_CALL(mocks.configNetSvc, GetMqttParam()).RETURN(mqtt_param);
-    ALLOW_CALL(mocks.deviceInfoSvc, GetDevSn()).RETURN("SN-MQTT-STOP-TEST");
+    REQUIRE_FALSE(ServiceRegistry::Instance().Has<IDeviceInfoService>());
+    REQUIRE_CALL(mocks.deviceInfoSvc, GetDevSn()).RETURN("SN-MQTT-STOP-TEST");
 
     MqttLifecycleServiceImpl sut([]() { return std::make_unique<StubDispatcher>(); });
     sut.MqttStart();

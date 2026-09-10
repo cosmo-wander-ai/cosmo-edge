@@ -78,7 +78,7 @@ export function generateBenchmarkPages({ sourceRoot = defaultSourceRoot, outputR
         writeReport(
           outputRoot,
           `results/${platform.id}/vlm-observation/report${suffix}`,
-          renderVlmReport(locale, platform, observation, vlm.publicationEvaluation),
+          renderVlmReport(locale, platform, observation, vlm),
         );
         reportCount += 1;
       }
@@ -196,7 +196,7 @@ function writeDerivedIndexes(outputRoot, manifest, platforms, vlm, longRun) {
     interpretation: {
       singleWorkload: 'last passing short-run channel count under enabled CV gates',
       concurrentMixed: 'highest configured short-run point passed; observed lower bound only',
-      vlm: 'raw FPS remained observational; publication display boundaries are conservative post-evaluations of contiguous complete steps',
+      vlm: 'exact short-run boundary from the executed 80% FPS gate after task-local readiness at each added route',
       longRun: 'configured dual-CV workload completed a controlled 72-hour local-loop observation; this is not a capacity, RTSP-resilience, production-profile, or product-release claim',
       bindingBlocked: 'the next configured channel was blocked during task binding before measurement',
       storageBlocked: 'the expansion run was blocked before measurement by its storage precondition',
@@ -209,13 +209,15 @@ function writeDerivedIndexes(outputRoot, manifest, platforms, vlm, longRun) {
       concurrentMixed: platform.cases.filter((item) => item.workload === 'concurrent-mixed').map(matrixEntry),
     })),
     vlmEvidenceStatus: vlm.evidenceStatus,
-    vlmPublicationEvaluation: {
-      policy: vlm.publicationEvaluation,
+    vlmValidation: {
+      claim: vlm.claim,
+      protocol: vlm.protocol,
+      endToEndAcceptance: vlm.endToEndAcceptance,
       platforms: platforms.map((platform) => {
         const observation = vlm.observations.find((item) => item.platformId === platform.id);
         return {
           platformId: platform.id,
-          publicationBoundary: observation?.publicationBoundary ?? null,
+          capacityBoundary: observation?.capacityBoundary ?? null,
         };
       }),
     },
@@ -249,8 +251,8 @@ function writeDerivedIndexes(outputRoot, manifest, platforms, vlm, longRun) {
 
 function renderBenchmarkScope(locale) {
   return locale === 'zh-CN'
-    ? '测试范围：容量结果来自30秒本地循环阶梯，VLM 数据来自60秒短时观测；独立的72小时测试覆盖表中固定路数与受控本地循环输入。完整条件见测试方法。'
-    : 'Benchmark scope: capacity results come from 30-second local-loop steps, VLM figures are 60-second short-run observations, and the separate 72-hour test covers the listed fixed-channel profiles under controlled local-loop input. See the methodology for complete conditions.';
+    ? '测试范围：小模型容量结果来自30秒本地循环阶梯，VLM 性能来自60秒正式门禁阶梯；独立的72小时测试覆盖表中固定路数与受控本地循环输入。完整条件见测试方法。'
+    : 'Benchmark scope: small-model capacity results come from 30-second local-loop steps, VLM performance from formal 60-second gated steps, and the separate 72-hour test covers the listed fixed-channel profiles under controlled local-loop input. See the methodology for complete conditions.';
 }
 
 function renderLongRunScope(locale, linkedEvidence = false) {
@@ -266,8 +268,8 @@ function renderLongRunScope(locale, linkedEvidence = false) {
 
 function renderVlmScope(locale) {
   return locale === 'zh-CN'
-    ? '范围：VLM 数据来自60秒短时阶梯，并统一采用目标吞吐的80%作为跨平台展示参考；readiness 协议和原始运行判定见测试方法。'
-    : 'Scope: VLM figures come from 60-second short-run steps using a uniform 80% target-throughput display reference; readiness protocols and raw-run interpretation are documented in the methodology.';
+    ? '范围：已验证 VLM 性能边界来自60秒短时阶梯；每新增一路先通过 task-local readiness，再执行每路0.1 FPS、80%达标率门禁。该结果不是最大容量、长稳或生产推荐配置认证。'
+    : 'Scope: the validated VLM performance boundary comes from 60-second short-run steps. Each added route passes task-local readiness before the executed 0.1 FPS-per-channel, 80% achievement gate. This is not maximum-capacity, long-run, or production-profile certification.';
 }
 
 function renderRootReport(locale, manifest, platforms, vlmByPlatform, longRun) {
@@ -291,18 +293,18 @@ function renderRootReport(locale, manifest, platforms, vlmByPlatform, longRun) {
     workloadLabel(workload, locale),
     ...targetFpsValues.map((fps) => displayBoundary(findCase(platform, workload, fps))),
   ]));
-  const publicationPolicy = manifest.evidence?.vlmPublicationEvaluation;
+  const validationProtocol = manifest.evidence?.vlmValidation;
   const vlmRows = platforms.map((platform) => {
     const item = vlmByPlatform.get(platform.id);
     if (!item) {
-      return [platform.name, '—', '—', '—', zh ? '本轮无 VLM 观测' : 'No VLM observation in this refresh'];
+      return [platform.name, '—', '—', '—', zh ? '不在本次 VLM 验证范围内' : 'Outside this VLM validation'];
     }
     return [
       platform.name,
-      value(publicationPolicy?.targetFpsPerChannel),
-      percent(publicationPolicy?.minimumActiveRouteFpsRatio),
-      value(item.publicationBoundary?.displayChannels),
-      publicationBoundaryReason(item, locale),
+      value(validationProtocol?.targetFpsPerChannel),
+      percent(validationProtocol?.minimumActiveRouteFpsRatio),
+      value(item.capacityBoundary?.verifiedPassingChannels),
+      capacityBoundaryReason(item, locale),
     ];
   });
   const environmentRows = platforms.map((platform) => [
@@ -329,8 +331,8 @@ function renderRootReport(locale, manifest, platforms, vlmByPlatform, longRun) {
     `<h1>${zh ? 'CosmoEdge 1.1 多平台视频分析容量基准' : 'CosmoEdge 1.1 Multi-Platform Video Analytics Benchmark'}</h1>`,
     `<p class="lead">${platforms.map((platform) => platformLabel(platform, locale)).join(' · ')}</p>`,
     `<p>${zh
-      ? `本报告发布 ${canonicalCaseCount} 个小模型受控用例、4 个完成的72小时固定配置结果，以及 ${vlmByPlatform.size} 个平台的 VLM 展示参考。`
-      : `This report publishes ${canonicalCaseCount} controlled small-model cases, four completed 72-hour fixed-profile results, and VLM display references for ${vlmByPlatform.size} platforms.`}</p>`,
+      ? `本报告发布 ${canonicalCaseCount} 个小模型受控用例、4 个完成的72小时固定配置结果，以及 ${vlmByPlatform.size} 个平台的 VLM 正式验证结果。`
+      : `This report publishes ${canonicalCaseCount} controlled small-model cases, four completed 72-hour fixed-profile results, and formal VLM validation results for ${vlmByPlatform.size} platforms.`}</p>`,
     notice(renderBenchmarkScope(locale), 'scope-note'),
     `<h2>${zh ? '并发混合任务矩阵' : 'Concurrent mixed-workload matrix'}</h2>`,
     `<p>${zh ? '每路包含两个业务任务和三个模型阶段：人员检测为单检测阶段，未佩戴安全帽分析为检测加分类两阶段。' : 'Each channel contains two business tasks across three model stages: one person-detector stage plus detector and classifier stages for no-safety-helmet analysis.'}</p>`,
@@ -356,9 +358,10 @@ function renderRootReport(locale, manifest, platforms, vlmByPlatform, longRun) {
   ];
 
   body.push(
-    `<h2>${zh ? 'VLM 性能展示边界' : 'VLM performance display boundaries'}</h2>`,
-    `<p>${zh ? 'VLM 表格统一采用目标吞吐的80%作为跨平台展示参考。' : 'The VLM table uses a uniform 80% target-throughput reference for cross-platform display.'}</p>`,
-    table(zh ? ['平台', '目标 FPS/路', '发布参考', '性能展示边界', '边界依据'] : ['Platform', 'Target FPS/ch', 'Publication reference', 'Performance display boundary', 'Boundary basis'], vlmRows),
+    `<h2>${zh ? '已验证 VLM 性能' : 'Validated VLM performance'}</h2>`,
+    `<p>${zh ? '三平台使用同一协议，80%吞吐阈值在测试执行时直接参与 PASS/FAIL。' : 'All three platforms use one protocol, with the 80% throughput threshold participating directly in runtime PASS/FAIL.'}</p>`,
+    table(zh ? ['平台', '目标 FPS/路', '执行门禁', '最后通过路数', '首个失败原因'] : ['Platform', 'Target FPS/ch', 'Executed gate', 'Last passing channels', 'First failure'], vlmRows),
+    `<p>${zh ? 'BM1688、CV186X 与 RK3576 还各自在与其容量测试相同的固定候选包上，通过模型加载、任务创建、有效推理、事件/告警输出和服务重启后任务恢复。CosmoEdge 1.1 在记录的安装包、模型与协议范围内支持三平台 VLM。' : 'BM1688, CV186X, and RK3576 also pass model load, task creation, valid inference, event/alarm output, and task recovery after service restart, each on the same fixed candidate package as its capacity run. CosmoEdge 1.1 supports VLM on all three platforms within the recorded package, model, and protocol scope.'}</p>`,
     `<h2>${zh ? '证据入口' : 'Evidence entry points'}</h2>`,
     table(zh ? ['平台', '平台报告', '用例', '单任务', '混合任务', '72 小时', 'VLM'] : ['Platform', 'Overview', 'Cases', 'Single-task', 'Mixed workload', '72-hour', 'VLM'], linksRows),
     `<h2>${zh ? '测试环境' : 'Test environment'}</h2>`,
@@ -409,7 +412,7 @@ function renderPlatformReport(locale, manifest, platform, observation, longRunOb
       `<li>${anchor(`single-workload/report${zh ? '.zh-CN' : ''}.html`, zh ? '单任务汇总' : 'Single-task summary')}</li>` +
       `<li>${anchor(`concurrent-mixed/report${zh ? '.zh-CN' : ''}.html`, zh ? '混合任务汇总' : 'Mixed-workload summary')}</li>` +
       (longRunObservation ? `<li>${anchor(`dual-cv-72h/report${zh ? '.zh-CN' : ''}.html`, zh ? '72 小时双 CV 长稳观测' : '72-hour dual-CV long-run observation')}</li>` : '') +
-      (observation ? `<li>${anchor(`vlm-observation/report${zh ? '.zh-CN' : ''}.html`, zh ? 'VLM 性能观测' : 'VLM performance observation')}</li>` : '') +
+      (observation ? `<li>${anchor(`vlm-observation/report${zh ? '.zh-CN' : ''}.html`, zh ? '已验证 VLM 性能' : 'Validated VLM performance')}</li>` : '') +
       `</ul>`,
     `<p>${zh ? '小模型测试源码' : 'Small-model test source'}: <code>${escapeHtml(manifest.sourceBaseline.commit)}</code></p>`,
   ];
@@ -601,8 +604,9 @@ function renderCaseReport(locale, platform, item) {
   return page(locale, `${platform.name} ${caseLabel(item, locale)}`, individualCaseNav(locale), body);
 }
 
-function renderVlmReport(locale, platform, observation, publicationPolicy) {
+function renderVlmReport(locale, platform, observation, vlm) {
   const zh = locale === 'zh-CN';
+  const acceptance = vlm.endToEndAcceptance?.platforms?.find((item) => item.platformId === observation.platformId);
   const rows = observation.steps.map((step) => [
     step.channels,
     `${step.holdSeconds} s`,
@@ -613,33 +617,28 @@ function renderVlmReport(locale, platform, observation, publicationPolicy) {
     percentWhole(step.acceleratorPeakPercent),
     percentWhole(step.cpuPeakPercent),
     percentWhole(step.memoryPeakPercent),
-    publicationStepStatus(step, observation, publicationPolicy, locale),
-    status(step.nonFpsGateResult),
-    value(step.stopReason),
+    status(step.readiness?.status),
+    status(step.result),
+    value(step.failureReason),
   ]);
-  const body = `<h1>${escapeHtml(platform.name)} · ${zh ? 'VLM 性能观测' : 'VLM performance observation'}</h1>` +
-    `<p class="lead">${zh ? '80% 展示参考' : '80% display reference'}: ${observation.publicationBoundary?.displayChannels ?? '—'} ${zh ? '路' : 'channels'}</p>` +
+  const body = `<h1>${escapeHtml(platform.name)} · ${zh ? '已验证 VLM 性能' : 'Validated VLM performance'}</h1>` +
+    `<p class="lead">${zh ? '最后通过' : 'Last passing'}: ${observation.capacityBoundary?.verifiedPassingChannels ?? '—'} ${zh ? '路' : 'channels'}</p>` +
     notice(renderVlmScope(locale), 'scope-note') +
-    table(zh ? ['路数', '时长', '目标 FPS/路', '当前新增路 FPS', '全路最低 FPS / 目标比例', '平均丢弃', '加速器', 'CPU', '内存', '80% 发布参考', '原始非 FPS 门禁', '停止原因'] : ['Channels', 'Hold', 'Target FPS/ch', 'Current new-route FPS', 'Minimum active-route FPS / target ratio', 'Avg discard', 'Accelerator', 'CPU', 'Memory', '80% publication reference', 'Raw non-FPS gate', 'Stop reason'], rows) +
-    `<p>${zh ? '测试源码' : 'Test source'}: <code>${escapeHtml(observation.source?.commit ?? '—')}</code> · ` +
-    `${zh ? '工具补丁' : 'tool patch'}: <code>${escapeHtml(observation.source?.toolPatchSha256 ?? '—')}</code> · ` +
+    table(zh ? ['路数', '时长', '目标 FPS/路', '当前新增路 FPS', '全路最低 FPS / 目标比例', '平均丢弃', '加速器', 'CPU', '内存', '新增路 readiness', '执行门禁', '失败原因'] : ['Channels', 'Hold', 'Target FPS/ch', 'Current new-route FPS', 'Minimum active-route FPS / target ratio', 'Avg discard', 'Accelerator', 'CPU', 'Memory', 'New-route readiness', 'Executed gate', 'Failure reason'], rows) +
+    `<h2>${zh ? '最小端到端验收' : 'Minimum end-to-end acceptance'}</h2>` +
+    table(
+      zh ? ['模型加载', '任务创建', '有效推理', '事件/告警', '重启后任务恢复', '结果'] : ['Model load', 'Task creation', 'Valid inference', 'Event/alarm', 'Task recovery after restart', 'Result'],
+      [[status(acceptance?.modelLoad), status(acceptance?.taskCreation), status(acceptance?.validInferenceResult), status(acceptance?.eventOrAlarmOutput), status(acceptance?.taskRecoveryAfterServiceRestart), status(acceptance?.status)]],
+    ) +
+    `<h2>${zh ? '冻结身份' : 'Frozen identities'}</h2>` +
+    table(
+      zh ? ['候选包 SHA-256', 'VLM 模型 SHA-256', 'Tokenizer SHA-256', '引擎 SHA-256', '端到端证据 SHA-256', '证据字节数'] : ['Candidate package SHA-256', 'VLM model SHA-256', 'Tokenizer SHA-256', 'Engine SHA-256', 'End-to-end evidence SHA-256', 'Evidence bytes'],
+      [[observation.package?.sha256, observation.modelIdentity?.model?.sha256, observation.modelIdentity?.tokenizer?.sha256, observation.runtimeIdentity?.engineSha256, acceptance?.evidenceSha256, acceptance?.evidenceSizeBytes]],
+    ) +
+    `<p>${zh ? '测试源码' : 'Test source'}: <code>${escapeHtml(vlm.source?.commit ?? '—')}</code> · tree <code>${escapeHtml(vlm.source?.tree ?? '—')}</code> · ` +
     `${anchor('../../vlm-observations.json', zh ? 'canonical 数据' : 'canonical data')} · ` +
     `${anchor('../../../methodology.md', zh ? '方法说明' : 'methodology')}</p>`;
   return page(locale, `${platform.name} VLM`, workloadNav(locale), body);
-}
-
-function publicationStepStatus(step, observation, publicationPolicy, locale) {
-  const zh = locale === 'zh-CN';
-  const ratio = step?.minimumActiveRouteFpsRatioObserved;
-  if (ratio == null || ratio < publicationPolicy?.minimumActiveRouteFpsRatio) {
-    return zh ? '低于参考线' : 'BELOW';
-  }
-  if (step?.nonFpsGateResult !== 'PASS') {
-    return observation?.source?.protocolClass === 'pre-readiness-startup-sensitive'
-      ? (zh ? '启动数据排除' : 'STARTUP EXCLUDED')
-      : (zh ? '窗口不完整' : 'INCOMPLETE');
-  }
-  return zh ? '达到参考线' : 'MEETS';
 }
 
 function renderStepTable(locale, item) {
@@ -798,21 +797,14 @@ function workloadLabel(workload, locale) {
   return workload;
 }
 
-function publicationBoundaryReason(observation, locale) {
+function capacityBoundaryReason(observation, locale) {
   const zh = locale === 'zh-CN';
-  const boundary = observation?.publicationBoundary;
-  const step = observation?.steps?.find((item) => item.channels === boundary?.firstExcludedChannels);
-  if (boundary?.firstExcludedReason === 'below-fps-reference') {
-    return zh
-      ? `${step?.channels ?? '下一'} 路全路最低 ${value(step?.minimumActiveRouteFps)} FPS（${percent(step?.minimumActiveRouteFpsRatioObserved)}）`
-      : `${step?.channels ?? 'Next'} channels: ${value(step?.minimumActiveRouteFps)} FPS minimum across active routes (${percent(step?.minimumActiveRouteFpsRatioObserved)})`;
-  }
-  if (boundary?.firstExcludedReason === 'startup-sensitive-incomplete') {
-    return zh
-      ? `${step?.channels ?? '下一'} 路启动敏感窗口不纳入性能判定`
-      : `${step?.channels ?? 'Next'}-channel startup-sensitive window excluded from performance judgment`;
-  }
-  return zh ? '没有可解释的下一阶梯' : 'No interpretable next step';
+  const boundary = observation?.capacityBoundary;
+  const step = observation?.steps?.find((item) => item.channels === boundary?.firstFailureChannels);
+  if (boundary?.firstFailureCategory === 'fps-ratio') return zh
+    ? `${step?.channels ?? '下一'} 路全路最低 FPS 达标率 ${percent(step?.minimumActiveRouteFpsRatioObserved)}，低于 80% 门禁`
+    : `${step?.channels ?? 'Next'} channels: minimum active-route FPS ratio ${percent(step?.minimumActiveRouteFpsRatioObserved)}, below the 80% gate`;
+  return value(step?.failureReason ?? boundary?.firstFailureCategory);
 }
 
 function caseLabel(item, locale) {

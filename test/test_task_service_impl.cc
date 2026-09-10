@@ -6,21 +6,40 @@
 #include "catch_amalgamated.hpp"
 #include "mock/MockAlgorithmService.h"
 #include "mock/MockAppInfoService.h"
-#include "mock/MockServiceRegistry.h"
 #include "service/task/impl/TaskServiceImpl.h"
+#include "support/MockDefaults.h"
+#include "support/ScopedServiceOverride.h"
 #include "util/ErrorCode.h"
 
 using namespace cosmo::service;
 
+namespace {
+
+struct TaskCreationDependency {
+    cosmo::test::MockAppInfoService appInfoSvc;
+    cosmo::test::NamedExpectations expectations;
+    cosmo::test::ScopedServiceOverride<IAppInfoService> appInfo{appInfoSvc};
+
+    TaskCreationDependency() {
+        expectations.push_back(NAMED_ALLOW_CALL(appInfoSvc, GetNumber()).RETURN(1));
+    }
+};
+
+struct TaskStartDependencies {
+    cosmo::test::MockAlgorithmService algSvc;
+    cosmo::test::MockAppInfoService appInfoSvc;
+    cosmo::test::ScopedServiceOverride<IAlgorithmQuery> algorithmQuery{algSvc};
+    cosmo::test::ScopedServiceOverride<IAppInfoService> appInfo{appInfoSvc};
+};
+
+}  // namespace
+
 TEST_CASE("TaskServiceImpl: TaskCreate lifecycle", "[TaskService]") {
-    cosmo::test::MockServiceRegistry mocks;
-    ALLOW_CALL(mocks.appInfoSvc, GetNumber()).RETURN(1);
+    TaskCreationDependency dependencies;
     TaskServiceImpl svc;
     auto alg           = std::make_shared<cosmo::ActionAlg>();
     alg->algorithmCode = "test_alg";
     alg->algorithmName = "test_alg_name";
-
-    ALLOW_CALL(mocks.algSvc, GetAlgorithm("test_alg")).RETURN(alg);
 
     SECTION("empty channelId/taskId returns InvalidParam") {
         REQUIRE(svc.TaskCreate("", "channel_name", "task1", alg) == cosmo::util::ErrorEnum::InvalidParam);
@@ -47,15 +66,10 @@ TEST_CASE("TaskServiceImpl: TaskCreate lifecycle", "[TaskService]") {
 }
 
 TEST_CASE("TaskServiceImpl: TaskDelete lifecycle", "[TaskService]") {
-    cosmo::test::MockServiceRegistry mocks;
-    ALLOW_CALL(mocks.appInfoSvc, GetNumber()).RETURN(1);
-    ALLOW_CALL(mocks.appInfoSvc, GetOverviewStructureRecord()).RETURN(false);
-    ALLOW_CALL(mocks.appInfoSvc, GetModelDebug()).RETURN(false);
+    TaskCreationDependency dependencies;
     TaskServiceImpl svc;
     auto alg           = std::make_shared<cosmo::ActionAlg>();
     alg->algorithmCode = "test_alg";
-
-    ALLOW_CALL(mocks.algSvc, GetAlgorithm("test_alg")).RETURN(alg);
 
     SECTION("empty taskId returns InvalidParam") {
         REQUIRE(svc.TaskDelete("") == cosmo::util::ErrorEnum::InvalidParam);
@@ -78,13 +92,10 @@ TEST_CASE("TaskServiceImpl: TaskDelete lifecycle", "[TaskService]") {
 }
 
 TEST_CASE("TaskServiceImpl: concurrent delete has one owner", "[TaskService][concurrency]") {
-    cosmo::test::MockServiceRegistry mocks;
-    ALLOW_CALL(mocks.appInfoSvc, GetNumber()).RETURN(1);
+    TaskCreationDependency dependencies;
     TaskServiceImpl svc;
     auto alg           = std::make_shared<cosmo::ActionAlg>();
     alg->algorithmCode = "test_alg";
-    ALLOW_CALL(mocks.algSvc, GetAlgorithm("test_alg")).RETURN(alg);
-
     REQUIRE(svc.TaskCreate("ch1", "channel_name", "task1", alg) == cosmo::util::ErrorEnum::Success);
 
     std::atomic<int> deleted{0};
@@ -110,7 +121,7 @@ TEST_CASE("TaskServiceImpl: concurrent delete has one owner", "[TaskService][con
 }
 
 TEST_CASE("TaskServiceImpl: TaskStart/TaskStop", "[TaskService]") {
-    cosmo::test::MockServiceRegistry mocks;
+    TaskStartDependencies mocks;
     ALLOW_CALL(mocks.appInfoSvc, GetNumber()).RETURN(1);
     TaskServiceImpl svc;
     auto alg           = std::make_shared<cosmo::ActionAlg>();
@@ -148,11 +159,12 @@ TEST_CASE("TaskServiceImpl: TaskStart/TaskStop", "[TaskService]") {
 }
 
 TEST_CASE("TaskServiceImpl: Shutdown is idempotent and rejects new work", "[TaskService][lifecycle]") {
-    cosmo::test::MockServiceRegistry mocks;
+    TaskStartDependencies mocks;
     ALLOW_CALL(mocks.appInfoSvc, GetNumber()).RETURN(1);
     TaskServiceImpl svc;
     auto alg           = std::make_shared<cosmo::ActionAlg>();
     alg->algorithmCode = "test_alg";
+    ALLOW_CALL(mocks.algSvc, GetAlgorithm("test_alg")).RETURN(alg);
 
     REQUIRE(svc.TaskCreate("ch1", "channel_name", "task1", alg) == cosmo::util::ErrorEnum::Success);
     REQUIRE(svc.TaskCount() == 1);
@@ -172,13 +184,10 @@ TEST_CASE("TaskServiceImpl: Shutdown is idempotent and rejects new work", "[Task
 }
 
 TEST_CASE("TaskServiceImpl: Query methods", "[TaskService]") {
-    cosmo::test::MockServiceRegistry mocks;
-    ALLOW_CALL(mocks.appInfoSvc, GetNumber()).RETURN(1);
+    TaskCreationDependency dependencies;
     TaskServiceImpl svc;
     auto alg           = std::make_shared<cosmo::ActionAlg>();
     alg->algorithmCode = "test_alg";
-
-    ALLOW_CALL(mocks.algSvc, GetAlgorithm("test_alg")).RETURN(alg);
 
     SECTION("QueryTasks empty -> empty") {
         REQUIRE(svc.QueryTasks(false).empty());
@@ -218,8 +227,6 @@ TEST_CASE("TaskServiceImpl: Query methods", "[TaskService]") {
 }
 
 TEST_CASE("TaskServiceImpl: log throttle", "[TaskService]") {
-    cosmo::test::MockServiceRegistry mocks;
-    ALLOW_CALL(mocks.appInfoSvc, GetNumber()).RETURN(1);
     TaskServiceImpl svc;
 
     SECTION("rapid GetTaskLiveOverviewInfo throttled") {

@@ -10,8 +10,10 @@
 #include <filesystem>
 #include <fstream>
 
-#include "mock/MockServiceRegistry.h"
 #include "service/media/impl/AudioServiceImpl.h"
+#include "service/network/IHttpClient.h"
+#include "support/ScopedPathOverride.h"
+#include "support/ScopedServiceOverride.h"
 
 using namespace cosmo::service;
 namespace fs = std::filesystem;
@@ -20,12 +22,12 @@ namespace {
 
 struct AudioTestFixture {
     std::string testDir;
-    cosmo::test::MockServiceRegistry mocks;
+    cosmo::test::ScopedPathOverride pathOverride;
 
-    AudioTestFixture() {
-        testDir = "/tmp/cosmo_audio_test_" +
-                  std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
-        cosmo::path::OverrideRootPathForTest(testDir, testDir);
+    AudioTestFixture()
+        : testDir("/tmp/cosmo_audio_test_" +
+                  std::to_string(std::chrono::system_clock::now().time_since_epoch().count())),
+          pathOverride(testDir, testDir) {
         fs::create_directories(testDir + "/conf");
         fs::create_directories(testDir + "/conf/audioMng");
 
@@ -39,6 +41,27 @@ struct AudioTestFixture {
     }
 };
 
+class RecordingHttpClient final : public IHttpClient {
+public:
+    HttpResponse Get(const std::string& url, long /*connectTimeoutSec*/, long /*timeoutSec*/,
+                     const std::vector<std::pair<std::string, std::string>>& /*headers*/) override {
+        ++getCount;
+        lastUrl = url;
+        return {200, R"({"code":200,"message":"OK"})"};
+    }
+
+    HttpResponse Post(const std::string& /*url*/, const std::string& /*data*/,
+                      const std::string& /*contentType*/, long /*connectTimeoutSec*/, long /*timeoutSec*/,
+                      const std::vector<std::pair<std::string, std::string>>& /*headers*/) override {
+        ++postCount;
+        return {500, {}};
+    }
+
+    int getCount{0};
+    int postCount{0};
+    std::string lastUrl;
+};
+
 }  // namespace
 
 TEST_CASE("AudioServiceImpl: construction and destruction", "[AudioService]") {
@@ -46,6 +69,18 @@ TEST_CASE("AudioServiceImpl: construction and destruction", "[AudioService]") {
     REQUIRE_NOTHROW([]() {
         // May warn about missing files, but should not crash
     }());
+}
+
+TEST_CASE("AudioServiceImpl: speaker health check uses GET", "[AudioService][HttpClient]") {
+    AudioTestFixture fix;
+    RecordingHttpClient http_client;
+    cosmo::test::ScopedServiceOverride<IHttpClient> http_client_guard(http_client);
+    AudioServiceImpl sut;
+
+    REQUIRE(sut.CheckAudioDeviceAlive("192.0.2.10"));
+    REQUIRE(http_client.getCount == 1);
+    REQUIRE(http_client.postCount == 0);
+    REQUIRE(http_client.lastUrl == "http://192.0.2.10/v1/check_alive");
 }
 
 TEST_CASE("AudioServiceImpl: QueryAudioFiles with invalid pagination returns empty", "[AudioService]") {

@@ -15,12 +15,29 @@
 #include <thread>
 #include <vector>
 
-#include "mock/MockServiceRegistry.h"
 #include "mock/MockTaskService.h"
 #include "service/camera/impl/CameraServiceImpl.h"
+#include "support/MockDefaults.h"
+#include "support/ScopedPathOverride.h"
+#include "support/ScopedServiceOverride.h"
 
 using namespace cosmo::service;
 using namespace cosmo;
+
+namespace {
+
+struct CameraServiceDependencies {
+    cosmo::test::MockTaskService taskSvc;
+    cosmo::test::NamedExpectations expectations;
+    cosmo::test::ScopedServiceOverride<ITaskLifecycle> taskLifecycle{taskSvc};
+    cosmo::test::ScopedServiceOverride<ITaskChannel> taskChannel{taskSvc};
+
+    CameraServiceDependencies() {
+        cosmo::test::AllowTaskMutationSuccess(taskSvc, expectations);
+    }
+};
+
+}  // namespace
 
 // ============================================================
 // 构造 / 析构安全
@@ -145,9 +162,9 @@ TEST_CASE("CameraServiceImpl: live preview leases keep the channel active", "[Ca
     const auto test_base = "/tmp/cosmo_camera_preview_lease_" +
                            std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
     std::filesystem::create_directories(test_base);
-    cosmo::path::OverrideRootPathForTest(test_base, test_base);
+    cosmo::test::ScopedPathOverride path_override(test_base, test_base);
 
-    cosmo::test::MockServiceRegistry mocks;
+    CameraServiceDependencies mocks;
     CameraServiceImpl svc;
 
     MsgCameraInfo config;
@@ -179,7 +196,6 @@ TEST_CASE("CameraServiceImpl: live preview leases keep the channel active", "[Ca
 
     REQUIRE_NOTHROW(svc.Stop());
     std::filesystem::remove_all(test_base);
-    cosmo::path::OverrideRootPathForTest("/tmp/cosmo_test", "/tmp/cosmo_test_app");
 }
 
 // ============================================================
@@ -253,9 +269,9 @@ TEST_CASE("CameraServiceImpl: concurrent explicit-id Add creates one camera",
     const auto test_base = "/tmp/cosmo_camera_add_concurrency_" +
                            std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
     std::filesystem::create_directories(test_base);
-    cosmo::path::OverrideRootPathForTest(test_base, test_base);
+    cosmo::test::ScopedPathOverride path_override(test_base, test_base);
 
-    cosmo::test::MockServiceRegistry mocks;
+    CameraServiceDependencies mocks;
     ALLOW_CALL(mocks.taskSvc, TaskCreate(trompeloeil::_, trompeloeil::_, trompeloeil::_, trompeloeil::_))
         .RETURN(cosmo::util::ErrorEnum::Success);
     ALLOW_CALL(mocks.taskSvc, TaskChannelSetUrl(trompeloeil::_, trompeloeil::_));
@@ -300,7 +316,6 @@ TEST_CASE("CameraServiceImpl: concurrent explicit-id Add creates one camera",
     REQUIRE_NOTHROW(svc.Stop());
 
     std::filesystem::remove_all(test_base);
-    cosmo::path::OverrideRootPathForTest("/tmp/cosmo_test", "/tmp/cosmo_test_app");
 }
 
 // ============================================================
@@ -312,8 +327,8 @@ TEST_CASE("CameraServiceImpl: Full lifecycle (Add Query Update Delete)", "[Camer
                               std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
     std::filesystem::create_directories(testBaseDir);
 
-    cosmo::test::MockServiceRegistry mocks;
-    cosmo::path::OverrideRootPathForTest(testBaseDir, testBaseDir);
+    cosmo::test::ScopedPathOverride path_override(testBaseDir, testBaseDir);
+    CameraServiceDependencies mocks;
 
     // 我们必须手动初始化 Entities 以防由于文件系统变化导致的崩溃
     CameraServiceImpl svc;

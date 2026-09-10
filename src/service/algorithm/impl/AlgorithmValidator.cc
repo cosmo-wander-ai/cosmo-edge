@@ -4,7 +4,6 @@
 
 #include "service/detail/ServiceRegistry.h"
 #include "service/model/IModelQuery.h"
-#include "service/model/IModelService.h"
 #include "util/FileUtil.h"
 #include "util/JsonFileUtil.h"
 #include "util/JsonStructUtil.h"
@@ -56,8 +55,8 @@ void AlgorithmValidator::ValidateModels(algorithm::AlgorithmPacketInfo& cfgInfo)
                 if (cosmo::key::ATOM_CODE == param.key.ToString()) {
                     algorithm::AlgorithmModelInfo info;
                     info.modelCode = param.value;
-                    info.bActive   = ServiceRegistry::Instance().Get<IModelService>().ModelValid(
-                        info.modelCode, info.modelName);
+                    info.bActive   = ServiceRegistry::Instance().Get<IModelQuery>().ModelValid(info.modelCode,
+                                                                                               info.modelName);
                     if (!info.bActive) {
                         has_unread_task = true;
                     }
@@ -77,7 +76,7 @@ void AlgorithmValidator::ValidateLocalModels(algorithm::AlgorithmPacketInfo& cfg
     int has_unread_task = false;
     for (auto& info : cfgInfo.modelInfo.models) {
         info.bActive =
-            ServiceRegistry::Instance().Get<IModelService>().ModelValid(info.modelCode, info.modelName);
+            ServiceRegistry::Instance().Get<IModelQuery>().ModelValid(info.modelCode, info.modelName);
         if (!info.bActive) {
             has_unread_task = true;
         }

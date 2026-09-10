@@ -60,6 +60,27 @@ http://127.0.0.1:8080
   ```bash
   ./scripts/macos-docker-preview.sh logs --follow
   ```
+## Windows x86 Docker 问题排查
+
+如果您在 Windows 环境下使用 x86 Docker 配置设置 `cosmo-edge`，请检查以下内容：
+
+1. **Docker Desktop:** 确保 Docker Desktop 正在运行，且 Docker 引擎已完成启动。如果命令超时或报告守护进程错误，请在继续前检查 Docker Desktop 是否正在运行。
+
+2. **Docker Compose V2:** 使用 Compose V2 命令格式 `docker compose`，而不是旧的 `docker-compose` 命令。
+
+3. **端口 8080:** Windows x86 设置使用宿主机端口 `8080` 作为 Web 控制台。如果 Docker 报告端口绑定错误，请参阅 [端口冲突](#端口冲突) 了解 Windows 特定的检查方法和修改宿主机端口的说明。
+
+4. **Windows x86 配置:** 启动 Windows x86 设置时使用 `docker-compose.x86.windows.yml`：
+
+   ```powershell
+   docker compose -f docker-compose.x86.windows.yml up -d --build
+   ```
+
+5. **Docker 日志:** 要查看 x86 Docker 日志，请运行：
+
+   ```powershell
+   docker compose -f docker-compose.x86.windows.yml logs -f
+   ```
 
 ## 端口冲突
 

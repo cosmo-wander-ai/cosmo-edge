@@ -21,19 +21,25 @@ AreaAlarm::~AreaAlarm() {
 }
 
 void AreaAlarm::ResetStateOnRestart() {
+    std::lock_guard<std::shared_mutex> lock(mtx);
     track_id_status_map_.clear();
-    pass_flow_areas_map_.clear();
-    area_target_status_map_.clear();
+
+    // These maps contain both configured area entries and per-run history.
+    // Rebuild the entries from the persisted snapshot so restart clears only
+    // runtime state instead of leaving the action without configured areas.
+    RebuildConfiguredAreaState();
     has_track_       = false;
     frame_index_     = 0;
     is_alarm_needed_ = false;
     alarm_data_.reset();
     handle_frame_cnt.store(0, std::memory_order_relaxed);
-    invalid_frame_cnt = 0;
+    invalid_frame_cnt  = 0;
+    report_time_point_ = chrono::steady_clock::now();
     LOG_INFO(
-        "{}Task:{} {}/{} ResetStateOnRestart: cleared track_id_status_map, "
-        "pass_flow_areas_map, area_target_status_map, and per-run flags",
-        kTag, task_id, action_info_.actionName, action_info_.flowActionId);
+        "{}Task:{} {}/{} ResetStateOnRestart: cleared per-run state and rebuilt {} target areas / {} "
+        "pass-flow areas",
+        kTag, task_id, action_info_.actionName, action_info_.flowActionId, area_target_status_map_.size(),
+        pass_flow_areas_map_.size());
 }
 
 AreaAlarm::AreaAlarm(const std::string& taskId, ActionNode& action)

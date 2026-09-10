@@ -1,11 +1,11 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "manifestStatus": "frozen-publication-candidate",
   "release": {
     "version": "1.1.0",
     "tag": "v1.1.0",
     "publicationState": "prepared-not-published",
-    "frozenAt": "2026-08-24T11:25:37+08:00"
+    "frozenAt": "2026-08-24T19:34:16+08:00"
   },
   "sourceBaseline": {
     "repository": "https://github.com/cosmo-wander-ai/cosmo-edge",
@@ -24,13 +24,13 @@
     "version": "0.1.0",
     "role": "current publication and future-run tool; execution provenance remains attached to each evidence set",
     "nodeRequirement": ">=20",
-    "cliSha256": "b93c3beebb3a453340038e307e296832da26263175cb34915a17b1d916a35eda",
-    "evaluatorSha256": "5b483c0b1217c383fc7ff9179357161d53a1d4ac7c943e5789ddecb171160799",
+    "cliSha256": "3bdc34c65698d5e920eeffd6d8536ed14e8fc8bf54910d0887e53c2a5ac13c85",
+    "evaluatorSha256": "284874e838fa1a6f118105bb56770f75f7d8882e292a1d79028f6f1779963c3c",
     "metricsSamplerSha256": "db1f753ff2810aec938f60f872cbc3fba92cc3403b0c38044ed6f79e7adc0e8d",
-    "reportWriterSha256": "a3fe4e94b15cfc830426de7e96f20f589cb27ff44dbb875e9f8f722cba2fdb31",
-    "vlmReadinessSha256": "c265df2b10217af6ab15332d1441358b723a518be993853fcb03e83a5a664755",
+    "reportWriterSha256": "538e3bb7fd1a4765bfa5e215eda1365c6add4eda9d66a3f756ab35a922c7017b",
+    "vlmReadinessSha256": "8d51827dc51df9be9c47e7219db5c3768b5091e78df2bf7e2d8374a1a76a890b",
     "scenarioPackageSha256": "1779e426eeb82d230185166070192fea589a5b15bc64e74c574ef59ecf92da67",
-    "taskRunnerSha256": "3ed5a5aa8eac42d53fad6bb4a04ad2ac53026aefb7d1120afb246f3caf3e3161",
+    "taskRunnerSha256": "43471a0a64943c41bc03386027079380f953712b11c85a041349c2c82678f2df",
     "lockfileSha256": "8da33a2d1e27df0aac4e9ba5ec279f9d85ef7be1eb398cb555a0e3b45ca1a6a7",
     "classifierFpsOverride": "detector and classifier nodes receive the same requested FPS",
     "vlmCompletionCounter": "task-local completion queue, not shared Qwen worker batches",
@@ -65,7 +65,7 @@
     "smallModelTargetFps": [24, 10, 7, 5],
     "vlmHoldSecondsPerStep": 60,
     "vlmTargetFpsPerChannel": 0.1,
-    "vlmFpsGateEnabled": false,
+    "vlmFpsGateEnabled": true,
     "vlmMaximumMissingRate": 0,
     "vlmMaximumAverageDiscardRate": 0.05,
     "cvGates": {
@@ -148,7 +148,7 @@
       "results/rk3576/cases.json",
       "results/rv1126b/cases.json"
     ],
-    "vlm": "2026-08-20 controlled raw observations with conservative 80% publication boundaries; mixed readiness protocols are not cross-platform comparable",
+    "vlm": "2026-08-24 formal three-platform validation with one executed readiness and throughput-gate protocol",
     "vlmObservations": "results/vlm-observations.json",
     "dualCv72HourObservation": "results/dual-cv-72h.json",
     "dualCv72HourRefresh": {
@@ -167,23 +167,26 @@
       "rtspResilienceClaimAllowed": false,
       "productReleaseQualified": false
     },
-    "vlmPublicationEvaluation": {
-      "classification": "conservative-post-evaluation",
+    "vlmValidation": {
+      "classification": "validated-vlm-short-run-capacity",
       "targetFpsPerChannel": 0.1,
       "minimumActiveRouteFpsRatio": 0.8,
-      "requiresNonFpsGatePass": true,
-      "usesContiguousCompletedPrefix": true,
-      "startupSensitiveStopsArePerformanceFailures": false,
-      "capacityClaimAllowed": false
+      "fpsGateExecuted": true,
+      "taskLocalReadinessRequired": true,
+      "taskLocalCompletionCounterRequired": true,
+      "sameInputPromptAndWindow": true,
+      "threePlatformEndToEndAccepted": true,
+      "maximumCapacityCertified": false,
+      "productionConfigurationCertified": false
     },
     "vlmRefresh": {
-      "sourceCommit": "f0a26546c60c57e70166f18d556f712a273a866d",
-      "sourceTree": "a9ebe3921771d8aaa0d29244074e7bfe3d098cf3",
-      "finalToolPatchSha256": "b056be668748058d30863b7870f96272b07f2bd48d601bc8d840ea200b5bf0f3",
-      "preReadinessToolPatchSha256": "8fd1da3a8c7fc74fedc12c5b5e1603d044f65f190f06cba1ce49b361c1a0ca68",
-      "crossPlatformComparable": false,
-      "projectionPolicy": "CV186X/RK3576 public artifacts stop at the first non-FPS gate; execution continued beyond the projection cutoff",
-      "rawEvidence": "private per-platform runs referenced by source summary/metrics hashes; not included in fullEvidenceArchive"
+      "status": "formal-validation-complete",
+      "evidenceDate": "2026-08-24",
+      "sourceCommit": "f4ec2fc51f1753231165f143d14522effbb77125",
+      "sourceTree": "2ed191ac67df2fc23c36ffa9933a387683f51732",
+      "crossPlatformComparable": true,
+      "protocolId": "cosmoedge-v1.1-vlm-controlled-1to8-20260824",
+      "rawEvidence": "private capacity and end-to-end artifacts referenced by SHA-256 in the canonical VLM file; not included in fullEvidenceArchive"
     },
     "fullEvidenceArchive": {
       "artifactName": "original-v1.1-5ec280a9.tar.gz",
@@ -199,6 +202,8 @@
     "canonicalBenchmarkDatasetComplete": true,
     "generatedReportContractVerified": true,
     "controlledLongRunConfiguredWorkloadVerified": true,
+    "validatedVlmPerformance": true,
+    "threePlatformVlmEndToEndAccepted": true,
     "publicAssetRedistributionSafe": true,
     "readyForRepositoryReview": true,
     "productReleaseQualified": false

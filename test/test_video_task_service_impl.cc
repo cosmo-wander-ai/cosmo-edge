@@ -4,21 +4,39 @@
 // debug-mode guard: when mvDebug is empty AND GetHaveManager() returns false,
 // errc must be set to MvDebugModel.
 //
-// MockServiceRegistry already registers mock IAppInfoService with
-// GetHaveManager() returning false by default, which is exactly the
-// precondition for the guard to trigger.
-
 #include "mock/MockActionService.h"
 #include "mock/MockAppInfoService.h"
 #include "mock/MockClientMessageService.h"
-#include "mock/MockServiceRegistry.h"
 #include "service/task/impl/TaskServiceImpl.h"
+#include "support/MockDefaults.h"
+#include "support/ScopedServiceOverride.h"
 #include "util/Keys.h"
 
 using namespace cosmo::service;
 
+namespace {
+
+struct UnmanagedAppDependency {
+    cosmo::test::MockAppInfoService appInfoSvc;
+    cosmo::test::NamedExpectations expectations;
+    cosmo::test::ScopedServiceOverride<IAppInfoService> appInfo{appInfoSvc};
+
+    UnmanagedAppDependency() {
+        expectations.push_back(NAMED_ALLOW_CALL(appInfoSvc, GetHaveManager()).RETURN(false));
+    }
+};
+
+struct TaskCreateDependencies {
+    cosmo::test::MockActionService actionSvc;
+    cosmo::test::MockClientMessageService clientMsgSvc;
+    cosmo::test::ScopedServiceOverride<IActionService> action{actionSvc};
+    cosmo::test::ScopedServiceOverride<IClientMessageService> clientMessage{clientMsgSvc};
+};
+
+}  // namespace
+
 TEST_CASE("TaskServiceImpl: ProcessTaskCancel rejects non-debug without manager", "[task-service]") {
-    cosmo::test::MockServiceRegistry mocks;
+    UnmanagedAppDependency mocks;
 
     TaskServiceImpl sut;
 
@@ -32,7 +50,7 @@ TEST_CASE("TaskServiceImpl: ProcessTaskCancel rejects non-debug without manager"
 }
 
 TEST_CASE("TaskServiceImpl: ProcessTaskCreate rejects non-debug without manager", "[task-service]") {
-    cosmo::test::MockServiceRegistry mocks;
+    UnmanagedAppDependency mocks;
 
     TaskServiceImpl sut;
 
@@ -48,7 +66,7 @@ TEST_CASE("TaskServiceImpl: ProcessTaskCreate rejects non-debug without manager"
 }
 
 TEST_CASE("TaskServiceImpl: ProcessTaskCreate passes with debug mode", "[task-service]") {
-    cosmo::test::MockServiceRegistry mocks;
+    TaskCreateDependencies mocks;
     ALLOW_CALL(mocks.actionSvc, GetActionAlg(trompeloeil::_, trompeloeil::_)).RETURN(nullptr);
     ALLOW_CALL(mocks.actionSvc, GetActionAlgByCode(trompeloeil::_)).RETURN(nullptr);
     ALLOW_CALL(mocks.clientMsgSvc, FetchAlgorithmConfig(trompeloeil::_, trompeloeil::_)).RETURN(false);
@@ -70,8 +88,6 @@ TEST_CASE("TaskServiceImpl: ProcessTaskCreate passes with debug mode", "[task-se
 }
 
 TEST_CASE("TaskServiceImpl: ProcessTaskCancel passes with debug mode", "[task-service]") {
-    cosmo::test::MockServiceRegistry mocks;
-
     TaskServiceImpl sut;
 
     cosmo::MsgTaskCancleRecv data;
@@ -84,9 +100,10 @@ TEST_CASE("TaskServiceImpl: ProcessTaskCancel passes with debug mode", "[task-se
 }
 
 TEST_CASE("TaskServiceImpl: ProcessTaskCreate with HaveManager passes", "[task-service]") {
-    cosmo::test::MockServiceRegistry mocks;
-    // Override the default mock to return true for GetHaveManager
-    ALLOW_CALL(mocks.appInfoSvc, GetHaveManager()).RETURN(true);
+    TaskCreateDependencies mocks;
+    cosmo::test::MockAppInfoService appInfoSvc;
+    cosmo::test::ScopedServiceOverride<IAppInfoService> appInfo(appInfoSvc);
+    ALLOW_CALL(appInfoSvc, GetHaveManager()).RETURN(true);
     ALLOW_CALL(mocks.actionSvc, GetActionAlg(trompeloeil::_, trompeloeil::_)).RETURN(nullptr);
     ALLOW_CALL(mocks.actionSvc, GetActionAlgByCode(trompeloeil::_)).RETURN(nullptr);
     ALLOW_CALL(mocks.clientMsgSvc, FetchAlgorithmConfig(trompeloeil::_, trompeloeil::_)).RETURN(false);

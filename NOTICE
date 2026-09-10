@@ -119,13 +119,34 @@ Permissive licenses (MIT, BSD, Apache-2.0, zlib, BSL-1.0, public domain)
       license.rst confirms Apache 2.0. A copy of the license text has been
       added at the Source path above.
 
-Weak copyleft licenses (MPL)
-............................
+- Rockchip MPP 1.1.0
+      License: Apache License 2.0 and MIT for the files identified upstream.
+      License texts: licenses/third-party/rockchip-mpp/
 
-These libraries are file-level weak-copyleft licensed. They are compatible
-with this Apache 2.0 combined work, but modifications to THEIR source files
-must remain under MPL (with the source disclosed). Modifications to other
-files of CosmoEdge are unaffected.
+- Rockchip librga 1.10.6
+      License: Apache License 2.0.
+      License text: licenses/third-party/rockchip-librga/COPYING
+
+- Rockchip RKLLM Runtime 1.3.0
+      License: BSD-3-Clause-style redistribution terms, with bundled MIT
+               notices for modified ggml and llama.cpp components.
+      Package path: share/licenses/rkllm/LICENSE
+
+Weak copyleft licenses (LGPL and MPL)
+.....................................
+
+- FFmpeg 4.4.6
+      License: GNU Lesser General Public License 2.1 or later
+               (LGPL-2.1-or-later).
+      License text: licenses/third-party/ffmpeg/COPYING.LGPLv2.1
+      License summary: 3rd/srs-6.0-r0/trunk/3rdparty/ffmpeg-4-fit/LICENSE.md
+      Note: The packaged prebuilt libavcodec binaries identify themselves as
+            LGPL 2.1-or-later builds. The package verifier rejects a runtime
+            that does not carry that embedded license identity.
+
+The following libraries are file-level MPL weak-copyleft components. Changes
+to THEIR source files must remain under the applicable MPL terms (with source
+disclosed). Modifications to other CosmoEdge files are unaffected.
 
 - Eigen 3.2.92
       License: Mozilla Public License 2.0 (MPL-2.0).
@@ -162,6 +183,26 @@ Codec and binary distribution notice
 Public release builds must document whether GPL-licensed FFmpeg codec support
 is disabled or enabled. Enabling GPL codec components changes redistribution
 obligations (it can make the resulting FFmpeg build GPL-licensed).
+
+Separately approved binary artifacts
+------------------------------------
+
+- Rockchip RKNN Runtime 2.3.2
+      Upstream SDK terms: licenses/third-party/rknn-runtime/LICENSE
+      Runtime source revision: 42aa1d426c0a9e0869b6374edba009f7208a1926
+      License source revision: 59a913d172e7f5ff03c9076e2ec7b1b1288ffd08
+      Runtime SHA-256: d31fc19c85b85f6091b2bd0f6af9d962d5264a4e410bfb536402ec92bac738e8
+      Note: The upstream agreement grants limited rights for Rockchip-compatible
+            application development and redistribution of modifications or
+            derivative works. It grants no rights beyond its express scope.
+
+- Cosmo Model Guard v2 runtime
+      Package terms record: share/licenses/cosmo-model-guard/ARTIFACT-TERMS.md
+      Distribution approval: https://github.com/cosmo-wander-ai/cosmo-edge/issues/59
+      Approved integration: https://github.com/cosmo-wander-ai/cosmo-edge/pull/101
+      Runtime SHA-256: 74ff8b456548e615882e5c9ee6dd18a51a2caf8124d761d7243dad014310042c
+      Note: Repository Apache-2.0 terms do not replace the artifact owner's
+            separately approved redistribution terms.
 
 Prebuilt binaries, model packages, tokenizer resources, and sample media
 referenced by this repository are reviewed separately before publication, as

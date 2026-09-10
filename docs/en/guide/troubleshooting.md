@@ -60,7 +60,24 @@ View logs:
   ```bash
   ./scripts/macos-docker-preview.sh logs --follow
   ```
+## Windows x86 Docker Troubleshooting
 
+If you are setting up `cosmo-edge` on Windows using the x86 Docker configuration, check the following:
+
+1. **Docker Desktop:** Make sure Docker Desktop is running and the Docker Engine has finished starting. If commands time out or report daemon errors, check that Docker Desktop is running before continuing.
+
+2. **Docker Compose V2:** Use the Compose V2 command format `docker compose` instead of the older `docker-compose` command.
+
+3. **Port 8080:** The Windows x86 setup uses host port `8080` for the web console. If Docker reports a port binding error, see [Port Conflicts](#port-conflicts) for Windows-specific checks and instructions for changing the host port.
+
+4. **Windows x86 configuration:** Use `docker-compose.x86.windows.yml` when starting the Windows x86 setup:
+
+   ```powershell
+   docker compose -f docker-compose.x86.windows.yml up -d --build
+5. **Docker logs**: To view the x86 Docker logs, run:
+   ```powershell 
+   docker compose -f docker-compose.x86.windows.yml logs -f
+   
 ## Port Conflicts
 
 The x86 Compose file publishes:

@@ -122,18 +122,20 @@ const closeMenu = (e) => {
   }
 }
 
+const handleEdgeMenuOpen = (edgeId) => {
+  if (edgeId !== props.id) {
+    menuVisible.value = false
+  }
+}
+
 onMounted(() => {
   document.addEventListener('click', closeMenu)
-  EventBus.$on('edgeMenu:open', (edgeId) => {
-    if (edgeId !== props.id) {
-      menuVisible.value = false
-    }
-  })
+  EventBus.$on('edgeMenu:open', handleEdgeMenuOpen)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', closeMenu)
-  EventBus.$off('edgeMenu:open')
+  EventBus.$off('edgeMenu:open', handleEdgeMenuOpen)
 })
 
 // 添加分支：从当前边的 source 增加一个并行分支到新节点

@@ -17,14 +17,13 @@ constexpr char kModelAuthorizationDirectory[] = "model-guard";
 
 // Execute an immediate system reboot via the `reboot` command.
 void ImmReboot() {
-#ifndef COSMO_NN_USE_SOPHON_BACKEND
-    LOG_WARN("{}", "System reboot is disabled on x86 platform.");
-    return;
-#else
+    if (!cosmo::platform::SupportsSystemReboot()) {
+        LOG_WARN("{}", "System reboot is disabled on the current backend.");
+        return;
+    }
     sync();
     std::string out;
     cosmo::util::Exec(std::vector<std::string>{"reboot"}, out);
-#endif
 }
 
 }  // namespace
@@ -76,11 +75,13 @@ void RebootManager::Reset(const std::string& reason, const std::string& baseDir)
     JoinPendingLocked();
     thread_ = std::thread([baseDir]() {
         std::this_thread::sleep_for(cosmo::timing::kServiceReadyDelay);
-#ifndef COSMO_NN_USE_SOPHON_BACKEND
-        LOG_WARN("System reset (clear base dir and reboot) is disabled on x86 platform. Base dir: {}",
-                 baseDir);
-        return;
-#else
+        if (!SupportsSystemReboot()) {
+            LOG_WARN(
+                "System reset (clear base dir and reboot) is disabled on the current backend. "
+                "Base dir: {}",
+                baseDir);
+            return;
+        }
         LOG_INFO("Clearing factory-resettable data in: {}", baseDir);
         const auto ec = ClearFactoryResetData(baseDir);
         if (ec) {
@@ -88,7 +89,6 @@ void RebootManager::Reset(const std::string& reason, const std::string& baseDir)
         }
 
         ImmReboot();
-#endif
     });
 }
 

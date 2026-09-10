@@ -4,7 +4,7 @@
 
 #include "flow/common/AlgDataRecord.h"
 #include "service/detail/ServiceRegistry.h"
-#include "service/model/IModelService.h"
+#include "service/model/IModelPathMapping.h"
 #include "service/system/IConfigReadService.h"
 #include "util/Log.h"
 #include "util/UuidUtil.h"
@@ -40,7 +40,7 @@ bool AiClassifierBase::AiSdkInit() {
 
     std::string cfg_path   = "";
     std::string model_path = "";
-    auto cfg_ret           = service::ServiceRegistry::Instance().Get<service::IModelService>().GetModelCfg(
+    auto cfg_ret = service::ServiceRegistry::Instance().Get<service::IModelPathMapping>().GetModelCfg(
         alg_code_, cfg_path, model_path);
     if (!cfg_ret) {
         LOG_WARN("{}Get Model Configure Failed. AlgCode:{} code:{}", log_tag_, alg_code_, cfg_ret);

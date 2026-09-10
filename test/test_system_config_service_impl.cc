@@ -5,13 +5,24 @@
 #include "catch_amalgamated.hpp"
 #include "mock/MockAlarmPushService.h"
 #include "mock/MockNetworkService.h"
-#include "mock/MockServiceRegistry.h"
 #include "service/system/impl/SystemServiceImpl.h"
+#include "support/ScopedPathOverride.h"
+#include "support/ScopedServiceOverride.h"
 #include "util/PathUtil.h"
 
 namespace fs = std::filesystem;
 
 namespace {
+
+struct AlarmPushDependency {
+    cosmo::test::MockAlarmPushService alarmPushSvc;
+    cosmo::test::ScopedServiceOverride<cosmo::service::IAlarmPushService> registration{alarmPushSvc};
+};
+
+struct NetworkDependency {
+    cosmo::test::MockNetworkService networkSvc;
+    cosmo::test::ScopedServiceOverride<cosmo::service::INetworkService> registration{networkSvc};
+};
 
 // Helper: create a minimal valid JSON config file at the given path
 void WriteJsonFile(const std::string& path, const std::string& content) {
@@ -25,9 +36,10 @@ void WriteJsonFile(const std::string& path, const std::string& content) {
 // to dir/conf/.
 struct TestConfigDir {
     std::string dir;
+    cosmo::test::ScopedPathOverride pathOverride;
 
-    explicit TestConfigDir(const std::string& base = "/tmp/cosmo_sysconfig_test") : dir(base) {
-        cosmo::path::OverrideRootPathForTest(dir, dir);
+    explicit TestConfigDir(const std::string& base = "/tmp/cosmo_sysconfig_test")
+        : dir(base), pathOverride(dir, dir) {
         auto cfgDir = dir + "/conf";
         fs::create_directories(cfgDir);
         // alarmParam.json — default empty envelope
@@ -47,7 +59,6 @@ struct TestConfigDir {
 }  // namespace
 
 TEST_CASE("SystemServiceImpl: PictureQuality validation", "[SystemConfigService]") {
-    cosmo::test::MockServiceRegistry mocks;
     TestConfigDir cfg;
 
     cosmo::service::SystemServiceImpl sut;
@@ -116,7 +127,6 @@ TEST_CASE("SystemServiceImpl: PictureQuality validation", "[SystemConfigService]
 }
 
 TEST_CASE("SystemServiceImpl: AlarmVideoDuration validation", "[SystemConfigService]") {
-    cosmo::test::MockServiceRegistry mocks;
     TestConfigDir cfg;
 
     cosmo::service::SystemServiceImpl sut;
@@ -188,7 +198,6 @@ TEST_CASE("SystemServiceImpl: AlarmVideoDuration validation", "[SystemConfigServ
 }
 
 TEST_CASE("SystemServiceImpl: RebootParam validation", "[SystemConfigService]") {
-    cosmo::test::MockServiceRegistry mocks;
     TestConfigDir cfg;
 
     cosmo::service::SystemServiceImpl sut;
@@ -255,7 +264,6 @@ TEST_CASE("SystemServiceImpl: RebootParam validation", "[SystemConfigService]") 
 }
 
 TEST_CASE("SystemServiceImpl: DebugMode and ActionSwitch", "[SystemConfigService]") {
-    cosmo::test::MockServiceRegistry mocks;
     TestConfigDir cfg;
 
     cosmo::service::SystemServiceImpl sut;
@@ -301,7 +309,6 @@ TEST_CASE("SystemServiceImpl: DebugMode and ActionSwitch", "[SystemConfigService
 }
 
 TEST_CASE("SystemServiceImpl: PopUpParam", "[SystemConfigService]") {
-    cosmo::test::MockServiceRegistry mocks;
     TestConfigDir cfg;
 
     cosmo::service::SystemServiceImpl sut;
@@ -350,7 +357,7 @@ TEST_CASE("SystemServiceImpl: PopUpParam", "[SystemConfigService]") {
 }
 
 TEST_CASE("SystemServiceImpl: HttpInterface delegates to AlarmPushService", "[SystemConfigService]") {
-    cosmo::test::MockServiceRegistry mocks;
+    AlarmPushDependency mocks;
     TestConfigDir cfg;
 
     cosmo::service::SystemServiceImpl sut;
@@ -373,14 +380,15 @@ TEST_CASE("SystemServiceImpl: HttpInterface delegates to AlarmPushService", "[Sy
         REQUIRE(result == cosmo::util::ErrorEnum::Success);
     }
 
-    SECTION("SetHttpInterfaceParam rejects unsafe URL before delegation") {
+    SECTION("SetHttpInterfaceParam propagates validation failure from IAlarmPushService") {
         cosmo::service::HttpPushParam param{true, "file:///etc/passwd"};
+        REQUIRE_CALL(mocks.alarmPushSvc, SetPush(true, std::string("file:///etc/passwd")))
+            .RETURN(cosmo::util::ErrorEnum::InvalidParam);
         REQUIRE(sut.SetHttpInterfaceParam(param) == cosmo::util::ErrorEnum::InvalidParam);
     }
 }
 
 TEST_CASE("SystemServiceImpl: ResourceLimit", "[SystemConfigService]") {
-    cosmo::test::MockServiceRegistry mocks;
     TestConfigDir cfg;
 
     cosmo::service::SystemServiceImpl sut;
@@ -403,7 +411,6 @@ TEST_CASE("SystemServiceImpl: ResourceLimit", "[SystemConfigService]") {
 }
 
 TEST_CASE("SystemServiceImpl: RunMode and IsNetworkModel", "[SystemConfigService]") {
-    cosmo::test::MockServiceRegistry mocks;
     TestConfigDir cfg;
 
     cosmo::service::SystemServiceImpl sut;
@@ -418,7 +425,7 @@ TEST_CASE("SystemServiceImpl: RunMode and IsNetworkModel", "[SystemConfigService
 }
 
 TEST_CASE("SystemServiceImpl: MqttParam round-trip", "[SystemConfigService]") {
-    cosmo::test::MockServiceRegistry mocks;
+    NetworkDependency mocks;
     TestConfigDir cfg;
 
     cosmo::service::SystemServiceImpl sut;
@@ -472,7 +479,7 @@ TEST_CASE("SystemServiceImpl: MqttParam round-trip", "[SystemConfigService]") {
 }
 
 TEST_CASE("SystemServiceImpl: IotNetworkParam", "[SystemConfigService]") {
-    cosmo::test::MockServiceRegistry mocks;
+    NetworkDependency mocks;
     TestConfigDir cfg;
 
     cosmo::service::SystemServiceImpl sut;
@@ -503,7 +510,6 @@ TEST_CASE("SystemServiceImpl: IotNetworkParam", "[SystemConfigService]") {
 }
 
 TEST_CASE("SystemServiceImpl: SystemLogo", "[SystemConfigService]") {
-    cosmo::test::MockServiceRegistry mocks;
     TestConfigDir cfg;
 
     cosmo::service::SystemServiceImpl sut;
@@ -538,7 +544,6 @@ TEST_CASE("SystemServiceImpl: SystemLogo", "[SystemConfigService]") {
 // ============================================================================
 
 TEST_CASE("SystemServiceImpl: AlarmVideoDuration boundary values", "[SystemConfigService]") {
-    cosmo::test::MockServiceRegistry mocks;
     TestConfigDir cfg;
 
     cosmo::service::SystemServiceImpl sut;
@@ -603,7 +608,6 @@ TEST_CASE("SystemServiceImpl: AlarmVideoDuration boundary values", "[SystemConfi
 }
 
 TEST_CASE("SystemServiceImpl: Dirty-check - no save on identical values", "[SystemConfigService]") {
-    cosmo::test::MockServiceRegistry mocks;
     TestConfigDir cfg;
 
     cosmo::service::SystemServiceImpl sut;
@@ -650,7 +654,6 @@ TEST_CASE("SystemServiceImpl: Dirty-check - no save on identical values", "[Syst
 }
 
 TEST_CASE("SystemServiceImpl: PictureQuality overlay fields", "[SystemConfigService]") {
-    cosmo::test::MockServiceRegistry mocks;
     TestConfigDir cfg;
 
     cosmo::service::SystemServiceImpl sut;
@@ -684,7 +687,6 @@ TEST_CASE("SystemServiceImpl: PictureQuality overlay fields", "[SystemConfigServ
 }
 
 TEST_CASE("SystemServiceImpl: RebootParam restartTimeSec behavior", "[SystemConfigService]") {
-    cosmo::test::MockServiceRegistry mocks;
     TestConfigDir cfg;
 
     cosmo::service::SystemServiceImpl sut;
@@ -718,7 +720,7 @@ TEST_CASE("SystemServiceImpl: RebootParam restartTimeSec behavior", "[SystemConf
 }
 
 TEST_CASE("SystemServiceImpl: MqttParam dirty-check and field round-trip", "[SystemConfigService]") {
-    cosmo::test::MockServiceRegistry mocks;
+    NetworkDependency mocks;
     TestConfigDir cfg;
 
     cosmo::service::SystemServiceImpl sut;
@@ -795,7 +797,6 @@ TEST_CASE("SystemServiceImpl: MqttParam dirty-check and field round-trip", "[Sys
 }
 
 TEST_CASE("SystemServiceImpl: PopUpParam edge values", "[SystemConfigService]") {
-    cosmo::test::MockServiceRegistry mocks;
     TestConfigDir cfg;
 
     cosmo::service::SystemServiceImpl sut;
@@ -834,7 +835,6 @@ TEST_CASE("SystemServiceImpl: PopUpParam edge values", "[SystemConfigService]") 
 }
 
 TEST_CASE("SystemServiceImpl: ActionSwitch edge cases", "[SystemConfigService]") {
-    cosmo::test::MockServiceRegistry mocks;
     TestConfigDir cfg;
 
     cosmo::service::SystemServiceImpl sut;
@@ -874,7 +874,6 @@ TEST_CASE("SystemServiceImpl: ActionSwitch edge cases", "[SystemConfigService]")
 }
 
 TEST_CASE("SystemServiceImpl: SystemLogo supplementary cases", "[SystemConfigService]") {
-    cosmo::test::MockServiceRegistry mocks;
     TestConfigDir cfg;
 
     cosmo::service::SystemServiceImpl sut;
@@ -922,7 +921,6 @@ TEST_CASE("SystemServiceImpl: SystemLogo supplementary cases", "[SystemConfigSer
 }
 
 TEST_CASE("SystemServiceImpl: RunMode round-trip", "[SystemConfigService]") {
-    cosmo::test::MockServiceRegistry mocks;
     TestConfigDir cfg;
 
     cosmo::service::SystemServiceImpl sut;
@@ -951,11 +949,9 @@ TEST_CASE("SystemServiceImpl: RunMode round-trip", "[SystemConfigService]") {
 }
 
 TEST_CASE("SystemServiceImpl: JSON config resilience - empty JSON", "[SystemConfigService]") {
-    cosmo::test::MockServiceRegistry mocks;
-
     // Create config dir with empty JSON files
     std::string dir = "/tmp/cosmo_empty_json_test";
-    cosmo::path::OverrideRootPathForTest(dir, dir);
+    cosmo::test::ScopedPathOverride path_override(dir, dir);
     fs::create_directories(dir + "/conf");
     WriteJsonFile(dir + "/conf/alarmParam.json", "{}");
     WriteJsonFile(dir + "/conf/devRebootParam.json", "{}");
@@ -990,10 +986,8 @@ TEST_CASE("SystemServiceImpl: JSON config resilience - empty JSON", "[SystemConf
 }
 
 TEST_CASE("SystemServiceImpl: Config persistence round-trip", "[SystemConfigService]") {
-    cosmo::test::MockServiceRegistry mocks;
-
     std::string dir = "/tmp/cosmo_persist_test";
-    cosmo::path::OverrideRootPathForTest(dir, dir);
+    cosmo::test::ScopedPathOverride path_override(dir, dir);
     fs::create_directories(dir + "/conf");
     WriteJsonFile(dir + "/conf/alarmParam.json", R"({"overviewInfo":{},"videoRecordInfo":{}})");
     WriteJsonFile(dir + "/conf/devRebootParam.json",
@@ -1030,7 +1024,7 @@ TEST_CASE("SystemServiceImpl: Config persistence round-trip", "[SystemConfigServ
 }
 
 TEST_CASE("SystemServiceImpl: IotNetworkParam dirty-check", "[SystemConfigService]") {
-    cosmo::test::MockServiceRegistry mocks;
+    NetworkDependency mocks;
     TestConfigDir cfg;
 
     cosmo::service::SystemServiceImpl sut;

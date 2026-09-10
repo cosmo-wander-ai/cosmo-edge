@@ -7,19 +7,17 @@
 #include "catch_amalgamated.hpp"
 #include "catch2/trompeloeil.hpp"
 // clang-format on
-#include "mock/MockServiceRegistry.h"
 #include "service/model/impl/ModelUploadHelper.h"
+#include "support/ScopedPathOverride.h"
 
 using namespace cosmo::service;
 using namespace cosmo::test;
 
 TEST_CASE("ModelUploadHelper: UploadTempFile Tests", "[model]") {
-    MockServiceRegistry mocks;
+    std::string testDir = "/tmp/cosmo_test_upload";
+    cosmo::test::ScopedPathOverride path_override(testDir, testDir);
     ModelUploadHelper uploadHelper;
     std::string persistentPath;
-
-    std::string testDir = "/tmp/cosmo_test_upload";
-    cosmo::path::OverrideRootPathForTest(testDir, testDir);
     auto uploadTmpDir = cosmo::path::GetModelUploadTmpDir();
 
     SECTION("1.1 单文件上传：验证文件正确拷贝到持久化目录") {

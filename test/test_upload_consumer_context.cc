@@ -25,13 +25,12 @@
 #include "mock/MockDeviceInfoService.h"
 #include "mock/MockFaceLibService.h"
 #include "mock/MockModelService.h"
-#include "mock/MockServiceRegistry.h"
 #include "mock/MockSystemOperationService.h"
 #include "mock/MockTaskService.h"
 #include "mock/MockTimeService.h"
-#include "service/detail/ServiceRegistry.h"
 #include "service/path/IUploadStagingService.h"
 #include "service/path/impl/UploadStagingServiceImpl.h"
+#include "support/ScopedServiceOverride.h"
 #include "util/CipherUtil.h"
 #include "util/UuidUtil.h"
 
@@ -40,6 +39,30 @@ namespace {
 
     namespace fs = std::filesystem;
     using trompeloeil::_;
+
+    struct ModelConsumerMocks {
+        test::MockModelService modelSvc;
+    };
+
+    struct CameraConsumerMocks {
+        test::MockCameraService cameraSvc;
+        test::MockTaskService taskSvc;
+    };
+
+    struct AlgorithmConsumerMocks {
+        test::MockAlgorithmService algSvc;
+        test::MockCameraService cameraSvc;
+        test::MockTaskService taskSvc;
+    };
+
+    struct SystemConsumerMocks {
+        test::MockConfigReadService configReadSvc;
+        test::MockConfigWriteService configWriteSvc;
+        test::MockConfigNetworkService configNetSvc;
+        test::MockDeviceInfoService deviceInfoSvc;
+        test::MockSystemOperationService systemOpSvc;
+        test::MockTimeService timeSvc;
+    };
 
     class TempDirectory {
     public:
@@ -59,21 +82,6 @@ namespace {
 
     private:
         fs::path path_;
-    };
-
-    class ScopedStagingRegistration {
-    public:
-        explicit ScopedStagingRegistration(service::IUploadStagingService& staging) {
-            service::ServiceRegistry::Instance().Set<service::IUploadStagingService>(&staging);
-        }
-
-        ~ScopedStagingRegistration() {
-            service::ServiceRegistry::Instance().Set<service::IUploadStagingService>(nullptr);
-        }
-
-    private:
-        ScopedStagingRegistration(const ScopedStagingRegistration&)            = delete;
-        ScopedStagingRegistration& operator=(const ScopedStagingRegistration&) = delete;
     };
 
     service::UploadStagingConfig MakeConfig(const fs::path& root) {
@@ -151,10 +159,10 @@ namespace {
 }  // namespace
 
 TEST_CASE("Upload consumers enforce owner purpose and one-shot model paths", "[upload-staging][api]") {
-    test::MockServiceRegistry mocks;
+    ModelConsumerMocks mocks;
     TempDirectory temp;
     service::UploadStagingServiceImpl staging(MakeConfig(temp.Path() / "sessions"));
-    ScopedStagingRegistration registration(staging);
+    test::ScopedServiceOverride<service::IUploadStagingService> registration(staging);
     MessageModelHandler handler(mocks.modelSvc);
 
     SECTION("a matching owner can consume an archive only once") {
@@ -276,12 +284,12 @@ TEST_CASE("Upload consumers enforce owner purpose and one-shot model paths", "[u
 }
 
 TEST_CASE("Upload consumers bind purpose before invoking business services", "[upload-staging][api]") {
-    test::MockServiceRegistry mocks;
     TempDirectory temp;
     service::UploadStagingServiceImpl staging(MakeConfig(temp.Path() / "sessions"));
-    ScopedStagingRegistration registration(staging);
+    test::ScopedServiceOverride<service::IUploadStagingService> registration(staging);
 
     SECTION("algorithm upload") {
+        AlgorithmConsumerMocks mocks;
         const auto upload = StageFile(staging, temp.Path(), "owner", service::UploadPurpose::kAlgorithm,
                                       "algorithm.zip", "archive");
         REQUIRE_CALL(mocks.algSvc, Add(upload.server_path)).RETURN(util::ErrorEnum::Success);
@@ -296,9 +304,11 @@ TEST_CASE("Upload consumers bind purpose before invoking business services", "[u
     }
 
     SECTION("face import") {
+        test::MockFaceLibService face_import_service;
+        test::ScopedServiceOverride<service::IFaceImport> face_import(face_import_service);
         const auto upload = StageFile(staging, temp.Path(), "owner", service::UploadPurpose::kFaceImport,
                                       "faces.zip", "archive");
-        REQUIRE_CALL(mocks.faceLibSvc, ImportFile(upload.server_path, "library"));
+        REQUIRE_CALL(face_import_service, ImportFile(upload.server_path, "library"));
         MessageImportFileHandler handler;
         service::MsgImportFileRecv request;
         request.importType = 2;
@@ -311,11 +321,13 @@ TEST_CASE("Upload consumers bind purpose before invoking business services", "[u
     }
 
     SECTION("audio import") {
+        test::MockAudioService audio_service;
+        test::ScopedServiceOverride<service::IAudioService> audio(audio_service);
         const auto upload =
             StageFile(staging, temp.Path(), "owner", service::UploadPurpose::kAudio, "alert.wav", "audio");
-        REQUIRE_CALL(mocks.audioSvc, AudioFileCount()).RETURN(0U);
-        REQUIRE_CALL(mocks.audioSvc, AudioFileMaxCount()).RETURN(10U);
-        REQUIRE_CALL(mocks.audioSvc, AddAudioFile(upload.server_path)).RETURN(true);
+        REQUIRE_CALL(audio_service, AudioFileCount()).RETURN(0U);
+        REQUIRE_CALL(audio_service, AudioFileMaxCount()).RETURN(10U);
+        REQUIRE_CALL(audio_service, AddAudioFile(upload.server_path)).RETURN(true);
         MessageImportFileHandler handler;
         service::MsgImportFileRecv request;
         request.importType = 5;
@@ -327,6 +339,7 @@ TEST_CASE("Upload consumers bind purpose before invoking business services", "[u
     }
 
     SECTION("system upgrade") {
+        SystemConsumerMocks mocks;
         const auto upload = StageFile(staging, temp.Path(), "owner", service::UploadPurpose::kUpgrade,
                                       "cosmo-V1.0.0-00000000000000000000000000000000.tar.gz", "archive");
         REQUIRE_CALL(mocks.systemOpSvc, Upgrade(upload.server_path)).RETURN(util::ErrorEnum::Success);
@@ -341,6 +354,7 @@ TEST_CASE("Upload consumers bind purpose before invoking business services", "[u
     }
 
     SECTION("local video uses the staged file size") {
+        CameraConsumerMocks mocks;
         const std::string content(1024 * 1024, 'v');
         const auto upload =
             StageFile(staging, temp.Path(), "owner", service::UploadPurpose::kVideo, "video.mp4", content);
@@ -356,6 +370,7 @@ TEST_CASE("Upload consumers bind purpose before invoking business services", "[u
     }
 
     SECTION("purpose mismatch fails before the business service") {
+        AlgorithmConsumerMocks mocks;
         const auto upload = StageFile(staging, temp.Path(), "owner", service::UploadPurpose::kModelArchive,
                                       "not-an-algorithm.zip", "archive");
         MessageAlgorithmHandler handler(mocks.algSvc, mocks.algSvc, mocks.algSvc, mocks.cameraSvc,
@@ -371,10 +386,9 @@ TEST_CASE("Upload consumers bind purpose before invoking business services", "[u
 }
 
 TEST_CASE("Staged image input is authenticated purpose-bound and one-shot", "[upload-staging][api][image]") {
-    test::MockServiceRegistry mocks;
     TempDirectory temp;
     service::UploadStagingServiceImpl staging(MakeConfig(temp.Path() / "sessions"));
-    ScopedStagingRegistration registration(staging);
+    test::ScopedServiceOverride<service::IUploadStagingService> registration(staging);
 
     const auto encoded_image_bytes = util::DecBase64Vec(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/"
@@ -405,10 +419,9 @@ TEST_CASE("Staged image input is authenticated purpose-bound and one-shot", "[up
 }
 
 TEST_CASE("Staged image batches are claimed atomically", "[upload-staging][api][image]") {
-    test::MockServiceRegistry mocks;
     TempDirectory temp;
     service::UploadStagingServiceImpl staging(MakeConfig(temp.Path() / "sessions"));
-    ScopedStagingRegistration registration(staging);
+    test::ScopedServiceOverride<service::IUploadStagingService> registration(staging);
 
     const auto first =
         StageFile(staging, temp.Path(), "owner", service::UploadPurpose::kImage, "first.jpg", "first");
@@ -430,10 +443,10 @@ TEST_CASE("Staged image batches are claimed atomically", "[upload-staging][api][
 }
 
 TEST_CASE("File-consuming context handlers reject MQTT path requests", "[upload-staging][api][security]") {
-    test::MockServiceRegistry mocks;
     const auto context = MqttContext("owner");
 
     SECTION("algorithm") {
+        AlgorithmConsumerMocks mocks;
         MessageAlgorithmHandler handler(mocks.algSvc, mocks.algSvc, mocks.algSvc, mocks.cameraSvc,
                                         mocks.taskSvc);
         Algorithm::MsgUploadRecv request;
@@ -444,6 +457,7 @@ TEST_CASE("File-consuming context handlers reject MQTT path requests", "[upload-
     }
 
     SECTION("model archive") {
+        ModelConsumerMocks mocks;
         MessageModelHandler handler(mocks.modelSvc);
         Model::MsgUploadRecv request;
         request.filePath = "/tmp/model.zip";
@@ -453,6 +467,7 @@ TEST_CASE("File-consuming context handlers reject MQTT path requests", "[upload-
     }
 
     SECTION("model import") {
+        ModelConsumerMocks mocks;
         MessageModelHandler handler(mocks.modelSvc);
         Model::MsgImportModelRecv request;
         request.filePath = "/tmp/model.zip";
@@ -462,6 +477,7 @@ TEST_CASE("File-consuming context handlers reject MQTT path requests", "[upload-
     }
 
     SECTION("model components") {
+        ModelConsumerMocks mocks;
         MessageModelHandler handler(mocks.modelSvc);
         Model::MsgAddRecv request;
         Model::BmodelFileInfo file;
@@ -474,6 +490,7 @@ TEST_CASE("File-consuming context handlers reject MQTT path requests", "[upload-
     }
 
     SECTION("upload temp") {
+        ModelConsumerMocks mocks;
         MessageModelHandler handler(mocks.modelSvc);
         Model::MsgUploadTempRecv request;
         request.filePath      = "/tmp/model.bmodel";
@@ -496,6 +513,7 @@ TEST_CASE("File-consuming context handlers reject MQTT path requests", "[upload-
     }
 
     SECTION("local video") {
+        CameraConsumerMocks mocks;
         MessageCameraHandler handler(mocks.cameraSvc, mocks.cameraSvc, mocks.cameraSvc, mocks.taskSvc);
         camera::MsgAddVideoRecv request;
         request.filePath = "/tmp/video.mp4";
@@ -505,6 +523,7 @@ TEST_CASE("File-consuming context handlers reject MQTT path requests", "[upload-
     }
 
     SECTION("system upgrade") {
+        SystemConsumerMocks mocks;
         MessageSystemHandler handler(mocks.configReadSvc, mocks.configWriteSvc, mocks.configNetSvc,
                                      mocks.deviceInfoSvc, mocks.systemOpSvc, mocks.timeSvc);
         System::MsgUpgradeRecv request;
@@ -529,7 +548,7 @@ TEST_CASE("Local video accepts the external channel alias and rejects conflicts"
                            .get<camera::MsgAddVideoRecv>();
         REQUIRE(request.channelCodeConflict);
 
-        test::MockServiceRegistry mocks;
+        CameraConsumerMocks mocks;
         MessageCameraHandler handler(mocks.cameraSvc, mocks.cameraSvc, mocks.cameraSvc, mocks.taskSvc);
         std::error_condition error;
         (void)handler.Handle(std::move(request), HttpContext("owner"), error);
@@ -538,7 +557,7 @@ TEST_CASE("Local video accepts the external channel alias and rejects conflicts"
 }
 
 TEST_CASE("Local video admission has no fixed one-gigabyte ceiling", "[camera][api][resource-policy]") {
-    test::MockServiceRegistry mocks;
+    CameraConsumerMocks mocks;
     REQUIRE_CALL(mocks.cameraSvc, Add(trompeloeil::_, trompeloeil::_)).RETURN(util::ErrorEnum::Success);
     MessageCameraHandler handler(mocks.cameraSvc, mocks.cameraSvc, mocks.cameraSvc, mocks.taskSvc);
     camera::MsgAddVideoRecv request;
@@ -551,10 +570,10 @@ TEST_CASE("Local video admission has no fixed one-gigabyte ceiling", "[camera][a
 
 TEST_CASE("HTTP upload compatibility only claims the current multipart file",
           "[upload-staging][api][compatibility]") {
-    test::MockServiceRegistry mocks;
+    AlgorithmConsumerMocks mocks;
     TempDirectory temp;
     service::UploadStagingServiceImpl staging(MakeConfig(temp.Path() / "sessions"));
-    ScopedStagingRegistration registration(staging);
+    test::ScopedServiceOverride<service::IUploadStagingService> registration(staging);
 
     const std::string content = "legacy-direct-upload";
     const auto request_file   = temp.Path() / "request-file.tar.gz";
@@ -623,10 +642,10 @@ TEST_CASE("HTTP upload compatibility only claims the current multipart file",
 }
 
 TEST_CASE("UploadTemp requires exact server multipart provenance", "[upload-staging][api][security]") {
-    test::MockServiceRegistry mocks;
+    ModelConsumerMocks mocks;
     TempDirectory temp;
     service::UploadStagingServiceImpl staging(MakeConfig(temp.Path() / "sessions"));
-    ScopedStagingRegistration registration(staging);
+    test::ScopedServiceOverride<service::IUploadStagingService> registration(staging);
     MessageModelHandler handler(mocks.modelSvc);
 
     const std::string content = "model-bytes";

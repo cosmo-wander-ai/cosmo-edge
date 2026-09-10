@@ -2,7 +2,7 @@
 
 ## How to read the reports
 
-CosmoEdge 1.1 publishes three related observations: small-model short-run capacity tests, one controlled 72-hour fixed-profile observation, and VLM short-run observations. Each result is bound to the recorded source, model, input, platform, gate, and duration. The four platform case files, `results/dual-cv-72h.json`, and `results/vlm-observations.json` are the canonical facts; aggregate indexes, matrices, and bilingual pages are generated from them.
+CosmoEdge 1.1 publishes three related evidence sets: small-model short-run capacity tests, one controlled 72-hour fixed-profile observation, and validated VLM short-run performance. Each result is bound to the recorded source, model, input, platform, gate, and duration. The four platform case files, `results/dual-cv-72h.json`, and `results/vlm-observations.json` are the canonical facts; aggregate indexes, matrices, and bilingual pages are generated from them.
 
 BM1688, CV186X, RK3576, and RV1126B form the CosmoEdge 1.1 release-platform report. The no-safety-helmet workflow contains one detector followed by one classifier. A concurrent mixed-workload channel therefore contains two business tasks across three model stages: one person detector plus the detector-and-classifier helmet-analysis pipeline.
 
@@ -86,30 +86,28 @@ The private monitor record reports completed task and channel cleanup, restored 
 
 The canonical public projection is stored once in `results/dual-cv-72h.json`. Raw device identities, internal task/model/channel identifiers, addresses, commands, and local paths remain in private evidence referenced by SHA-256.
 
-## VLM short-run observations
+## Validated VLM performance
 
-The 2026-08-20 VLM refresh uses the same fixed local-loop 1080p24 input, adds one channel per step, holds each step for 60 seconds, and samples approximately every 3 seconds. Throughput comes from each task's local completion queue rather than the shared Qwen worker-batch counter. ScenarioBench reports both the newest route's completion FPS and the minimum across all active routes; publication evaluation uses the latter because every active route must satisfy the target.
+The 2026-08-24 validation uses the same frozen V1.1.0 candidate source, controlled local-loop 1080p24 input, prompt, and timing on BM1688, CV186X, and RK3576. It adds one channel per step, holds each measured level for 60 seconds, and samples every 3 seconds. Throughput comes from each task's local completion queue rather than a shared worker-batch counter.
 
-### Readiness protocols
+### Task-local readiness and executed gates
 
-BM1688 was rerun with the final readiness protocol: every newly added route had to advance its task-local completion counter and expose direct Qwen latency before formal sampling began. These probes occur before the formal hold window and do not enter FPS, discard, or telemetry-rate statistics.
+Before formal sampling at every added level, the newly added route must advance its task-local completion counter and expose direct Qwen latency. Readiness probes are outside the 60-second hold window. Once readiness passes, every active route is evaluated against the following executed gates:
 
-CV186X and RK3576 use the immediately preceding protocol, which applied a 30-second warmup to the first route but did not probe every later route. Their first 7-channel failure remains a measured zero-tolerance missing-telemetry gate failure in early hold samples before the new route completed startup. It remains a startup-sensitive raw observation, not a performance failure or demonstrated capacity limit.
+1. minimum task-local completion FPS ratio at least 80% of the 0.1 FPS-per-channel target;
+2. zero telemetry missing rate;
+3. average discard rate at most 5% and per-channel packet discard rate at most 1%; and
+4. disk use no greater than 99%.
 
-BM1688's public source hashes identify its native completed run. The CV186X and RK3576 public source-summary and source-metrics hashes identify sanitized projections cut at the first non-FPS gate stop. Their device runs continued, but steps after that stop are excluded from the comparable public staircase. The canonical source block separately freezes the original-run summary and metrics hashes.
+`PASS` therefore means the readiness precondition completed and the measured step passed the actual runtime gates. The exact short-run boundary requires a contiguous passing prefix followed immediately by a measured gate failure. Later configured levels are not needed once that adjacent failure is recorded.
 
-### Publication reference
+### Results and scope
 
-VLM FPS gating remained disabled in the executed runs. `PASS` in the raw data means only that the enabled missing-telemetry and discard gates passed. Publication applies a separate display reference to the contiguous prefix of steps where:
+BM1688 and CV186X each pass six channels and first fail at seven, where the minimum active-route FPS ratios are 0.695 and 0.692. RK3576 passes four channels and first fails at five with a 0.697 ratio. In all three cases the first failure is the executed 80% FPS gate. RV1126B is outside this VLM validation.
 
-1. the minimum FPS across every active route is at least 80% of the 0.1 FPS-per-channel target; and
-2. the recorded non-FPS window is complete.
+Formal platform acceptance also checks model loading, VLM task creation, a valid inference result, event or alarm output, and task recovery after a service restart. On each platform, this acceptance used the same fixed candidate package as its capacity run. All three platforms pass; the canonical VLM file binds each result to its evidence SHA-256 without publishing private paths or device labels.
 
-### Result interpretation
-
-The display boundaries are BM1688 6 channels, CV186X 6 channels, and RK3576 4 channels. BM1688 first falls below the reference at 7 channels; RK3576 first falls below it at 5 channels. CV186X's 7-channel startup-sensitive window is excluded from performance judgment, so 6 remains the last complete interpretable step. RV1126B has no VLM observation in this pack.
-
-These values are short-run publication references, not exact hardware limits or long-running measurements. A unified-readiness VLM re-measurement remains a separate follow-up.
+These are exact short-run boundaries for this protocol, not maximum-capacity certification, VLM long-run evidence, semantic-accuracy certification, or production sizing recommendations.
 
 ## Reproduction and verification
 
@@ -119,8 +117,9 @@ These values are short-run publication references, not exact hardware limits or 
 4. Keep raw summaries, commands, and sanitized logs in private evidence; project public measurements and source hashes into the canonical files.
 5. When the private 72-hour source is available, run `npm run benchmarks:v1.1:verify-long-run-private -- --evidence-root <private-run-root>` to verify its hashes and semantics without copying raw evidence into the repository.
 6. Run `npm run benchmarks:v1.1:validate` to check case semantics, public scrub, links, deterministic report generation, and checksums.
-7. Run the documentation build to generate bilingual HTML, aggregate indexes, matrices, and the built-output checksum inventory.
+7. When the private VLM source is available, run `npm run benchmarks:v1.1:verify-vlm-private -- --evidence-root <private-run-root> --canonical docs/benchmarks/scenario-bench/v1.1/results/vlm-observations.json`.
+8. Run the documentation build to generate bilingual HTML, aggregate indexes, matrices, and the built-output checksum inventory.
 
-When the separately held small-model evidence archive is available, pass it to the validator with `--archive <path>`. That optional check verifies the archive hash and compares all 49 canonical small-model cases with their original frozen summaries. The archive is prepared but not published. Refreshed VLM and 72-hour raw runs remain separate private evidence referenced by source hashes.
+When the separately held small-model evidence archive is available, pass it to the validator with `--archive <path>`. That optional check verifies the archive hash and compares all 49 canonical small-model cases with their original frozen summaries. The archive is prepared but not published. VLM and 72-hour raw runs remain separate private evidence referenced by source hashes.
 
 The private verifier emits only sanitized status and never publishes the evidence-root path. No public form may contain a device address, credential, device serial, internal model/task identifier, channel identifier, or local absolute path.

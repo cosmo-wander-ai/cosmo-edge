@@ -14,16 +14,24 @@
 #include <thread>
 #include <vector>
 
-#include "mock/MockServiceRegistry.h"
+#include "mock/MockActionService.h"
+#include "mock/MockModelService.h"
 #include "service/algorithm/impl/AlgorithmPacketLoader.h"
 #include "service/algorithm/impl/AlgorithmServiceImpl.h"
-#include "service/detail/ServiceRegistry.h"
+#include "support/ScopedServiceOverride.h"
 #include "util/Exec.h"
 #include "util/ResourceBudget.h"
 
 using namespace cosmo::service;
 
 namespace {
+
+struct AlgorithmPacketDependencies {
+    cosmo::test::MockActionService actionSvc;
+    cosmo::test::MockModelService modelSvc;
+    cosmo::test::ScopedServiceOverride<IActionService> action{actionSvc};
+    cosmo::test::ScopedServiceOverride<IModelQuery> model{modelSvc};
+};
 
 uint32_t ZipCrc32(std::string_view data) {
     uint32_t crc = 0xffffffffU;
@@ -124,7 +132,6 @@ TEST_CASE("AlgorithmServiceImpl: construction and destruction without Init", "[A
 // ============================================================
 
 TEST_CASE("AlgorithmServiceImpl: Query with invalid pagination returns empty", "[AlgorithmService]") {
-    cosmo::test::MockServiceRegistry mocks;
     AlgorithmServiceImpl svc;
     size_t total = 0;
 
@@ -146,7 +153,6 @@ TEST_CASE("AlgorithmServiceImpl: Query with invalid pagination returns empty", "
 
 TEST_CASE("AlgorithmServiceImpl: Query with valid pages but no algorithms returns empty",
           "[AlgorithmService]") {
-    cosmo::test::MockServiceRegistry mocks;
     AlgorithmServiceImpl svc;
     size_t total = 0;
     auto result  = svc.Query("", "", "", "", "", 1, 10, total);
@@ -159,7 +165,6 @@ TEST_CASE("AlgorithmServiceImpl: Query with valid pages but no algorithms return
 // ============================================================
 
 TEST_CASE("AlgorithmServiceImpl: operations on non-existent algorithm", "[AlgorithmService]") {
-    cosmo::test::MockServiceRegistry mocks;
     AlgorithmServiceImpl svc;
 
     SECTION("Delete non-existent returns AlgorithmNotExist") {
@@ -193,7 +198,6 @@ TEST_CASE("AlgorithmServiceImpl: operations on non-existent algorithm", "[Algori
 // ============================================================
 
 TEST_CASE("AlgorithmServiceImpl: Add and Query packet info", "[AlgorithmService]") {
-    cosmo::test::MockServiceRegistry mocks;
     AlgorithmServiceImpl svc;
 
     cosmo::service::algorithm::AlgorithmPacketInfo packet;
@@ -303,7 +307,6 @@ TEST_CASE("AlgorithmServiceImpl: Add and Query packet info", "[AlgorithmService]
 
 TEST_CASE("AlgorithmServiceImpl: duplicate Add keeps replacement file at the same path",
           "[AlgorithmService]") {
-    cosmo::test::MockServiceRegistry mocks;
     AlgorithmServiceImpl svc;
 
     auto dir = std::filesystem::temp_directory_path() / "cosmo_algorithm_duplicate_add_test";
@@ -351,6 +354,30 @@ TEST_CASE("AlgorithmPacketLoader: LoadFromJsonDirectory scans nested folders",
 
     std::error_code ec;
     std::filesystem::remove_all(dir, ec);
+}
+
+TEST_CASE("AlgorithmPacketLoader: imported picture packets register with the picture action service",
+          "[AlgorithmService][AlgorithmPacketLoader]") {
+    AlgorithmPacketDependencies mocks;
+    namespace fs    = std::filesystem;
+    const auto root = fs::temp_directory_path() / "cosmo_algorithm_picture_packet_test";
+    std::error_code ec;
+    fs::remove_all(root, ec);
+    fs::create_directories(root);
+    const auto packet = root / "9154_PictureDiagnostic.json";
+    std::ofstream(packet)
+        << R"({"id":"9154","algorithmCode":9154,"algorithmName":"PictureDiagnostic","algorithmCategory":2,"algorithmUsage":2,"algorithmUpdateTime":"1","algorithmMetadata":"{}","algorithmProcessdata":"[{\"actionId\":\"PA_00002\",\"flowActionId\":\"classify\",\"preFlowActionId\":\"-1\",\"configObject\":{\"params\":[{\"key\":\"atomicCode\",\"value\":\"2001036\"}]}}]","atomicList":"[]"})";
+
+    REQUIRE_CALL(mocks.modelSvc, ModelValid("2001036", trompeloeil::_)).RETURN(true);
+    REQUIRE_CALL(mocks.actionSvc, UpdatePicActionAlg2(trompeloeil::_)).RETURN(true);
+    FORBID_CALL(mocks.actionSvc, UpdateActionAlg2(trompeloeil::_));
+
+    const auto packets = cosmo::service::detail::AlgorithmPacketLoader::LoadFromZipDirectory(root.string());
+
+    REQUIRE(packets.size() == 1);
+    REQUIRE(packets[0].id == "9154");
+    REQUIRE(packets[0].algorithmUsage == 2);
+    fs::remove_all(root, ec);
 }
 
 TEST_CASE("AlgorithmPacketLoader validates archives before extraction",
@@ -477,7 +504,6 @@ TEST_CASE("AlgorithmPacketLoader validates archives before extraction",
 // ============================================================
 
 TEST_CASE("AlgorithmServiceImpl: Update existing algorithm name", "[AlgorithmService]") {
-    cosmo::test::MockServiceRegistry mocks;
     AlgorithmServiceImpl svc;
 
     cosmo::service::algorithm::AlgorithmPacketInfo packet;
@@ -499,7 +525,6 @@ TEST_CASE("AlgorithmServiceImpl: Update existing algorithm name", "[AlgorithmSer
 // ============================================================
 
 TEST_CASE("AlgorithmServiceImpl: Query pagination", "[AlgorithmService]") {
-    cosmo::test::MockServiceRegistry mocks;
     AlgorithmServiceImpl svc;
 
     // 插入 5 个算法
@@ -545,7 +570,6 @@ TEST_CASE("AlgorithmServiceImpl: Query pagination", "[AlgorithmService]") {
 // ============================================================
 
 TEST_CASE("AlgorithmServiceImpl: concurrent Query and Add are safe", "[AlgorithmService][concurrency]") {
-    cosmo::test::MockServiceRegistry mocks;
     AlgorithmServiceImpl svc;
 
     std::atomic<bool> stop{false};

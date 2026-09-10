@@ -9,12 +9,17 @@
 
 #include "db/ArticlesReidDao.h"
 #include "mock/MockDbService.h"
-#include "mock/MockServiceRegistry.h"
 #include "service/face/impl/ArticlesReidDaoServiceImpl.h"
+#include "support/ScopedServiceOverride.h"
 
 namespace cosmo::test {
 
 namespace {
+
+    struct DbDependency {
+        MockDbService dbSvc;
+        ScopedServiceOverride<service::IDbService> registration{dbSvc};
+    };
 
     /// Creates an in-memory SQLite database with ArticlesReidDao tables initialized.
     std::shared_ptr<SQLite::Database> MakeTestDb() {
@@ -29,7 +34,7 @@ namespace {
 
 TEST_CASE("ArticlesReidDaoService: things lib CRUD cycle", "[articles-reid-dao]") {
     auto testDb = MakeTestDb();
-    MockServiceRegistry mocks;
+    DbDependency mocks;
     ALLOW_CALL(mocks.dbSvc, GetDb()).RETURN(testDb);
 
     service::ArticlesReidDaoServiceImpl sut;
@@ -119,7 +124,7 @@ TEST_CASE("ArticlesReidDaoService: things lib CRUD cycle", "[articles-reid-dao]"
 
 TEST_CASE("ArticlesReidDaoService: articles CRUD cycle", "[articles-reid-dao]") {
     auto testDb = MakeTestDb();
-    MockServiceRegistry mocks;
+    DbDependency mocks;
     ALLOW_CALL(mocks.dbSvc, GetDb()).RETURN(testDb);
 
     service::ArticlesReidDaoServiceImpl sut;
@@ -161,7 +166,7 @@ TEST_CASE("ArticlesReidDaoService: articles CRUD cycle", "[articles-reid-dao]") 
 
 TEST_CASE("ArticlesReidDaoService: transaction control", "[articles-reid-dao]") {
     auto testDb = MakeTestDb();
-    MockServiceRegistry mocks;
+    DbDependency mocks;
     ALLOW_CALL(mocks.dbSvc, GetDb()).RETURN(testDb);
 
     service::ArticlesReidDaoServiceImpl sut;

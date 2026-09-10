@@ -24,7 +24,7 @@ This page collects the quality-check entry points that already exist in the repo
 | CPU test build | `scripts/build_cpu_test.sh`, `build_cpu/cosmo-tests` | Pull request / manual |
 | x86 Docker | `docker compose -f docker-compose.x86.yml up -d --build` (use `docker-compose.x86.windows.yml` on Windows) | Manual / before release |
 | Sophon release package | `./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package [--chip <model>]`; supports `bm1688` / `cv186x` (defaults to `bm1688`) | Manual / self-hosted |
-| Rockchip release package | `COSMO_TARGET_CHIP=<rk3576|rv1126b> docker compose -f docker-compose.rockchip.yml run --rm cosmo-rockchip-package` | Relevant PRs / daily at 02:12 Beijing Time / manual |
+| Rockchip release package | `COSMO_TARGET_CHIP=<rk3576|rv1126b> docker compose -f docker-compose.rockchip.yml run --rm cosmo-rockchip-package` | Daily at 02:12 Beijing Time / manual |
 
 ## Documentation Site Checks
 
@@ -196,9 +196,9 @@ the chip-scoped output. Each `build_output/<profile>/<chip>/` directory contains
 ## Rockchip Cross-Build Matrix
 
 `.github/workflows/ci-build-rockchip.yml` uses the shared Rockchip Compose entry
-for separate RK3576 and RV1126B matrix jobs. It runs for relevant pull requests,
-manual dispatches, and every day at 02:12 Beijing Time (18:12 UTC on the
-previous day). A schedule is active only on the GitHub default branch.
+for separate RK3576 and RV1126B matrix jobs. It runs on manual dispatches and
+every day at 02:12 Beijing Time (18:12 UTC on the previous day). A schedule is
+active only on the GitHub default branch.
 
 Local builds use the public digest-pinned GHCR image without registry login:
 
@@ -222,9 +222,13 @@ The workflow applies these checks:
 6. Uploads each package, identity files, checksum, and validation programs for
    7 days.
 
-The RV1126B matrix uses `COSMO_PACKAGE_MODELS=preserve` because its target model
-overlay is not committed. A deployable candidate must still be rebuilt with
-real models in an authorized environment and run on the board. Normal jobs have
-only `contents: read`; only a default-branch or manually dispatched publication
-job receives `packages: write` and pushes a matrix-qualified shared image to
-GHCR. The hosted x86 runner does not execute aarch64 programs.
+The RV1126B matrix uses `COSMO_PACKAGE_MODELS=include` and generates its overlay
+from the archived AGPL-3.0 community example artifact manifest. It verifies
+that both models, the bundle manifest, and the license reach the package. This
+proves only that the public example package is buildable; it does not describe
+those examples as commercial deliverables or proprietary models. Commercial or
+proprietary models still require an independent manifest, an authorized build,
+and board validation. Normal jobs have
+only `contents: read`; only a manually dispatched publication job receives
+`packages: write` and pushes a matrix-qualified shared image to GHCR. The hosted
+x86 runner does not execute aarch64 programs.

@@ -279,7 +279,13 @@ cosmo::MsgPTaskCreateSend PicTaskServiceImpl::ProcessPTaskCreate(cosmo::MsgPTask
                                             // 4. Start task
         LOG_INFO("{} Start {} Task", data.taskId, action_alg->algorithmName);
         if (!TaskStart(data.taskId)) {
-            errc = cosmo::util::ErrorEnum::TaskCreateFailed;
+            errc                      = cosmo::util::ErrorEnum::TaskCreateFailed;
+            const auto cleanup_status = TaskDelete(data.taskId);
+            if (cleanup_status != cosmo::util::ErrorEnum::Success &&
+                cleanup_status != cosmo::util::ErrorEnum::NotInit) {
+                LOG_WARN("{} cleanup after start failure returned {}", data.taskId,
+                         static_cast<int>(cleanup_status));
+            }
         }
     }
     return retData;

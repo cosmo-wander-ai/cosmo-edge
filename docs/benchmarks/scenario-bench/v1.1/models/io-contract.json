@@ -53,7 +53,7 @@
       "output": {
         "semantic": "runtime-managed text judgment"
       },
-      "benchmarkInterpretation": "analysis FPS is an observation only in this Experimental workload; it is not a PASS/FAIL gate"
+      "benchmarkInterpretation": "analysis FPS is measured from the task-local completion counter; every active route must meet the executed 80% FPS gate"
     }
   ]
 }

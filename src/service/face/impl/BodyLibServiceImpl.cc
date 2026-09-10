@@ -10,7 +10,7 @@
 #include "service/ai/IInferPoolService.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/face/IPersonRecogDaoService.h"
-#include "service/model/IModelService.h"
+#include "service/model/IModelPathMapping.h"
 #include "util/Log.h"
 #include "util/TimeUtil.h"
 
@@ -23,7 +23,7 @@ std::vector<float> BodyLibServiceImpl::ExtractBodyFeature(const VideoFramePtr& i
         return {};
     }
 
-    auto& modelSvc = ServiceRegistry::Instance().Get<IModelService>();
+    auto& modelSvc = ServiceRegistry::Instance().Get<IModelPathMapping>();
 
     // Step 1: Detect pedestrian bounding box using model 1001003
     util::Box personBox{0, 0, static_cast<int>(imageData->GetWidth()),

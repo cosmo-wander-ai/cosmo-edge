@@ -2,7 +2,7 @@
 /// @brief Model path mapping interface — resolves algorithm codes to model
 ///        binary and configuration file paths.
 ///        ISP split from IModelService.
-///        Consumed by flow/infer layers for model config resolution.
+///        Consumed by flow operators, LLM/feature services and AppInfoServiceImpl.
 #pragma once
 
 #include <string>

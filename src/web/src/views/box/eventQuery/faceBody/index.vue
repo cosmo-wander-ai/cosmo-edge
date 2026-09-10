@@ -121,7 +121,7 @@
     <video-frequency v-model:visible="videoDialogVisiable"
       :algorithmCode="currentEvent ? currentEvent.algorithmCode : ''" :closable="false"
       :url="currentEvent ? currentEvent.video : ''" :structureDataUrl="currentEvent ? currentEvent.videostructured : ''"
-      :title="downloadName"></video-frequency>
+      :title="downloadName" :show-custom-title="false"></video-frequency>
 
   </div>
 </template>
@@ -131,7 +131,7 @@ import { ref, reactive, getCurrentInstance, onMounted, onBeforeUnmount, nextTick
 import TopBar from '@/components/TopBar.vue'
 import moment from 'moment'
 import CaptureDialog from '../components/captureDialog.vue'
-import videoFrequency from '../components/videoPlaying265.vue'
+import videoFrequency from '@/components/videoPlaying265.vue'
 import { t, currentLocale } from '@/i18n'
 import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
 import { formatSimilarity } from '@/utils/format'

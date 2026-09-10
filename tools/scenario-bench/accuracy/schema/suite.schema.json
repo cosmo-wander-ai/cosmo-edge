@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cosmowander.ai/schemas/cosmo-accuracy-suite-v3.json",
+  "title": "CosmoAccuracy suite v3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "sourceMode",
+    "targetPlatforms",
+    "tasks",
+    "dataset"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 3 },
+    "id": { "$ref": "#/$defs/id" },
+    "displayName": { "type": "string", "minLength": 1 },
+    "sourceMode": { "enum": ["local", "rtsp-deterministic"] },
+    "targetPlatforms": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "enum": ["bm1688", "cv186x", "rk3576", "rv1126b"] }
+    },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "observeSec": { "type": "number", "exclusiveMinimum": 0 },
+        "eventFlushTimeoutSec": { "type": "number", "exclusiveMinimum": 0 },
+        "eventPollIntervalSec": { "type": "number", "exclusiveMinimum": 0 },
+        "eventSettleMinSec": { "type": "number", "exclusiveMinimum": 0 },
+        "earlyStopPollIntervalSec": { "type": "number", "exclusiveMinimum": 0 },
+        "readyTimeoutSec": { "type": "number", "exclusiveMinimum": 0 },
+        "readyPollIntervalSec": { "type": "number", "exclusiveMinimum": 0 },
+        "infrastructureRetriesPerTrial": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "trials": {
+      "type": "object",
+      "deprecated": true,
+      "description": "Legacy compatibility field. Protocol v4 measures every selected sample once."
+    },
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/task" }
+    },
+    "dataset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manifest"],
+      "properties": {
+        "manifest": { "type": "string", "minLength": 1 }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "deprecated": true,
+      "description": "Legacy compatibility field. Protocol v4 does not evaluate product gates."
+    },
+    "rtsp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["httpBase", "mediaMtxBase"],
+      "properties": {
+        "httpBase": { "type": "string", "pattern": "^https?://" },
+        "mediaMtxBase": { "type": "string", "pattern": "^rtsp://" },
+        "ffmpeg": { "type": "string", "minLength": 1 },
+        "ffprobe": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "algorithmId", "scheduleId"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "displayName": { "type": "string", "minLength": 1 },
+        "kind": { "enum": ["cv", "vlm"] },
+        "algorithmId": { "type": "string", "minLength": 1 },
+        "algorithmCode": { "type": "string", "minLength": 1 },
+        "scheduleId": { "type": "string", "minLength": 1 },
+        "configSource": { "enum": ["frozen", "device-default"] },
+        "taskConfig": { "type": "string", "minLength": 1 },
+        "vlmCompletionActionId": { "type": "string", "minLength": 1 },
+        "thresholdDiagnostic": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["parameterKeys", "values"],
+          "properties": {
+            "parameterKeys": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "type": "string", "minLength": 1, "pattern": "^[^*]+$" }
+            },
+            "values": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "number" }
+            },
+            "allowVlm": { "type": "boolean" }
+          }
+        }
+      },
+      "anyOf": [
+        { "required": ["taskConfig"] },
+        { "properties": { "configSource": { "const": "device-default" } }, "required": ["configSource"] }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "sourceMode": { "const": "rtsp-deterministic" } } },
+      "then": { "required": ["rtsp"] }
+    }
+  ]
+}

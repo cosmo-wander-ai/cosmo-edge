@@ -76,35 +76,17 @@ struct PUBLIC CombinedModelConfig {
     std::vector<Instruction> instructions = {};
 };
 
-struct PUBLIC ConvertInner {
-    std::vector<float> mean{};
-    float scale;
-    bool is_bgr       = false;
-    bool is_opconvert = true;
-    bool is_optimize  = true;
-    bool is_normalize = false;
-};
-struct PUBLIC Convert {
-    std::string type{};
-    int max_batch;
-    std::string precision{};
-    std::vector<ConvertInner> models{};
-};
-
 struct PUBLIC CombinedModelInfo {
     std::string algorithmcode     = {};
     std::string reduce            = {};
     std::string type              = {};
     std::vector<ModelInfo> models = {};
     CombinedModelConfig config;
-    Convert convert;
 };
 
 class PUBLIC ModelInfoUtils {
 public:
     static Status LoadJson(const std::string& json_path, std::string& content);
-
-    static Status ParseModelInfo(const std::string& info_content_, CombinedModelInfo& info);
 
     static Status GetInputShapesMap(const ModelInfo& model_info_, ShapesMap& shapes);
 

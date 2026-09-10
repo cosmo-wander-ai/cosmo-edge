@@ -14,13 +14,18 @@
 #include "linkage/LinkAgeBaseCommon.h"
 #include "linkage/LinkAgeTask.h"
 #include "mock/MockAudioService.h"
-#include "mock/MockServiceRegistry.h"
+#include "support/ScopedServiceOverride.h"
 #include "util/Keys.h"
 
 namespace cosmo::linkage {
 namespace {
 
     using trompeloeil::_;
+
+    struct LinkageAudioDependency {
+        test::MockAudioService audioSvc;
+        test::ScopedServiceOverride<service::IAudioService> registration{audioSvc};
+    };
 
     MsgDynamicKeyValue MakeParameter(std::string_view key, std::string value) {
         MsgDynamicKeyValue parameter;
@@ -188,7 +193,7 @@ TEST_CASE("LinkAgeTask queries sibling and grandchild audio actions", "[linkage-
 }
 
 TEST_CASE("LinkAgeTask preserves alarm gating and depth-first sibling order", "[linkage-runtime]") {
-    test::MockServiceRegistry mocks;
+    LinkageAudioDependency mocks;
     auto strategy = MakeBranchedWorkflow();
     LinkAgeTask task("ordered", strategy);
 
@@ -212,7 +217,7 @@ TEST_CASE("LinkAgeTask preserves alarm gating and depth-first sibling order", "[
 }
 
 TEST_CASE("Linkage runtime parses legacy text-play parameters", "[linkage-runtime]") {
-    test::MockServiceRegistry mocks;
+    LinkageAudioDependency mocks;
     auto alarm = MakeAlarmNode("alarm-root", std::string(key::alg::ACTION_ROOT_VALUE), kLaAlarmDataLegacyCode,
                                kKeyStrageAlgs);
     auto audio = MakeAudioNode("audio", "alarm-root", "legacy-speaker", "unused-audio",
@@ -234,7 +239,7 @@ TEST_CASE("Linkage runtime parses legacy text-play parameters", "[linkage-runtim
 }
 
 TEST_CASE("Linkage runtime keeps last matching compatibility parameter", "[linkage-runtime]") {
-    test::MockServiceRegistry mocks;
+    LinkageAudioDependency mocks;
     auto alarm = MakeAlarmNode("alarm-root", std::string(key::alg::ACTION_ROOT_VALUE));
     alarm.config_object.params.push_back(
         MakeParameter(kKeyStrageAlgs, R"([{"channelId":"other-channel","algorithmId":"other-algorithm"}])"));

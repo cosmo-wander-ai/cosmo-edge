@@ -211,6 +211,7 @@ export function summarizeStep(step, samples, thresholds = {}, videoMode = 'local
     maxCpu,
     maxMem,
     maxDiskUsedPercent,
+    maxPacketDiscardRate: maxPktDiscard,
     maxPoolAllocatedBytes,
     maxPoolInUseBytes,
     maxPoolUtilizationPercent,
@@ -518,6 +519,16 @@ export function runtimeStepDecision(summary, {
   discardBottleneck = 0.05,
 } = {}) {
   const reasons = [];
+  const gates = [];
+  const seenGates = new Set();
+  const addGate = (gate, reason) => {
+    const key = [gate.scope, gate.taskKey, gate.name, gate.actual, gate.threshold].join('::');
+    if (seenGates.has(key)) return;
+    seenGates.add(key);
+    gates.push(gate);
+    reasons.push(reason);
+  };
+
   for (const stat of summary.taskStats ?? []) {
     const strategy = strategyForTaskType(stat.taskType);
     const taskThresholds = resolveTaskThresholds(thresholds, {
@@ -528,23 +539,102 @@ export function runtimeStepDecision(summary, {
     if (strategy.useBaselineFpsFuse) {
       const taskBaseline = baselineByTask[stat.taskKey];
       if (taskBaseline != null && minFps != null && minFps < taskBaseline * fpsHalveRatio) {
-        reasons.push(`${stat.taskKey} fps ${minFps.toFixed(1)} < baseline ${taskBaseline.toFixed(1)}*${fpsHalveRatio} (${(taskBaseline * fpsHalveRatio).toFixed(1)})`);
+        addGate({
+          scope: 'task',
+          taskKey: stat.taskKey,
+          taskType: stat.taskType,
+          name: 'baselineFpsFuse',
+          actual: minFps,
+          threshold: taskBaseline * fpsHalveRatio,
+        }, `${stat.taskKey} fps ${minFps.toFixed(1)} < baseline ${taskBaseline.toFixed(1)}*${fpsHalveRatio} (${(taskBaseline * fpsHalveRatio).toFixed(1)})`);
       }
-    } else if (taskThresholds.minFpsRatio != null && stat.minFpsRatio != null && stat.minFpsRatio < taskThresholds.minFpsRatio) {
-      reasons.push(`${stat.taskKey} fpsRatio ${stat.minFpsRatio.toFixed(3)} < ${taskThresholds.minFpsRatio}`);
-    } else if (taskThresholds.minThroughputFps != null && minFps != null && minFps < taskThresholds.minThroughputFps) {
-      reasons.push(`${stat.taskKey} fps ${minFps.toFixed(2)} < ${taskThresholds.minThroughputFps}`);
     }
 
-    const discardLimit = taskThresholds.avgDiscardRate ?? taskThresholds.maxDiscardRate ?? discardBottleneck;
-    if (stat.avgDiscardRate != null && stat.avgDiscardRate > discardLimit) {
-      reasons.push(`${stat.taskKey} meanDiscard ${stat.avgDiscardRate.toFixed(3)} > ${discardLimit}`);
+    // Reuse the report evaluator so every task-local threshold that can be
+    // decided from the completed hold window is also an execution gate. This
+    // includes VLM missing telemetry and configured latency limits, not just
+    // the FPS ratio.
+    const verdict = evaluateTaskStat(stat, thresholds);
+    for (const check of verdict.checks.filter((item) => item.result === 'FAIL')) {
+      addGate({
+        scope: 'task',
+        taskKey: stat.taskKey,
+        taskType: stat.taskType,
+        name: check.name,
+        actual: check.actual,
+        threshold: check.threshold,
+      }, runtimeThresholdReason(stat.taskKey, check));
+    }
+
+    // Keep the historical 5% online discard fuse when a scenario did not
+    // configure a report discard gate. Configured gates are already covered by
+    // evaluateTaskStat above.
+    const configuredDiscardLimit = taskThresholds.avgDiscardRate ?? taskThresholds.maxDiscardRate;
+    if (configuredDiscardLimit == null
+        && stat.avgDiscardRate != null
+        && stat.avgDiscardRate > discardBottleneck) {
+      addGate({
+        scope: 'task',
+        taskKey: stat.taskKey,
+        taskType: stat.taskType,
+        name: 'runtimeDiscardFuse',
+        actual: stat.avgDiscardRate,
+        threshold: discardBottleneck,
+      }, `${stat.taskKey} meanDiscard ${stat.avgDiscardRate.toFixed(3)} > ${discardBottleneck}`);
     }
   }
-  if (summary.avgDiscard != null && summary.avgDiscard > discardBottleneck) {
-    reasons.push(`meanDiscard ${summary.avgDiscard.toFixed(3)} > ${discardBottleneck}`);
+
+  // Device- and input-scoped checks (for example disk and packet discard)
+  // are already materialized by summarizeStep in perThreshold.
+  for (const check of summary.perThreshold ?? []) {
+    if (check.result !== 'FAIL' || check.taskKey !== '*') continue;
+    addGate({
+      scope: check.strategy ?? 'system',
+      taskKey: check.taskKey,
+      taskType: check.taskType,
+      name: check.name,
+      actual: check.actual,
+      threshold: check.threshold,
+    }, runtimeThresholdReason(check.taskKey, check));
   }
-  return reasons.length ? { stop: true, reason: reasons.join('; '), reasons } : { stop: false, reasons: [] };
+
+  if (summary.avgDiscard != null && summary.avgDiscard > discardBottleneck) {
+    addGate({
+      scope: 'aggregate',
+      taskKey: '*',
+      taskType: 'aggregate',
+      name: 'runtimeDiscardFuse',
+      actual: summary.avgDiscard,
+      threshold: discardBottleneck,
+    }, `meanDiscard ${summary.avgDiscard.toFixed(3)} > ${discardBottleneck}`);
+  }
+  return reasons.length
+    ? { stop: true, source: 'runtime-threshold', reason: reasons.join('; '), reasons, gates }
+    : { stop: false, source: 'runtime-threshold', reasons: [], gates: [] };
+}
+
+function runtimeThresholdReason(taskKey, check) {
+  const actual = Number(check.actual);
+  const threshold = Number(check.threshold);
+  const actualFixed = Number.isFinite(actual) ? actual : check.actual;
+  const thresholdFixed = Number.isFinite(threshold) ? threshold : check.threshold;
+  switch (check.name) {
+    case 'minFpsRatio':
+      return `${taskKey} fpsRatio ${actual.toFixed(3)} < ${thresholdFixed}`;
+    case 'minThroughputFps':
+      return `${taskKey} fps ${actual.toFixed(2)} < ${thresholdFixed}`;
+    case 'maxMissingRate':
+      return `${taskKey} missingRate ${actual.toFixed(3)} > ${thresholdFixed}`;
+    case 'avgDiscardRate':
+    case 'maxDiscardRate':
+      return `${taskKey} meanDiscard ${actual.toFixed(3)} > ${thresholdFixed}`;
+    case 'maxDiskUsedPercent':
+      return `disk ${actualFixed}% > ${thresholdFixed}%`;
+    case 'maxPacketDiscardRate':
+      return `packetDiscard ${actual.toFixed(3)} > ${thresholdFixed}`;
+    default:
+      return `${taskKey} ${check.name} ${actualFixed} > ${thresholdFixed}`;
+  }
 }
 
 function summarizeBinding(stat) {

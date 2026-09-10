@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <nlohmann/json_fwd.hpp>
 #include <string>
@@ -89,6 +90,8 @@ struct LayoutDetailVersion {
     std::string algorithmProcessdata;
     std::string atomicList;
     uint64_t algorithmUpdateTime{0};
+    friend void to_json(nlohmann::json& j, const LayoutDetailVersion& v);
+    friend void from_json(const nlohmann::json& j, LayoutDetailVersion& v);
 };
 
 struct LayoutDetailResult {
@@ -103,6 +106,8 @@ struct LayoutDetailResult {
     std::string algorithmProcessdata;
     std::string atomicList;
     std::vector<LayoutDetailVersion> configVersionList;
+    friend void to_json(nlohmann::json& j, const LayoutDetailResult& v);
+    friend void from_json(const nlohmann::json& j, LayoutDetailResult& v);
 };
 
 // Response structs for Layout List
@@ -112,10 +117,14 @@ struct LayoutListItem {
     std::string supplier;
     std::string algorithmUsage;
     std::string description;
+    friend void to_json(nlohmann::json& j, const LayoutListItem& v);
+    friend void from_json(const nlohmann::json& j, LayoutListItem& v);
 };
 
 struct LayoutListResult {
     std::vector<LayoutListItem> list;
+    friend void to_json(nlohmann::json& j, const LayoutListResult& v);
+    friend void from_json(const nlohmann::json& j, LayoutListResult& v);
 };
 
 // Response structs for Layout Export
@@ -132,10 +141,14 @@ struct AtomicAction {
     std::string inputParamConfig;
     int actionUsage{0};
     int actionType{0};
+    friend void to_json(nlohmann::json& j, const AtomicAction& v);
+    friend void from_json(const nlohmann::json& j, AtomicAction& v);
 };
 
 struct AtomicActionListResult {
     std::vector<AtomicAction> list;
+    friend void to_json(nlohmann::json& j, const AtomicActionListResult& v);
+    friend void from_json(const nlohmann::json& j, AtomicActionListResult& v);
 };
 
 }  // namespace cosmo::service::algorithm

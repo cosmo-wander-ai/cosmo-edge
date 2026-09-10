@@ -28,7 +28,6 @@
 #include "service/detail/ServiceRegistry.h"
 #include "service/media/IVideoFrameCodec.h"
 #include "service/model/IModelQuery.h"
-#include "service/model/IModelService.h"
 #include "service/system/IConfigReadService.h"
 #include "service/task/IScheduleService.h"
 #include "service/task/ITaskChannel.h"
@@ -422,8 +421,7 @@ util::ErrorEnum CameraServiceImpl::MakeCameraTask(const CameraEntityPtr& camera,
         if (!workFlow.atomicCode.empty()) {
             LOG_INFO("[{}/{}] [{}/{}]", workFlow.actionId, workFlow.actionName, workFlow.atomicCode,
                      workFlow.atomAlgName);
-            auto modelInfo =
-                ServiceRegistry::Instance().Get<IModelService>().GetModelInfo(workFlow.atomicCode);
+            auto modelInfo = ServiceRegistry::Instance().Get<IModelQuery>().GetModelInfo(workFlow.atomicCode);
             if (modelInfo.id == workFlow.atomicCode) {
                 models.push_back(modelInfo);
             }
@@ -476,6 +474,13 @@ void CameraServiceImpl::SwitchCameraTask(const CameraEntityPtr& camera, CameraTa
         return;
     }
     if (task->is_enabled_) {
+        if (!task->task_->ApplyLatestTaskConfig(CameraTaskUnit::ParamApplyMode::kBeforeStart)) {
+            LOG_WARN("[{}/{}] SwitchCameraTask denied start because task parameters are not current",
+                     camera->videoChannelId, task->task_id_);
+            task->status_ = CameraTaskStatus::kAbnormal;
+            UpdateChannelState(camera);
+            return;
+        }
         PrepareCameraTaskOverview(camera, task);
 
         if (ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskStart(camera->videoChannelId,
@@ -559,11 +564,11 @@ void CameraServiceImpl::MonitorCameraEntity(const CameraEntityPtr& camera, bool 
             task->status_ = CameraTaskStatus::kAbnormal;
             continue;
         }
-        task->task_->TaskEnableParam();
         bool taskRunningStatus =
             ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskIsStart(task->task_id_);
         // Task is currently running
         if (taskRunningStatus) {
+            (void)task->task_->ApplyLatestTaskConfig();
             // Stop if task is disabled, outside schedule window, or unauthorized
             if ((!task->is_enabled_) ||
                 (!ServiceRegistry::Instance().Get<IScheduleService>().InRunTime(task->schedule_id_) ||
@@ -613,6 +618,12 @@ void CameraServiceImpl::MonitorCameraEntity(const CameraEntityPtr& camera, bool 
                  (isAuthed))) {
                 LOG_INFO("[{}/{}] Start", camera->videoChannelId, task->task_id_);
 
+                if (!task->task_->ApplyLatestTaskConfig(CameraTaskUnit::ParamApplyMode::kBeforeStart)) {
+                    LOG_WARN("[{}/{}] Monitor denied start because task parameters are not current",
+                             camera->videoChannelId, task->task_id_);
+                    task->status_ = CameraTaskStatus::kAbnormal;
+                    continue;
+                }
                 PrepareCameraTaskOverview(camera, task);
 
                 if (ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskStart(camera->videoChannelId,

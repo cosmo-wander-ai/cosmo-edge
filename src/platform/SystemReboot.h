@@ -12,6 +12,16 @@
 
 namespace cosmo::platform {
 
+// Device backends may invoke the operating-system reboot command. CPU builds
+// must never reboot a developer or CI host.
+constexpr bool SupportsSystemReboot() noexcept {
+#if defined(COSMO_NN_USE_SOPHON_BACKEND) || defined(COSMO_NN_USE_RKNN_BACKEND)
+    return true;
+#else
+    return false;
+#endif
+}
+
 // Remove factory-resettable data while retaining the top-level model-guard directory.
 std::error_code ClearFactoryResetData(const std::string& baseDir);
 

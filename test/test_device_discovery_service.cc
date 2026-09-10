@@ -4,10 +4,10 @@
 
 #include "catch_amalgamated.hpp"
 #include "mock/MockNetworkService.h"
-#include "mock/MockServiceRegistry.h"
 #include "service/network/DeviceDiscoveryTypes.h"
 #include "service/network/impl/DeviceDiscoveryReceivePolicy.h"
 #include "service/network/impl/DeviceDiscoveryServiceImpl.h"
+#include "support/ScopedServiceOverride.h"
 
 TEST_CASE("DeviceDiscoveryService: response envelopes survive JSON round trip", "[device-discovery]") {
     SECTION("probe response") {
@@ -79,8 +79,6 @@ TEST_CASE("DeviceDiscoveryService: production protocol is probe only", "[device-
 }
 
 TEST_CASE("DeviceDiscoveryService: lifecycle safety", "[device-discovery]") {
-    cosmo::test::MockServiceRegistry mocks;
-
     SECTION("Stop before Start is safe") {
         cosmo::service::DeviceDiscoveryServiceImpl sut("239.255.0.0", 46000);
         sut.Stop();  // Must not crash
@@ -94,8 +92,6 @@ TEST_CASE("DeviceDiscoveryService: lifecycle safety", "[device-discovery]") {
 }
 
 TEST_CASE("DeviceDiscoveryService: construction with params", "[device-discovery]") {
-    cosmo::test::MockServiceRegistry mocks;
-
     SECTION("Multicast address and port") {
         REQUIRE_NOTHROW([]() { cosmo::service::DeviceDiscoveryServiceImpl sut("239.255.0.0", 46000); }());
     }
@@ -106,11 +102,12 @@ TEST_CASE("DeviceDiscoveryService: construction with params", "[device-discovery
 }
 
 TEST_CASE("DeviceDiscoveryService: Start then Stop", "[device-discovery]") {
-    cosmo::test::MockServiceRegistry mocks;
+    cosmo::test::MockNetworkService networkSvc;
+    cosmo::test::ScopedServiceOverride<cosmo::service::INetworkService> registration(networkSvc);
     // Some test hosts cannot join multicast through INADDR_ANY. The service
     // then asks the network service for a main-interface fallback; keep that
     // environment-dependent branch inside the mock contract.
-    ALLOW_CALL(mocks.networkSvc, GetCardRealInfos()).RETURN(std::vector<cosmo::platform::NetCardInfo>{});
+    ALLOW_CALL(networkSvc, GetCardRealInfos()).RETURN(std::vector<cosmo::platform::NetCardInfo>{});
 
     cosmo::service::DeviceDiscoveryServiceImpl sut("239.255.0.0", 46000);
     REQUIRE_NOTHROW(sut.Start());

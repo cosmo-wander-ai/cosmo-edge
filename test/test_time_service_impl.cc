@@ -11,6 +11,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -19,15 +20,41 @@
 #include <thread>
 #include <vector>
 
-#include "mock/MockServiceRegistry.h"
-#include "service/detail/ServiceRegistry.h"
 #include "service/system/impl/TimeServiceImpl.h"
+#include "support/ScopedPathOverride.h"
 #include "util/PathUtil.h"
 #include "util/TimeUtil.h"
 
 namespace fs = std::filesystem;
 
 namespace {
+
+class ScopedTimeZone final {
+public:
+    ScopedTimeZone() {
+        const char* value = std::getenv("TZ");
+        if (value != nullptr) {
+            had_value_ = true;
+            value_     = value;
+        }
+    }
+
+    ~ScopedTimeZone() {
+        if (had_value_) {
+            setenv("TZ", value_.c_str(), 1);
+        } else {
+            unsetenv("TZ");
+        }
+        tzset();
+    }
+
+    ScopedTimeZone(const ScopedTimeZone&)            = delete;
+    ScopedTimeZone& operator=(const ScopedTimeZone&) = delete;
+
+private:
+    bool had_value_{false};
+    std::string value_;
+};
 
 // Helper: write JSON content to file
 void WriteJsonFile(const std::string& path, const std::string& content) {
@@ -40,10 +67,12 @@ void WriteJsonFile(const std::string& path, const std::string& content) {
 // Uses a unique directory per test to avoid inter-test interference.
 struct TimeServiceTestConfig {
     std::string dir;
+    ScopedTimeZone timeZone;
+    cosmo::test::ScopedPathOverride pathOverride;
 
-    explicit TimeServiceTestConfig(const std::string& base = "/tmp/cosmo_time_test") : dir(base) {
+    explicit TimeServiceTestConfig(const std::string& base = "/tmp/cosmo_time_test")
+        : dir(base), pathOverride(dir, dir) {
         fs::remove_all(dir);
-        cosmo::path::OverrideRootPathForTest(dir, dir);
         auto cfgDir = dir + "/conf";
         fs::create_directories(cfgDir);
 
@@ -65,7 +94,6 @@ struct TimeServiceTestConfig {
 }  // namespace
 
 TEST_CASE("TimeServiceImpl: GetTimeStatus basic properties", "[time][service]") {
-    cosmo::test::MockServiceRegistry mocks;
     TimeServiceTestConfig cfg;
 
     cosmo::service::TimeServiceImpl timeSvc;
@@ -101,7 +129,6 @@ TEST_CASE("TimeServiceImpl: GetTimeStatus basic properties", "[time][service]") 
 }
 
 TEST_CASE("TimeServiceImpl: SyncNtp updates in-memory state", "[time][service]") {
-    cosmo::test::MockServiceRegistry mocks;
     TimeServiceTestConfig cfg;
 
     cosmo::service::TimeServiceImpl timeSvc;
@@ -157,7 +184,6 @@ TEST_CASE("TimeServiceImpl: SyncNtp updates in-memory state", "[time][service]")
 }
 
 TEST_CASE("TimeServiceImpl: rejects invalid NTP configuration at service boundary", "[time][service]") {
-    cosmo::test::MockServiceRegistry mocks;
     TimeServiceTestConfig cfg;
     cosmo::service::TimeServiceImpl timeSvc;
 
@@ -182,7 +208,6 @@ TEST_CASE("TimeServiceImpl: rejects invalid NTP configuration at service boundar
 
 TEST_CASE("TimeServiceImpl: SetTime commits configuration only when the clock update succeeds",
           "[time][service]") {
-    cosmo::test::MockServiceRegistry mocks;
     TimeServiceTestConfig cfg;
 
     cosmo::service::TimeServiceImpl timeSvc;
@@ -222,7 +247,6 @@ TEST_CASE("TimeServiceImpl: SetTime commits configuration only when the clock up
 
 TEST_CASE("TimeServiceImpl: persistence failure does not split runtime configuration",
           "[time][service][persistence]") {
-    cosmo::test::MockServiceRegistry mocks;
     TimeServiceTestConfig cfg("/tmp/cosmo_time_persistence_test");
     cosmo::service::TimeServiceImpl timeSvc;
 
@@ -255,7 +279,6 @@ TEST_CASE("TimeServiceImpl: persistence failure does not split runtime configura
 }
 
 TEST_CASE("TimeServiceImpl: stopping an NTP receive is prompt", "[time][service][ntp][lifecycle]") {
-    cosmo::test::MockServiceRegistry mocks;
     TimeServiceTestConfig cfg("/tmp/cosmo_time_lifecycle_test");
 
     const int server = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -292,7 +315,6 @@ TEST_CASE("TimeServiceImpl: stopping an NTP receive is prompt", "[time][service]
 }
 
 TEST_CASE("TimeServiceImpl: invalid persisted configuration is sanitized", "[time][service][load]") {
-    cosmo::test::MockServiceRegistry mocks;
     TimeServiceTestConfig cfg("/tmp/cosmo_time_invalid_load_test");
     WriteJsonFile(
         cfg.dir + "/conf/TimeZoneInfo.json",
@@ -312,10 +334,10 @@ TEST_CASE("TimeServiceImpl: invalid persisted configuration is sanitized", "[tim
 }
 
 TEST_CASE("TimeServiceImpl: Construction with missing config files", "[time][service]") {
-    cosmo::test::MockServiceRegistry mocks;
+    ScopedTimeZone time_zone;
     std::string emptyDir = "/tmp/cosmo_time_empty_test";
     fs::remove_all(emptyDir);
-    cosmo::path::OverrideRootPathForTest(emptyDir, emptyDir);
+    cosmo::test::ScopedPathOverride path_override(emptyDir, emptyDir);
     fs::create_directories(emptyDir + "/conf");
 
     SECTION("Constructs without crash when config files are missing") {
@@ -338,7 +360,6 @@ TEST_CASE("TimeServiceImpl: Construction with missing config files", "[time][ser
 }
 
 TEST_CASE("TimeServiceImpl: Thread safety of GetTimeStatus", "[time][service][thread]") {
-    cosmo::test::MockServiceRegistry mocks;
     TimeServiceTestConfig cfg;
 
     cosmo::service::TimeServiceImpl timeSvc;

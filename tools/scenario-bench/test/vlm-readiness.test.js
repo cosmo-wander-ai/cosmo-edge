@@ -42,14 +42,24 @@ test('waits for every newly-added VLM route to advance its own completion counte
   });
 
   assert.equal(result.ready, true);
+  assert.equal(result.status, 'ready');
   assert.equal(result.probes, 3);
+  assert.equal(result.elapsedMs, 6000);
   assert.deepEqual(result.bindings.map((binding) => ({
     taskId: binding.taskId,
     baselineTotal: binding.baselineTotal,
     currentTotal: binding.currentTotal,
+    completionAdvanced: binding.completionAdvanced,
+    ready: binding.ready,
   })), [
-    { taskId: 'task-1', baselineTotal: 10, currentTotal: 11 },
-    { taskId: 'task-2', baselineTotal: 20, currentTotal: 21 },
+    {
+      taskId: 'task-1', baselineTotal: 10, currentTotal: 11,
+      completionAdvanced: true, ready: true,
+    },
+    {
+      taskId: 'task-2', baselineTotal: 20, currentTotal: 21,
+      completionAdvanced: true, ready: true,
+    },
   ]);
 });
 
@@ -103,16 +113,31 @@ test('accepts the task-local PDA counter for a PDA-only VLM binding', async () =
 
 test('times out with the incomplete binding reason', async () => {
   let now = 0;
-  await assert.rejects(
-    waitForVlmReady({
+  let error;
+  try {
+    await waitForVlmReady({
       entries: [entries[0]],
       probe: async () => ({ channels: [channel(entries[0], 7)] }),
       timeoutSec: 6,
       pollIntervalSec: 3,
       now: () => now,
       sleep: async (ms) => { now += ms; },
-    }),
-    /task-1 \(BA_00004 did not advance from 7\)/,
+    });
+  } catch (caught) {
+    error = caught;
+  }
+  assert.match(error?.message ?? '', /task-1 \(BA_00004 did not advance from 7\)/);
+  assert.equal(error.name, 'VlmReadinessTimeoutError');
+  assert.equal(error.readiness.status, 'timed-out');
+  assert.equal(error.readiness.ready, false);
+  assert.equal(error.readiness.probes, 3);
+  assert.equal(error.readiness.bindings[0].completionActionId, 'BA_00004');
+  assert.equal(error.readiness.bindings[0].baselineTotal, 7);
+  assert.equal(error.readiness.bindings[0].currentTotal, 7);
+  assert.equal(error.readiness.bindings[0].ready, false);
+  assert.deepEqual(
+    error.readiness.bindings[0].pendingReasons,
+    ['BA_00004 did not advance from 7'],
   );
 });
 

@@ -277,13 +277,6 @@ void StreamViewerOverview::LiveDataAiFrameToLocal(std::vector<MsgAiDetFrame>& ai
     }
 }
 
-void StreamViewerOverview::LiveDataSensitityToLocal(std::vector<MsgRecSensitity>& /*aiDatas*/) {}
-
-void StreamViewerOverview::LiveDataPosSaveSensitityToLocal(std::vector<MsgRecPosSaveSensitity>& /*aiDatas*/) {
-}
-
-void StreamViewerOverview::LiveDataAiFilterToLocal(std::vector<MsgAiFilterFrame>& /*aiDatas*/) {}
-
 void StreamViewerOverview::LiveDataToLocal() {
     auto liveDatas =
         service::ServiceRegistry::Instance().Get<service::ITaskQuery>().GetTaskLiveOverviewInfo(task_id_);
@@ -324,12 +317,11 @@ void StreamViewerOverview::LiveDataToLocal() {
                     }
                 }
             }
-        } else if (MsgOverviewMemDataType::MsgOverviewMemDataTypeSensitity == livedata.type) {
-            LiveDataSensitityToLocal(livedata.sensititys);
-        } else if (MsgOverviewMemDataType::MsgOverviewMemDataTypePosSaveSensitity == livedata.type) {
-            LiveDataPosSaveSensitityToLocal(livedata.posSaveSens);
-        } else if (MsgOverviewMemDataType::MsgOverviewMemDataTypeAiFilter == livedata.type) {
-            LiveDataAiFilterToLocal(livedata.aiFilters);
+        } else if (MsgOverviewMemDataType::MsgOverviewMemDataTypeSensitity == livedata.type ||
+                   MsgOverviewMemDataType::MsgOverviewMemDataTypePosSaveSensitity == livedata.type ||
+                   MsgOverviewMemDataType::MsgOverviewMemDataTypeAiFilter == livedata.type) {
+            // Sensitivity and filter records currently do not produce live OSD elements.
+            continue;
         } else if (MsgOverviewMemDataType::MsgOverviewMemDataTypeAlarm == livedata.type) {
             LiveDataAlarmToLocal(livedata.alarms);
         } else if (MsgOverviewMemDataType::MsgOverviewMemDataTypeParams == livedata.type) {

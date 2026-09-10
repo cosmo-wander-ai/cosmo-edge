@@ -9,6 +9,11 @@ const sourcePath = path.join(repositoryRoot, 'README.zh-CN.md');
 const targetPath = path.join(repositoryRoot, 'Readme.osc.md');
 const checkMode = process.argv.includes('--check');
 const generatedHeader = '<!-- Generated from README.zh-CN.md by scripts/generate-gitee-readme.mjs. Do not edit directly. -->\n\n';
+const githubReleaseBadge = '[![Release](https://img.shields.io/badge/release-v1.1.0-2ea44f?style=flat-square)](https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.1.0)';
+const giteeReleaseBadge = '[![Release](https://img.shields.io/badge/release-v1.1.0-2ea44f?style=flat-square)](https://gitee.com/cosmo-wander-ai/cosmo-edge/releases)';
+const githubCloneCommand = 'git clone https://github.com/cosmo-wander-ai/cosmo-edge.git';
+const giteeCloneCommand = 'git clone https://gitee.com/cosmo-wander-ai/cosmo-edge.git';
+const giteeIssuesUrl = 'https://gitee.com/cosmo-wander-ai/cosmo-edge/issues';
 
 const replacements = [
   {
@@ -34,6 +39,15 @@ const replacements = [
       '',
       '[▶ 在官网播放 DINO 与 VLM 演示](https://www.cosmowander.ai/zh/demos/#vlm-dino)'
     ].join('\n')
+  },
+  {
+    source: githubReleaseBadge,
+    target: giteeReleaseBadge
+  },
+  {
+    source: githubCloneCommand,
+    target: giteeCloneCommand,
+    expectedOccurrences: 2
   }
 ];
 
@@ -42,10 +56,11 @@ let body = source;
 
 for (const replacement of replacements) {
   const occurrences = countOccurrences(body, replacement.source);
-  if (occurrences !== 1) {
-    fail('Expected exactly one source video link, found ' + occurrences + ': ' + replacement.source);
+  const expectedOccurrences = replacement.expectedOccurrences ?? 1;
+  if (occurrences !== expectedOccurrences) {
+    fail('Expected ' + expectedOccurrences + ' source pattern occurrence(s), found ' + occurrences + ': ' + replacement.source);
   }
-  body = body.replace(replacement.source, replacement.target);
+  body = body.split(replacement.source).join(replacement.target);
 }
 
 const generated = generatedHeader + body;
@@ -55,15 +70,30 @@ if (checkMode) {
   if (!fs.existsSync(targetPath)) fail('Readme.osc.md is missing; run npm run gitee:readme:generate');
   const actual = fs.readFileSync(targetPath, 'utf8');
   if (actual !== generated) fail('Readme.osc.md is stale; run npm run gitee:readme:generate');
-  console.log('Gitee README check passed: generated copy is current and all 3 videos route to official playback pages.');
+  console.log('Gitee README check passed: generated copy is current, clone commands and the release badge route to Gitee, Gitee Issues is visible, and all 3 videos route to official playback pages.');
 } else {
   fs.writeFileSync(targetPath, generated);
-  console.log('Generated Readme.osc.md from README.zh-CN.md with 3 official video-page replacements.');
+  console.log('Generated Readme.osc.md from README.zh-CN.md with Gitee clone, release, and issue entry points plus 3 official video-page replacements.');
 }
 
 function validateGenerated(content) {
   if (content.includes('github.com/user-attachments')) {
     fail('Generated Gitee README still contains GitHub attachment media');
+  }
+  if (content.includes(githubReleaseBadge)) {
+    fail('Generated Gitee README still routes the release badge to GitHub');
+  }
+  if (content.includes(githubCloneCommand)) {
+    fail('Generated Gitee README still contains a GitHub clone command');
+  }
+  if (countOccurrences(content, giteeCloneCommand) !== 2) {
+    fail('Expected both Gitee README clone commands to route to Gitee');
+  }
+  if (!content.includes(`[Gitee Issues](${giteeIssuesUrl})`)) {
+    fail('Generated Gitee README is missing the Gitee Issues entry point');
+  }
+  if (countOccurrences(content, giteeReleaseBadge) !== 1) {
+    fail('Expected exactly one Gitee release badge');
   }
   for (const anchor of ['#overview', '#pipeline', '#vlm-dino']) {
     const expected = 'https://www.cosmowander.ai/zh/demos/' + anchor;

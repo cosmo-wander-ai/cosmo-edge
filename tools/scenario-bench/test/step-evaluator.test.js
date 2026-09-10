@@ -65,7 +65,7 @@ test('runtime decision stops CV tasks when steady throughput falls below half ba
   assert.match(decision.reason, /cv fps 4\.9 < baseline 10\.0\*0\.5/);
 });
 
-test('runtime decision stops VLM tasks by configured FPS ratio instead of CV baseline fuse', () => {
+test('first-route VLM runtime decision applies the configured FPS gate instead of its baseline', () => {
   const decision = runtimeStepDecision({
     avgDiscard: 0,
     taskStats: [{
@@ -88,6 +88,34 @@ test('runtime decision stops VLM tasks by configured FPS ratio instead of CV bas
   assert.equal(decision.stop, true);
   assert.match(decision.reason, /vlm fpsRatio 0\.700 < 0\.8/);
   assert.doesNotMatch(decision.reason, /baseline/);
+});
+
+test('runtime decision stops on VLM task-local telemetry missing rate', () => {
+  const decision = runtimeStepDecision({
+    avgDiscard: 0,
+    taskStats: [{
+      taskKey: 'vlm',
+      taskDisplayName: 'vlm',
+      taskType: 'vlm',
+      minThroughputFps: 0.1,
+      minFpsRatio: 1,
+      maxMissingRate: 0.05,
+      avgDiscardRate: 0,
+    }],
+  }, {
+    thresholds: {
+      taskTypes: {
+        vlm: { minFpsRatio: 0.8, maxMissingRate: 0 },
+      },
+    },
+  });
+
+  assert.equal(decision.stop, true);
+  assert.match(decision.reason, /vlm missingRate 0\.050 > 0/);
+  assert.deepEqual(
+    decision.gates.map((gate) => gate.name),
+    ['maxMissingRate'],
+  );
 });
 
 test('VLM step summary uses the complete hold window for counter throughput', () => {

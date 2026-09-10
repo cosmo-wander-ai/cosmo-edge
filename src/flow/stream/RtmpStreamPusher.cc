@@ -2,8 +2,6 @@
 
 #include "flow/stream/RtmpStreamPusher.h"
 
-#include <algorithm>
-
 #include "media/PreviewPipelineMetrics.h"
 #include "util/ErrorCode.h"
 #include "util/Exception.h"
@@ -17,12 +15,6 @@ namespace {
         char buf[AV_ERROR_MAX_STRING_SIZE]{};
         av_strerror(errorNo, buf, AV_ERROR_MAX_STRING_SIZE);
         return buf;
-    }
-
-    size_t MinFirstKeyFrameSize(int width, int height) {
-        const auto pixels =
-            static_cast<size_t>(std::max(width, 1)) * static_cast<size_t>(std::max(height, 1));
-        return std::max<size_t>(1024, pixels / 4096);
     }
 }  // namespace
 
@@ -271,17 +263,7 @@ void RtmpStreamPusher::DoPushFrame(const uint8_t* data, size_t size) {
     }
 
     if (main_type == media::HFrameType::I && !first_frame_flag_.test_and_set()) {
-        const size_t min_key_frame_size = MinFirstKeyFrameSize(width_, height_);
-        if (out_size < min_key_frame_size) {
-            first_frame_flag_.clear();
-            if (skip_count_++ <= 3) {
-                LOG_WARN("DoPushFrame skip: first I-frame too small size:{} min:{} at frame #{}", out_size,
-                         min_key_frame_size, debug_info_.recvFrames);
-            }
-            return;
-        }
-
-        LOG_INFO("{}", "first I-frame received, pushing header");
+        LOG_INFO("first I-frame received, pushing header: size={}", out_size);
         if (!PushHeader()) {
             return;
         }

@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "platform/NetCardOpInternal.h"
+#include "platform/NetworkManagerConfig.h"
 #include "util/Exec.h"
 #include "util/FileUtil.h"
 #include "util/FormatString.h"
@@ -24,7 +25,12 @@ NetCardOpResult NetCardEffect(const NetCardInfo& info);
 namespace internal = cosmo::platform::internal;
 
 NetCardOpResult DoNetCard(const NetCardInfo& info) {
-#ifndef COSMO_NN_USE_SOPHON_BACKEND
+#ifdef COSMO_NN_USE_RKNN_BACKEND
+    if (!internal::ApplyNetworkManagerCard(info)) {
+        return {cosmo::util::ErrorEnum::Failed, "NetworkManager configuration failed", ""};
+    }
+    return {};
+#elif !defined(COSMO_NN_USE_SOPHON_BACKEND)
     LOG_WARN("{}", "Network card configuration is not supported on x86 platform.");
     return NetCardOpResult{cosmo::util::ErrorEnum::OperationNotSupport, "Not supported on x86", ""};
 #else

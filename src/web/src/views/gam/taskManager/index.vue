@@ -39,7 +39,7 @@
           <template #default="scope">
             <div>
               <div id="onboarding-task-switch" class="task_table" v-for="(item, index) in scope.row.taskList" :key="index">
-                <div class="analytical" @click="analyticalEngine(item)">
+                <div class="analytical">
                   <div class="task_text">{{ resolveResourceAlgorithmName(item) }}</div>
                 </div>
                 <el-switch class="task-switch" v-model="item.enableStatus" active-color="#00f944" :active-value="1" :inactive-value="0" @change="taskEnableChange(item, scope.row.videoChannelId)"></el-switch>
@@ -284,21 +284,7 @@ const tableData = ref([])
 const pageData = reactive({ pageNum: 1, pageSize: 10, total: 0 })
 const formData = reactive({})
 const multipleSelection = ref([])
-const platformType = ref(localStorage.getItem('platformType'))
 const algorithms = ref(JSON.parse(localStorage.getItem('algorithms')))
-const analyticalEngineVisible = ref(false)
-const analyticalData = ref([])
-const taskId = ref('')
-const runVideoDialogVisible = ref(false)
-const runVideoUrl = ref('')
-const runVideoLoading = ref(true)
-const runVideoStyle = ref({ height: '300px' })
-const imgStyle = ref({})
-const runVideoTimestamp = ref(Date.now())
-const dialogWidth = ref('700px')
-const dialogHeight = ref('500px')
-const runDetailDialogVisible = ref(false)
-const currentTaskObj = ref({})
 const channelImgSrc = ref('')
 const usbCameraList = ref([])
 
@@ -773,20 +759,6 @@ const rowClass = ({ rowIndex }) => {
   }
 }
 
-const analyticalEngine = (data) => {
-  if (platformType.value != 1) return
-  const custId = window.localStorage.getItem('taskCustId')
-    ? window.localStorage.getItem('taskCustId')
-    : window.localStorage.getItem('currentCustId')
-  const param = { custId: custId || '', algorithmId: data.algorithmId }
-  proxy.$API.allHostInfo(param).then((res) => {
-    const { resData } = res.data
-    analyticalData.value = resData
-  })
-  taskId.value = data.taskId
-  analyticalEngineVisible.value = true
-}
-
 const handleDeleteChannel = (row) => {
   proxy
     .$confirm(t('validate.deleteConfirm'), t('common.notice'), {
@@ -932,10 +904,6 @@ const setDefaultImage = (e) => {
   padding: 10px 20px;
   display: flex;
   justify-content: space-between;
-}
-
-.analytical {
-  cursor: pointer;
 }
 
 .task-node {

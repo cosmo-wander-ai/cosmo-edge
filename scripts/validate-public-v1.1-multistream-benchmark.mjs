@@ -81,13 +81,13 @@ if (errors.length) {
 const totalCases = canonicalPlatforms.reduce((count, item) => count + item.cases.length, 0);
 console.log(
   `Validation passed: ${platformDefinitions.length} manifest-defined platforms, ${totalCases} canonical cases, ` +
-  `${generation.reportCount} generated bilingual reports, refreshed VLM observations, controlled dual-CV 72-hour evidence, ` +
+  `${generation.reportCount} generated bilingual reports, validated VLM performance, controlled dual-CV 72-hour evidence, ` +
   'relative links, public scrub, and source/generated checksums verified.',
 );
 
 function validateManifest(value) {
   if (!value) return [];
-  if (value.schemaVersion !== 3) fail('manifest schemaVersion must be 3');
+  if (value.schemaVersion !== 4) fail('manifest schemaVersion must be 4');
   if (value.release?.version !== '1.1.0' || value.release?.tag !== 'v1.1.0') {
     fail('manifest release identity must be version 1.1.0 and tag v1.1.0');
   }
@@ -354,150 +354,299 @@ function validateStep(caseLabel, benchmarkCase, gates, step, index) {
 function validateVlmEvidence(manifestValue, definitions) {
   const value = readJsonIfPresent(root, 'results/vlm-observations.json');
   if (!value) return { observations: [] };
-  if (value.schemaVersion !== 3 || value.evidenceStatus !== 'refreshed-controlled-vlm-evidence'
-      || value.refreshedWithControlledInput !== true || value.refreshDate !== '2026-08-20') {
-    fail('canonical VLM evidence status is inconsistent');
+  const label = 'canonical VLM evidence';
+  if (value.schemaVersion !== 4 || value.title !== 'CosmoEdge 1.1 validated VLM performance'
+      || value.validationDate !== '2026-08-24' || value.crossPlatformComparable !== true) {
+    fail(`${label} identity is inconsistent`);
   }
+
   const refresh = manifestValue?.evidence?.vlmRefresh;
-  if (!refresh || value.crossPlatformComparable !== refresh.crossPlatformComparable
-      || value.crossPlatformComparable !== false) {
-    fail('mixed VLM readiness protocols must not be marked cross-platform comparable');
+  if (!sha1(value.source?.commit) || !sha1(value.source?.tree)
+      || value.source.commit !== refresh?.sourceCommit
+      || value.source.tree !== refresh?.sourceTree
+      || value.source.commit !== 'f4ec2fc51f1753231165f143d14522effbb77125'
+      || value.source.tree !== '2ed191ac67df2fc23c36ffa9933a387683f51732'
+      || value.source.candidateVersion !== 'V1.1.0'
+      || value.source.releaseStateAtFreeze !== 'draft-release-without-tag-or-assets') {
+    fail(`${label} source commit/tree differs from the frozen candidate`);
   }
-  const publicationPolicy = value.publicationEvaluation;
-  const manifestPublicationPolicy = manifestValue?.evidence?.vlmPublicationEvaluation;
-  expectObjectKeys(publicationPolicy, [
-    'classification',
-    'targetFpsPerChannel',
-    'minimumActiveRouteFpsRatio',
-    'requiresNonFpsGatePass',
-    'usesContiguousCompletedPrefix',
-    'startupSensitiveStopsArePerformanceFailures',
-    'capacityClaimAllowed',
-  ], 'canonical VLM publication evaluation');
-  if (!deepEqual(publicationPolicy, manifestPublicationPolicy)) {
-    fail('canonical VLM publication evaluation differs from the release manifest');
+  if (refresh?.crossPlatformComparable !== true || refresh?.protocolId !== value.protocol?.id) {
+    fail('manifest VLM refresh differs from the canonical protocol');
   }
-  if (publicationPolicy?.classification !== 'conservative-post-evaluation'
-      || publicationPolicy?.targetFpsPerChannel !== manifestValue?.controls?.vlmTargetFpsPerChannel
-      || publicationPolicy?.minimumActiveRouteFpsRatio !== 0.8
-      || publicationPolicy?.requiresNonFpsGatePass !== true
-      || publicationPolicy?.usesContiguousCompletedPrefix !== true
-      || publicationPolicy?.startupSensitiveStopsArePerformanceFailures !== false
-      || publicationPolicy?.capacityClaimAllowed !== false
-      || manifestValue?.controls?.vlmFpsGateEnabled !== false) {
-    fail('VLM publication evaluation policy is inconsistent');
+
+  const protocol = value.protocol;
+  if (protocol?.targetFpsPerChannel !== 0.1
+      || protocol?.holdSecondsPerStep !== 60
+      || protocol?.sampleIntervalSeconds !== 3
+      || !sameArray(protocol?.channelSequence ?? [], [1, 2, 3, 4, 5, 6, 7, 8])
+      || protocol?.rampChannelsPerStep !== 1
+      || protocol?.readiness?.scope !== 'newly-added-route'
+      || protocol?.readiness?.completionCounter !== 'task-local'
+      || protocol?.readiness?.requiresCompletionAdvance !== true
+      || protocol?.readiness?.requiresQwenLatency !== true
+      || protocol?.readiness?.occursBeforeFormalSampling !== true
+      || protocol?.gates?.minimumFpsRatio !== 0.8
+      || protocol?.gates?.maximumMissingRate !== 0
+      || protocol?.gates?.maximumAverageDiscardRate !== 0.05
+      || protocol?.gates?.maximumChannelDiscardRate !== 0.01
+      || protocol?.gates?.maximumDiskUsedPercent !== 99
+      || protocol?.gates?.fpsGateExecuted !== true
+      || manifestValue?.controls?.vlmFpsGateEnabled !== true) {
+    fail(`${label} executed protocol is inconsistent`);
   }
-  if (typeof refresh?.projectionPolicy !== 'string' || !refresh.projectionPolicy.includes('first non-FPS gate')) {
-    fail('manifest VLM projection policy is missing');
+  const manifestValidation = manifestValue?.evidence?.vlmValidation;
+  if (manifestValidation?.classification !== value.claim?.class
+      || manifestValidation?.targetFpsPerChannel !== protocol.targetFpsPerChannel
+      || manifestValidation?.minimumActiveRouteFpsRatio !== protocol.gates.minimumFpsRatio
+      || manifestValidation?.fpsGateExecuted !== true
+      || manifestValidation?.taskLocalReadinessRequired !== true
+      || manifestValidation?.taskLocalCompletionCounterRequired !== true
+      || manifestValidation?.sameInputPromptAndWindow !== true
+      || manifestValidation?.threePlatformEndToEndAccepted !== value.claim?.threePlatformEndToEndAccepted) {
+    fail('manifest VLM validation policy differs from the canonical evidence');
   }
+  if (value.claim?.class !== 'validated-vlm-short-run-capacity'
+      || value.claim?.capacityMeasured !== true
+      || value.claim?.maximumCapacityCertified !== false
+      || value.claim?.productionConfigurationCertified !== false) {
+    fail(`${label} claim class or scope is inconsistent`);
+  }
+  if (value.input?.sha256 !== manifestValue?.dataset?.sha256
+      || value.input?.sizeBytes !== manifestValue?.dataset?.sizeBytes
+      || value.prompt?.text !== '判断有没有人') {
+    fail(`${label} controlled input or prompt differs from the frozen protocol`);
+  }
+
+  const expectedVlmIds = ['bm1688', 'cv186x', 'rk3576'];
+  const expectedVlmResults = {
+    bm1688: {
+      sourceMetricsSha256: '337da0e746343cfa02025dc939842a68f661731d77a7bc83070159efc8300c74',
+      sourceSummarySha256: 'cc591974ae6416632bf0a70e7f394c4f54639f63b2411b6360552762f6748c61',
+      sourceReportSha256: '9caad6ad2a0a25a65be1ab831fe7e47e11cb2d691b3043c76406feac2bddc771',
+      packageSha256: 'd9ef69d53eb3c7a55c281dcdf3eabeb97766d653af67806257654c3ad66b50a4',
+      packageSizeBytes: 62936226,
+      engineSha256: '33dc3f74c7dd656e6980c97d83181cc660ee72ce73719ff0750e5ef509503bdb',
+      libraries: [
+        { name: 'libbmlib.so', sha256: '9cb9d523440026f764a3274cf4fb4ece53a104c7ef938188019129641c0baef3' },
+        { name: 'libbmrt.so', sha256: '6ccf533e5d95e418a4ee7a20f2739758218c36aac22ac4fd187bec226b80dbff' },
+        { name: 'libbmrt.so.1.0', sha256: '51d8f2c9255fb167d8d73e235268ac4fb302593c241e12c5bffb29b20320fce1' },
+      ],
+      modelSha256: '31a03f4845d612b3c9e946468c2032254c42be54594a0848eb5938fc0f4bd767',
+      tokenizerSha256: 'cb16258a9df7062f4c4d291a1501b07fb0750c9a8b247c5639dba0369e42f0cb',
+      configSha256: 'ca7583cd9fb359ea842461464a1b4f08ad0604f9daf54b04e759d4a2233659e6',
+      passingChannels: 6,
+      firstFailureChannels: 7,
+      firstFailureRatio: 0.695,
+      endToEndSha256: '9750d12e35f54470bb0a349dc4ef7ffb523e9dd35bb0acef28b77871afeae833',
+      endToEndSizeBytes: 5551,
+    },
+    cv186x: {
+      sourceMetricsSha256: '0a2509dea89d9f74ef5c6bdeeed373affd413ac2c06c8b51a38e18db0c5974f6',
+      sourceSummarySha256: 'eb72a0f2fba8aaf501189ba819b930ae900dc37f0acdb1aafd949e75b2197219',
+      sourceReportSha256: '6e699611390db033d4e16cd072330a3612c230d1c45c20483d2657b48ec7af9e',
+      packageSha256: 'b1ddea61b8fa8b7c5985fb8802bc29ffc69ecf8ee5ffae5629e6cbcd6356a742',
+      packageSizeBytes: 62936226,
+      engineSha256: '33dc3f74c7dd656e6980c97d83181cc660ee72ce73719ff0750e5ef509503bdb',
+      libraries: [
+        { name: 'libbmlib.so', sha256: '9cb9d523440026f764a3274cf4fb4ece53a104c7ef938188019129641c0baef3' },
+        { name: 'libbmrt.so', sha256: '6ccf533e5d95e418a4ee7a20f2739758218c36aac22ac4fd187bec226b80dbff' },
+        { name: 'libbmrt.so.1.0', sha256: '51d8f2c9255fb167d8d73e235268ac4fb302593c241e12c5bffb29b20320fce1' },
+      ],
+      modelSha256: '8d258ab0d16bb8836fe8de4e66b241890d71e64f016961e7d63588b6f7f76f1b',
+      tokenizerSha256: 'cb16258a9df7062f4c4d291a1501b07fb0750c9a8b247c5639dba0369e42f0cb',
+      configSha256: 'b2cdea93d82808d62e47b3abff616a9c13838f7c10af094f15138fda3f5d226b',
+      passingChannels: 6,
+      firstFailureChannels: 7,
+      firstFailureRatio: 0.692,
+      endToEndSha256: '7614232c403abbb410657f3ad5caa39a2ad2d23849ae28d100fb2d2fc9226653',
+      endToEndSizeBytes: 5547,
+    },
+    rk3576: {
+      sourceMetricsSha256: '1905968e8b9cde3785d1bc779d0bf2413eb5db4743bbe43d12065886d5ff9f76',
+      sourceSummarySha256: '0fca37d7c6338b84802833ed77cc563caf09d60f388c48776b4db5481c0c1e3e',
+      sourceReportSha256: 'c3f4f23e0a9a059b9332e93e9e887d28cbeaf926962636f12f553f7c9be999c2',
+      packageSha256: 'c63b8618fbfe497dd9d49fc7e2b80d7a4d184eb3d34286dec7813d7566886f71',
+      packageSizeBytes: 52422736,
+      engineSha256: 'b8d8a4f93d851ecd9ccd48454f9e57b1bc08dbf10e2fe96b4d8da64730220931',
+      libraries: [
+        { name: 'librkllmrt.so', sha256: '6a9e4fc5324c68921c3a900340361e107af7599fe34dc8fa7759b2c5ae22a6e6' },
+        { name: 'librknnrt.so', sha256: 'd31fc19c85b85f6091b2bd0f6af9d962d5264a4e410bfb536402ec92bac738e8' },
+      ],
+      modelSha256: 'ef6c1b234620f51749093b0a5210e5ea40c474c85cc91b3187260be8c7cfdb02',
+      visionSha256: 'a64fa9ebd58314b80f5e002c37c13ac98df2445b3f7de1ba9a685e921782778f',
+      tokenizerSha256: '5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42',
+      configSha256: '996f59bda0494d9d56519a6ae026c0c64369c935cc3f8bbf7127e094cbcb267a',
+      passingChannels: 4,
+      firstFailureChannels: 5,
+      firstFailureRatio: 0.697,
+      endToEndSha256: 'bf5204b3204b959c84933c2842263662d2aa0b01a76c5a2d627158e23a0bdbca',
+      endToEndSizeBytes: 5546,
+    },
+  };
   const releaseIds = new Set(definitions.filter((item) => item.scope === 'release-platform').map((item) => item.id));
   const observations = Array.isArray(value.observations) ? value.observations : [];
-  const ids = observations.map((item) => item?.platformId);
-  if (new Set(ids).size !== ids.length) fail('canonical VLM file contains duplicate platforms');
-  for (const observation of observations) {
-    const label = `${observation?.platformId ?? '<missing>'} VLM observation`;
-    if (!releaseIds.has(observation?.platformId)) fail(`${label} is not attached to a release platform`);
-    if (!sha256(observation?.sourceSummarySha256)) fail(`${label} sourceSummarySha256 is invalid`);
-    if (!sha256(observation?.sourceMetricsSha256)) fail(`${label} sourceMetricsSha256 is invalid`);
-    if (!sha1(observation?.source?.commit) || !sha1(observation?.source?.tree)) fail(`${label} source commit/tree is invalid`);
-    if (!sha256(observation?.source?.toolPatchSha256)) fail(`${label} source tool-patch hash is invalid`);
-    if (!['final-per-route-readiness', 'pre-readiness-startup-sensitive'].includes(observation?.source?.protocolClass)) {
-      fail(`${label} readiness protocol class is invalid`);
-    }
-    if (observation?.source?.commit !== refresh?.sourceCommit || observation?.source?.tree !== refresh?.sourceTree) {
-      fail(`${label} source provenance differs from the release manifest`);
-    }
-    const expectedToolPatch = observation?.source?.protocolClass === 'final-per-route-readiness'
-      ? refresh?.finalToolPatchSha256
-      : refresh?.preReadinessToolPatchSha256;
-    if (observation?.source?.toolPatchSha256 !== expectedToolPatch) {
-      fail(`${label} tool-patch provenance differs from the release manifest`);
-    }
-    if (observation?.source?.protocolClass === 'final-per-route-readiness') {
-      if (observation?.source?.artifactForm !== 'native-completed-run'
-          || observation?.source?.projectionCutoff !== null
-          || observation?.source?.executionContinuedBeyondProjection !== false) {
-        fail(`${label} must identify its native completed-run artifact`);
-      }
-    } else if (observation?.source?.artifactForm !== 'first-failure-public-projection'
-        || observation?.source?.projectionCutoff !== 'first non-FPS gate stop'
-        || observation?.source?.executionContinuedBeyondProjection !== true
-        || !sha256(observation?.source?.originalRunSummarySha256)
-        || !sha256(observation?.source?.originalRunMetricsSha256)) {
-      fail(`${label} must identify its first-failure projection and original-run hashes`);
-    }
-    if (observation?.workload?.targetFpsPerChannel !== 0.1) fail(`${label} target FPS must remain 0.1 per channel`);
-    if (observation?.workload?.counterSemantics !== 'task-local-completion-counter') fail(`${label} must use task-local completion counters`);
-    if (observation?.observedBoundary?.capacityClaimAllowed !== false) fail(`${label} must not claim capacity`);
-    const steps = Array.isArray(observation?.steps) ? observation.steps : [];
-    let previousChannel = 0;
-    for (const [index, step] of steps.entries()) {
-      if (!positiveInteger(step?.channels) || step.channels <= previousChannel) fail(`${label} channels must be strictly increasing`);
-      previousChannel = step?.channels ?? previousChannel;
-      if (step?.targetFpsPerChannel !== observation.workload.targetFpsPerChannel) fail(`${label} step ${index + 1} target FPS changed`);
-      if (step?.fpsGateEnabled !== false) fail(`${label} step ${index + 1} FPS gate must remain disabled`);
-      if (!nullableNonNegativeNumber(step?.currentRouteFps)) fail(`${label} step ${index + 1} current-route FPS is invalid`);
-      if (!nullableNonNegativeNumber(step?.fpsAchievementRatioObserved)) fail(`${label} step ${index + 1} FPS ratio is invalid`);
-      if (!nullableNonNegativeNumber(step?.minimumActiveRouteFps)) fail(`${label} step ${index + 1} active-route minimum FPS is invalid`);
-      if (!nullableNonNegativeNumber(step?.minimumActiveRouteFpsRatioObserved)) fail(`${label} step ${index + 1} active-route minimum FPS ratio is invalid`);
-      if (step?.minimumActiveRouteFps != null && step?.minimumActiveRouteFpsRatioObserved != null) {
-        const expectedRatio = step.minimumActiveRouteFps / step.targetFpsPerChannel;
-        if (Math.abs(step.minimumActiveRouteFpsRatioObserved - expectedRatio) > 0.001) {
-          fail(`${label} step ${index + 1} active-route minimum FPS ratio is inconsistent`);
-        }
-      }
-    }
-    const passing = steps.filter((step) => step?.nonFpsGateResult === 'PASS').map((step) => step.channels);
-    const stopped = steps.filter((step) => step?.nonFpsGateResult !== 'PASS').map((step) => step.channels);
-    const highestPass = passing.length ? Math.max(...passing) : null;
-    const firstStop = stopped.length ? Math.min(...stopped) : null;
-    if (observation?.observedBoundary?.highestNonFpsPassingChannels !== highestPass) fail(`${label} highest non-FPS passing boundary is inconsistent`);
-    if (observation?.observedBoundary?.firstNonFpsStopChannels !== firstStop) fail(`${label} first non-FPS stop boundary is inconsistent`);
+  if (!sameArray(observations.map((item) => item?.platformId).sort(), [...expectedVlmIds].sort())) {
+    fail(`${label} platform inventory must be exactly BM1688, CV186X, and RK3576`);
+  }
 
-    const publicationBoundary = observation?.publicationBoundary;
-    expectObjectKeys(publicationBoundary, [
-      'displayChannels',
-      'firstExcludedChannels',
-      'firstExcludedReason',
-      'claimClass',
-      'capacityClaimAllowed',
-      'reason',
-    ], `${label} publication boundary`);
-    let expectedDisplayChannels = null;
-    let expectedFirstExcludedChannels = null;
-    let expectedFirstExcludedReason = null;
+  const acceptance = value.endToEndAcceptance;
+  const acceptancePlatforms = Array.isArray(acceptance?.platforms) ? acceptance.platforms : [];
+  if (acceptance?.candidatePackageSharedWithCapacityRun !== true
+      || !sameArray(acceptance?.requiredStages ?? [], [
+        'model-load', 'task-creation', 'valid-inference-result', 'event-or-alarm-output',
+        'task-recovery-after-service-restart',
+      ])
+      || !sameArray(acceptancePlatforms.map((item) => item?.platformId).sort(), [...expectedVlmIds].sort())) {
+    fail(`${label} end-to-end acceptance inventory is inconsistent`);
+  }
+  const acceptanceFields = [
+    'modelLoad', 'taskCreation', 'validInferenceResult', 'eventOrAlarmOutput',
+    'taskRecoveryAfterServiceRestart',
+  ];
+  for (const item of acceptancePlatforms) {
+    const expected = expectedVlmResults[item?.platformId];
+    if (!['PASS', 'PENDING'].includes(item?.status)) fail(`${item?.platformId} VLM end-to-end status is invalid`);
+    for (const field of acceptanceFields) {
+      if (!['PASS', 'PENDING'].includes(item?.[field])) fail(`${item?.platformId} VLM end-to-end ${field} is invalid`);
+    }
+    const allStagesPass = acceptanceFields.every((field) => item[field] === 'PASS');
+    if ((item.status === 'PASS') !== allStagesPass) fail(`${item.platformId} VLM end-to-end status does not match its stages`);
+    if (item.status === 'PASS' && (!sha256(item?.evidenceSha256)
+        || !positiveInteger(item?.evidenceSizeBytes))) {
+      fail(`${item.platformId} VLM end-to-end source evidence identity is incomplete`);
+    }
+    if (item.status !== 'PASS'
+        || item.evidenceSha256 !== expected?.endToEndSha256
+        || item.evidenceSizeBytes !== expected?.endToEndSizeBytes) {
+      fail(`${item.platformId} VLM end-to-end result differs from the frozen evidence identity`);
+    }
+  }
+  const allEndToEndPass = acceptancePlatforms.every((item) => item.status === 'PASS');
+  if (value.claim?.threePlatformEndToEndAccepted !== allEndToEndPass) {
+    fail(`${label} three-platform end-to-end claim differs from the recorded stages`);
+  }
+  const expectedEvidenceStatus = allEndToEndPass ? 'validated-vlm-performance' : 'validated-capacity-e2e-pending';
+  if (value.evidenceStatus !== expectedEvidenceStatus) fail(`${label} evidenceStatus is inconsistent`);
+
+  for (const observation of observations) {
+    const observationLabel = `${observation?.platformId ?? '<missing>'} VLM result`;
+    const expected = expectedVlmResults[observation?.platformId];
+    if (!releaseIds.has(observation?.platformId)) fail(`${observationLabel} is not attached to a release platform`);
+    for (const field of ['sourceSummarySha256', 'sourceMetricsSha256', 'sourceReportSha256']) {
+      if (!sha256(observation?.[field])) fail(`${observationLabel} ${field} is invalid`);
+    }
+    if (observation?.evidenceDate !== value.validationDate) fail(`${observationLabel} evidence date is inconsistent`);
+    if (observation?.sourceMetricsSha256 !== expected?.sourceMetricsSha256
+        || observation?.sourceSummarySha256 !== expected?.sourceSummarySha256
+        || observation?.sourceReportSha256 !== expected?.sourceReportSha256) {
+      fail(`${observationLabel} source evidence identity differs from the frozen result`);
+    }
+    if (observation?.package?.version !== 'V1.1.0'
+        || observation?.package?.targetChip !== observation.platformId
+        || !sha256(observation?.package?.sha256)
+        || !positiveInteger(observation?.package?.sizeBytes)) {
+      fail(`${observationLabel} package identity is incomplete`);
+    }
+    if (observation.package.sha256 !== expected?.packageSha256
+        || observation.package.sizeBytes !== expected?.packageSizeBytes) {
+      fail(`${observationLabel} package identity differs from the frozen candidate package`);
+    }
+    if (!sha256(observation?.runtimeIdentity?.engineSha256)
+        || !Array.isArray(observation?.runtimeIdentity?.libraries)
+        || observation.runtimeIdentity.libraries.length < 2
+        || observation.runtimeIdentity.libraries.some((item) => typeof item?.name !== 'string' || !sha256(item?.sha256))) {
+      fail(`${observationLabel} runtime identity is incomplete`);
+    }
+    if (observation.runtimeIdentity.engineSha256 !== expected?.engineSha256
+        || !deepEqual(observation.runtimeIdentity.libraries, expected?.libraries)) {
+      fail(`${observationLabel} runtime identity differs from the frozen candidate`);
+    }
+    if (!sha256(observation?.modelIdentity?.model?.sha256)
+        || !sha256(observation?.modelIdentity?.tokenizer?.sha256)
+        || !sha256(observation?.modelIdentity?.config?.sha256)) {
+      fail(`${observationLabel} model/tokenizer/config identity is incomplete`);
+    }
+    if (observation.modelIdentity.model.sha256 !== expected?.modelSha256
+        || observation.modelIdentity.tokenizer.sha256 !== expected?.tokenizerSha256
+        || observation.modelIdentity.config.sha256 !== expected?.configSha256
+        || (observation.platformId === 'rk3576' && observation.modelIdentity.vision.sha256 !== expected?.visionSha256)) {
+      fail(`${observationLabel} model identity differs from the frozen candidate`);
+    }
+    if (observation.platformId === 'rk3576' && !sha256(observation?.modelIdentity?.vision?.sha256)) {
+      fail('RK3576 VLM vision-model identity is incomplete');
+    }
+    const modelDocument = readJsonIfPresent(root, `models/${observation.platformId}.json`);
+    const publicModel = modelDocument?.models?.find((item) => String(item?.publicId ?? '').startsWith('vlm-'));
+    if (publicModel?.sha256 !== observation.modelIdentity.model.sha256
+        || publicModel?.tokenizerSha256 !== observation.modelIdentity.tokenizer.sha256
+        || publicModel?.configSha256 !== observation.modelIdentity.config.sha256) {
+      fail(`${observationLabel} model identity differs from the platform model document`);
+    }
+    if (observation.platformId === 'rk3576' && publicModel?.visionSha256 !== observation.modelIdentity.vision.sha256) {
+      fail('RK3576 VLM vision-model hash differs from the platform model document');
+    }
+    if (observation?.workload?.targetFpsPerChannel !== protocol.targetFpsPerChannel
+        || observation?.workload?.counterSemantics !== 'task-local-completion-counter'
+        || observation?.gates?.minimumFpsRatio !== protocol.gates.minimumFpsRatio
+        || observation?.gates?.maximumMissingRate !== protocol.gates.maximumMissingRate
+        || observation?.gates?.maximumAverageDiscardRate !== protocol.gates.maximumAverageDiscardRate) {
+      fail(`${observationLabel} workload or gate identity differs from the common protocol`);
+    }
+
+    const steps = Array.isArray(observation?.steps) ? observation.steps : [];
+    let expectedChannel = 1;
     for (const step of steps) {
-      if (expectedFirstExcludedChannels != null) break;
-      const meetsFpsReference = step?.minimumActiveRouteFpsRatioObserved != null
-        && step.minimumActiveRouteFpsRatioObserved >= publicationPolicy?.minimumActiveRouteFpsRatio;
-      const hasCompleteNonFpsWindow = step?.nonFpsGateResult === 'PASS';
-      if (meetsFpsReference && hasCompleteNonFpsWindow) {
-        expectedDisplayChannels = step.channels;
-        continue;
+      const stepLabel = `${observationLabel} step ${expectedChannel}`;
+      if (step?.channels !== expectedChannel) fail(`${observationLabel} channels must be the contiguous prefix starting at one`);
+      expectedChannel += 1;
+      for (const field of [
+        'holdSeconds', 'targetFpsPerChannel', 'currentRouteFps', 'minimumActiveRouteFps',
+        'minimumActiveRouteFpsRatioObserved', 'telemetryMissingRate', 'averageDiscardRate',
+        'maximumChannelDiscardRate', 'cpuPeakPercent', 'memoryPeakPercent', 'diskPeakPercent',
+      ]) {
+        if (!nonNegativeNumber(step?.[field])) fail(`${stepLabel} ${field} is invalid`);
       }
-      expectedFirstExcludedChannels = step?.channels ?? null;
-      expectedFirstExcludedReason = !meetsFpsReference
-        ? 'below-fps-reference'
-        : observation?.source?.protocolClass === 'pre-readiness-startup-sensitive'
-          ? 'startup-sensitive-incomplete'
-          : 'non-fps-gate-stop';
+      if (!nullableNonNegativeNumber(step?.acceleratorPeakPercent)) fail(`${stepLabel} acceleratorPeakPercent is invalid`);
+      if (step.holdSeconds !== protocol.holdSecondsPerStep
+          || step.targetFpsPerChannel !== protocol.targetFpsPerChannel) {
+        fail(`${stepLabel} timing or target FPS differs from the common protocol`);
+      }
+      if (step?.readiness?.status !== 'PASS'
+          || !positiveInteger(step?.readiness?.probes)
+          || !nonNegativeNumber(step?.readiness?.elapsedMs)
+          || step?.readiness?.taskLocalCompletionCounterAdvanced !== true
+          || step?.readiness?.qwenLatencyObserved !== true) {
+        fail(`${stepLabel} did not complete task-local readiness before formal sampling`);
+      }
+      const gatePass = step.minimumActiveRouteFpsRatioObserved >= protocol.gates.minimumFpsRatio
+        && step.telemetryMissingRate <= protocol.gates.maximumMissingRate
+        && step.averageDiscardRate <= protocol.gates.maximumAverageDiscardRate
+        && step.maximumChannelDiscardRate <= protocol.gates.maximumChannelDiscardRate
+        && step.diskPeakPercent <= protocol.gates.maximumDiskUsedPercent;
+      if (step.result !== (gatePass ? 'PASS' : 'FAIL')) fail(`${stepLabel} result differs from the executed gates`);
+      if ((step.result === 'PASS') !== (step.failureReason === null)) fail(`${stepLabel} failure reason is inconsistent`);
     }
-    if (publicationBoundary?.displayChannels !== expectedDisplayChannels) {
-      fail(`${label} conservative display boundary is inconsistent with the contiguous 80% FPS prefix`);
+
+    const passing = steps.filter((step) => step.result === 'PASS').map((step) => step.channels);
+    const failures = steps.filter((step) => step.result === 'FAIL').map((step) => step.channels);
+    const lastPassing = passing.length ? Math.max(...passing) : null;
+    const firstFailure = failures.length ? Math.min(...failures) : null;
+    const boundary = observation?.capacityBoundary;
+    if (boundary?.classification !== 'gate-first-failure'
+        || boundary?.verifiedPassingChannels !== lastPassing
+        || boundary?.firstFailureChannels !== firstFailure
+        || boundary?.firstFailureChannels !== boundary?.verifiedPassingChannels + 1
+        || boundary?.firstFailureCategory !== 'fps-ratio'
+        || boundary?.capacityExact !== true
+        || typeof boundary?.reason !== 'string'
+        || steps.at(-1)?.channels !== firstFailure
+        || steps.at(-1)?.minimumActiveRouteFpsRatioObserved >= protocol.gates.minimumFpsRatio) {
+      fail(`${observationLabel} exact first-gate-failure boundary is inconsistent`);
     }
-    if (publicationBoundary?.firstExcludedChannels !== expectedFirstExcludedChannels
-        || publicationBoundary?.firstExcludedReason !== expectedFirstExcludedReason) {
-      fail(`${label} first publication-excluded step is inconsistent`);
-    }
-    if (publicationBoundary?.claimClass !== 'conservative-performance-display'
-        || publicationBoundary?.capacityClaimAllowed !== false
-        || typeof publicationBoundary?.reason !== 'string'
-        || publicationBoundary.reason.length < 20) {
-      fail(`${label} publication boundary claim class is invalid`);
-    }
-    if (publicationBoundary?.firstExcludedReason === 'startup-sensitive-incomplete'
-        && observation?.source?.protocolClass !== 'pre-readiness-startup-sensitive') {
-      fail(`${label} cannot exclude a step as startup-sensitive under the final readiness protocol`);
+    if (boundary.verifiedPassingChannels !== expected?.passingChannels
+        || boundary.firstFailureChannels !== expected?.firstFailureChannels
+        || steps.at(-1)?.minimumActiveRouteFpsRatioObserved !== expected?.firstFailureRatio) {
+      fail(`${observationLabel} capacity boundary differs from the accepted short-run result`);
     }
   }
   if (manifestValue?.evidence?.vlmObservations !== 'results/vlm-observations.json') fail('manifest VLM reference changed');
@@ -1102,8 +1251,8 @@ function validateGeneratedPack(outputRoot, manifestValue, platforms, vlmValue, d
     if (!html.includes(rootReport.endsWith('.zh-CN.html') ? '并发混合任务矩阵' : 'Concurrent mixed-workload matrix')) {
       fail(`${rootReport} is missing the concurrent mixed-workload matrix`);
     }
-    if (!html.includes(rootReport.endsWith('.zh-CN.html') ? 'VLM 性能展示边界' : 'VLM performance display boundaries')) {
-      fail(`${rootReport} is missing the VLM performance display matrix`);
+    if (!html.includes(rootReport.endsWith('.zh-CN.html') ? '已验证 VLM 性能' : 'Validated VLM performance')) {
+      fail(`${rootReport} is missing the validated VLM performance matrix`);
     }
     if (!html.includes(rootReport.endsWith('.zh-CN.html') ? '72 小时受控长稳观测' : '72-hour controlled long-run observation')) {
       fail(`${rootReport} is missing the dual-CV 72-hour observation matrix`);
@@ -1141,6 +1290,24 @@ function validateGeneratedPack(outputRoot, manifestValue, platforms, vlmValue, d
     }
   }
 
+  for (const observation of vlmValue?.observations ?? []) {
+    const acceptance = vlmValue?.endToEndAcceptance?.platforms?.find((item) => item.platformId === observation.platformId);
+    const platform = platforms.find((item) => item.platformId === observation.platformId);
+    for (const localeSuffix of ['', '.zh-CN']) {
+      const relative = `results/${observation.platformId}/vlm-observation/report${localeSuffix}.html`;
+      const html = fs.readFileSync(path.join(outputRoot, ...relative.split('/')), 'utf8');
+      if (!html.includes(platform?.platform)
+          || !html.includes(String(observation.capacityBoundary?.verifiedPassingChannels))
+          || !html.includes(String(observation.capacityBoundary?.firstFailureChannels))
+          || !html.includes(observation.package?.sha256)
+          || !html.includes(observation.modelIdentity?.model?.sha256)
+          || !html.includes(acceptance?.evidenceSha256)
+          || !html.includes(String(acceptance?.evidenceSizeBytes))) {
+        fail(`${relative} does not project the frozen VLM result and end-to-end evidence identity`);
+      }
+    }
+  }
+
   const index = readJsonIfPresent(outputRoot, 'results/index.json');
   const casesIndex = readJsonIfPresent(outputRoot, 'results/cases.json');
   const matrix = readJsonIfPresent(outputRoot, 'results/workload-matrix.json');
@@ -1148,16 +1315,21 @@ function validateGeneratedPack(outputRoot, manifestValue, platforms, vlmValue, d
   if (index?.publicationStatus !== manifestValue?.release?.publicationState || matrix?.publicationStatus !== manifestValue?.release?.publicationState) {
     fail('generated index publication status differs from the manifest');
   }
-  if (!deepEqual(matrix?.vlmPublicationEvaluation?.policy, vlmValue?.publicationEvaluation)) {
-    fail('generated VLM publication policy differs from the canonical evidence');
+  if (!deepEqual(matrix?.vlmValidation?.claim, vlmValue?.claim)
+      || !deepEqual(matrix?.vlmValidation?.protocol, vlmValue?.protocol)
+      || !deepEqual(matrix?.vlmValidation?.endToEndAcceptance, vlmValue?.endToEndAcceptance)) {
+    fail('generated VLM validation policy differs from the canonical evidence');
   }
-  const expectedPublicationBoundaries = platforms.map((platform) => ({
+  const expectedCapacityBoundaries = platforms.map((platform) => ({
     platformId: platform.platformId,
-    publicationBoundary: vlmValue?.observations?.find((item) => item.platformId === platform.platformId)?.publicationBoundary ?? null,
+    capacityBoundary: vlmValue?.observations?.find((item) => item.platformId === platform.platformId)?.capacityBoundary ?? null,
   }));
-  if (!deepEqual(matrix?.vlmPublicationEvaluation?.platforms, expectedPublicationBoundaries)) {
-    fail('generated VLM publication boundaries differ from the canonical evidence');
+  if (!deepEqual(matrix?.vlmValidation?.platforms, expectedCapacityBoundaries)) {
+    fail('generated VLM capacity boundaries differ from the canonical evidence');
   }
+
+  const generatedVlm = readJsonIfPresent(outputRoot, 'results/vlm-observations.json');
+  if (!deepEqual(generatedVlm, vlmValue)) fail('generated VLM canonical copy differs from the source evidence');
 
   const generatedDualCv72Hour = readJsonIfPresent(outputRoot, 'results/dual-cv-72h.json');
   if (!deepEqual(generatedDualCv72Hour, dualCv72HourValue)) {
@@ -1446,6 +1618,10 @@ function positiveInteger(value) {
 
 function positiveNumber(value) {
   return Number.isFinite(value) && value > 0;
+}
+
+function nonNegativeNumber(value) {
+  return Number.isFinite(value) && value >= 0;
 }
 
 function nullableNonNegativeNumber(value) {

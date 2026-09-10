@@ -59,27 +59,29 @@ BM1688 and CV186X use byte-identical detector/classifier artifacts. RK3576 and R
 
 ## Canonical data and generated reports
 
-The 49 small-model cases are stored once in four platform-level canonical JSON files. The 72-hour observation and VLM observations each have one additional sanitized canonical file. Each source retains hashes that trace back to its private frozen evidence. Bilingual case pages, platform/workload/long-run summaries, indexes, and matrices are generated from these files; they are not additional evidence copies.
+The 49 small-model cases are stored once in four platform-level canonical JSON files. The 72-hour observation and validated VLM performance each have one additional sanitized canonical file. Each source retains hashes that trace back to its private frozen evidence. Bilingual case pages, platform/workload/long-run summaries, indexes, and matrices are generated from these files; they are not additional evidence copies.
 
-| Platform | Canonical cases | Generated overview | Generated case pages | Generated workload reports | 72-hour dual-CV | Refreshed VLM |
+| Platform | Canonical cases | Generated overview | Generated case pages | Generated workload reports | 72-hour dual-CV | Validated VLM |
 | --- | --- | --- | --- | --- | --- | --- |
 | BM1688 | [JSON](results/bm1688/cases.json) | <a href="https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/results/bm1688/report.html">open</a> | <a href="https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/results/bm1688/cases/report.html">open</a> | <a href="https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/results/bm1688/single-workload/report.html">single</a> · <a href="https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/results/bm1688/concurrent-mixed/report.html">mixed</a> | <a href="https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/results/bm1688/dual-cv-72h/report.html">open</a> | <a href="https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/results/bm1688/vlm-observation/report.html">open</a> |
 | CV186X | [JSON](results/cv186x/cases.json) | <a href="https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/results/cv186x/report.html">open</a> | <a href="https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/results/cv186x/cases/report.html">open</a> | <a href="https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/results/cv186x/single-workload/report.html">single</a> · <a href="https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/results/cv186x/concurrent-mixed/report.html">mixed</a> | <a href="https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/results/cv186x/dual-cv-72h/report.html">open</a> | <a href="https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/results/cv186x/vlm-observation/report.html">open</a> |
 | RK3576 | [JSON](results/rk3576/cases.json) | <a href="https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/results/rk3576/report.html">open</a> | <a href="https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/results/rk3576/cases/report.html">open</a> | <a href="https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/results/rk3576/single-workload/report.html">single</a> · <a href="https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/results/rk3576/concurrent-mixed/report.html">mixed</a> | <a href="https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/results/rk3576/dual-cv-72h/report.html">open</a> | <a href="https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/results/rk3576/vlm-observation/report.html">open</a> |
 | RV1126B | [JSON](results/rv1126b/cases.json) | <a href="https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/results/rv1126b/report.html">open</a> | <a href="https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/results/rv1126b/cases/report.html">open</a> | <a href="https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/results/rv1126b/single-workload/report.html">single</a> · <a href="https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/results/rv1126b/concurrent-mixed/report.html">mixed</a> | <a href="https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/results/rv1126b/dual-cv-72h/report.html">open</a> | — |
 
-## VLM performance display boundaries
+## Validated VLM performance
 
-VLM results come from 60-second steps using the same controlled 1080p24 input. A uniform 80% target reference presents a consistent cross-platform comparison. The resulting display boundaries are BM1688 6 channels, CV186X 6 channels, and RK3576 4 channels.
+BM1688, CV186X, and RK3576 were retested on the frozen V1.1.0 candidate with the same controlled 1080p24 input, prompt, and 60-second step window. Each newly added route completed task-local readiness before formal sampling, and the 80% FPS threshold was an executed PASS/FAIL gate.
 
-| Platform | Target FPS/ch | Publication reference | Performance display boundary | Next step |
+| Platform | Target FPS/ch | Executed FPS gate | Last passing channels | First failure |
 | --- | ---: | ---: | ---: | --- |
-| BM1688 | 0.1 | ≥80% | 6 channels | 7-channel minimum across active routes: 0.07 FPS (70%) |
-| CV186X | 0.1 | ≥80% | 6 channels | 7-channel startup-sensitive window excluded from performance judgment |
-| RK3576 | 0.1 | ≥80% | 4 channels | 5-channel minimum across active routes: 0.07 FPS (70%) |
-| RV1126B | — | — | — | No VLM observation in this refresh |
+| BM1688 | 0.1 | ≥80% | 6 channels | 7-channel FPS ratio 69.5% |
+| CV186X | 0.1 | ≥80% | 6 channels | 7-channel FPS ratio 69.2% |
+| RK3576 | 0.1 | ≥80% | 4 channels | 5-channel FPS ratio 69.7% |
+| RV1126B | — | — | — | Outside this VLM validation |
 
-Readiness protocols and raw-run interpretation are documented in the [methodology](methodology.md). Canonical measurements and their source identities are consolidated in [one canonical file](results/vlm-observations.json).
+BM1688, CV186X, and RK3576 also pass the minimum end-to-end sequence: model load, VLM task creation, valid inference, event/alarm output, and task recovery after service restart. Each platform used the same fixed candidate package as its capacity run. CosmoEdge 1.1 therefore declares VLM support on these three platforms within the recorded package, model, and protocol scope.
+
+The result is an exact short-run gate boundary under this controlled protocol, not maximum-capacity or production-configuration certification. The method, package/model/runtime identities, and end-to-end evidence hashes are consolidated in the [canonical VLM file](results/vlm-observations.json) and [methodology](methodology.md).
 
 ## Reproduction files
 

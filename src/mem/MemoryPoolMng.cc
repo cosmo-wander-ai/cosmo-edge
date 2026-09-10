@@ -99,7 +99,6 @@ void MemoryPoolMng::RealMalloc(BlockOp&& op) {
     }
 
     if ((pool->GetMaxLimit() > 0) && (pool->TotalBlockCount() >= pool->GetMaxLimit())) {
-        freq_calc_.MallocFull();
         return;
     }
 
@@ -109,7 +108,6 @@ void MemoryPoolMng::RealMalloc(BlockOp&& op) {
             successBlocks += 1;
             pool->AddBlock(block_);
         } else {
-            freq_calc_.MallocFail();
             LOG_WARN("bm_malloc_device_byte {} failed, FREE:{} TOTAL:{}", size, pool->IdleCount(),
                      pool->TotalBlockCount());
             return;

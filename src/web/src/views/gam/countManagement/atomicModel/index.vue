@@ -177,21 +177,6 @@
       </template>
     </el-dialog>
 
-    <el-dialog :title="t('glossary.algorithmList')" v-model="listDialogVisible" center width="400px" @close="listDialogVisible = false">
-      <div v-if="algorithmicList.length !==0" class="div-center">
-        <span v-for="(item, index) in algorithmicList" :key="index">
-          <span>{{ item }}</span>
-          <span v-if="index !== algorithmicList.length-1">，</span>
-        </span>
-      </div>
-      <div v-else class="div-center">{{ t('common.noData') }}</div>
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button type="primary" size="small" @click="listDialogVisible = false">{{ t('action.close') }}</el-button>
-        </div>
-      </template>
-    </el-dialog>
-
     <el-dialog :title="t('glossary.modelDetail')" v-model="modelDetailDialogVisible" width="620px" @close="modelDetailDialogVisible = false">
       <div class="detail-header">
         <div class="detail-icon" :class="getModelIconClass(detailModel)" v-html="getModelSvg(detailModel)"></div>
@@ -247,27 +232,6 @@
         <el-button @click="editFromDetail">{{ t('action.editModel') }}</el-button>
         <el-button v-if="detailModel.isExportable" type="danger" plain @click="deleteFromDetail">{{ t('action.delete') }}</el-button>
         <el-button type="primary" @click="modelDetailDialogVisible = false">{{ t('action.close') }}</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog :title="t('glossary.uploadResult')" v-model="uploadReultVisible" center width="600">
-      <div>
-        <el-table :data="uploadResult" style="width: 100%" stripe border>
-          <el-table-column type="index"></el-table-column>
-          <el-table-column prop="fileName" :label="t('field.fileName')">
-          </el-table-column>
-          <el-table-column prop="message" :label="t('field.result')">
-            <template #default="scope">
-              <span v-if="scope.row.success" style="color:green;">{{ scope.row.message }}</span>
-              <span v-else style="color:red;">{{ scope.row.message }}</span>
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button type="primary" size="small" @click="uploadReultVisible = false">{{ t('action.close') }}</el-button>
-        </div>
       </template>
     </el-dialog>
 
@@ -494,13 +458,11 @@ const getModelSvg = (model) => {
 }
 
 // ── 模型使用状态（通过 algorithmInquire 获取算法列表中的 models 字段关联） ──
-const algList = ref([])
 const modelUsageMap = ref({})
 const loadAlgUsage = () => {
   const params = { pageNum: 1, pageSize: 999 }
   proxy.$API.algorithmInquire && proxy.$API.algorithmInquire(params).then(res => {
     const rows = res?.resData?.rows || []
-    algList.value = rows
     const usageMap = {}
     rows.forEach(alg => {
       const models = alg.models || []
@@ -559,27 +521,11 @@ const pageData = reactive({
 
 const gpuCodes = ref([])
 const uploadAlgorithmicVisible = ref(false)
-const uploadAlgorithmicName = ref('')
-const uploadAlgorithmicData = ref([])
-const listDialogVisible = ref(false)
-const algorithmicList = ref([])
 const modelDetailDialogVisible = ref(false)
 const detailModel = ref({})
 const modelLabelData = ref([])
 const engineTypeList = ref([])
 const platformType = ref(localStorage.getItem('platformType') || '')
-const topBarData = computed(() => ({
-  formList: [
-    { label: t('field.modelName'), model: 'modelName' },
-    { label: t('field.modelId'), model: 'modelCode' },
-    {
-      label: t('glossary.computeType'),
-      model: 'gpuCode',
-      type: 'select',
-      dataList: gpuCodes.value
-    }
-  ]
-}))
 const isX86 = ref(false)
 const isRknn = ref(false)
 const isRkllm = ref(false)
@@ -592,9 +538,6 @@ const addModelPrimaryFileExtension = computed(() =>
 const importedModelFileName = computed(() => isRknn.value ? 'model.rknn' : (isX86.value ? 'model.onnx' : 'model.nn'))
 const addModelDialogTitle = computed(() => addModelMode.value === 'edit' ? t('action.editModel') : t('action.addModel'))
 const addModelMode = ref('add')
-const isMultiple = ref(false)
-const uploadResult = ref([])
-const uploadReultVisible = ref(false)
 
 const addModelFormRef = ref(null)
 const editModelFormRef = ref(null)
@@ -866,10 +809,6 @@ const importModelFile = ref(null)
 const importModelLoading = ref(false)
 const importModelUploadRef = ref(null)
 
-const indexcount = (index) => {
-  return (pageData.pageNum - 1) * pageData.pageSize + index + 1
-}
-
 const getGPUCodes = () => {
   gpuCodes.value = [{ labelI18nKey: 'common.all', value: '' }]
   proxy.$API.getGPUCodes().then((res) => {
@@ -1025,11 +964,6 @@ const returnLabelWithCode = (code) => {
   return index === -1 ? '' : gpuCodes.value[index].label
 }
 
-const algorithmicListClick = (obj) => {
-  algorithmicList.value = obj.algorithmList
-  listDialogVisible.value = true
-}
-
 const addClick = () => {
   addModelMode.value = 'add'
   uploadAlgorithmicVisible.value = true
@@ -1052,79 +986,6 @@ const batchUpdateClick = () => {
   })
 }
 
-const sureUploadAlgorithmic = () => {
-  if (uploadAlgorithmicData.value.length === 0) {
-    return proxy.$message.warning(t('validate.uploadFileFirst'))
-  }
-  const uploadResults = uploadAlgorithmicData.value.map(async (file) => {
-    const rawFile = file.raw || file
-    const fileName = rawFile.name
-    try {
-      const resData = await uploadFile({ file: rawFile })
-      if (resData?.resCode == 1) {
-        return { fileName, success: true, message: t('validate.uploadSucceeded') }
-      } else {
-        return {
-          fileName,
-          success: false,
-          message: t('validate.uploadFailed') + localeColon + (resData?.resMsg[0].msgText || t('validate.unknownError'))
-        }
-      }
-    } catch (error) {
-      return {
-        fileName,
-        success: false,
-        message: t('validate.uploadFailed') + localeColon + (error.message || t('validate.unknownError'))
-      }
-    }
-  })
-  Promise.all(uploadResults).then((results) => {
-    uploadResult.value = results
-    uploadReultVisible.value = true
-    uploadAlgorithmicVisible.value = false
-    uploadAlgorithmicData.value = []
-    searchList()
-    // 延迟二次刷新，等待后端完成文件处理
-    setTimeout(() => { searchList() }, 1500)
-  })
-}
-
-const uploadFile = async (params) => {
-  let stagedUpload
-  try {
-    stagedUpload = await uploadFileInChunks(params.file, {
-      purpose: UploadPurpose.MODEL_ARCHIVE,
-      uploadChunk: formData => proxy.$API.uploadAtomicModelTemp(formData),
-      cancelUpload: data => proxy.$API.cancelAtomicModelUpload(data),
-      getCapabilities: () => proxy.$API.getUploadCapabilities()
-    })
-    if (!stagedUpload.uploadId) {
-      throw new Error(t('validate.missingUploadId'))
-    }
-    return await proxy.$API.uploadAtomicModel({
-      uploadId: stagedUpload.uploadId
-    })
-  } catch (error) {
-    if (stagedUpload?.uploadId) {
-      try {
-        await proxy.$API.cancelAtomicModelUpload({ uploadId: stagedUpload.uploadId })
-      } catch (_) {
-        // The staging service also expires abandoned sessions by TTL.
-      }
-    }
-    throw error
-  }
-}
-const handleChange = (file, fileList) => {
-  if (!isMultiple.value) {
-    uploadAlgorithmicData.value = [file]
-  } else {
-    uploadAlgorithmicData.value = fileList
-  }
-}
-const handleRemove = (file, fileList) => {
-  uploadAlgorithmicData.value = fileList
-}
 const importModelClick = () => {
   importModelFileName.value = ''
   importModelFile.value = null
@@ -1191,7 +1052,6 @@ const sureImportModel = async () => {
 }
 
 const uploadAlgorithmicClosed = () => {
-  uploadAlgorithmicData.value = []
   addModelForm.modelFileList = []
   addModelForm.modelFile = ''
   addModelForm.encoderFileList = []
@@ -1880,9 +1740,5 @@ onMounted(() => {
 }
 .form-content {
   width: calc(100% - 50px);
-}
-.div-center {
-  text-align: center;
-  padding: 10px;
 }
 </style>

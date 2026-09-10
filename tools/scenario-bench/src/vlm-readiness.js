@@ -4,6 +4,14 @@ import { latencyMetricsForNodes, normalizeTaskType } from './task-strategies.js'
 export const DEFAULT_VLM_READY_TIMEOUT_SEC = 180;
 export const VLM_READY_POLL_INTERVAL_SEC = 3;
 
+export class VlmReadinessTimeoutError extends Error {
+  constructor(message, readiness) {
+    super(message);
+    this.name = 'VlmReadinessTimeoutError';
+    this.readiness = readiness;
+  }
+}
+
 export function resolveVlmReadyTimeoutSec(value) {
   if (value == null) return DEFAULT_VLM_READY_TIMEOUT_SEC;
   const seconds = Number(value);
@@ -43,7 +51,19 @@ export async function waitForVlmReady({
   sleep = sleepWithSignal,
 } = {}) {
   const vlmEntries = entries.filter((entry) => normalizeTaskType(entry?.taskType) === 'vlm');
-  if (!vlmEntries.length) return { ready: true, probes: 0, bindings: [] };
+  if (!vlmEntries.length) {
+    return {
+      ready: true,
+      status: 'ready',
+      probes: 0,
+      timeoutSec: Number(timeoutSec),
+      pollIntervalSec: Number(pollIntervalSec),
+      startedAt: null,
+      endedAt: null,
+      elapsedMs: 0,
+      bindings: [],
+    };
+  }
   if (typeof probe !== 'function') throw new TypeError('waitForVlmReady requires a probe function');
 
   const timeoutMs = positiveMilliseconds(timeoutSec, 'timeoutSec');
@@ -87,18 +107,40 @@ export async function waitForVlmReady({
       (state) => !state.completionAdvanced || state.qwenLatencyMs == null,
     );
     if (!pending.length) {
-      const bindings = [...states.values()].map((state) => readinessRecord(state));
+      const readiness = readinessSnapshot({
+        states,
+        ready: true,
+        status: 'ready',
+        probes,
+        timeoutSec,
+        pollIntervalSec,
+        startedAt,
+        endedAt: now(),
+      });
       logger?.info?.(
-        `[ready] ${bindings.length} newly-added VLM binding(s) completed task-local work `
+        `[ready] ${readiness.bindings.length} newly-added VLM binding(s) completed task-local work `
         + `with Qwen latency telemetry after ${Math.max(0, Math.round((now() - startedAt) / 1000))}s.`,
       );
-      return { ready: true, probes, bindings };
+      return readiness;
     }
 
     const remainingMs = deadline - now();
     if (remainingMs <= 0) {
       const detail = pending.map((state) => pendingReason(state)).join('; ');
-      throw new Error(`VLM readiness timed out after ${timeoutSec}s: ${detail}`);
+      const readiness = readinessSnapshot({
+        states,
+        ready: false,
+        status: 'timed-out',
+        probes,
+        timeoutSec,
+        pollIntervalSec,
+        startedAt,
+        endedAt: now(),
+      });
+      throw new VlmReadinessTimeoutError(
+        `VLM readiness timed out after ${timeoutSec}s: ${detail}`,
+        readiness,
+      );
     }
     await sleep(Math.min(pollIntervalMs, remainingMs), signal);
   }
@@ -124,23 +166,56 @@ function findBindingChannel(channels, entry) {
 }
 
 function readinessRecord(state) {
+  const pendingReasons = pendingReasonsForState(state);
   return {
     taskId: state.entry.taskId,
+    taskKey: state.entry.taskKey,
     channelId: state.entry.channelId,
     completionActionId: state.completionActionId,
     baselineTotal: state.baselineTotal,
     currentTotal: state.currentTotal,
+    completionAdvanced: state.completionAdvanced,
     qwenLatencyMs: state.qwenLatencyMs,
+    ready: pendingReasons.length === 0,
+    pendingReasons,
+  };
+}
+
+function readinessSnapshot({
+  states,
+  ready,
+  status,
+  probes,
+  timeoutSec,
+  pollIntervalSec,
+  startedAt,
+  endedAt,
+}) {
+  return {
+    ready,
+    status,
+    probes,
+    timeoutSec: Number(timeoutSec),
+    pollIntervalSec: Number(pollIntervalSec),
+    startedAt: new Date(startedAt).toISOString(),
+    endedAt: new Date(endedAt).toISOString(),
+    elapsedMs: Math.max(0, endedAt - startedAt),
+    bindings: [...states.values()].map((state) => readinessRecord(state)),
   };
 }
 
 function pendingReason(state) {
   const label = state.entry.taskId ?? `${state.entry.taskKey ?? 'vlm'}@${state.entry.channelId ?? '?'}`;
+  const reasons = pendingReasonsForState(state);
+  return `${label} (${reasons.join(', ')})`;
+}
+
+function pendingReasonsForState(state) {
   const reasons = [];
   if (state.baselineTotal == null) reasons.push(`${state.completionActionId} completion counter missing`);
   else if (!state.completionAdvanced) reasons.push(`${state.completionActionId} did not advance from ${state.baselineTotal}`);
   if (state.qwenLatencyMs == null) reasons.push('direct Qwen latency missing');
-  return `${label} (${reasons.join(', ')})`;
+  return reasons;
 }
 
 function finiteNumber(value) {

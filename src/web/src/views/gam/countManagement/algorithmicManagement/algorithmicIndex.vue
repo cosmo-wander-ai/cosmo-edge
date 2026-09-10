@@ -172,7 +172,6 @@ export default {
       platformType: localStorage.getItem('platformType') || '',
       authData: null,
       tableData: [],
-      tableMaxHeight: 600,
       // 分页
       pageData: {
         pageNum: 1,
@@ -219,14 +218,6 @@ export default {
               callback();
             }, trigger: 'change' }
         ],
-        // algorithmId: [
-        //   { required: true, message: '请输入算法ID', trigger: 'change' },
-        //   { validator: this.validateNumber, trigger: 'change' }
-        // ],
-        // checkType: [
-        //   { required: true, message: '请输入算法对接ID', trigger: 'change' },
-        //   { validator: this.validateNumber2, trigger: 'change' }
-        // ],
         algorithmUsage: [
           { required: true, message: t('validate.selectDataSourceType'), trigger: 'change' }
         ],
@@ -240,13 +231,6 @@ export default {
       engineTypeList: [],
       batchDeleteFalg: false
     }
-  },
-  mounted() {
-    this.calculateTableHeight()
-    window.addEventListener('resize', this.handleResize)
-  },
-  unmounted() {
-    window.removeEventListener('resize', this.handleResize)
   },
   computed: {
     topBarData() {
@@ -331,59 +315,6 @@ export default {
     }
   },
   methods: {
-    validateAlgorithmName(rule, value, callback) {
-      if (!value) { callback(); return; }
-      if (/_/.test(value)) { callback(new Error(t('validate.taskNameNoUnderscore'))); return; }
-      callback();
-    },
-    // 表格高度计算，启用固定表头
-    calculateTableHeight() {
-      this.$nextTick(() => {
-        const tableEl =
-          this.$refs.tableRef && this.$refs.tableRef.$el
-            ? this.$refs.tableRef.$el
-            : this.$refs.tableRef
-        const paginationEl =
-          this.$refs.paginationRef && this.$refs.paginationRef.$el
-            ? this.$refs.paginationRef.$el
-            : this.$refs.paginationRef
-        const top = tableEl ? tableEl.getBoundingClientRect().top : 0
-        const paginationHeight = paginationEl
-          ? paginationEl.getBoundingClientRect().height
-          : 72
-        const bottomPadding = 24
-        const viewportH = window.innerHeight
-        this.tableMaxHeight = Math.max(
-          200,
-          viewportH - top - paginationHeight - bottomPadding - 40
-        )
-      })
-    },
-    handleResize() {
-      this.calculateTableHeight()
-    },
-    // 状态
-    stateMethod(data) {
-      switch (data) {
-        // 0：已禁用，1：已启用2：待更新，3：更新中，4：更新失败，5：更新成功
-        case 0:
-          return t('status.disabled')
-        case 1:
-          return t('status.published')
-        case 2:
-          return t('status.pendingUpdate')
-        case 3:
-          return t('status.updating')
-        case 4:
-          return t('status.updateFailed')
-      }
-    },
-    // 序号连续
-    indexMethod(index) {
-      let page = this.pageData.pageNum
-      let size = this.pageData.pageSize
-      return index + 1 + (page - 1) * size
-    },
     getEngineTypeList() {
       this.$API.engineTypeList({}).then((res) => {
         const { resData } = res
@@ -444,7 +375,6 @@ export default {
           this.pageData.pageNum--
           this.init()
         }
-        this.calculateTableHeight()
       })
     },
     getSupplier() {
@@ -474,23 +404,6 @@ export default {
         }
       })
     },
-    formaterDate(obj) {
-      if (!obj || !obj.authStartTime) return ''
-      const beginTime = obj.authStartTime.split(' ')[0]
-      const endTime = obj.authEndTime.split(' ')[0]
-      return `${beginTime} ~ ${endTime}`
-    },
-    returnAuthDay(authData) {
-      if (!authData) return ''
-      return authData.authDay > 36499 ? t('common.permanent') : t('common.days', { n: authData.authDay })
-    },
-    // 表格居中
-    headClass() {
-      return 'text-align:center;font-weight: 700;'
-    },
-    cellClass() {
-      return 'text-align:center'
-    },
     handleInput(val, key) {
       // 使用正则表达式替换非数字字符
       this.addAlgorithmicForm[key] = val.replace(/[^\d]/g, '')
@@ -503,34 +416,6 @@ export default {
     handleSizeChange(pageSize) {
       this.pageData.pageSize = pageSize
       this.init()
-    },
-    // 版本管理
-    versionManagement(val) {
-      localStorage.setItem('pageName', this.pageData.pageNum)
-      const query = {
-        algorithmId: val
-      }
-      // this.$router.push({ name: this.platformType === "1" || this.platformType === "6" ? "gamversionManagement" : 'versionManagement', query: query });
-      var platformType = localStorage.getItem('platformType')
-      if (platformType !== '-1') {
-        // this.$router.push({path:'/gam/versionManagement',query:query})
-        this.$router.push({
-          path: '/gam/versionManagement',
-          query: { resetUrl: this.$route.path, algorithmId: val }
-        })
-      } else {
-        this.$router.push({ path: '/versionManagement', query: query })
-      }
-    },
-    //  自定义参数
-    userDefinedManagement(val) {
-      let platformType = localStorage.getItem('platformType')
-      if (platformType !== '-1') {
-        this.$router.push({
-          path: '/gam/userDefined',
-          query: { resetUrl: this.$route.path, query: val }
-        })
-      }
     },
     arrangeDetailClick(obj) {
       let platformType = localStorage.getItem('platformType')
@@ -571,9 +456,6 @@ export default {
     batchDelete() {
       this.deleteDialogVisible = true
       this.batchDeleteFalg = true
-    },
-    handleSelectionChange(val) {
-      this.batchDeleteIds = val.map((item) => item.algorithmId)
     },
     // // 关闭
     // close() {
@@ -845,31 +727,6 @@ export default {
       }
       x.send(JSON.stringify(i))
     },
-    validateNumber(rule, value, callback) {
-      if (this.algorithmDialogMode === 'edit') callback()
-      if (value === '' || isNaN(value)) {
-        callback(new Error(t('validate.enterAlgorithmId')))
-      } else {
-        const num = Number(value)
-        if (num === 10000) {
-          callback(new Error(t('validate.idRangeExcept')))
-        } else if (num < 0 || num > 99999) {
-          callback(new Error(t('validate.idRangeExcept')))
-        } else {
-          callback()
-        }
-      }
-    },
-    validateNumber2(rule, value, callback) {
-      const num = Number(value)
-      if (num === 10000) {
-        callback(new Error(t('validate.idRangeExcept')))
-      } else if (num < 0 || num > 99999) {
-        callback(new Error(t('validate.idRangeExcept')))
-      } else {
-        callback()
-      }
-    },
     // 同步原始算法信息
     synchronousCustAlgorithnm() {
       this.$API.synchronousCustAlgorithmInfo({}).then(() => {
@@ -884,14 +741,6 @@ export default {
       this.$API.syncAlgParamToTaskConfig({ ids: [] }).then(() => {
         this.$message.success(t('common.syncSucceeded'))
       })
-    },
-    returnNodeModelStatus(row, key) {
-      let missArr = []
-      // 先检查 row.envStatus 是否存在，然后再检查 row.envStatus[key] 是否存在
-      missArr =
-        row.envStatus?.[key]?.filter((item) => item.modelUploadSatus == 0) || []
-      let missStr = missArr?.map((item) => item.modelName).join('，')
-      return missStr || undefined
     },
     returnLostModel(list) {
       const lostModels = list.filter((item) => item.modelStatus != 1)
@@ -998,12 +847,15 @@ export default {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 .task-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 14px 24px;
+  flex-shrink: 0;
 }
 .toolbar-left { display: flex; align-items: center; }
 .task-count {
@@ -1022,15 +874,18 @@ export default {
 }
 .task-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: minmax(260px, auto);
   gap: 16px;
   padding: 4px 24px 12px;
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   align-content: start;
 }
-@media (max-width: 1200px) { .task-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 768px) { .task-grid { grid-template-columns: 1fr; } }
+@media (max-width: 1200px) { .task-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 768px) { .task-grid { grid-template-columns: minmax(0, 1fr); } }
 .task-card {
   position: relative;
   background: #fff;
@@ -1038,10 +893,11 @@ export default {
   padding: 20px;
   border: 1px solid #f0f0f0;
   transition: all 0.25s ease;
-  height: 220px;
+  min-height: 260px;
+  min-width: 0;
+  height: auto;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   &:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(0,0,0,0.08);
@@ -1071,7 +927,7 @@ export default {
   &.icon-green { background: rgba(34,197,94,0.1); color: #22c55e; }
   &.icon-orange { background: rgba(245,158,11,0.1); color: #f59e0b; }
 }
-.card-info { margin-bottom: 10px; }
+.card-info { min-width: 0; margin-bottom: 10px; }
 .card-title {
   font-size: 15px; font-weight: 600; color: #1f2937;
   margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -1093,8 +949,10 @@ export default {
 }
 .card-footer {
   display: flex; justify-content: space-between; align-items: center;
+  min-width: 0; gap: 8px;
   padding-top: 12px; border-top: 1px solid #f5f5f5;
   margin-top: auto;
+  flex-shrink: 0;
 }
 .card-status { display: flex; align-items: center; gap: 10px; font-size: 12px; }
 .status-indicator {
@@ -1103,7 +961,7 @@ export default {
 }
 .running-count { color: #3182ce; font-weight: 500; }
 .card-actions {
-  display: flex; gap: 4px;
+  display: flex; flex-shrink: 0; gap: 4px;
   .el-button { font-size: 13px; color: #3182ce !important; &:hover { color: #2b6cb0 !important; } }
 }
 .pagination-container { display: flex; justify-content: center; padding: 12px 24px 16px; flex-shrink: 0; }

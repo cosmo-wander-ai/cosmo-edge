@@ -9,6 +9,6 @@
 | Duration | 15 seconds |
 | Video | H.264, 1920×1080, yuv420p, 24 FPS |
 | Audio | None |
-| Scope | 2026-08-20 BM1688, CV186X, and RK3576 VLM runtime observation refresh |
+| Scope | 2026-08-24 BM1688, CV186X, and RK3576 formal VLM validation |
 
 The media binary is not included.

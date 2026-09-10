@@ -19,7 +19,7 @@
 #define private public
 #include "service/model/impl/ModelImportExporter.h"
 #undef private
-#include "mock/MockServiceRegistry.h"
+#include "support/ScopedPathOverride.h"
 #include "util/Exec.h"
 #include "util/JsonFileUtil.h"
 
@@ -28,12 +28,10 @@ using namespace cosmo::test;
 namespace fs = std::filesystem;
 
 TEST_CASE("ModelImportExporter Tests", "[model]") {
-    MockServiceRegistry mocks;
-    ModelImportExporter importExporter;
-
     std::string testRoot = "/tmp/cosmo_test_models";
     fs::remove_all(testRoot);
-    cosmo::path::OverrideRootPathForTest(testRoot + "/udata", testRoot + "/adata");
+    cosmo::test::ScopedPathOverride path_override(testRoot + "/udata", testRoot + "/adata");
+    ModelImportExporter importExporter;
 
     std::string testModelDir             = cosmo::path::GetModelPath();
     std::string testPresetDir            = cosmo::path::GetPresetModelPath();

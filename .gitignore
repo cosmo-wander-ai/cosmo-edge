@@ -298,6 +298,7 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
+
 develop-eggs/
 dist/
 downloads/
@@ -452,6 +453,10 @@ out/
 # Gradle files
 .gradle/
 build/
+
+# The approved RKNN Model Guard SDK is a checked-in build dependency.
+!prebuild/model-guard-v2-rknn-abi1/bin/
+!prebuild/model-guard-v2-rknn-abi1/bin/cosmo-model-provision
 
 # Local configuration file (sdk path, etc)
 local.properties

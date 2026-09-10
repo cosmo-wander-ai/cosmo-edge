@@ -9,7 +9,6 @@ const failures = [];
 
 const internalPhrases = [
   'without rewriting the executed gates',
-  'executed gates',
   'capacity staircase',
   'launch-time controller bytes',
   'independent final-state artifact',
@@ -17,14 +16,23 @@ const internalPhrases = [
   'conservative-post-evaluation',
   'conservative post-evaluation',
   'conservatively post-evaluating',
+  'current conservative publication evaluation',
+  'conservative 80% reference',
+  'conservative multi-platform performance display',
+  'vlm raw runs did not enable fps pass/fail',
+  'startup-sensitive window',
   'productReleaseQualified',
   '不改写实际执行门禁',
-  '执行门禁',
   '容量阶梯',
   '启动时控制器字节',
   '独立最终状态文件',
   '独立 final-state',
   '保守回算',
+  '当前保守发布评估',
+  '80% 保守发布参考',
+  '多平台保守性能展示',
+  'vlm 原始运行没有启用 fps pass/fail',
+  '启动敏感窗口',
   '产品发布资格字段',
 ];
 
@@ -39,6 +47,8 @@ const sourceEntryFiles = [
   'docs/benchmarks/scenario-bench/v1.1/README.zh-CN.md',
   'docs/benchmarks/scenario-bench/current/README.md',
   'docs/benchmarks/scenario-bench/current/README.zh-CN.md',
+  'docs/benchmarks/scenario-bench/v1.0/README.md',
+  'docs/benchmarks/scenario-bench/v1.0/README.zh-CN.md',
 ];
 
 for (const relative of sourceEntryFiles) {

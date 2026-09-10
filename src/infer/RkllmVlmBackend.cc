@@ -10,9 +10,14 @@
 
 #include "infer/Qwen3VLUnify.h"
 #include "media/PixelFormat.h"
+#include "nn/guard/ModelLoadPolicy.h"
+#ifdef COSMO_HAS_MODEL_GUARD
+#include "nn/guard/CemRknnV1Loader.h"
+#endif
 #include "rkllm.h"
 #include "rknn_api.h"
 #include "util/Log.h"
+#include "util/PathUtil.h"
 
 namespace cosmo {
 namespace {
@@ -56,14 +61,53 @@ namespace {
         encoder.outputs.clear();
     }
 
-    bool InitImageEncoder(const std::string& path, ImageEncoderContext& encoder) {
-        int ret = rknn_init(&encoder.ctx, const_cast<char*>(path.c_str()), 0, 0, nullptr);
+    bool LoadImageEncoderContext(const std::string& path, rknn_context& context) {
+        const auto decision = nn::ModelLoadPolicy::Production().Evaluate(path, nn::ModelLoadIntent::kRawRknn);
+        if (!decision.IsAllowed()) {
+            LOG_ERRO("RKLLM vision encoder format rejected. path:{}", path);
+            return false;
+        }
+        if (decision.action == nn::ModelLoadAction::kGuardV2) {
+#ifdef COSMO_HAS_MODEL_GUARD
+            const std::string certificate_path =
+                (std::filesystem::path(cosmo::path::GetBaseDir()) / "model-guard" / "device-certificate.bin")
+                    .string();
+            auto loaded = nn::LoadCemRknnV1Artifact(nn::FrozenCmgRknnV1Api(), nn::NativeRknnContextApi(),
+                                                    decision.model_path.c_str(), certificate_path.c_str());
+            if (!loaded.IsSuccess() || loaded.contexts.size() != 1 || loaded.contexts.front().Get() == 0) {
+                LOG_ERRO("RKLLM protected vision encoder load failed. path:{} status:{}", path,
+                         loaded.guard_status);
+                return false;
+            }
+            context = static_cast<rknn_context>(loaded.contexts.front().Release());
+            return true;
+#else
+            LOG_ERRO("RKLLM protected vision encoder requires model-guard. path:{}", path);
+            return false;
+#endif
+        }
+        // A protected-model failure must never fall back to the native loader.
+        if (decision.action != nn::ModelLoadAction::kNativeRawRknn) {
+            return false;
+        }
+        int ret = rknn_init(&context, const_cast<char*>(decision.model_path.c_str()), 0, 0, nullptr);
         if (ret != RKNN_SUCC) {
             LOG_ERRO("RKLLM vision encoder init failed. path:{} ret:{}", path, ret);
+            if (context != 0) {
+                rknn_destroy(context);
+                context = 0;
+            }
+            return false;
+        }
+        return context != 0;
+    }
+
+    bool InitImageEncoder(const std::string& path, ImageEncoderContext& encoder) {
+        if (!LoadImageEncoderContext(path, encoder.ctx)) {
             return false;
         }
 
-        ret = rknn_set_core_mask(encoder.ctx, RKNN_NPU_CORE_0_1);
+        int ret = rknn_set_core_mask(encoder.ctx, RKNN_NPU_CORE_0_1);
         if (ret != RKNN_SUCC) {
             LOG_ERRO("RKLLM vision encoder core selection failed. ret:{}", ret);
             ReleaseImageEncoder(encoder);

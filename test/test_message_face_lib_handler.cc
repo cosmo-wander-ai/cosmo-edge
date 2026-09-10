@@ -15,8 +15,8 @@
 #include "flow/face/Person.h"
 #include "mock/MockFaceLibService.h"
 #include "mock/MockPersonDaoService.h"
-#include "mock/MockServiceRegistry.h"
 #include "mock/MockVideoFrameCodec.h"
+#include "support/ScopedServiceOverride.h"
 #include "util/ErrorCode.h"
 
 using namespace cosmo;
@@ -25,7 +25,13 @@ using trompeloeil::_;
 
 namespace {
 
-MessageFaceLibHandler MakeHandler(MockServiceRegistry& mocks) {
+struct FaceLibHandlerMocks {
+    MockFaceLibService faceLibSvc;
+    MockPersonDaoService personDaoSvc;
+    MockVideoFrameCodec videoCodecSvc;
+};
+
+MessageFaceLibHandler MakeHandler(FaceLibHandlerMocks& mocks) {
     return MessageFaceLibHandler(static_cast<cosmo::service::IFaceLibRepo&>(mocks.faceLibSvc),
                                  static_cast<cosmo::service::IPersonRepo&>(mocks.faceLibSvc),
                                  static_cast<cosmo::service::IFaceFeature&>(mocks.faceLibSvc),
@@ -35,7 +41,7 @@ MessageFaceLibHandler MakeHandler(MockServiceRegistry& mocks) {
 }  // namespace
 
 TEST_CASE("FaceLibHandler: QueryFaceLibInfo", "[face-lib-handler]") {
-    MockServiceRegistry mocks;
+    FaceLibHandlerMocks mocks;
 
     ALLOW_CALL(mocks.faceLibSvc, GetAllFaceLibs()).RETURN(std::vector<FaceLibPtr>{});
     ALLOW_CALL(mocks.faceLibSvc, GetFaceLibMaxCount()).RETURN(size_t(10));
@@ -51,7 +57,7 @@ TEST_CASE("FaceLibHandler: QueryFaceLibInfo", "[face-lib-handler]") {
 }
 
 TEST_CASE("FaceLibHandler: ModifyFaceLib Add empty name throws", "[face-lib-handler]") {
-    MockServiceRegistry mocks;
+    FaceLibHandlerMocks mocks;
 
     ALLOW_CALL(mocks.faceLibSvc, GetAllFaceLibs()).RETURN(std::vector<FaceLibPtr>{});
     ALLOW_CALL(mocks.faceLibSvc, GetFaceLibMaxCount()).RETURN(size_t(10));
@@ -66,7 +72,7 @@ TEST_CASE("FaceLibHandler: ModifyFaceLib Add empty name throws", "[face-lib-hand
 }
 
 TEST_CASE("FaceLibHandler: DeleteFaceLib", "[face-lib-handler]") {
-    MockServiceRegistry mocks;
+    FaceLibHandlerMocks mocks;
 
     MsgResultFaceLibInfo success{};
     success.failedFaceLibId = "lib-1";
@@ -88,7 +94,7 @@ TEST_CASE("FaceLibHandler: DeleteFaceLib", "[face-lib-handler]") {
 
 TEST_CASE("FaceLibHandler: database failure never mutates the face-lib repository",
           "[face-lib-handler][consistency]") {
-    MockServiceRegistry mocks;
+    FaceLibHandlerMocks mocks;
     ALLOW_CALL(mocks.faceLibSvc, GetAllFaceLibs()).RETURN(std::vector<FaceLibPtr>{});
     ALLOW_CALL(mocks.faceLibSvc, GetFaceLibMaxCount()).RETURN(size_t(10));
     REQUIRE_CALL(mocks.faceLibSvc, CreateFaceLib(_, _)).SIDE_EFFECT(_2 = "new-lib").RETURN(FaceLibPtr{});
@@ -106,7 +112,7 @@ TEST_CASE("FaceLibHandler: database failure never mutates the face-lib repositor
 }
 
 TEST_CASE("FaceLibHandler: repository rejection rolls back the database", "[face-lib-handler][consistency]") {
-    MockServiceRegistry mocks;
+    FaceLibHandlerMocks mocks;
     ALLOW_CALL(mocks.faceLibSvc, GetAllFaceLibs()).RETURN(std::vector<FaceLibPtr>{});
     ALLOW_CALL(mocks.faceLibSvc, GetFaceLibMaxCount()).RETURN(size_t(10));
     REQUIRE_CALL(mocks.faceLibSvc, CreateFaceLib(_, _)).SIDE_EFFECT(_2 = "new-lib").RETURN(FaceLibPtr{});
@@ -127,7 +133,7 @@ TEST_CASE("FaceLibHandler: repository rejection rolls back the database", "[face
 
 TEST_CASE("FaceLibHandler: deleting one membership preserves other face libraries",
           "[face-lib-handler][consistency]") {
-    MockServiceRegistry mocks;
+    FaceLibHandlerMocks mocks;
     auto face_lib = std::make_shared<FaceLib>(std::string{});
     MsgResultInfo success{};
     success.id      = "person-1";
@@ -150,7 +156,7 @@ TEST_CASE("FaceLibHandler: deleting one membership preserves other face librarie
 
 TEST_CASE("FaceLibHandler: failed person deletion leaves memory unchanged",
           "[face-lib-handler][consistency]") {
-    MockServiceRegistry mocks;
+    FaceLibHandlerMocks mocks;
     auto face_lib = std::make_shared<FaceLib>(std::string{});
 
     REQUIRE_CALL(mocks.faceLibSvc, GetFaceLib("lib-A")).RETURN(face_lib);
@@ -171,7 +177,7 @@ TEST_CASE("FaceLibHandler: failed person deletion leaves memory unchanged",
 
 TEST_CASE("FaceLibHandler: clear-person database failure never clears memory",
           "[face-lib-handler][consistency]") {
-    MockServiceRegistry mocks;
+    FaceLibHandlerMocks mocks;
     auto face_lib = std::make_shared<FaceLib>(std::string{});
 
     REQUIRE_CALL(mocks.faceLibSvc, GetFaceLib("lib-A")).RETURN(face_lib);
@@ -190,7 +196,7 @@ TEST_CASE("FaceLibHandler: clear-person database failure never clears memory",
 
 TEST_CASE("FaceLibHandler: clear-person memory failure rolls back the database",
           "[face-lib-handler][consistency]") {
-    MockServiceRegistry mocks;
+    FaceLibHandlerMocks mocks;
     auto face_lib = std::make_shared<FaceLib>(std::string{});
 
     REQUIRE_CALL(mocks.faceLibSvc, GetFaceLib("lib-A")).RETURN(face_lib);
@@ -210,7 +216,7 @@ TEST_CASE("FaceLibHandler: clear-person memory failure rolls back the database",
 
 TEST_CASE("FaceLibHandler: person update rejects partially resolved face libraries",
           "[face-lib-handler][consistency]") {
-    MockServiceRegistry mocks;
+    FaceLibHandlerMocks mocks;
     auto face_lib = std::make_shared<FaceLib>(std::string{});
 
     REQUIRE_CALL(mocks.faceLibSvc, GetFaceLibs(_)).RETURN(std::vector<FaceLibPtr>{face_lib});
@@ -229,7 +235,7 @@ TEST_CASE("FaceLibHandler: person update rejects partially resolved face librari
 
 TEST_CASE("FaceLibHandler: staged person picture reaches image processing before database commit",
           "[face-lib-handler][staged-upload]") {
-    MockServiceRegistry mocks;
+    FaceLibHandlerMocks mocks;
     auto person = std::make_shared<Person>("person-1");
 
     REQUIRE_CALL(mocks.faceLibSvc, GetFaceLibs(_)).RETURN(std::vector<FaceLibPtr>{});
@@ -254,7 +260,8 @@ TEST_CASE("FaceLibHandler: staged person picture reaches image processing before
 
 TEST_CASE("FaceManager: selected-person export does not require a prior query",
           "[face-lib-handler][export][consistency]") {
-    MockServiceRegistry mocks;
+    FaceLibHandlerMocks mocks;
+    ScopedServiceOverride<service::IPersonDaoService> personDao(mocks.personDaoSvc);
     db::FacePersonQueryResult query_result{};
     REQUIRE_CALL(mocks.personDaoSvc, QueryPersons(_)).RETURN(query_result);
 

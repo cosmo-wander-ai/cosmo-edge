@@ -59,27 +59,29 @@ BM1688 与 CV186X 使用字节一致的检测和分类模型；RK3576、RV1126B 
 
 ## Canonical 数据与构建生成报告
 
-49 个小模型用例只在 4 份平台级 canonical JSON 中保存一次；72 小时观测与 VLM 观测各有一份额外的脱敏 canonical 文件。每份事实源都保留回溯私有冻结证据的哈希。双语用例页、平台/工作负载/长稳汇总、索引与矩阵都从这些文件生成，不再作为额外证据副本提交。
+49 个小模型用例只在 4 份平台级 canonical JSON 中保存一次；72 小时观测与已验证 VLM 性能各有一份额外的脱敏 canonical 文件。每份事实源都保留回溯私有冻结证据的哈希。双语用例页、平台/工作负载/长稳汇总、索引与矩阵都从这些文件生成，不再作为额外证据副本提交。
 
-| 平台 | Canonical 用例 | 构建生成概览 | 构建生成用例页 | 构建生成工作负载报告 | 72 小时双 CV | 最新 VLM |
+| 平台 | Canonical 用例 | 构建生成概览 | 构建生成用例页 | 构建生成工作负载报告 | 72 小时双 CV | 已验证 VLM |
 | --- | --- | --- | --- | --- | --- | --- |
 | BM1688 | [JSON](results/bm1688/cases.json) | <a href="https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/results/bm1688/report.zh-CN.html">打开</a> | <a href="https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/results/bm1688/cases/report.zh-CN.html">打开</a> | <a href="https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/results/bm1688/single-workload/report.zh-CN.html">单任务</a> · <a href="https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/results/bm1688/concurrent-mixed/report.zh-CN.html">混合任务</a> | <a href="https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/results/bm1688/dual-cv-72h/report.zh-CN.html">打开</a> | <a href="https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/results/bm1688/vlm-observation/report.zh-CN.html">打开</a> |
 | CV186X | [JSON](results/cv186x/cases.json) | <a href="https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/results/cv186x/report.zh-CN.html">打开</a> | <a href="https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/results/cv186x/cases/report.zh-CN.html">打开</a> | <a href="https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/results/cv186x/single-workload/report.zh-CN.html">单任务</a> · <a href="https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/results/cv186x/concurrent-mixed/report.zh-CN.html">混合任务</a> | <a href="https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/results/cv186x/dual-cv-72h/report.zh-CN.html">打开</a> | <a href="https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/results/cv186x/vlm-observation/report.zh-CN.html">打开</a> |
 | RK3576 | [JSON](results/rk3576/cases.json) | <a href="https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/results/rk3576/report.zh-CN.html">打开</a> | <a href="https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/results/rk3576/cases/report.zh-CN.html">打开</a> | <a href="https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/results/rk3576/single-workload/report.zh-CN.html">单任务</a> · <a href="https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/results/rk3576/concurrent-mixed/report.zh-CN.html">混合任务</a> | <a href="https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/results/rk3576/dual-cv-72h/report.zh-CN.html">打开</a> | <a href="https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/results/rk3576/vlm-observation/report.zh-CN.html">打开</a> |
 | RV1126B | [JSON](results/rv1126b/cases.json) | <a href="https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/results/rv1126b/report.zh-CN.html">打开</a> | <a href="https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/results/rv1126b/cases/report.zh-CN.html">打开</a> | <a href="https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/results/rv1126b/single-workload/report.zh-CN.html">单任务</a> · <a href="https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/results/rv1126b/concurrent-mixed/report.zh-CN.html">混合任务</a> | <a href="https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/results/rv1126b/dual-cv-72h/report.zh-CN.html">打开</a> | — |
 
-## VLM 性能展示边界
+## 已验证 VLM 性能
 
-VLM 结果来自使用同一 1080p24 受控输入的 60 秒阶梯测试，并统一采用目标吞吐的 80% 作为跨平台展示参考。当前展示边界为 BM1688 6 路、CV186X 6 路、RK3576 4 路。
+BM1688、CV186X 与 RK3576 在冻结的 V1.1.0 候选包上，使用同一受控 1080p24 视频、prompt 和 60 秒测试窗口重新测试。每新增一路先完成 task-local readiness，80% FPS 阈值直接参与执行时 PASS/FAIL。
 
-| 平台 | 目标 FPS/路 | 发布参考 | 性能展示边界 | 下一阶梯 |
+| 平台 | 目标 FPS/路 | 实际执行门禁 | 最后通过路数 | 首个失败 |
 | --- | ---: | ---: | ---: | --- |
-| BM1688 | 0.1 | ≥80% | 6 路 | 7 路全路最低 0.07 FPS（70%） |
-| CV186X | 0.1 | ≥80% | 6 路 | 7 路为启动敏感窗口，不纳入性能判定 |
-| RK3576 | 0.1 | ≥80% | 4 路 | 5 路全路最低 0.07 FPS（70%） |
-| RV1126B | — | — | — | 本轮无 VLM 观测 |
+| BM1688 | 0.1 | ≥80% | 6 路 | 7 路 FPS 达标率 69.5% |
+| CV186X | 0.1 | ≥80% | 6 路 | 7 路 FPS 达标率 69.2% |
+| RK3576 | 0.1 | ≥80% | 4 路 | 5 路 FPS 达标率 69.7% |
+| RV1126B | — | — | — | 不在本次 VLM 验证范围内 |
 
-readiness 协议和原始运行判定见[测试方法](methodology.md)。Canonical 测量及其来源身份统一收录在[一份文件](results/vlm-observations.json)中。
+BM1688、CV186X 与 RK3576 还通过了最小端到端流程：模型加载、VLM 任务创建、有效推理、事件/告警输出，以及服务重启后任务恢复。每个平台均使用与其容量测试相同的固定候选包。因此，CosmoEdge 1.1 在记录的安装包、模型与协议范围内正式声明三平台支持 VLM。
+
+该结论是受控协议下的精确短时门禁边界，不是最大容量或生产配置认证。方法、安装包/模型/运行时身份及端到端证据哈希统一收录在 [VLM canonical 文件](results/vlm-observations.json)与[测试方法](methodology.md)中。
 
 ## 复现文件
 

@@ -227,10 +227,15 @@ Confirmed behavior:
 - Uses host networking to resolve build dependencies but publishes no
   application ports.
 
-A deployable RV1126B build needs the model overlay named by its platform
-profile. CI may set `COSMO_PACKAGE_MODELS=preserve` to validate code, toolchain,
-and package structure without private models; that is not device acceptance.
-`docker-compose.rk3576.yml` remains only as a thin compatibility entry.
+An RV1126B `include` build generates and verifies its overlay from the artifact
+manifest selected by the platform profile. The repository default archives two
+AGPL-3.0 community example models for public examples and CI only; it is not a
+commercial model deliverable. The package retains `resource/model-bundle.json`
+and the model license. Commercial or proprietary models set
+`COSMO_RKNN_ARTIFACT_MANIFEST` to an independent manifest in an ignored task
+directory and receive the same chip, size, and hash audit. `preserve` still
+validates code, toolchain, and package structure only and is not model/device
+acceptance. `docker-compose.rk3576.yml` remains a thin compatibility entry.
 
 See [RK3576 / RKNN Integration](./rk3576-rknn-development.md) for the supported
 release profile, runtime selection, model contract, and device-evidence boundary.
