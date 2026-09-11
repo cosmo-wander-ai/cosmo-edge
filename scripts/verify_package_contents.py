@@ -548,12 +548,19 @@ def verify_package(
         raise PackageAuditError("Protected package requires cosmo-model-provision")
     if profile == "public-runtime" and MODEL_GUARD_RKNN_RUNTIME_FILE in contents:
         raise PackageAuditError("Open RK3576 package must not contain Model Guard")
-    if (
-        profile == "production-release"
-        and effective_chip == "rk3576"
-        and MODEL_GUARD_RKNN_RUNTIME_FILE not in contents
-    ):
-        raise PackageAuditError("Protected RK3576 package requires RKNN Model Guard")
+    if profile == "production-release":
+        if effective_chip == "rv1126b":
+            raise PackageAuditError("Protected RV1126B packages are unsupported")
+        guard = (
+            MODEL_GUARD_RKNN_RUNTIME_FILE
+            if effective_chip == "rk3576"
+            else MODEL_GUARD_RUNTIME_FILE
+        )
+        runtime = entries.get(guard)
+        if runtime is None or not runtime.isreg():
+            raise PackageAuditError(
+                f"Protected package requires a regular target Model Guard runtime: {guard}"
+            )
 
     models = {
         name: data

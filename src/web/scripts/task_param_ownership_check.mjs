@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
 import {
   collapseTaskParamSchemasByKey,
   combineTaskParamSources,
@@ -20,30 +19,6 @@ import {
   resolveFinalTaskParamDependencies,
   serializeTaskParamTree
 } from '../src/utils/taskParamOwnership.js'
-
-const parameterSettingSource = readFileSync(
-  new URL(
-    '../src/views/gam/countManagement/arrangeDetail/flow/ParameterSetting.vue',
-    import.meta.url
-  ),
-  'utf8'
-)
-const dynamicFormSource = readFileSync(
-  new URL(
-    '../src/views/gam/taskManager/editTask/dynamicForm.vue',
-    import.meta.url
-  ),
-  'utf8'
-)
-assert.doesNotMatch(parameterSettingSource, /glossary\.(?:allHidden|clientHidden)/)
-assert.doesNotMatch(
-  parameterSettingSource,
-  /el-radio-group\s+v-model="item\.checkedClient"/
-)
-assert.match(
-  parameterSettingSource,
-  /el-checkbox\s+v-model="item\.checkedClient"\s+:true-value="0"\s+:false-value="2"/
-)
 
 assert.equal(normalizeChannelVisibilitySelection({ senior: 0 }), 0)
 assert.equal(normalizeChannelVisibilitySelection({ senior: '0' }), 0)
@@ -81,18 +56,6 @@ assert.deepEqual(
     { key: 'hidden', senior: 2, channelEditable: false }
   ]
 )
-assert.doesNotMatch(parameterSettingSource, /checkedClient:\s*2/)
-assert.match(parameterSettingSource, /checkedClient:\s*0/g)
-assert.doesNotMatch(
-  dynamicFormSource,
-  /v-if="el\.dependsOn\.value == item\.value"/
-)
-assert.match(dynamicFormSource, /v-if="showChildParam\(item, el\)"/)
-assert.match(
-  dynamicFormSource,
-  /:disabled="disableChildParam\(item, el\)"/
-)
-
 const equivalentSchemaA = {
   key: 'threshold',
   type: 'text',

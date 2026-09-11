@@ -2,64 +2,11 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, extname, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+import { tutorialPages, tutorialContext, pageRoute, navigationLinks, displayText } from './tutorial-pages.mjs'
+
+const repositoryRoot = resolve(process.argv[2] ?? resolve(dirname(fileURLToPath(import.meta.url)), '..'))
+const context = await tutorialContext(repositoryRoot)
 const docsRoot = join(repositoryRoot, 'docs')
-
-const corePages = [
-  {
-    zh: 'docs/tutorials/01-quickstart/quickstart.md',
-    en: 'docs/en/tutorials/01-quickstart/quickstart.md',
-    zhRoute: '/tutorials/01-quickstart/quickstart',
-    enRoute: '/en/tutorials/01-quickstart/quickstart',
-    zhTitle: '快速开始：部署、登录与首次检测',
-    enTitle: 'Quick Start: Deployment, Sign-In, and First Detection'
-  },
-  {
-    zh: 'docs/tutorials/02-scenario-config/scenario-config.md',
-    en: 'docs/en/tutorials/02-scenario-config/scenario-config.md',
-    zhRoute: '/tutorials/02-scenario-config/scenario-config',
-    enRoute: '/en/tutorials/02-scenario-config/scenario-config',
-    zhTitle: '场景任务配置：通道、区域、参数与告警',
-    enTitle: 'Scenario Task Configuration: Channels, Regions, Parameters, and Alarms'
-  },
-  {
-    zh: 'docs/tutorials/03-vlm-guide/vlm-guide.md',
-    en: 'docs/en/tutorials/03-vlm-guide/vlm-guide.md',
-    zhRoute: '/tutorials/03-vlm-guide/vlm-guide',
-    enRoute: '/en/tutorials/03-vlm-guide/vlm-guide',
-    zhTitle: 'VLM 与 DINO：提示词驱动的视觉任务',
-    enTitle: 'VLM and DINO: Prompt-Driven Vision Tasks'
-  },
-  {
-    zh: 'docs/tutorials/04-pipeline-orchestration/pipeline-orchestration.md',
-    en: 'docs/en/tutorials/04-pipeline-orchestration/pipeline-orchestration.md',
-    zhRoute: '/tutorials/04-pipeline-orchestration/pipeline-orchestration',
-    enRoute: '/en/tutorials/04-pipeline-orchestration/pipeline-orchestration',
-    zhTitle: '算法编排：修改与创建 Pipeline',
-    enTitle: 'Pipeline Orchestration: Modify and Create Pipelines'
-  },
-  {
-    zh: 'docs/tutorials/05-model-porting/model-porting.md',
-    en: 'docs/en/tutorials/05-model-porting/model-porting.md',
-    zhRoute: '/tutorials/05-model-porting/model-porting',
-    enRoute: '/en/tutorials/05-model-porting/model-porting',
-    zhTitle: '第三方模型接入：转换、上传与验证',
-    enTitle: 'Third-Party Model Integration: Convert, Upload, and Validate'
-  }
-]
-
-const indexes = [
-  {
-    path: 'docs/tutorials/index.md',
-    title: 'CosmoEdge 系统使用指南',
-    language: 'zh'
-  },
-  {
-    path: 'docs/en/tutorials/index.md',
-    title: 'Using CosmoEdge',
-    language: 'en'
-  }
-]
 
 const placeholders = [
   { pattern: /待填写/u, label: '待填写' },
@@ -105,14 +52,6 @@ function stripNonProse(markdown) {
     .replace(/```[\s\S]*?```/gu, '')
     .replace(/~~~[\s\S]*?~~~/gu, '')
     .replace(/<!--[\s\S]*?-->/gu, '')
-}
-
-function frontmatterTitle(markdown) {
-  const match = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/u)
-  if (!match) return null
-  const titleLine = match[1].match(/^title:\s*(.+?)\s*$/mu)
-  if (!titleLine) return null
-  return titleLine[1].replace(/^(['"])(.*)\1$/u, '$2')
 }
 
 function linkTarget(rawTarget) {
@@ -165,23 +104,23 @@ function checkLinksAndImages(file, markdown) {
   }
 }
 
-function checkPage({ path: file, title, language, isCore }) {
+function checkPage(page) {
+  const { path: file, language, type } = page
   const absolute = join(repositoryRoot, file)
   if (!existsSync(absolute)) {
     fail(file, 'required page is missing')
     return
   }
 
-  const markdown = readFileSync(absolute, 'utf8')
-  if (!markdown.startsWith('---')) fail(file, 'frontmatter must start at byte 0')
-  if (frontmatterTitle(markdown) !== title) fail(file, `frontmatter title must be "${title}"`)
-
+  let parsed
+  try { parsed = context.read(page) } catch (error) { fail(file, error.message); return }
+  const { markdown, title, html } = parsed
   const prose = stripNonProse(markdown)
-  const h1 = [...prose.matchAll(/^#\s+(.+?)\s*$/gmu)]
+  const h1 = [...html.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gu)]
   if (h1.length !== 1) {
     fail(file, `expected exactly one H1 outside code blocks, found ${h1.length}`)
-  } else if (h1[0][1] !== title) {
-    fail(file, `H1 must be "${title}"`)
+  } else if (displayText(h1[0][1]) !== title) {
+    fail(file, `H1 must match frontmatter title "${title}"`)
   }
 
   for (const placeholder of placeholders) {
@@ -195,7 +134,7 @@ function checkPage({ path: file, title, language, isCore }) {
     fail(file, 'contains an OCR or screenshot editorial HTML comment')
   }
 
-  if (isCore) {
+  if (type === 'tutorial') {
     for (const label of requiredIntro[language]) {
       if (!prose.includes(label)) fail(file, `missing introduction field "${label}"`)
     }
@@ -204,35 +143,30 @@ function checkPage({ path: file, title, language, isCore }) {
   checkLinksAndImages(file, markdown)
 }
 
-for (const pair of corePages) {
-  checkPage({ path: pair.zh, title: pair.zhTitle, language: 'zh', isCore: true })
-  checkPage({ path: pair.en, title: pair.enTitle, language: 'en', isCore: true })
+for (const page of tutorialPages) {
+  checkPage(page)
+  const route = pageRoute(page)
+  const links = navigationLinks(context.config, page.language, route)
+  if (!links.some((link) => link.link.replace(/\.md$/u, '') === route && typeof link.text === 'string' && link.text.trim())) {
+    fail('docs/.vitepress/config.mts', `missing nonempty ${page.language} navigation to ${route}`)
+  }
 }
 
-for (const index of indexes) checkPage({ ...index, isCore: false })
-
-const configPath = join(docsRoot, '.vitepress', 'config.mts')
-const config = readFileSync(configPath, 'utf8')
-for (const required of [
-  "text: '系统使用'",
-  "text: 'Using CosmoEdge'",
-  "text: '基础使用'",
-  "text: 'AI 能力配置'",
-  "text: '高级扩展'",
-  "text: 'Basic Use'",
-  "text: 'AI Capability Configuration'",
-  "text: 'Advanced Extensions'"
+// Preview documentation boundaries stay in the docs gate, independent of Docker availability.
+for (const [file, repeat] of [
+  ['docs/guide/macos-docker-preview.md', /两次/u],
+  ['docs/en/guide/macos-docker-preview.md', /two\s+consecutive/iu]
 ]) {
-  if (!config.includes(required)) fail('docs/.vitepress/config.mts', `missing navigation entry ${required}`)
+  const text = stripNonProse(readFileSync(join(repositoryRoot, file), 'utf8'))
+  for (const term of ['Preview', 'linux/amd64', '127.0.0.1', 'Model Guard', 'CEMC']) {
+    if (!text.includes(term)) fail(file, `missing Preview compatibility boundary: ${term}`)
+  }
+  if (!repeat.test(text)) fail(file, 'missing repeated Preview acceptance requirement')
 }
-for (const page of corePages) {
-  for (const [title, route] of [
-    [page.zhTitle, page.zhRoute],
-    [page.enTitle, page.enRoute]
-  ]) {
-    if (!config.includes(`text: '${title}'`) || !config.includes(`link: '${route}'`)) {
-      fail('docs/.vitepress/config.mts', `missing stable navigation mapping "${title}" -> "${route}"`)
-    }
+for (const file of ['README.md', 'README.zh-CN.md']) {
+  const text = readFileSync(join(repositoryRoot, file), 'utf8')
+  if (!text.includes('scripts/macos-docker-preview.sh')) {
+    fail(file, 'missing macOS Preview launcher reference')
   }
 }
 
@@ -243,5 +177,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `Tutorial documentation check passed: ${corePages.length * 2} core pages, ${indexes.length} indexes, bilingual pairs, links, images, and navigation.`
+  `Tutorial documentation check passed: ${tutorialPages.length} pages including indexes, bilingual pairs, links, images, and navigation.`
 )

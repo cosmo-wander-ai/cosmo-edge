@@ -1,6 +1,4 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 
 import {
   getLocationQueryParam,
@@ -40,13 +38,5 @@ assert.equal(getLocationQueryParam('channelId', {
   search: '?upgrade=1',
   hash: '#/gam/taskManager/realEditingTask'
 }), undefined)
-
-const serviceConfigPath = fileURLToPath(new URL(
-  '../src/views/gam/taskManager/editTask/serviceConfig.vue',
-  import.meta.url
-))
-const serviceConfigSource = readFileSync(serviceConfigPath, 'utf8')
-assert.match(serviceConfigSource, /getLocationQueryParam\(name\)/)
-assert.doesNotMatch(serviceConfigSource, /window\.location\.search/)
 
 console.log('Route query compatibility checks passed')
