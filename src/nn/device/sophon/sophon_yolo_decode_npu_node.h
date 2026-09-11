@@ -1,23 +1,16 @@
 #pragma once
 
+#include "nn/device/sophon/sophon_yolo_nms.h"
 #include "nn/node/node.h"
 
 namespace cosmo::nn {
-
-struct YoloBox {
-    float x, y, width, height;
-    float confidence;
-    int class_id;
-};
-
-using YoloBoxVec = std::vector<YoloBox>;
 
 /**
  * @brief YoloDecodeNode is a node for yolo decode.
  *
  * It will decode the output of yolo network.
  * while `YOLO` output is formatted as `(x, y, w, h, obj, c0, c1, ... ,cn)`,
- * `YoloDecodeNode` output is formatted as `(x, y, w, h, conf, class_id)`.
+ * `YoloDecodeNode` output is formatted as `(center_x, center_y, w, h, conf, class_id)`.
  */
 class SophonYoloDecodeNPUNode : public Node {
 public:

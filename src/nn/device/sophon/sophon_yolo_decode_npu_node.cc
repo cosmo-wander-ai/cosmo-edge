@@ -148,33 +148,7 @@ Status SophonYoloDecodeNPUNode::Forward(std::vector<std::shared_ptr<Blob>>& bott
 }
 
 std::vector<YoloBox> SophonYoloDecodeNPUNode::NMS(std::vector<YoloBox>& detections, float iou_threshold) {
-    std::vector<YoloBox> result;
-    std::sort(detections.begin(), detections.end(),
-              [](const YoloBox& a, const YoloBox& b) { return a.confidence > b.confidence; });
-
-    while (!detections.empty()) {
-        result.push_back(detections[0]);
-        for (auto it = detections.begin() + 1; it != detections.end();) {
-            float x1 = std::max(result.back().x, it->x);
-            float y1 = std::max(result.back().y, it->y);
-            float x2 = std::min(result.back().x + result.back().width, it->x + it->width);
-            float y2 = std::min(result.back().y + result.back().height, it->y + it->height);
-
-            float intersection = std::max(0.0f, x2 - x1) * std::max(0.0f, y2 - y1);
-            float area1        = result.back().width * result.back().height;
-            float area2        = it->width * it->height;
-            float iou          = intersection / (area1 + area2 - intersection);
-
-            if (iou > iou_threshold) {
-                it = detections.erase(it);
-            } else {
-                ++it;
-            }
-        }
-        detections.erase(detections.begin());
-    }
-
-    return result;
+    return SophonYoloNms(detections, iou_threshold);
 }
 
 void SophonYoloDecodeNPUNode::ResetTopBlob(std::shared_ptr<Blob> top_blob) {
