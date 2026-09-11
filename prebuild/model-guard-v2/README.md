@@ -39,10 +39,28 @@ and public header. The implementation containing this exact runtime was then
 approved and merged through
 [PR #101](https://github.com/cosmo-wander-ai/cosmo-edge/pull/101).
 
-The approved `libcosmo_model_guard.so.2.0.0` SHA-256 is
+The runtime originally integrated by PR #101 had SHA-256
 `74ff8b456548e615882e5c9ee6dd18a51a2caf8124d761d7243dad014310042c`.
 This project-specific approval record is not a general relicensing of the
 runtime, its private implementation, provisioning inputs, or signing material.
+
+## Integrated runtime update
+
+The currently integrated `libcosmo_model_guard.so.2.0.0` SHA-256 is
+`db961509851571a91d18dce378fda92b4f7a5736af7df5d4901a3dac87937f39`.
+It adds Sophon SoC serial normalization: after trimming trailing NUL and
+whitespace, valid hexadecimal text shorter than 32 characters is right-padded
+with ASCII `0`, and longer text is truncated to its first 32 characters.
+The existing 64-byte input limit and full-input character validation remain.
+Existing valid 32-character identities and the public ABI are unchanged.
+The independent RKNN OTP implementation is unchanged.
+
+The matching provisioning tool SHA-256 is
+`b1bdac12517b48a9cbc0586ac11814780f4d8e182d02f7fc4d255ba21553d13b`.
+Production builds need this matching tool in `bin/cosmo-model-provision`;
+it remains a local, ignored input and is not part of the public SDK.
+The original distribution references above describe the original integration,
+not a separate upstream review of this runtime update.
 
 ## Verification
 

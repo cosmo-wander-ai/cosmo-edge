@@ -70,7 +70,7 @@ MODEL_GUARD_RUNTIME_HASH_FILE = "share/cosmo-model-guard/runtime.sha256"
 MODEL_GUARD_RKNN_SDK_MANIFEST_FILE = "share/cosmo-model-guard/SDK-MANIFEST.json"
 MODEL_GUARD_RKNN_HEADER_FILE = "share/cosmo-model-guard/cosmo_model_guard_rknn_v1.h"
 APPROVED_MODEL_GUARD_RUNTIME_SHA256 = (
-    "74ff8b456548e615882e5c9ee6dd18a51a2caf8124d761d7243dad014310042c"
+    "db961509851571a91d18dce378fda92b4f7a5736af7df5d4901a3dac87937f39"
 )
 REQUIRED_FILES = {
     "bin/version.txt",
