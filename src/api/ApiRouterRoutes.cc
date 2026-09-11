@@ -147,6 +147,7 @@ void ApiRouter::RegisterEventRoutes() {
 }
 
 void ApiRouter::RegisterCameraRoutes() {
+    ROUTE("/gtw/cwai/Camera/", kAuth, camera_handler_, camera, Gb28181Manage);
     ROUTE("/gtw/cwai/Camera/", kAuth, camera_handler_, camera, OnvifInterfaces);
     ROUTE("/gtw/cwai/Camera/", kAuth, camera_handler_, camera, OnvifDiscover);
     ROUTE("/gtw/cwai/Camera/", kAuth, camera_handler_, camera, OnvifProbe);

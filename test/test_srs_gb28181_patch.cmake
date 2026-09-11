@@ -67,3 +67,44 @@ file(READ "${test_source_file}" second_patched_source)
 if(NOT first_patched_source STREQUAL second_patched_source)
     message(FATAL_ERROR "SRS GB28181 patch is not idempotent")
 endif()
+
+# External SIP has separate lifecycle and local-control requirements.
+configure_file("${TEST_PROJECT_ROOT}/3rd/srs-6.0-r0/trunk/src/app/srs_app_gb28181.hpp"
+    "${test_source_dir}/src/app/srs_app_gb28181.hpp" COPYONLY)
+foreach(attempt RANGE 1 2)
+    execute_process(COMMAND "${CMAKE_COMMAND}" "-DSRS_SOURCE_DIR=${test_source_dir}"
+        -P "${TEST_PROJECT_ROOT}/cmake/patch_srs_gb28181_managed.cmake"
+        RESULT_VARIABLE result)
+    if(NOT result EQUAL 0)
+        message(FATAL_ERROR "Managed GB28181 patch failed")
+    endif()
+    file(READ "${test_source_file}" managed_source)
+    if(attempt EQUAL 1)
+        set(first_managed_source "${managed_source}")
+    elseif(NOT managed_source STREQUAL first_managed_source)
+        message(FATAL_ERROR "Managed GB28181 patch is not idempotent")
+    endif()
+endforeach()
+
+foreach(attempt RANGE 1 2)
+    execute_process(COMMAND "${CMAKE_COMMAND}" "-DSRS_SOURCE_DIR=${test_source_dir}"
+        -P "${TEST_PROJECT_ROOT}/cmake/patch_srs_gb28181_queue.cmake"
+        RESULT_VARIABLE result)
+    if(NOT result EQUAL 0)
+        message(FATAL_ERROR "GB queue patch failed")
+    endif()
+    file(READ "${test_source_file}" queue_source)
+    if(attempt EQUAL 1)
+        set(first_queue_source "${queue_source}")
+    elseif(NOT queue_source STREQUAL first_queue_source)
+        message(FATAL_ERROR "GB queue patch is not idempotent")
+    endif()
+endforeach()
+foreach(required "COSMO_MANAGED_GB_V1" "local POST required" "external media lease expired"
+        "if (receiver_) receiver_->interrupt()" "if (sender_) sender_->interrupt()"
+        "external SIP required" "stop_external()" "invalid SSRC")
+    string(FIND "${managed_source}" "${required}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR "Managed GB28181 safety guard missing: ${required}")
+    endif()
+endforeach()

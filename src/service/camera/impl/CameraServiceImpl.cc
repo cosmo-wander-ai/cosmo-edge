@@ -26,6 +26,7 @@
 #include "service/algorithm/IAlgorithmQuery.h"
 #include "service/camera/impl/CameraConfigPersistence.h"
 #include "service/detail/ServiceRegistry.h"
+#include "service/gb28181/IGb28181Management.h"
 #include "service/gb28181/IGb28181SourceService.h"
 #include "service/media/IVideoFrameCodec.h"
 #include "service/model/IModelQuery.h"
@@ -729,6 +730,15 @@ void CameraServiceImpl::UpdateChannelState(const CameraEntityPtr& camera) {
 }
 
 void CameraServiceImpl::ProbeCameraOnlineStatus(const CameraEntityPtr& camera) {
+    // Active demux/algorithm tasks skip the network probe below, but must still
+    // renew the managed GB demand lease. This notification performs no network I/O.
+    auto& registry = ServiceRegistry::Instance();
+    if (static_cast<MsgCameraType>(camera->channelType) == MsgCameraType::MsgCameraTypeGb28181 &&
+        registry.Has<IGb28181Management>()) {
+        Gb28181Source source;
+        if (registry.Get<IGb28181SourceService>().Resolve(camera->url, source))
+            registry.Get<IGb28181Management>().Ensure(source.deviceId);
+    }
     // Only probe if the channel is actually stopped to save overhead when already active
     if (ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskIsStart(camera->channel_task_)) {
         return;

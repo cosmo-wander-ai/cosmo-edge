@@ -28,6 +28,11 @@ util::ErrorEnum NetworkDemuxStrategy::OpenInput(AVFormatContext*& fmt_ctx, const
     }
     av_dict_set(&options, "rw_timeout", timeout.c_str(), 0);
     av_dict_set(&options, "fflags", "nobuffer", 0);
+    // RTMP/FLV carries codec headers. The default multi-second stream probe can
+    // consume the entire preview startup budget, especially for video-only GB.
+    av_dict_set(&options, "analyzeduration", "500000", 0);
+    av_dict_set(&options, "probesize", "1048576", 0);
+    av_dict_set(&options, "fpsprobesize", "5", 0);
 
     const int ret = avformat_open_input(&fmt_ctx, filename.c_str(), nullptr, &options);
     av_dict_free(&options);

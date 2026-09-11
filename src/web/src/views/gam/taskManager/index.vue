@@ -163,7 +163,7 @@
             </el-select>
           </el-form-item>
         </template>
-        <el-form-item :label="t('field.gbDeviceId') + localeColon" prop="gbDeviceId" v-if="channelForm.channelType === 7">
+        <el-form-item :label="t('gbAccess.channelId') + localeColon" prop="gbDeviceId" v-if="channelForm.channelType === 7">
           <el-input class="form-item-content" v-model.trim="channelForm.gbDeviceId" autocomplete="off" size="small" />
         </el-form-item>
         <el-form-item :label="t('field.address') + localeColon" prop="url" v-if="channelForm.channelType !== 3 && channelForm.channelType !== 6 && channelForm.channelType !== 7">
@@ -203,6 +203,7 @@
 
     <chanel-detail-dialog v-model:visible="channelDetailVisible" :detailChannel="channelDetailObj"></chanel-detail-dialog>
     <OnvifDialog ref="onvifDialog" @saved="init" />
+    <Gb28181Dialog ref="gb28181Dialog" @saved="init" />
   </div>
 </template>
 <script setup>
@@ -225,6 +226,8 @@ import TopBar from './components/algorithmTopBar.vue'
 import chanelDetailDialog from './components/chanelDetailDialog.vue'
 import defaultImage from '@/assets/CatchPhoto.png'
 import OnvifDialog from './components/OnvifDialog.vue'
+import Gb28181Dialog from './components/Gb28181Dialog.vue'
+const gb28181Dialog = ref()
 const onvifDialog = ref()
 
 // Map backend default schedule names → i18n keys
@@ -514,6 +517,11 @@ const queryUsbCameraList = () => {
 }
 
 const channelTypeChange = (val) => {
+  if (val === 7) {
+    channelDialogVisible.value = false
+    nextTick(() => gb28181Dialog.value.open())
+    return
+  }
   if (val === 2) {
     channelDialogVisible.value = false
     nextTick(() => onvifDialog.value.open())

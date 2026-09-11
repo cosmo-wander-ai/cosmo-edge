@@ -1,92 +1,78 @@
 # GB28181 Device Access
 
-CosmoEdge uses its packaged SRS process to receive GB28181 signaling and media, then converts the media into a local RTMP live stream. RTMP enters the existing `VideoDemuxer`, so decoding, algorithm tasks, preview, snapshots, recording, and alarms reuse the RTSP channel pipeline.
+Registration and video-channel invitation are separate operations. A video channel ID does not replace SIP server, domain, identity or authentication settings. This branch is an initial managed-access trial, not full GB28181 certification or universal vendor acceptance.
 
-```text
-GB28181 device
-  └─ SIP/TCP registration and INVITE + PS/TCP media
-       └─ SRS stream_caster
-            └─ rtmp://127.0.0.1:1936/live/<device-id>
-                 └─ existing demux, decode, algorithm, and output pipeline
-```
+## Architecture and Scope
 
-## Supported Scope
+CosmoEdge owns SIP/TCP registration, Digest MD5 authentication, heartbeats, Catalog and INVITE/ACK/BYE. SRS receives PS/TCP and converts it to `rtmp://127.0.0.1:1936/live/<video-channel-id>`. Existing demux, decode, algorithm, preview, snapshot, recording and alarm paths are reused.
 
-The current adapter targets GB/T 28181-2016 devices using TCP:
+Device IDs and video channel IDs are separate. Multi-message catalogs are published only when complete. Duplicate channel IDs across devices are reported, not ambiguously matched. Existing `gb28181://<20-digit-id>` addresses remain valid when their IDs appear in a registered device catalog.
 
-- The device registers directly with the CosmoEdge host and SRS sends the INVITE automatically.
-- SIP and media use TCP; SRS converts the PS media payload to RTMP.
-- Each channel uses one unique 20-digit device ID, which SRS also uses as the stream name.
-- The first release reuses live video analytics and does not introduce a separate GB28181 decode or algorithm pipeline.
+Current limits:
 
-Platform-level catalog synchronization, NVR sub-channel selection, PTZ, recording search/playback, and upstream/downstream platform cascading are not included. Add a separate GB28181 catalog and control service next to `IGb28181SourceService` when those capabilities are required; its media output can still reuse the RTMP seam described here.
+- TCP signaling and camera-initiated TCP media only; the platform receives media passively. This is a bounded SIP subset, not a general SIP proxy.
+- At most 128 registrations, 64 concurrent SIP connections, 1,024 entries per device catalog and 256 media demands. Existing channel/decoder limits still apply.
+- H.264 is preferred for validation. H.265 needs camera-packaging, target-hardware and browser verification.
+- No UDP, platform-initiated media TCP, SIP TLS, SHA-256 Digest, Record-Route/proxy/cascading, catalog subscriptions, PTZ, audio business features or GB recording search/playback. Missing catalogs do not trigger guessed channels.
+- NVR identity separation and pagination have simulated coverage, not cross-vendor device acceptance.
 
-## Enable the Runtime Configuration
+## Camera-to-Platform Mapping
 
-The SRS binary is built with GB28181 support, while the listeners are disabled by default at runtime. Set these variables in the deployment environment, then start or restart CosmoEdge in the usual way:
+Click **Add** in Video Channels and select GB28181 to open **GB28181 access**. The dialog contains only the Platform and Devices & channels tabs.
 
-| Variable | Default | Description |
+| Camera field | CosmoEdge setting | Meaning |
 | --- | --- | --- |
-| `COSMO_GB28181_ENABLED` | `off` | Set to `on` to enable GB28181 listeners |
-| `COSMO_GB28181_CANDIDATE` | `*` | Address advertised through SIP/SDP; production deployments should explicitly set the CosmoEdge LAN IPv4 address reachable by the camera |
-| `COSMO_GB28181_SIP_PORT` | `5060` | SIP/TCP listener |
-| `COSMO_GB28181_MEDIA_PORT` | `9001` | PS/TCP media listener; must not reuse backend WebSocket port `9000` |
+| SIP server ID | Platform → SIP server ID | Common platform identity |
+| SIP server domain | Platform → SIP server domain | Also the Digest realm; must match |
+| SIP server address | Reachable platform address | Not the camera's own address |
+| SIP server port | Platform → SIP server port | TCP 5060 by default |
+| SIP username | Devices → Device ID | Device's 20-digit identity |
+| SIP authentication ID | Advanced authentication | Defaults to device ID; may differ |
+| Password | Device SIP password | Must match; not automatically taken from web login, ONVIF or platform admin |
+| Video channel ID | Automatically discovered catalog | May differ from device ID; an NVR can expose several |
+| Transport | TCP | Camera initiates media connection |
 
-Example:
+New registrations require a password. A blank password on edit preserves the saved secret. Digests are stored privately, encrypted and atomically; queries return neither passwords nor digests. Changing the realm requires recreating device registrations and their passwords.
 
-```bash
-export COSMO_GB28181_ENABLED=on
-export COSMO_GB28181_CANDIDATE=192.168.0.72
-export COSMO_GB28181_SIP_PORT=5060
-export COSMO_GB28181_MEDIA_PORT=9001
-```
+The explicit per-device **skip password verification** option is disabled by default and intended only for trusted isolated networks. An ID match does not authenticate a physical device. Unlisted IDs remain blocked. HTTP management and SIP/TCP do not provide transport encryption; do not expose them directly to the Internet.
 
-The startup scripts validate the switch, IPv4 address, and port ranges before rendering `${COSMO_DATA_DIR}/runtime/srs.conf`. Invalid values stop startup so arbitrary text cannot be injected into the SRS configuration.
+## Setup
 
-Allow the device to reach both the SIP/TCP and PS/TCP media ports. Across NAT, `COSMO_GB28181_CANDIDATE` must be an address that the device can actually reach.
+1. Confirm platform ID, domain and SIP port, enable access and save. SIP server address defaults to Automatic, using the local IPv4 interface reached by each camera. Select a fixed interface IP from the dropdown, or enter a reachable address under Advanced address settings for NAT or special routing. Cameras still need a reachable box IP; automatic mode does not save the browser login address as a fixed IP.
+2. Register the device ID and SIP password. Override its authentication ID in Advanced authentication if needed.
+3. Configure matching fields on the camera, enable GB28181 and select TCP.
+4. Wait for registration and automatic catalog discovery. Expand the device, edit desired channel names and add them. Playback URLs are not required; catalog entries are not imported indiscriminately.
+5. Preview in Video Input and assign existing tasks. Existing matching logical sources are marked Added.
 
-## Configure the GB28181 Device
+Platform changes disconnect GB registrations and require re-registration. Credential edits require that device to register again. Removing a registration preserves business channels and tasks but takes them offline.
 
-Configure the camera or GB28181 device with:
+## Runtime and Migration
 
-- Protocol/transport: GB/T 28181-2016 over TCP.
-- Server address: the reachable address of the CosmoEdge device.
-- Server port: `COSMO_GB28181_SIP_PORT`, default `5060`.
-- Device ID: exactly 20 digits and unique within this CosmoEdge instance.
+The SRS media caster is enabled while its built-in SIP listener is disabled. CosmoEdge's managed SIP listener defaults to disabled and is explicitly enabled in the UI.
 
-After registration, SRS automatically invites the device to publish media. CosmoEdge consumes it internally at:
+Legacy `COSMO_GB28181_ENABLED`, `COSMO_GB28181_SIP_PORT` and `COSMO_GB28181_CANDIDATE` no longer control managed SIP; saved UI settings are authoritative. `COSMO_GB28181_MEDIA_PORT` still controls SRS media reception, TCP 9001 by default. Avoid WebSocket port 9000. Both SIP and media ports must be reachable.
 
-```text
-rtmp://127.0.0.1:1936/live/<20-digit-device-id>
-```
+Media allocation/release accepts only local-loopback POST requests; public RTC APIs are unchanged. Unallocated media does not create business channels.
 
-Do not enter this internal address in the UI.
+Configuration is under `${COSMO_DATA_DIR}/conf/gb28181/`. Back up and restore `key` and `settings.json` together with business channel configuration. Missing keys, corruption or decryption failures never fall back to unauthenticated registration.
 
-## Add the Channel in CosmoEdge
+For upgrades, preserve existing channels, register actual device credentials and query the catalog. The logical ID must identify a video channel, not necessarily its parent device.
 
-1. Open Task Management and select Add Channel.
-2. Select `GB28181` as the access type.
-3. Enter the same 20-digit device ID used in the registration configuration.
-4. Save the channel and assign algorithm tasks through the existing workflow.
+## Diagnostics
 
-The persisted configuration contains the logical address `gb28181://<device-id>`. Query APIs and the UI do not expose the internal RTMP address; `IGb28181SourceService` resolves it for the existing task channel at runtime.
+| State | Check first |
+| --- | --- |
+| Waiting / inactive SIP listener | Enable switch, port conflict, firewall, server address and device ID |
+| Authentication failed | SIP authentication ID, realm and SIP password |
+| Catalog failed | Catalog support, complete responses and manual retry |
+| Inviting / rejected | Video channel ID, SIP status and transport support |
+| Waiting for media / timeout | Advertised address, media port and camera-active TCP support |
+| Receiving | Active publisher only; verify decoded picture and tasks separately |
 
-## Online Status and Troubleshooting
+Registration/heartbeat expiry takes a device offline; re-registration refreshes the catalog. Failed invitations time out and retry. Removed business channels lose media demand after approximately 120 seconds; active algorithm channels also renew demand. SRS independently expires unstarted or inactive media sessions. These are recovery mechanisms, not instant-reconnect guarantees.
 
-When analysis is stopped, CosmoEdge queries the SRS HTTP API for an active publisher named `live/<device-id>` instead of merely probing a local TCP port. Once the channel is reading, the existing demux states continue to drive online, abnormal, and end-of-stream status.
+SRS interleaving is bounded to approximately 200 ms of timestamp span or 32 messages, so video-only streams or missing audio no longer wait for over 100 video packets. This is not an end-to-end latency bound: the camera, keyframes, network, decoder and player still buffer data. Compare RTSP and GB28181 using the same stream, codec, resolution, frame rate, keyframe interval and preview method.
 
-Read-only checks on the device:
+The RTMP input strategy also uses a shorter stream probe (500 ms analysis duration, 1 MiB probe size and five-frame FPS probing) so low-frame-rate video does not exhaust the preview startup deadline. This does not change RTSP/ONVIF inputs or guarantee a fixed first-picture time.
 
-```bash
-ss -ltn | grep -E ':(5060|9001) '
-curl -s 'http://127.0.0.1:1985/api/v1/streams/?start=0&count=1000'
-```
-
-Verify that:
-
-- `${COSMO_DATA_DIR}/log/logs/srs.log` has no SIP registration, INVITE, or media receive errors.
-- The Streams API reports `name` equal to the device ID, `app` equal to `live`, and `publish.active` equal to `true`.
-- The device server address and ports match the rendered `srs.conf`.
-- H.264 is the preferred validation codec. H.265 also depends on the device's GB28181 packaging and the target Sophon decoder, so verify it on the target device.
-
-See the [SRS GB28181 documentation](https://ossrs.net/lts/en-us/docs/v5/doc/gb28181) for the underlying SRS protocol and configuration behavior.
+References: [SRS 6 External SIP](https://ossrs.io/lts/zh-cn/docs/v6/doc/gb28181#external-sip), [SIP RFC 3261](https://www.rfc-editor.org/rfc/rfc3261). Session release/expiry and local-control restrictions are applied to the build copy, not `3rd/`. Upstream capabilities are not device-acceptance evidence for this branch.

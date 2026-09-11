@@ -9,6 +9,12 @@ set(SRS_GB28181_PATCH_COMMAND
     ${CMAKE_COMMAND}
         "-DSRS_SOURCE_DIR=<SOURCE_DIR>"
         -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181.cmake
+    COMMAND ${CMAKE_COMMAND}
+        "-DSRS_SOURCE_DIR=<SOURCE_DIR>"
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181_managed.cmake
+    COMMAND ${CMAKE_COMMAND}
+        "-DSRS_SOURCE_DIR=<SOURCE_DIR>"
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181_queue.cmake
 )
 
 if(COSMO_TARGET_ARCH STREQUAL "aarch64")

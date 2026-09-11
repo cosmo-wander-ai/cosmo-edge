@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "service/detail/ServiceRegistry.h"
+#include "service/gb28181/IGb28181Management.h"
 #include "service/network/IHttpClient.h"
 #include "util/Log.h"
 
@@ -43,6 +44,9 @@ bool Gb28181SourceServiceImpl::IsStreamActive(const std::string& source) {
     if (!Resolve(source, resolved)) {
         return false;
     }
+    auto& registry = ServiceRegistry::Instance();
+    if (registry.Has<IGb28181Management>())
+        registry.Get<IGb28181Management>().Ensure(resolved.deviceId);
 
     const auto now = std::chrono::steady_clock::now();
     {

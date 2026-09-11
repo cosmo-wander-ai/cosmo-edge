@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "service/camera/dto/CameraDto.h"
+#include "service/gb28181/dto/Gb28181Dto.h"
 #include "service/onvif/dto/OnvifDto.h"
 #include "util/IRequestDispatcher.h"
 
@@ -23,6 +24,7 @@ public:
                          service::ICameraTaskConfig& task_cfg, service::ITaskQuery& task_query);
 
     camera::MsgAddSend Handle(camera::MsgAddRecv&& data, std::error_condition& errc);
+    camera::MsgGb28181ManageSend Handle(camera::MsgGb28181ManageRecv&& data, std::error_condition& errc);
     camera::OnvifResponse Handle(camera::MsgOnvifInterfacesRecv&& data, std::error_condition& errc);
     camera::OnvifResponse Handle(camera::MsgOnvifDiscoverRecv&& data, std::error_condition& errc);
     camera::OnvifResponse Handle(camera::MsgOnvifProbeRecv&& data, std::error_condition& errc);

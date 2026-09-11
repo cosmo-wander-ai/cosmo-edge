@@ -62,7 +62,9 @@ validate_gb28181_config() {
         fi
     done
 
-    if [ "$COSMO_GB28181_ENABLED" = on ]; then
+    # Managed SIP is controlled by the application; its media caster is always
+    # available for local allocation, even when the legacy SIP flag is off.
+    if true; then
         local reserved_port
         if [ "$COSMO_GB28181_SIP_PORT" = "$COSMO_GB28181_MEDIA_PORT" ]; then
             echo "COSMO_GB28181_SIP_PORT and COSMO_GB28181_MEDIA_PORT must differ" >&2

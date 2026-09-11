@@ -149,7 +149,7 @@ if (
     unset COSMO_PACKAGE_DATA_DIR COSMO_PACKAGE_APP_DATA_DIR
     COSMO_INSTALL_DIR="$render_install"
     COSMO_DATA_DIR="${root}/conflicting-gb28181"
-    COSMO_GB28181_ENABLED=on
+    COSMO_GB28181_ENABLED=off
     COSMO_GB28181_MEDIA_PORT=9000
     # shellcheck source=../scripts/common.sh
     . "${repo}/scripts/common.sh"
