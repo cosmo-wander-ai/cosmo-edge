@@ -23,6 +23,10 @@ AlgChannelMp4::AlgChannelMp4(const std::string& channel) : async_queue_("RedordQ
 }
 
 AlgChannelMp4::~AlgChannelMp4() {
+    // Finish the active callback before releasing any state it can access.
+    // Stop/join must run without mtx_frame_que_, which the callback also takes.
+    async_queue_.Stop();
+    async_queue_.stop();
     record_tasks_.clear();
     video_frames_.clear();
     LOG_INFO("[MP4 CHANNEL] {} Mp4 Record Stop. ", channel_id_);

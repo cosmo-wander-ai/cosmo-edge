@@ -675,6 +675,8 @@ if(BUILD_TESTS)
     add_executable(cosmo-tests ${APP_SRC_NO_MAIN} ${ALL_OBJECTS} ${TEST_SRC})
     add_dependencies(cosmo-tests third_build)
     target_compile_definitions(cosmo-tests PRIVATE CATCH_AMALGAMATED_CUSTOM_MAIN)
+    # Fault injection is confined to tests; production always calls the real writer.
+    target_link_options(cosmo-tests PRIVATE "-Wl,--wrap=MP4WriteSample")
     target_include_directories(cosmo-tests PRIVATE
         ${CMAKE_SOURCE_DIR}/src
         ${CMAKE_SOURCE_DIR}/test

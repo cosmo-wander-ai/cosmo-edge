@@ -75,9 +75,29 @@ AlgMp4Record::~AlgMp4Record() {
             task_id_, event_name_, start_index_, event_index_, last_index_, (event_time_ - start_time_),
             (last_time_ - event_time_), record_frames_, data_size_, total_size_);
         MP4Close(mp4_handle_);
+        mp4_handle_ = nullptr;
+        if (write_failed_) {
+            LOG_ERRO("[MP4 TASK] {} {} recording failed; preserve temporary file {}", task_id_, event_name_,
+                     file_name_);
+            return;
+        }
+        if (record_frames_ == 0) {
+            std::error_code err;
+            fs::remove(file_name_, err);
+            if (err) {
+                LOG_WARN("[MP4 TASK] {} {} remove empty recording failed: {}", task_id_, event_name_,
+                         err.message());
+            }
+            return;
+        }
         if (record_frames_ > 0) {
             std::error_code err;
             fs::rename(file_name_, mp4_name_, err);
+            if (err) {
+                LOG_ERRO("[MP4 TASK] {} {} finalize recording failed: {}; preserve {}", task_id_, event_name_,
+                         err.message(), file_name_);
+                return;
+            }
             std::string bucket = "gaf_commodity_video";
             // Upload to file server.
             std::string mp4Name = mp4_name_;

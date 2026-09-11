@@ -1,30 +1,150 @@
-// AlgMp4RecordWriter.cc — Recording and writing for AlgMp4Record.
-// Split from AlgMp4Record.cc to reduce file size (DEBT-007).
+// AlgMp4Record — Annex-B conversion and synchronous MP4 sample writing.
 
+#include <algorithm>
+#include <cstring>
+#include <exception>
 #include <filesystem>
+#include <limits>
 
 #include "flow/channel/AlgMp4Record.h"
-#include "media/VideoUtil.h"
 #include "mp4v2/mp4v2.h"
 #include "mp4v2/track.h"
-#include "service/detail/ServiceRegistry.h"
-#include "service/path/IFileService.h"
-#include "service/task/ITaskQuery.h"
-#include "util/FormatString.h"
 #include "util/Log.h"
 #include "util/PathUtil.h"
 
-#define VALUE_SET_IN_RANGE(target, value, min, max)                                                          \
-    if ((value >= min) && (value <= max))                                                                    \
-        target = value;
-
 namespace cosmo {
+namespace {
+    constexpr uint32_t kTimeScale    = 90000;
+    constexpr size_t kNaluLengthSize = 4;
 
-constexpr uint32_t timeScale = 90000;
+    struct NaluView {
+        const uint8_t* data{nullptr};
+        size_t size{0};
+    };
 
-// ---------------------------------------------------------------------------
-// NALU-type handlers extracted from RecodeFrame (DEBT-011)
-// ---------------------------------------------------------------------------
+    // Walk the input without owning it. Zero runs before a start code and at the
+    // end are Annex-B padding; emulation-prevention bytes remain untouched.
+    template <typename Visitor>
+    bool WalkAnnexB(const uint8_t* data, size_t size, Visitor visit) {
+        if (!data || size == 0) {
+            return false;
+        }
+        size_t pos = 0;
+        while (pos < size && data[pos] == 0) {
+            ++pos;
+        }
+        if (pos < 2 || pos == size || data[pos] != 1) {
+            return false;
+        }
+        size_t begin = ++pos;
+        size_t zeros = 0;
+        for (; pos < size; ++pos) {
+            if (data[pos] == 0) {
+                ++zeros;
+                continue;
+            }
+            if (data[pos] == 1 && zeros >= 2) {
+                const size_t end = pos - zeros;
+                if (end == begin || !visit(NaluView{data + begin, end - begin})) {
+                    return false;
+                }
+                begin = pos + 1;
+            }
+            zeros = 0;
+        }
+        const size_t end = size - zeros;
+        return end > begin && visit(NaluView{data + begin, end - begin});
+    }
+
+    int NaluType(media::VideoCodecType codec, const NaluView& nalu) {
+        return codec == media::VideoCodecType::kH265 ? (nalu.data[0] >> 1) & 0x3f : nalu.data[0] & 0x1f;
+    }
+
+    bool IsParameterSet(media::VideoCodecType codec, int type) {
+        return codec == media::VideoCodecType::kH265 ? type >= 32 && type <= 34 : type == 7 || type == 8;
+    }
+}  // namespace
+
+struct AlgMp4Record::FrameScan {
+    size_t output_size{0};
+    bool has_video{false};
+    bool is_sync{true};
+    NaluView vps;
+    NaluView sps;
+    NaluView pps;
+};
+
+bool AlgMp4Record::ScanFrame(const uint8_t* data, size_t size, FrameScan* scan) const {
+    const bool hevc = source_type_ == media::VideoCodecType::kH265;
+    if (!hevc && source_type_ != media::VideoCodecType::kH264) {
+        return false;
+    }
+    return WalkAnnexB(data, size, [&](const NaluView& nalu) {
+        if ((nalu.data[0] & 0x80) != 0 || (hevc && (nalu.size < 2 || (nalu.data[1] & 7) == 0))) {
+            return false;
+        }
+        const int type = NaluType(source_type_, nalu);
+        if (!hevc && type == 0) {
+            return false;
+        }
+        if (IsParameterSet(source_type_, type)) {
+            const bool is_pps = hevc ? type == 34 : type == 8;
+            // SetTrack reads the first four bytes of VPS/SPS.
+            const size_t minimum = is_pps ? (hevc ? 2 : 1) : 4;
+            if (nalu.size < minimum || nalu.size > std::numeric_limits<uint16_t>::max()) {
+                return false;
+            }
+            NaluView* parameter = is_pps ? &scan->pps : (hevc && type == 32 ? &scan->vps : &scan->sps);
+            if (!parameter->data) {
+                *parameter = nalu;
+            }
+            return true;
+        }
+        const size_t limit =
+            std::min(static_cast<size_t>(std::numeric_limits<uint32_t>::max()), sample_buffer_.max_size());
+        if (scan->output_size > limit || limit - scan->output_size < kNaluLengthSize ||
+            nalu.size > limit - scan->output_size - kNaluLengthSize) {
+            return false;
+        }
+        scan->output_size += kNaluLengthSize + nalu.size;
+        const bool is_video = hevc ? type <= 31 : (type >= 1 && type <= 5) || (type >= 19 && type <= 21);
+        if (is_video) {
+            scan->has_video = true;
+            scan->is_sync   = scan->is_sync && (hevc ? type >= 16 && type <= 21 : type == 5);
+        }
+        return true;
+    });
+}
+
+bool AlgMp4Record::TransformFrame(const uint8_t* data, size_t size, const FrameScan& scan) {
+    try {
+        sample_buffer_.resize(scan.output_size);
+        size_t offset    = 0;
+        const bool valid = WalkAnnexB(data, size, [&](const NaluView& nalu) {
+            if (IsParameterSet(source_type_, NaluType(source_type_, nalu))) {
+                return true;
+            }
+            if (offset > sample_buffer_.size() || sample_buffer_.size() - offset < kNaluLengthSize ||
+                nalu.size > sample_buffer_.size() - offset - kNaluLengthSize) {
+                return false;
+            }
+            const auto length = static_cast<uint32_t>(nalu.size);
+            for (size_t i = 0; i < kNaluLengthSize; ++i) {
+                sample_buffer_[offset + i] = static_cast<uint8_t>(length >> ((kNaluLengthSize - 1 - i) * 8));
+            }
+            std::memcpy(sample_buffer_.data() + offset + kNaluLengthSize, nalu.data, nalu.size);
+            offset += kNaluLengthSize + nalu.size;
+            return true;
+        });
+        if (valid && offset == scan.output_size) {
+            return true;
+        }
+    } catch (const std::exception& e) {
+        LOG_WARN("[MP4 TASK] {} {} TransformFrame failed: {}", task_id_, event_name_, e.what());
+    }
+    sample_buffer_.clear();
+    return false;
+}
 
 bool AlgMp4Record::HandleVps(const uint8_t* frame_data, size_t frame_size, int64_t seq, bool is_iframe) {
     SetTrack(frame_data, frame_size);
@@ -36,7 +156,6 @@ bool AlgMp4Record::HandleVps(const uint8_t* frame_data, size_t frame_size, int64
     if (is_vps_ready_) {
         return false;
     }
-    total_size_ += static_cast<int64_t>(frame_size);
     MP4AddH265VideoParameterSet(mp4_handle_, track_id_, frame_data, static_cast<uint16_t>(frame_size));
     is_vps_ready_ = true;
     return false;
@@ -52,7 +171,6 @@ bool AlgMp4Record::HandleSps(const uint8_t* frame_data, size_t frame_size, int64
     if (is_sps_ready_) {
         return false;
     }
-    total_size_ += static_cast<int64_t>(frame_size);
     if (media::VideoCodecType::kH265 == source_type_) {
         MP4AddH265SequenceParameterSet(mp4_handle_, track_id_, frame_data, static_cast<uint16_t>(frame_size));
     } else {
@@ -71,7 +189,6 @@ bool AlgMp4Record::HandlePps(const uint8_t* frame_data, size_t frame_size, int64
     if (is_pps_ready_) {
         return false;
     }
-    total_size_ += static_cast<int64_t>(frame_size);
     if (media::VideoCodecType::kH265 == source_type_) {
         MP4AddH265PictureParameterSet(mp4_handle_, track_id_, frame_data, static_cast<uint16_t>(frame_size));
     } else {
@@ -81,66 +198,36 @@ bool AlgMp4Record::HandlePps(const uint8_t* frame_data, size_t frame_size, int64
     return false;
 }
 
-bool AlgMp4Record::WriteVideoSample(const uint8_t* data, size_t size, size_t offset, size_t sz,
-                                    size_t moved_size, int64_t seq, bool is_iframe) {
-    if (MP4_INVALID_TRACK_ID == track_id_) {
-        LOG_WARN("[MP4 TASK] {} {} Frame:{} bIFrame:{} Track Not Ready. ", task_id_, event_name_, seq,
-                 is_iframe);
-        return false;
-    }
-
-    std::vector<uint8_t> buffer;
+bool AlgMp4Record::WriteVideoSample(int64_t seq, bool is_sync) {
     try {
-        // Transform remaining data starting from current NALU offset
-        buffer = TransformFrame(data + offset, size - offset);
+        const bool written = MP4WriteSample(mp4_handle_, track_id_, sample_buffer_.data(),
+                                            static_cast<uint32_t>(sample_buffer_.size()),
+                                            static_cast<MP4Duration>(kTimeScale / fps_), 0, is_sync);
+        const auto samples = MP4GetTrackNumberOfSamples(mp4_handle_, track_id_);
+        if (written && static_cast<int64_t>(samples) == record_frames_ + 1) {
+            ++record_frames_;
+            total_size_ += static_cast<int64_t>(sample_buffer_.size());
+            return true;
+        }
+        LOG_ERRO("[MP4 TASK] {} {} Frame:{} write failed: result={} samples={} expected={}", task_id_,
+                 event_name_, seq, written, samples, record_frames_ + 1);
     } catch (const std::exception& e) {
-        LOG_ERRO("[MP4 TASK] {} {} Frame:{} TransformFrame error:{} offset:{} size:{}", task_id_, event_name_,
-                 seq, e.what(), offset, size);
-        return false;
+        LOG_ERRO("[MP4 TASK] {} {} Frame:{} MP4WriteSample error:{}", task_id_, event_name_, seq, e.what());
+    } catch (...) {
+        LOG_ERRO("[MP4 TASK] {} {} Frame:{} MP4WriteSample unknown error", task_id_, event_name_, seq);
     }
-
-    if (buffer.empty()) {
-        LOG_WARN("[MP4 TASK] {} {} Frame:{} size:{} offset:{} sz:{} < movedSize:{} TransformFrame empty",
-                 task_id_, event_name_, seq, size, offset, sz, moved_size);
-        return false;
-    }
-
-    try {
-        total_size_ += static_cast<int64_t>(buffer.size());
-        MP4WriteSample(mp4_handle_, track_id_, buffer.data(), static_cast<uint32_t>(buffer.size()));
-    } catch (const std::exception& e) {
-        LOG_INFO("[MP4 TASK] {} {} Frame:{} MP4WriteSample error:{}", task_id_, event_name_, seq, e.what());
-        throw;
-    }
-
-    // A single frame may contain multiple I-frame NALUs; writing them as a
-    // single sample produces a playable MP4, while splitting does not.
-    record_frames_ += 1;
-    return true;
+    write_failed_ = true;
+    sample_buffer_.clear();
+    return false;
 }
 
-// ---------------------------------------------------------------------------
-// RecodeFrame — NALU iteration loop (refactored from ~210 lines to ~80)
-// ---------------------------------------------------------------------------
-
 bool AlgMp4Record::RecodeFrame(VideoPacketPtr frame) {
-    if (!frame) {
-        LOG_WARN("[MP4 TASK] {} {} Frame is Empty. Last Frame:{}", task_id_, event_name_, last_index_);
+    sample_buffer_.clear();
+    if (write_failed_ || !frame || !mp4_handle_) {
         return false;
     }
-    // Bail out if the MP4 handle was never created
-    if (!mp4_handle_) {
-        LOG_WARN("[MP4 TASK] {} {} Record Frame:{} MP4 Create Fail.", task_id_, event_name_,
-                 frame->GetSequence());
-        return false;
-    }
-
     if (frame->stream_idx != stream_index_) {
-        // Stream index mismatch means the source has restarted (indices are
-        // monotonically increasing).  This MP4 task was created for the old
-        // stream and cannot record frames from the new one.
-        // Note: throttle logging to once per 100 mismatched frames.
-        stream_mismatch_count_++;
+        ++stream_mismatch_count_;
         if (stream_mismatch_count_ == 1 || stream_mismatch_count_ % 100 == 0) {
             LOG_WARN("[MP4 TASK] {} {} Stream Mismatch (x{}): Frame={} FrameStream={} expect={}, skip.",
                      task_id_, event_name_, stream_mismatch_count_, frame->GetSequence(), frame->stream_idx,
@@ -148,91 +235,42 @@ bool AlgMp4Record::RecodeFrame(VideoPacketPtr frame) {
         }
         return false;
     }
-
-    if ((frame->GetSize() == 0) || (frame->GetSize() > max_frame_size_)) {
+    if (!frame->GetData() || frame->GetSize() == 0 || frame->GetSize() > max_frame_size_) {
         LOG_WARN("[MP4 TASK] {} {} Record Frame:{}, dataSize:{}. MaxSize:{}", task_id_, event_name_,
                  frame->GetSequence(), frame->GetSize(), max_frame_size_);
         return false;
     }
     data_size_ += static_cast<int64_t>(frame->GetSize());
-
-    const bool is_iframe = frame->IsIFrame();
-
-    if ((0 == start_index_) && (0 == start_time_)) {
-        start_index_ = frame->GetSequence();
+    FrameScan scan;
+    if (!ScanFrame(frame->GetData(), frame->GetSize(), &scan) ||
+        !TransformFrame(frame->GetData(), frame->GetSize(), scan)) {
+        LOG_WARN("[MP4 TASK] {} {} Frame:{} invalid Annex-B input", task_id_, event_name_,
+                 frame->GetSequence());
+        return false;
+    }
+    const int64_t seq = frame->GetSequence();
+    if (last_index_ == -1) {
+        start_index_ = seq;
         start_time_  = frame->GetTimestamp();
     }
-    last_index_ = frame->GetSequence();
+    // This is an input cursor, including valid parameter-only packets.
+    last_index_ = seq;
     last_time_  = frame->GetTimestamp();
-
-    size_t offset = 0;  // Current byte offset into frame data
-    size_t sz     = 0;  // Current NALU size
-
-    size_t size       = frame->GetSize();
-    uint8_t* data     = frame->GetData();
-    const int64_t seq = frame->GetSequence();
-
-    int nalu_count = 0;
-    try {
-        do {
-            offset += sz;
-            // Locate the next NALU boundary
-            sz = media::SeparateHVideoFrame(data + offset, size - offset);
-            if (sz <= 4) {
-                // Guard against degenerate NALU: 00 00 00 01 00 00 00 01 42
-                if (sz == 0) {
-                    return false;
-                }
-                continue;
-            }
-
-            // Strip the 00 00 00 01 start-code prefix
-            size_t moved_size = 0;
-            auto frame_data   = media::RemoveHFrameSeparator(data + offset, sz, moved_size);
-            if (moved_size >= sz) {
-                LOG_WARN("[MP4 TASK] {} {} Frame:{} size:{} offset:{} sz:{} < movedSize:{} ", task_id_,
-                         event_name_, seq, size, offset, sz, moved_size);
-                return false;
-            }
-            const size_t frame_size = sz - moved_size;
-
-            // Dispatch by NALU type
-            switch (media::GetFrameType(source_type_, data + offset, sz)) {
-                case media::HFrameType::VPS:
-                    HandleVps(frame_data, frame_size, seq, is_iframe);
-                    break;
-                case media::HFrameType::SPS:
-                    HandleSps(frame_data, frame_size, seq, is_iframe);
-                    break;
-                case media::HFrameType::PPS:
-                    HandlePps(frame_data, frame_size, seq, is_iframe);
-                    break;
-                case media::HFrameType::SEI:
-                    break;
-                case media::HFrameType::P:
-                case media::HFrameType::I:
-                    if (WriteVideoSample(data, size, offset, sz, moved_size, seq, is_iframe)) {
-                        return true;
-                    }
-                    return false;
-                default:
-                    unknown_frame_type_count_++;
-                    // Unknown NALU type at the head — skip it
-                    data += sz;
-                    size -= sz;
-                    offset = 0;
-                    sz     = 0;
-                    break;
-            }
-            nalu_count += 1;
-        } while (offset + sz != size);
-    } catch (const std::exception& e) {
-        LOG_INFO("[MP4 TASK] {} {} Frame:{} MP4 recording error:{} offset:{} sz:{} size:{} count:{}",
-                 task_id_, event_name_, seq, e.what(), offset, sz, size, nalu_count);
-        throw;
+    if (scan.vps.data) {
+        HandleVps(scan.vps.data, scan.vps.size, seq, scan.is_sync && scan.has_video);
     }
-    record_frames_ += 1;
-    return true;
+    if (scan.sps.data) {
+        HandleSps(scan.sps.data, scan.sps.size, seq, scan.is_sync && scan.has_video);
+    }
+    if (scan.pps.data) {
+        HandlePps(scan.pps.data, scan.pps.size, seq, scan.is_sync && scan.has_video);
+    }
+    if (!scan.has_video || track_id_ == MP4_INVALID_TRACK_ID || !is_sps_ready_ || !is_pps_ready_ ||
+        (source_type_ == media::VideoCodecType::kH265 && !is_vps_ready_)) {
+        sample_buffer_.clear();
+        return false;
+    }
+    return WriteVideoSample(seq, scan.is_sync);
 }
 
 int64_t AlgMp4Record::GetLastIndex() {
@@ -255,54 +293,6 @@ std::string AlgMp4Record::GetEventName() {
     return event_name_;
 }
 
-std::vector<uint8_t> AlgMp4Record::TransformFrame(const uint8_t* data, size_t size) {
-    size_t movedHead = 0;
-    auto dataBeg     = media::RemoveHFrameSeparator(data, size, movedHead);
-    if (nullptr == dataBeg) {
-        LOG_WARN("[MP4 TASK] {} {} FindHeard Failed, data Size:{}.", task_id_, event_name_, size);
-        return {};
-    }
-    auto dataSizeSigned = data + size - dataBeg;
-    if ((dataSizeSigned > static_cast<ptrdiff_t>(max_frame_size_)) || (dataSizeSigned < 0)) {
-        LOG_WARN("[MP4 TASK] {} {} FindHeard Failed, data Size:{} dataSize:{}.", task_id_, event_name_, size,
-                 dataSizeSigned);
-        return {};
-    }
-    auto dataSize = static_cast<size_t>(dataSizeSigned);
-    // Acquire a reusable buffer from the pool
-    auto buffer = buffer_pool_.AcquireBuffer(dataSize + 4);
-    if (!buffer) {
-        LOG_WARN("[MP4 TASK] {} {} Failed to acquire buffer from pool", task_id_, event_name_);
-        return std::vector<uint8_t>();
-    }
-
-    try {
-        if (buffer->capacity() < dataSize + 4) {
-            buffer->reserve(dataSize + 4);
-        }
-        buffer->resize(dataSize + 4);
-
-        // Write MP4 NALU length prefix (big-endian 4 bytes)
-        (*buffer)[0] = (dataSize >> 24) & 0xFF;
-        (*buffer)[1] = (dataSize >> 16) & 0xFF;
-        (*buffer)[2] = (dataSize >> 8) & 0xFF;
-        (*buffer)[3] = (dataSize >> 0) & 0xFF;
-        memcpy(buffer->data() + 4, dataBeg, dataSize);
-
-        std::vector<uint8_t> result = *buffer;
-
-        // Return buffer to pool
-        buffer_pool_.ReleaseBuffer(std::move(buffer));
-
-        return result;
-    } catch (const std::exception& e) {
-        // Return buffer to pool even on exception
-        buffer_pool_.ReleaseBuffer(std::move(buffer));
-        LOG_ERRO("[MP4 TASK] {} {} TransformFrame error: {}", task_id_, event_name_, e.what());
-        throw;
-    }
-}
-
 void AlgMp4Record::SetTrack(const uint8_t* sps, size_t size) {
     if (size < 4)
         return;
@@ -310,11 +300,11 @@ void AlgMp4Record::SetTrack(const uint8_t* sps, size_t size) {
     if (MP4_INVALID_TRACK_ID == track_id_) {
         if (media::VideoCodecType::kH265 == source_type_) {
             track_id_ = MP4AddH265VideoTrack(
-                mp4_handle_, timeScale, static_cast<MP4Duration>(timeScale / fps_),
+                mp4_handle_, kTimeScale, static_cast<MP4Duration>(kTimeScale / fps_),
                 static_cast<uint16_t>(width_), static_cast<uint16_t>(height_), sps[1], sps[2], sps[3], 3);
         } else {
             track_id_ = MP4AddH264VideoTrack(
-                mp4_handle_, timeScale, static_cast<MP4Duration>(timeScale / fps_),
+                mp4_handle_, kTimeScale, static_cast<MP4Duration>(kTimeScale / fps_),
                 static_cast<uint16_t>(width_), static_cast<uint16_t>(height_), sps[1], sps[2], sps[3], 3);
         }
         if (MP4_INVALID_TRACK_ID == track_id_) {
@@ -323,7 +313,7 @@ void AlgMp4Record::SetTrack(const uint8_t* sps, size_t size) {
         }
 
         MP4SetVideoProfileLevel(mp4_handle_, 0x7F);
-        MP4SetTrackTimeScale(mp4_handle_, track_id_, static_cast<uint32_t>(timeScale));
+        MP4SetTrackTimeScale(mp4_handle_, track_id_, static_cast<uint32_t>(kTimeScale));
     }
 
     return;
