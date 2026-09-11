@@ -5,7 +5,6 @@
 #include <string>
 #include <vector>
 
-#include "flow/channel/BufferPool.h"
 #include "flow/common/AlgDataUnit.h"
 
 typedef void* MP4FileHandle;
@@ -18,10 +17,16 @@ public:
     AlgMp4Record(media::VideoCodecType streamType, const RecordParam& recordParam, float fps, int width,
                  int height);
     ~AlgMp4Record();
+    AlgMp4Record(const AlgMp4Record&)            = delete;
+    AlgMp4Record& operator=(const AlgMp4Record&) = delete;
+    AlgMp4Record(AlgMp4Record&&)                 = delete;
+    AlgMp4Record& operator=(AlgMp4Record&&)      = delete;
 
+    // Returns true only when one MP4 sample was successfully appended.
     bool RecodeFrame(VideoPacketPtr frame);
 
     int64_t GetRecordFrames();
+    // Input cursor, including valid parameter-only packets.
     int64_t GetLastIndex();
     int64_t GetEventTime();
     int64_t GetTaskStartFrameSeq();
@@ -32,10 +37,11 @@ private:
     bool HandleVps(const uint8_t* frame_data, size_t frame_size, int64_t seq, bool is_iframe);
     bool HandleSps(const uint8_t* frame_data, size_t frame_size, int64_t seq, bool is_iframe);
     bool HandlePps(const uint8_t* frame_data, size_t frame_size, int64_t seq, bool is_iframe);
-    bool WriteVideoSample(const uint8_t* data, size_t size, size_t offset, size_t sz, size_t moved_size,
-                          int64_t seq, bool is_iframe);
+    struct FrameScan;
+    bool ScanFrame(const uint8_t* data, size_t size, FrameScan* scan) const;
+    bool TransformFrame(const uint8_t* data, size_t size, const FrameScan& scan);
+    bool WriteVideoSample(int64_t seq, bool is_sync);
 
-    std::vector<uint8_t> TransformFrame(const uint8_t* data, size_t size);
     void SetTrack(const uint8_t* sps, size_t size);
     std::string GetPath();
     void UploadJsonFile();
@@ -44,6 +50,7 @@ private:
 private:
     MP4FileHandle mp4_handle_;
     MP4TrackId track_id_;
+    bool write_failed_{false};
     bool is_vps_ready_{false};
     bool is_sps_ready_{false};
     bool is_pps_ready_{false};
@@ -68,7 +75,6 @@ private:
     int64_t event_index_{0};
     int64_t stream_index_{-1};
     int64_t record_frames_{0};
-    int64_t unknown_frame_type_count_{0};
     int64_t stream_mismatch_count_{0};  // Throttled mismatch counter for logging
     int64_t total_size_{0};             // Total bytes written to MP4
     int64_t data_size_{0};              // Total bytes received as input
@@ -81,7 +87,7 @@ private:
     std::string overview_json_url_;
     MsgAlarmVideoOverviewInfo overview_info_;                 // Region data for UploadOverviewFile
     RetroDirect retro_direct_{RetroDirect::RetroDirectNone};  // No direction
-    flow::BufferPool buffer_pool_;                            // Per-instance buffer pool for TransformFrame
+    std::vector<uint8_t> sample_buffer_;  // Reused after each synchronous MP4WriteSample call
 };
 
 }  // namespace cosmo
