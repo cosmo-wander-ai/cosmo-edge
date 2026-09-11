@@ -37,10 +37,10 @@ private:
     [[nodiscard]] bool OpenDevice();
 
     // Disable and close the watchdog device.
-    void CloseDevice();
+    bool CloseDevice();
 
     // Send keepalive ioctl to the watchdog.
-    void Feed();
+    bool Feed();
 
     std::atomic<bool> is_running_{false};
     int timeout_sec_{kWatchdogTimeoutSec};

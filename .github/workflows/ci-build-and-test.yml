@@ -12,6 +12,7 @@ on:
       - 'toolchains/**'
       - 'CMakeLists.txt'
       - 'scripts/build_cpu_test.sh'
+      - 'tools/test_watchdog_driver.py'
       - '.github/workflows/ci-build-and-test.yml'
   workflow_dispatch:
 
@@ -63,6 +64,9 @@ jobs:
           cargo --version
 
       # ── Build ────────────────────────────────────────────────────────
+      - name: Test watchdog backend selection and device failures without hardware
+        run: python3 tools/test_watchdog_driver.py
+
       - name: Configure and build cosmo-tests (x86 CPU backend)
         run: bash scripts/build_cpu_test.sh
 
