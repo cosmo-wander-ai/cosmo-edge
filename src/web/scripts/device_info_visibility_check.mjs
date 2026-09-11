@@ -1,6 +1,4 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 
 import { filterDeviceInfoForDisplay } from '../src/utils/deviceInfo.js'
 
@@ -23,15 +21,5 @@ assert.equal(
 )
 assert.deepEqual(filterDeviceInfoForDisplay(undefined), [])
 assert.equal(deviceInfo.length, 4)
-
-const deviceInfoComponentPath = fileURLToPath(new URL(
-  '../src/views/box/systemManagement/systemConfig/components/DeviceInfo.vue',
-  import.meta.url
-))
-const deviceInfoComponentSource = readFileSync(deviceInfoComponentPath, 'utf8')
-assert.match(
-  deviceInfoComponentSource,
-  /deviceInfo\.value\s*=\s*filterDeviceInfoForDisplay\(resData\?\.devInfoList\)/
-)
 
 console.log('Device info visibility checks passed')

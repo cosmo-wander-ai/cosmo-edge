@@ -192,6 +192,8 @@ jobs:
   # ── Documentation structure, links, build, and rendered smoke ─────
   docs:
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/cosmo-wander-ai/cosmo_edge-build-env_x86:v1
     steps:
       - uses: actions/checkout@v7
 
@@ -254,6 +256,8 @@ jobs:
     needs: policy-audit
     if: needs.policy-audit.outputs.frontend_changed == 'true'
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/cosmo-wander-ai/cosmo_edge-build-env_x86:v1
     defaults:
       run:
         working-directory: src/web

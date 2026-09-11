@@ -34,20 +34,28 @@ else
 fi
 
 echo "Starting ${package_variant} cross-compilation for ${chip}..."
-./scripts/build.sh -T -c "${chip}"
+if [ -z "${PROJECT_ROOT_PATH:-}" ]; then
+    PROJECT_ROOT_PATH=$(cd "$(dirname "$0")/.." && pwd -P)
+fi
+"${PROJECT_ROOT_PATH}/scripts/build.sh" -T -c "${chip}"
 
-output_dir="/build_output/${COSMO_MODEL_GUARD_BUILD_PROFILE}/${chip}"
-rm -rf -- "${output_dir}"
-mkdir -p "${output_dir}"
+output_dir="${COSMO_BUILD_OUTPUT_ROOT:-/build_output}/${COSMO_MODEL_GUARD_BUILD_PROFILE}/${chip}"
 
 shopt -s nullglob
-package_artifacts=(build/packages/*.tar.gz)
+package_artifacts=("${PROJECT_ROOT_PATH}"/build/packages/*.tar.gz)
 shopt -u nullglob
-if [ "${#package_artifacts[@]}" -ne 1 ] || [ ! -f "${package_artifacts[0]:-}" ]; then
+if [ "${#package_artifacts[@]}" -ne 1 ] || [ ! -f "${package_artifacts[0]:-}" ] || [ -L "${package_artifacts[0]:-}" ]; then
     echo "ERROR: expected exactly one package artifact" >&2
     exit 1
 fi
 
+python3 "${PROJECT_ROOT_PATH}/scripts/verify_package_contents.py" \
+    --archive "${package_artifacts[0]}" \
+    --build-profile "${COSMO_MODEL_GUARD_BUILD_PROFILE}" \
+    --target-chip "${chip}"
+
+rm -rf -- "${output_dir}"
+mkdir -p "${output_dir}"
 package_name="${package_artifacts[0]##*/}"
 cp -f -- "${package_artifacts[0]}" "${output_dir}/${package_name}"
 printf '%s\n' "${chip}" > "${output_dir}/TARGET_CHIP"

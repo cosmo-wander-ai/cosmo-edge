@@ -1,0 +1,100 @@
+name: Optional Contract Regression
+
+# Full mutation/browser/config matrices are diagnostic regressions, not PR gates.
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Regression scope
+        type: choice
+        options: [build, frontend, tutorials, all]
+        default: build
+
+permissions:
+  contents: read
+
+jobs:
+  build-contracts:
+    if: inputs.suite == 'build' || inputs.suite == 'all'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install parser dependencies in supported Docker
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/workspace" -w /workspace \
+            ghcr.io/cosmo-wander-ai/cosmo_edge-build-env_x86:v1 npm ci
+      - name: Effective configuration and equivalent/invalid variants
+        run: |
+          docker compose version
+          npm run config:check
+          node scripts/test-build-contracts.mjs
+      - name: Package, SDK, entrypoint and launcher contracts in Docker
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/workspace" -w /workspace \
+            ghcr.io/cosmo-wander-ai/cosmo_edge-build-env_x86:v1 bash -lc '
+              set -euo pipefail
+              python3 test/test_package_profile.py
+              python3 test/test_verify_model_guard_v2_sdk.py
+              python3 test/test_verify_model_guard_rknn_v1_sdk.py
+              python3 test/test_build_entrypoints.py
+              python3 test/test_web_build_dependencies.py
+              python3 test/test_compose_wrapper.py
+              python3 test/test_platform_contracts.py
+              python3 test/test_macos_launcher.py
+              node scripts/test-nightly-catch2.mjs
+              node scripts/test-workflow-execution.mjs
+            '
+      - name: Actual Docker context exclusions
+        run: python3 scripts/check-docker-context.py
+
+  frontend-regression:
+    if: inputs.suite == 'frontend' || inputs.suite == 'all'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/web
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          # Node 22 LTS ships npm 10, matching the build image used for
+          # production frontend builds. Node 24 ships npm 11, whose stricter
+          # lockfile validation rejects the npm 10-generated lockfile and
+          # would test a different dependency resolution than what ships.
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/web/package-lock.json
+
+      - name: Build and check frontend in supported Docker
+        working-directory: .
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/workspace" -w /workspace/src/web \
+            ghcr.io/cosmo-wander-ai/cosmo_edge-build-env_x86:v1 bash -lc '
+              set -euo pipefail
+              npm ci
+              npm run build
+              npm run component-behavior:variants
+              npm run area-rule:check
+              AIBOX_RESOURCE_DIR=/workspace/data/resource/aiboxresource_bm1688 npm run resource-i18n:check
+              npm run task-card-layout:build
+            '
+
+      - name: Check browser geometry against Docker-built fixture
+        run: npm run task-card-layout:check && npm run task-card-layout:variants
+
+  tutorial-regression:
+    if: inputs.suite == 'tutorials' || inputs.suite == 'all'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/cosmo-wander-ai/cosmo_edge-build-env_x86:v1
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build documentation and exercise title/rendered-output variants
+        run: |
+          npm ci
+          npm run docs:verify
+          npm run docs:contracts

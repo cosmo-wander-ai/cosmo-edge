@@ -162,7 +162,8 @@ fi
 /usr/bin/python3 -I -B \
     "${PROJECT_ROOT_PATH}/scripts/verify_package_contents.py" \
     --archive "${package_artifacts[0]}" \
-    --build-profile "${COSMO_MODEL_GUARD_BUILD_PROFILE}"
+    --build-profile "${COSMO_MODEL_GUARD_BUILD_PROFILE}" \
+    --target-chip "${CHIP_MODEL:-unspecified}"
 
 package_sha256="$(sha256sum -- "${package_artifacts[0]}")"
 package_sha256="${package_sha256%% *}"

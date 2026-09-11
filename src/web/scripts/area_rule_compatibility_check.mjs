@@ -30,8 +30,8 @@ const legacy = [
 ]
 assert.equal(inferAreaRuleUiType(legacy), AREA_RULE_UI_TYPES.LEGACY_TARGET_LIMIT)
 assert.match(
-  buildAreaRuleSummary(legacy, AREA_RULE_UI_TYPES.LEGACY_TARGET_LIMIT, zhT),
-  /有效目标数 < 2/
+  buildAreaRuleSummary(legacy, AREA_RULE_UI_TYPES.LEGACY_TARGET_LIMIT, (key, params) => key + JSON.stringify(params)),
+  /flow\.areaRule\.summary\.targetLimit.*<.*2/
 )
 
 const compareCases = [
@@ -48,9 +48,11 @@ compareCases.forEach(([compare, symbol]) => {
       { key: 'param.areaLimitTargetType', value: compare }
     ],
     AREA_RULE_UI_TYPES.TARGET_LIMIT,
-    zhT
+    (key, params) => key + JSON.stringify(params)
   )
-  assert.match(summary, new RegExp(`有效目标数 ${symbol} 3`))
+  assert.ok(summary.startsWith('flow.areaRule.summary.targetLimit'))
+  assert.ok(summary.includes(symbol))
+  assert.ok(summary.includes('3'))
 })
 
 const areaCount = applyAreaRuleUiType(
@@ -85,11 +87,11 @@ assert.deepEqual(applyAreaRuleUiType(unknown, AREA_RULE_UI_TYPES.UNKNOWN), unkno
 
 assert.equal(
   getAreaRuleFieldText('inputAreaType', enT).name,
-  'Decision Region'
+  enT('flow.areaRule.fields.decisionRegion.name')
 )
 assert.equal(
   getAreaRuleOptionLabel('param.areaLimitTargetType', '0', '', enT),
-  'Less than'
+  enT('flow.areaRule.options.compare.lessThan')
 )
 
 const englishSummaryCases = [

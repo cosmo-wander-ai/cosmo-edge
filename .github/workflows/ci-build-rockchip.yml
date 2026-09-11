@@ -67,6 +67,7 @@ jobs:
         run: docker compose -f docker-compose.rockchip.yml config --quiet
 
       - name: Build target package and tests
+        id: build_package
         env:
           COSMO_ROCKCHIP_BUILDER_IMAGE: cosmo-edge-build-env-rockchip:ci
           COSMO_TARGET_CHIP: ${{ matrix.chip }}
@@ -74,6 +75,7 @@ jobs:
         run: docker compose -f docker-compose.rockchip.yml run --rm cosmo-rockchip-package
 
       - name: Verify target artifacts
+        id: verify_artifacts
         env:
           CHIP: ${{ matrix.chip }}
         run: |
