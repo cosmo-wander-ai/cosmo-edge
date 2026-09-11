@@ -165,3 +165,89 @@ TEST_CASE("StringUtil: ToString", "[string-util]") {
         REQUIRE(ToString(std::string("hello")) == "hello");
     }
 }
+
+
+TEST_CASE("StringUtil edge: Split consecutive and leading delimiters", "[string-util][edge]") {
+    SECTION("Consecutive delimiters yield empty segments") {
+        auto parts = Split("a,,b", ",");
+        REQUIRE(parts.size() == 3);
+        REQUIRE(parts[0] == "a");
+        REQUIRE(parts[1].empty());
+        REQUIRE(parts[2] == "b");
+    }
+
+    SECTION("Leading delimiter yields leading empty segment") {
+        auto parts = Split(",a,b", ",");
+        REQUIRE(parts.size() == 3);
+        REQUIRE(parts[0].empty());
+        REQUIRE(parts[1] == "a");
+        REQUIRE(parts[2] == "b");
+    }
+
+    SECTION("Only delimiters") {
+        auto parts = Split(",,", ",");
+        REQUIRE(parts.size() == 3);
+        REQUIRE(parts[0].empty());
+        REQUIRE(parts[1].empty());
+        REQUIRE(parts[2].empty());
+    }
+
+    SECTION("Repeated multi-char style via single-char set") {
+        // Split treats delimiter arg as a set of single-char separators
+        auto parts = Split("a::b", ":");
+        REQUIRE(parts.size() == 3);
+        REQUIRE(parts[0] == "a");
+        REQUIRE(parts[1].empty());
+        REQUIRE(parts[2] == "b");
+    }
+}
+
+TEST_CASE("StringUtil edge: GetLastPathSegment separators and extensions", "[string-util][edge]") {
+    SECTION("Empty input") {
+        REQUIRE(GetLastPathSegment("").empty());
+    }
+
+    SECTION("Root-only slash yields empty segment") {
+        REQUIRE(GetLastPathSegment("/").empty());
+    }
+
+    SECTION("Repeated separators - empty segment after trailing slash") {
+        REQUIRE(GetLastPathSegment("/a//b/").empty());
+    }
+
+    SECTION("File with unusual compound extension") {
+        REQUIRE(GetLastPathSegment("/models/foo.bar.tar.gz") == "foo.bar.tar.gz");
+    }
+
+    SECTION("Backslash is not a path separator (POSIX-style helper)") {
+        // Documented behavior: only '/' is recognized
+        REQUIRE(GetLastPathSegment("C:\\dir\\file.txt") == "C:\\dir\\file.txt");
+    }
+
+    SECTION("Mixed separators keep backslash segment intact") {
+        REQUIRE(GetLastPathSegment("/data/dir\\mixed") == "dir\\mixed");
+    }
+}
+
+TEST_CASE("StringUtil edge: JoinStrings empty members", "[string-util][edge]") {
+    SECTION("Empty strings inside vector are preserved") {
+        std::vector<std::string> items = {"a", "", "b"};
+        REQUIRE(JoinStrings(items, ",") == "a,,b");
+    }
+
+    SECTION("Empty separator concatenates") {
+        std::vector<std::string> items = {"x", "y"};
+        REQUIRE(JoinStrings(items, "") == "xy");
+    }
+}
+
+TEST_CASE("StringUtil edge: Trim mixed custom set", "[string-util][edge]") {
+    SECTION("Custom set trims only listed characters") {
+        REQUIRE(Trim("..hello..", ".") == "hello");
+        REQUIRE(Trim("abhelloab", "ab") == "hello");
+    }
+
+    SECTION("Interior characters matching trim set are kept") {
+        REQUIRE(Trim("  he  llo  ") == "he  llo");
+    }
+}
