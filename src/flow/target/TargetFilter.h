@@ -32,6 +32,16 @@ struct BAFilterParam {
     int i_value{0};
 };
 
+struct BACategoryFilterParam {
+    std::string alg_code;
+    std::string label;
+};
+
+enum class TargetFilterMode {
+    kCategory,
+    kSize,
+};
+
 class TargetFilter : public AlgActionBase {
 public:
     TargetFilter(const std::string& taskId, ActionNode& action);
@@ -45,14 +55,27 @@ public:
                   std::vector<MsgDynamicKeyValue>& params) override;
 
 private:
+    friend class TargetFilterTestPeer;
+
     void HandFrame(AlgDataPtr algData) override;
     bool AnalysisKey(const MsgDynamicKeyValue& param, BAFilterParam& filter_el) const;
+    bool AnalysisCategoryKey(const MsgDynamicKeyValue& param, BACategoryFilterParam& category_el) const;
     /** Convert BAFilterParam to MsgDynamicKeyValue (for writing back to workFlow to support layout saving) */
     static MsgDynamicKeyValue FilterParamToKeyValue(const BAFilterParam& p);
+    MsgDynamicKeyValue SizeFilterParamToKeyValue(const BAFilterParam& p) const;
+    MsgDynamicKeyValue CategoryParamToKeyValue(const BACategoryFilterParam& p) const;
     /** Sync current filter_params_ back to action_alg->workFlow node, enabling category filter saving with
      * layout */
     void SyncFilterParamsToWorkFlow();
     void DoFilter(DataDetTrackClassifyPtr input);
+    void DoCategoryFilter(DataDetTrackClassifyPtr input) const;
+    void DoSizeFilter(DataDetTrackClassifyPtr input) const;
+    void DoLegacyCombinedFilter(DataDetTrackClassifyPtr input) const;
+    void LoadConfiguredParams(const std::vector<MsgDynamicKeyValue>& params, bool replace);
+    void UpsertFilterParam(const BAFilterParam& filter_el);
+    void UpsertCategoryParam(const BACategoryFilterParam& category_el);
+    bool MatchesTarget(const std::string& alg_code, const std::string& label,
+                       const AiDetectRstEl& target) const;
     template <typename TYPE>
     bool MinValueFilter(const TYPE& lValue, const TYPE& rValue) const {
         return lValue < rValue;
@@ -64,6 +87,8 @@ private:
     bool FilterTarget(const BAFilterParam& filter_param, const AiDetectRstEl& target) const;
     std::string FilterDesc(BAFilterType type) const;
 
+    TargetFilterMode mode_{TargetFilterMode::kCategory};
+    std::vector<BACategoryFilterParam> category_params_;
     std::vector<BAFilterParam> filter_params_;
 };
 using TargetFilterPtr = std::shared_ptr<TargetFilter>;

@@ -21,6 +21,8 @@ export const ICON_KEY_MAP = {
   'PA_00002': { key: 'grid', color: 'icon-purple' },       // 目标分类(图片)
   // === 类别筛选 ===
   'BA_00002': { key: 'filter', color: 'icon-orange' },
+  // === 尺寸过滤 ===
+  'BA_10002': { key: 'filter', color: 'icon-orange' },
   // === 灵敏度/计时 ===
   'BA_00003': { key: 'timer', color: 'icon-orange' },      // 灵敏度计算-计时
   'BA_10003': { key: 'timer', color: 'icon-orange' },      // 灵敏度计算-计数
