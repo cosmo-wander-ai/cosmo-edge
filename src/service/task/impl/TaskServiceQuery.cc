@@ -314,6 +314,7 @@ std::vector<std::pair<std::string, cosmo::util::DurationStatInfo>> TaskServiceIm
         {cosmo::AAClassifyAttr_Code, "AttrClassify"},
         {cosmo::AAClassifyMultPic_Code, "CamMoveClassify"},
         {cosmo::BAFilter_Code, "BizFilter"},
+        {cosmo::BASizeFilter_Code, "SizeFilter"},
         {cosmo::BALogicalJudgment_Code, "Logic"},
         {cosmo::BAActionBranch_Code, "Branch"},
         {cosmo::BASensitivity_Code, "Sensitivity"},
