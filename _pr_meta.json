@@ -1,0 +1,10 @@
+{
+  "repo": "cosmo-wander-ai/cosmo-edge",
+  "number": 117,
+  "base": "main",
+  "head": "fix/issue-20",
+  "fork": "VedantMadane/cosmo-edge",
+  "title": "fix: test: add unit tests for string/path utility edge cases",
+  "url": "https://github.com/cosmo-wander-ai/cosmo-edge/pull/117",
+  "rebased": true
+}
