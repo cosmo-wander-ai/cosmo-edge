@@ -194,6 +194,7 @@ util::ErrorEnum AiDetectorUnify::Forward(const std::vector<VideoFramePtr>& image
             el.box.y      = static_cast<int>(obj.y1);
             el.box.width  = static_cast<int>(obj.x2) - static_cast<int>(obj.x1) + 1;
             el.box.height = static_cast<int>(obj.y2) - static_cast<int>(obj.y1) + 1;
+            el.angle      = obj.angle;
             el.box &= util::Box(0, 0, dims.at(2) - 1, dims.at(1) - 1);
             if (el.box.width <= 0 || el.box.height <= 0) {
                 continue;

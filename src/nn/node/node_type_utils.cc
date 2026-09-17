@@ -42,6 +42,8 @@ NodeType NodeTypeUtils::NodeTypeFromStr(std::string name) {
         return NODE_YOLOV8_DECODE;
     if (name == "yolo_e2e_postprocess")
         return NODE_YOLO_E2E_DECODE;
+    if (name == "yolo_obb_postprocess")
+        return NODE_YOLO_OBB_DECODE;
     if (name == "split")
         return NODE_SPLIT;
     if (name == "split_arg_max")
@@ -95,6 +97,8 @@ std::string NodeTypeUtils::NodeTypeToStr(NodeType type) {
             return "yolov8_decode";
         case NODE_YOLO_E2E_DECODE:
             return "yolo_e2e_decode";
+        case NODE_YOLO_OBB_DECODE:
+            return "yolo_obb_decode";
         case NODE_SPLIT:
             return "split";
         case NODE_SPLIT_ARG_MAX:

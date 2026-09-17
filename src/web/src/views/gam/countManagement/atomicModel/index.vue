@@ -15,9 +15,10 @@
         <el-button type="primary" class="btn-primary-gradient" @click="addClick">
           <el-icon><Plus /></el-icon> {{ t('action.addModel') }}
         </el-button>
-        <el-button @click="importModelClick">
+        <el-button v-if="platformType === '15'" @click="importModelClick">
           <el-icon><Upload /></el-icon> {{ t('action.importModel') }}
         </el-button>
+        <el-button v-if="platformType !== '15'" @click="batchUpdateClick">{{ t('action.batchUpdate') }}</el-button>
       </div>
     </div>
 
@@ -191,6 +192,7 @@
       <div class="detail-section">
         <div class="detail-row"><span class="detail-label">{{ t('field.modelId') }}</span><span>{{ detailModel.modelCode }}</span></div>
         <div class="detail-row"><span class="detail-label">{{ t('glossary.versionNo') }}</span><span>{{ detailModel.version }}</span></div>
+        <div v-if="platformType !== '15'" class="detail-row"><span class="detail-label">{{ t('glossary.computeType') }}</span><span>{{ returnLabelWithCode(detailModel.gpuCode) }}</span></div>
         <div class="detail-row"><span class="detail-label">{{ t('glossary.modelDesc') }}</span><span>{{ detailModel.description || '—' }}</span></div>
         <div class="detail-row"><span class="detail-label">{{ t('field.updateTime') }}</span><span>{{ detailModel.updateTime || '—' }}</span></div>
       </div>
@@ -207,6 +209,7 @@
       <div class="detail-section" v-if="modelLabelData.length > 0">
         <h4 class="section-title">{{ t('glossary.algorithmLabels') }}</h4>
         <el-table :data="modelLabelData" size="small" border>
+          <el-table-column v-if="platformType !== '15'" prop="nameCN" :label="t('field.name')" />
           <el-table-column prop="class_name" :label="t('glossary.classId')" />
           <el-table-column prop="threshold" :label="t('field.threshold')">
             <template #default="scope">
@@ -340,6 +343,7 @@ const allModelsCount = ref(0)
 const subTypeToMain = {
   yolov5_det: 'detect', yolov8_det: 'detect', yolov9_det: 'detect',
   yolov11_det: 'detect', yolov12_det: 'detect', yolo26_det: 'detect',
+  yolo26_obb_det: 'detect',
   classify: 'classify', keypoints: 'keypoints', feature: 'feature', ocr: 'ocr',
   dino: 'foundation', sam2: 'foundation', qwen3vl: 'foundation', qwen3_5: 'foundation'
 }
@@ -516,10 +520,13 @@ const pageData = reactive({
   total: 0
 })
 
+const gpuCodes = ref([])
 const uploadAlgorithmicVisible = ref(false)
 const modelDetailDialogVisible = ref(false)
 const detailModel = ref({})
 const modelLabelData = ref([])
+const engineTypeList = ref([])
+const platformType = ref(localStorage.getItem('platformType') || '')
 const isX86 = ref(false)
 const isRknn = ref(false)
 const isRkllm = ref(false)
@@ -577,7 +584,8 @@ const modelTypeGroups = computed(() => {
       { label: 'yolov9_det', value: 'yolov9_det' },
       { label: 'yolov11_det', value: 'yolov11_det' },
       { label: 'yolov12_det', value: 'yolov12_det' },
-      { label: 'yolo26_det', value: 'yolo26_det' }
+      { label: 'yolo26_det', value: 'yolo26_det' },
+      { label: 'yolo26_obb_det', value: 'yolo26_obb_det' }
     ]
   },
   {
@@ -803,6 +811,26 @@ const importModelFile = ref(null)
 const importModelLoading = ref(false)
 const importModelUploadRef = ref(null)
 
+const getGPUCodes = () => {
+  gpuCodes.value = [{ labelI18nKey: 'common.all', value: '' }]
+  proxy.$API.getGPUCodes().then((res) => {
+    const { resData } = res
+    resData.forEach((item) => {
+      gpuCodes.value.push({
+        label: item.value,
+        value: item.code
+      })
+    })
+  })
+}
+
+const getEngineTypeList = () => {
+  proxy.$API.engineTypeList({}).then((res) => {
+    const { resData } = res
+    engineTypeList.value = resData || []
+  })
+}
+
 const init = () => {
   const params = {
     pageNum: pageData.pageNum,
@@ -933,6 +961,11 @@ const handleSizeChange = (pageSize) => {
   init()
 }
 
+const returnLabelWithCode = (code) => {
+  const index = gpuCodes.value.findIndex((item) => item.value == code)
+  return index === -1 ? '' : gpuCodes.value[index].label
+}
+
 const addClick = () => {
   addModelMode.value = 'add'
   uploadAlgorithmicVisible.value = true
@@ -945,6 +978,13 @@ const addClick = () => {
   nextTick(() => {
     addModelFormRef.value && addModelFormRef.value.clearValidate()
     uploadModelFileRef.value && uploadModelFileRef.value.clearFiles()
+  })
+}
+
+const batchUpdateClick = () => {
+  proxy.$API.updateAtomicModel({}).then(() => {
+    searchList()
+    proxy.$message.success(t('common.operationSucceeded'))
   })
 }
 
@@ -1409,6 +1449,10 @@ const sureAddModel = async () => {
 }
 
 onMounted(() => {
+  if (platformType.value !== '15') {
+    getGPUCodes()
+    getEngineTypeList()
+  }
   // Detect if platform is X86
   if (proxy.$API.queryDeviceInfo) {
     proxy.$API.queryDeviceInfo().then(res => {

@@ -336,6 +336,85 @@ Status Yolo26DetPipeline::ParseDetectionOutput(std::vector<std::vector<ObjectInf
                                 selected_thresholds_, selected_classnames_, outputs);
 }
 
+// ============================= YOLO26 OBB (End-to-End) ====================
+
+Status Yolo26ObbPipeline::Init(const PipelineConfig& config, const std::string& model_path,
+                               DeviceType device_type, int device_id, IProfiler* profiler,
+                               const std::string& tokenizer_path, const std::string& word_table_path,
+                               bool use_skip) {
+    model_info_.algorithmcode = config.algorithm_code;
+    model_info_.reduce        = config.reduce;
+    model_info_.type          = "yolo26_obb_det";
+
+    for (auto& mc : config.models) {
+        nlohmann::json p = pipeline_utils::ParseJsonObject(mc.params_json);
+        ModelInfo model;
+        model.name      = mc.name;
+        model.filename  = mc.file_name;
+        model.file_md5  = mc.file_md5;
+        model.max_batch = mc.max_batch;
+        max_batch_      = mc.max_batch;
+
+        for (auto& in_def : mc.inputs) {
+            InputNodeInfo input;
+            input.name      = in_def.name;
+            input.shape     = in_def.shape;
+            input.data_type = in_def.data_type;
+            input.ops       = MakeDetPreprocess(p);
+            model.input_node_infos.push_back(std::move(input));
+        }
+
+        float conf_thresh = pipeline_utils::ReadFloat(p, "confidence_threshold", 0.25f);
+        int top_k         = pipeline_utils::ReadInt(p, "top_k", 300);
+
+        // Extract input size for coordinate denormalization
+        // OBB default input resolution is 1024x1024 (see model_template/yolo26_obb_det.json)
+        int obb_input_w = 1024, obb_input_h = 1024;
+        std::vector<int> input_size = pipeline_utils::ReadIntArray(p, "input_size", {}, 2);
+        if (input_size.size() >= 2) {
+            obb_input_w = input_size[0];
+            obb_input_h = input_size[1];
+        }
+
+        for (size_t i = 0; i < mc.outputs.size(); i++) {
+            auto& out_def = mc.outputs[i];
+            OutputNodeInfo output;
+            output.name      = out_def.name;
+            output.shape     = out_def.shape;
+            output.data_type = out_def.data_type;
+            if (i == 0)
+                output.op = pipeline_utils::MakeYoloObbPostOp(conf_thresh, top_k, obb_input_w,
+                                                              obb_input_h);
+            model.output_node_infos.push_back(std::move(output));
+        }
+        model_info_.models.push_back(std::move(model));
+    }
+
+    if (!config.labels.empty() && !model_info_.models.empty()) {
+        auto& last           = model_info_.models.back();
+        std::string out_name = "output";
+        DimsVector out_shape = {-1, -1, 7};
+        if (!last.output_node_infos.empty())
+            out_name = last.output_node_infos.front().name;
+        BuildLabels(config, out_name, out_shape, model_info_);
+    }
+
+    InitThresholdsAndLabels();
+    InitNetInputSize();
+    return InitGraph(model_path, device_type, device_id, profiler, tokenizer_path, use_skip);
+}
+
+Status Yolo26ObbPipeline::Forward(std::initializer_list<std::vector<std::shared_ptr<Blob>>> inputs) {
+    return DetectionForward(
+        this, inputs, image_sizes_,
+        [this](std::initializer_list<std::vector<std::shared_ptr<Blob>>> inp) { return RunGraph(inp); });
+}
+
+Status Yolo26ObbPipeline::ParseDetectionOutput(std::vector<std::vector<ObjectInfoV1>>& outputs) {
+    return DetectionParseOutput(GetGraphOutput(), image_sizes_, net_input_size_, selected_indices_,
+                                selected_thresholds_, selected_classnames_, outputs);
+}
+
 // ========================= Generic Detector ===============================
 
 Status GenericDetectorPipeline::Init(const PipelineConfig& config, const std::string& model_path,
@@ -440,6 +519,7 @@ REGISTER_MODEL_PIPELINE("yolov9_det", YoloV8DetPipeline);
 REGISTER_MODEL_PIPELINE("yolov11_det", YoloV8DetPipeline);
 REGISTER_MODEL_PIPELINE("yolov12_det", YoloV8DetPipeline);
 REGISTER_MODEL_PIPELINE("yolo26_det", Yolo26DetPipeline);
+REGISTER_MODEL_PIPELINE("yolo26_obb_det", Yolo26ObbPipeline);
 REGISTER_MODEL_PIPELINE("detector", GenericDetectorPipeline);
 
 }  // namespace cosmo::nn

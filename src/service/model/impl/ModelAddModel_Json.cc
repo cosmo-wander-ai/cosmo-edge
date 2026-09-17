@@ -6,7 +6,9 @@
 // clang-format on
 
 #include <algorithm>
+#include <regex>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "nlohmann/json.hpp"
@@ -49,9 +51,17 @@ namespace {
         if (shape.empty())
             return 0;
 
+        // End-to-end decoded output [1, top_k, 6/7] carries no class-count info;
+        // labels must be provided explicitly at import time.
+        if ((modelType == "yolo26_det" || modelType == "yolo26_obb_det") && shape.size() == 3 &&
+            (shape[2] == 6 || shape[2] == 7))
+            return 0;
+
         const auto class_field_count = [&]() {
             if (modelType == "yolov5_det" || modelType == "yolo26_det")
                 return 5;
+            if (modelType == "yolo26_obb_det")
+                return 6;  // 4 box + 1 score + 1 angle
             return 4;
         };
 
@@ -96,6 +106,47 @@ namespace {
                 return class_count;
         }
         return 0;
+    }
+
+    // Parse Ultralytics ONNX metadata "names" (e.g. "{0: 'z', 1: 't'}") into
+    // sorted (id, name) pairs. Returns empty when raw is not in that format.
+    std::vector<std::pair<int, std::string>> ParseOnnxClassNames(const std::string& raw) {
+        std::vector<std::pair<int, std::string>> names;
+        if (raw.empty())
+            return names;
+        static const std::regex entry_re(R"((\d+)\s*:\s*'([^']*)')");
+        for (auto it = std::sregex_iterator(raw.begin(), raw.end(), entry_re);
+             it != std::sregex_iterator(); ++it) {
+            names.emplace_back(std::stoi((*it)[1].str()), (*it)[2].str());
+        }
+        std::sort(names.begin(), names.end());
+        return names;
+    }
+
+    // End-to-end outputs ([1, top_k, 6/7]) carry no class-count info, so class
+    // names are taken from ONNX metadata when available (Ultralytics exports
+    // always embed them under the "names" key). Returns true when labels were
+    // filled, in which case the shape-based default fill must be skipped.
+    bool FillLabelsFromOnnxMetadata(nlohmann::json& doc, const std::string& modelType,
+                                    const std::vector<cosmo::BmodelInfo>& bmodel_infos) {
+        if (!IsDetectionModel(modelType))
+            return false;
+        for (const auto& info : bmodel_infos) {
+            auto names = ParseOnnxClassNames(info.class_names_raw);
+            if (names.empty())
+                continue;
+            const double threshold   = ReadDefaultThreshold(modelType);
+            nlohmann::json labels    = nlohmann::json::array();
+            for (const auto& [id, name] : names) {
+                const std::string id_str = std::to_string(id);
+                labels.push_back({{"id", id_str}, {"name", name}, {"threshold", {threshold, threshold}}});
+            }
+            doc["labels"] = labels;
+            LOG_INFO("[AddModel] Filled {} labels from ONNX metadata names for model type {}", names.size(),
+                     modelType);
+            return true;
+        }
+        return false;
     }
 
     void FillDefaultLabels(nlohmann::json& doc, const std::string& modelType) {
@@ -321,7 +372,9 @@ void ModelImportExporter::UpdateTemplateConfig(nlohmann::json& templateDoc, cons
         }
     }
 
-    FillDefaultLabels(templateDoc, modelType);
+    if (!FillLabelsFromOnnxMetadata(templateDoc, modelType, bmodel_infos)) {
+        FillDefaultLabels(templateDoc, modelType);
+    }
 }
 
 }  // namespace cosmo::service

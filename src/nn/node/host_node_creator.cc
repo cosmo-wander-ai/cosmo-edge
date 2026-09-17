@@ -17,6 +17,8 @@ std::unique_ptr<Node> HostNodeCreator::CreateNode(NodeType type) {
             return std::make_unique<YoloV8DecodeNode>();
         case NODE_YOLO_E2E_DECODE:
             return std::make_unique<YoloE2EDecodeNode>();
+        case NODE_YOLO_OBB_DECODE:
+            return std::make_unique<YoloObbDecodeNode>();
         case NODE_SPLIT:
             return std::make_unique<SplitNode>();
         case NODE_SPLIT_ARG_MAX:

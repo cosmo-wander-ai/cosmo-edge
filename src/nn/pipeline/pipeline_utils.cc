@@ -354,6 +354,17 @@ namespace pipeline_utils {
         return op;
     }
 
+    std::unique_ptr<YoloPost> MakeYoloObbPostOp(float conf_threshold, int top_k, int input_width,
+                                                int input_height) {
+        auto op                = std::make_unique<YoloPost>("yolo_obb_postprocess");
+        op->nms_threshold      = 0;
+        op->nms_detection_conf = conf_threshold;
+        op->top_k              = top_k;
+        op->input_width        = input_width;
+        op->input_height       = input_height;
+        return op;
+    }
+
     std::unique_ptr<DinoEncoder> MakeDinoEncoderOp(int dst_width, int dst_height, bool is_bgr,
                                                    const std::vector<float>& mean,
                                                    const std::vector<float>& std_dev) {
