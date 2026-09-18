@@ -1670,6 +1670,7 @@ export default {
     }
   },
   flow: {
+    resultAccumulationHint: '按同一目标轨迹累计结果。观察时间、有效比对次数等在任务参数中配置。',
     areaRule: {
       title: '区域规则配置',
       purposeLabel: '输出目的',

@@ -3618,7 +3618,7 @@
   "resource.algorithm.66.algorithmname": "Stranger alarm",
   "resource.algorithm.66.remark": "After a pedestrian track ends, alert only when sufficient valid face comparisons and observation time were collected with no successful match. Missing, poor or ambiguous faces are skipped. Library or inference failures suppress that track.",
   "resource.action.aa_00006.actionname": "Associate pedestrian faces",
-  "resource.action.ba_20003.actionname": "Preserve positive evidence",
+  "resource.action.ba_20003.actionname": "Result accumulation",
   "resource.stranger.param_alarminterval.name": "param.alarmInterval",
   "resource.stranger.param_alarminterval.description": "Fixed scene parameter.",
   "resource.stranger.param_targetalarminterval.name": "param.targetAlarmInterval",
@@ -3629,5 +3629,5 @@
   "resource.stranger.param_restrainswitch.description": "Fixed scene parameter.",
   "resource.algorithm.66.default": "Default",
   "resource.action.aa_00006.remark": "Detect faces after pedestrian tracking and associate each face with one unambiguous pedestrian.",
-  "resource.action.ba_20003.remark": "Retain positive evidence and evaluate unmatched people after their tracks end."
+  "resource.action.ba_20003.remark": "Accumulate face comparison results for each pedestrian track. Any successful match suppresses the stranger alarm; otherwise, alarm after the track ends when valid unmatched comparisons and observation duration meet the requirements."
 }

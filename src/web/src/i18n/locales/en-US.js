@@ -1670,6 +1670,7 @@ export default {
     }
   },
   flow: {
+    resultAccumulationHint: 'Accumulate results for each target track. Configure observation duration and valid comparison count in the task parameters.',
     areaRule: {
       title: 'Region Rule Configuration',
       purposeLabel: 'Output Purpose',

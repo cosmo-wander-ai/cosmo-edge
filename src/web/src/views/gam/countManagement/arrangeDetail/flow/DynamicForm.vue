@@ -1,5 +1,12 @@
 <template>
   <div class="form-body">
+    <el-alert
+      v-if="isResultAccumulationAction"
+      :title="t('flow.resultAccumulationHint')"
+      type="info"
+      :closable="false"
+      show-icon
+    />
     <el-form label-position="left">
       <div v-if="isAreaAlarmAction" class="area-rule-overview">
         <div class="area-rule-overview__title">{{ t('flow.areaRule.title') }}</div>
@@ -329,6 +336,9 @@ const props = defineProps({
 })
 const emit = defineEmits(['config-change'])
 
+const isResultAccumulationAction = computed(
+  () => (props.actionDetail?.actionId || props.actionDetail?.id) === 'BA_20003'
+)
 const isAreaAlarmAction = computed(
   () =>
     (props.actionDetail?.actionId || props.actionDetail?.id) === 'BA_00005'
@@ -948,6 +958,14 @@ const isDependsOnSatisfied = (obj, visited = new Set()) => {
 }
 
 const showFormItem = (obj) => {
+  // Keep these compatibility values in saved configs, including imported scenes.
+  // Result accumulation exposes the observation duration directly in milliseconds.
+  if (
+    isResultAccumulationAction.value &&
+    ['inputMode', 'param.posSenDurationTimeType'].includes(obj.key)
+  ) {
+    return false
+  }
   if (isAreaAlarmAction.value && areaRuleTechnicalKeys.includes(obj.key)) {
     return false
   }

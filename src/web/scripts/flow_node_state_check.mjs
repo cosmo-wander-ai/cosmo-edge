@@ -192,4 +192,34 @@ for (const key of ['algs', 'strageAlgorithms']) {
   } finally { alarmForm.unmount() }
 }
 
+// Hiding implementation settings must not drop the mode when a scene is saved.
+for (const savedMode of [null, 'recognition', 'behavior']) {
+  const form = await mountComponent('views/gam/countManagement/arrangeDetail/flow/DynamicForm.vue', {
+    props: {
+      actionDetail: {
+        id: 'BA_20003', flowActionId: 'result-node',
+        inputParamConfig: JSON.stringify([
+          { key: 'inputMode', type: 'select', name: 'Mode', level: '1', defaultValue: 'recognition', options: [{ name: 'Recognition', value: 'recognition' }] },
+          { key: 'param.posSenDurationTimeType', type: 'text', name: 'Multiplier', level: '1', defaultValue: '1' },
+          { key: 'param.posSenDurationTime', type: 'text', name: 'Duration', level: '2', defaultValue: '3000' }
+        ])
+      },
+      configObject: { params: savedMode ? [{ key: 'inputMode', value: savedMode }] : [], webConfig: {} }
+    },
+    mocks: {
+      './ConditionView.vue': empty, './TreeSelectMultiple.vue': empty, 'tree-transfer-vue3': empty,
+      uuid: { v4: () => 'fixture-id' }, lodash: { default: lodash },
+      '@/components/eventBus.js': { default: { $emit() {}, $on() {}, $off() {} } },
+      '@element-plus/icons-vue': Object.fromEntries(['QuestionFilled', 'ArrowDown', 'ArrowRight', 'CirclePlus', 'CircleClose'].map(name => [name, empty.default]))
+    }
+  })
+  try {
+    assert.equal(form.all(node => node.type === 'el-form-item').length, 0, 'internal settings are not editable')
+    const saved = form.instance.submitForm()
+    assert.equal(saved.params.find(p => p.key === 'inputMode')?.value, savedMode || 'recognition')
+    assert.equal(saved.params.find(p => p.key === 'param.posSenDurationTimeType')?.value, '1')
+    assert.equal(saved.webConfig.metaDataParams.find(p => p.key === 'param.posSenDurationTime')?.defaultValue, '3000', 'duration remains a task parameter')
+  } finally { form.unmount() }
+}
+
 console.log('Flow node state checks passed')
