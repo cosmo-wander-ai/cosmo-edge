@@ -9,7 +9,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 FAKE_NPM = r'''#!/usr/bin/env python3
-import json, os, pathlib, sys
+import json, os, pathlib, subprocess, sys
 log = pathlib.Path(os.environ['NPM_TEST_LOG'])
 records = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
 args = sys.argv[1:]
@@ -21,6 +21,9 @@ if args[0] == 'ci':
     if mode in ('miss', 'cache-fail', 'install-fail') and previous == 0: sys.exit(1)
     if mode == 'install-fail': sys.exit(9)
 if 'cache' in args and mode == 'cache-fail': sys.exit(8)
+if args in (['run', 'resource-i18n:sync'], ['run', 'resource-i18n:check']):
+    option = '--sync' if args[1].endswith(':sync') else '--check'
+    sys.exit(subprocess.run(['node', 'scripts/resource_i18n_sync.mjs', option]).returncode)
 if args == ['run', 'build']:
     if mode == 'build-fail': sys.exit(7)
     pathlib.Path('dist').mkdir(exist_ok=True)
@@ -90,6 +93,11 @@ class WebBuildDependencies(unittest.TestCase):
             (web / folder).mkdir(parents=True)
         for name in ['.npmrc', 'index.html', 'package.json', 'vite.config.js', 'src/app.js', 'public/asset.txt', 'scripts/check.js']:
             (web / name).write_text('fixture')
+        shutil.copy2(ROOT / 'src/web/scripts/resource_i18n_sync.mjs', web / 'scripts/resource_i18n_sync.mjs')
+        for locale in ['en-US', 'zh-CN']:
+            public_locale = web / 'public/resource-i18n' / f'resource.{locale}.json'
+            public_locale.parent.mkdir(parents=True, exist_ok=True)
+            public_locale.write_text(json.dumps({'other-platform-only': locale}))
         shutil.copy2(self.web / 'package-lock.json', web / 'package-lock.json')
         for name in ['GLOSSARY.md', 'SHORT-SCOPES.md']:
             path = project / 'docs/i18n' / name
@@ -103,7 +111,7 @@ class WebBuildDependencies(unittest.TestCase):
         for name in ['resource.en-US.json', 'resource.zh-CN.json']:
             path = resources / 'i18n' / name
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text('{}')
+            path.write_text(json.dumps({'selected-platform-only': name}))
         (project / 'scripts').mkdir()
         shutil.copy2(ROOT / 'scripts/build_npm_dependencies.sh', project / 'scripts/build_npm_dependencies.sh')
         (project / 'CMakeLists.txt').write_text(f'cmake_minimum_required(VERSION 3.16)\nproject(WebContract NONE)\nset(EXECUTABLE_NAME engine_fixture)\nadd_custom_target(engine_fixture)\ninclude("{ROOT}/cmake/web_frontend.cmake")\n')
@@ -122,9 +130,15 @@ class WebBuildDependencies(unittest.TestCase):
         entry = build / 'web/web_unified/dist/index.html'
         self.assertTrue(entry.is_file())
         self.assertEqual(len(self.records()), 3)
-        self.assertEqual(self.records()[1]['argv'], ['run', 'resource-i18n:check'])
+        self.assertEqual(self.records()[1]['argv'], ['run', 'resource-i18n:sync'])
         self.assertEqual(self.records()[1]['resource'], str(resources))
         self.assertEqual(self.records()[2]['root'], str(project))
+        for locale in ['en-US', 'zh-CN']:
+            name = f'resource.{locale}.json'
+            staged = build / 'web/web_unified/public/resource-i18n' / name
+            self.assertEqual(staged.read_bytes(), (resources / 'i18n' / name).read_bytes())
+            original = project / 'src/web/public/resource-i18n' / name
+            self.assertEqual(json.loads(original.read_text()), {'other-platform-only': locale})
         self.assertEqual(self.build(build).returncode, 0)
         self.assertEqual(len(self.records()), 3, 'unchanged inputs must not rebuild')
         entry.unlink()
@@ -142,6 +156,15 @@ class WebBuildDependencies(unittest.TestCase):
         _, build, _ = self.cmake_fixture()
         self.assertNotEqual(self.build(build, 'build-fail').returncode, 0)
         self.assertFalse((build / 'web/web_unified/dist/index.html').exists())
+
+    def test_cmake_invalid_resource_locale_stops_before_frontend_build(self):
+        _, build, resources = self.cmake_fixture()
+        (resources / 'i18n/resource.en-US.json').write_text('{invalid json')
+        result = self.build(build)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Cannot sync', result.stdout + result.stderr)
+        self.assertFalse((build / 'web/web_unified/dist/index.html').exists())
+        self.assertNotIn(['run', 'build'], [entry['argv'] for entry in self.records()])
 
     def test_changed_model_fixture_rechecks_frontend(self):
         project, build, _ = self.cmake_fixture()

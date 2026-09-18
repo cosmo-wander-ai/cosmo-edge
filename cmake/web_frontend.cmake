@@ -53,9 +53,11 @@ add_custom_command(
     COMMAND ${BASH_EXECUTABLE}
             "${CMAKE_CURRENT_SOURCE_DIR}/scripts/build_npm_dependencies.sh"
             "${WEB_STAGE_DIR}"
+    # The checked-in public copy may target another platform. Sync only
+    # the isolated build copy; sync also performs the strict locale check.
     COMMAND ${CMAKE_COMMAND} -E chdir "${WEB_STAGE_DIR}"
             ${CMAKE_COMMAND} -E env "AIBOX_RESOURCE_DIR=${WEB_RESOURCE_DIR}"
-            ${NPM_EXECUTABLE} run resource-i18n:check
+            ${NPM_EXECUTABLE} run resource-i18n:sync
     COMMAND ${CMAKE_COMMAND} -E chdir "${WEB_STAGE_DIR}"
             ${CMAKE_COMMAND} -E env "COSMO_REPO_ROOT=${CMAKE_CURRENT_SOURCE_DIR}"
             ${NPM_EXECUTABLE} run build
