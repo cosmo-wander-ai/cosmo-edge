@@ -118,6 +118,57 @@ TEST_CASE("Stranger flow emits each departed track with its own best evidence fr
     REQUIRE(flow.sink.que->RestSize() == 0);
 }
 
+TEST_CASE("Stranger alarms omit the below-threshold candidate identity", "[stranger][flow]") {
+    StrangerFlow flow;
+    auto target                     = Observation(1);
+    target.feature.feature          = {0.1f, 0.2f, 0.3f};
+    target.matchInfo.setPicCount    = 1;
+    target.matchInfo.matched        = false;
+    target.matchInfo.match_degree   = 51.4f;
+    target.matchInfo.match_id       = "nearest-face";
+    target.matchInfo.group_id       = "known-group";
+    target.matchInfo.group_name     = "Known people";
+    target.matchInfo.name           = "Nearest candidate";
+    target.matchInfo.person_id      = "known-person";
+    target.matchInfo.person_code    = "known-person-code";
+    target.matchInfo.base_image_url = "/face-library/nearest.jpg";
+    TargetAreaUnit second_area;
+    second_area.area_id   = "second-area";
+    second_area.area_name = "Second area";
+    target.areaSign.areas.push_back(second_area);
+
+    auto best_frame = flow.Feed(1, 0, {target});
+    flow.Feed(2, 1500, {target});
+    flow.Feed(3, 3000, {target});
+    REQUIRE(flow.sink.que->RestSize() == 0);
+    flow.Feed(4, 4000, {});
+    REQUIRE(flow.sink.que->RestSize() == 2);
+    for (const auto& area : target.areaSign.areas) {
+        auto report = flow.sink.que->Pop();
+        REQUIRE(report->chanDataDec.frame == best_frame);
+        REQUIRE(report->taskDataAlarm.alarmData->alarms.size() == 1);
+        const auto& alarm = report->taskDataAlarm.alarmData->alarms.front();
+        REQUIRE(alarm.areaId == area.area_id);
+        REQUIRE(alarm.trackId == target.trackId);
+        REQUIRE(alarm.strTrackId == target.trackIdInfo);
+        REQUIRE(alarm.haveRelated);
+        REQUIRE(alarm.relatedBox.width == target.relatedEl.box.width);
+        REQUIRE(alarm.feature.feature == target.feature.feature);
+        REQUIRE(alarm.targets.size() == 1);
+        REQUIRE(alarm.targets.front().trackId == target.trackIdInfo);
+        REQUIRE_FALSE(alarm.matchInfo.matched);
+        REQUIRE(alarm.matchInfo.match_degree == -1.0f);
+        REQUIRE(alarm.matchInfo.setPicCount == -1);
+        REQUIRE(alarm.matchInfo.match_id.empty());
+        REQUIRE(alarm.matchInfo.group_id.empty());
+        REQUIRE(alarm.matchInfo.group_name.empty());
+        REQUIRE(alarm.matchInfo.name.empty());
+        REQUIRE(alarm.matchInfo.person_id.empty());
+        REQUIRE(alarm.matchInfo.person_code.empty());
+        REQUIRE(alarm.matchInfo.base_image_url.empty());
+    }
+}
+
 TEST_CASE("A known person remains saved while later faces fail or disappear", "[stranger][flow]") {
     StrangerFlow flow;
     flow.Feed(1, 0, {Observation(1)});

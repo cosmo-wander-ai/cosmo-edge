@@ -134,7 +134,9 @@ void PosSaveSensitivity::ReportUnmatchedTrack(AlgDataPtr data, TrackIdData& stat
         alarm.relatedBox  = state.target.relatedEl.box;
         alarm.confidence  = state.target.relatedEl.classifyRst;
         alarm.feature     = state.target.feature;
-        alarm.matchInfo   = state.target.matchInfo;
+        // A below-threshold candidate is not an identified person. Stranger events
+        // must not carry its identity, library photo or matching score.
+        alarm.matchInfo = {};
         alarm.targets.push_back(MakeOnEventsTarget(state.target));
         alarm.reportType = OnEventsReportType::Trigger;
         alarm_data.alarms.push_back(std::move(alarm));
