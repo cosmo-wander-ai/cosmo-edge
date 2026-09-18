@@ -82,7 +82,8 @@ void TaskBase::RegisterActionHandlers() {
             return track_mng_.DeleteInst(std::dynamic_pointer_cast<AiTracker>(inst), tId);
         }};
 
-    action_handlers_[AAClassify_Code] = MakeHandler<AiClassifyMng, AiClassifier>(classify_mng_);
+    action_handlers_[AAClassify_Code]   = MakeHandler<AiClassifyMng, AiClassifier>(classify_mng_);
+    action_handlers_[AAPersonFace_Code] = MakeHandler<AiPersonFaceMng, AiPersonFace>(person_face_mng_);
     action_handlers_[AAClassifyGroup_Code] =
         MakeHandler<AiClassifyGroupMng, AiClassifierGroup>(classify_group_mng_);
     action_handlers_[AAClassifyArea_Code] =

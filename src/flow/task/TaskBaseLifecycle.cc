@@ -118,6 +118,7 @@ void TaskBase::RegisterMngProviders() {
     mng_providers_ = {
         &channel_mng_,
         &detect_mng_,
+        &person_face_mng_,
         &dino_detect_mng_,
         &qwen3_vl_mng_,
         &sam2_segment_mng_,

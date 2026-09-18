@@ -6,6 +6,22 @@
 
 namespace cosmo {
 
+// A missing/invalid observation must never be interpreted as a negative match.
+enum class FaceObservationStatus {
+    kNotObserved,
+    kNoFace,
+    kFiltered,
+    kLowQuality,
+    kUnavailable,
+    kMatched,
+    kUnmatched,
+};
+
+struct FaceObservation {
+    FaceObservationStatus status{FaceObservationStatus::kNotObserved};
+    float quality{-1.0f};
+};
+
 struct AiDetectBestEl {
     bool bActive{false};      // Whether a best snapshot exists
     float bestQuality{-1.0};  // Best quality score
@@ -63,6 +79,7 @@ struct AiDetectRstEl {
     AiMask mask;  // Segmentation result
 
     AiDetectMatchHighScoreInfo matchInfo;  // Highest-score match info during comparison
+    FaceObservation face_observation;
 };
 
 using AiDetectRstElPtr = std::shared_ptr<AiDetectRstEl>;

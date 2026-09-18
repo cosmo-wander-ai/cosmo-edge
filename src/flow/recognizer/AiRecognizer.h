@@ -30,10 +30,13 @@ struct AiRecognizerAlgParam {
     FeatureInputType feature_input{FeatureInputType::Face};
     MatchFlagType match_flag{MatchFlagType::Match};
     float limit_score{-1.0};
+    bool output_observations{false};
 };
 
 struct AiRecognizerParam {
     std::vector<std::string> face_set;
+    float min_face_quality{60.0f};
+    bool front_face_only{true};
 };
 
 class AiRecognizer : public AlgActionBase, public AlgDataQueueDistributor {
@@ -67,6 +70,7 @@ protected:
 
 private:
     void HandFace(AlgDataPtr alg_data);
+    void HandObservations(AlgDataPtr alg_data);
     bool GetRecodResult(bool compare_rst, size_t count, AiDetectMatchHighScoreInfo& match_info);
     std::shared_mutex mtx_;
     std::string alg_code_;

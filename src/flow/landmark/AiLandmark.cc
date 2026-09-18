@@ -66,6 +66,10 @@ bool AiLandmark::SetArea(const std::string& /*channel_id*/, const std::string& t
 }
 
 void AiLandmark::HandFrame(AlgDataPtr alg_data) {
+    if (alg_data && alg_data->bHaveRelated) {
+        HandAssociatedFaces(alg_data);
+        return;
+    }
     if (!alg_data) {
         invalid_frame_cnt += 1;
         if (0 == invalid_frame_cnt % kFilterLogInterval) {

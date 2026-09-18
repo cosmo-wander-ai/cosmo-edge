@@ -1,12 +1,15 @@
 #pragma once
 
 #include <chrono>
+#include <cstdint>
 #include <memory>
 #include <string>
 
 #include "media/PixelFormat.h"
-#include "mem/Block.h"
-#include "mem/FixedBlockPool.h"
+
+namespace cosmo::mem {
+struct Block;
+}
 
 namespace cosmo {
 namespace media {

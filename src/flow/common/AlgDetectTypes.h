@@ -44,6 +44,9 @@ struct DataDetTrackClassify {
     std::vector<AiDetectRstEl> targets;
     bool targetHaveMultRelated{false};
     std::vector<AiGroupEl> groupTargets;
+    // False means an upstream inference failed, not that every target disappeared.
+    bool observation_complete{true};
+    std::string recognition_context;  // Face sets and threshold used for these observations.
 };
 using DataDetTrackClassifyPtr = std::shared_ptr<DataDetTrackClassify>;
 

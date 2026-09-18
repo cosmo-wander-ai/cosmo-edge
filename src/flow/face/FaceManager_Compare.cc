@@ -1,7 +1,9 @@
 // FaceManager_Compare — Face Manager_ Compare implementation.
 
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
+#include <set>
 
 #include "flow/face/FaceManager.h"
 #include "service/detail/ServiceRegistry.h"
@@ -14,18 +16,31 @@ namespace cosmo {
 
 bool FaceManager::FaceCompare(std::vector<std::string> sets, const AiFeature& feature,
                               AiDetectMatchHighScoreInfo& info, float param_limit_score) {
-    std::shared_lock<std::shared_mutex> lock(mtx_);
+    info = {};
+    std::vector<FaceLibPtr> libraries;
+    {
+        std::shared_lock<std::shared_mutex> lock(mtx_);
+        libraries = face_libs_;
+    }
+    const std::set<std::string> selected(sets.begin(), sets.end());
+    bool all_searchable  = !selected.empty();
+    int64_t photo_count  = 0;
+    float best_threshold = 0.0f;
+    float best_score     = -1.0f;
     std::vector<AiDetectMatchHighScoreInfo> dev_res{};
-    for (auto set : sets) {
-        for (auto face_lib : face_libs_) {
+    for (const auto& set : selected) {
+        bool searchable = false;
+        for (auto face_lib : libraries) {
             if (set != face_lib->GetId()) {
                 LOG_INFO("face origine lib {} not eql compare lib {}", face_lib->GetId(), set);
                 continue;
             }
             auto res = face_lib->SearchFeature(feature);
-            if (!res.first) {
+            if (!res.first || !std::isfinite(res.second) || res.second < 0.0f) {
                 continue;
             }
+            searchable = true;
+            photo_count += static_cast<int64_t>(face_lib->GetFaceCount());
 
             // Always record the best score even if below threshold
             FacePicPtr face_pic = res.first;
@@ -38,8 +53,13 @@ bool FaceManager::FaceCompare(std::vector<std::string> sets, const AiFeature& fe
             temp.person_id      = face_pic->GetPerson()->GetId();
             temp.base_image_url = cosmo::path::GetWebDir(
                 (fs::path(cosmo::path::GetFaceLibPhotoDir()) / face_pic->GetId()).concat(".jpg"));
+            if (temp.match_degree > best_score) {
+                best_score     = temp.match_degree;
+                best_threshold = static_cast<float>(face_lib->GetThreshold());
+            }
             dev_res.push_back(std::move(temp));
         }
+        all_searchable = all_searchable && searchable;
     }
 
     auto max_it =
@@ -48,10 +68,7 @@ bool FaceManager::FaceCompare(std::vector<std::string> sets, const AiFeature& fe
                              return a.match_degree < b.match_degree;
                          });
     if (max_it != dev_res.end()) {
-        float limit_threshold = 0.0f;
-        if (auto lib = GetFaceLib(max_it->group_id)) {
-            limit_threshold = static_cast<float>(lib->GetThreshold());
-        }
+        float limit_threshold = best_threshold;
         if (param_limit_score > 0) {
             limit_threshold = param_limit_score;
         }
@@ -63,6 +80,7 @@ bool FaceManager::FaceCompare(std::vector<std::string> sets, const AiFeature& fe
         info.person_id      = max_it->person_id;
         info.person_code    = max_it->person_code;
         info.matched        = (info.match_degree > limit_threshold);
+        info.setPicCount    = all_searchable ? photo_count : -1;
     } else {
         dev_res.clear();
         return false;

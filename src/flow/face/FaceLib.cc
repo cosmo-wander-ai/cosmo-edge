@@ -2,6 +2,7 @@
 
 #include "flow/face/FaceLib.h"
 
+#include <cmath>
 #include <future>
 
 #include "flow/face/FacePic.h"
@@ -101,7 +102,7 @@ bool FaceLib::SaveData() {
 
 std::pair<FacePicPtr, float> FaceLib::SearchFeature(const AiFeature &feature) const {
     std::shared_lock<std::shared_mutex> lock(mtx_);
-    if (vec_faces_.empty()) {
+    if (feature.feature.empty() || vec_faces_.empty()) {
         return {nullptr, -1.0f};
     }
 
@@ -126,10 +127,13 @@ std::pair<FacePicPtr, float> FaceLib::SearchFeature(const AiFeature &feature) co
             float min_dist                   = kMinDistSentinel;
             size_t similar_idx               = vec_faces_.size();
             for (size_t j = beg_idx; j < end_idx; ++j) {
+                if (vec_faces_[j]->GetFeature().feature.size() != feature.feature.size()) {
+                    continue;
+                }
                 auto dist =
                     service::ServiceRegistry::Instance().Get<service::IFaceFeature>().CalculateFaceScore(
                         vec_faces_[j]->GetFeature(), feature);
-                if (dist < min_dist) {
+                if (std::isfinite(dist) && dist >= 0.0f && dist < min_dist) {
                     similar_idx = j;
                     min_dist    = dist;
                 }

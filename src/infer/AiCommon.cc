@@ -2,13 +2,13 @@
 
 #include "infer/AiCommon.h"
 
+#include <cmath>
 #include <codecvt>
 #include <locale>
 #include <regex>
 #include <unordered_map>
 
 #include "util/InferConstants.h"
-#include "util/Log.h"
 
 namespace cosmo {
 constexpr std::string_view kLabelFrontFace   = "frontFace";

@@ -35,7 +35,7 @@ bool AiClassifier::CheckDataAvailable(AlgDataPtr algData) {
                      invalid_frame_cnt);
         }
         action_status = util::ErrorEnum::AI_INST_NOTCREATED;
-        if (!AiSdkInit()) {
+        if (!AiSdkInit() && !algData->bHaveRelated) {
             return false;
         }
     }
@@ -102,11 +102,14 @@ void AiClassifier::HandFramesEx(std::vector<AlgDataPtr> alg_datas) {
             input = alg_data->GetTaskResult(AlgDataType::TaskDataClassify);
         } else if (AlgDataType::TaskDataLandmark == alg_data->dataType) {
             input = alg_data->GetTaskResult(AlgDataType::TaskDataLandmark);
+        } else if (AlgDataType::TaskDataPersonFace == alg_data->dataType) {
+            input = alg_data->GetTaskResult(AlgDataType::TaskDataPersonFace);
         }
 
         if (input) {
-            classify_result->bHaveArea         = input->bHaveArea;
-            classify_result->bHaveShieldedArea = input->bHaveShieldedArea;
+            classify_result->bHaveArea            = input->bHaveArea;
+            classify_result->bHaveShieldedArea    = input->bHaveShieldedArea;
+            classify_result->observation_complete = input->observation_complete;
         }
         alg_out_datas.push_back(alg_out_data);
 
@@ -151,11 +154,18 @@ void AiClassifier::HandFramesEx(std::vector<AlgDataPtr> alg_datas) {
         img_record.push_back(i);
     }
 
-    action_status =
-        classifier_->ClassifyMultSub(in_images, io_puts, target_have_mult_related, true, in_native_buffers);
+    action_status = util::ErrorEnum::Success;
+    if (!io_puts.empty()) {
+        action_status = classifier_
+                            ? classifier_->ClassifyMultSub(in_images, io_puts, target_have_mult_related, true,
+                                                           in_native_buffers)
+                            : util::ErrorEnum::AI_INST_NOTCREATED;
+    }
     for (size_t out = 0; out < io_puts.size(); out++) {
         auto classify_result = alg_out_datas[img_record[out]]->GetTaskResult(AlgDataType::TaskDataClassify);
         if (classify_result) {
+            classify_result->observation_complete =
+                classify_result->observation_complete && action_status == util::ErrorEnum::Success;
             for (const auto& el : io_puts[out]) {
                 classify_result->targets.push_back(el);
             }

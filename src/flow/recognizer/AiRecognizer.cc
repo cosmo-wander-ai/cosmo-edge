@@ -4,6 +4,8 @@
 
 #include <unistd.h>
 
+#include <cmath>
+
 #include "flow/common/FlowTaskUtil.h"
 #include "service/ai/IInferPoolService.h"
 #include "service/detail/ServiceRegistry.h"
@@ -32,7 +34,9 @@ AiRecognizer::AiRecognizer(const std::string& init_task_id, const std::string& a
     uuid          = util::GenerateUUID();
 
     for (auto& param : action_param.configObject.params) {
-        if (key::FEATURE_INPUT == param.key.ToString()) {
+        if (param.key.ToString() == "outputMode") {
+            alg_params_.output_observations = param.value.ToString() == "observations";
+        } else if (key::FEATURE_INPUT == param.key.ToString()) {
             alg_params_.feature_input = static_cast<FeatureInputType>(util::ParseInt(param.value));
             LOG_INFO("{}[{} {}] Set {} To {} ", kTag, alg_code_, uuid, param.key, param.value);
         } else if (key::MATCH_FLAG == param.key.ToString()) {
@@ -128,6 +132,23 @@ void AiRecognizer::ActionInfo(std::vector<ActionRuntimeInfo>& action_infos) {
 bool AiRecognizer::AnalysisKey(MsgDynamicKeyValue& param) {
     const std::string key_str(util::Trim(param.key.ToRefString()));
 
+    if (key_str == "param.minFaceQuality") {
+        const float value = util::ParseFloat(param.value, -1.0f);
+        if (!std::isfinite(value) || value < 0.0f || value > 100.0f) {
+            return false;
+        }
+        params_.min_face_quality = value;
+        return true;
+    }
+    if (key_str == "param.frontFaceOnly") {
+        const int value = util::ParseInt(param.value, -1);
+        if (value != 0 && value != 1) {
+            return false;
+        }
+        params_.front_face_only = value == 1;
+        return true;
+    }
+
     const bool is_face_set_key =
         (key_str == "param.faceSet") ||
         (param.keys.size() == 2 && param.keys[0] == key::PARAM && param.keys[1] == key::target::FACE_SET);
@@ -138,7 +159,8 @@ bool AiRecognizer::AnalysisKey(MsgDynamicKeyValue& param) {
     if (is_face_set_key || is_work_clothes_set_key) {
         const auto v = util::Trim(param.value.ToRefString());
         if (v.empty()) {
-            return false;
+            params_.face_set.clear();
+            return true;
         }
         params_.face_set.clear();
         for (auto tok : util::Split(v, ",")) {
@@ -159,7 +181,7 @@ bool AiRecognizer::AnalysisKey(MsgDynamicKeyValue& param) {
         (param.keys.size() == 2 && param.keys[0] == key::PARAM && param.keys[1] == key::target::LIMIT_SCORE);
     if (is_limit_score_key) {
         auto value = util::ParseFloat(param.value);
-        if ((value < 0.0f) || (value > 100.0f)) {
+        if (!std::isfinite(value) || (value < 0.0f) || (value > 100.0f)) {
             LOG_WARN(
                 "ModifyParam "
                 "[{} {}] Set {} To {} Failed",
@@ -373,6 +395,10 @@ void AiRecognizer::HandFace(AlgDataPtr alg_data) {
 }
 
 void AiRecognizer::HandFrame(AlgDataPtr alg_data) {
+    if (alg_data && alg_params_.output_observations) {
+        HandObservations(alg_data);
+        return;
+    }
     if (!alg_data) {
         filter_frames_ += 1;
         action_status = util::ErrorEnum::FlowDataInvalid;

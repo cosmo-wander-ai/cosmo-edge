@@ -25,6 +25,9 @@ PosSaveSensitivity::PosSaveSensitivity(const std::string& taskId, ActionNode& ac
       overview_rec_inst_(taskId, "PosSaveSen_" + action.flowActionId) {
     action_status = util::ErrorEnum::ActionReady;
     for (auto& el : action.configObject.params) {
+        if (el.key.ToString() == "inputMode") {
+            recognition_mode_ = el.value.ToString() == "recognition";
+        }
         if (key::pos_sen::REAL_TIME_ENABLE == el.key.ToString()) {
             auto value                       = util::ParseInt(el.value);
             params_.pos_sen_real_time_enable = value;
@@ -41,6 +44,21 @@ param.posSenHitCount
 param.posSenTotalCount
 */
 bool PosSaveSensitivity::AnalysisKey(MsgDynamicKeyValue& param, BAPosSaveSensitivityParam& localParamEl) {
+    const auto param_key = param.key.ToString();
+    if (param_key == "param.minValidFaceCount" || param_key == "param.trackLostTimeoutMs" ||
+        param_key == "param.faceSampleIntervalMs") {
+        const auto value = util::ParseInt<int64_t>(param.value, -1);
+        if (param_key == "param.minValidFaceCount" && value >= 1 && value <= 1000) {
+            localParamEl.min_valid_face_count = static_cast<size_t>(value);
+        } else if (param_key == "param.trackLostTimeoutMs" && value >= 200 && value <= 10000) {
+            localParamEl.track_lost_timeout_ms = value;
+        } else if (param_key == "param.faceSampleIntervalMs" && value >= 0 && value <= 10000) {
+            localParamEl.face_sample_interval_ms = value;
+        } else {
+            return false;
+        }
+        return true;
+    }
     if (param.keys.empty()) {
         LOG_WARN(
             "ModifyParam "
@@ -219,7 +237,9 @@ void PosSaveSensitivity::AssoTarget(AlgDataPtr algData, TrackIdData& idData) {
 
 void PosSaveSensitivity::AddHistory(AlgDataPtr algData, DataDetTrackClassifyPtr input) {
     for (auto& target : input->targets) {
-        auto& idData = map_track_id_status_[target.trackId];
+        const auto track_key =
+            target.trackIdInfo.empty() ? std::to_string(target.trackId) : target.trackIdInfo;
+        auto& idData = map_track_id_status_[track_key];
         if (idData.track_id_uuid.empty())  // Appears for the first time
         {
             idData.track_id_uuid   = target.trackIdInfo;

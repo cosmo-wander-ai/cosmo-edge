@@ -25,6 +25,9 @@ struct BAPosSaveSensitivityParam {
     float sensitivity_ratio{0.5f};           // Sensitivity ratio
     size_t pos_sen_hit_count{5};             // Hit count
     size_t pos_sen_total_count{10};          // Total count for sensitivity calculation
+    size_t min_valid_face_count{3};
+    int64_t track_lost_timeout_ms{1000};
+    int64_t face_sample_interval_ms{200};
 };
 
 class PosSaveSensitivity : public AlgActionBase {
@@ -49,6 +52,9 @@ public:
 
     void HandFrame(AlgDataPtr algData) override;
 
+protected:
+    void ResetStateOnRestart() override;
+
 private:
     class TrackIdData;
     class TargetSensitivityDetCount;
@@ -68,6 +74,8 @@ private:
     void FillAlarmDataTrackId(DataAlarmUnit& alarmUnit, TrackIdData& trackIdData);
 
     void HandTrackData(AlgDataPtr algData, DataDetTrackClassifyPtr input);
+    void HandRecognitionData(AlgDataPtr alg_data);
+    void ReportUnmatchedTrack(AlgDataPtr alg_data, TrackIdData& state);
 
     [[nodiscard]] TaskBaseArea GetArea();
 
@@ -83,7 +91,14 @@ private:
     TaskBaseArea task_area_;
     bool has_track_{false};
     bool has_classify_{false};
-    std::map<unsigned, TrackIdData> map_track_id_status_;
+    std::map<std::string, TrackIdData> map_track_id_status_;
+    bool recognition_mode_{false};
+    std::string recognition_context_;
+    std::string recognition_channel_;
+    std::string recognition_task_;
+    int64_t recognition_stream_index_{-1};
+    int64_t recognition_frame_index_{-1};
+    int64_t recognition_timestamp_{-1};
     OverviewRecordBehaviorNoneSenRst overview_rec_inst_;
 };
 using PosSaveSensitivityPtr = std::shared_ptr<PosSaveSensitivity>;

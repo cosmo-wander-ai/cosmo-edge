@@ -29,6 +29,7 @@ public:
 
 private:
     void HandFrame(AlgDataPtr alg_data) override;
+    void HandAssociatedFaces(AlgDataPtr alg_data);
 
     std::string alg_code_;
     AiLandmarkInterfacePtr inst_;  // Landmark inference instance

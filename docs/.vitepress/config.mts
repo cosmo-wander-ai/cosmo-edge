@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress'
 
 const guideZh = [
+  { text: '陌生人告警', link: '/guide/stranger-alarm' },
   { text: '构建指南', link: '/guide/build' },
   { text: 'CV186X 快速开始', link: '/guide/cv186x-quick-start' },
   { text: 'RK3576 / RKNN 集成', link: '/guide/rk3576-rknn-development' },
@@ -71,6 +72,7 @@ const communityZh = [
 ]
 
 const guideEn = [
+  { text: 'Stranger Alarms', link: '/en/guide/stranger-alarm' },
   { text: 'Build Guide', link: '/en/guide/build' },
   { text: 'CV186X Quick Start', link: '/en/guide/cv186x-quick-start' },
   { text: 'RK3576 / RKNN Integration', link: '/en/guide/rk3576-rknn-development' },

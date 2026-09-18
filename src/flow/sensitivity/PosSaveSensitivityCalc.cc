@@ -208,6 +208,10 @@ void PosSaveSensitivity::HandTrackData(AlgDataPtr algData, DataDetTrackClassifyP
 }
 
 void PosSaveSensitivity::HandFrame(AlgDataPtr dataPtr) {
+    if (recognition_mode_) {
+        HandRecognitionData(dataPtr);
+        return;
+    }
     AlgDataPtr algData = AlgDataCopy(dataPtr);
     should_alarm_      = false;
     if (!algData) {

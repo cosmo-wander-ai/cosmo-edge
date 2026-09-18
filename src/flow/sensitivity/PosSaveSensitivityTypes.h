@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "flow/sensitivity/PosSaveSensitivity.h"
+#include "flow/sensitivity/PositiveTrackEvidence.h"
 #include "util/dto/ServerMsgTypes.h"
 
 struct cosmo::PosSaveSensitivity::TrackIdData {
@@ -39,4 +40,7 @@ struct cosmo::PosSaveSensitivity::TrackIdData {
     DataAlarmTargetConfidence target_confidence_info;
     std::vector<AiDetectRstEl> group_targets;
     std::deque<TrackIdDataEl> history;
+    // Recognition mode reuses the positive latch and snapshot owned by this track.
+    PositiveTrackEvidence face_evidence;
+    float best_face_quality{-1.0f};
 };

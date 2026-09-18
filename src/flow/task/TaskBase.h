@@ -24,6 +24,7 @@
 #include "flow/classify/AiClassifyMng.h"
 #include "flow/common/AlgDataQueueDistributor.h"
 #include "flow/detect/AiDetectMng.h"
+#include "flow/detect/AiPersonFace.h"
 #include "flow/detect/DinoDetectMng.h"
 #include "flow/landmark/AiLandmarkMng.h"
 #include "flow/logical/FaceLogicMng.h"
@@ -128,8 +129,9 @@ private:
     std::unordered_map<std::string_view, ActionHandler> action_handlers_;
     std::vector<IMngStatusProvider*> mng_providers_;  // QueueStatus/ActionInfo unified traversal
 
-    AlgChannelMng channel_mng_;                // Channel/Camera management instance
-    AiDetectMng detect_mng_;                   // Detection management instance
+    AlgChannelMng channel_mng_;  // Channel/Camera management instance
+    AiDetectMng detect_mng_;     // Detection management instance
+    AiPersonFaceMng person_face_mng_;
     DinoDetectMng dino_detect_mng_;            // Dino detection visual large model management instance
     Qwen3VLMng qwen3_vl_mng_;                  // Qwen3VL language visual large model management instance
     Sam2SegmentMng sam2_segment_mng_;          // Sam2 segmentation large model management instance
