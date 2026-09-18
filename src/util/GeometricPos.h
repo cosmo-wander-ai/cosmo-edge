@@ -65,6 +65,14 @@ struct TargetScalerParam {
 [[nodiscard]] std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> GetBoxOsdLines(
     cosmo::util::Box box, int width, int height);
 
+/// Get the four edges of a rotated box (OBB) as line-segment pairs.
+/// @p box holds the unrotated box geometry (x, y, width, height of the rotated
+/// rect itself); the box is rotated by @p angle_rad radians around its center.
+/// Rotation convention matches HTML canvas ctx.rotate(): in image coordinates
+/// (y axis pointing down) a positive angle rotates clockwise on screen.
+[[nodiscard]] std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> GetRotatedBoxOsdLines(
+    cosmo::util::Box box, float angle_rad);
+
 }  // namespace cosmo::util
 
 // ---------------------------------------------------------------------------
@@ -79,6 +87,7 @@ using util::BoxOnLinePos;
 using util::DoScaleBox;
 using util::GetBoxOsdLines;
 using util::GetMsgPointFromRect;
+using util::GetRotatedBoxOsdLines;
 using util::GetPointFromRect;
 using util::IntersectionIncludeRatio;
 using util::IntersectionUnionRatio;

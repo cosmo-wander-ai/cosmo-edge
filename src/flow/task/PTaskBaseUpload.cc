@@ -3,6 +3,7 @@
 // Image processing algorithms (ComputeMaskPolygon, ApplyYuvMask, ApplyBgrMask) are in PTaskBaseImageProc.cc.
 
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 
 #include "flow/detect/PDinoDetector.h"
@@ -62,6 +63,7 @@ static void DetTarget2MsgTarget(const AiDetectRstEl& target, MsgPTaskTarget& msg
     msgTarget.box.y      = target.box.y;
     msgTarget.box.width  = target.box.width;
     msgTarget.box.height = target.box.height;
+    msgTarget.angle      = target.angle;
 
     msgTarget.bLogicResult = target.bLogicResult;
 
@@ -252,7 +254,11 @@ void PTaskBase::DetTargetHandFullPicture(AlgDataPtr algData, const std::vector<M
             box.y         = target.box.y;
             box.width     = target.box.width;
             box.height    = target.box.height;
-            auto boxLines = GetBoxOsdLines(box, origImg->GetWidth(), origImg->GetHeight());
+            // OBB targets carry a rotation angle (radians, canvas rotate()
+            // convention); draw the rotated box instead of an axis-aligned one.
+            auto boxLines = (std::fabs(target.angle) > 1e-6f)
+                                ? GetRotatedBoxOsdLines(box, target.angle)
+                                : GetBoxOsdLines(box, origImg->GetWidth(), origImg->GetHeight());
             service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().DrawLines(
                 origImg, boxLines, box_color, lineWidth);
         }

@@ -63,6 +63,8 @@ void from_json(const nlohmann::json& j, MsgPTaskDetectPicRecv& r) {
 
 void to_json(nlohmann::json& j, const MsgPTaskTarget& t) {
     j["box"] = t.box;
+    if (t.angle != 0.0f)
+        j["angle"] = t.angle;
     if (t.bHaveLogicResult)
         j["bLogicResult"] = t.bLogicResult;
     if (!t.confidence.empty())
@@ -81,6 +83,7 @@ void to_json(nlohmann::json& j, const MsgPTaskTarget& t) {
 
 void from_json(const nlohmann::json& j, MsgPTaskTarget& t) {
     JSON_OPT(j, t, box);
+    JSON_OPT(j, t, angle);
     if (auto it = j.find("bLogicResult"); it != j.end() && !it->is_null()) {
         t.bHaveLogicResult = true;
         it->get_to(t.bLogicResult);

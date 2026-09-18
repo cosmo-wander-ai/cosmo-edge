@@ -25,6 +25,7 @@ struct AiDetectRelatedEl {
 // Detection / tracking / classification result
 struct AiDetectRstEl {
     util::Box box;
+    float angle{0.0f};   // OBB rotation angle in radians; 0 for axis-aligned detectors
     util::Box scaleBox;    // Box after padding/scaling
     std::string targetId;  // Target ID — globally unique, used for target association
     util::Point point;
