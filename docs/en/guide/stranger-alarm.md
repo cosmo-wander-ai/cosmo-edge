@@ -1,6 +1,6 @@
 # Stranger alarms based on pedestrian tracks
 
-The BM1688 resources provide a separate scenario, **66: Stranger alarm**. Scenario 2 retains its existing face match alarm output mode.
+The BM1688, CV186X and x86 resources provide a separate scenario, **66: Stranger alarm**. RK3576 and RV1126B packages inherit the x86 scenario templates, action metadata and bilingual locales before applying their target-specific model overlays. Scenario 2 retains its existing face match alarm output mode.
 
 ## Decision
 
@@ -18,7 +18,7 @@ Pedestrian detection → pedestrian tracking → face association (`AA_00006`) �
 
 `AA_00005` uses `outputMode=observations` to preserve complete recognition observations. `BA_20003` uses `inputMode=recognition` to retain positive evidence and decide after track completion. Existing behavior and recognition alarm modes remain available.
 
-Models `1001003`, `1000001`, `1000012`, `1000016` and `1000005` are reused; no new model conversion is required.
+The template reuses model identifiers `1001003`, `1000001`, `1000012`, `1000016` and `1000005` for pedestrian detection, face detection, quality classification, landmarks and feature extraction. Install the matching models on the target before running the scenario. Shared identifiers do not make model binaries interchangeable: x86 uses ONNX, while Sophon and Rockchip require artifacts for their respective targets. The bundled public benchmark models do not include the complete face model chain. Synchronizing templates does not establish runtime availability, completed model conversion or device acceptance.
 
 ## Configuration
 
@@ -49,4 +49,4 @@ bash scripts/build_cpu_test.sh
 ./build_cpu/cosmo-tests "[stranger]"
 ```
 
-`test_stranger_alarm.cc` covers association, quality and evidence rules. `test_stranger_alarm_flow.cc` covers action and queue integration, separate snapshots, successful matches, failed input and session resets. CPU tests do not establish BM1688 device acceptance. Check known people, strangers, side faces, occlusion, overlapping people, empty frames and stream interruptions before deployment, measuring false alarms, misses and latency.
+`test_stranger_alarm.cc` covers association, quality and evidence rules. `test_stranger_alarm_flow.cc` covers action and queue integration, separate snapshots, successful matches, failed input and session resets. CPU tests do not establish target-device acceptance. Check known people, strangers, side faces, occlusion, overlapping people, empty frames and stream interruptions before deployment, measuring false alarms, misses and latency.
