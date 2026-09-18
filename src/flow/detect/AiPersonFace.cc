@@ -10,10 +10,10 @@
 
 namespace cosmo {
 
-AiPersonFace::AiPersonFace(const std::string& task_id, ActionNode& action)
-    : AlgActionBase(AlgActionType::AlgActionAiPersonFace, action, "", task_id),
+AiPersonFace::AiPersonFace(const std::string& init_task_id, ActionNode& action)
+    : AlgActionBase(AlgActionType::AlgActionAiPersonFace, action, "", init_task_id),
       model_code_(action.atomicCode.empty() ? action.atomAlgName : action.atomicCode) {
-    ModifyParam("", task_id, action.configObject.params);
+    ModifyParam("", init_task_id, action.configObject.params);
 }
 
 AiPersonFace::~AiPersonFace() {

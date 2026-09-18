@@ -9,7 +9,7 @@ namespace cosmo {
 // Task-local association; model inference is reused through the detector pool.
 class AiPersonFace : public AlgActionBase {
 public:
-    AiPersonFace(const std::string& task_id, ActionNode& action);
+    AiPersonFace(const std::string& init_task_id, ActionNode& action);
     ~AiPersonFace() override;
     bool ModifyParam(const std::string& channel_id, const std::string& task_id,
                      std::vector<MsgDynamicKeyValue>& params) override;
