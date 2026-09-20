@@ -248,9 +248,14 @@ namespace {
         return output;
     }
 
-    VideoFramePtr MaterializeMppFrame(const std::string& decoder_name, MppFrame frame) {
+    VideoFramePtr MaterializeMppFrame(const std::string& decoder_name, MppFrame frame,
+                                      std::atomic<bool>& rga_available) {
         if (!frame) {
             return nullptr;
+        }
+        if (!rga_available.load(std::memory_order_relaxed)) {
+            GetPreviewPipelineMetrics().RecordMppCpuCopyOutFallback();
+            return CopyMppFrameCpu(decoder_name, frame);
         }
 
         const size_t width             = mpp_frame_get_width(frame);
@@ -311,10 +316,15 @@ namespace {
             return output;
         }
 
+        // Failure can originate in the kernel import, before our own logger.
+        // Stop submitting the same failing operation on every selected frame.
+        rga_available.store(false, std::memory_order_relaxed);
         static std::atomic_flag fallback_logged = ATOMIC_FLAG_INIT;
         if (!fallback_logged.test_and_set(std::memory_order_relaxed)) {
-            LOG_WARN("{} RGA DMA-BUF materialization failed with status {} ({}); using CPU copy-out",
-                     decoder_name, status, imStrError_t(status));
+            LOG_WARN(
+                "{} RGA DMA-BUF materialization failed with status {} ({}); disabling RGA copy-out for this "
+                "decoder",
+                decoder_name, status, imStrError_t(status));
         }
         GetPreviewPipelineMetrics().RecordMppCpuCopyOutFallback();
         return CopyMppFrameCpu(decoder_name, frame);
@@ -327,6 +337,9 @@ struct PendingDecodeTiming {
 };
 
 struct RockchipDecoderState {
+    // Lazy frames can outlive the decoder state. Capture shared state, never a
+    // pointer back to the decoder, and retry only when a new decoder is opened.
+    std::shared_ptr<std::atomic<bool>> rga_copy_out_available{std::make_shared<std::atomic<bool>>(true)};
     MppCtx context{nullptr};
     MppApi* api{nullptr};
     MppDecCfg config{nullptr};
@@ -704,13 +717,14 @@ DecodedVideoFrame VideoDecoderRockchip::ReceiveMppFrame(bool& made_progress) {
     if (timing != state_->pending.end()) {
         state_->pending.erase(timing);
     }
-    const size_t frame_width  = mpp_frame_get_width(frame);
-    const size_t frame_height = mpp_frame_get_height(frame);
-    width_                    = frame_width;
-    height_                   = frame_height;
-    auto holder               = std::make_shared<MppFrameHolder>(frame);
-    frame                     = nullptr;
-    const auto decoder_name   = idx_name_;
+    const size_t frame_width          = mpp_frame_get_width(frame);
+    const size_t frame_height         = mpp_frame_get_height(frame);
+    width_                            = frame_width;
+    height_                           = frame_height;
+    auto holder                       = std::make_shared<MppFrameHolder>(frame);
+    frame                             = nullptr;
+    const auto decoder_name           = idx_name_;
+    const auto rga_copy_out_available = state_->rga_copy_out_available;
 
     // This counter measures a valid MPP output becoming available. Host
     // allocation and copying are measured separately by RecordMppCopyOut.
@@ -718,9 +732,9 @@ DecodedVideoFrame VideoDecoderRockchip::ReceiveMppFrame(bool& made_progress) {
     return DecodedVideoFrame(
         static_cast<uint64_t>(std::max<int64_t>(0, resolved_pts)), frame_width, frame_height,
         PixelFormat::PIXEL_I420,
-        [holder, decoder_name, resolved_pts]() {
+        [holder, decoder_name, resolved_pts, rga_copy_out_available]() {
             const auto copy_started = std::chrono::steady_clock::now();
-            auto output             = MaterializeMppFrame(decoder_name, holder->frame);
+            auto output = MaterializeMppFrame(decoder_name, holder->frame, *rga_copy_out_available);
             if (output) {
                 output->SetFrameIndex(static_cast<uint64_t>(std::max<int64_t>(0, resolved_pts)));
             }

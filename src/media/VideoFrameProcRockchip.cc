@@ -55,6 +55,8 @@ VideoFramePtr VideoFrameProcRockchip::Resize(VideoFramePtr frame, int dst_height
 VideoFramePtr VideoFrameProcRockchip::ConvertWithRga(const VideoFramePtr& frame, PixelFormat dst_format,
                                                      int src_rga_format, int dst_rga_format, int color_mode,
                                                      const char* operation) {
+    if (rga_unavailable_.load(std::memory_order_relaxed))
+        return nullptr;
     if (!VideoFrameValid(frame, true) || frame->GetWidth() == 0 || frame->GetHeight() == 0 ||
         frame->GetWidth() > static_cast<size_t>(std::numeric_limits<int>::max()) ||
         frame->GetHeight() > static_cast<size_t>(std::numeric_limits<int>::max())) {
@@ -94,6 +96,8 @@ VideoFramePtr VideoFrameProcRockchip::ConvertWithRga(const VideoFramePtr& frame,
 
 VideoFramePtr VideoFrameProcRockchip::ResizeWithRga(const VideoFramePtr& frame, int dst_height, int dst_width,
                                                     const char* operation) {
+    if (rga_unavailable_.load(std::memory_order_relaxed))
+        return nullptr;
     if (!VideoFrameValid(frame, true) || frame->GetPixelFormat() != PixelFormat::PIXEL_I420 ||
         dst_width <= 0 || dst_height <= 0 ||
         frame->GetWidth() > static_cast<size_t>(std::numeric_limits<int>::max()) ||
@@ -135,9 +139,12 @@ VideoFramePtr VideoFrameProcRockchip::ResizeWithRga(const VideoFramePtr& frame, 
 }
 
 void VideoFrameProcRockchip::LogFallbackOnce(const char* operation, int status) {
+    rga_unavailable_.store(true, std::memory_order_relaxed);
     if (!fallback_warning_logged_.test_and_set(std::memory_order_relaxed)) {
-        LOG_WARN("RGA {} failed with status {} ({}); using CPU fallback", operation, status,
-                 imStrError_t(static_cast<IM_STATUS>(status)));
+        LOG_WARN(
+            "RGA {} failed with status {} ({}); disabling RGA for this frame processor and using CPU "
+            "fallback",
+            operation, status, imStrError_t(static_cast<IM_STATUS>(status)));
     }
 }
 

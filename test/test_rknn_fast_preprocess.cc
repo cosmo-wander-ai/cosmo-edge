@@ -2,6 +2,8 @@
 
 #if defined(COSMO_NN_USE_RKNN_BACKEND) && defined(COSMO_MEDIA_USE_ROCKCHIP_BACKEND)
 
+#include <rockchip/mpp_buffer.h>
+
 #include <algorithm>
 #include <array>
 #include <cstdlib>
@@ -662,12 +664,110 @@ TEST_CASE("RKNN classifier crop-resize keeps an exact CPU fallback", "[nn][rknn]
     const auto after = GetInferencePipelineMetrics().Snapshot();
     CHECK(after.rknn_rga_crop_resize_failures == before.rknn_rga_crop_resize_failures + 1);
     CHECK(after.rknn_cpu_crop_resize_fallback_calls == before.rknn_cpu_crop_resize_fallback_calls + 1);
+    for (int frame = 0; frame < 5; ++frame)
+        REQUIRE(bool(node.Forward(images, rects, tops)));
+    const auto repeated = GetInferencePipelineMetrics().Snapshot();
+    CHECK(repeated.rknn_rga_crop_resize_failures == after.rknn_rga_crop_resize_failures);
+    CHECK(repeated.rknn_cpu_crop_resize_fallback_calls == after.rknn_cpu_crop_resize_fallback_calls + 5);
     CHECK(top->GetBlobDesc().data_format == DATA_FORMAT_NHWC);
     CHECK(top->GetBlobDesc().image_format == IMAGE_BGR);
     const auto* output = static_cast<const uint8_t*>(top->GetHandle().base);
     CHECK(output[0] == 10);
     CHECK(output[1] == 20);
     CHECK(output[2] == 30);
+}
+
+TEST_CASE("RKNN native input failure is bounded while host RGA keeps processing frames",
+          "[nn][rknn][rga][mpp-dmabuf]") {
+    using namespace cosmo::nn;
+    ScopedEnvironment enable_native("COSMO_RKNN_MPP_DMABUF", "1");
+    ScopedEnvironment no_force_fail("COSMO_RKNN_RGA_FORCE_FAIL", "0");
+    // Exercise both deterministic import failure and real full-range BT.709
+    // CSC. Some supported runtimes accept CSC; others must fall back only once.
+    const bool force_import_failure = GENERATE(true, false);
+    ScopedEnvironment native_failure("COSMO_RKNN_MPP_DMABUF_FORCE_FAIL", force_import_failure ? "1" : "0");
+    struct NativeBuffer {
+        MppBufferGroup group{nullptr};
+        MppBuffer buffer{nullptr};
+        ~NativeBuffer() {
+            if (buffer)
+                mpp_buffer_put(buffer);
+            if (group)
+                mpp_buffer_group_put(group);
+        }
+    } native;
+    constexpr int width    = 640;
+    constexpr int height   = 320;
+    constexpr size_t bytes = width * height * 3 / 2;
+    REQUIRE(mpp_buffer_group_get_internal(&native.group, MPP_BUFFER_TYPE_DRM) == MPP_OK);
+    REQUIRE(mpp_buffer_get(native.group, &native.buffer, bytes) == MPP_OK);
+    REQUIRE(mpp_buffer_sync_begin(native.buffer) == MPP_OK);
+    auto* yuv = static_cast<uint8_t*>(mpp_buffer_get_ptr(native.buffer));
+    REQUIRE(yuv != nullptr);
+    std::fill(yuv, yuv + bytes, 128);
+    REQUIRE(mpp_buffer_sync_end(native.buffer) == MPP_OK);
+
+    auto host   = std::make_shared<Blob>(PackedImageDesc(height, width, IMAGE_RGB), true);
+    auto handle = host->GetHandle();
+    std::fill_n(static_cast<uint8_t*>(handle.base), width * height * 3, 128);
+    handle.native_image = {mpp_buffer_get_fd(native.buffer),
+                           bytes,
+                           width,
+                           height,
+                           width,
+                           height,
+                           IMAGE_NV12,
+                           NativeImageColorSpace::Bt709,
+                           NativeImageColorRange::Full};
+    auto image          = std::make_shared<Blob>(host->GetBlobDesc(), handle);
+    SharedResource resource;
+    RknnResizeNode resize_node;
+    RknnCropResizeNode crop_node;
+    BlobDesc rect_desc;
+    rect_desc.device_type = DEVICE_NAIVE;
+    rect_desc.data_type   = DATA_TYPE_INT32;
+    rect_desc.dims        = {1, 4};
+    auto rect             = std::make_shared<Blob>(rect_desc, true);
+    const std::array<int32_t, 4> bounds{0, 0, width, height};
+    std::copy(bounds.begin(), bounds.end(), static_cast<int32_t*>(rect->GetHandle().base));
+    bool crop_test = false;
+    SECTION("detector letterbox") {
+        Resize param;
+        param.dsize   = {640, 640};
+        param.gravity = 1;
+        param.color   = {114, 114, 114};
+        resize_node.SetSharedResource(&resource);
+        resize_node.LoadParam(&param);
+        REQUIRE(bool(resize_node.InferTopShapes()));
+    }
+    SECTION("classifier crop") {
+        crop_test = true;
+        CropResize param;
+        param.h_top_crop = param.h_bottom_crop = param.w_left_crop = param.w_right_crop = {0.0f};
+        param.dsize                                                                     = {384, 384};
+        param.gravity                                                                   = 0;
+        crop_node.SetSharedResource(&resource);
+        crop_node.LoadParam(&param);
+        REQUIRE(bool(crop_node.InferTopShapes()));
+    }
+    BlobDesc top_desc = PackedImageDesc(crop_test ? 384 : 640, crop_test ? 384 : 640, IMAGE_RGB);
+    auto top          = std::make_shared<Blob>(top_desc, true);
+    std::vector<std::shared_ptr<Blob>> images{image}, rects{rect}, tops{top};
+    const auto before = GetInferencePipelineMetrics().Snapshot();
+    for (int frame = 0; frame < 6; ++frame) {
+        REQUIRE(bool(crop_test ? crop_node.Forward(images, rects, tops) : resize_node.Forward(images, tops)));
+        const auto* output  = static_cast<const uint8_t*>(top->GetHandle().base);
+        const size_t center = crop_test ? (192 * 384 + 192) * 3 : (320 * 640 + 320) * 3;
+        for (int channel = 0; channel < 3; ++channel)
+            CHECK(std::abs(static_cast<int>(output[center + channel]) - 128) <= 2);
+    }
+    const auto after     = GetInferencePipelineMetrics().Snapshot();
+    const auto fallbacks = after.rknn_mpp_dmabuf_fallbacks - before.rknn_mpp_dmabuf_fallbacks;
+    CHECK(fallbacks <= 1);
+    if (force_import_failure)
+        CHECK(fallbacks == 1);
+    CHECK(after.rknn_cpu_resize_fallback_calls == before.rknn_cpu_resize_fallback_calls);
+    CHECK(after.rknn_cpu_crop_resize_fallback_calls == before.rknn_cpu_crop_resize_fallback_calls);
 }
 
 TEST_CASE("RKNN RGA failure falls back once to CPU while preserving native input mapping",
@@ -700,6 +800,15 @@ TEST_CASE("RKNN RGA failure falls back once to CPU while preserving native input
     const auto resized_metrics = GetInferencePipelineMetrics().Snapshot();
     CHECK(resized_metrics.rknn_rga_failures == before.rknn_rga_failures + 1);
     CHECK(resized_metrics.rknn_cpu_resize_fallback_calls == before.rknn_cpu_resize_fallback_calls + 1);
+
+    // A frame-local fallback used to retry the failed RGA path on every frame.
+    // Keep processing frames while verifying that hardware attempts stop.
+    for (int frame = 0; frame < 5; ++frame)
+        REQUIRE(bool(resize_node.Forward(resize_bottoms, resize_tops)));
+    const auto repeated_metrics = GetInferencePipelineMetrics().Snapshot();
+    CHECK(repeated_metrics.rknn_rga_failures == resized_metrics.rknn_rga_failures);
+    CHECK(repeated_metrics.rknn_cpu_resize_fallback_calls ==
+          resized_metrics.rknn_cpu_resize_fallback_calls + 5);
 
     Normalize normalize;
     normalize.mean   = {0.0f, 0.0f, 0.0f};

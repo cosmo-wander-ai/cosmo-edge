@@ -56,8 +56,10 @@ namespace {
     void LogRgaFallbackOnce(IM_STATUS status) {
         static std::atomic_flag logged = ATOMIC_FLAG_INIT;
         if (!logged.test_and_set(std::memory_order_relaxed)) {
-            LOG_WARN("RKNN detector RGA preprocessing failed with status {} ({}); using CPU fallback", status,
-                     imStrError_t(status));
+            LOG_WARN(
+                "RKNN detector RGA preprocessing failed with status {} ({}); disabling this node's RGA path "
+                "and using CPU fallback",
+                status, imStrError_t(status));
         }
     }
 
@@ -71,16 +73,20 @@ namespace {
     void LogMppDmaBufFallbackOnce(IM_STATUS status) {
         static std::atomic_flag logged = ATOMIC_FLAG_INIT;
         if (!logged.test_and_set(std::memory_order_relaxed)) {
-            LOG_WARN("RKNN MPP DMA-BUF preprocessing failed with status {} ({}); using host RGA input",
-                     status, imStrError_t(status));
+            LOG_WARN(
+                "RKNN MPP DMA-BUF preprocessing failed with status {} ({}); disabling this node's native "
+                "path and using host RGA input",
+                status, imStrError_t(status));
         }
     }
 
     void LogRgaCropResizeFallbackOnce(IM_STATUS status) {
         static std::atomic_flag logged = ATOMIC_FLAG_INIT;
         if (!logged.test_and_set(std::memory_order_relaxed)) {
-            LOG_WARN("RKNN RGA crop-resize failed with status {} ({}); using CPU fallback", status,
-                     imStrError_t(status));
+            LOG_WARN(
+                "RKNN RGA crop-resize failed with status {} ({}); disabling this node's RGA path and using "
+                "CPU fallback",
+                status, imStrError_t(status));
         }
     }
 
@@ -244,6 +250,9 @@ namespace {
                 current_target_rect = {0, 0, width, height};
             }
 
+            // A later RGB stage must not inherit the previous YUV CSC mode.
+            imsetColorSpace(&current_source, IM_COLOR_SPACE_DEFAULT);
+            imsetColorSpace(&current_target, IM_COLOR_SPACE_DEFAULT);
             if (index == 0 && source_color_space != IM_COLOR_SPACE_DEFAULT) {
                 media::SetRgaYuvToRgbColorSpace(current_source, current_target, source_color_space);
             }
@@ -417,9 +426,13 @@ bool RknnResizeNode::AcquireRgaBoundTarget(uint32_t& handle) {
 }
 
 bool RknnResizeNode::ResizeWithRga(const Blob& bottom, Blob& top, bool allow_bound_target) {
+    if (rga_unavailable_)
+        return false;
     if (!detector_contract_ || RknnForceRgaFailure()) {
-        if (detector_contract_ && RknnForceRgaFailure())
+        if (detector_contract_ && RknnForceRgaFailure()) {
+            rga_unavailable_ = true;
             GetInferencePipelineMetrics().RecordRknnRgaFailure();
+        }
         return false;
     }
 
@@ -446,6 +459,7 @@ bool RknnResizeNode::ResizeWithRga(const Blob& bottom, Blob& top, bool allow_bou
         target_handle = host_target_handle.Get();
     }
     if (target_handle == 0) {
+        rga_unavailable_ = true;
         GetInferencePipelineMetrics().RecordRknnRgaFailure();
         LogRgaFallbackOnce(IM_STATUS_OUT_OF_MEMORY);
         return false;
@@ -463,6 +477,9 @@ bool RknnResizeNode::ResizeWithRga(const Blob& bottom, Blob& top, bool allow_bou
                                 IM_COLOR_SPACE_MODE yuv_color_space) {
         auto source = wrapbuffer_handle_t(source_handle, visible_width, visible_height, width_stride,
                                           height_stride, source_format);
+        // Native CSC may fail before the packed RGB retry in this same frame.
+        // That retry shares target, so explicitly remove the native color mode.
+        imsetColorSpace(&target, IM_COLOR_SPACE_DEFAULT);
         if (yuv_color_space != IM_COLOR_SPACE_DEFAULT) {
             // Modern librga interprets color_space_mode as the color range of
             // each buffer. Writing the legacy conversion selector (0x1)
@@ -497,8 +514,8 @@ bool RknnResizeNode::ResizeWithRga(const Blob& bottom, Blob& top, bool allow_bou
     };
 
     const auto& native           = bottom_handle.native_image;
-    const bool native_compatible = RknnMppDmaBufEnabled() && native.Valid() && native.width == source_width &&
-                                   native.height == source_height &&
+    const bool native_compatible = !native_rga_unavailable_ && RknnMppDmaBufEnabled() && native.Valid() &&
+                                   native.width == source_width && native.height == source_height &&
                                    (native.format == IMAGE_NV12 || native.format == IMAGE_I420);
     if (native_compatible) {
         bool native_success = false;
@@ -519,6 +536,7 @@ bool RknnResizeNode::ResizeWithRga(const Blob& bottom, Blob& top, bool allow_bou
         if (native_success) {
             GetInferencePipelineMetrics().RecordRknnMppDmaBufFrame(native.bytes);
         } else {
+            native_rga_unavailable_ = true;
             GetInferencePipelineMetrics().RecordRknnMppDmaBufFallback();
             LogMppDmaBufFallbackOnce(last_status);
         }
@@ -540,6 +558,7 @@ bool RknnResizeNode::ResizeWithRga(const Blob& bottom, Blob& top, bool allow_bou
     if (host_source_handle.Get() == 0 ||
         !run_resize(host_source_handle.Get(), source_width, source_height, source_width, source_height,
                     host_source_format, IM_COLOR_SPACE_DEFAULT)) {
+        rga_unavailable_ = true;
         GetInferencePipelineMetrics().RecordRknnRgaFailure();
         LogRgaFallbackOnce(host_source_handle.Get() == 0 ? IM_STATUS_OUT_OF_MEMORY : last_status);
         return false;
@@ -742,10 +761,13 @@ bool RknnCropResizeNode::AcquireRgaBoundTarget(uint32_t& handle) {
 bool RknnCropResizeNode::ForwardWithRga(std::vector<std::shared_ptr<Blob>>& image_blobs,
                                         std::vector<std::shared_ptr<Blob>>& rect_blobs,
                                         std::vector<std::shared_ptr<Blob>>& top_blobs) {
+    if (rga_unavailable_)
+        return false;
     if (!fast_contract_ || RknnForceRgaFailure() || image_blobs.empty() ||
         image_blobs.size() != rect_blobs.size() || top_blobs.size() != 1 || !top_blobs[0] ||
         !top_blobs[0]->GetHandle().base) {
         if (fast_contract_ && RknnForceRgaFailure()) {
+            rga_unavailable_ = true;
             GetInferencePipelineMetrics().RecordRknnRgaCropResize(0, false);
             GetInferencePipelineMetrics().RecordRknnRgaFailure();
         }
@@ -792,7 +814,7 @@ bool RknnCropResizeNode::ForwardWithRga(std::vector<std::shared_ptr<Blob>>& imag
             return false;
 
         const auto& native           = image_handle.native_image;
-        const bool native_compatible = RknnMppDmaBufEnabled() && native.Valid() &&
+        const bool native_compatible = !native_rga_unavailable_ && RknnMppDmaBufEnabled() && native.Valid() &&
                                        native.width == source_width && native.height == source_height &&
                                        (native.format == IMAGE_NV12 || native.format == IMAGE_I420);
         media::ScopedRgaBufferHandle native_source_handle;
@@ -808,6 +830,7 @@ bool RknnCropResizeNode::ForwardWithRga(std::vector<std::shared_ptr<Blob>>& imag
                 native.format == IMAGE_NV12 ? RK_FORMAT_YCbCr_420_SP : RK_FORMAT_YCbCr_420_P;
         }
         if (native_compatible && !native_source_ready) {
+            native_rga_unavailable_ = true;
             GetInferencePipelineMetrics().RecordRknnMppDmaBufFallback();
             LogMppDmaBufFallbackOnce(IM_STATUS_OUT_OF_MEMORY);
         }
@@ -836,7 +859,8 @@ bool RknnCropResizeNode::ForwardWithRga(std::vector<std::shared_ptr<Blob>>& imag
                 target_handle = host_target_handle.Get();
             }
             if (target_handle == 0) {
-                last_status = IM_STATUS_OUT_OF_MEMORY;
+                rga_unavailable_ = true;
+                last_status      = IM_STATUS_OUT_OF_MEMORY;
                 GetInferencePipelineMetrics().RecordRknnRgaCropResize(0, false);
                 GetInferencePipelineMetrics().RecordRknnRgaFailure();
                 InvalidateRgaBoundFrame();
@@ -864,6 +888,7 @@ bool RknnCropResizeNode::ForwardWithRga(std::vector<std::shared_ptr<Blob>>& imag
                 const im_rect full_target{0, 0, dst_width, dst_height};
                 last_status = imfill_t(target, full_target, fill_color, 1);
                 if (!media::RockchipRgaSucceeded(last_status)) {
+                    rga_unavailable_ = true;
                     GetInferencePipelineMetrics().RecordRknnRgaCropResize(0, false);
                     GetInferencePipelineMetrics().RecordRknnRgaFailure();
                     InvalidateRgaBoundFrame();
@@ -894,7 +919,8 @@ bool RknnCropResizeNode::ForwardWithRga(std::vector<std::shared_ptr<Blob>>& imag
                     GetInferencePipelineMetrics().RecordRknnMppDmaBufFrame(native.bytes);
                     GetInferencePipelineMetrics().RecordRknnRgaCropSource(true);
                 } else {
-                    native_source_ready = false;
+                    native_source_ready     = false;
+                    native_rga_unavailable_ = true;
                     GetInferencePipelineMetrics().RecordRknnMppDmaBufFallback();
                     GetInferencePipelineMetrics().RecordRknnRgaFailure();
                     LogMppDmaBufFallbackOnce(last_status);
@@ -921,6 +947,7 @@ bool RknnCropResizeNode::ForwardWithRga(std::vector<std::shared_ptr<Blob>>& imag
             }
             if (!success) {
                 GetInferencePipelineMetrics().RecordRknnRgaFailure();
+                rga_unavailable_ = true;
                 InvalidateRgaBoundFrame();
                 LogRgaCropResizeFallbackOnce(last_status);
                 return false;

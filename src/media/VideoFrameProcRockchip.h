@@ -31,6 +31,7 @@ private:
     void LogFallbackOnce(const char* operation, int status);
 
     std::atomic_flag fallback_warning_logged_ = ATOMIC_FLAG_INIT;
+    std::atomic<bool> rga_unavailable_{false};
 };
 
 }  // namespace cosmo::media

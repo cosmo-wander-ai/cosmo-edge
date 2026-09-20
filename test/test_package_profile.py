@@ -258,6 +258,7 @@ class PackageProfileTests(unittest.TestCase):
     def test_boot_log_cleanup_files_are_mandatory(self) -> None:
         for required in (
             "scripts/system-log-cleanup.sh",
+            "scripts/system-log-retention.py",
             "scripts/cosmo-log-cleanup.service",
         ):
             with self.subTest(required=required):

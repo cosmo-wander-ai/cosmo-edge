@@ -27,6 +27,7 @@ REQUIRED_EXECUTABLES = {
     "scripts/start.sh",
     "scripts/stop.sh",
     "scripts/system-log-cleanup.sh",
+    "scripts/system-log-retention.py",
 }
 RUNTIME_PATHS_FILE = "share/cosmo/runtime-paths.env"
 REQUIRED_LICENSE_FILES = {

@@ -84,6 +84,12 @@ data_migration_created=0
 app_backup_created=0
 app_new_activated=0
 service_temp=''
+log_policy_pending=0
+
+log_policy() {
+    python3 "${payload_root}/scripts/system-log-retention.py" "$1" \
+        --root "${COSMO_MIGRATION_TEST_ROOT:-/}"
+}
 
 skip_legacy_data_entry() {
     case "$1" in
@@ -251,6 +257,9 @@ rollback_installation() {
     rollback_status="$1"
     trap - EXIT HUP INT TERM
     set +e
+    if [ "$log_policy_pending" -eq 1 ]; then
+        log_policy rollback || printf '[MIGRATION] ERROR: log-policy rollback needs attention\n' >&2
+    fi
     [ -z "$service_temp" ] || rm -f -- "$service_temp"
     rm -rf -- "$staging_root" "$data_staging_root"
     if [ "$app_new_activated" -eq 1 ]; then
@@ -274,6 +283,11 @@ for required_script in stop.sh start.sh inte_run_start.sh system-log-cleanup.sh;
 done
 [ -f "${payload_root}/scripts/cosmo-log-cleanup.service" ] ||
     fail "package is missing cosmo-log-cleanup.service"
+[ -f "${payload_root}/scripts/system-log-retention.py" ] ||
+    fail "package is missing system-log-retention.py"
+command -v python3 >/dev/null 2>&1 || fail "Python 3 is required for system log retention"
+# Reject unsupported/custom logging configurations before stopping the engine.
+log_policy check
 
 log "Install Start"
 log "script=${script_path}, logFile=${log_file}"
@@ -372,15 +386,25 @@ else
     systemctl enable cosmo.service cosmo-log-cleanup.service
 fi
 
+log_policy_pending=1
+log_policy apply
+if [ -n "${COSMO_MIGRATION_TEST_ROOT:-}" ] &&
+   [ "${COSMO_MIGRATION_TEST_FAIL_AFTER_LOG_POLICY:-0}" = 1 ]; then
+    fail "injected post-log-policy failure"
+fi
+
 commit_data_root_migration
 mkdir -p -- "${upgrade_sign%/*}"
 : >"$upgrade_sign"
 sync
+log_policy commit
+log_policy_pending=0
 trap - EXIT HUP INT TERM
 if ! rm -rf -- "$backup_root"; then
     log "WARNING: previous application backup could not be removed: ${backup_root}"
 fi
 log "Install files Done"
 log "systemd service [cosmo] installed and enabled"
+log "System log retention installed: syslog/kern 32 MiB x 4, journal 128 MiB target"
 log "installed legacy-compatible bridge at ${active_root}"
 log "Install End"

@@ -47,6 +47,10 @@ private:
     int gravity_{0};
     std::vector<int> padding_color_{114, 114, 114};
     bool detector_contract_{false};
+    // Failed acceleration stays disabled for this node's lifetime. The packed
+    // RGB path remains available when only native YUV CSC/import is unsupported.
+    bool native_rga_unavailable_{false};
+    bool rga_unavailable_{false};
     uint32_t rga_bound_target_handle_{0};
     uint64_t rga_bound_target_generation_{0};
     bool rga_bound_target_unavailable_{false};
@@ -72,6 +76,8 @@ private:
     void InvalidateRgaBoundFrame();
 
     bool fast_contract_{false};
+    bool native_rga_unavailable_{false};
+    bool rga_unavailable_{false};
     uint32_t rga_bound_target_handle_{0};
     uint64_t rga_bound_target_generation_{0};
     bool rga_bound_target_unavailable_{false};

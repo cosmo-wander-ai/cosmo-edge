@@ -10,7 +10,8 @@ active="$root/appfs/cosmo_wander/cwai_data"
 mkdir -p "$payload/scripts" "$payload/bin" "$payload/files/Interface" \
     "$payload/web" "$active/resource/models" "$active/bin"
 cp "$repo/scripts/legacy_migration_install.sh" "$payload/scripts/install.sh"
-cp "$repo/scripts/system-log-cleanup.sh" "$repo/scripts/cosmo-log-cleanup.service" "$payload/scripts/"
+cp "$repo/scripts/system-log-cleanup.sh" "$repo/scripts/cosmo-log-cleanup.service" \
+    "$repo/scripts/system-log-retention.py" "$payload/scripts/"
 printf 'new\n' >"$payload/bin/cosmo-engine"
 printf '#!/bin/sh\ntouch "$COSMO_MIGRATION_TEST_ROOT/stop.called"\n' >"$payload/scripts/stop.sh"
 printf '#!/bin/sh\n' >"$payload/scripts/start.sh"
@@ -21,6 +22,12 @@ printf 'mqtt\n' >"$payload/files/Interface/mqtt_v1.0.html"
 printf 'old\n' >"$active/bin/cosmo-engine"
 printf 'existing-model\n' >"$active/resource/models/model.nn"
 printf 'preserved\n' >"$active/resource/device-local.conf"
+mkdir -p "$root/etc/rsyslog.d" "$root/etc/logrotate.d"
+printf '$IncludeConfig /etc/rsyslog.d/*.conf\n' >"$root/etc/rsyslog.conf"
+printf '*.*;auth,authpriv.none -/var/log/syslog\nkern.* -/var/log/kern.log\n' \
+    >"$root/etc/rsyslog.d/50-default.conf"
+printf '/var/log/syslog\n/var/log/kern.log\n{\n weekly\n rotate 4\n}\n' \
+    >"$root/etc/logrotate.d/rsyslog"
 
 COSMO_MIGRATION_TEST_ROOT="$root" \
     sh "$payload/scripts/install.sh" "$root/install.log"
@@ -48,6 +55,11 @@ test -L "$root/etc/systemd/system/multi-user.target.wants/cosmo-log-cleanup.serv
 test -x "$active/scripts/system-log-cleanup.sh"
 grep -Fxq 'Before=cosmo.service' "$cleanup_service"
 grep -Fxq 'RemainAfterExit=yes' "$cleanup_service"
+test -x "$root/usr/local/lib/cosmo/system-log-retention.py"
+grep -Fxq 'SystemMaxUse=128M' "$root/etc/systemd/journald.conf.d/90-cosmo-log-retention.conf"
+grep -Fq 'cosmo_log_syslog,/var/log/syslog,33554432,' "$root/etc/rsyslog.d/50-default.conf"
+test ! -s "$root/etc/logrotate.d/rsyslog"
+test ! -e "$root/var/lib/cosmo-log-retention/pending"
 
 # The same permanent MD5 lifecycle must remain valid after the first bridge
 # from main; a later package uses the same installer contract.
@@ -65,7 +77,8 @@ grep -Fxq 'ExecStart=/appfs/cosmo_wander/cwai_data/scripts/inte_run_start.sh' "$
 rm -rf -- "$payload" "$active"
 mkdir -p "$payload/scripts" "$payload/bin" "$payload/resource/models" "$active/resource/models"
 cp "$repo/scripts/legacy_migration_install.sh" "$payload/scripts/install.sh"
-cp "$repo/scripts/system-log-cleanup.sh" "$repo/scripts/cosmo-log-cleanup.service" "$payload/scripts/"
+cp "$repo/scripts/system-log-cleanup.sh" "$repo/scripts/cosmo-log-cleanup.service" \
+    "$repo/scripts/system-log-retention.py" "$payload/scripts/"
 printf 'new\n' >"$payload/bin/cosmo-engine"
 printf '#!/bin/sh\n' >"$payload/scripts/stop.sh"
 printf '#!/bin/sh\n' >"$payload/scripts/start.sh"
@@ -103,7 +116,8 @@ mkdir -p "$rk_payload/scripts" "$rk_payload/bin" "$rk_payload/files/Interface" \
     "$rk_legacy_data/upgrade" "$rk_legacy_data/tmp" "$rk_legacy_data/log" \
     "$rk_legacy_data/cwai" "$rk_legacy_data/runtime" "$rk_legacy_data/web"
 cp "$repo/scripts/legacy_migration_install.sh" "$rk_payload/scripts/install.sh"
-cp "$repo/scripts/system-log-cleanup.sh" "$repo/scripts/cosmo-log-cleanup.service" "$rk_payload/scripts/"
+cp "$repo/scripts/system-log-cleanup.sh" "$repo/scripts/cosmo-log-cleanup.service" \
+    "$repo/scripts/system-log-retention.py" "$rk_payload/scripts/"
 printf 'new\n' >"$rk_payload/bin/cosmo-engine"
 printf '#!/bin/sh\n' >"$rk_payload/scripts/stop.sh"
 printf '#!/bin/sh\n' >"$rk_payload/scripts/start.sh"
@@ -287,6 +301,27 @@ test ! -e "$rollback_root/userdata/cwaiuserdata"
 test ! -e "$rollback_root/appfs/cosmo_wander/.cosmo-migration-backup"
 test -z "$(find "$rollback_root/appfs/cosmo_wander" -maxdepth 1 \
     -name '.cosmo-migration-staging.*' -print -quit)"
+
+# An application-install failure after policy application also restores the
+# previous system logging configuration, not just the application files.
+policy_root="${root}/policy-rollback"
+policy_payload="${policy_root}/payload"
+mkdir -p "$policy_root/appfs/cosmo_wander/cwai_data/bin" \
+    "$policy_root/etc/systemd/journald.conf.d"
+cp -R "$rk_payload" "$policy_payload"
+printf 'old-engine\n' >"$policy_root/appfs/cosmo_wander/cwai_data/bin/cosmo-engine"
+printf '[Journal]\nSystemMaxUse=256M\n' \
+    >"$policy_root/etc/systemd/journald.conf.d/90-cosmo-log-retention.conf"
+if COSMO_MIGRATION_TEST_ROOT="$policy_root" \
+    COSMO_MIGRATION_TEST_FAIL_AFTER_LOG_POLICY=1 \
+    sh "$policy_payload/scripts/install.sh" "$policy_root/install.log"; then
+    echo 'injected post-policy failure must fail' >&2
+    exit 1
+fi
+grep -Fxq old-engine "$policy_root/appfs/cosmo_wander/cwai_data/bin/cosmo-engine"
+grep -Fxq 'SystemMaxUse=256M' "$policy_root/etc/systemd/journald.conf.d/90-cosmo-log-retention.conf"
+test ! -e "$policy_root/usr/local/lib/cosmo/system-log-retention.py"
+test ! -e "$policy_root/var/lib/cosmo-log-retention/pending"
 
 # Preserved resources must be copied into staging before the package overlays
 # them. Keeping the packaged resource tree in staging while copying the active

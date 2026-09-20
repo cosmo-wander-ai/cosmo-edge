@@ -30,16 +30,32 @@ space_recovered() {
     (( value >= MIN_FREE_KIB ))
 }
 
-# Never follow links, touch hard-linked files, or cross into another filesystem.
+# OverlayFS files and directories can have different st_dev values even on the
+# same mount. Compare mount IDs; this also rejects bind mounts on the same disk.
+mount_id() {
+    findmnt -rn -o ID -T "$1" 2>/dev/null
+}
+
+on_root_mount() {
+    [[ $(mount_id "$1") == "$root_mount_id" ]]
+}
+
+# Never follow links, touch hard-linked files, or cross into another mount.
 managed_file() {
     [[ -f "$1" && ! -L "$1" ]] || return 1
-    [[ $(stat -c '%d' -- "$1" 2>/dev/null) == "$root_device" &&
-       $(stat -c '%h' -- "$1" 2>/dev/null) == 1 ]]
+    on_root_mount "$1" && [[ $(stat -c '%h' -- "$1" 2>/dev/null) == 1 ]]
 }
 
 managed_journal() {
+    local mounts target unsafe_entry
     [[ -d "$LOG_DIR/journal" && ! -L "$LOG_DIR/journal" ]] || return 1
-    [[ $(stat -c '%d' -- "$LOG_DIR/journal" 2>/dev/null) == "$root_device" ]]
+    on_root_mount "$LOG_DIR/journal" || return 1
+    mounts=$(findmnt -rn -o TARGET 2>/dev/null) || return 1
+    while IFS= read -r target; do
+        [[ "$target" == "$LOG_DIR/journal/"* ]] && return 1
+    done <<< "$mounts"
+    unsafe_entry=$(find "$LOG_DIR/journal" \( -type l -o -type f -links +1 \) -print -quit) || return 1
+    [[ -z "$unsafe_entry" ]]
 }
 
 collect_text_logs() {
@@ -57,17 +73,22 @@ collect_text_logs() {
 }
 
 managed_usage_kib() {
-    local file blocks total=0 journal_kib
+    local file blocks total=0 journal_blocks
     for file in "${text_logs[@]}"; do
         blocks=$(stat -c '%b' -- "$file" 2>/dev/null) || return 1
         [[ "$blocks" =~ ^[0-9]+$ ]] || return 1
         total=$((total + blocks * 512))
     done
     if managed_journal; then
-        # du does not follow symlinks; -x excludes separately mounted storage.
-        journal_kib=$(du -skx -- "$LOG_DIR/journal" 2>/dev/null | awk '{print $1}') || return 1
-        [[ "$journal_kib" =~ ^[0-9]+$ ]] || return 1
-        total=$((total + journal_kib * 1024))
+        # managed_journal rejects nested mounts/links. Do not use du -x here:
+        # it skips regular journal files on some OverlayFS implementations.
+        journal_blocks=$(find "$LOG_DIR/journal" -type f \
+            \( -name '*.journal' -o -name '*.journal~' \) -printf '%b\n') || return 1
+        while IFS= read -r blocks; do
+            [[ -n "$blocks" ]] || continue
+            [[ "$blocks" =~ ^[0-9]+$ ]] || return 1
+            total=$((total + blocks * 512))
+        done <<< "$journal_blocks"
     fi
     printf '%s\n' "$((total / 1024))"
 }
@@ -86,15 +107,16 @@ vacuum_journal() {
 
 cleanup_main() {
     local free_kib usage_kib file first second
-    local root_device
+    local root_mount_id
     local -a text_logs archives
     # /run is volatile. Mark before working so even a failed manual service restart
     # cannot repeatedly discard logs during the same boot.
     (umask 077; mkdir -- "$BOOT_MARKER") 2>/dev/null || return 0
     [[ -d "$LOG_DIR" && ! -L "$LOG_DIR" ]] || return 0
     [[ $(readlink -f -- "$LOG_DIR") == "$LOG_DIR" ]] || return 0
-    root_device=$(stat -c '%d' -- "$ROOT_DIR") || return 0
-    [[ $(stat -c '%d' -- "$LOG_DIR") == "$root_device" ]] || return 0
+    root_mount_id=$(mount_id "$ROOT_DIR") || return 0
+    [[ "$root_mount_id" =~ ^[0-9]+$ ]] || return 0
+    on_root_mount "$LOG_DIR" || return 0
     free_kib=$(available_kib) || { cleanup_log 'Cannot measure root free space; skipped.'; return 0; }
     (( free_kib < MIN_FREE_KIB )) || return 0
     collect_text_logs

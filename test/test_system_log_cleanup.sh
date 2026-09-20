@@ -150,17 +150,72 @@ test ! -e "$LOG_DIR/syslog.1"
 prepare different_filesystem
 write_kib "$LOG_DIR/syslog" 1200
 # Simulate /var/log on a separate filesystem; root pressure must not erase it.
+mount_id() {
+    if [[ "$1" == "$LOG_DIR" ]]; then
+        echo 999999
+    else
+        findmnt -rn -o ID -T "$1"
+    fi
+}
+measure
+cleanup_main || exit 1
+test -s "$LOG_DIR/syslog"
+mount_id() { findmnt -rn -o ID -T "$1"; }
+
+# Same mount, different file st_dev: measured on Sophon OverlayFS. The old
+# device-number guard skipped both text logs and journal files in this case.
+prepare overlay_files
+write_kib "$LOG_DIR/syslog" 1200
 stat() {
-    if [[ "$*" == "-c %d -- $LOG_DIR" ]]; then
-        echo different-device
+    if [[ "$*" == "-c %d -- $LOG_DIR/syslog" ]]; then
+        echo 987654
     else
         command stat "$@"
     fi
 }
 measure
 cleanup_main || exit 1
-test -s "$LOG_DIR/syslog"
+test ! -s "$LOG_DIR/syslog"
 unset -f stat
+
+prepare bind_mounted_log
+write_kib "$LOG_DIR/syslog" 1200
+mount_id() {
+    if [[ "$1" == "$LOG_DIR/syslog" ]]; then
+        echo 999999
+    else
+        findmnt -rn -o ID -T "$1"
+    fi
+}
+measure
+cleanup_main || exit 1
+test -s "$LOG_DIR/syslog"
+mount_id() { findmnt -rn -o ID -T "$1"; }
+
+prepare overlay_journal_usage
+mkdir "$LOG_DIR/journal"
+write_kib "$LOG_DIR/journal/system@old.journal" 1200
+root_mount_id=$(mount_id "$ROOT_DIR")
+text_logs=()
+du() {
+    if [[ "$*" == "-skx -- $LOG_DIR/journal" ]]; then
+        printf '4\t%s\n' "$LOG_DIR/journal"
+    else
+        command du "$@"
+    fi
+}
+test "$(managed_usage_kib)" -ge 1200
+unset -f du
+
+prepare linked_journal
+mkdir "$LOG_DIR/journal"
+write_kib "$case_root/keep" 1200
+ln -s "$case_root/keep" "$LOG_DIR/journal/system@old.journal"
+root_mount_id=$(mount_id "$ROOT_DIR")
+if managed_journal; then
+    echo 'journal containing links must not be vacuumed' >&2
+    exit 1
+fi
 
 prepare failed_measurement
 write_kib "$LOG_DIR/syslog" 1200

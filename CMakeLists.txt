@@ -959,6 +959,9 @@ install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/scripts/
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/scripts/cosmo-log-cleanup.service
     DESTINATION scripts
     PERMISSIONS OWNER_WRITE OWNER_READ GROUP_READ WORLD_READ)
+install(PROGRAMS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/system-log-retention.py
+    DESTINATION scripts
+    PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 
 # Open and Protected editions deliberately share one permanent MD5 upgrade
 # lifecycle. The Protected edition differs only in its guarded model runtime
