@@ -18,6 +18,8 @@ from pathlib import Path
 from secrets import token_hex
 from typing import Any, Iterable
 
+import source_toolchain
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
@@ -885,6 +887,15 @@ def _toolchain_spec(parameters: dict[str, Any]) -> tuple[dict[str, Any] | None, 
     kind = raw.get("kind", "auto")
     if kind not in TOOLCHAIN_KINDS:
         return None, "parameters.toolchain.kind must be auto, python-package, or container-image."
+    layout = raw.get("layout", "python-package")
+    if layout not in {"python-package", "source-tree"}:
+        return None, "parameters.toolchain.layout must be python-package or source-tree."
+    if layout == "source-tree" and (kind != "container-image" or family != "sophon"):
+        return None, "source-tree layout requires a Sophon container-image toolchain."
+    if layout == "source-tree" and "package" in raw:
+        return None, "source-tree layout freezes compiler files, not a Python distribution package."
+    if layout == "source-tree":
+        default_module = "pymlir"
     package = str(raw.get("package", default_package)).strip()
     if not TOOLCHAIN_PACKAGE_PATTERN.fullmatch(package):
         return None, "parameters.toolchain.package contains unsupported characters."
@@ -911,6 +922,13 @@ def _toolchain_spec(parameters: dict[str, Any]) -> tuple[dict[str, Any] | None, 
     ):
         return None, "parameters.toolchain.toolPaths must contain supported non-empty command paths."
     normalized["toolPaths"] = {key: value.strip() for key, value in tool_paths.items()}
+    if layout == "source-tree":
+        try:
+            normalized["sourceTree"] = source_toolchain.normalize(raw)
+        except ValueError as error:
+            return None, str(error)
+        normalized["layout"] = layout
+        normalized.pop("package")
     if kind in {"auto", "python-package"}:
         executable = raw.get("pythonExecutable")
         if executable is not None and (not isinstance(executable, str) or not executable.strip()):
@@ -955,7 +973,7 @@ def _parse_toolchain_probe(
 
 
 def inspect_toolchain(specification: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
-    package = str(specification["package"])
+    package = str(specification.get("package", "tpu_mlir"))
     expected_version = specification.get("version")
     tool_paths = json.dumps(specification.get("toolPaths", {}), sort_keys=True)
     family = str(specification.get("family", "sophon"))
@@ -995,6 +1013,16 @@ def inspect_toolchain(specification: dict[str, Any]) -> tuple[dict[str, Any] | N
             return None, (
                 f"declared toolchain image {specification['image']} is unavailable: {image_error}"
             )
+        source_layout = specification.get("layout") == "source-tree"
+        if source_layout:
+            try:
+                source_toolchain.validate_host_root(specification)
+            except ValueError as error:
+                return None, str(error)
+        probe_arguments = (
+            [source_toolchain.PROBE_SCRIPT, specification["sourceTree"]["sourceMount"], tool_paths, module]
+            if source_layout else [TOOLCHAIN_PROBE_SCRIPT, package, tool_paths, family, module]
+        )
         process = _run(
             [
                 "docker",
@@ -1002,30 +1030,29 @@ def inspect_toolchain(specification: dict[str, Any]) -> tuple[dict[str, Any] | N
                 "--rm",
                 "--network",
                 "none",
+                *source_toolchain.docker_arguments(specification),
                 "--entrypoint",
                 "python3",
                 str(image["id"]),
                 "-c",
-                TOOLCHAIN_PROBE_SCRIPT,
-                package,
-                tool_paths,
-                family,
-                module,
+                *probe_arguments,
             ],
-            timeout=120,
+            timeout=300 if source_layout else 120,
         )
         identity, error = _parse_toolchain_probe(
             process,
             kind="container-image",
             image=image,
         )
+        if identity and source_layout:
+            identity["sourceTree"] = specification["sourceTree"]
     if not identity:
         return None, error
     identity["officialReference"] = specification.get(
         "officialReference",
         RKNN_TOOLKIT2_OFFICIAL_REFERENCE if family == "rknn" else TPU_MLIR_OFFICIAL_REFERENCE,
     )
-    actual_version = str(identity.get("package", {}).get("version", ""))
+    actual_version = str(identity.get("compiler", identity.get("package", {})).get("version", ""))
     if not _version_satisfies(actual_version, expected_version):
         return None, (
             f"{package}={actual_version or 'unknown'} does not satisfy "
@@ -1089,6 +1116,7 @@ def _toolchain_tools_respond(identity: dict[str, Any]) -> tuple[bool, str]:
                 "--rm",
                 "--network",
                 "none",
+                *source_toolchain.docker_arguments(identity),
                 "--entrypoint",
                 path if invocation == "direct" else str(identity["pythonExecutable"]),
                 str(image_id),
@@ -1102,7 +1130,11 @@ def _toolchain_tools_respond(identity: dict[str, Any]) -> tuple[bool, str]:
             env=toolchain_environment(identity),
         )
         output = f"{process.stdout}\n{process.stderr}".strip()
-        if process.returncode not in (0, 1, 2) or not output:
+        required_flags = {"modelTransform": "--model_def", "modelDeploy": "--mlir"}
+        source_help_invalid = identity.get("layout") == "source-tree" and (
+            process.returncode != 0 or required_flags[key] not in output or "Traceback (" in output
+        )
+        if process.returncode not in (0, 1, 2) or not output or source_help_invalid:
             failures.append(
                 f"{key} did not answer --help ({_first_line(process.stderr) or process.returncode})"
             )
@@ -1556,14 +1588,15 @@ def task_environment_report(
                 tools_ready, tools_error = _toolchain_tools_respond(inspected)
                 if tools_ready:
                     toolchain = inspected
+                    compiler_info = inspected.get("compiler", inspected.get("package", {}))
                     checks.append(
                         _check(
                             "C5",
                             "PASS",
                             (
                                 f"Complete {toolchain_label} toolchain is frozen as {inspected['id']} "
-                                f"({inspected['package']['name']} "
-                                f"{inspected['package']['version']})."
+                                f"({compiler_info['name']} "
+                                f"{compiler_info['version']})."
                             ),
                         )
                     )
@@ -1586,6 +1619,7 @@ def task_environment_report(
                     toolchain_family == "sophon"
                     and
                     toolchain_spec["kind"] == "container-image"
+                    and toolchain_spec.get("layout") != "source-tree"
                     and str(toolchain_spec.get("image", "")).startswith("sophgo/tpuc_dev:")
                 )
                 checks.append(

@@ -63,7 +63,9 @@ def _container_path(path: Path, run_dir: Path) -> str:
     return f"/workspace/run/{_run_relative(path, run_dir)}"
 
 
-def _docker_base(run_dir: Path, image_id: str, entrypoint: str) -> list[str]:
+def _docker_base(
+    run_dir: Path, image_id: str, entrypoint: str, toolchain: dict[str, Any] | None = None,
+) -> list[str]:
     return [
         "docker",
         "run",
@@ -80,6 +82,7 @@ def _docker_base(run_dir: Path, image_id: str, entrypoint: str) -> list[str]:
         f"{run_dir.resolve()}:/workspace/run:rw",
         "--workdir",
         "/workspace/run/work",
+        *core.source_toolchain.docker_arguments(toolchain or {}),
         "--entrypoint",
         entrypoint,
         image_id,
@@ -118,7 +121,7 @@ def _tool_command(
         if not isinstance(image_id, str) or not image_id:
             raise core.WorkflowError("admitted container toolchain has no image identity")
         entrypoint = entry["path"] if invocation == "direct" else python_executable
-        container_command = _docker_base(run_dir, image_id, entrypoint)
+        container_command = _docker_base(run_dir, image_id, entrypoint, toolchain)
         if invocation != "direct":
             container_command.append(entry["path"])
         return [*container_command, *arguments]
@@ -488,6 +491,10 @@ def execute_conversion(
                 "detail": "model_tool is unavailable in the admitted compiler toolchain.",
             }
 
+        if current_toolchain.get("layout") == "source-tree":
+            completed_toolchain, error = core.inspect_toolchain(parameters["toolchainSpec"])
+            if not completed_toolchain or completed_toolchain.get("id") != admitted_toolchain.get("id"):
+                raise core.WorkflowError("source compiler changed during conversion; rerun doctor: " + error)
         manifest["status"] = "COMPLETE"
         manifest["completedAt"] = utc_now()
         manifest["durationSeconds"] = round(time.monotonic() - started, 3)
@@ -886,6 +893,11 @@ def record_example(
     emit_summary: bool = True,
 ) -> dict[str, Any]:
     path = _example_path(raw_path, project_root)
+    if manifest.get("toolchain", {}).get("layout") == "source-tree":
+        raise core.WorkflowError(
+            "source-tree task conversion is supported; public example recording requires a "
+            "compiler-source identity schema and is not enabled by this task route"
+        )
     if not parameters["recordedBy"] or not parameters["sourceUrl"]:
         raise core.WorkflowError(
             "recording requires measured parameters.recordedBy and parameters.sourceUrl"
@@ -1112,6 +1124,11 @@ def verify_conversion(
         or manifest.get("contractSha256") != core.sha256_file(contract_path)
     ):
         raise core.WorkflowError("execution manifest does not match the current contract")
+    if environment.get("toolchain", {}).get("layout") == "source-tree":
+        current, error = core.inspect_toolchain(parameters["toolchainSpec"])
+        expected_id = environment["toolchain"]["id"]
+        if not current or current.get("id") != expected_id or manifest.get("toolchain", {}).get("id") != expected_id:
+            raise core.WorkflowError("source compiler identity changed before verification; rerun doctor: " + error)
 
     stages: list[dict[str, Any]] = []
     preflight = manifest.get("stages", {}).get("onnxPreflight", {})
