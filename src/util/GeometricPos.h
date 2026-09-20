@@ -3,6 +3,7 @@
 #pragma once
 
 #include "util/AiTypes.h"
+#include "util/DetectionGeometry.h"
 #include "util/MsgBaseTypes.h"
 
 namespace cosmo::util {
@@ -65,13 +66,10 @@ struct TargetScalerParam {
 [[nodiscard]] std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> GetBoxOsdLines(
     cosmo::util::Box box, int width, int height);
 
-/// Get the four edges of a rotated box (OBB) as line-segment pairs.
-/// @p box holds the unrotated box geometry (x, y, width, height of the rotated
-/// rect itself); the box is rotated by @p angle_rad radians around its center.
-/// Rotation convention matches HTML canvas ctx.rotate(): in image coordinates
-/// (y axis pointing down) a positive angle rotates clockwise on screen.
-[[nodiscard]] std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> GetRotatedBoxOsdLines(
-    cosmo::util::Box box, float angle_rad);
+/// Clip measured quadrilateral edges to the image for every rendering backend.
+/// Original floating-point geometry is preserved; fully invisible edges are omitted.
+[[nodiscard]] std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> GetQuadOsdLines(
+    const Quad& corners, int width, int height);
 
 }  // namespace cosmo::util
 
@@ -87,8 +85,8 @@ using util::BoxOnLinePos;
 using util::DoScaleBox;
 using util::GetBoxOsdLines;
 using util::GetMsgPointFromRect;
-using util::GetRotatedBoxOsdLines;
 using util::GetPointFromRect;
+using util::GetQuadOsdLines;
 using util::IntersectionIncludeRatio;
 using util::IntersectionUnionRatio;
 using util::TargetScalerParam;

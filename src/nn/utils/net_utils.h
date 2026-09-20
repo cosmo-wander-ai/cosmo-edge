@@ -2,12 +2,14 @@
 
 #include <cmath>
 #include <memory>
+#include <optional>
 
 #include "nn/core/blob.h"
 #include "nn/core/macros.h"
 #include "nn/core/status.h"
 #include "nn/utils/model_info_utils.h"
 #include "nn/utils/rect.h"
+#include "util/DetectionGeometry.h"
 
 namespace cosmo::nn {
 
@@ -54,6 +56,10 @@ struct PUBLIC ObjectInfoV1 {
 
     float angle                     = 0;
     std::vector<ClassifyInfo> infos = {};
+
+    // x1/y1/x2/y2 always describe the axis-aligned bounds. Oriented geometry
+    // is optional, including for an oriented box with zero rotation.
+    std::optional<util::Quad> oriented_corners;
 };
 
 typedef enum { NONE = 0, SSD = 1, YOLO = 2 } OutputDecodeType;

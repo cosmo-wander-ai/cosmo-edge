@@ -73,6 +73,7 @@ MotionState EigenKalmanTracker::MotionEval() {
 }
 
 TrackingBox EigenKalmanTracker::Predict() {
+    source_detection_index = -1;
     age += 1;
     // predict
     Eigen::MatrixXf p = kf.predict();

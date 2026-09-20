@@ -224,6 +224,8 @@ void AlgMp4Record::UploadJsonFile() {
                      last_index_, el.frameIndex);
             continue;
         }
+        frame.sourceWidth  = el.picWidth;
+        frame.sourceHeight = el.picHeight;
 
         for (auto target : el.targets) {
             if ((target_id_ >= 0))  // Only keep the alarm target when tracking is active.
@@ -232,11 +234,12 @@ void AlgMp4Record::UploadJsonFile() {
                     continue;
                 }
             }
-            MsgRect msgTarget;
-            msgTarget.x      = static_cast<double>(target.box.x) / el.picWidth;
-            msgTarget.y      = static_cast<double>(target.box.y) / el.picHeight;
-            msgTarget.width  = static_cast<double>(target.box.width) / el.picWidth;
-            msgTarget.height = static_cast<double>(target.box.height) / el.picHeight;
+            MsgAlarmVideoOverviewRect msgTarget;
+            msgTarget.x                = static_cast<double>(target.box.x) / el.picWidth;
+            msgTarget.y                = static_cast<double>(target.box.y) / el.picHeight;
+            msgTarget.width            = static_cast<double>(target.box.width) / el.picWidth;
+            msgTarget.height           = static_cast<double>(target.box.height) / el.picHeight;
+            msgTarget.oriented_corners = target.oriented_corners;
 
             msgTarget.x = std::min(msgTarget.x, 1.0);
             msgTarget.x = std::max(msgTarget.x, 0.0);

@@ -4,7 +4,9 @@
 
 #include <deque>
 #include <memory>
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "flow/common/AlgCommonType.h"
@@ -56,14 +58,30 @@ struct DataAlarmTargetConfidence {
 
 inline CMsgOnEventsTarget MakeOnEventsTarget(const AiDetectRstEl& target) {
     CMsgOnEventsTarget result;
-    result.label      = target.confidence.label;
-    result.confidence = target.confidence.confidence;
-    result.trackId    = target.trackIdInfo;
-    result.box.x      = target.box.x;
-    result.box.y      = target.box.y;
-    result.box.width  = target.box.width;
-    result.box.height = target.box.height;
+    result.label            = target.confidence.label;
+    result.confidence       = target.confidence.confidence;
+    result.trackId          = target.trackIdInfo;
+    result.box.x            = target.box.x;
+    result.box.y            = target.box.y;
+    result.box.width        = target.box.width;
+    result.box.height       = target.box.height;
+    result.oriented_corners = target.oriented_corners;
     return result;
+}
+
+// Keep each overlay's optional measured geometry attached to its own box.
+// Alarm batching can copy/concatenate these values without matching coordinates.
+struct DataAlarmBox {
+    util::Box box;
+    std::optional<util::Quad> oriented_corners;
+
+    DataAlarmBox(util::Box value) : box(value) {}
+    DataAlarmBox(util::Box value, std::optional<util::Quad> corners)
+        : box(value), oriented_corners(std::move(corners)) {}
+};
+
+inline DataAlarmBox MakeAlarmBox(const AiDetectRstEl& target) {
+    return {target.box, target.oriented_corners};
 }
 
 struct DataAlarmPassFlow {
@@ -108,7 +126,7 @@ struct DataAlarmUnit {
     std::vector<CMsgOnEventsTarget> targets;  // Detection targets that caused the alarm
     std::vector<AiAttribute> attrRsts;        // Classification attribute results
     AiFeature feature;                        // Feature values for face comparison
-    std::vector<util::Box> boxs;              // Alarms without tracking (multiple detections in one area)
+    std::vector<DataAlarmBox> boxs;           // Per-target alarm overlays, including untracked detections
     std::vector<AiDetectBestEl> bestInfos;
     std::vector<DataAlarmTargetConfidence> targetHistory;  // Target confidence during sensitivity calculation
     RetroDirect retroDirect{RetroDirect::RetroDirectNone};  // No direction

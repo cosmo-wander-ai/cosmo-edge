@@ -361,9 +361,9 @@ void Sensitivity::FillAlarmDataTrackId(DataAlarmUnit& alarmUnit, TrackIdData& tr
     }
 
     if (alarmUnit.friends.empty()) {
-        alarmUnit.boxs.push_back(alarmUnit.box);
+        alarmUnit.boxs.push_back(MakeAlarmBox(trackIdData.target));
     } else {
-        alarmUnit.boxs = alarmUnit.friends;
+        alarmUnit.boxs.assign(alarmUnit.friends.begin(), alarmUnit.friends.end());
     }
 
     alarmUnit.matchInfo = trackIdData.target.matchInfo;

@@ -77,7 +77,7 @@ struct MsgPTaskTarget {
     bool bHaveLogicResult{false};
     bool bLogicResult{false};
     MsgRectReal box;
-    float angle{0.0f};  // OBB rotation angle in radians; 0 for axis-aligned detectors
+    std::optional<util::Quad> oriented_corners;
     std::vector<MsgAiConfidence> confidence;
     std::vector<int> groupEls;
     bool bHaveMatchInfo{false};

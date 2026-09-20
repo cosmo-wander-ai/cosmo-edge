@@ -50,6 +50,7 @@ void DetData2RecData(DataDetTrackClassifyPtr frame, MsgAiDetFrame& recData) {
         recTarget.aiBox.y           = target.box.y;
         recTarget.aiBox.width       = target.box.width;
         recTarget.aiBox.height      = target.box.height;
+        recTarget.oriented_corners  = target.oriented_corners;
         recTarget.hwRatio           = target.hwRatio;
         recTarget.hwRatioVariation  = target.hwRatioVariation;
         recTarget.bHaveMatchInfo    = false;

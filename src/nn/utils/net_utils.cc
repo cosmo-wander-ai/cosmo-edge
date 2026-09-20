@@ -227,8 +227,6 @@ Status NetUtils::PickDetectionObjects(std::shared_ptr<Blob>& blob, std::vector<S
             float h      = b_data[i * col + 3];
             float c      = b_data[i * col + 4];
             int class_id = static_cast<int>(b_data[i * col + 5]);
-            // OBB models carry a 7th column with the rotation angle (radians).
-            float angle = (col >= 7) ? b_data[i * col + 6] : 0.f;
 
             if (std::isnan(c))
                 continue;
@@ -260,7 +258,6 @@ Status NetUtils::PickDetectionObjects(std::shared_ptr<Blob>& blob, std::vector<S
             obj_info.y1 = y1;
             obj_info.x2 = x2;
             obj_info.y2 = y2;
-            obj_info.angle = angle;
 
             ClassifyInfo info;
             info.confidence = c;

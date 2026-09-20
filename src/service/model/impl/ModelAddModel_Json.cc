@@ -6,7 +6,8 @@
 // clang-format on
 
 #include <algorithm>
-#include <regex>
+#include <charconv>
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -108,18 +109,171 @@ namespace {
         return 0;
     }
 
-    // Parse Ultralytics ONNX metadata "names" (e.g. "{0: 'z', 1: 't'}") into
-    // sorted (id, name) pairs. Returns empty when raw is not in that format.
+    void AppendJsonCodeUnit(std::string& encoded, uint32_t value) {
+        constexpr char hex[] = "0123456789abcdef";
+        encoded += "\\u";
+        for (int shift = 12; shift >= 0; shift -= 4)
+            encoded += hex[(value >> shift) & 0xf];
+    }
+
+    // Read one Python repr / JSON string without evaluating expressions. Normalize
+    // Python-only escapes to JSON, whose parser also validates UTF-8/surrogate pairs.
+    bool ReadClassNameString(const std::string& raw, size_t& position, std::string& value) {
+        if (position >= raw.size() || (raw[position] != '\'' && raw[position] != '"'))
+            return false;
+        const char quote    = raw[position++];
+        std::string encoded = "\"";
+        while (position < raw.size()) {
+            const char current = raw[position++];
+            if (current == quote) {
+                encoded += '"';
+                const auto decoded = nlohmann::json::parse(encoded, nullptr, false);
+                if (!decoded.is_string())
+                    return false;
+                value = decoded.get<std::string>();
+                return true;
+            }
+            if (current != '\\') {
+                if (static_cast<unsigned char>(current) < 0x20)
+                    return false;
+                if (current == '"')
+                    encoded += '\\';
+                encoded += current;
+                continue;
+            }
+            if (position == raw.size())
+                return false;
+            const char escape = raw[position++];
+            switch (escape) {
+                case '\'':
+                    encoded += '\'';
+                    break;
+                case '"':
+                case '\\':
+                case '/':
+                case 'b':
+                case 'f':
+                case 'n':
+                case 'r':
+                case 't':
+                    encoded += '\\';
+                    encoded += escape;
+                    break;
+                case 'a':
+                case 'v':
+                    AppendJsonCodeUnit(encoded, escape == 'a' ? 7 : 11);
+                    break;
+                case 'x':
+                case 'u':
+                case 'U': {
+                    const size_t digits = escape == 'x' ? 2 : (escape == 'u' ? 4 : 8);
+                    if (raw.size() - position < digits)
+                        return false;
+                    uint32_t code_point = 0;
+                    for (size_t i = 0; i < digits; ++i) {
+                        const char digit = raw[position++];
+                        const int value  = digit >= '0' && digit <= '9'   ? digit - '0'
+                                           : digit >= 'a' && digit <= 'f' ? digit - 'a' + 10
+                                           : digit >= 'A' && digit <= 'F' ? digit - 'A' + 10
+                                                                          : -1;
+                        if (value < 0)
+                            return false;
+                        code_point = (code_point << 4) | static_cast<uint32_t>(value);
+                    }
+                    if (code_point > 0x10ffff ||
+                        (escape == 'U' && code_point >= 0xd800 && code_point <= 0xdfff))
+                        return false;
+                    if (code_point > 0xffff) {
+                        code_point -= 0x10000;
+                        AppendJsonCodeUnit(encoded, 0xd800 + (code_point >> 10));
+                        AppendJsonCodeUnit(encoded, 0xdc00 + (code_point & 0x3ff));
+                    } else {
+                        AppendJsonCodeUnit(encoded, code_point);
+                    }
+                    break;
+                }
+                default: {
+                    if (escape < '0' || escape > '7')
+                        return false;
+                    uint32_t code_point = static_cast<uint32_t>(escape - '0');
+                    for (int i = 1;
+                         i < 3 && position < raw.size() && raw[position] >= '0' && raw[position] <= '7';
+                         ++i) {
+                        code_point = (code_point << 3) | static_cast<uint32_t>(raw[position++] - '0');
+                    }
+                    AppendJsonCodeUnit(encoded, code_point);
+                    break;
+                }
+            }
+        }
+        return false;
+    }
+
+    // Accept a complete names dictionary, including Python repr and JSON object
+    // keys. Never publish a partial regex match as the model's full class list.
     std::vector<std::pair<int, std::string>> ParseOnnxClassNames(const std::string& raw) {
         std::vector<std::pair<int, std::string>> names;
-        if (raw.empty())
-            return names;
-        static const std::regex entry_re(R"((\d+)\s*:\s*'([^']*)')");
-        for (auto it = std::sregex_iterator(raw.begin(), raw.end(), entry_re);
-             it != std::sregex_iterator(); ++it) {
-            names.emplace_back(std::stoi((*it)[1].str()), (*it)[2].str());
+        size_t position       = 0;
+        const auto skip_space = [&]() {
+            while (position < raw.size() && (raw[position] == ' ' || raw[position] == '\t' ||
+                                             raw[position] == '\r' || raw[position] == '\n'))
+                ++position;
+        };
+        const auto consume = [&](char expected) {
+            skip_space();
+            if (position == raw.size() || raw[position] != expected)
+                return false;
+            ++position;
+            return true;
+        };
+        if (!consume('{'))
+            return {};
+        skip_space();
+        while (position < raw.size() && raw[position] != '}') {
+            std::string id_string;
+            if (raw[position] == '\'' || raw[position] == '"') {
+                if (!ReadClassNameString(raw, position, id_string))
+                    return {};
+            } else {
+                const size_t start = position;
+                while (position < raw.size() && raw[position] >= '0' && raw[position] <= '9')
+                    ++position;
+                id_string = raw.substr(start, position - start);
+                if (id_string.size() > 1 && id_string[0] == '0')
+                    return {};
+            }
+            if (id_string.empty() ||
+                !std::all_of(id_string.begin(), id_string.end(), [](char c) { return c >= '0' && c <= '9'; }))
+                return {};
+            int id            = 0;
+            const auto parsed = std::from_chars(id_string.data(), id_string.data() + id_string.size(), id);
+            if (parsed.ec != std::errc{} || parsed.ptr != id_string.data() + id_string.size() ||
+                !consume(':'))
+                return {};
+            skip_space();
+            std::string name;
+            if (!ReadClassNameString(raw, position, name))
+                return {};
+            names.emplace_back(id, std::move(name));
+            skip_space();
+            if (position < raw.size() && raw[position] == '}')
+                break;
+            if (!consume(','))
+                return {};
+            skip_space();
         }
+        if (!consume('}'))
+            return {};
+        skip_space();
+        if (position != raw.size())
+            return {};
         std::sort(names.begin(), names.end());
+        // Ultralytics class indices are consecutive, starting at zero. This
+        // also rejects duplicates, missing entries and out-of-range class IDs.
+        for (size_t i = 0; i < names.size(); ++i) {
+            if (static_cast<size_t>(names[i].first) != i)
+                return {};
+        }
         return names;
     }
 
@@ -132,11 +286,16 @@ namespace {
         if (!IsDetectionModel(modelType))
             return false;
         for (const auto& info : bmodel_infos) {
-            auto names = ParseOnnxClassNames(info.class_names_raw);
-            if (names.empty())
+            if (!info.valid || info.class_names_raw.empty())
                 continue;
-            const double threshold   = ReadDefaultThreshold(modelType);
-            nlohmann::json labels    = nlohmann::json::array();
+            auto names = ParseOnnxClassNames(info.class_names_raw);
+            if (names.empty()) {
+                LOG_WARN("[AddModel] Invalid ONNX class names for {}; using existing default-label path",
+                         modelType);
+                continue;
+            }
+            const double threshold = ReadDefaultThreshold(modelType);
+            nlohmann::json labels  = nlohmann::json::array();
             for (const auto& [id, name] : names) {
                 const std::string id_str = std::to_string(id);
                 labels.push_back({{"id", id_str}, {"name", name}, {"threshold", {threshold, threshold}}});

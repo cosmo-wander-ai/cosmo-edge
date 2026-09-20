@@ -17,6 +17,9 @@ struct PUBLIC TrackingBox {
     float confidence      = 0.0f;
     TrackingStatus status = TrackingStatus::kNew;
     Rect2f box;
+    // Caller-provided index of the current frame's detection, retained through matching.
+    // A prediction without a matched measurement has no source detection.
+    int source_detection_index = -1;
 
     // Queue<Rect2f> trajectory;
     MotionState motion_state =

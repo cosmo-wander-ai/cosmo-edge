@@ -96,7 +96,7 @@ void AreaAlarm::HandAreaTargetWrongDirection(AlgDataPtr algData, PassFlowAreaTar
         alarmUnit.trackId      = areaData.target.trackId;
         alarmUnit.strTrackId   = areaData.target.trackIdInfo;
         alarmUnit.box          = areaData.target.box;
-        alarmUnit.boxs.push_back(alarmUnit.box);
+        alarmUnit.boxs.push_back(MakeAlarmBox(areaData.target));
         alarmUnit.targets.push_back(MakeOnEventsTarget(areaData.target));
         alarmUnit.retroDirect = params_.retro_direct;
         for (auto& hisEl : areaData.history) {

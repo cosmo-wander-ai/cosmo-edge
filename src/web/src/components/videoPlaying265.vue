@@ -102,6 +102,7 @@
 <script setup>
 import { ref, watch, onBeforeUnmount } from 'vue'
 import { t } from '@/i18n'
+import { drawAlarmVideoTargetGeometry } from '@/utils/targetGeometry'
 
 const props = defineProps({
   // 是否使用弹窗
@@ -292,6 +293,9 @@ const onLoaded = async () => {
   if (elVideo.value) {
     elVideo.value.style.opacity = 1
     duration.value = elVideo.value.duration
+    if (elVideo.value.videoWidth > 0 && elVideo.value.videoHeight > 0) {
+      videoRatio.value = elVideo.value.videoWidth / elVideo.value.videoHeight
+    }
   }
   
   await getAlarmVideoPointList()
@@ -337,7 +341,7 @@ const onLoaded = async () => {
       currentClip.value += 1
       if (props.structureDataUrl && alarmVideoPointList.value.targets) {
         alarmVideoPointList.value.targets.forEach((item) => {
-          if (currentClip.value === item.index && item.rects.length !== 0) {
+          if (currentClip.value === item.index) {
             ctx.strokeStyle = '#ff0000'
             ctx.beginPath()
             ctx.clearRect(0, 0, props.width, props.height)
@@ -349,19 +353,17 @@ const onLoaded = async () => {
               alarmVideoPointList.value.area.rgb
             )
             
-            item.rects.forEach((rect) => {
-              const axisPoint = transScaleToAxis(rect)
-              ctx.beginPath()
+            const videoSize = getVideoSize()
+            const viewport = {
+              x: (props.width - videoSize.width) / 2,
+              y: (props.height - videoSize.height) / 2,
+              ...videoSize
+            }
+            for (const rect of item.rects || []) {
               ctx.lineWidth = 2
               ctx.strokeStyle = 'red'
-              ctx.rect(
-                axisPoint.xAxis,
-                axisPoint.yAxis,
-                axisPoint.wAxis,
-                axisPoint.hAxis
-              )
-              ctx.stroke()
-            })
+              drawAlarmVideoTargetGeometry(ctx, rect, item, viewport)
+            }
           }
         })
       }

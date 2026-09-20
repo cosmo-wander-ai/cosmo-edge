@@ -527,6 +527,96 @@ TEST_CASE("ModelImportExporter Tests", "[model]") {
     fs::remove_all(testRoot);
 }
 
+TEST_CASE("ONNX class metadata accepts complete Python and JSON dictionaries", "[model][metadata]") {
+    struct Example {
+        std::string raw;
+        std::vector<std::string> expected;
+    };
+    const std::vector<Example> examples = {
+        {R"({1: 'helmet', 0: "worker's head"})", {"worker's head", "helmet"}},
+        {R"({0: 'worker\'s head', 1: "say \"hello\"", 2: 'path\\tool'})",
+         {"worker's head", "say \"hello\"", "path\\tool"}},
+        {R"({0: '安全帽', 1: '人头'})", {"安全帽", "人头"}},
+        {R"({0: '\u5b89\u5168\u5e3d', 1: '\U0001f6a7', 2: '\x41\101'})", {"安全帽", "🚧", "AA"}},
+        {R"({"0":"worker's head", "1":"安全帽", "2":"\ud83d\ude80"})", {"worker's head", "安全帽", "🚀"}},
+        {" \n { 1 : 'with: {punctuation},', 0 : 'first', } \t", {"first", "with: {punctuation},"}},
+    };
+    ModelImportExporter importer;
+    for (const auto& example : examples) {
+        CAPTURE(example.raw);
+        cosmo::BmodelInfo info;
+        info.valid           = true;
+        info.class_names_raw = example.raw;
+        nlohmann::json doc   = {{"labels", nlohmann::json::array()},
+                                {"models", {{{"outputs", {{{"shape", {1, 300, 7}}}}}}}}};
+        REQUIRE_NOTHROW(importer.UpdateTemplateConfig(doc, "test", "V1.0.0", "obb", "yolo26_obb_det", "",
+                                                      {info}, false, "", ""));
+        REQUIRE(doc["labels"].size() == example.expected.size());
+        for (size_t i = 0; i < example.expected.size(); ++i) {
+            REQUIRE(doc["labels"][i]["id"] == std::to_string(i));
+            REQUIRE(doc["labels"][i]["name"] == example.expected[i]);
+            REQUIRE(doc["labels"][i]["threshold"] == nlohmann::json::array({0.25, 0.25}));
+        }
+    }
+}
+
+TEST_CASE("Invalid ONNX class metadata never installs a partial label map", "[model][metadata]") {
+    const std::vector<std::string> malformed = {
+        "",
+        "{}",
+        "{0: 'ok', 1: broken}",
+        "{0: 'ok', 1: 'unfinished}",
+        "{0: 'ok', 1: 'broken'quote'}",
+        "{0: 'ok', 0: 'duplicate'}",
+        R"({"0":"ok", "0":"duplicate"})",
+        "{0: 'ok', '00': 'duplicate'}",
+        "{0: 'ok', 2: 'missing-one'}",
+        "{-1: 'negative'}",
+        "{01: 'invalid-integer'}",
+        "{2147483648: 'overflow'}",
+        "{99999999999999999999999999999999999: 'overflow'}",
+        "prefix {0: 'ok'}",
+        "{0: 'ok'} trailing",
+        "0: 'ok'",
+        "{0: 'ok',",
+        "{0: 'ok', 1: ['array']}",
+        "{0: 'ok', 1.5: 'float'}",
+        "{0: 'ok' 1: 'no-comma'}",
+        "{0: 'ok',, 1: 'extra-comma'}",
+        R"({0: 'ok', 1: '\q'})",
+        R"({0: 'ok', 1: '\xGG'})",
+        R"({0: 'ok', 1: '\ud800'})",
+        R"({0: 'ok', 1: '\U00110000'})",
+    };
+    const auto fallback =
+        nlohmann::json::array({{{"id", "0"}, {"name", "template-label"}, {"threshold", {0.4, 0.4}}}});
+    ModelImportExporter importer;
+    for (const auto& raw : malformed) {
+        CAPTURE(raw);
+        cosmo::BmodelInfo info;
+        info.valid           = true;
+        info.class_names_raw = raw;
+        nlohmann::json doc = {{"labels", fallback}, {"models", {{{"outputs", {{{"shape", {1, 300, 7}}}}}}}}};
+        REQUIRE_NOTHROW(importer.UpdateTemplateConfig(doc, "test", "V1.0.0", "obb", "yolo26_obb_det", "",
+                                                      {info}, false, "", ""));
+        REQUIRE(doc["labels"] == fallback);
+
+        doc["models"][0]["outputs"][0]["shape"] = {1, 6, 8400};
+        REQUIRE_NOTHROW(importer.UpdateTemplateConfig(doc, "test", "V1.0.0", "det", "yolov8_det", "", {info},
+                                                      false, "", ""));
+        REQUIRE(doc["labels"].size() == 2);
+        REQUIRE(doc["labels"][0]["name"] == "category0");
+        REQUIRE(doc["labels"][1]["name"] == "category1");
+    }
+
+    cosmo::BmodelInfo invalid_info;
+    invalid_info.class_names_raw = "{0: 'unvalidated'}";
+    nlohmann::json doc           = {{"labels", fallback}};
+    importer.UpdateTemplateConfig(doc, "test", "V1.0.0", "obb", "yolo26_obb_det", "", {invalid_info}, false,
+                                  "", "");
+    REQUIRE(doc["labels"] == fallback);
+}
+
 #ifdef COSMO_NN_USE_CPU_BACKEND
 TEST_CASE("CPU classify crop preprocess keeps normalize shape non-zero", "[cwnn][cpu]") {
     cosmo::nn::SharedResource shared;

@@ -12,6 +12,7 @@
 #include "service/detail/ServiceRegistry.h"
 #include "service/task/ITaskQuery.h"
 #include "util/FormatString.h"
+#include "util/GeometricPos.h"
 
 namespace cosmo {
 
@@ -199,7 +200,12 @@ void StreamViewerOverview::LiveDataHandTarget(int64_t streamIndex, uint64_t inde
     VideoOverviewAttrPriority attrPriority = VideoOverviewAttrPriority::kBox;
 
     int minSide = std::min(drawW, drawH);
-    if (minSide < 30) {
+    if (target.oriented_corners) {
+        for (const auto& edge : GetQuadOsdLines(*target.oriented_corners, width_, height_)) {
+            StreamOverviewLine line{attrPriority, edge, boxColor};
+            AddLineToLocal(streamIndex, index, timestamp, line);
+        }
+    } else if (minSide < 30) {
         // small targets keep full rectangle, avoid cramped corner brackets
         StreamOverviewLine line1{attrPriority, {pointTL, pointTR}, boxColor};
         StreamOverviewLine line2{attrPriority, {pointTR, pointBR}, boxColor};

@@ -217,6 +217,7 @@ import { ElMessage } from 'element-plus'
 import { Upload, VideoPlay, Delete } from '@element-plus/icons-vue'
 import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
 import { uploadFileInChunks, UploadPurpose } from '@/utils/chunkUpload'
+import { drawTargetGeometry } from '@/utils/targetGeometry'
 
 const { proxy } = getCurrentInstance()
 const $API = proxy.$API
@@ -472,17 +473,7 @@ const drawOverlay = (index) => {
     if (bw > 0 || bh > 0) {
       ctx.strokeStyle = color
       ctx.lineWidth = 2
-      const angle = target.angle || 0
-      if (angle) {
-        // OBB：绕框中心旋转绘制
-        ctx.save()
-        ctx.translate(x + bw / 2, y + bh / 2)
-        ctx.rotate(angle)
-        ctx.strokeRect(-bw / 2, -bh / 2, bw, bh)
-        ctx.restore()
-      } else {
-        ctx.strokeRect(x, y, bw, bh)
-      }
+      drawTargetGeometry(ctx, target)
     }
 
     const label = `${getTargetLabel(target)} ${getTargetConfidence(target)}`
@@ -587,17 +578,7 @@ const drawPreviewOverlay = () => {
       if (bw > 0 || bh > 0) {
         ctx.strokeStyle = color
         ctx.lineWidth = Math.max(2, Math.round(imgW / 500))
-        const angle = target.angle || 0
-        if (angle) {
-          // OBB：绕框中心旋转绘制
-          ctx.save()
-          ctx.translate(x + bw / 2, y + bh / 2)
-          ctx.rotate(angle)
-          ctx.strokeRect(-bw / 2, -bh / 2, bw, bh)
-          ctx.restore()
-        } else {
-          ctx.strokeRect(x, y, bw, bh)
-        }
+        drawTargetGeometry(ctx, target)
       }
 
       const label = `${getTargetLabel(target)} ${getTargetConfidence(target)}`

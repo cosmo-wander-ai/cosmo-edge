@@ -59,11 +59,11 @@ static bool IsTargetInArea(const AiDetectRstEl& target, const std::string& areaI
 }
 
 static void DetTarget2MsgTarget(const AiDetectRstEl& target, MsgPTaskTarget& msgTarget) {
-    msgTarget.box.x      = target.box.x;
-    msgTarget.box.y      = target.box.y;
-    msgTarget.box.width  = target.box.width;
-    msgTarget.box.height = target.box.height;
-    msgTarget.angle      = target.angle;
+    msgTarget.box.x            = target.box.x;
+    msgTarget.box.y            = target.box.y;
+    msgTarget.box.width        = target.box.width;
+    msgTarget.box.height       = target.box.height;
+    msgTarget.oriented_corners = target.oriented_corners;
 
     msgTarget.bLogicResult = target.bLogicResult;
 
@@ -250,15 +250,14 @@ void PTaskBase::DetTargetHandFullPicture(AlgDataPtr algData, const std::vector<M
             }
 
             util::Box box;
-            box.x         = target.box.x;
-            box.y         = target.box.y;
-            box.width     = target.box.width;
-            box.height    = target.box.height;
-            // OBB targets carry a rotation angle (radians, canvas rotate()
-            // convention); draw the rotated box instead of an axis-aligned one.
-            auto boxLines = (std::fabs(target.angle) > 1e-6f)
-                                ? GetRotatedBoxOsdLines(box, target.angle)
-                                : GetBoxOsdLines(box, origImg->GetWidth(), origImg->GetHeight());
+            box.x      = target.box.x;
+            box.y      = target.box.y;
+            box.width  = target.box.width;
+            box.height = target.box.height;
+            auto boxLines =
+                target.oriented_corners
+                    ? GetQuadOsdLines(*target.oriented_corners, origImg->GetWidth(), origImg->GetHeight())
+                    : GetBoxOsdLines(box, origImg->GetWidth(), origImg->GetHeight());
             service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().DrawLines(
                 origImg, boxLines, box_color, lineWidth);
         }

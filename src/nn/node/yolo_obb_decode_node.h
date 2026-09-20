@@ -1,44 +1,54 @@
 #pragma once
 
 #include "nn/node/node.h"
+#include "nn/utils/net_utils.h"
 
 namespace cosmo::nn {
 
+// Actual preprocessing affine transform: input = source * scale + offset.
+// The pipeline selects this from its configured resize operation and backend.
+struct ObbResizeTransform {
+    float scale_x  = 1.f;
+    float scale_y  = 1.f;
+    float offset_x = 0.f;
+    float offset_y = 0.f;
+};
+
+// This parser accepts the explicit corner output of YoloObbDecodeNode only.
+Status ParseYoloObbOutput(const std::shared_ptr<Blob>& blob,
+                          const std::vector<ObbResizeTransform>& transforms,
+                          const std::vector<int>& selected_indices,
+                          const std::vector<float>& selected_thresholds,
+                          const std::vector<std::string>& selected_labels,
+                          std::vector<std::vector<ObjectInfoV1>>& outputs, float default_threshold = 0.25f);
+
 /**
- * @brief Decode node for end-to-end YOLO OBB (oriented bounding box) models
- *        (e.g., YOLO26-OBB).
- *
- * End-to-end models have NMS built into the network, so no NMS is needed here.
- * Input:  [batch, box_num, 7]  with (cx, cy, w, h, score, class_id, angle)
- *         in xywh-center format (Ultralytics end2end OBB convention, verified
- *         against YOLO26-OBB exports); angle is the rotation angle in radians.
- * Output: [batch, top_k, 7]   with (cx, cy, w, h, score, class_id, angle),
- *         compatible with the framework's PickDetectionObjects / AdjustSize.
- *         The angle is invariant under coordinate scaling/translation and is
- *         passed through unchanged.
+ * End-to-end YOLO OBB adaptation (NMS is already performed by the network).
+ * Input: float32 [batch, rows, 7]: cx, cy, w, h, score, class_id, radians.
+ * Coordinates are input-image pixels unless explicitly configured normalized.
+ * Output: float32 [batch, top_k, 10]: four consecutive (x,y) vertices followed
+ * by score and class_id, in input-image pixel coordinates.
  */
 class YoloObbDecodeNode : public Node {
 public:
     YoloObbDecodeNode();
-    virtual ~YoloObbDecodeNode();
+    ~YoloObbDecodeNode() override;
 
-    virtual void LoadParam(Op* op) override;
-    virtual Status InferTopShapes() override;
-    virtual Status Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
-                           std::vector<std::shared_ptr<Blob>>& top_blobs) override;
-    virtual size_t GetBottomCount() override;
-    virtual size_t GetTopCount() override;
+    void LoadParam(Op* op) override;
+    Status InferTopShapes() override;
+    Status Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
+                   std::vector<std::shared_ptr<Blob>>& top_blobs) override;
+    size_t GetBottomCount() override;
+    size_t GetTopCount() override;
 
 private:
-    void ResetTopBlob(std::shared_ptr<Blob> top);
-
-    float base_conf;
-    int top_k;
-    int top_col = 7;  // cx, cy, w, h, score, class_id, angle
-
-    // Net input dimensions for denormalizing coordinates
-    int input_width_  = 0;
-    int input_height_ = 0;
+    float base_conf                     = 0.25f;
+    int top_k                           = 300;
+    static constexpr int kOutputColumns = 10;
+    int input_width_                    = 0;
+    int input_height_                   = 0;
+    bool normalized_coordinates_        = false;
+    bool valid_params_                  = false;
 };
 
 }  // namespace cosmo::nn

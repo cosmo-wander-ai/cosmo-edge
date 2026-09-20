@@ -24,6 +24,8 @@
         "is_bgr": false,
         "confidence_threshold": 0.25,
         "top_k": 300,
+        "coordinate_units": "pixels",
+        "angle_units": "radians",
         "gravity": 1
       }
     }

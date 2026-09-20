@@ -1,5 +1,6 @@
 #pragma once
 
+#include "nn/node/yolo_obb_decode_node.h"
 #include "nn/pipeline/model_pipeline.h"
 
 namespace cosmo::nn {
@@ -97,7 +98,11 @@ public:
     Status ParseDetectionOutput(std::vector<std::vector<ObjectInfoV1>>& outputs) override;
 
 private:
-    int max_batch_ = 1;
+    int max_batch_            = 1;
+    int resize_gravity_       = 1;
+    float default_confidence_ = 0.25f;
+    DeviceType resize_device_ = DEVICE_NAIVE;
+    std::vector<ObbResizeTransform> image_transforms_;
 };
 
 class GenericDetectorPipeline : public ModelPipeline {

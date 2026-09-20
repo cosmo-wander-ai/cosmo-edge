@@ -51,7 +51,8 @@ void AreaAlarm::HandAreaTargetCountReport(AlgDataPtr algData, DataDetTrackClassi
             alarm.areaId       = targetArea.area_id;
             alarm.areaName     = targetArea.area_name;
             alarm.box          = target.box;
-            alarm.boxs.push_back(target.box);
+            alarm.boxs.push_back(MakeAlarmBox(target));
+            alarm.targets.push_back(MakeOnEventsTarget(target));
         }
     }
 

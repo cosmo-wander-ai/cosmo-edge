@@ -73,9 +73,7 @@ util::ErrorEnum AiTrackerUnify::Trace(std::vector<AiDetectRstEl>& input, std::ve
         return util::ErrorEnum::AI_TRACK_FAILED;
     }
 
-    rst = TrackEl2DetEl(track_output);
-
-    TrackDataSignDetId(rst, input);
+    rst = TrackEl2DetEl(track_output, input);
 
     return util::ErrorEnum::Success;
 }
@@ -166,21 +164,23 @@ util::ErrorEnum AiTrackerUnify::SetConfig(float motion_iou, int motion_length, d
 
 std::vector<cosmo::nn::TrackingBox> AiTrackerUnify::DetEl2TrackEl(std::vector<AiDetectRstEl>& input) {
     std::vector<cosmo::nn::TrackingBox> tracking_boxs;
-    for (auto& el : input) {
+    for (size_t detection_index = 0; detection_index < input.size(); ++detection_index) {
+        const auto& el = input[detection_index];
         cosmo::nn::TrackingBox track_box_el;
         auto iter_find = std::find_if(
             track_labels_.begin(), track_labels_.end(),
             [&](const TrackLabel& track_label_el) { return el.confidence.label == track_label_el.label; });
         if (iter_find != track_labels_.end()) {
-            track_box_el.id           = -1;
-            track_box_el.class_id     = iter_find->class_id;
-            track_box_el.confidence   = el.confidence.confidence;
-            track_box_el.box.x        = static_cast<float>(el.box.x);
-            track_box_el.box.y        = static_cast<float>(el.box.y);
-            track_box_el.box.width    = static_cast<float>(el.box.width);
-            track_box_el.box.height   = static_cast<float>(el.box.height);
-            track_box_el.status       = cosmo::nn::TrackingStatus::kNew;
-            track_box_el.motion_state = cosmo::nn::MotionState::kUncertain;
+            track_box_el.id                     = -1;
+            track_box_el.class_id               = iter_find->class_id;
+            track_box_el.confidence             = el.confidence.confidence;
+            track_box_el.box.x                  = static_cast<float>(el.box.x);
+            track_box_el.box.y                  = static_cast<float>(el.box.y);
+            track_box_el.box.width              = static_cast<float>(el.box.width);
+            track_box_el.box.height             = static_cast<float>(el.box.height);
+            track_box_el.status                 = cosmo::nn::TrackingStatus::kNew;
+            track_box_el.motion_state           = cosmo::nn::MotionState::kUncertain;
+            track_box_el.source_detection_index = static_cast<int>(detection_index);
             tracking_boxs.push_back(track_box_el);
         }
     }
@@ -188,9 +188,10 @@ std::vector<cosmo::nn::TrackingBox> AiTrackerUnify::DetEl2TrackEl(std::vector<Ai
     return tracking_boxs;
 }
 
-std::vector<AiDetectRstEl> AiTrackerUnify::TrackEl2DetEl(std::vector<cosmo::nn::TrackingBox>& input) {
+std::vector<AiDetectRstEl> AiTrackerUnify::TrackEl2DetEl(const std::vector<cosmo::nn::TrackingBox>& input,
+                                                         const std::vector<AiDetectRstEl>& detections) {
     std::vector<AiDetectRstEl> det_rsts;
-    for (auto& el : input) {
+    for (const auto& el : input) {
         auto iter_find = std::find_if(
             track_labels_.begin(), track_labels_.end(),
             [&](const TrackLabel& track_label_el) { return el.class_id == track_label_el.class_id; });
@@ -207,6 +208,14 @@ std::vector<AiDetectRstEl> AiTrackerUnify::TrackEl2DetEl(std::vector<cosmo::nn::
             det_box_el.trackId                = el.id;
             det_box_el.trackStatus            = AITrackStatusChange(el.status);
             det_box_el.motionStatus           = AIMotionStatusChange(el.motion_state);
+            if (el.status != cosmo::nn::TrackingStatus::kLoss && el.source_detection_index >= 0 &&
+                static_cast<size_t>(el.source_detection_index) < detections.size()) {
+                const auto& detection       = detections[el.source_detection_index];
+                det_box_el.targetId         = detection.targetId;
+                det_box_el.oriented_corners = detection.oriented_corners;
+            } else {
+                det_box_el.targetId = util::GenerateUUID();
+            }
             if (det_box_el.box.width > 0)
                 det_box_el.hwRatio =
                     static_cast<float>(det_box_el.box.height) / static_cast<float>(det_box_el.box.width);
@@ -215,25 +224,6 @@ std::vector<AiDetectRstEl> AiTrackerUnify::TrackEl2DetEl(std::vector<cosmo::nn::
     }
 
     return det_rsts;
-}
-
-void AiTrackerUnify::TrackDataSignDetId(std::vector<AiDetectRstEl>& track_out,
-                                        const std::vector<AiDetectRstEl>& input) {
-    for (auto& target : track_out) {
-        bool find_it  = false;
-        auto match_it = std::find_if(input.begin(), input.end(), [&target](const auto& track_in) {
-            return (track_in.confidence.label == target.confidence.label) &&
-                   (track_in.box.x == target.box.x) && (track_in.box.y == target.box.y) &&
-                   (track_in.box.width == target.box.width) && (track_in.box.height == target.box.height);
-        });
-        if (match_it != input.end()) {
-            target.targetId = match_it->targetId;
-            find_it         = true;
-        }
-        if (!find_it) {
-            target.targetId = util::GenerateUUID();
-        }
-    }
 }
 
 AITrackingStatus AiTrackerUnify::AITrackStatusChange(cosmo::nn::TrackingStatus status) {
