@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import vm from 'node:vm'
 import { drawAlarmVideoTargetGeometry, drawTargetGeometry } from '../src/utils/targetGeometry.js'
 
 const box = { x: 10, y: 20, width: 80, height: 40 }
@@ -80,4 +82,61 @@ for (const orientedCorners of [null, [], playbackCorners.slice(0, 3),
   assert.deepEqual(drawPlayback({ ...legacyRect, orientedCorners }, sourceFrame), legacyPlayback)
 }
 
-console.log('Target geometry checks passed (image and recorded-video geometry, source scaling, letterbox clipping, legacy and malformed fallback).')
+// Exercise the player's actual frame callback: clearing a target must preserve
+// every static region and tripwire, including empty pre-roll frames.
+const playerSource = readFileSync(new URL('../src/components/videoPlaying265.vue', import.meta.url), 'utf8')
+const playerScript = playerSource.match(/<script setup>([\s\S]*?)<\/script>/)[1]
+  .replace(/^import .*$/gm, '')
+const region = [{ xRatio: 0.1, yRatio: 0.1 }, { xRatio: 0.7, yRatio: 0.1 },
+  { xRatio: 0.7, yRatio: 0.7 }, { xRatio: 0.1, yRatio: 0.7 }]
+const recording = {
+  area: {
+    points: region,
+    associatedAreas: [{ points: region.map(point => ({
+      xRatio: point.xRatio + 0.1, yRatio: point.yRatio + 0.1
+    })) }],
+    linePoints: [{ xRatio: 0.2, yRatio: 0.2 }, { xRatio: 0.6, yRatio: 0.6 }]
+  },
+  targets: [{ index: 1, rects: [] },
+    { index: 2, ...sourceFrame, rects: [playbackRect] }, { index: 3, rects: [] }]
+}
+let tick
+let path = []
+let visiblePaths = []
+const playerContext = {
+  clearRect() { visiblePaths = [] },
+  beginPath() { path = [] },
+  moveTo(...point) { path.push(['moveTo', ...point]) },
+  lineTo(...point) { path.push(['lineTo', ...point]) },
+  closePath() { path.push(['closePath']) },
+  stroke() { visiblePaths.push([...path]) },
+  strokeRect(...rect) { visiblePaths.push([['strokeRect', ...rect]]) },
+  save() {}, restore() {}, rect() {}, clip() {}
+}
+const player = {
+  console: { log() {} }, ref: value => ({ value }), watch() {}, onBeforeUnmount() {},
+  defineEmits: () => () => {},
+  defineProps: () => ({ width: 800, height: 450, structureDataUrl: 'recording.json' }),
+  fetch: async () => ({ json: async () => recording }),
+  setInterval(callback) { tick = callback; return 1 },
+  clearInterval() {}, t: value => value, drawAlarmVideoTargetGeometry,
+  ctx: playerContext
+}
+vm.createContext(player)
+vm.runInContext(`${playerScript}
+elCanvas.value = { getContext: () => ctx }
+elVideo.value = { style: {}, duration: 5, videoWidth: 1920, videoHeight: 1080, play() {} }
+globalThis.ready = onLoaded()
+`, player)
+await player.ready
+const staticPaths = structuredClone(visiblePaths)
+assert.equal(staticPaths.length, 3, 'initial main region, associated region and tripwire')
+tick()
+assert.deepEqual(visiblePaths, staticPaths, 'empty pre-roll must preserve all static geometry')
+tick()
+assert.deepEqual(visiblePaths.slice(0, 3), staticPaths, 'target frame must preserve all static geometry')
+assert.equal(visiblePaths.length, 4, 'target frame must also draw the oriented target')
+tick()
+assert.deepEqual(visiblePaths, staticPaths, 'empty frame must clear the previous target only')
+
+console.log('Target geometry checks passed (image and recorded-video geometry, source scaling, letterbox clipping, legacy and malformed fallback, empty-frame region preservation).')

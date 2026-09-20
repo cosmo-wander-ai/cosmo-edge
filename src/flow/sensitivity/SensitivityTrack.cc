@@ -147,6 +147,7 @@ void Sensitivity::AddGroupHistory(DataDetTrackClassifyPtr input,
         trackData.targetCondidenceInfo.box = target.genTarget.box;
         for (auto& srcTarget : target.srcTargets) {
             trackData.targetCondidenceInfo.friends.push_back(srcTarget.box);
+            trackData.friendOverlays.push_back(MakeAlarmBox(srcTarget));
         }
         trackData.targetCondidenceInfo.targetPos = target.genTarget.targetPos;
 
@@ -363,7 +364,7 @@ void Sensitivity::FillAlarmDataTrackId(DataAlarmUnit& alarmUnit, TrackIdData& tr
     if (alarmUnit.friends.empty()) {
         alarmUnit.boxs.push_back(MakeAlarmBox(trackIdData.target));
     } else {
-        alarmUnit.boxs.assign(alarmUnit.friends.begin(), alarmUnit.friends.end());
+        alarmUnit.boxs = trackIdData.history.back().friendOverlays;
     }
 
     alarmUnit.matchInfo = trackIdData.target.matchInfo;

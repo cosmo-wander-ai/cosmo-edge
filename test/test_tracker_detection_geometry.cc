@@ -80,15 +80,30 @@ namespace {
         REQUIRE(static_cast<int>(tracker.SetTrackerConfig(config)) == nn::COSMO_NN_OK);
 
         REQUIRE(TraceIndexed(tracker, {IndexedDetection(100.0f, 3), IndexedDetection(300.0f, 7)}).empty());
-        auto output = TraceIndexed(tracker, {IndexedDetection(300.0f, 11, 0.4f), IndexedDetection(100.0f, 13),
-                                             IndexedDetection(500.0f, 17)});
-        REQUIRE(output.size() == 3);
+        auto output =
+            TraceIndexed(tracker, {IndexedDetection(300.0f, 11, 0.4f), IndexedDetection(100.0f, 13)});
+        REQUIRE(output.size() == 2);
         for (const auto& track : output) {
             if (track.box.x == 100.0f) {
                 REQUIRE(track.source_detection_index == 13);
-            } else if (track.box.x == 300.0f) {
+            } else {
+                REQUIRE(track.box.x == 300.0f);
                 REQUIRE(track.source_detection_index == 11);
                 REQUIRE(track.confidence == Catch::Approx(0.4f));
+            }
+        }
+
+        // Both existing tracks have high-confidence matches before adding a
+        // third detection. This makes the new track genuinely unmatched in the
+        // first association pass, independently of the low-confidence pass.
+        output = TraceIndexed(tracker, {IndexedDetection(300.0f, 19), IndexedDetection(500.0f, 17),
+                                        IndexedDetection(100.0f, 23)});
+        REQUIRE(output.size() == 3);
+        for (const auto& track : output) {
+            if (track.box.x == 100.0f) {
+                REQUIRE(track.source_detection_index == 23);
+            } else if (track.box.x == 300.0f) {
+                REQUIRE(track.source_detection_index == 19);
             } else {
                 REQUIRE(track.box.x == 500.0f);
                 REQUIRE(track.source_detection_index == 17);

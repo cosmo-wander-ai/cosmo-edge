@@ -19,10 +19,12 @@
 #define private public
 #include "flow/alarm/AreaAlarm.h"
 #include "flow/sensitivity/PosSaveSensitivity.h"
+#include "flow/sensitivity/Sensitivity.h"
 #undef private
 
 #include "flow/alarm/AreaAlarmInternalTypes.h"
 #include "flow/sensitivity/PosSaveSensitivityTypes.h"
+#include "flow/sensitivity/SensitivityTypes.h"
 
 namespace cosmo {
 namespace {
@@ -174,6 +176,59 @@ namespace {
         retained.target.oriented_corners.reset();
         sensitivity.TrackData2RecData(retained, recorded);
         CHECK_FALSE(recorded.oriented_corners);
+    }
+
+    TEST_CASE("Friend sensitivity alarms preserve the latest measured overlays",
+              "[alarm][geometry][friends]") {
+        ActionNode action;
+        action.flowActionId = "friend-sensitivity";
+        Sensitivity sensitivity("geometry-task", action);
+        auto input = std::make_shared<DataDetTrackClassify>();
+        AiGroupEl group;
+        group.groupId       = 7;
+        group.groupIdInfo   = "friend-group";
+        group.genTarget.box = {2, 3, 24, 16};
+        const util::Box common_box{3, 4, 12, 10};
+        auto first    = MeasuredTarget(1, common_box, 0.3f);
+        auto second   = MeasuredTarget(2, common_box, 1.1f);
+        auto ordinary = MeasuredTarget(3, common_box, 0.0f);
+        ordinary.oriented_corners.reset();
+        group.srcTargets     = {first, second, ordinary};
+        input->groupTargets  = {group};
+        const auto timestamp = std::chrono::steady_clock::now();
+        sensitivity.AddGroupHistory(input, timestamp);
+
+        // History must own its snapshot even when upstream reuses detections.
+        input->groupTargets[0].srcTargets[0].oriented_corners.reset();
+        auto& history = sensitivity.m_mapTrackIdStatus.at(7);
+        DataAlarmUnit initial;
+        sensitivity.FillAlarmDataTrackId(initial, history);
+        REQUIRE(initial.boxs.size() == 3);
+        REQUIRE(initial.friends.size() == 3);
+        CHECK(initial.box == group.genTarget.box);
+        RequireCorners(initial.boxs[0].oriented_corners, first.oriented_corners);
+        RequireCorners(initial.boxs[1].oriented_corners, second.oriented_corners);
+        CHECK_FALSE(initial.boxs[2].oriented_corners);
+        for (size_t i = 0; i < initial.boxs.size(); ++i) {
+            CHECK(initial.boxs[i].box == common_box);
+            CHECK(initial.friends[i] == common_box);
+        }
+
+        // The next group observation reorders members and drops oriented
+        // geometry on one member; neither old order nor old corners may leak.
+        input->groupTargets[0].srcTargets    = {second, ordinary};
+        input->groupTargets[0].genTarget.box = {4, 5, 20, 14};
+        sensitivity.AddGroupHistory(input, timestamp + std::chrono::milliseconds(100));
+        DataAlarmUnit latest;
+        sensitivity.FillAlarmDataTrackId(latest, history);
+        REQUIRE(latest.boxs.size() == 2);
+        REQUIRE(latest.friends.size() == 2);
+        CHECK(latest.box == input->groupTargets[0].genTarget.box);
+        RequireCorners(latest.boxs[0].oriented_corners, second.oriented_corners);
+        CHECK_FALSE(latest.boxs[1].oriented_corners);
+        for (size_t i = 0; i < latest.boxs.size(); ++i) {
+            CHECK(latest.boxs[i].box == latest.friends[i]);
+        }
     }
 
     TEST_CASE("Area count reports preserve per-target measured geometry", "[alarm][geometry][count]") {
