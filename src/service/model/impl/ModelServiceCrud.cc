@@ -130,7 +130,7 @@ void ModelServiceImpl::ValidateModelOutputFormat(const nlohmann::json& doc) {
         bool reject = (outputs.size() != 1);
         if (!reject) {
             std::vector<int> shape = get_shape(outputs[0]);
-            reject = !(shape.size() == 3 && shape[2] == 7);
+            reject                 = !(shape.size() == 3 && shape[2] == 7);
         }
         if (reject) {
             throw cosmo::util::ErrorMessage(
