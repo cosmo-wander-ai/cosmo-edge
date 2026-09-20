@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { h, onMounted } from 'vue'
 import * as Vue from 'vue'
 import lodash from 'lodash'
 import { mountComponent } from './helpers/mount_behavior_component.mjs'
 import { createNodeState, updateAtomicList, updateNodeConfig } from '../src/views/gam/countManagement/arrangeDetail/flow/nodeState.js'
 
+// CMake runs this script from an isolated build/web/web_unified copy.
+const repositoryRoot = process.env.COSMO_REPO_ROOT || fileURLToPath(new URL('../../../', import.meta.url))
 const plain = value => JSON.parse(JSON.stringify(value))
 const empty = { default: { render: () => null } }
 const config = { params: [{ key: 'message', value: 'saved' }], webConfig: { labelList: [], labelFilterList: [], metaDataParams: [], atomic: {} } }
@@ -227,7 +231,9 @@ for (const savedMode of [null, 'recognition', 'behavior']) {
 // The real association form must turn model label selections into runtime
 // parameters, and migrating a legacy face node must retain its region/thresholds.
 for (const platform of ['bm1688', 'cv186x', 'x86']) {
-  const actions = JSON.parse(await readFile(new URL(`../../../data/resource/aiboxresource_${platform}/layout/actions.json`, import.meta.url), 'utf8'))
+  const actions = JSON.parse(await readFile(path.join(
+    repositoryRoot, `data/resource/aiboxresource_${platform}/layout/actions.json`
+  ), 'utf8'))
   const action = actions.find(item => item.id === 'AA_00006')
   for (const legacy of [false, true]) {
     const initial = legacy ? {

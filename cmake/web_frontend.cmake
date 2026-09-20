@@ -22,6 +22,9 @@ list(APPEND WEB_SRC_FILES
     ${CMAKE_CURRENT_LIST_FILE}
     ${CMAKE_CURRENT_SOURCE_DIR}/docs/i18n/GLOSSARY.md
     ${CMAKE_CURRENT_SOURCE_DIR}/docs/i18n/SHORT-SCOPES.md
+    ${CMAKE_CURRENT_SOURCE_DIR}/data/resource/aiboxresource_bm1688/layout/actions.json
+    ${CMAKE_CURRENT_SOURCE_DIR}/data/resource/aiboxresource_cv186x/layout/actions.json
+    ${CMAKE_CURRENT_SOURCE_DIR}/data/resource/aiboxresource_x86/layout/actions.json
     ${CMAKE_CURRENT_SOURCE_DIR}/data/resource/aiboxresource_bm1688/model_template/yolov8_det.json
     ${CMAKE_CURRENT_SOURCE_DIR}/data/resource/aiboxresource_cv186x/model_template/yolov8_det.json
     ${CMAKE_CURRENT_SOURCE_DIR}/data/resource/aiboxresource_x86/model_template/yolov8_det.json
