@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -21,7 +22,7 @@ from conversion_common import (
     ExecutionFailure,
     utc_now,
     _require_string,
-    conversion_parameters,
+    conversion_parameters as _common_conversion_parameters,
     _read_environment_report,
     _read_asset_selection,
     _run_relative,
@@ -57,6 +58,69 @@ DEVICE_VALIDATION_NONE = {
     "knownLimits": ["device import and runtime are not covered by this example"],
 }
 SEAL_VERSION = "1.0"
+
+
+def conversion_parameters(contract: dict[str, Any], run_dir: Path) -> dict[str, Any]:
+    parameters = _common_conversion_parameters(contract, run_dir)
+    for key in ("quantizeTable", "calibrationTable"):
+        raw = parameters["raw"].get(key)
+        parameters[key] = None
+        if raw is None:
+            continue
+        path = core.resolve_run_input(run_dir, _require_string(raw, f"parameters.{key}"))
+        try:
+            rows = [
+                line.split()
+                for line in path.read_text(encoding="utf-8").splitlines()
+                if line.strip() and not line.lstrip().startswith("#")
+            ]
+        except (OSError, UnicodeError) as error:
+            raise core.WorkflowError(f"parameters.{key} must be a readable UTF-8 table") from error
+        if not rows:
+            raise core.WorkflowError(f"parameters.{key} must contain table entries")
+        if key == "quantizeTable":
+            if any(len(row) != 2 or row[1] not in {"F32", "F16", "BF16", "INT8"} for row in rows):
+                raise core.WorkflowError("quantizeTable entries must be layer-name F32/F16/BF16/INT8")
+        else:
+            for row in rows:
+                try:
+                    threshold, minimum, maximum = (float(value) for value in row[1:])
+                    valid = len(row) == 4 and all(
+                        math.isfinite(value) for value in (threshold, minimum, maximum)
+                    ) and threshold > 0 and minimum <= maximum
+                except ValueError:
+                    valid = False
+                if not valid:
+                    raise core.WorkflowError(
+                        "calibrationTable entries must be tensor-name positive-threshold finite-min finite-max"
+                    )
+        parameters[key] = path
+    if parameters["quantization"] == "INT8" and parameters["calibrationTable"] is None:
+        raise core.WorkflowError("INT8 conversion requires parameters.calibrationTable")
+    return parameters
+
+
+def _conversion_inputs(parameters: dict[str, Any], run_dir: Path) -> list[dict[str, Any]]:
+    return [
+        _artifact(core.resolve_run_input(run_dir, str(parameters[key])), run_dir, role)
+        for key, role in (
+            ("quantizeTable", "quantization-table"),
+            ("calibrationTable", "calibration-table"),
+        )
+        if parameters.get(key) is not None
+    ]
+
+
+def _conversion_input_failures(
+    manifest: dict[str, Any], parameters: dict[str, Any], run_dir: Path,
+) -> list[str]:
+    try:
+        current = _conversion_inputs(parameters, run_dir)
+    except (core.WorkflowError, OSError) as error:
+        return [f"Conversion table input is unavailable: {error}"]
+    if manifest.get("conversionInputs", []) != current:
+        return ["Conversion table inputs changed or are not bound to the execution manifest; rerun conversion."]
+    return []
 
 
 def _container_path(path: Path, run_dir: Path) -> str:
@@ -178,6 +242,8 @@ def build_deploy_arguments(
     *,
     mlir: str,
     model: str,
+    quantize_table: str | None = None,
+    calibration_table: str | None = None,
     test_input: str | None = None,
     test_reference: str | None = None,
 ) -> list[str]:
@@ -191,6 +257,9 @@ def build_deploy_arguments(
         "--model",
         model,
     ]
+    for flag, value in (("--quantize_table", quantize_table), ("--calibration_table", calibration_table)):
+        if value is not None:
+            arguments.extend([flag, value])
     if test_input and test_reference:
         arguments.extend(["--test_input", test_input, "--test_reference", test_reference])
         if parameters.get("tensorTolerance"):
@@ -259,6 +328,7 @@ def execute_conversion(
         "routeAssessmentSha256": environment["routeAssessmentSha256"],
         "startedAt": utc_now(),
         "source": _artifact(source_model, run_dir, "source-onnx"),
+        "conversionInputs": _conversion_inputs(parameters, run_dir),
         "target": {
             "backend": parameters["targetBackend"],
             "chip": chip,
@@ -397,10 +467,21 @@ def execute_conversion(
         }
         core.atomic_write_json(manifest_path, manifest)
 
+        input_failures = _conversion_input_failures(manifest, parameters, run_dir)
+        if input_failures:
+            raise ExecutionFailure("; ".join(input_failures))
         deploy_args = build_deploy_arguments(
             parameters,
             mlir=_runtime_path(mlir_path, run_dir, current_toolchain),
             model=_runtime_path(bmodel_path, run_dir, current_toolchain),
+            quantize_table=(
+                _runtime_path(parameters["quantizeTable"], run_dir, current_toolchain)
+                if parameters["quantizeTable"] else None
+            ),
+            calibration_table=(
+                _runtime_path(parameters["calibrationTable"], run_dir, current_toolchain)
+                if parameters["calibrationTable"] else None
+            ),
             test_input=runtime_test_input,
             test_reference=runtime_reference,
         )
@@ -495,6 +576,9 @@ def execute_conversion(
             completed_toolchain, error = core.inspect_toolchain(parameters["toolchainSpec"])
             if not completed_toolchain or completed_toolchain.get("id") != admitted_toolchain.get("id"):
                 raise core.WorkflowError("source compiler changed during conversion; rerun doctor: " + error)
+        input_failures = _conversion_input_failures(manifest, parameters, run_dir)
+        if input_failures:
+            raise ExecutionFailure("; ".join(input_failures))
         manifest["status"] = "COMPLETE"
         manifest["completedAt"] = utc_now()
         manifest["durationSeconds"] = round(time.monotonic() - started, 3)
@@ -723,6 +807,9 @@ def _seal_chain_context(run_dir: Path) -> dict[str, Any]:
         raise core.WorkflowError("seal contract and execution manifest do not match")
     if manifest.get("routeAssessmentSha256") != core.sha256_file(route_path):
         raise core.WorkflowError("seal route assessment and execution manifest do not match")
+    input_failures = _conversion_input_failures(manifest, conversion_parameters(contract, run_dir), run_dir)
+    if input_failures:
+        raise core.WorkflowError("; ".join(input_failures))
     compatibility = next(
         (
             item
@@ -1163,7 +1250,7 @@ def verify_conversion(
         stages.append({"id": "S1", "status": "FAIL", "detail": "ONNX preflight evidence is missing or changed."})
 
     artifact_entries = manifest.get("artifacts", [])
-    artifact_failures = []
+    artifact_failures = _conversion_input_failures(manifest, parameters, run_dir)
     deliverables = []
     for entry in artifact_entries if isinstance(artifact_entries, list) else []:
         try:
@@ -1315,6 +1402,7 @@ def verify_conversion(
         "selectedExample": selected_example.get("exampleId") if selected_example else None,
         "selectedExampleLifecycle": selected_example_lifecycle,
         "attempts": [*previous_attempts, _attempt_summary(manifest)],
+        "conversionInputs": manifest.get("conversionInputs", []),
         "dataFlow": core.redact_data(manifest.get("dataFlow", {"status": "UNVERIFIED"})),
         "waivers": [tensor_waiver] if tensor_waiver else [],
         "stages": stages,
