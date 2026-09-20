@@ -6,14 +6,14 @@
 using namespace cosmo;
 
 namespace {
-ActionNode StrangerAction() {
+ActionNode StrangerAction(const std::string& input_mode = "recognition") {
     ActionNode node;
     node.actionId     = "BA_20003";
     node.flowActionId = "stranger-evidence";
     node.actionName   = "stranger-evidence";
     MsgDynamicKeyValue mode;
     mode.key   = "inputMode";
-    mode.value = "recognition";
+    mode.value = input_mode;
     node.configObject.params.push_back(mode);
     return node;
 }
@@ -33,10 +33,10 @@ struct PoolScope {
 struct StrangerFlow {
     mem::MemoryPoolMng pool{std::make_unique<mem::AllocatorCpu>(), {384}};
     PoolScope pool_scope{pool};
-    ActionNode node{StrangerAction()};
+    ActionNode node;
     TestableEvidence action{"stranger-task", node};
     AlgTaskUnit sink;
-    StrangerFlow() {
+    explicit StrangerFlow(const std::string& mode = "recognition") : node(StrangerAction(mode)) {
         sink.channel_id   = "channel";
         sink.task_id      = "stranger-task";
         sink.actionId     = "BA_00004";
@@ -92,6 +92,18 @@ AiDetectRstEl Observation(int id, FaceObservationStatus status = FaceObservation
     return target;
 }
 }  // namespace
+
+TEST_CASE("Automatic result accumulation retains the stranger rule", "[stranger][accumulation][flow]") {
+    StrangerFlow flow("auto");
+    flow.Feed(1, 0, {Observation(1, FaceObservationStatus::kMatched), Observation(2)});
+    flow.Feed(2, 1500, {Observation(1), Observation(2)});
+    flow.Feed(3, 3000, {Observation(1), Observation(2)});
+    flow.Feed(4, 4000, {});
+    REQUIRE(flow.sink.que->RestSize() == 1);
+    auto output = flow.sink.que->Pop();
+    REQUIRE(output->taskDataAlarm.alarmData->alarms.front().trackId == 2);
+    REQUIRE(output->taskDataAlarm.alarmData->alarms.front().matchInfo.name.empty());
+}
 
 TEST_CASE("Stranger flow emits each departed track with its own best evidence frame", "[stranger][flow]") {
     StrangerFlow flow;

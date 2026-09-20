@@ -20,29 +20,32 @@ LogicalJudgment::~LogicalJudgment() {
 LogicalJudgment::LogicalJudgment(const std::string& taskId, ActionNode& action)
     : AlgActionBase(AlgActionType::AlgActionBALogicalJudgment, action, "", taskId),
       logic_(action.configObject.condition),
-      calc_engine_(
-          taskId,
-          [this](const std::string& label, float& value) -> bool {
-              for (auto& p : params_.params) {
-                  if (p.label == label) {
-                      value = p.value;
-                      return true;
-                  }
-              }
-              return false;
-          },
-          [this](const std::string& key, const std::string& value) -> bool {
-              for (auto& c : params_.customs) {
-                  if (c.key == key) {
-                      return std::find(c.values.begin(), c.values.end(), value) != c.values.end();
-                  }
-              }
-              return false;
-          }),
       overview_rec_inst_(taskId, "logic") {
     action_status = util::ErrorEnum::ActionReady;
     LOG_INFO("{}Task:{} Init, logic.type:{} KeyL:{} KeyR:{}", kTag, task_id, logic_.type, logic_.keyL,
              logic_.keyR);
+}
+
+LogicCalcEngine LogicalJudgment::MakeEngine(const BALogicalJudgmentParam& params) const {
+    return LogicCalcEngine(
+        task_id,
+        [&params](const std::string& label, float& value) {
+            for (const auto& param : params.params) {
+                if (param.label == label) {
+                    value = param.value;
+                    return true;
+                }
+            }
+            return false;
+        },
+        [&params](const std::string& key, const std::string& value) {
+            for (const auto& param : params.customs) {
+                if (param.key == key) {
+                    return std::find(param.values.begin(), param.values.end(), value) != param.values.end();
+                }
+            }
+            return false;
+        });
 }
 
 /*
@@ -126,6 +129,7 @@ bool LogicalJudgment::AnalysisCustomKey(MsgDynamicKeyValue& param, MsgDynamicKey
 bool LogicalJudgment::ModifyParam(const std::string& /*channelId*/, const std::string& /*taskId*/,
                                   std::vector<MsgDynamicKeyValue>& params) {
     std::lock_guard<std::shared_mutex> lock(mtx);
+    ++parameter_revision_;
     for (auto& param : params) {
         LogicalJudgmentLogicParam localNewParamEl;
         if (AnalysisKey(param, localNewParamEl)) {
@@ -165,6 +169,7 @@ bool LogicalJudgment::ModifyParam(const std::string& /*channelId*/, const std::s
 bool LogicalJudgment::SetParam(const std::string& /*channelId*/, const std::string& /*taskId*/,
                                std::vector<MsgDynamicKeyValue>& params) {
     std::lock_guard<std::shared_mutex> lock(mtx);
+    ++parameter_revision_;
     params_.params.clear();
     params_.customs.clear();
     for (auto& param : params) {
@@ -183,7 +188,12 @@ bool LogicalJudgment::SetParam(const std::string& /*channelId*/, const std::stri
 }
 
 bool LogicalJudgment::LogicTest(AiDetectRstEl& target) {
-    return calc_engine_.GetLogicResult(target, logic_, true);
+    BALogicalJudgmentParam params;
+    {
+        std::shared_lock<std::shared_mutex> lock(mtx);
+        params = params_;
+    }
+    return MakeEngine(params).GetLogicResult(target, logic_, true);
 }
 
 void LogicalJudgment::HandFrame(AlgDataPtr algData) {
@@ -211,6 +221,8 @@ void LogicalJudgment::HandFrame(AlgDataPtr algData) {
         return;
     }
 
+    // Keep results and observation metadata local to this graph branch.
+    algData = AlgDataCopy(algData);
     DataDetTrackClassifyPtr input;
     if (AlgDataType::ChannelDataDetect == algData->dataType) {
         input = algData->chanDataDetect.detRet;
@@ -224,9 +236,31 @@ void LogicalJudgment::HandFrame(AlgDataPtr algData) {
         input = algData->GetTaskResult(AlgDataType::TaskDataClassify);
     }
 
+    if (!input) {
+        action_status = util::ErrorEnum::FlowDataInvalid;
+        return;
+    }
+    BALogicalJudgmentParam params;
+    uint64_t revision;
+    {
+        std::shared_lock<std::shared_mutex> lock(mtx);
+        params   = params_;
+        revision = parameter_revision_;
+    }
+    const auto engine     = MakeEngine(params);
+    const auto configured = [&params](const std::string& key) {
+        return std::any_of(params.customs.begin(), params.customs.end(),
+                           [&key](const auto& param) { return param.key == key; });
+    };
+    input->logic_context = action_node.flowActionId + ":" + std::to_string(revision);
     for (auto& target : input->targets) {
-        if (!target.bFilter)
-            target.bLogicResult = calc_engine_.GetLogicResult(target, logic_);
+        target.logic_observation.reset();
+        if (!target.bFilter) {
+            target.bLogicResult = engine.GetLogicResult(target, logic_);
+            if (input->observation_complete) {
+                target.logic_observation = engine.Observe(target, logic_, configured);
+            }
+        }
     }
     overview_rec_inst_.OverviewRecordFrame(input);
 

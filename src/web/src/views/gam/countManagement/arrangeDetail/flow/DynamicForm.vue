@@ -489,6 +489,20 @@ onMounted(() => {
     let input = _.find(props.configObject?.params, {
       key: item.key
     })
+    if (!input && isResultAccumulationAction.value) {
+      const aliases = {
+        'param.minValidObservationCount': 'param.minValidFaceCount',
+        'param.observationIntervalMs': 'param.faceSampleIntervalMs'
+      }
+      if (aliases[item.key]) {
+        input = _.find(props.configObject?.params, { key: aliases[item.key] })
+      }
+      if (item.key === 'inputMode' && props.configObject?.params?.some(p =>
+        ['param.posSenHitCount', 'param.posSenTotalCount', 'PosSenRealTimeEnable'].includes(p.key)
+      )) {
+        input = { value: 'behavior' }
+      }
+    }
     if (!input && isTargetAssociationAction.value) {
       const aliases = {
         'param.minTargetSize': 'param.minFaceSize',
@@ -1560,6 +1574,14 @@ const submitForm = () => {
         originalAreaWebConfig.metaDataParams,
         configObject.webConfig.metaDataParams
       )
+    }
+  }
+  if (isResultAccumulationAction.value) {
+    // Preserve the hidden legacy behavior configuration without adding obsolete UI controls.
+    for (const param of props.configObject?.params || []) {
+      if (['param.posSenHitCount', 'param.posSenTotalCount', 'PosSenRealTimeEnable'].includes(param.key)) {
+        configObject.params.push({ ...param })
+      }
     }
   }
   return configObject

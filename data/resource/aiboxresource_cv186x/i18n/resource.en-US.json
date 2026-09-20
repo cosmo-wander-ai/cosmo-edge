@@ -3629,7 +3629,7 @@
   "resource.stranger.param_restrainswitch.description": "Suppress repeated alarms based on target position. Fixed at 0 (off) in this scene so different strangers passing through the same position are not filtered out.",
   "resource.algorithm.66.default": "Default",
   "resource.action.aa_00006.remark": "Detect related targets after parent tracking, associate unambiguous one-to-one pairs by position, and retain parent tracks.",
-  "resource.action.ba_20003.remark": "Accumulate face comparison results for each pedestrian track. Any successful match suppresses the stranger alarm; otherwise, alarm after the track ends when valid unmatched comparisons and observation duration meet the requirements.",
+  "resource.action.ba_20003.remark": "Accumulate recognition or logical judgments per tracked target. Remember any satisfied result; alarm at track end only if none satisfied and valid count/time requirements are met. Unknown observations do not count; failed input is not negative evidence.",
   "resource.association.atomic.name": "Related Target Detection Model",
   "resource.association.atomic.description": "Select the related-target detector and check the labels to associate.",
   "resource.association.region.name": "Association Region",
@@ -3642,5 +3642,14 @@
   "resource.association.confidence.description": "Confidence threshold for the related-target detector, from 0 to 1.",
   "resource.association.region.whole": "Whole",
   "resource.association.region.upper": "Upper half",
-  "resource.association.region.lower": "Lower half"
+  "resource.association.region.lower": "Lower half",
+  "resource.accumulation.input_auto": "Automatic",
+  "resource.accumulation.min_valid_count.name": "Minimum valid observations",
+  "resource.accumulation.min_valid_count.description": "Require this many valid judgments with no satisfied result before alarming at track end. Range: 1–1000.",
+  "resource.accumulation.duration.name": "Minimum observation time (ms)",
+  "resource.accumulation.duration.description": "Minimum time from the target first appearing to its last observation. Default: 3000 ms.",
+  "resource.accumulation.lost_timeout.name": "Target disappearance wait (ms)",
+  "resource.accumulation.lost_timeout.description": "Additional wait after the tracker stops emitting this track. Range: 200–10000 ms.",
+  "resource.accumulation.sample_interval.name": "Observation counting interval (ms)",
+  "resource.accumulation.sample_interval.description": "Minimum interval between counted unsatisfied judgments. Range: 0–10000 ms. Satisfied results always take effect."
 }

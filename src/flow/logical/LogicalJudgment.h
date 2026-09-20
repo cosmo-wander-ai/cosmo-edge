@@ -47,10 +47,11 @@ public:
 private:
     bool AnalysisCustomKey(MsgDynamicKeyValue& param, MsgDynamicKeyValue& localParamEl);
     bool AnalysisKey(MsgDynamicKeyValue& param, LogicalJudgmentLogicParam& localParamEl);
+    LogicCalcEngine MakeEngine(const BALogicalJudgmentParam& params) const;
 
     LogicCalc logic_;
     BALogicalJudgmentParam params_;
-    LogicCalcEngine calc_engine_;
+    uint64_t parameter_revision_{0};  // Protected together with params_ by mtx.
     OverviewRecordAiRst overview_rec_inst_;
 };
 using LogicalJudgmentPtr = std::shared_ptr<LogicalJudgment>;

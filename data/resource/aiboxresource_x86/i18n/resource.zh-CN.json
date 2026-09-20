@@ -3629,7 +3629,7 @@
   "resource.stranger.param_restrainswitch.description": "根据目标位置抑制重复告警。本场景固定为0（关闭），避免排队经过同一位置的不同陌生人被过滤。",
   "resource.algorithm.66.default": "默认",
   "resource.action.aa_00006.remark": "在主目标追踪后检测关联目标，按位置进行无歧义的一对一关联，保留主目标轨迹。",
-  "resource.action.ba_20003.remark": "按同一行人轨迹累计人脸比对结果；任一次识别成功则不报陌生人，全部有效比对未命中且满足次数和时长要求时，在轨迹结束后告警。",
+  "resource.action.ba_20003.remark": "按同一目标轨迹累计识别或逻辑判断结果。曾满足一次则保留；始终未满足且有效次数、观察时间达标时，在轨迹结束后告警。无法判断不计数，异常输入不作为未满足的证据。",
   "resource.association.atomic.name": "关联检测模型",
   "resource.association.atomic.description": "选择检测关联目标的模型，并勾选需要关联的标签。",
   "resource.association.region.name": "关联位置",
@@ -3642,5 +3642,14 @@
   "resource.association.confidence.description": "关联检测模型的置信度阈值，范围0-1。",
   "resource.association.region.whole": "全部",
   "resource.association.region.upper": "上半部",
-  "resource.association.region.lower": "下半部"
+  "resource.association.region.lower": "下半部",
+  "resource.accumulation.input_auto": "自动",
+  "resource.accumulation.min_valid_count.name": "最少有效判断次数",
+  "resource.accumulation.min_valid_count.description": "轨迹结束前至少完成这些有效判断，且始终未满足条件，才允许告警。范围1-1000。",
+  "resource.accumulation.duration.name": "最短观察时间（毫秒）",
+  "resource.accumulation.duration.description": "目标从首次出现到最后出现的最短时间，默认3000毫秒。",
+  "resource.accumulation.lost_timeout.name": "目标消失等待时间（毫秒）",
+  "resource.accumulation.lost_timeout.description": "追踪器不再输出该轨迹后，额外等待的时间。范围200-10000。",
+  "resource.accumulation.sample_interval.name": "判断计数间隔（毫秒）",
+  "resource.accumulation.sample_interval.description": "两次有效未满足判断计数的最小间隔，范围0-10000。满足条件的结果始终生效。"
 }

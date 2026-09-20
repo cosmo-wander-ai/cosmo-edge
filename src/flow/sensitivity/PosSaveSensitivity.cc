@@ -26,7 +26,11 @@ PosSaveSensitivity::PosSaveSensitivity(const std::string& taskId, ActionNode& ac
     action_status = util::ErrorEnum::ActionReady;
     for (auto& el : action.configObject.params) {
         if (el.key.ToString() == "inputMode") {
-            recognition_mode_ = el.value.ToString() == "recognition";
+            if (el.value.ToString() == "recognition") {
+                input_mode_ = InputMode::Recognition;
+            } else if (el.value.ToString() == "auto") {
+                input_mode_ = InputMode::Auto;
+            }
         }
         if (key::pos_sen::REAL_TIME_ENABLE == el.key.ToString()) {
             auto value                       = util::ParseInt(el.value);
@@ -44,16 +48,21 @@ param.posSenHitCount
 param.posSenTotalCount
 */
 bool PosSaveSensitivity::AnalysisKey(MsgDynamicKeyValue& param, BAPosSaveSensitivityParam& localParamEl) {
-    const auto param_key = param.key.ToString();
+    auto param_key = param.key.ToString();
+    if (param_key == "param.minValidObservationCount") {
+        param_key = "param.minValidFaceCount";
+    } else if (param_key == "param.observationIntervalMs") {
+        param_key = "param.faceSampleIntervalMs";
+    }
     if (param_key == "param.minValidFaceCount" || param_key == "param.trackLostTimeoutMs" ||
         param_key == "param.faceSampleIntervalMs") {
         const auto value = util::ParseInt<int64_t>(param.value, -1);
         if (param_key == "param.minValidFaceCount" && value >= 1 && value <= 1000) {
-            localParamEl.min_valid_face_count = static_cast<size_t>(value);
+            localParamEl.min_valid_count = static_cast<size_t>(value);
         } else if (param_key == "param.trackLostTimeoutMs" && value >= 200 && value <= 10000) {
             localParamEl.track_lost_timeout_ms = value;
         } else if (param_key == "param.faceSampleIntervalMs" && value >= 0 && value <= 10000) {
-            localParamEl.face_sample_interval_ms = value;
+            localParamEl.sample_interval_ms = value;
         } else {
             return false;
         }
@@ -161,8 +170,15 @@ bool PosSaveSensitivity::AnalysisKey(MsgDynamicKeyValue& param, BAPosSaveSensiti
 bool PosSaveSensitivity::ModifyParam(const std::string& /*channelId*/, const std::string& /*taskId*/,
                                      std::vector<MsgDynamicKeyValue>& params) {
     std::lock_guard<std::shared_mutex> lock(mtx);
+    ++settings_revision_;
     for (auto& param : params) {
         AnalysisKey(param, params_);
+    }
+    // Canonical keys take precedence when an imported task carries both versions.
+    for (auto& param : params) {
+        if (param.key == "param.minValidObservationCount" || param.key == "param.observationIntervalMs") {
+            AnalysisKey(param, params_);
+        }
     }
     LOG_INFO(
         "ModifyParam "
@@ -176,10 +192,16 @@ bool PosSaveSensitivity::ModifyParam(const std::string& /*channelId*/, const std
 bool PosSaveSensitivity::SetParam(const std::string& /*channelId*/, const std::string& /*taskId*/,
                                   std::vector<MsgDynamicKeyValue>& params) {
     std::lock_guard<std::shared_mutex> lock(mtx);
+    ++settings_revision_;
     // Clear parameters first
     params_ = {};
     for (auto& param : params) {
         AnalysisKey(param, params_);
+    }
+    for (auto& param : params) {
+        if (param.key == "param.minValidObservationCount" || param.key == "param.observationIntervalMs") {
+            AnalysisKey(param, params_);
+        }
     }
     LOG_INFO(
         "ModifyParam "
@@ -193,6 +215,7 @@ bool PosSaveSensitivity::SetParam(const std::string& /*channelId*/, const std::s
 bool PosSaveSensitivity::SetArea(const std::string& /*channelId*/, const std::string& taskId,
                                  std::vector<MsgTaskArea>& areas, std::vector<MsgTaskArea>& shieldedAreas) {
     std::lock_guard<std::shared_mutex> lock(mtx);
+    ++settings_revision_;
     task_area_.taskId        = taskId;
     task_area_.areas         = areas;
     task_area_.shieldedAreas = shieldedAreas;

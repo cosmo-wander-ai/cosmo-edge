@@ -1,6 +1,8 @@
 // AiCommon.h — Common AI detection/tracking/classification data types.
 #pragma once
 
+#include <optional>
+
 #include "media/VideoFrame.h"
 #include "util/AiTypes.h"
 
@@ -71,6 +73,8 @@ struct AiDetectRstEl {
     bool bFilter{false};
     bool bForceClassify{false};
     bool bLogicResult{false};  // Sensitivity judgement basis
+    // Set only by a completed logical judgment. Missing input is not false evidence.
+    std::optional<bool> logic_observation;
     std::string filterDesc{};
     AIFilterType filterType{AIFilterType::None};
     std::vector<AiConfidence> classifyRst;

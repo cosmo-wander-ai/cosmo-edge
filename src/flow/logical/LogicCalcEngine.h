@@ -3,6 +3,7 @@
 #pragma once
 
 #include <functional>
+#include <optional>
 #include <string>
 
 #include "infer/AiCommon.h"
@@ -11,12 +12,17 @@
 namespace cosmo {
 
 // Parameter callback — makes Engine independent of specific parameter storage structures
-using ParamLimitValueFn = std::function<bool(const std::string& label, float& value)>;
-using ValueIsIncludeFn  = std::function<bool(const std::string& key, const std::string& value)>;
+using ParamLimitValueFn   = std::function<bool(const std::string& label, float& value)>;
+using ValueIsIncludeFn    = std::function<bool(const std::string& key, const std::string& value)>;
+using ValueIsConfiguredFn = std::function<bool(const std::string& key)>;
 
 class LogicCalcEngine {
 public:
     LogicCalcEngine(const std::string& logTag, ParamLimitValueFn paramFn, ValueIsIncludeFn includeFn);
+
+    // Unlike the legacy bool interface, absence/invalid operands remain unknown.
+    [[nodiscard]] std::optional<bool> Observe(const AiDetectRstEl& target, LogicCalc& logic,
+                                              const ValueIsConfiguredFn& configured = {}) const;
 
     [[nodiscard]] bool GetLogicResult(const AiDetectRstEl& target, LogicCalc& logic,
                                       bool bDebug = false) const;

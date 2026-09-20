@@ -47,6 +47,7 @@ struct DataDetTrackClassify {
     // False means an upstream inference failed, not that every target disappeared.
     bool observation_complete{true};
     std::string recognition_context;  // Face sets and threshold used for these observations.
+    std::string logic_context;        // Judgment node and parameter revision; empty before judgment.
 };
 using DataDetTrackClassifyPtr = std::shared_ptr<DataDetTrackClassify>;
 

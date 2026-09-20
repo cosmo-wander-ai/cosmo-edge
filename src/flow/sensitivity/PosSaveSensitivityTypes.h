@@ -40,7 +40,7 @@ struct cosmo::PosSaveSensitivity::TrackIdData {
     DataAlarmTargetConfidence target_confidence_info;
     std::vector<AiDetectRstEl> group_targets;
     std::deque<TrackIdDataEl> history;
-    // Recognition mode reuses the positive latch and snapshot owned by this track.
-    PositiveTrackEvidence face_evidence;
-    float best_face_quality{-1.0f};
+    // Both supported result types share the latch and snapshot owned by this track.
+    PositiveTrackEvidence evidence;
+    float best_snapshot_quality{-1.0f};
 };

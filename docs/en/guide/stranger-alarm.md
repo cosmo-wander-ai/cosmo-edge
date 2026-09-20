@@ -18,7 +18,7 @@ Pedestrian detection → pedestrian tracking → child target detection and asso
 
 Child target detection and association (`AA_00006`) uses the existing detector pool to detect the selected labels in the full frame and associate them with a unique parent. The stranger preset selects the face model and `face` label, upper-half region and 0.9 minimum containment. It preserves pedestrian identities, regions and observations without a face. Overlapping people and multiple faces inside a body box are skipped conservatively.
 
-`AA_00005` uses `outputMode=observations` to preserve complete recognition observations. Result accumulation (`BA_20003`) collects comparisons for each pedestrian track: any successful match suppresses the stranger alarm; otherwise, valid unmatched comparisons and observation duration determine the outcome after the track ends. The internal mode is `inputMode=recognition`; the editor no longer offers a mode selector. Historical behavior mode is retained for configuration compatibility and is not used by the current preset scenarios.
+`AA_00005` uses `outputMode=observations` to preserve complete recognition observations. Result accumulation (`BA_20003`) collects comparisons for each pedestrian track: any successful match suppresses the stranger alarm; otherwise, valid unmatched comparisons and observation duration determine the outcome after the track ends. New accumulation nodes use internal `inputMode=auto` to accept recognition or completed logical judgments without a mode selector. The stranger preset and existing `inputMode=recognition` configurations retain their original rule. Historical behavior mode remains available only for configuration compatibility.
 
 The template reuses model identifiers `1001003`, `1000001`, `1000012`, `1000016` and `1000005` for pedestrian detection, face detection, quality classification, landmarks and feature extraction. Install the matching models on the target before running the scenario. Shared identifiers do not make model binaries interchangeable: x86 uses ONNX, while Sophon and Rockchip require artifacts for their respective targets. The bundled public benchmark models do not include the complete face model chain. Synchronizing templates does not establish runtime availability, completed model conversion or device acceptance.
 
@@ -33,14 +33,28 @@ Select Stranger alarm and bind a camera, regions and face groups containing vali
 | `param.minFaceQuality` | 60 | Existing face quality score threshold, 0–100 |
 | `param.frontFaceOnly` | 1 | Use frontal faces only |
 | `param.limitScore` | 0 | 0 uses library thresholds; otherwise a score threshold in 0–100 |
-| `param.minValidFaceCount` | 3 | Minimum valid unmatched comparisons |
+| `param.minValidObservationCount` | 3 | Minimum valid judgments; valid unmatched comparisons for stranger alarms |
 | `param.posSenDurationTime` | 3000 | Minimum track observation duration, milliseconds |
 | `param.trackLostTimeoutMs` | 1000 | Additional grace period after the tracker stops emitting the track |
-| `param.faceSampleIntervalMs` | 200 | Minimum interval between negative counts; success always counts |
+| `param.observationIntervalMs` | 200 | Minimum interval between unsatisfied counts; satisfied results always take effect |
 
 Enter the minimum observation duration directly in milliseconds: 3000 means 3 seconds. New configurations use an internal duration multiplier (`param.posSenDurationTimeType`) of 1, with no multiplier input in the editor; editing existing configurations preserves their internal values. Pedestrian detection runs at 5 FPS and downstream actions forward every observation. Area alarm throttling and position suppression are disabled so simultaneous departures can generate separate reports. Each track reports at most once per matched region, with its highest-quality valid unmatched frame.
 
 Task restarts, video session changes, selected group changes and recognition quality or match threshold changes discard unfinished evidence. Track completion alarms have inherent latency and do not promise an immediate alert while a person remains visible.
+
+## Generic result accumulation
+
+Use detection → tracking → logical judgment → result accumulation → event reporting. Child association or classification may precede judgment. A completed logical judgment or recognition observation output is required: raw detections, default `false` values and classifications without judgment are not negative evidence. Group targets and cross-track or cross-camera aggregation are not supported.
+
+The upstream condition should describe the **desired result**, such as matching an enrolled person or completing a required action. A single satisfied observation remains recorded for the entire track. At track end, an alarm requires no satisfied observations, enough valid judgments and sufficient observation duration. Each track reports at most once per matched region; simultaneous departures retain separate snapshots.
+
+Logical observations distinguish true, false and unknown. Missing model outputs or thresholds, non-finite scores, unsupported expressions, filtered targets and out-of-region targets do not add negative counts. Inference failures and long input interruptions invalidate pending negative conclusions. Unknown observations keep a target's track alive. Changes to judgment parameters, accumulation parameters, regions or video sessions discard pending accumulation.
+
+Generic logical results select the valid unsatisfied frame with the largest parent box. Recognition retains the highest-quality valid unmatched face. Stranger events continue to omit below-threshold candidate identities and library photographs.
+
+The four task parameters are minimum valid observations, minimum observation time, target disappearance wait and observation counting interval. Legacy `param.minValidFaceCount` and `param.faceSampleIntervalMs` remain readable; editing a node saves the generic names. Canonical parameters take precedence when both forms are present. Hidden legacy modes and duration multipliers remain compatible.
+
+This rule answers whether a condition was ever satisfied during the track. For example, a never-confirmed helmet scenario requires explicit judgments from usable views; a missing helmet association alone remains unknown. To alarm when a person wore a helmet and later removed it, use duration or frequency judgment instead of this once-satisfied rule.
 
 ## Child target detection and association
 
@@ -65,7 +79,7 @@ On a configured Linux CPU development environment:
 
 ```bash
 bash scripts/build_cpu_test.sh
-./build_cpu/cosmo-tests "[stranger],[association]"
+./build_cpu/cosmo-tests "[stranger],[association],[accumulation]"
 ```
 
-`test_target_association.cc` covers generic pairing, regions, containment, label selection, failure states and legacy parameters. `test_stranger_alarm.cc` covers association, quality and evidence rules. `test_stranger_alarm_flow.cc` covers action and queue integration, separate snapshots, successful matches, failed input and session resets. CPU tests do not establish target-device acceptance. Check known people, strangers, side faces, occlusion, overlapping people, empty frames and stream interruptions before deployment, measuring false alarms, misses and latency.
+`test_target_association.cc` covers generic pairing; `test_stranger_alarm.cc` and `test_stranger_alarm_flow.cc` cover the existing stranger rules. `test_result_accumulation.cc` and `test_logic_observation.cc` cover generic observations and missing input. `test_result_accumulation_flow.cc` covers actual judgment-to-accumulation actions and queues, separate snapshots, satisfied results, failed input, parameter compatibility and session resets. CPU tests do not establish target-device acceptance. Check known people, strangers, side faces, occlusion, overlapping people, empty frames and stream interruptions before deployment, measuring false alarms, misses and latency.

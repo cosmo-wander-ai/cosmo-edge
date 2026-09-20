@@ -234,6 +234,38 @@ for (const platform of ['bm1688', 'cv186x', 'x86']) {
   const actions = JSON.parse(await readFile(path.join(
     repositoryRoot, `data/resource/aiboxresource_${platform}/layout/actions.json`
   ), 'utf8'))
+  const accumulationAction = actions.find(item => item.id === 'BA_20003')
+  for (const mode of [null, 'auto', 'recognition', 'behavior']) {
+    const params = mode ? [
+      { key: 'inputMode', value: mode },
+      { key: 'param.minValidFaceCount', value: '7' },
+      { key: 'param.faceSampleIntervalMs', value: '350' },
+      { key: 'param.posSenDurationTimeType', value: '2' }
+    ] : []
+    if (mode === 'behavior') params.push({ key: 'param.posSenHitCount', value: '8' })
+    if (mode === 'auto') params.push({ key: 'param.minValidObservationCount', value: '9' })
+    const form = await mountComponent('views/gam/countManagement/arrangeDetail/flow/DynamicForm.vue', {
+      props: { actionDetail: { ...accumulationAction, flowActionId: 'accumulation' }, configObject: { params, webConfig: {} } },
+      mocks: {
+        './ConditionView.vue': empty, './TreeSelectMultiple.vue': empty, 'tree-transfer-vue3': empty,
+        uuid: { v4: () => 'fixture-id' }, lodash: { default: lodash },
+        '@/components/eventBus.js': { default: { $emit() {}, $on() {}, $off() {} } },
+        '@element-plus/icons-vue': Object.fromEntries(['QuestionFilled', 'ArrowDown', 'ArrowRight', 'CirclePlus', 'CircleClose'].map(name => [name, empty.default]))
+      }
+    })
+    try {
+      const saved = form.instance.submitForm()
+      const metadata = saved.webConfig.metaDataParams
+      assert.equal(saved.params.find(p => p.key === 'inputMode')?.value, mode || 'auto')
+      assert.equal(saved.params.find(p => p.key === 'param.posSenDurationTimeType')?.value, mode ? '2' : '1')
+      assert.equal(metadata.find(p => p.key === 'param.minValidObservationCount')?.value, mode === 'auto' ? '9' : mode ? '7' : '3')
+      assert.equal(metadata.find(p => p.key === 'param.observationIntervalMs')?.value, mode ? '350' : '200')
+      assert.equal(metadata.length, 4, 'only four supported task parameters are exposed')
+      assert.ok(!metadata.some(p => ['param.minValidFaceCount', 'param.faceSampleIntervalMs'].includes(p.key)))
+      assert.equal(form.all(n => n.type === 'el-form-item').length, 0, 'automatic input and multiplier stay hidden')
+      if (mode === 'behavior') assert.equal(saved.params.find(p => p.key === 'param.posSenHitCount')?.value, '8')
+    } finally { form.unmount() }
+  }
   const action = actions.find(item => item.id === 'AA_00006')
   for (const legacy of [false, true]) {
     const initial = legacy ? {
