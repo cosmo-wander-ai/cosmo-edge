@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import { h, onMounted } from 'vue'
+import * as Vue from 'vue'
 import lodash from 'lodash'
 import { mountComponent } from './helpers/mount_behavior_component.mjs'
 import { createNodeState, updateAtomicList, updateNodeConfig } from '../src/views/gam/countManagement/arrangeDetail/flow/nodeState.js'
@@ -220,6 +222,59 @@ for (const savedMode of [null, 'recognition', 'behavior']) {
     assert.equal(saved.params.find(p => p.key === 'param.posSenDurationTimeType')?.value, '1')
     assert.equal(saved.webConfig.metaDataParams.find(p => p.key === 'param.posSenDurationTime')?.defaultValue, '3000', 'duration remains a task parameter')
   } finally { form.unmount() }
+}
+
+// The real association form must turn model label selections into runtime
+// parameters, and migrating a legacy face node must retain its region/thresholds.
+for (const platform of ['bm1688', 'cv186x', 'x86']) {
+  const actions = JSON.parse(await readFile(new URL(`../../../data/resource/aiboxresource_${platform}/layout/actions.json`, import.meta.url), 'utf8'))
+  const action = actions.find(item => item.id === 'AA_00006')
+  for (const legacy of [false, true]) {
+    const initial = legacy ? {
+      params: [
+        { key: 'atomicCode', value: 'detector' },
+        { key: 'param.minFaceSize', value: '80' },
+        { key: 'param.faceDetectionConfidence', value: '0.75' }
+      ],
+      webConfig: { labelList: [{ class_name: 'face', used: true }] }
+    } : { params: [], webConfig: {} }
+    const form = await mountComponent('views/gam/countManagement/arrangeDetail/flow/DynamicForm.vue', {
+      props: { actionDetail: { ...action, flowActionId: 'association' }, configObject: initial },
+      mocks: {
+        vue: { ...Vue, resolveComponent: name => name === 'el-table-column' ? empty.default : Vue.resolveComponent(name) },
+        './ConditionView.vue': empty, './TreeSelectMultiple.vue': empty, 'tree-transfer-vue3': empty,
+        uuid: { v4: () => 'fixture-id' }, lodash: { default: lodash },
+        '@/components/eventBus.js': { default: { $emit() {}, $on() {}, $off() {} } },
+        '@element-plus/icons-vue': Object.fromEntries(['QuestionFilled', 'ArrowDown', 'ArrowRight', 'CirclePlus', 'CircleClose'].map(name => [name, empty.default]))
+      },
+      api: { atomicModelList: async () => ({ resData: { list: [{
+        atomicCode: 'detector', atomicName: 'Detector', label: JSON.stringify([
+          { class_name: 'face', nameCN: 'Face' }, { class_name: 'plate', nameCN: 'Plate' }
+        ])
+      }] } }) }
+    })
+    try {
+      await form.settle()
+      if (!legacy) {
+        form.all(n => n.type === 'el-select')[0].props.activate('detector')
+        await form.settle()
+      }
+      const saved = form.instance.submitForm()
+      assert.equal(saved.params.find(p => p.key === 'param.associationRegion')?.value, legacy ? 'upper' : 'whole')
+      assert.equal(saved.webConfig.metaDataParams.find(p => p.key === 'param.minTargetSize')?.value, legacy ? '80' : '60')
+      assert.equal(saved.webConfig.metaDataParams.find(p => p.key === 'param.detectionConfidence')?.value, legacy ? '0.75' : '0.66')
+      assert.deepEqual(JSON.parse(saved.params.find(p => p.key === 'param.associationLabels').value), legacy ? ['face'] : [])
+      assert.equal(saved.webConfig.metaDataParams.some(p => p.key.startsWith('aiParam.')), false, 'association does not expose unused per-label detector parameters')
+      const rows = form.all(n => n.type === 'el-table')[0].props.data
+      rows.forEach(row => { row.used = row.class_name === 'plate' })
+      await form.settle()
+      const changed = form.instance.submitForm()
+      assert.deepEqual(JSON.parse(changed.params.find(p => p.key === 'param.associationLabels').value), ['plate'])
+      rows.forEach(row => { row.used = false })
+      await form.settle()
+      assert.deepEqual(JSON.parse(form.instance.submitForm().params.find(p => p.key === 'param.associationLabels').value), [], 'deselecting every label must not fall back to face')
+    } finally { form.unmount() }
+  }
 }
 
 console.log('Flow node state checks passed')

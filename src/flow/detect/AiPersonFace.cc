@@ -1,19 +1,16 @@
 #include "flow/detect/AiPersonFace.h"
 
-#include <cmath>
-
 #include "flow/target/PersonFaceAssociation.h"
 #include "service/ai/IInferPoolService.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/model/IModelPathMapping.h"
-#include "util/SafeParse.h"
 
 namespace cosmo {
 
 AiPersonFace::AiPersonFace(const std::string& init_task_id, ActionNode& action)
     : AlgActionBase(AlgActionType::AlgActionAiPersonFace, action, "", init_task_id),
       model_code_(action.atomicCode.empty() ? action.atomAlgName : action.atomicCode) {
-    ModifyParam("", init_task_id, action.configObject.params);
+    config_valid_ = ModifyParam("", init_task_id, action.configObject.params);
 }
 
 AiPersonFace::~AiPersonFace() {
@@ -38,19 +35,9 @@ bool AiPersonFace::InitDetector() {
 bool AiPersonFace::ModifyParam(const std::string&, const std::string&,
                                std::vector<MsgDynamicKeyValue>& params) {
     std::lock_guard<std::shared_mutex> lock(mtx);
-    for (const auto& param : params) {
-        if (param.key.ToString() == "param.minFaceSize") {
-            const int value = util::ParseInt(param.value, -1);
-            if (value >= 10 && value <= 1000) {
-                min_face_size_ = value;
-            }
-        } else if (param.key.ToString() == "param.faceDetectionConfidence") {
-            const float value = util::ParseFloat(param.value, -1.0f);
-            if (std::isfinite(value) && value >= 0.0f && value <= 1.0f) {
-                face_confidence_ = value;
-            }
-        }
-    }
+    if (!UpdateTargetAssociationConfig(config_, params))
+        return false;
+    config_valid_ = true;
     return true;
 }
 
@@ -65,31 +52,37 @@ void AiPersonFace::HandFrame(AlgDataPtr data) {
         return;
     }
     auto result = std::make_shared<DataDetTrackClassify>(*tracks);
-    int min_size;
-    float confidence;
+    TargetAssociationConfig config;
+    bool config_valid;
     {
         std::shared_lock<std::shared_mutex> lock(mtx);
-        min_size   = min_face_size_;
-        confidence = face_confidence_;
+        config       = config_;
+        config_valid = config_valid_;
     }
-    std::vector<AiDetectRstEl> faces;
+    std::vector<AiDetectRstEl> children;
     action_status = util::ErrorEnum::Success;
-    if (!tracks->targets.empty()) {
-        AiConfidence threshold;
-        threshold.label       = "face";
-        threshold.atomic_code = model_code_;
-        threshold.confidence  = confidence;
-        action_status = InitDetector() ? detector_->Detect(data->chanDataDec.frame, {threshold}, faces)
+    if (!config_valid || config.labels.empty()) {
+        action_status = util::ErrorEnum::FlowDataInvalid;
+    } else if (!tracks->targets.empty() && tracks->observation_complete) {
+        std::vector<AiConfidence> thresholds;
+        for (const auto& label : config.labels) {
+            AiConfidence threshold;
+            threshold.label       = label;
+            threshold.atomic_code = model_code_;
+            threshold.confidence  = config.confidence;
+            thresholds.push_back(std::move(threshold));
+        }
+        action_status = InitDetector() ? detector_->Detect(data->chanDataDec.frame, thresholds, children)
                                        : util::ErrorEnum::AI_INST_NOTCREATED;
     }
     result->observation_complete = tracks->observation_complete && action_status == util::ErrorEnum::Success;
-    if (!result->observation_complete) {
-        faces.clear();
-    }
-    AssociatePersonFaces(result->targets, faces, min_size);
-    result->dataType = AlgDataType::TaskDataPersonFace;
-    output->SetTaskResult(AlgDataType::TaskDataPersonFace, result);
-    output->dataType     = AlgDataType::TaskDataPersonFace;
+    AssociateTargets(result->targets, children, config, result->observation_complete);
+    if (config.IsFaceAssociation())
+        UpdateAssociatedFaceObservations(result->targets);
+    result->dataType =
+        config.IsFaceAssociation() ? AlgDataType::TaskDataPersonFace : AlgDataType::TaskDataAssoTarget;
+    output->SetTaskResult(result->dataType, result);
+    output->dataType     = result->dataType;
     output->bHaveRelated = true;
     distributor->DistributorData(output);
 }

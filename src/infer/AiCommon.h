@@ -22,6 +22,16 @@ struct FaceObservation {
     float quality{-1.0f};
 };
 
+enum class TargetAssociationStatus {
+    kNotObserved,
+    kMatched,
+    kMissing,
+    kAmbiguous,
+    kTooSmall,
+    kFiltered,
+    kUnavailable,
+};
+
 struct AiDetectBestEl {
     bool bActive{false};      // Whether a best snapshot exists
     float bestQuality{-1.0};  // Best quality score
@@ -30,7 +40,7 @@ struct AiDetectBestEl {
 };
 
 struct AiDetectRelatedEl {
-    bool bActive{false};  // Whether a face was detected in the body
+    bool bActive{false};  // Whether an unambiguous related target was detected
     AiConfidence confidence;
     util::Box box;
     std::vector<AiConfidence> classifyRst;
@@ -80,6 +90,7 @@ struct AiDetectRstEl {
 
     AiDetectMatchHighScoreInfo matchInfo;  // Highest-score match info during comparison
     FaceObservation face_observation;
+    TargetAssociationStatus association_status{TargetAssociationStatus::kNotObserved};
 };
 
 using AiDetectRstElPtr = std::shared_ptr<AiDetectRstEl>;

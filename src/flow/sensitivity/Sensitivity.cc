@@ -255,7 +255,8 @@ void Sensitivity::HandFrame(AlgDataPtr algData) {
           (AlgDataType::TaskDataFriendDistance == algData->dataType) ||
           (AlgDataType::TaskDataAiVideoQuality == algData->dataType) ||
           (AlgDataType::TaskDataClassifyMultPic == algData->dataType) ||
-          (AlgDataType::TaskDataPersonFace == algData->dataType))) {
+          (AlgDataType::TaskDataPersonFace == algData->dataType) ||
+          (AlgDataType::TaskDataAssoTarget == algData->dataType))) {
         invalid_frame_cnt += 1;
         if (0 == invalid_frame_cnt % 100) {
             LOG_WARN("{}[{}] Filter {} Frames dataType:{}", kTag, task_id, invalid_frame_cnt,
@@ -273,6 +274,8 @@ void Sensitivity::HandFrame(AlgDataPtr algData) {
     if ((AlgDataType::ChannelDataDetect == algData->dataType) ||
         (AlgDataType::TaskDataTrack == algData->dataType) ||
         (AlgDataType::TaskDataClassify == algData->dataType) ||
+        (AlgDataType::TaskDataPersonFace == algData->dataType) ||
+        (AlgDataType::TaskDataAssoTarget == algData->dataType) ||
         (AlgDataType::TaskDataFriendDistance == algData->dataType) ||
         (AlgDataType::TaskDataAiVideoQuality == algData->dataType) ||
         (AlgDataType::TaskDataClassifyMultPic == algData->dataType)) {
@@ -287,8 +290,9 @@ void Sensitivity::HandFrame(AlgDataPtr algData) {
             input = algData->GetTaskResult(AlgDataType::TaskDataAiVideoQuality);
         } else if (AlgDataType::TaskDataClassifyMultPic == algData->dataType) {
             input = algData->taskDataClassifyMultPic.classifyRst;
-        } else if (AlgDataType::TaskDataPersonFace == algData->dataType) {
-            input = algData->GetTaskResult(AlgDataType::TaskDataTrack);
+        } else if (AlgDataType::TaskDataPersonFace == algData->dataType ||
+                   AlgDataType::TaskDataAssoTarget == algData->dataType) {
+            input = algData->GetTaskResult(algData->dataType);
         } else {
             input = algData->GetTaskResult(AlgDataType::TaskDataClassify);
         }

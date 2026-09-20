@@ -50,6 +50,7 @@ bool AiClassifier::CheckDataAvailable(AlgDataPtr algData) {
           (AlgDataType::ChannelDataDetect == algData->dataType) ||
           (AlgDataType::TaskDataTrack == algData->dataType) ||
           (AlgDataType::TaskDataPersonFace == algData->dataType) ||
+          (AlgDataType::TaskDataAssoTarget == algData->dataType) ||
           (AlgDataType::TaskDataClassify == algData->dataType) ||
           (AlgDataType::TaskDataLandmark == algData->dataType))) {
         invalid_frame_cnt += 1;
@@ -102,8 +103,9 @@ void AiClassifier::HandFramesEx(std::vector<AlgDataPtr> alg_datas) {
             input = alg_data->GetTaskResult(AlgDataType::TaskDataClassify);
         } else if (AlgDataType::TaskDataLandmark == alg_data->dataType) {
             input = alg_data->GetTaskResult(AlgDataType::TaskDataLandmark);
-        } else if (AlgDataType::TaskDataPersonFace == alg_data->dataType) {
-            input = alg_data->GetTaskResult(AlgDataType::TaskDataPersonFace);
+        } else if (AlgDataType::TaskDataPersonFace == alg_data->dataType ||
+                   AlgDataType::TaskDataAssoTarget == alg_data->dataType) {
+            input = alg_data->GetTaskResult(alg_data->dataType);
         }
 
         if (input) {

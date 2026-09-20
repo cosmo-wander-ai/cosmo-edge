@@ -11,4 +11,7 @@ namespace cosmo {
 void AssociatePersonFaces(std::vector<AiDetectRstEl>& people, const std::vector<AiDetectRstEl>& faces,
                           int min_face_size);
 
+// Face-only adaptation after generic matching. Other labels do not acquire face evidence.
+void UpdateAssociatedFaceObservations(std::vector<AiDetectRstEl>& people);
+
 }  // namespace cosmo

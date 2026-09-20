@@ -198,6 +198,8 @@ void LogicalJudgment::HandFrame(AlgDataPtr algData) {
 
     if (!((AlgDataType::ChannelDataDetect == algData->dataType) ||
           (AlgDataType::TaskDataTrack == algData->dataType) ||
+          (AlgDataType::TaskDataPersonFace == algData->dataType) ||
+          (AlgDataType::TaskDataAssoTarget == algData->dataType) ||
           (AlgDataType::TaskDataClassify == algData->dataType) ||
           (AlgDataType::TaskDataGroupClassify == algData->dataType) ||
           (AlgDataType::TaskDataClassifyMultPic == algData->dataType))) {
@@ -212,8 +214,10 @@ void LogicalJudgment::HandFrame(AlgDataPtr algData) {
     DataDetTrackClassifyPtr input;
     if (AlgDataType::ChannelDataDetect == algData->dataType) {
         input = algData->chanDataDetect.detRet;
-    } else if (AlgDataType::TaskDataTrack == algData->dataType) {
-        input = algData->GetTaskResult(AlgDataType::TaskDataTrack);
+    } else if (AlgDataType::TaskDataTrack == algData->dataType ||
+               AlgDataType::TaskDataPersonFace == algData->dataType ||
+               AlgDataType::TaskDataAssoTarget == algData->dataType) {
+        input = algData->GetTaskResult(algData->dataType);
     } else if (AlgDataType::TaskDataClassifyMultPic == algData->dataType) {
         input = algData->taskDataClassifyMultPic.classifyRst;
     } else {

@@ -339,6 +339,9 @@ const emit = defineEmits(['config-change'])
 const isResultAccumulationAction = computed(
   () => (props.actionDetail?.actionId || props.actionDetail?.id) === 'BA_20003'
 )
+const isTargetAssociationAction = computed(
+  () => (props.actionDetail?.actionId || props.actionDetail?.id) === 'AA_00006'
+)
 const isAreaAlarmAction = computed(
   () =>
     (props.actionDetail?.actionId || props.actionDetail?.id) === 'BA_00005'
@@ -483,9 +486,21 @@ const formReady = ref(false)
 onMounted(() => {
   const params = JSON.parse(props.actionDetail.inputParamConfig)
   params.forEach((item, index) => {
-    const input = _.find(props.configObject?.params, {
+    let input = _.find(props.configObject?.params, {
       key: item.key
     })
+    if (!input && isTargetAssociationAction.value) {
+      const aliases = {
+        'param.minTargetSize': 'param.minFaceSize',
+        'param.detectionConfidence': 'param.faceDetectionConfidence'
+      }
+      if (aliases[item.key]) {
+        input = _.find(props.configObject?.params, { key: aliases[item.key] })
+      }
+      const legacy = props.configObject?.params?.length &&
+        !props.configObject.params.some(p => p.key === 'param.associationLabels')
+      if (legacy && item.key === 'param.associationRegion') input = { value: 'upper' }
+    }
     if (input) {
       paramConfigs.value.push({
         ...item,
@@ -1324,7 +1339,7 @@ const submitForm = () => {
         position: props.actionDetail.flowActionId,
         atomicCode: selectedAtomic.value.atomicCode
       })
-      configObject.webConfig.metaDataParams.push(
+      if (!isTargetAssociationAction.value) configObject.webConfig.metaDataParams.push(
         {
           key: `aiParam.${item.class_name}.confidence`,
           value: '',
@@ -1350,7 +1365,7 @@ const submitForm = () => {
           senior: 1
         }
       )
-      if (modelSelectType.value === 'modelSelect_detector') {
+      if (modelSelectType.value === 'modelSelect_detector' && !isTargetAssociationAction.value) {
         configObject.webConfig.metaDataParams.push({
           key: `aiParam.${item.class_name}.detPostion`,
           value: '0',
@@ -1380,6 +1395,12 @@ const submitForm = () => {
       }
     })
     configObject.webConfig.labelList = resultFilter
+    if (isTargetAssociationAction.value) {
+      configObject.params.push({
+        key: 'param.associationLabels',
+        value: JSON.stringify([...new Set(resultFilter.map(item => item.class_name))])
+      })
+    }
     if (Object.keys(selectedAtomic.value).length !== 0) {
       configObject.webConfig.atomic = {
         atomicCode: selectedAtomic.value.atomicCode,

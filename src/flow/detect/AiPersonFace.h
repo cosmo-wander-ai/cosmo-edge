@@ -2,11 +2,13 @@
 
 #include "flow/action/ActionInstMngBase.h"
 #include "flow/action/AlgActionBase.h"
+#include "flow/target/TargetAssociation.h"
 #include "infer/AiDetectInterface.h"
 
 namespace cosmo {
 
-// Task-local association; model inference is reused through the detector pool.
+// Generic target association. Class name and AA_00006 ID retain compatibility;
+// model inference is reused through the existing detector pool.
 class AiPersonFace : public AlgActionBase {
 public:
     AiPersonFace(const std::string& init_task_id, ActionNode& action);
@@ -19,8 +21,8 @@ private:
     bool InitDetector();
     infer::AiDetectInterfacePtr detector_;
     std::string model_code_;
-    int min_face_size_{60};
-    float face_confidence_{0.66f};
+    TargetAssociationConfig config_;
+    bool config_valid_{false};
 };
 
 class AiPersonFaceMng : public VectorActionMng<AiPersonFace> {
