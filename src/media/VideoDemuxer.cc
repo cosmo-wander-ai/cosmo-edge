@@ -137,6 +137,10 @@ namespace media {
             return util::ErrorEnum::Success;
         }
 
+        // A fresh open must not reuse an already opened AVFormatContext. In
+        // particular, RTSP EOF/reconnect can leave stale protocol callbacks and
+        // stream state that crash the next avformat_find_stream_info call.
+        CloseStream();
         ResetStreamState();
 
         // Release old strategy and its resources before creating a new one
