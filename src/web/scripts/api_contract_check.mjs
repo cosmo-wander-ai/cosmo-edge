@@ -18,6 +18,7 @@ const cases = [
   ['boxDeleteTask', '/gtw/cwai/task/delete'],
   ['boxGetTimeTemplate', '/gtw/cwai/schedule/Page'],
   ['boxRecaptureImage', '/gtw/cwai/Camera/GetPicture'],
+  ['boxStreamKeepAlive', '/gtw/cwai/LiveStream/StreamKeepAlive', { silentError: true }],
   ['boxQueryThingsLibInfo', '/gtw/cwai/ThingsLibrary/QueryThingsLibInfo'],
   ['boxQueryPersonLibInfo', '/gtw/cwai/BodyLibrary/QueryPersonLibInfo'],
   ['boxQueryFaceLibInfo', '/gtw/cwai/Library/QueryFaceLibInfo'],

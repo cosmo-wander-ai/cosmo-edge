@@ -166,6 +166,54 @@ for (const platform of ['1', '-1', null, '15']) for (const scenario of [
   } finally { service.unmount() }
 }
 
+const storedLayout = JSON.stringify([
+  { id: 'camera-1', name: 'Camera', taskList: [], runAlgorithmId: 'disabled-algorithm' }
+])
+const storage = new Map([['playedCameraList', storedLayout]])
+const pending = () => new Promise(() => {})
+const assetMocks = Object.fromEntries([
+  'beep.ogg', 'big_screen_btn_bg.png', 'big_screen_no_camera.png', 'check-circle.png',
+  'close-circle.png', 'error-image.png', 'screen-camera.png', 'screen-exit.png'
+].map(name => [`@/assets/${name}`, { default: '' }]))
+const screen = await mountComponent('views/box/bigScreen/warnningScreen/index.vue', {
+  mocks: {
+    '../components/flvVideo.vue': { default: { render: () => null } },
+    '../components/detailDialog.vue': { default: { render: () => null } },
+    '../components/captureDialog.vue': { default: { render: () => null } },
+    '../components/TreeSelect.vue': { default: { render: () => null } },
+    ...assetMocks,
+    '@/components/eventBus': { default: { $emit() {} } },
+    '@/utils/i18nResource': { resolveResourceAlgorithmName: () => '' },
+    '@/utils/format': { formatSimilarity: value => value },
+    moment: { default: () => ({ format: () => '', startOf() { return this }, endOf() { return this }, valueOf: () => 0 }) },
+    lodash: { default: { find: (items, matcher) => items.find(
+      typeof matcher === 'function'
+        ? matcher
+        : item => Object.entries(matcher).every(([key, value]) => item[key] === value)
+    ) } }
+  },
+  globals: {
+    localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) },
+    document: { addEventListener() {}, removeEventListener() {}, body: {} },
+    window: { addEventListener() {}, removeEventListener() {} },
+    requestAnimationFrame: () => 1,
+    cancelAnimationFrame() {}
+  },
+  api: {
+    queryPopUpParam: pending,
+    boxQueryCameraList: async () => ({ resData: { rows: [{
+      videoChannelId: 'camera-1', channelName: 'Camera', channelStatus: 1, channelType: 0,
+      taskList: [{ algorithmId: 'disabled-algorithm', enableStatus: 0 }]
+    }] } }),
+    boxQueryEvent: pending,
+    boxAllAlgorithmInfo: pending, bigScreenWs: () => ''
+  }
+})
+try {
+  await screen.settle()
+  assert.equal(JSON.parse(storage.get('playedCameraList'))[0].runAlgorithmId, '', 'disabled algorithms restore the raw stream')
+} finally { screen.unmount() }
+
 console.log('Component behavior checks passed')
 
 await import('./edge_behavior_check.mjs')

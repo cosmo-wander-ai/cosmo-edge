@@ -629,6 +629,7 @@ const initCameraList = () => {
   })
 }
 
+// 恢复本地预览布局，但停用或已删除的算法只恢复为原始流。
 const initPlayedCamera = (childCameras) => {
   const playedCameraListStr = localStorage.getItem('playedCameraList')
   if (playedCameraListStr) {
@@ -643,9 +644,11 @@ const initPlayedCamera = (childCameras) => {
           runAlgorithmId: ''
         }
       } else {
-        const resultAlgorithm = _.find(resultCamear.taskList, {
-          algorithmId: item.runAlgorithmId
-        })
+        const resultAlgorithm = _.find(
+          resultCamear.taskList,
+          (task) => task.enableStatus == 1 &&
+            String(task.algorithmId) === String(item.runAlgorithmId)
+        )
         if (!resultAlgorithm) {
           localPlayedCameraList[index].runAlgorithmId = ''
         }
