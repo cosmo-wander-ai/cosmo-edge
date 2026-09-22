@@ -514,6 +514,7 @@ bool LiveStreamServiceImpl::ViewerDelete(const std::string& channelId, const std
 // ViewerHeartBeat
 // ---------------------------------------------------------------------------
 
+// 续期预览并在算法任务停用后主动回收其 viewer，避免无人推理时继续解码、OSD 和编码。
 cosmo::util::ErrorEnum LiveStreamServiceImpl::ViewerHeartBeat(const std::string& channelId,
                                                               const std::string& algCode) {
     std::shared_lock<std::shared_mutex> lifecycle_lock(lifecycle_mtx_);
@@ -525,9 +526,34 @@ cosmo::util::ErrorEnum LiveStreamServiceImpl::ViewerHeartBeat(const std::string&
     if (!channel_inst) {
         return cosmo::util::ErrorEnum::CameraNotExist;
     }
-    std::shared_lock<std::shared_mutex> lock(mtx_);
+    auto& camera_task_config = service::ServiceRegistry::Instance().Get<service::ICameraTaskConfig>();
+    cosmo::StreamViewerPtr viewer_to_stop;
+    std::unique_lock<std::shared_mutex> lock(mtx_);
+    cosmo::util::ErrorEnum task_state = cosmo::util::ErrorEnum::Success;
+    if (!algCode.empty()) {
+        const auto tasks   = camera_task_config.GetTasks(channelId);
+        const auto task_it = std::find_if(tasks.begin(), tasks.end(),
+                                          [&](const auto& task) { return task.algorithmCode == algCode; });
+        if (task_it == tasks.end()) {
+            task_state = cosmo::util::ErrorEnum::TaskNotExist;
+        } else if (!task_it->enable) {
+            task_state = cosmo::util::ErrorEnum::ActionStop;
+        }
+    }
+
     LOG_DEBUG("alive channel size {} {}", viewers_.size(), channelId);
     auto it = FindViewer(channelId, algCode);
+    if (task_state != cosmo::util::ErrorEnum::Success) {
+        if (it != viewers_.end()) {
+            viewer_to_stop = *it;
+            viewers_.erase(it);
+        }
+        lock.unlock();
+        StopViewerAndReleasePreview(viewer_to_stop);
+        LOG_INFO("viewer heartbeat retired: stream={}/{} task_state={}", channelId, algCode,
+                 cosmo::util::ErrorEnumName(task_state));
+        return task_state;
+    }
     if (it != viewers_.end()) {
         if (!(*it)->IsPublishReady()) {
             LOG_WARN("viewer heartbeat rejected: stream={}/{} publisher=failed detail={}", channelId, algCode,

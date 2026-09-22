@@ -73,11 +73,9 @@ TEST_CASE("LiveStreamServiceImpl: 视频流管理核心逻辑", "[live-stream]")
         auto mockChannel =
             std::make_shared<cosmo::AlgChannel>("channel_1", "task_1", dummyAction, "rtsp://url");
         ALLOW_CALL(mocks.cameraSvc, GetChannelInst("channel_1")).RETURN(mockChannel);
-        cosmo::service::camera::CameraTaskDto task;
-        task.algorithmCode = "alg_code";
-        task.enable        = false;
         ALLOW_CALL(mocks.cameraSvc, GetTasks("channel_1"))
-            .RETURN(std::vector<cosmo::service::camera::CameraTaskDto>{task});
+            .RETURN(std::vector<cosmo::service::camera::CameraTaskDto>{
+                {"", "alg_code", "", "", "", false}});
         FORBID_CALL(mocks.cameraSvc, AcquirePreviewChannel(trompeloeil::_));
 
         cosmo::LiveStream::LiveStreamInfo streamInfo;
@@ -88,6 +86,26 @@ TEST_CASE("LiveStreamServiceImpl: 视频流管理核心逻辑", "[live-stream]")
         ALLOW_CALL(mocks.cameraSvc, GetChannelInst(trompeloeil::_)).RETURN(nullptr);
         REQUIRE(sut.ViewerHeartBeat("non_exist_channel", "alg_code") ==
                 cosmo::util::ErrorEnum::CameraNotExist);
+    }
+
+    SECTION("ViewerHeartBeat 在算法任务停止后回收预览") {
+        cosmo::ActionNode dummyAction;
+        auto mockChannel =
+            std::make_shared<cosmo::AlgChannel>("channel_1", "task_1", dummyAction, "rtsp://url");
+        ALLOW_CALL(mocks.cameraSvc, GetChannelInst("channel_1")).RETURN(mockChannel);
+        cosmo::service::camera::CameraTaskDto task;
+        task.algorithmCode = "alg_code";
+        task.enable        = false;
+        ALLOW_CALL(mocks.cameraSvc, GetTasks("channel_1"))
+            .RETURN(std::vector<cosmo::service::camera::CameraTaskDto>{task});
+        REQUIRE_CALL(mocks.cameraSvc, ReleasePreviewChannel("channel_1"));
+
+        auto viewer = std::make_shared<cosmo::StreamViewer>(mockChannel, "channel_1", "alg_code");
+        viewer->MarkReady(std::chrono::nanoseconds::zero());
+        sut.viewers_.push_back(viewer);
+
+        REQUIRE(sut.ViewerHeartBeat("channel_1", "alg_code") == cosmo::util::ErrorEnum::ActionStop);
+        REQUIRE(sut.viewers_.empty());
     }
 
     SECTION("ViewerDelete 可以安全处理不存在的 Viewer") {
@@ -125,6 +143,9 @@ TEST_CASE("LiveStreamServiceImpl: 视频流管理核心逻辑", "[live-stream]")
             std::make_shared<cosmo::AlgChannel>("channel_1", "task_1", dummyAction, "rtsp://url");
         mockChannel->demuxer_.action_status_ = cosmo::util::ErrorEnum::Success;
         ALLOW_CALL(mocks.cameraSvc, GetChannelInst("channel_1")).RETURN(mockChannel);
+        ALLOW_CALL(mocks.cameraSvc, GetTasks("channel_1"))
+            .RETURN(std::vector<cosmo::service::camera::CameraTaskDto>{
+                {"", "alg_1", "", "", "", true}});
 
         // 我们不直接调用 ViewerCreate, 因为 WaitReady 会阻塞等数据
         // 直接构造并放入 m_viewers 模拟已连接
