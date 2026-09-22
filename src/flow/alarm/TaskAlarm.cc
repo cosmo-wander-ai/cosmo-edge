@@ -155,6 +155,9 @@ void TaskAlarm::ActionInfo(std::vector<ActionRuntimeInfo>& actionInfos) {
 param.alarmInterval
 */
 bool TaskAlarm::AnalysisKey(MsgDynamicKeyValue& param) {
+    if (m_param.imagePrivacy.Apply(param.key.ToRefString(), param.value.ToString())) {
+        return m_param.imagePrivacy.Valid();
+    }
     if (param.keys.empty()) {
         LOG_WARN(
             "ModifyParam "
@@ -289,6 +292,11 @@ bool TaskAlarm::AnalysisKey(MsgDynamicKeyValue& param) {
     }
 
     return true;
+}
+
+void TaskAlarm::ConfigurePrivacyDetectors(const std::vector<std::string>& detectorIds) {
+    std::lock_guard<std::shared_mutex> lock(mtx);
+    m_privacyExpectedDetectors = detectorIds;
 }
 
 // Modify parameters — incremental update on existing params

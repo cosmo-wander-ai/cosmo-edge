@@ -184,7 +184,9 @@ void DinoDetector::HandFrames(std::vector<AlgDataPtr> alg_datas) {
 
     // Write detection results back in original order and distribute
     for (size_t i = 0; i < validDatas.size(); i++) {
-        auto& data                               = validDatas[i];
+        auto& data = validDatas[i];
+        // Prompt-specific detector results do not yet certify complete privacy label coverage.
+        InvalidateAlarmPrivacySnapshot(*data);
         data->dataType                           = AlgDataType::ChannelDataDetect;
         data->chanDataDetect.atomicCode          = alg_code_;
         data->chanDataDetect.detRet              = std::make_shared<DataDetTrackClassify>();

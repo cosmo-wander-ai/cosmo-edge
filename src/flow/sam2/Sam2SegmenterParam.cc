@@ -211,6 +211,7 @@ void Sam2Segmenter::HandFrameBatch(const std::vector<AlgDataPtr>& alg_datas) {
             data->chanDataDetect.detRet->targets[src.target_index].mask = results[i].mask;
         } else if (!src.has_previous_targets) {
             // No upstream detection result: add segmentation result as new target
+            InvalidateAlarmPrivacySnapshot(*data);
             data->chanDataDetect.detRet->targets.push_back(results[i]);
         }
 

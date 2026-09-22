@@ -192,3 +192,13 @@ These values are derived or fixed internally and should not be overridden by cal
 | --- | --- |
 | `COSMO_OPENH264_USE_ASM` | Always `OFF` |
 | `COSMO_MODEL_GUARD` | `ON` for the Sophon inference backend, `OFF` for other inference backends |
+
+## Alarm image privacy
+
+Select a camera in Video Access, open the configuration for its specific service, and choose Alarm Image Privacy. Protection is disabled by default. Enable it to select target classes and mosaic strength. Settings are saved per camera and service; no additional detection model is required.
+
+The service uses complete detections from the exact image frame to mosaic each selected target's whole bounding box, including targets outside the alarm region and targets that did not trigger the event. Red alarm boxes retain their existing meaning. Mosaics are applied to private copies before encoding, storage and push delivery, including alarm scene images and target crops.
+
+If complete matching detections are missing, a selected class is unavailable, or processing fails, the event is retained while affected images are omitted. A valid zero-target result is distinguished from missing results. Targets missed by the detector cannot be masked automatically; validate coverage with representative scenes.
+
+This setting applies only to new alarm images. It does not modify historical alarms, live preview, recordings, image requests sent to external VLM services, or enrollment library images. Review those outputs separately for the intended deployment.

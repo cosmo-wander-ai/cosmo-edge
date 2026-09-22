@@ -6,6 +6,8 @@
 #include <filesystem>
 #include <thread>
 
+#include "flow/alarm/AlarmImagePrivacy.h"
+#include "flow/common/AlarmPrivacySnapshot.h"
 #include "flow/common/AlgDataRecord.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/event/IAlarmRecordService.h"
@@ -61,6 +63,9 @@ void TaskFaceAlarm::ActionInfo(std::vector<ActionRuntimeInfo>& actionInfos) {
 param.alarmInterval
 */
 bool TaskFaceAlarm::AnalysisKey(MsgDynamicKeyValue& param) {
+    if (m_imagePrivacy.Apply(param.key.ToRefString(), param.value.ToString())) {
+        return m_imagePrivacy.Valid();
+    }
     if (param.keys.empty()) {
         LOG_WARN(
             "ModifyParam "
@@ -101,6 +106,11 @@ bool TaskFaceAlarm::AnalysisKey(MsgDynamicKeyValue& param) {
     return true;
 }
 
+void TaskFaceAlarm::ConfigurePrivacyDetectors(const std::vector<std::string>& detectorIds) {
+    std::lock_guard<std::shared_mutex> lock(m_mtx);
+    m_privacyExpectedDetectors = detectorIds;
+}
+
 // Modify parameters — incremental update on existing params
 bool TaskFaceAlarm::ModifyParam(const std::string& /*channelId*/, const std::string& /*taskId*/,
                                 std::vector<MsgDynamicKeyValue>& params) {
@@ -121,7 +131,7 @@ bool TaskFaceAlarm::SetParam(const std::string& /*channelId*/, const std::string
                              std::vector<MsgDynamicKeyValue>& params) {
     std::lock_guard<std::shared_mutex> lock(m_mtx);
     // Clear existing params first
-    // m_params = {};
+    m_imagePrivacy = {};
     for (auto& param : params) {
         AnalysisKey(param);
     }
@@ -158,6 +168,7 @@ void TaskFaceAlarm::HandFrame(AlgDataPtr algData) {
         LOG_WARN("{}[{}] AlarmData is NULL", kTag, m_taskId);
         return;
     }
+    PublishAlarmPrivacySnapshot(*algData, m_taskId);
     FillAlarmData(algData);
     m_handleFrames += 1;
     LOG_INFO("{}[{}] Handle {} Frames", kTag, m_taskId, m_handleFrames);
@@ -184,7 +195,13 @@ bool TaskFaceAlarm::FillAlarmData(AlgDataPtr algData) {
             eventData.timestamp = std::to_string(util::GetMilliseconds());
         }
 
-        HandPicture(eventData, algData, alarmUnit);
+        try {
+            HandPicture(eventData, algData, alarmUnit);
+        } catch (const std::exception& error) {
+            LOG_WARN("[{}] Face alarm image failed; preserve event: {}", m_taskId, error.what());
+        } catch (...) {
+            LOG_WARN("[{}] Face alarm image failed; preserve event", m_taskId);
+        }
         HandFace(eventData, algData, alarmUnit);
 
         LOG_INFO("{}[{}] Alarm Push {}/{} Area:{}", kTag, m_taskId, eventData.messageId, eventData.recordId,
@@ -213,9 +230,22 @@ void TaskFaceAlarm::EventFaceRecord(const CMsgFaceEventReq& eventData) {
 }
 
 void TaskFaceAlarm::HandPicture(CMsgFaceEventReq& msg, AlgDataPtr algData, DataAlarmUnit& alarmUnit) {
+    util::AlarmImagePrivacy privacy;
+    std::vector<std::string> expectedDetectors;
+    {
+        std::shared_lock<std::shared_mutex> lock(m_mtx);
+        privacy           = m_imagePrivacy;
+        expectedDetectors = m_privacyExpectedDetectors;
+    }
+    if (privacy.Requested() && expectedDetectors.empty()) {
+        LOG_WARN("[{}] Omit face alarm image: detector topology is unavailable or unsupported", m_taskId);
+        return;
+    }
     // Original photo
-    auto origImg = service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().CopyJpegSrcFrame(
-        algData->chanDataDec.frame);
+    auto origImg = PrepareAlarmImage(algData->chanDataDec.frame, m_taskId, privacy, expectedDetectors);
+    if (!VideoFrameValid(origImg)) {
+        return;
+    }
     LOG_INFO("SrcFrameType:{} copyFrameType:{}", algData->chanDataDec.frame->GetPixelFormat(),
              origImg->GetPixelFormat());
 

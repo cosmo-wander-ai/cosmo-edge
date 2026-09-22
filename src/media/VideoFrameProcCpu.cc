@@ -17,6 +17,7 @@ extern "C" {
 #endif
 
 #include "media/EncodedImageInfo.h"
+#include "media/MosaicPixels.h"
 #include "media/PixelFormatUtils.h"
 #include "util/Log.h"
 #include "util/VideoInfo.h"
@@ -139,6 +140,26 @@ namespace media {
     VideoFrameProcCpu::VideoFrameProcCpu(IOsdTextRenderer& osdService) : osd_service_(osdService) {}
 
     VideoFrameProcCpu::~VideoFrameProcCpu() {}
+
+    VideoFramePtr VideoFrameProcCpu::MosaicCopy(VideoFramePtr src, const std::vector<util::Box>& boxes,
+                                                int strength) {
+        if (!IsMosaicFrameValid(src) || strength < 1 || strength > 3) {
+            return nullptr;
+        }
+        try {
+            auto dst = CopyFrame(src);
+            if (!dst || dst == src ||
+                !ApplyMosaicToPixels(dst->GetData(), dst->GetSize(), static_cast<int>(dst->GetWidth()),
+                                     static_cast<int>(dst->GetHeight()), dst->GetPixelFormat(), boxes,
+                                     strength)) {
+                return nullptr;
+            }
+            return dst;
+        } catch (...) {
+            LOG_ERRO("{}", "MosaicCopy() - private frame processing failed");
+            return nullptr;
+        }
+    }
 
     VideoFramePtr VideoFrameProcCpu::CopyFrame(VideoFramePtr frame) {
         if (!VideoFrameValid(frame, true)) {

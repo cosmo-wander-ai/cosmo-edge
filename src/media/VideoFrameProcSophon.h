@@ -76,6 +76,9 @@ namespace media {
 
         VideoFramePtr CopyFrame(VideoFramePtr srcImage) override;
 
+        VideoFramePtr MosaicCopy(VideoFramePtr src, const std::vector<util::Box>& boxes,
+                                 int strength) override;
+
         // Copy device memory frame to hostData (internally allocates host buffer automatically)
         // Used for third-party components requiring contiguous host data (e.g., Qwen3VL's
         // process_image_from_mat)

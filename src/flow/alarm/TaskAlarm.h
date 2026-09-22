@@ -23,11 +23,13 @@
 #include "flow/qwen3vl/OpenAiVlmClient.h"
 #include "flow/task/TaskBaseParam.h"
 #include "media/VideoFrame.h"
+#include "util/AlarmImagePrivacy.h"
 #include "util/MsgDynamicElement.h"
 #include "util/dto/ClientMsgEvent.h"
 
 namespace cosmo {
 struct TaskAlarmParam {
+    util::AlarmImagePrivacy imagePrivacy;
     int alarmInterval{-1};                // Alarm interval, -1 means no limit
     int targetAlarmInterval{-1};          // Per-target alarm interval, -1 means no limit
     int targetAlarmCount{0};              // Per-target alarm count, 0 means no limit
@@ -54,6 +56,9 @@ public:
     void QueueStatus(std::vector<AlgActionDataQueueStatus>& queStatus,
                      unsigned int durationSec = 30) override;
     void ActionInfo(std::vector<ActionRuntimeInfo>& actionInfo) override;
+
+    // Task topology must be configured before enabled privacy may emit images.
+    void ConfigurePrivacyDetectors(const std::vector<std::string>& detectorIds);
 
     // Modify parameters — incremental update on existing params
     bool ModifyParam(const std::string& channelId, const std::string& taskId,
@@ -114,8 +119,11 @@ private:
     std::vector<std::pair<util::Point, util::Point>> GetTrajectory(DataAlarmUnit& alarmUnit);
     util::Point GetPos(const util::Box& box, TargetPosition targetPos);
 
-    void HandBestInfoPicture(CMsgOnEventsReq& msg, AlgDataPtr algData, DataAlarmUnit& alarmUnit);
+    void HandBestInfoPicture(CMsgOnEventsReq& msg, AlgDataPtr algData, DataAlarmUnit& alarmUnit,
+                             const util::AlarmImagePrivacy& privacy,
+                             const std::vector<std::string>& expectedDetectors);
     void HandPicture(CMsgOnEventsReq& msg, AlgDataPtr algData, DataAlarmUnit& alarmUnit);
+    void HandPictureImpl(CMsgOnEventsReq& msg, AlgDataPtr algData, DataAlarmUnit& alarmUnit);
     void UploadImage(CMsgOnEventsReq& msg, std::vector<uint8_t>& data, const std::string& url,
                      const std::string& sign);
 
@@ -165,6 +173,7 @@ private:
     std::chrono::steady_clock::time_point m_lastAlarmTime;
     OnEventsPropertyType m_propertyType{OnEventsPropertyType::None};  // Property type
     TaskAlarmParam m_param;
+    std::vector<std::string> m_privacyExpectedDetectors;
     TaskBaseArea m_taskArea;
     bool m_areaHaveAsso{false};    // Whether any area has associated areas
     bool m_areaAssoIsArea{false};  // Associated area is a region (not a line), requires association on alarm

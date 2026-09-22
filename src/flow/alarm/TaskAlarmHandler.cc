@@ -6,6 +6,7 @@
 
 #include "flow/alarm/TaskAlarm.h"
 #include "flow/alarm/TaskAlarmInternalTypes.h"
+#include "flow/common/AlarmPrivacySnapshot.h"
 #include "flow/common/AlgDataRecord.h"
 #include "flow/common/LlmYesNoJudge.h"
 #include "media/VideoFrame.h"
@@ -219,6 +220,7 @@ void TaskAlarm::HandFrame(AlgDataPtr algData) {
     if (!algData->taskDataAlarm.alarmData) {
         return;
     }
+    PublishAlarmPrivacySnapshot(*algData, GetTaskId());
 
     m_width  = algData->chanDataDec.frame ? algData->chanDataDec.frame->GetWidth() : m_width;
     m_height = algData->chanDataDec.frame ? algData->chanDataDec.frame->GetHeight() : m_height;

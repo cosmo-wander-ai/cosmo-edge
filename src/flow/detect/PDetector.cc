@@ -164,6 +164,8 @@ util::ErrorEnum PDetector::HandPic(AlgDataPtr algData) {
     if (!algData || !algData->chanDataDec.frame || !algData->chanDataDec.frame->Active()) {
         return util::ErrorEnum::FrameDataInvalid;
     }
+    // This detector can be invoked on cropped task inputs; it cannot certify full-frame privacy.
+    InvalidateAlarmPrivacySnapshot(*algData);
 
     // Confidence thresholds
     std::vector<AiConfidence> confThres;

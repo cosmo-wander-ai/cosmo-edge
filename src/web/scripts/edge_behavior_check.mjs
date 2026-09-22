@@ -210,7 +210,12 @@ for (const platform of platforms) {
     assert.equal(calls.save[0].category, 1)
     assert.equal(calls.save[0].pollingId, 'legacy-polling')
     assert.equal(calls.save[0].scheduleId, 'schedule-1')
-    assert.deepEqual(calls.save[0].taskConfig.params, [{ key: 'editable', value: 'channel-value' }])
+    assert.deepEqual(calls.save[0].taskConfig.params, [
+      { key: 'editable', value: 'channel-value' },
+      { key: 'param.privacyEnabled', value: '0' },
+      { key: 'param.privacyLabels', value: '*' },
+      { key: 'param.privacyStrength', value: '2' }
+    ], 'legacy services save explicit disabled privacy defaults without altering platform-owned fields')
     button(service, 'action.enableService').props.onClick()
     await settle(service)
     button(service, 'action.disableService').props.onClick()

@@ -213,6 +213,7 @@ void TargetChooseBest::HandFrame(AlgDataPtr dataPtr) {
         input = algData->chanDataDetect.detRet;
     }
 
+    PublishAlarmPrivacySnapshot(*algData, GetTaskId());
     ChooseBest(algData->chanDataDec.frame, input, algData->bHaveRelated);
 
     distributor->DistributorData(algData);

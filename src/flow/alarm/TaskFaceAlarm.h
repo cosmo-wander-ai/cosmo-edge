@@ -12,6 +12,7 @@
 #include "flow/common/AlgDataQueueDistributor.h"
 #include "flow/overview/OverviewRecordAlarmRst.h"
 #include "flow/task/TaskBaseParam.h"
+#include "util/AlarmImagePrivacy.h"
 #include "util/MsgDynamicElement.h"
 #include "util/Thread.h"
 #include "util/dto/ClientMsgEvent.h"
@@ -27,6 +28,8 @@ public:
     void QueueStatus(std::vector<AlgActionDataQueueStatus> &queStatus,
                      unsigned int durationSec = 30) override;
     void ActionInfo(std::vector<ActionRuntimeInfo> &actionInfo) override;
+
+    void ConfigurePrivacyDetectors(const std::vector<std::string> &detectorIds);
 
     // Modify parameters — incremental update on existing params
     bool ModifyParam(const std::string &channelId, const std::string &taskId,
@@ -58,6 +61,8 @@ private:
     void HandFace(CMsgFaceEventReq &msg, AlgDataPtr algData, DataAlarmUnit &alarmUnit);
 
     std::shared_mutex m_mtx;  // Parameter read-write lock
+    util::AlarmImagePrivacy m_imagePrivacy;
+    std::vector<std::string> m_privacyExpectedDetectors;
     std::string m_taskId;
     std::string m_algId;    // Business algorithm ID
     std::string m_algName;  // Business algorithm name

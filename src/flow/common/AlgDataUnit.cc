@@ -43,8 +43,10 @@ AlgDataPtr AlgDataCopy(AlgDataPtr input) {
     algData->bHaveLogic     = input->bHaveLogic;
     algData->firstTimePoint = input->firstTimePoint;
 
-    algData->chanDataOrig = input->chanDataOrig;
-    algData->chanDataDec  = input->chanDataDec;
+    algData->chanDataOrig            = input->chanDataOrig;
+    algData->chanDataDec             = input->chanDataDec;
+    algData->alarmPrivacySnapshot    = input->alarmPrivacySnapshot;
+    algData->alarmPrivacyUnavailable = input->alarmPrivacyUnavailable;
 
     algData->legacyDetect.atomicCode  = input->legacyDetect.atomicCode;
     algData->legacyDetect.lables      = input->legacyDetect.lables;

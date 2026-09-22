@@ -8,6 +8,7 @@
 #include <mutex>
 
 #include "bmcv_api_ext.h"
+#include "media/MosaicPixels.h"
 #include "media/PixelFormatUtils.h"
 #include "util/Log.h"
 
@@ -28,6 +29,43 @@ namespace media {
         : handle(reinterpret_cast<bm_handle_t>(mediaHandle)), osd_service_(osdService) {}
 
     VideoFrameProcSophon::~VideoFrameProcSophon() {}
+
+    VideoFramePtr VideoFrameProcSophon::MosaicCopy(VideoFramePtr src, const std::vector<util::Box>& boxes,
+                                                   int strength) {
+        if (!IsMosaicFrameValid(src) || strength < 1 || strength > 3 ||
+            src->GetSize() > std::numeric_limits<unsigned int>::max()) {
+            return nullptr;
+        }
+        try {
+            // Device memory is authoritative. Do not populate or reuse the
+            // shared frame's host cache, which can be stale after device drawing.
+            std::vector<uint8_t> pixels(src->GetSize());
+            auto src_mem = reinterpret_cast<bm_device_mem_t*>(src->GetData());
+            if (bm_memcpy_d2s_partial(handle, pixels.data(), *src_mem,
+                                      static_cast<unsigned int>(pixels.size())) != BM_SUCCESS ||
+                !ApplyMosaicToPixels(pixels.data(), pixels.size(), static_cast<int>(src->GetWidth()),
+                                     static_cast<int>(src->GetHeight()), src->GetPixelFormat(), boxes,
+                                     strength)) {
+                return nullptr;
+            }
+            auto dst = std::make_shared<VideoFrame>(static_cast<int>(src->GetWidth()),
+                                                    static_cast<int>(src->GetHeight()), src->GetPixelFormat(),
+                                                    src->GetFrameIndex(), src->GetTimestamp());
+            if (!IsMosaicFrameValid(dst)) {
+                return nullptr;
+            }
+            dst->SetStreamIndex(src->GetStreamIndex());
+            auto dst_mem = reinterpret_cast<bm_device_mem_t*>(dst->GetData());
+            if (bm_memcpy_s2d_partial(handle, *dst_mem, pixels.data(),
+                                      static_cast<unsigned int>(pixels.size())) != BM_SUCCESS) {
+                return nullptr;
+            }
+            return dst;
+        } catch (...) {
+            LOG_ERRO("{}", "MosaicCopy() - private frame processing failed");
+            return nullptr;
+        }
+    }
 
     // Encoding in VRAM on Sophon
     VideoFramePtr VideoFrameProcSophon::CopyFrame(VideoFramePtr frame) {

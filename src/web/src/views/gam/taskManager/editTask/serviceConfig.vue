@@ -28,7 +28,7 @@
       </div>
       <div style="margin-left: 15px;flex:1;">
         <div class="serve-config-container">
-          <el-card class="serve-config-container-card">
+          <el-card class="serve-config-container-card" v-loading="configLoading">
             <template #header>
               <div class="serve-config-header clearfix">
                 <div>
@@ -42,7 +42,7 @@
                   <el-button type="danger" v-if="taskEnableStatus == 1" @click="boxSwitchTask(0)" size="small">{{ t('action.disableService') }}</el-button>
                   <el-button type="primary" v-if="taskEnableStatus == 0" @click="boxSwitchTask(1)" size="small">{{ t('action.enableService') }}</el-button>
                   <el-button type="danger" @click="handleDelServe()" size="small">{{ t('action.deleteService') }}</el-button>
-                  <el-button id="onboarding-save-service" class="mv-el-button" type="primary" @click="clickSaveServe()" size="small">{{ t('action.save') }}</el-button>
+                  <el-button id="onboarding-save-service" class="mv-el-button" type="primary" @click="clickSaveServe()" :disabled="!configReady" size="small">{{ t('action.save') }}</el-button>
                 </div>
               </div>
             </template>
@@ -64,6 +64,14 @@
                 <div style="margin-left:160px;">
                   <el-button style="margin-right:15px;" @click="parameterVisible = true">{{ t('action.reset') }}</el-button>
                   <el-button type="primary" @click="batch">{{ t('glossary.batchApply') }}</el-button>
+                </div>
+              </el-tab-pane>
+
+              <el-tab-pane :label="t('alarmPrivacy.title')" name="privacy">
+                <alarm-privacy-setting v-if="configReady" v-model="privacyConfig" :available-labels="privacyLabels" />
+                <div class="privacy-actions">
+                  <el-button :disabled="!configReady" @click="resetPrivacyConfig">{{ t('action.reset') }}</el-button>
+                  <el-button type="primary" :disabled="!configReady" @click="batch">{{ t('glossary.batchApply') }}</el-button>
                 </div>
               </el-tab-pane>
 
@@ -140,10 +148,19 @@ import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
 import { QuestionFilled, CircleCheckFilled } from '@element-plus/icons-vue'
 import areaSetting from './areaSetting2.vue'
 import paramSetting from './paramSetting.vue'
+import AlarmPrivacySetting from './alarmPrivacySetting.vue'
 import EventBus from '@/components/eventBus.js'
 import { v4 } from 'uuid'
 import Batch from './BatchApplication.vue'
 import { getLocationQueryParam } from '@/utils/locationQuery'
+import {
+  ALARM_PRIVACY_PARAM_KEYS,
+  createAlarmPrivacyDefaults,
+  getAlarmPrivacyLabels,
+  isAlarmPrivacyConfigValid,
+  mergeAlarmPrivacyParams,
+  readAlarmPrivacyParams
+} from '@/utils/alarmImagePrivacy'
 import {
   filterChannelEditableParams,
   filterTaskParamsForSubmission,
@@ -204,6 +221,14 @@ const timeTemplateList = ref([])
 const category = ref(0)
 const colors = ['24,144,255', '255,115,24', '24,255,89', '255,239,24']
 const loading = ref(false)
+const configLoading = ref(false)
+const configReady = ref(false)
+let configRequestId = 0
+const privacyConfig = ref(createAlarmPrivacyDefaults())
+const privacyLabels = ref([])
+const resetPrivacyConfig = () => {
+  privacyConfig.value = createAlarmPrivacyDefaults()
+}
 const BatchType = ref(false)
 const parameterData = ref({})
 const parameterVisible = ref(false)
@@ -532,6 +557,9 @@ const getServeTypes = () => {
 }
 
 const resetConfig = () => {
+  configReady.value = false
+  resetPrivacyConfig()
+  privacyLabels.value = []
   config.value.taskParam = []
   videoRepeatCount.value = 0
   videoRepeatCountChannelEditable.value = true
@@ -544,6 +572,8 @@ const resetConfig = () => {
 }
 
 const getSelectConfig = () => {
+  const requestId = ++configRequestId
+  configLoading.value = true
   resetConfig()
   scheduleSupport.value = 1
   let taskCustId = window.localStorage.getItem('taskCustId')
@@ -556,6 +586,7 @@ const getSelectConfig = () => {
       custId: taskCustId ? taskCustId : ''
     })
     .then((res) => {
+      if (requestId !== configRequestId) return
       const { resData } = res
       resData.algorithmMetadata = JSON.parse(resData.algorithmMetadata)
       category.value = resData.category ? resData.category : 0
@@ -576,10 +607,14 @@ const getSelectConfig = () => {
 
       const metaData = resData.algorithmMetadata
       const metaParams = Array.isArray(metaData.params) ? metaData.params : []
-      const normalizedMetaParams = normalizeParamOwnershipList(metaParams)
+      const normalizedMetaParams = normalizeParamOwnershipList(
+        metaParams.filter((item) => !ALARM_PRIVACY_PARAM_KEYS.has(item.key))
+      )
       const taskParams = Array.isArray(resData.taskConfig?.params)
         ? resData.taskConfig.params
         : []
+      privacyConfig.value = readAlarmPrivacyParams(taskParams)
+      privacyLabels.value = getAlarmPrivacyLabels(metaData)
       const taskParamByKey = new Map(
         taskParams.map((item) => [item.key, item.value])
       )
@@ -692,6 +727,10 @@ const getSelectConfig = () => {
       if (scheduleSupport.value == 1 && !config.value.scheduleId) {
         config.value.scheduleId = timeTemplateList.value[0]?.scheduleId
       }
+      configReady.value = true
+    })
+    .finally(() => {
+      if (requestId === configRequestId) configLoading.value = false
     })
 }
 
@@ -751,6 +790,7 @@ const deleteServe = () => {
 }
 
 const clickSaveServe = () => {
+  if (!configReady.value) return
   if (areaSettingRef.value?.isDrawingLine)
     return proxy.$message.warning(t('validate.completeDrawingFirst'))
   const result = areaSettingRef.value.$refs.canvasRef.submit()
@@ -777,7 +817,9 @@ const clickSaveServe = () => {
 }
 
 const newSave = async (skipRefresh = false) => {
+  if (!configReady.value) return false
   const editingConfig = config.value
+  const editingRequestId = configRequestId
   const editingAlgorithmId = algorithmId.value
   const editingChannelId = config.value.channelId
   let result
@@ -787,7 +829,13 @@ const newSave = async (skipRefresh = false) => {
     return false
   }
   if (!result?.valid || config.value !== editingConfig ||
+      editingRequestId !== configRequestId || !configReady.value ||
       algorithmId.value !== editingAlgorithmId || config.value.channelId !== editingChannelId) {
+    return false
+  }
+  if (!isAlarmPrivacyConfigValid(privacyConfig.value, privacyLabels.value)) {
+    activeName.value = 'privacy'
+    proxy.$message.warning(t('alarmPrivacy.invalidConfig'))
     return false
   }
   config.value.taskParam = result.params
@@ -962,6 +1010,10 @@ const newSave = async (skipRefresh = false) => {
     }
   })
 
+  params.taskConfig.params = mergeAlarmPrivacyParams(
+    params.taskConfig.params,
+    privacyConfig.value
+  )
   parameterData.value = params
 
   return proxy.$API.saveOrUpdate(params).then((res) => {
@@ -1020,6 +1072,7 @@ const BatchConfirm = async (data) => {
 }
 
 const resetParameter = () => {
+  resetPrivacyConfig()
   filterChannelEditableParams(config.value.taskParam).forEach(
     (item) => {
       if (item.type == 'check') {
@@ -1247,6 +1300,10 @@ onMounted(() => {
 .strategy-body {
   margin-top: 20px;
   margin-left: 50px;
+}
+
+.privacy-actions {
+  margin: 0 30px 20px 170px;
 }
 
 .dialog-content {

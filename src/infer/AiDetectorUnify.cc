@@ -8,6 +8,7 @@
 #include <iterator>
 #include <utility>
 
+#include "infer/DetectorBatchResults.h"
 #include "nn/core/inference_pipeline_metrics.h"
 #include "util/Log.h"
 #include "util/UuidUtil.h"
@@ -81,6 +82,7 @@ util::ErrorEnum AiDetectorUnify::Detect(const std::vector<VideoFramePtr>& images
 
     try {
         size_t image_num = images.size();
+        std::vector<std::vector<AiDetectRstEl>> completeResults;
         std::vector<VideoFramePtr> inputs;
         std::vector<media::NativeVideoBufferPtr> native_inputs;
         for (size_t i = 0; i < image_num; i++) {
@@ -94,18 +96,18 @@ util::ErrorEnum AiDetectorUnify::Detect(const std::vector<VideoFramePtr>& images
                     LOG_ERRO("Forward Failed. Ret:{}", ret);
                     return ret;
                 }
-                if (outputs.size() < 1) {
-                    std::vector<AiDetectRstEl> emptyEl;
-                    for (size_t j = 0; j < input_size; j++) {
-                        results.push_back(emptyEl);
-                    }
-                } else {
-                    std::copy(outputs.begin(), outputs.end(), std::back_inserter(results));
+                if (!infer_detail::AppendCompleteDetectorBatch(input_size, std::move(outputs),
+                                                               completeResults)) {
+                    LOG_ERRO("Detector output count does not match input batch:{}", input_size);
+                    return util::ErrorEnum::AI_PARSE_OUTPUT_FAILED;
                 }
                 inputs.clear();
                 native_inputs.clear();
             }
         }
+        // Do not expose earlier partial batches if any later batch fails.
+        results.insert(results.end(), std::make_move_iterator(completeResults.begin()),
+                       std::make_move_iterator(completeResults.end()));
     } catch (const std::exception& e) {
         LOG_ERRO("Detect Exception. CfgPath:{} ModelPath:{} images:{} confThres:{} maxBatch:{}, {}",
                  cfg_path_, model_path_, images.size(), conf_thres.size(), max_batch_size_, e.what());
@@ -129,6 +131,11 @@ util::ErrorEnum AiDetectorUnify::Forward(const std::vector<VideoFramePtr>& image
     if (util::ErrorEnum::Success != ret) {
         LOG_ERRO("ConvertImagesToBlobs Failed. Ret:{}", ret);
         return ret;
+    }
+    if (image_blobs.size() != images.size()) {
+        LOG_ERRO("Detector input conversion count:{} does not match input batch:{}", image_blobs.size(),
+                 images.size());
+        return util::ErrorEnum::InvalidImage;
     }
     const auto graph_forward_started = MetricsClock::now();
     try {
@@ -176,14 +183,16 @@ util::ErrorEnum AiDetectorUnify::Forward(const std::vector<VideoFramePtr>& image
         LOG_ERRO("ParseOutput non-std exception. CfgPath:{} ModelPath:{}", cfg_path_, model_path_);
         return util::ErrorEnum::AI_PARSE_OUTPUT_FAILED;
     }
+    if (outputs.size() != image_blobs.size()) {
+        cosmo::nn::GetInferencePipelineMetrics().RecordResultParse(
+            ElapsedNanoseconds(result_parse_started), static_cast<uint64_t>(image_blobs.size()), false);
+        LOG_ERRO("ParseOutput size:{} does not match inputBatch:{}. CfgPath:{} ModelPath:{}", outputs.size(),
+                 image_blobs.size(), cfg_path_, model_path_);
+        return util::ErrorEnum::AI_PARSE_OUTPUT_FAILED;
+    }
     cosmo::nn::GetInferencePipelineMetrics().RecordResultParse(
         ElapsedNanoseconds(result_parse_started), static_cast<uint64_t>(image_blobs.size()), true);
-    if (outputs.size() > image_blobs.size()) {
-        LOG_WARN(
-            "ParseOutput size:{} larger than inputBatch:{}, extra outputs ignored. CfgPath:{} ModelPath:{}",
-            outputs.size(), image_blobs.size(), cfg_path_, model_path_);
-    }
-    for (size_t i = 0; i < outputs.size() && i < image_blobs.size(); i++) {
+    for (size_t i = 0; i < outputs.size(); i++) {
         auto detects = outputs.at(i);
         auto desc    = image_blobs.at(i)->GetBlobDesc();
         auto dims    = desc.dims;

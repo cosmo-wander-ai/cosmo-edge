@@ -37,6 +37,11 @@ VideoFrameServiceImpl::VideoFrameServiceImpl() {
 
 VideoFrameServiceImpl::~VideoFrameServiceImpl() = default;
 
+VideoFramePtr VideoFrameServiceImpl::MosaicCopy(VideoFramePtr src, const std::vector<cosmo::util::Box>& boxes,
+                                                int strength) {
+    return proc_ ? proc_->MosaicCopy(src, boxes, strength) : nullptr;
+}
+
 VideoFramePtr VideoFrameServiceImpl::CopyJpegSrcFrame(VideoFramePtr srcImage) {
     if (!srcImage || !srcImage->Active()) {
         LOG_WARN("INVALID DATA:{}", srcImage ? "IMAGE INVALID " : "IMAGE NULL");

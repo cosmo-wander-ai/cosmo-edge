@@ -10,6 +10,7 @@
 #include "service/camera/impl/CameraTaskUnit.h"
 #include "support/MockDefaults.h"
 #include "support/ScopedServiceOverride.h"
+#include "util/AlarmImagePrivacy.h"
 #include "util/JsonStructUtil.h"
 #include "util/PathUtil.h"
 
@@ -133,6 +134,94 @@ TEST_CASE("CameraTaskUnit initializes a new task from the scene metadata value",
     CHECK(FindParamValue(unit.GetParams(), "param.sceneOwned") == "11");
     REQUIRE(applied.size() == 1);
     CHECK(FindParamValue(applied.back(), "param.sceneOwned") == "11");
+}
+
+TEST_CASE("CameraTaskUnit persists built-in alarm privacy without algorithm descriptors",
+          "[CameraTaskUnit][task-parameters][privacy]") {
+    const auto config_root = CameraConfigRoot() / "test_task_unit_alarm_privacy_reload";
+    std::filesystem::remove_all(config_root);
+    const std::vector<MsgDynamicKeyValue> privacy{MakeParam("param.privacyEnabled", "1"),
+                                                  MakeParam("param.privacyLabels", "person,car"),
+                                                  MakeParam("param.privacyStrength", "3")};
+
+    {
+        CameraTaskUnitDependencies mocks;
+        ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeMetadataJson({}));
+        CameraTaskUnit unit(config_root.string(), "privacy_channel", "test_alg", {});
+        REQUIRE(unit.IsReady());
+        REQUIRE(unit.SetChannelParams(privacy) == util::ErrorEnum::Success);
+        const auto persisted = LoadSavedParams(config_root, "test_alg");
+        CHECK(persisted.channelOverrideKeysPresent);
+        for (const auto& param : privacy) {
+            CHECK(FindParamValue(unit.GetParams(), param.key.ToString()) == param.value.ToString());
+            CHECK(FindParamValue(persisted.params, param.key.ToString()) == param.value.ToString());
+            CHECK(HasOverrideKey(persisted, param.key.ToString()));
+        }
+    }
+    {
+        CameraTaskUnitDependencies mocks;
+        ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg"))
+            .RETURN(MakeMetadataJson({MakeMetadataParam("param.threshold", "12", false)}));
+        MsgTaskConfig applied;
+        ALLOW_CALL(mocks.taskSvc, SetTaskParam("privacy_channel", "privacy_channel_test_alg", _))
+            .LR_SIDE_EFFECT(applied = _3)
+            .RETURN(true);
+        CameraTaskUnit unit(config_root.string(), "privacy_channel", "test_alg", {});
+        REQUIRE(unit.IsReady());
+        for (const auto& param : privacy) {
+            CHECK(FindParamValue(unit.GetParams(), param.key.ToString()) == param.value.ToString());
+            CHECK(FindParamValue(applied, param.key.ToString()) == param.value.ToString());
+        }
+        // A normal parameter update cannot reset a saved privacy policy by omission.
+        MsgTaskConfig form;
+        form.params = {MakeParam("param.threshold", "8")};
+        REQUIRE(unit.SetChannelParams(form) == util::ErrorEnum::Success);
+        CHECK(FindParamValue(unit.GetParams(), "param.privacyEnabled") == "1");
+        CHECK(FindParamValue(unit.GetParams(), "param.privacyLabels") == "person,car");
+        CHECK(FindParamValue(unit.GetParams(), "param.privacyStrength") == "3");
+    }
+}
+
+TEST_CASE("CameraTaskUnit rejects malformed alarm privacy before changing saved settings",
+          "[CameraTaskUnit][task-parameters][privacy]") {
+    const auto config_root = CameraConfigRoot() / "test_task_unit_alarm_privacy_validation";
+    std::filesystem::remove_all(config_root);
+    CameraTaskUnitDependencies mocks;
+    ALLOW_CALL(mocks.algSvc, GetMetaData("test_alg")).RETURN(MakeMetadataJson({}));
+    CameraTaskUnit unit(config_root.string(), "privacy_validation_channel", "test_alg", {});
+    REQUIRE(unit.IsReady());
+    MsgTaskConfig initial;
+    initial.params = {MakeParam("param.privacyEnabled", "1"), MakeParam("param.privacyLabels", "person"),
+                      MakeParam("param.privacyStrength", "2")};
+    MsgTaskArea area;
+    area.areaId   = "original-area";
+    initial.areas = {area};
+    REQUIRE(unit.SetChannelParams(initial) == util::ErrorEnum::Success);
+    const auto before = LoadSavedParams(config_root, "test_alg");
+    const std::vector<MsgDynamicKeyValue> malformed{
+        MakeParam("param.privacyEnabled", "true"),       MakeParam("param.privacyEnabled", ""),
+        MakeParam("param.privacyLabels", "person,,car"), MakeParam("param.privacyLabels", "person,*"),
+        MakeParam("param.privacyStrength", "0"),         MakeParam("param.privacyStrength", "4")};
+    for (const auto& invalid : malformed) {
+        INFO(invalid.key.ToString() << "=" << invalid.value.ToString());
+        CHECK(unit.SetChannelParams(std::vector<MsgDynamicKeyValue>{invalid}) ==
+              util::ErrorEnum::InvalidParam);
+        MsgTaskConfig form;
+        form.params = {invalid};
+        CHECK(unit.SetChannelParams(form) == util::ErrorEnum::InvalidParam);
+        const auto after = LoadSavedParams(config_root, "test_alg");
+        CHECK(after.sign == before.sign);
+        CHECK(after.channelOverrideKeys == before.channelOverrideKeys);
+        for (const auto& param : initial.params) {
+            CHECK(FindParamValue(unit.GetParams(), param.key.ToString()) == param.value.ToString());
+            CHECK(FindParamValue(after.params, param.key.ToString()) == param.value.ToString());
+        }
+        std::vector<MsgTaskArea> areas;
+        std::vector<MsgTaskArea> shielded;
+        REQUIRE(unit.GetArea(areas, shielded) == util::ErrorEnum::Success);
+        REQUIRE(areas.size() == 1);
+        CHECK(areas.front().areaId == "original-area");
+    }
 }
 
 TEST_CASE("CameraTaskUnit applies only channel-editable values over the scene baseline",

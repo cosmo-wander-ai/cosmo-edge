@@ -8,6 +8,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 #include "service/media/dto/VideoFrameFwd.h"
 #include "util/Rect.h"
@@ -25,6 +26,12 @@ public:
     virtual ~IVideoFrameTransform() = default;
 
     // ── Image Transformation ──
+
+    /// Copy and mosaic whole target boxes, adding a small protective margin.
+    /// Strength is 1, 2 or 3. Empty boxes produce an independent unchanged copy.
+    /// Invalid data or processing failure returns nullptr; never aliases src.
+    virtual VideoFramePtr MosaicCopy(VideoFramePtr src, const std::vector<cosmo::util::Box>& boxes,
+                                     int strength) = 0;
 
     /// Crop a region of interest from a frame.
     /// @param srcPicture Source frame.

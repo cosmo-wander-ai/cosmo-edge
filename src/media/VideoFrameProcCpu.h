@@ -24,6 +24,9 @@ namespace media {
 
         VideoFramePtr CopyFrame(VideoFramePtr srcImage) override;
 
+        VideoFramePtr MosaicCopy(VideoFramePtr src, const std::vector<util::Box>& boxes,
+                                 int strength) override;
+
         bool EnsureHostData(VideoFramePtr frame) override;
 
         // Color conversion
