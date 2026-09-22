@@ -930,6 +930,23 @@ export default {
     itemEmmcUtilization: 'eMMC使用率',
     itemPacketDiscard: '丢包率'
   },
+  alarmPrivacy: {
+    title: '告警图片隐私保护',
+    enabled: '告警图片打码',
+    targets: '保护目标',
+    allDetectedTargets: '全部已检测目标',
+    selectedTargets: '指定检测类别',
+    selectTargets: '请选择需要打码的检测类别',
+    strength: '马赛克强度',
+    strengthStandard: '标准',
+    strengthStrong: '较强',
+    strengthMaximum: '最强',
+    scope: '仅保护本服务新告警图片的保存和推送；历史图片、实时视频、录像及外部模型调用的图片不受此设置控制。',
+    targetsTip: '对图片中已检测到的所选目标统一打码，包括告警区域外、未触发告警的目标。复用现有检测结果，未检测到的目标无法遮挡。',
+    outputPolicy: '开启后只保存和提供打码后的告警图片。缺少对应检测结果或打码失败时，保留告警记录，停止提供对应图片。',
+    unavailableTargets: '当前服务未提供以下类别的检测信息：{labels}。请选择可用类别或全部已检测目标。',
+    invalidConfig: '请检查隐私保护设置，选择可用的保护目标和马赛克强度。'
+  },
   event: {
     aiVideoAnalysis: 'AI视频分析',
     algorithmOverlay: '算法叠加',
@@ -966,6 +983,7 @@ export default {
     fourScreens: '四屏',
     fullscreen: '全屏',
     fullImage: '全景照',
+    imageNotProvided: '未提供图片',
     machineMaterialLibrary: '机物库',
     noVideoSignal: '无视频信号',
     notUploaded: '未上传',

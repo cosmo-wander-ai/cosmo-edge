@@ -99,6 +99,7 @@ util::ErrorEnum PSamDetector::HandPic(AlgDataPtr algData) {
     if (!algData || !algData->chanDataDec.frame) {
         return util::ErrorEnum::InvalidParam;
     }
+    InvalidateAlarmPrivacySnapshot(*algData);
 
     Sam2InputType currentInputType;
     {

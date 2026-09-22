@@ -6,6 +6,7 @@ set(MEDIA_COMMON_SRC
     IDemuxStrategy.h
     IOsdTextRenderer.h
     IVideoFrameProc.h
+    MosaicPixels.cc             MosaicPixels.h
     OsdTextRenderer.cc           OsdTextRenderer.h
     PixelFormat.h
     PixelFormatUtils.cc          PixelFormatUtils.h

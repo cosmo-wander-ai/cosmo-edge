@@ -332,6 +332,13 @@ void AiDetector::HandFrames(std::vector<AlgDataPtr> alg_datas) {
             target.frameIndex  = images[i]->GetFrameIndex();
             target.streamIndex = images[i]->GetStreamIndex();
         }
+        std::vector<std::string> privacyLabels;
+        for (const auto& confidence : active_confidence_) {
+            if (std::find(labels_.begin(), labels_.end(), confidence.label) != labels_.end()) {
+                privacyLabels.push_back(confidence.label);
+            }
+        }
+        CaptureAlarmPrivacySnapshot(*algData, uuid, privacyLabels, *detTrackRst);
         algData->legacyDetect = algData->chanDataDetect;
 
         algData->chanDataDetect.atomicCode  = alg_code_;
@@ -398,6 +405,7 @@ AlgDataPtr AiDetector::ConfidenceFilter(AlgDataPtr data_ptr, const std::string& 
         }
     }
     algData->taskId = taskId;
+    PublishAlarmPrivacySnapshot(*algData);
     if (!findTask) {
         algData->chanDataDetect.detRet->targets = data_ptr->chanDataDetect.detRet->targets;
     }

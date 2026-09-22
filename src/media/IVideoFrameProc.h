@@ -23,6 +23,8 @@ public:
 
     // ── Frame copy / host-data ──────────────────────────────────────────
     virtual VideoFramePtr CopyFrame(VideoFramePtr srcImage) = 0;
+    virtual VideoFramePtr MosaicCopy(VideoFramePtr src, const std::vector<util::Box>& boxes,
+                                     int strength)          = 0;
     virtual bool EnsureHostData(VideoFramePtr frame)        = 0;
 
     // ── Color conversion ────────────────────────────────────────────────

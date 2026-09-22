@@ -20,6 +20,9 @@ public:
 
     VideoFramePtr CopyJpegSrcFrame(VideoFramePtr srcImage) override;
 
+    VideoFramePtr MosaicCopy(VideoFramePtr src, const std::vector<cosmo::util::Box>& boxes,
+                             int strength) override;
+
     VideoFramePtr DrawLines(VideoFramePtr srcImage,
                             std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> lines,
                             const cosmo::media::Color& color, int lineWidth = 2) override;
