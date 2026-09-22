@@ -340,6 +340,7 @@ const allModelsCount = ref(0)
 const subTypeToMain = {
   yolov5_det: 'detect', yolov8_det: 'detect', yolov9_det: 'detect',
   yolov11_det: 'detect', yolov12_det: 'detect', yolo26_det: 'detect',
+  yolo26_obb_det: 'detect',
   classify: 'classify', keypoints: 'keypoints', feature: 'feature', ocr: 'ocr',
   dino: 'foundation', sam2: 'foundation', qwen3vl: 'foundation', qwen3_5: 'foundation'
 }
@@ -577,7 +578,8 @@ const modelTypeGroups = computed(() => {
       { label: 'yolov9_det', value: 'yolov9_det' },
       { label: 'yolov11_det', value: 'yolov11_det' },
       { label: 'yolov12_det', value: 'yolov12_det' },
-      { label: 'yolo26_det', value: 'yolo26_det' }
+      { label: 'yolo26_det', value: 'yolo26_det' },
+      { label: 'yolo26_obb_det', value: 'yolo26_obb_det' }
     ]
   },
   {

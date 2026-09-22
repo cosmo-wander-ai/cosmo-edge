@@ -4,6 +4,7 @@
 
 #include "HeartbeatTypes.h"
 #include "TaskAreaTypes.h"
+#include "util/DetectionGeometryJson.h"
 #include "util/JsonFieldOpt.h"
 #include "util/LimitedTypeJson.h"
 
@@ -137,10 +138,11 @@ void to_json(nlohmann::json& j, const MsgTarget& t) {
     j["shapeChangeStatus"] = t.shapeChangeStatus;
     j["box"]               = t.box;
     j["aiBox"]             = t.aiBox;
-    j["confidence"]        = t.confidence;
-    j["attrs"]             = t.attrs;
-    j["areas"]             = t.areas;
-    j["shiledAreas"]       = t.shiledAreas;
+    util::WriteOrientedCorners(j, t.oriented_corners);
+    j["confidence"]  = t.confidence;
+    j["attrs"]       = t.attrs;
+    j["areas"]       = t.areas;
+    j["shiledAreas"] = t.shiledAreas;
     if (t.bHaveMatchInfo)
         j["matchInfo"] = t.matchInfo;
     if (!t.groupEls.empty())
@@ -159,6 +161,7 @@ void from_json(const nlohmann::json& j, MsgTarget& t) {
     JSON_OPT(j, t, shapeChangeStatus);
     JSON_OPT(j, t, box);
     JSON_OPT(j, t, aiBox);
+    t.oriented_corners = util::ReadOrientedCorners(j);
     JSON_OPT(j, t, confidence);
     JSON_OPT(j, t, attrs);
     JSON_OPT(j, t, areas);

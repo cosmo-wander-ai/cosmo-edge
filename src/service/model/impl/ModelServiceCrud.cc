@@ -125,6 +125,19 @@ void ModelServiceImpl::ValidateModelOutputFormat(const nlohmann::json& doc) {
                 "当前模型输出格式与 yolov8/yolov9/yolov11/yolov12 "
                 "检测模型不匹配，请确认选择的是检测模型而不是分类模型。添加不成功");
         }
+    } else if (model_type == "yolo26_obb_det") {
+        // End-to-end OBB: single output with shape [1, top_k, 7]
+        bool reject = (outputs.size() != 1);
+        if (!reject) {
+            std::vector<int> shape = get_shape(outputs[0]);
+            reject                 = !(shape.size() == 3 && shape[2] == 7);
+        }
+        if (reject) {
+            throw cosmo::util::ErrorMessage(
+                cosmo::util::make_error_condition(cosmo::util::ErrorEnum::ParameterException),
+                "当前模型输出格式与 yolo26_obb_det 旋转框检测模型不匹配（期望单输出 [1, top_k, "
+                "7]）。添加不成功");
+        }
     }
 }
 

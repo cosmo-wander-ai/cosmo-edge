@@ -1,8 +1,11 @@
 #include "nn/pipeline/pipeline_utils.h"
 
+#include <algorithm>
+#include <cmath>
 #include <nlohmann/json.hpp>
 #include <utility>
 
+#include "nn/node/yolo_obb_decode_node.h"
 #include "util/Log.h"
 
 namespace cosmo::nn {
@@ -352,6 +355,84 @@ namespace pipeline_utils {
         op->input_width        = input_width;
         op->input_height       = input_height;
         return op;
+    }
+
+    std::unique_ptr<YoloPost> MakeYoloObbPostOp(float conf_threshold, int top_k, int input_width,
+                                                int input_height, bool normalized_coordinates) {
+        auto op                    = std::make_unique<YoloPost>("yolo_obb_postprocess");
+        op->nms_threshold          = 0;
+        op->nms_detection_conf     = conf_threshold;
+        op->top_k                  = top_k;
+        op->input_width            = input_width;
+        op->input_height           = input_height;
+        op->normalized_coordinates = normalized_coordinates;
+        return op;
+    }
+
+    Status ValidateObbResizeConfig(Size input, DeviceType device) {
+        if (input.width <= 0 || input.height <= 0)
+            return Status(COSMO_NN_ERR_INVALID_CFG, "OBB input dimensions must be positive");
+        // Sophon Resize currently rounds the visible output width up to 64,
+        // while Normalize uses the configured network width. Until those are
+        // separated, accepting an unaligned width would misdescribe the transform.
+        if (device == DEVICE_SOPHON_TPU && input.width % 64 != 0)
+            return Status(COSMO_NN_ERR_INVALID_CFG,
+                          "Sophon OBB input width must be a multiple of 64 for the current resize backend");
+        return COSMO_NN_OK;
+    }
+
+    Status MakeObbResizeTransform(Size source, Size input, int gravity, DeviceType device,
+                                  ObbResizeTransform& transform) {
+        if (source.width <= 0 || source.height <= 0 || input.width <= 0 || input.height <= 0 || gravity < 0 ||
+            gravity > 2 || (device != DEVICE_SOPHON_TPU && !UsesHostMemory(device)))
+            return Status(COSMO_NN_ERR_PARAM, "Invalid OBB image size, resize gravity or backend");
+
+        RETURN_ON_FAIL(ValidateObbResizeConfig(input, device));
+
+        transform = {};
+        if (gravity == 0) {
+            transform.scale_x = static_cast<float>(input.width) / source.width;
+            transform.scale_y = static_cast<float>(input.height) / source.height;
+            return COSMO_NN_OK;
+        }
+        if (device == DEVICE_SOPHON_TPU && gravity == 2) {
+            // Sophon ResizeFrame crops a centered source rectangle before resize.
+            int crop_width            = source.width;
+            int crop_height           = source.height;
+            const double source_ratio = static_cast<double>(source.width) / source.height;
+            const double input_ratio  = static_cast<double>(input.width) / input.height;
+            if (source_ratio > input_ratio)
+                crop_width = static_cast<int>(std::max(1.0, std::floor(source.height * input_ratio)));
+            else
+                crop_height = static_cast<int>(std::max(1.0, std::floor(source.width / input_ratio)));
+            transform.scale_x  = static_cast<float>(input.width) / crop_width;
+            transform.scale_y  = static_cast<float>(input.height) / crop_height;
+            transform.offset_x = -((source.width - crop_width) / 2) * transform.scale_x;
+            transform.offset_y = -((source.height - crop_height) / 2) * transform.scale_y;
+            return COSMO_NN_OK;
+        }
+
+        const float scale = std::min(static_cast<float>(input.width) / source.width,
+                                     static_cast<float>(input.height) / source.height);
+        // CpuResizeNode and the RKNN host/RGA path truncate. Sophon ResizeFrame
+        // rounds and clamps. Mirror those measured code paths, not an ideal ratio.
+        const int width = device == DEVICE_SOPHON_TPU
+                              ? std::clamp(static_cast<int>(std::round(source.width * scale)), 1, input.width)
+                              : static_cast<int>(source.width * scale);
+        const int height =
+            device == DEVICE_SOPHON_TPU
+                ? std::clamp(static_cast<int>(std::round(source.height * scale)), 1, input.height)
+                : static_cast<int>(source.height * scale);
+        if (width <= 0 || height <= 0)
+            return Status(COSMO_NN_ERR_PARAM, "OBB resize produces an empty image");
+        transform.scale_x = static_cast<float>(width) / source.width;
+        transform.scale_y = static_cast<float>(height) / source.height;
+        if (gravity == 1) {
+            transform.offset_x = (input.width - width) / 2;
+            transform.offset_y = (input.height - height) / 2;
+        }
+        // Host gravity 2 is top-left letterbox; its offsets remain zero.
+        return COSMO_NN_OK;
     }
 
     std::unique_ptr<DinoEncoder> MakeDinoEncoderOp(int dst_width, int dst_height, bool is_bgr,

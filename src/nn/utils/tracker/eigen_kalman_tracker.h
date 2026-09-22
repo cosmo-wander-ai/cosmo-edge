@@ -33,6 +33,7 @@ public:
     double search_range                 = 0.0;
     int low_thresh_count                = 0;
     TrackingStatus status               = TrackingStatus::kNew;
+    int source_detection_index          = -1;
 
     Rect2f last_detect_position;
     Rect2f last_predict_position;

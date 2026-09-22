@@ -128,6 +128,9 @@ public:
     // multiplies by these values to convert to pixel coordinates.
     int input_width  = 0;
     int input_height = 0;
+
+    // OBB model contract only. Ordinary YOLO decoders retain their own format.
+    bool normalized_coordinates = false;
 };
 
 class PUBLIC YoloNpuPost : public Op {

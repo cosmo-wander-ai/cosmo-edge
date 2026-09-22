@@ -3,6 +3,7 @@
 #include <nlohmann/json.hpp>
 
 #include "TaskCreateTypes.h"
+#include "util/DetectionGeometryJson.h"
 #include "util/JsonFieldOpt.h"
 #include "util/LimitedTypeJson.h"
 
@@ -63,6 +64,7 @@ void from_json(const nlohmann::json& j, MsgPTaskDetectPicRecv& r) {
 
 void to_json(nlohmann::json& j, const MsgPTaskTarget& t) {
     j["box"] = t.box;
+    util::WriteOrientedCorners(j, t.oriented_corners);
     if (t.bHaveLogicResult)
         j["bLogicResult"] = t.bLogicResult;
     if (!t.confidence.empty())
@@ -81,6 +83,7 @@ void to_json(nlohmann::json& j, const MsgPTaskTarget& t) {
 
 void from_json(const nlohmann::json& j, MsgPTaskTarget& t) {
     JSON_OPT(j, t, box);
+    t.oriented_corners = util::ReadOrientedCorners(j);
     if (auto it = j.find("bLogicResult"); it != j.end() && !it->is_null()) {
         t.bHaveLogicResult = true;
         it->get_to(t.bLogicResult);
@@ -106,9 +109,23 @@ void from_json(const nlohmann::json& j, MsgPTaskDetectPicSend& s) {
     JSON_OPT(j, s, resData);
 }
 
+void from_json(const nlohmann::json& j, MsgAlarmVideoOverviewRect& v) {
+    from_json(j, static_cast<MsgRect&>(v));
+    v.oriented_corners = util::ReadOrientedCorners(j);
+}
+
+void to_json(nlohmann::json& j, const MsgAlarmVideoOverviewRect& v) {
+    to_json(j, static_cast<const MsgRect&>(v));
+    util::WriteOrientedCorners(j, v.oriented_corners);
+}
+
 void from_json(const nlohmann::json& j, MsgAlarmVideoOverviewFrame& v) {
     JSON_OPT(j, v, index);
     JSON_OPT(j, v, color);
+    v.sourceWidth  = 0;
+    v.sourceHeight = 0;
+    JSON_OPT(j, v, sourceWidth);
+    JSON_OPT(j, v, sourceHeight);
     JSON_OPT(j, v, rects);
 }
 
@@ -116,6 +133,13 @@ void to_json(nlohmann::json& j, const MsgAlarmVideoOverviewFrame& v) {
     j["index"] = v.index;
     j["color"] = v.color;
     j["rects"] = v.rects;
+    if (v.sourceWidth > 0 && v.sourceHeight > 0) {
+        j["sourceWidth"]  = v.sourceWidth;
+        j["sourceHeight"] = v.sourceHeight;
+    } else {
+        j.erase("sourceWidth");
+        j.erase("sourceHeight");
+    }
 }
 
 void from_json(const nlohmann::json& j, MsgAlarmVideoOverviewInfo& v) {

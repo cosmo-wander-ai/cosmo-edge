@@ -20,6 +20,7 @@ extern "C" {
 #include "mock/MockConfigReadService.h"
 #include "mock/MockTaskService.h"
 #include "mp4v2/mp4v2.h"
+#include "nlohmann/json.hpp"
 #include "support/ScopedPathOverride.h"
 #include "support/ScopedServiceOverride.h"
 #include "util/FileUtil.h"
@@ -412,6 +413,68 @@ TEST_CASE("MP4 empty recording removes its temporary file", "[mp4-record]") {
     }
     CHECK_FALSE(fs::exists(env.File("_video.tmp")));
     CHECK_FALSE(fs::exists(env.File("_video.mp4")));
+}
+
+TEST_CASE("MP4 metadata saves measured corners with source dimensions and legacy rectangles",
+          "[mp4-record][geometry]") {
+    const bool tracked = GENERATE(false, true);
+    Environment env;
+    auto param     = env.Param();
+    param.targetId = tracked ? 7 : -1;
+    cosmo::AiDetectRstEl measured;
+    measured.trackId = 7;
+    measured.box     = {-20, 100, 400, 200};
+    measured.oriented_corners =
+        cosmo::util::Quad{{{-20.5f, 100.25f}, {379.5f, 110.5f}, {359.25f, 300.75f}, {-40.75f, 290.5f}}};
+    cosmo::AiDetectRstEl ordinary;
+    ordinary.trackId = 9;
+    ordinary.box     = {800, 400, 200, 100};
+    cosmo::DataDetTrackClassify initial;
+    initial.dataType   = tracked ? cosmo::AlgDataType::TaskDataTrack : cosmo::AlgDataType::ChannelDataDetect;
+    initial.frameIndex = 0;
+    initial.picWidth   = 1920;
+    initial.picHeight  = 1080;
+    initial.targets    = {measured, ordinary};
+    auto later         = initial;
+    later.frameIndex   = 2;
+    later.picWidth     = 1280;
+    later.picHeight    = 720;
+    later.targets[0].oriented_corners.reset();  // Prediction-only target has no measured geometry.
+    std::vector<cosmo::DataDetTrackClassify> history{initial, later};
+    REQUIRE_CALL(env.tasks, GetTaskDetHistory("channel", "task", 0, param.startframeTimestamp, 2))
+        .RETURN(history);
+    {
+        cosmo::AlgMp4Record record(Codec::kH264, param, 25, 640, 480);
+        Configure(record, Codec::kH264);
+        REQUIRE(record.RecodeFrame(Packet(Annex({Nalu(Codec::kH264, true)}), Codec::kH264, 1)));
+        REQUIRE(record.RecodeFrame(Packet(Annex({Nalu(Codec::kH264, false)}), Codec::kH264, 2)));
+    }  // Actual recorder finalization writes the metadata file.
+    const auto saved = nlohmann::json::parse(cosmo::util::ReadFile(param.jsonPath));
+    REQUIRE(saved["targets"].size() == 3);
+    const auto& first = saved["targets"][0];
+    CHECK(first["sourceWidth"] == 1920);
+    CHECK(first["sourceHeight"] == 1080);
+    REQUIRE(first["rects"].size() == (tracked ? 1 : 2));
+    const auto& rect = first["rects"][0];
+    CHECK(rect["xRatio"] == 0.0);  // Preserve existing normalized/clamped AABB behavior.
+    CHECK(rect["yRatio"].get<double>() == Catch::Approx(100.0 / 1080));
+    CHECK(rect["wRatio"].get<double>() == Catch::Approx(400.0 / 1920));
+    CHECK(rect["hRatio"].get<double>() == Catch::Approx(200.0 / 1080));
+    REQUIRE(rect["orientedCorners"].size() == 4);
+    CHECK(rect["orientedCorners"][0]["x"] == -20.5f);
+    CHECK(rect["orientedCorners"][0]["y"] == 100.25f);
+    if (!tracked)
+        CHECK_FALSE(first["rects"][1].contains("orientedCorners"));
+    // Existing gap filling repeats the complete preceding frame, including its
+    // coordinate space; a subsequent AABB-only result cannot inherit corners.
+    CHECK(saved["targets"][1]["sourceWidth"] == 1920);
+    CHECK(saved["targets"][1]["rects"][0]["orientedCorners"] == rect["orientedCorners"]);
+    CHECK(saved["targets"][2]["sourceWidth"] == 1280);
+    CHECK(saved["targets"][2]["sourceHeight"] == 720);
+    CHECK_FALSE(saved["targets"][2]["rects"][0].contains("orientedCorners"));
+    const auto restored = saved.get<cosmo::MsgAlarmVideoOverviewInfo>();
+    REQUIRE(restored.targets[0].rects[0].oriented_corners);
+    CHECK(restored.targets[0].rects[0].oriented_corners->at(0).x == -20.5f);
 }
 
 TEST_CASE("MP4 write failure rejects an inline configured first sample", "[mp4-record]") {

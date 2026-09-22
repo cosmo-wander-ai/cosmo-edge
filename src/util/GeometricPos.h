@@ -3,6 +3,7 @@
 #pragma once
 
 #include "util/AiTypes.h"
+#include "util/DetectionGeometry.h"
 #include "util/MsgBaseTypes.h"
 
 namespace cosmo::util {
@@ -65,6 +66,11 @@ struct TargetScalerParam {
 [[nodiscard]] std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> GetBoxOsdLines(
     cosmo::util::Box box, int width, int height);
 
+/// Clip measured quadrilateral edges to the image for every rendering backend.
+/// Original floating-point geometry is preserved; fully invisible edges are omitted.
+[[nodiscard]] std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> GetQuadOsdLines(
+    const Quad& corners, int width, int height);
+
 }  // namespace cosmo::util
 
 // ---------------------------------------------------------------------------
@@ -80,6 +86,7 @@ using util::DoScaleBox;
 using util::GetBoxOsdLines;
 using util::GetMsgPointFromRect;
 using util::GetPointFromRect;
+using util::GetQuadOsdLines;
 using util::IntersectionIncludeRatio;
 using util::IntersectionUnionRatio;
 using util::TargetScalerParam;

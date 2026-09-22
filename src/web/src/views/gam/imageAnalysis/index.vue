@@ -177,7 +177,7 @@
                 <template #default="{ row }">
                   <span v-if="row.box">
                     [{{ (row.box.x || 0).toFixed(3) }}, {{ (row.box.y || 0).toFixed(3) }},
-                     {{ (row.box.w || 0).toFixed(3) }}, {{ (row.box.h || 0).toFixed(3) }}]
+                     {{ (row.box.width || 0).toFixed(3) }}, {{ (row.box.height || 0).toFixed(3) }}]
                   </span>
                 </template>
               </el-table-column>
@@ -217,6 +217,7 @@ import { ElMessage } from 'element-plus'
 import { Upload, VideoPlay, Delete } from '@element-plus/icons-vue'
 import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
 import { uploadFileInChunks, UploadPurpose } from '@/utils/chunkUpload'
+import { drawTargetGeometry } from '@/utils/targetGeometry'
 
 const { proxy } = getCurrentInstance()
 const $API = proxy.$API
@@ -472,7 +473,7 @@ const drawOverlay = (index) => {
     if (bw > 0 || bh > 0) {
       ctx.strokeStyle = color
       ctx.lineWidth = 2
-      ctx.strokeRect(x, y, bw, bh)
+      drawTargetGeometry(ctx, target)
     }
 
     const label = `${getTargetLabel(target)} ${getTargetConfidence(target)}`
@@ -577,7 +578,7 @@ const drawPreviewOverlay = () => {
       if (bw > 0 || bh > 0) {
         ctx.strokeStyle = color
         ctx.lineWidth = Math.max(2, Math.round(imgW / 500))
-        ctx.strokeRect(x, y, bw, bh)
+        drawTargetGeometry(ctx, target)
       }
 
       const label = `${getTargetLabel(target)} ${getTargetConfidence(target)}`

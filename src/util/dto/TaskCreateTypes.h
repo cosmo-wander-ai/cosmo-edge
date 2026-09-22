@@ -77,6 +77,7 @@ struct MsgPTaskTarget {
     bool bHaveLogicResult{false};
     bool bLogicResult{false};
     MsgRectReal box;
+    std::optional<util::Quad> oriented_corners;
     std::vector<MsgAiConfidence> confidence;
     std::vector<int> groupEls;
     bool bHaveMatchInfo{false};

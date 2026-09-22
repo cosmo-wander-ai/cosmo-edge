@@ -182,6 +182,7 @@ MsgAiDetFrame OverviewRecordAiRst::SrcData2MsgData(const DataDetTrackClassifyPtr
         rec_target.aiBox.y           = target.box.y;
         rec_target.aiBox.width       = target.box.width;
         rec_target.aiBox.height      = target.box.height;
+        rec_target.oriented_corners  = target.oriented_corners;
         rec_target.hwRatio           = target.hwRatio;
         rec_target.hwRatioVariation  = target.hwRatioVariation;
         rec_target.bHaveMatchInfo    = false;

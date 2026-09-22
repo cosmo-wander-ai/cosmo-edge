@@ -29,6 +29,7 @@ struct cosmo::Sensitivity::TrackIdData {
         bool bFilter{false};
         std::string filterDesc;
         cosmo::DataAlarmTargetConfidence targetCondidenceInfo;
+        std::vector<cosmo::DataAlarmBox> friendOverlays;
     };
 
     unsigned trackId{0};

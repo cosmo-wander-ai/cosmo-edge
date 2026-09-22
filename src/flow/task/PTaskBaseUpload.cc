@@ -3,6 +3,7 @@
 // Image processing algorithms (ComputeMaskPolygon, ApplyYuvMask, ApplyBgrMask) are in PTaskBaseImageProc.cc.
 
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 
 #include "flow/detect/PDinoDetector.h"
@@ -58,10 +59,11 @@ static bool IsTargetInArea(const AiDetectRstEl& target, const std::string& areaI
 }
 
 static void DetTarget2MsgTarget(const AiDetectRstEl& target, MsgPTaskTarget& msgTarget) {
-    msgTarget.box.x      = target.box.x;
-    msgTarget.box.y      = target.box.y;
-    msgTarget.box.width  = target.box.width;
-    msgTarget.box.height = target.box.height;
+    msgTarget.box.x            = target.box.x;
+    msgTarget.box.y            = target.box.y;
+    msgTarget.box.width        = target.box.width;
+    msgTarget.box.height       = target.box.height;
+    msgTarget.oriented_corners = target.oriented_corners;
 
     msgTarget.bLogicResult = target.bLogicResult;
 
@@ -248,11 +250,14 @@ void PTaskBase::DetTargetHandFullPicture(AlgDataPtr algData, const std::vector<M
             }
 
             util::Box box;
-            box.x         = target.box.x;
-            box.y         = target.box.y;
-            box.width     = target.box.width;
-            box.height    = target.box.height;
-            auto boxLines = GetBoxOsdLines(box, origImg->GetWidth(), origImg->GetHeight());
+            box.x      = target.box.x;
+            box.y      = target.box.y;
+            box.width  = target.box.width;
+            box.height = target.box.height;
+            auto boxLines =
+                target.oriented_corners
+                    ? GetQuadOsdLines(*target.oriented_corners, origImg->GetWidth(), origImg->GetHeight())
+                    : GetBoxOsdLines(box, origImg->GetWidth(), origImg->GetHeight());
             service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().DrawLines(
                 origImg, boxLines, box_color, lineWidth);
         }

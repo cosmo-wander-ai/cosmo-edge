@@ -102,6 +102,7 @@
 <script setup>
 import { ref, watch, onBeforeUnmount } from 'vue'
 import { t } from '@/i18n'
+import { drawAlarmVideoTargetGeometry } from '@/utils/targetGeometry'
 
 const props = defineProps({
   // 是否使用弹窗
@@ -292,6 +293,9 @@ const onLoaded = async () => {
   if (elVideo.value) {
     elVideo.value.style.opacity = 1
     duration.value = elVideo.value.duration
+    if (elVideo.value.videoWidth > 0 && elVideo.value.videoHeight > 0) {
+      videoRatio.value = elVideo.value.videoWidth / elVideo.value.videoHeight
+    }
   }
   
   await getAlarmVideoPointList()
@@ -300,35 +304,7 @@ const onLoaded = async () => {
     const ctx = elCanvas.value.getContext('2d')
     ctx.clearRect(0, 0, props.width, props.height)
     
-    // 画区域
-    if (alarmVideoPointList.value.area !== undefined) {
-      drawArea(
-        ctx,
-        alarmVideoPointList.value.area.points,
-        alarmVideoPointList.value.area.rgb
-      )
-      
-      // 离岗双框
-      if (
-        alarmVideoPointList.value.area.associatedAreas &&
-        alarmVideoPointList.value.area.associatedAreas[0]
-      ) {
-        drawArea(
-          ctx,
-          alarmVideoPointList.value.area.associatedAreas[0].points,
-          alarmVideoPointList.value.area.rgb
-        )
-      }
-      
-      if (alarmVideoPointList.value.area.linePoints) {
-        drawPolyline(
-          alarmVideoPointList.value.area.linePoints,
-          alarmVideoPointList.value.area.directionType,
-          ctx,
-          alarmVideoPointList.value.area.rgb
-        )
-      }
-    }
+    drawAlarmAreas(ctx)
     
     // 设置定时器
     currentClip.value = 0
@@ -337,31 +313,24 @@ const onLoaded = async () => {
       currentClip.value += 1
       if (props.structureDataUrl && alarmVideoPointList.value.targets) {
         alarmVideoPointList.value.targets.forEach((item) => {
-          if (currentClip.value === item.index && item.rects.length !== 0) {
+          if (currentClip.value === item.index) {
             ctx.strokeStyle = '#ff0000'
             ctx.beginPath()
             ctx.clearRect(0, 0, props.width, props.height)
             
-            // 区域框
-            drawArea(
-              ctx,
-              alarmVideoPointList.value.area.points,
-              alarmVideoPointList.value.area.rgb
-            )
+            drawAlarmAreas(ctx)
             
-            item.rects.forEach((rect) => {
-              const axisPoint = transScaleToAxis(rect)
-              ctx.beginPath()
+            const videoSize = getVideoSize()
+            const viewport = {
+              x: (props.width - videoSize.width) / 2,
+              y: (props.height - videoSize.height) / 2,
+              ...videoSize
+            }
+            for (const rect of item.rects || []) {
               ctx.lineWidth = 2
               ctx.strokeStyle = 'red'
-              ctx.rect(
-                axisPoint.xAxis,
-                axisPoint.yAxis,
-                axisPoint.wAxis,
-                axisPoint.hAxis
-              )
-              ctx.stroke()
-            })
+              drawAlarmVideoTargetGeometry(ctx, rect, item, viewport)
+            }
           }
         })
       }
@@ -421,6 +390,20 @@ const getVideoSize = () => {
       width: Number((videoRatio.value * props.height).toFixed(2)),
       height: props.height
     }
+  }
+}
+
+// 每次清空画布后恢复完整的静态区域和拌线，包括空目标帧。
+const drawAlarmAreas = (ctx) => {
+  const area = alarmVideoPointList.value.area
+  if (!area) return
+
+  drawArea(ctx, area.points, area.rgb)
+  if (area.associatedAreas?.[0]) {
+    drawArea(ctx, area.associatedAreas[0].points, area.rgb)
+  }
+  if (area.linePoints) {
+    drawPolyline(area.linePoints, area.directionType, ctx, area.rgb)
   }
 }
 

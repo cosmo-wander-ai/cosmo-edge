@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <exception>
 #include <iterator>
 #include <utility>
@@ -190,11 +191,28 @@ util::ErrorEnum AiDetectorUnify::Forward(const std::vector<VideoFramePtr>& image
         std::vector<AiDetectRstEl> result;
         for (auto obj : detects) {
             AiDetectRstEl el;
-            el.box.x      = static_cast<int>(obj.x1);
-            el.box.y      = static_cast<int>(obj.y1);
-            el.box.width  = static_cast<int>(obj.x2) - static_cast<int>(obj.x1) + 1;
-            el.box.height = static_cast<int>(obj.y2) - static_cast<int>(obj.y1) + 1;
-            el.box &= util::Box(0, 0, dims.at(2) - 1, dims.at(1) - 1);
+            if (obj.oriented_corners) {
+                const double max_x = dims.at(2) - 1.0;
+                const double max_y = dims.at(1) - 1.0;
+                if (max_x < 0 || max_y < 0 || obj.x2 < 0 || obj.y2 < 0 || obj.x1 > max_x || obj.y1 > max_y ||
+                    !std::isfinite(obj.x1) || !std::isfinite(obj.y1) || !std::isfinite(obj.x2) ||
+                    !std::isfinite(obj.y2))
+                    continue;
+                // Bound floating-point coordinates before converting to integer pixels.
+                el.box.x = static_cast<int>(std::floor(std::clamp<double>(obj.x1, 0, max_x)));
+                el.box.y = static_cast<int>(std::floor(std::clamp<double>(obj.y1, 0, max_y)));
+                el.box.width =
+                    static_cast<int>(std::ceil(std::clamp<double>(obj.x2, 0, max_x))) - el.box.x + 1;
+                el.box.height =
+                    static_cast<int>(std::ceil(std::clamp<double>(obj.y2, 0, max_y))) - el.box.y + 1;
+            } else {
+                el.box.x      = static_cast<int>(obj.x1);
+                el.box.y      = static_cast<int>(obj.y1);
+                el.box.width  = static_cast<int>(obj.x2) - static_cast<int>(obj.x1) + 1;
+                el.box.height = static_cast<int>(obj.y2) - static_cast<int>(obj.y1) + 1;
+                el.box &= util::Box(0, 0, dims.at(2) - 1, dims.at(1) - 1);
+            }
+            el.oriented_corners = obj.oriented_corners;
             if (el.box.width <= 0 || el.box.height <= 0) {
                 continue;
             }

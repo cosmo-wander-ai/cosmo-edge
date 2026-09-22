@@ -336,6 +336,118 @@ Status Yolo26DetPipeline::ParseDetectionOutput(std::vector<std::vector<ObjectInf
                                 selected_thresholds_, selected_classnames_, outputs);
 }
 
+// ============================= YOLO26 OBB (End-to-End) ====================
+
+Status Yolo26ObbPipeline::Init(const PipelineConfig& config, const std::string& model_path,
+                               DeviceType device_type, int device_id, IProfiler* profiler,
+                               const std::string& tokenizer_path, const std::string& word_table_path,
+                               bool use_skip) {
+    if (config.models.size() != 1 || config.models[0].inputs.size() != 1 ||
+        config.models[0].outputs.size() != 1)
+        return Status(COSMO_NN_ERR_INVALID_CFG,
+                      "YOLO OBB requires one model, image input and end-to-end output");
+    const auto& mc      = config.models[0];
+    const auto& in_def  = mc.inputs[0];
+    const auto& out_def = mc.outputs[0];
+    if (mc.max_batch <= 0 || in_def.shape.size() != 4 || in_def.shape[1] != 3 || in_def.shape[2] <= 0 ||
+        in_def.shape[3] <= 0 || out_def.shape.size() != 3 || out_def.shape[2] != 7 ||
+        out_def.data_type != DATA_TYPE_FLOAT)
+        return Status(COSMO_NN_ERR_INVALID_CFG,
+                      "YOLO OBB requires NCHW image input and float32 [batch, rows, 7] output");
+
+    nlohmann::json p = pipeline_utils::ParseJsonObject(mc.params_json);
+    // Resize::dsize is [height, width], including for non-square models.
+    const auto input_size =
+        pipeline_utils::ReadIntArray(p, "input_size", {in_def.shape[2], in_def.shape[3]}, 2);
+    if (input_size.size() != 2 || input_size[0] != in_def.shape[2] || input_size[1] != in_def.shape[3])
+        return Status(COSMO_NN_ERR_INVALID_CFG, "OBB input_size must match the model input height and width");
+    RETURN_ON_FAIL(pipeline_utils::ValidateObbResizeConfig({input_size[1], input_size[0]}, device_type));
+    resize_gravity_ = pipeline_utils::ReadInt(p, "gravity", pipeline_utils::ReadInt(p, "padding_gravity", 1));
+    if (resize_gravity_ < 0 || resize_gravity_ > 2)
+        return Status(COSMO_NN_ERR_INVALID_CFG, "Unsupported OBB resize gravity");
+    const auto units = pipeline_utils::ReadString(p, "coordinate_units", "pixels");
+    if ((units != "pixels" && units != "normalized") ||
+        pipeline_utils::ReadString(p, "angle_units", "radians") != "radians")
+        return Status(COSMO_NN_ERR_INVALID_CFG,
+                      "OBB expects explicit pixels or normalized coordinates and radians");
+    const float confidence = pipeline_utils::ReadFloat(p, "confidence_threshold", 0.25f);
+    const int top_k        = pipeline_utils::ReadInt(p, "top_k", 300);
+    if (!std::isfinite(confidence) || confidence < 0.f || confidence > 1.f || top_k <= 0)
+        return Status(COSMO_NN_ERR_INVALID_CFG, "Invalid OBB confidence threshold or top_k");
+    default_confidence_ = confidence;
+    p["input_size"]     = input_size;
+    p["gravity"]        = resize_gravity_;
+    resize_device_      = device_type;
+    image_transforms_.clear();
+    image_sizes_.clear();
+    model_info_.models.clear();
+    model_info_.algorithmcode = config.algorithm_code;
+    model_info_.reduce        = config.reduce;
+    model_info_.type          = "yolo26_obb_det";
+    max_batch_                = mc.max_batch;
+    net_input_size_           = Size(input_size[1], input_size[0]);
+
+    ModelInfo model;
+    model.name      = mc.name;
+    model.filename  = mc.file_name;
+    model.file_md5  = mc.file_md5;
+    model.max_batch = mc.max_batch;
+    InputNodeInfo input;
+    input.name      = in_def.name;
+    input.shape     = in_def.shape;
+    input.data_type = in_def.data_type;
+    input.ops       = MakeDetPreprocess(p);
+    model.input_node_infos.push_back(std::move(input));
+    OutputNodeInfo output;
+    output.name      = out_def.name;
+    output.shape     = out_def.shape;
+    output.data_type = out_def.data_type;
+    output.op        = pipeline_utils::MakeYoloObbPostOp(confidence, top_k, input_size[1], input_size[0],
+                                                         units == "normalized");
+    model.output_node_infos.push_back(std::move(output));
+    model_info_.models.push_back(std::move(model));
+    if (!config.labels.empty())
+        BuildLabels(config, out_def.name, {-1, -1, 10}, model_info_);
+    InitThresholdsAndLabels();
+    return InitGraph(model_path, device_type, device_id, profiler, tokenizer_path, use_skip);
+}
+
+Status Yolo26ObbPipeline::Forward(std::initializer_list<std::vector<std::shared_ptr<Blob>>> inputs) {
+    image_transforms_.clear();
+    if (inputs.size() != 1 || inputs.begin()->empty() ||
+        inputs.begin()->size() > static_cast<size_t>(max_batch_))
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "OBB requires a nonempty image batch within max_batch");
+    std::vector<ObbResizeTransform> transforms;
+    for (const auto& image : *inputs.begin()) {
+        if (!image)
+            return Status(COSMO_NN_ERR_INVALID_INPUT, "OBB image is null");
+        const auto& desc = image->GetBlobDesc();
+        if (desc.dims.size() != 4 || desc.dims[0] != 1 || desc.dims[3] != 3 ||
+            desc.data_format != DATA_FORMAT_NHWC || desc.data_type != DATA_TYPE_UINT8 ||
+            (desc.image_format != IMAGE_BGR && desc.image_format != IMAGE_RGB))
+            return Status(COSMO_NN_ERR_INVALID_INPUT,
+                          "OBB requires one packed NHWC uint8 BGR or RGB image per blob");
+        Size size;
+        RETURN_ON_FAIL(NetUtils::GetImageSize(desc.dims, desc.data_format, size));
+        ObbResizeTransform transform;
+        RETURN_ON_FAIL(pipeline_utils::MakeObbResizeTransform(size, net_input_size_, resize_gravity_,
+                                                              resize_device_, transform));
+        transforms.push_back(transform);
+    }
+    RETURN_ON_FAIL(RunGraph(inputs));
+    image_transforms_ = std::move(transforms);
+    return COSMO_NN_OK;
+}
+
+Status Yolo26ObbPipeline::ParseDetectionOutput(std::vector<std::vector<ObjectInfoV1>>& outputs) {
+    const auto blobs = GetGraphOutput();
+    outputs.clear();
+    if (blobs.size() != 1)
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "OBB graph must return one corner tensor");
+    return ParseYoloObbOutput(blobs[0], image_transforms_, selected_indices_, selected_thresholds_,
+                              selected_classnames_, outputs, default_confidence_);
+}
+
 // ========================= Generic Detector ===============================
 
 Status GenericDetectorPipeline::Init(const PipelineConfig& config, const std::string& model_path,
@@ -440,6 +552,7 @@ REGISTER_MODEL_PIPELINE("yolov9_det", YoloV8DetPipeline);
 REGISTER_MODEL_PIPELINE("yolov11_det", YoloV8DetPipeline);
 REGISTER_MODEL_PIPELINE("yolov12_det", YoloV8DetPipeline);
 REGISTER_MODEL_PIPELINE("yolo26_det", Yolo26DetPipeline);
+REGISTER_MODEL_PIPELINE("yolo26_obb_det", Yolo26ObbPipeline);
 REGISTER_MODEL_PIPELINE("detector", GenericDetectorPipeline);
 
 }  // namespace cosmo::nn

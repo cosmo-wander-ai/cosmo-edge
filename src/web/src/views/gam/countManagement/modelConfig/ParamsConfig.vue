@@ -357,6 +357,10 @@ const TYPE_SCHEMA = computed(() => {
       common: ['input_size', 'gravity', 'confidence_threshold', 'top_k'],
       advanced: ['padding_color', 'normalize_mean', 'normalize_scale', 'is_bgr']
     },
+    yolo26_obb_det: {
+      common: ['input_size', 'gravity', 'confidence_threshold', 'top_k'],
+      advanced: ['padding_color', 'normalize_mean', 'normalize_scale', 'is_bgr']
+    },
     classify: {
       common: ['input_size', 'gravity', 'crop', 'crop_h_top', 'crop_h_bottom', 'crop_w_left', 'crop_w_right', 'square', 'square_mode'],
       advanced: ['padding_color', 'normalize_mean', 'normalize_scale', 'is_bgr']

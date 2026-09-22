@@ -314,4 +314,52 @@ std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> GetBoxOsdLines(co
     return lines;
 }
 
+std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> GetQuadOsdLines(const Quad& corners, int width,
+                                                                               int height) {
+    std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> lines;
+    if (width <= 0 || height <= 0)
+        return lines;
+    for (const auto& point : corners) {
+        if (!std::isfinite(point.x) || !std::isfinite(point.y))
+            return lines;
+    }
+    for (size_t index = 0; index < corners.size(); ++index) {
+        const auto& a    = corners[index];
+        const auto& b    = corners[(index + 1) % corners.size()];
+        const double dx  = static_cast<double>(b.x) - a.x;
+        const double dy  = static_cast<double>(b.y) - a.y;
+        const double p[] = {-dx, dx, -dy, dy};
+        const double q[] = {a.x, width - 1.0 - a.x, a.y, height - 1.0 - a.y};
+        double first     = 0.0;
+        double last      = 1.0;
+        bool visible     = true;
+        for (size_t edge = 0; edge < 4; ++edge) {
+            if (p[edge] == 0.0) {
+                if (q[edge] < 0.0) {
+                    visible = false;
+                    break;
+                }
+                continue;
+            }
+            const double ratio = q[edge] / p[edge];
+            if (p[edge] < 0.0)
+                first = std::max(first, ratio);
+            else
+                last = std::min(last, ratio);
+            if (first > last) {
+                visible = false;
+                break;
+            }
+        }
+        if (!visible)
+            continue;
+        auto point_at = [&](double t) -> util::Point {
+            return {static_cast<int>(std::lround(std::clamp(a.x + t * dx, 0.0, width - 1.0))),
+                    static_cast<int>(std::lround(std::clamp(a.y + t * dy, 0.0, height - 1.0)))};
+        };
+        lines.push_back({point_at(first), point_at(last)});
+    }
+    return lines;
+}
+
 }  // namespace cosmo::util
