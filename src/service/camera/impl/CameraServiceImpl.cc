@@ -253,6 +253,9 @@ namespace {
 // ============================================================
 
 CameraServiceImpl::CameraServiceImpl() {
+    // 提前创建定时器：通道停止宽限期在 InitCameraEntities 之前也可能被调度。
+    timer_ = std::make_unique<PeriodicTimer>("CameraMngTimer");
+    timer_->Start();
     LOG_INFO("{}", "CameraServiceImpl created (deferred init)");
 }
 
@@ -344,6 +347,11 @@ void CameraServiceImpl::DestroyCameraChannel(CameraEntityPtr camera) {
         // worker being joined should ever need this admission lock.
         std::lock_guard<std::mutex> command_lock(camera->command_mtx_);
         camera->deleting_ = true;
+        {
+            // 相机即将销毁，取消仍在等待的通道停止宽限期。
+            std::lock_guard<std::mutex> state_lock(camera->channel_state_mtx_);
+            CancelChannelStopGraceLocked(camera);
+        }
     }
 
     // 1. Wait for async switch thread to complete, preventing use-after-free.
@@ -639,7 +647,15 @@ void CameraServiceImpl::MonitorCameraEntity(const CameraEntityPtr& camera, bool 
     ProbeCameraOnlineStatus(camera);
 }
 
+// 串行化通道需求判断与启停，避免预览租约和任务停止交叉覆盖。
 void CameraServiceImpl::UpdateChannelState(const CameraEntityPtr& camera) {
+    std::lock_guard<std::mutex> state_lock(camera->channel_state_mtx_);
+    UpdateChannelStateLocked(camera);
+}
+
+// 根据任务、抓图和预览租约更新通道；调用方必须已持有 channel_state_mtx_。
+// 最后一个需求退出后延迟停止，供算法预览平滑切换到原始流。
+void CameraServiceImpl::UpdateChannelStateLocked(const CameraEntityPtr& camera, bool deferStop) {
     bool anyTaskRunning = false;
     std::vector<CameraTaskPtr> snapshot;
     {
@@ -656,28 +672,67 @@ void CameraServiceImpl::UpdateChannelState(const CameraEntityPtr& camera) {
     bool channelRunning =
         ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskIsStart(camera->channel_task_);
     if (anyTaskRunning && !channelRunning) {
+        CancelChannelStopGraceLocked(camera);
         LOG_INFO("[{}] Auto-starting ChannelTask because active analysis tasks exist",
                  camera->videoChannelId);
         ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskStart(camera->videoChannelId,
                                                                     camera->channel_task_);
     } else if (!anyTaskRunning && channelRunning && !camera->is_capturing_image_.load() &&
                camera->preview_lease_count_.load(std::memory_order_acquire) == 0) {
-        // Cache video attributes before stopping the channel
-        MsgCameraAttr attr;
-        if (ServiceRegistry::Instance().Get<ITaskChannel>().GetChannelAttr(camera->videoChannelId, attr)) {
-            if (attr.width > 0 && attr.height > 0) {
-                std::lock_guard<std::mutex> lock(camera->attr_mtx_);
-                camera->cached_attr_ = attr;
+        if (deferStop) {
+            if (camera->channel_stop_grace_id_ != kInvalidTaskId) {
+                return;
             }
+            const auto grace_ms   = channel_stop_grace_ms_.load(std::memory_order_acquire);
+            const auto channel_id = camera->videoChannelId;
+            auto scheduled_id     = std::make_shared<TaskId>(kInvalidTaskId);
+            *scheduled_id = timer_->Schedule([this, camera, channel_id, grace_ms, scheduled_id]() {
+                if (stopping_.load(std::memory_order_acquire)) {
+                    return;
+                }
+                std::lock_guard<std::mutex> command_lock(camera->command_mtx_);
+                if (camera->deleting_) {
+                    return;
+                }
+                std::lock_guard<std::mutex> state_lock(camera->channel_state_mtx_);
+                if (camera->channel_stop_grace_id_ != *scheduled_id) {
+                    return;
+                }
+                camera->channel_stop_grace_id_ = kInvalidTaskId;
+                LOG_INFO("[{}] ChannelTask stop grace period ({} ms) expired", channel_id, grace_ms);
+                UpdateChannelStateLocked(camera, false);
+            }, grace_ms, false);
+            camera->channel_stop_grace_id_ = *scheduled_id;
+            LOG_INFO("[{}] Deferring ChannelTask stop by {} ms grace period", channel_id, grace_ms);
+            return;
+        }
+        MsgCameraAttr attr;
+        if (ServiceRegistry::Instance().Get<ITaskChannel>().GetChannelAttr(camera->videoChannelId, attr) &&
+            attr.width > 0 && attr.height > 0) {
+            std::lock_guard<std::mutex> lock(camera->attr_mtx_);
+            camera->cached_attr_ = attr;
         }
         LOG_INFO("[{}] Auto-stopping ChannelTask because no active analysis tasks exist",
                  camera->videoChannelId);
         ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskStop(camera->channel_task_);
-        auto channel = ServiceRegistry::Instance().Get<ITaskChannel>().GetChannelInst(camera->videoChannelId);
-        if (channel)
+        auto channel =
+            ServiceRegistry::Instance().Get<ITaskChannel>().GetChannelInst(camera->videoChannelId);
+        if (channel) {
             channel->Quit();
+        }
         camera->probed_status_.store(ChannelStatus::ChannelStatusOffline);
     }
+}
+
+// 取消待执行的通道停止定时任务；调用方必须已持有 channel_state_mtx_。
+void CameraServiceImpl::CancelChannelStopGraceLocked(const CameraEntityPtr& camera) {
+    if (camera->channel_stop_grace_id_ == kInvalidTaskId) {
+        return;
+    }
+    if (timer_) {
+        timer_->Cancel(camera->channel_stop_grace_id_);
+    }
+    camera->channel_stop_grace_id_ = kInvalidTaskId;
 }
 
 void CameraServiceImpl::ProbeCameraOnlineStatus(const CameraEntityPtr& camera) {
@@ -865,13 +920,11 @@ constexpr int kMemGcIntervalMs       = 60000 * 30;  // 30min GC interval
 
 void CameraServiceImpl::InitCameraEntities() {
     std::lock_guard<std::mutex> lifecycle_lock(lifecycle_mtx_);
-    if (stopping_.load(std::memory_order_acquire) || timer_) {
+    if (stopping_.load(std::memory_order_acquire) || task_monitor_task_id_ != kInvalidTaskId) {
         return;
     }
     LOG_INFO("{}", "CameraServiceImpl InitCameraEntities");
     LoadConfig();
-    timer_ = std::make_unique<PeriodicTimer>("CameraMngTimer");
-    timer_->Start();
     task_monitor_task_id_ = timer_->Schedule([this]() { CameraTaskMonitor(); }, kTaskMonitorIntervalMs);
 
     mem_gc_task_id_ = timer_->Schedule([this]() { MemGc(); }, kMemGcIntervalMs);

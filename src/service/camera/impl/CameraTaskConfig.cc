@@ -439,8 +439,10 @@ util::ErrorEnum CameraServiceImpl::AcquirePreviewChannel(const std::string& came
     if (camera->deleting_) {
         return util::ErrorEnum::CameraNotExist;
     }
+    std::lock_guard<std::mutex> state_lock(camera->channel_state_mtx_);
 
     const size_t previous = camera->preview_lease_count_.fetch_add(1, std::memory_order_acq_rel);
+    CancelChannelStopGraceLocked(camera);
     if (previous > 0) {
         return util::ErrorEnum::Success;
     }
@@ -459,6 +461,7 @@ util::ErrorEnum CameraServiceImpl::AcquirePreviewChannel(const std::string& came
     return util::ErrorEnum::Success;
 }
 
+// 释放原流预览租约；最后一个租约退出时重新判断通道是否仍需运行。
 void CameraServiceImpl::ReleasePreviewChannel(const std::string& cameraId) {
     auto camera = GetCamera(cameraId);
     if (!camera) {
@@ -469,6 +472,7 @@ void CameraServiceImpl::ReleasePreviewChannel(const std::string& cameraId) {
     if (camera->deleting_) {
         return;
     }
+    std::lock_guard<std::mutex> state_lock(camera->channel_state_mtx_);
 
     size_t current = camera->preview_lease_count_.load(std::memory_order_acquire);
     while (current > 0 && !camera->preview_lease_count_.compare_exchange_weak(
@@ -482,9 +486,7 @@ void CameraServiceImpl::ReleasePreviewChannel(const std::string& cameraId) {
         return;
     }
 
-    // UpdateChannelState reads the count again, so a concurrent acquire cannot
-    // have its channel stopped by this final release.
-    UpdateChannelState(camera);
+    UpdateChannelStateLocked(camera);
 }
 
 VideoFramePtr CameraServiceImpl::CaptureImage(const std::string& cameraId, int timeOutMs) {
@@ -548,6 +550,7 @@ VideoFramePtr CameraServiceImpl::CaptureImage(const std::string& cameraId, int t
     return image;
 }
 
+// 删除指定算法任务，并在删除完成后按剩余任务和预览租约更新通道状态。
 util::ErrorEnum CameraServiceImpl::DeleteTask(const std::string& cameraId, const std::string& algorithmId) {
     return WithCamera(cameraId, [&](const CameraEntityPtr& camera) {
         camera->WaitForSwitchThread();
