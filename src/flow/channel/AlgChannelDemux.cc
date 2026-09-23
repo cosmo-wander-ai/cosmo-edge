@@ -78,6 +78,11 @@ void AlgChannelDemux::AddViewerPacketQueue(std::shared_ptr<AsyncQueue<VideoPacke
     auto it = std::find(async_packet_queues_.begin(), async_packet_queues_.end(), async_packet_queue);
     if (it == async_packet_queues_.end()) {
         async_packet_queues_.push_back(async_packet_queue);
+        // 先补发缓存的关键帧：新 viewer 中途加入时（如 VoD 长GOP）无需等下一个
+        // I 帧即可起播，避免 RTMP 推流首帧超时。
+        if (last_key_frame_) {
+            async_packet_queue->Insert(last_key_frame_);
+        }
     }
 }
 
@@ -322,6 +327,9 @@ void AlgChannelDemux::HandleStream() {
         std::lock_guard<std::shared_mutex> lock(demux_mtx_);
         if (frame_packet) {
             last_frame_ = frame_packet;
+            if (frame_packet->IsIFrame()) {
+                last_key_frame_ = frame_packet;
+            }
         }
     }
 

@@ -10,6 +10,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <filesystem>
 #include <fstream>
 #include <thread>
@@ -23,6 +24,17 @@
 
 using namespace cosmo::service;
 using namespace cosmo;
+
+namespace cosmo::service {
+
+// 缩短通道停止宽限期，供预览生命周期测试使用。
+struct CameraServiceTestAccess {
+    static void SetChannelStopGraceMs(CameraServiceImpl& service, uint64_t grace_ms) {
+        service.channel_stop_grace_ms_.store(grace_ms, std::memory_order_release);
+    }
+};
+
+}  // namespace cosmo::service
 
 namespace {
 
@@ -166,6 +178,7 @@ TEST_CASE("CameraServiceImpl: live preview leases keep the channel active", "[Ca
 
     CameraServiceDependencies mocks;
     CameraServiceImpl svc;
+    CameraServiceTestAccess::SetChannelStopGraceMs(svc, 30);
 
     MsgCameraInfo config;
     config.videoChannelId = "preview-camera";
@@ -185,14 +198,73 @@ TEST_CASE("CameraServiceImpl: live preview leases keep the channel active", "[Ca
     REQUIRE(svc.AcquirePreviewChannel("preview-camera") == cosmo::util::ErrorEnum::Success);
     REQUIRE(svc.AcquirePreviewChannel("preview-camera") == cosmo::util::ErrorEnum::Success);
 
-    // The first release retains the shared lease. The final release rechecks
-    // task demand and stops the otherwise idle channel.
+    // The first release retains the shared lease. The final release starts the
+    // grace period and stops the otherwise idle channel after it expires.
     svc.ReleasePreviewChannel("preview-camera");
-    REQUIRE_CALL(mocks.taskSvc, TaskIsStart("preview-camera-ChannelTask")).IN_SEQUENCE(sequence).RETURN(true);
-    REQUIRE_CALL(mocks.taskSvc, TaskStop("preview-camera-ChannelTask")).IN_SEQUENCE(sequence).RETURN(true);
+
+    std::mutex stop_mutex;
+    std::condition_variable stop_cv;
+    bool channel_stopped = false;
+    REQUIRE_CALL(mocks.taskSvc, TaskIsStart("preview-camera-ChannelTask"))
+        .IN_SEQUENCE(sequence)
+        .RETURN(true)
+        .TIMES(2);
+    REQUIRE_CALL(mocks.taskSvc, TaskStop("preview-camera-ChannelTask"))
+        .IN_SEQUENCE(sequence)
+        .LR_SIDE_EFFECT({
+            std::lock_guard<std::mutex> lock(stop_mutex);
+            channel_stopped = true;
+            stop_cv.notify_all();
+        })
+        .RETURN(true);
     REQUIRE_CALL(mocks.taskSvc, GetChannelInst("preview-camera")).IN_SEQUENCE(sequence).RETURN(nullptr);
     svc.ReleasePreviewChannel("preview-camera");
     REQUIRE_NOTHROW(svc.ReleasePreviewChannel("preview-camera"));
+
+    {
+        std::unique_lock<std::mutex> lock(stop_mutex);
+        REQUIRE(stop_cv.wait_for(lock, std::chrono::seconds(2), [&]() { return channel_stopped; }));
+    }
+
+    REQUIRE_NOTHROW(svc.Stop());
+    std::filesystem::remove_all(test_base);
+}
+
+TEST_CASE("CameraServiceImpl: preview acquired during stop grace keeps channel active",
+          "[CameraService][preview][concurrency]") {
+    const auto test_base = "/tmp/cosmo_camera_preview_race_" +
+                           std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+    std::filesystem::create_directories(test_base);
+    cosmo::test::ScopedPathOverride path_override(test_base, test_base);
+
+    CameraServiceDependencies mocks;
+    CameraServiceImpl svc;
+    CameraServiceTestAccess::SetChannelStopGraceMs(svc, 200);
+
+    MsgCameraInfo config;
+    config.videoChannelId = "preview-race-camera";
+    config.channelName    = "Preview Race Camera";
+    config.url            = "rtsp://127.0.0.1:1/test";
+    config.channelType    = MsgCameraType::MsgCameraTypeLive;
+    std::string id;
+    REQUIRE(svc.Add(config, id) == cosmo::util::ErrorEnum::Success);
+
+    std::atomic<bool> channel_running{true};
+    ALLOW_CALL(mocks.taskSvc, TaskIsStart("preview-race-camera-ChannelTask"))
+        .LR_RETURN(channel_running.load());
+    ALLOW_CALL(mocks.taskSvc, TaskStart("preview-race-camera", "preview-race-camera-ChannelTask"))
+        .LR_SIDE_EFFECT(channel_running.store(true))
+        .RETURN(true);
+    ALLOW_CALL(mocks.taskSvc, TaskStop("preview-race-camera-ChannelTask"))
+        .LR_SIDE_EFFECT(channel_running.store(false))
+        .RETURN(true);
+    ALLOW_CALL(mocks.taskSvc, GetChannelInst("preview-race-camera")).RETURN(nullptr);
+
+    REQUIRE(svc.AcquirePreviewChannel("preview-race-camera") == cosmo::util::ErrorEnum::Success);
+    svc.ReleasePreviewChannel("preview-race-camera");
+    REQUIRE(svc.AcquirePreviewChannel("preview-race-camera") == cosmo::util::ErrorEnum::Success);
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    REQUIRE(channel_running.load());
 
     REQUIRE_NOTHROW(svc.Stop());
     std::filesystem::remove_all(test_base);

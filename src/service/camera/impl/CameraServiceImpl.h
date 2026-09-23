@@ -67,6 +67,8 @@ public:
     std::atomic<size_t> preview_lease_count_{0};
     std::atomic<ChannelStatus> probed_status_{ChannelStatus::ChannelStatusOffline};
 
+    // 串行化预览租约与 ChannelTask 启停，不参与任务命令或媒体帧处理。
+    std::mutex channel_state_mtx_;
     mutable std::mutex attr_mtx_;
     MsgCameraAttr cached_attr_{};  // Cached resolution/codec/fps
     // Serializes commands that schedule/join switch_thread_ and destructive
@@ -75,6 +77,9 @@ public:
     bool deleting_{false};
     std::mutex switch_mtx_;      // Protects switch_thread_
     std::thread switch_thread_;  // Background switch thread (joinable, replaces detach)
+
+    // 延迟停止 ChannelTask 的宽限期定时器句柄；受 channel_state_mtx_ 保护。
+    TaskId channel_stop_grace_id_{kInvalidTaskId};
 
     // Wait for background switch thread to finish
     void WaitForSwitchThread();
@@ -89,6 +94,8 @@ using CameraEntityPtr = std::shared_ptr<CameraEntity>;
 void from_json(const nlohmann::json& j, CameraEntityPtr& v);
 
 class CameraServiceImpl : public ICameraService {
+    friend struct CameraServiceTestAccess;
+
 public:
     CameraServiceImpl();
     ~CameraServiceImpl() override;
@@ -213,7 +220,12 @@ private:
     // ---- Per-camera monitoring (inlined from CameraTaskMngMonitor) ----
     void CameraTaskMonitor();
     void MonitorCameraEntity(const CameraEntityPtr& camera, bool isAuthed);
+    // 串行判断任务和预览需求并更新通道状态。
     void UpdateChannelState(const CameraEntityPtr& camera);
+    // 调用方已持有 channel_state_mtx_ 时更新通道状态；deferStop 控制空闲停止是否走宽限期。
+    void UpdateChannelStateLocked(const CameraEntityPtr& camera, bool deferStop = true);
+    // 取消待执行的通道停止宽限期；调用方必须已持有 channel_state_mtx_。
+    void CancelChannelStopGraceLocked(const CameraEntityPtr& camera);
     void ProbeCameraOnlineStatus(const CameraEntityPtr& camera);
     void ProbeCameraOnlineStatusNow(const CameraEntityPtr& camera);
     void MemGc();
@@ -241,6 +253,10 @@ private:
     std::unique_ptr<PeriodicTimer> timer_;
     TaskId task_monitor_task_id_{kInvalidTaskId};
     TaskId mem_gc_task_id_{kInvalidTaskId};
+
+    // 空闲通道停止前的宽限期（毫秒）；可注入以便测试缩短。
+    static constexpr uint64_t kChannelStopGraceMs = 5000;
+    std::atomic<uint64_t> channel_stop_grace_ms_{kChannelStopGraceMs};
 
     std::string usb_device_dir_mock_{"/dev"};
     std::function<bool(const std::string&)> usb_device_check_mock_{nullptr};

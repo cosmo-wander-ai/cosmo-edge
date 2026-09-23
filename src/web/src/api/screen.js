@@ -26,7 +26,8 @@ export default {
     return request({
       url: '/gtw/cwai/LiveStream/StreamKeepAlive',
       method: 'post',
-      data
+      data,
+      silentError: true
     })
   },
   // 预览任务停止
@@ -69,5 +70,4 @@ export default {
     return `${wsUrl}/wsInterface/requestEventResult`
   }
 }
-
 
