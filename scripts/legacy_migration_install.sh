@@ -302,15 +302,20 @@ mkdir -p -- "$active_parent"
 [ ! -e "$staging_root" ] && [ ! -L "$staging_root" ] || fail "staging path already exists"
 mkdir -- "$staging_root"
 
-# Match the historical installer: preserve the installed resource tree by
-# default, then overlay packaged resources. Copying the installed tree first
-# avoids keeping a second packaged-resource copy on space-constrained /appfs.
-# CLEAN_RESOURCE=1 makes the package resource tree authoritative.
+# Preserve installed resources without allocating another copy of model data.
+# Staging and the active application share a filesystem, so hard links keep
+# unchanged files available to both the candidate and rollback trees. Never
+# fall back to copying gigabytes of models when links cannot be created.
+# CLEAN_RESOURCE=1 retains its explicit package-only replacement semantics.
 if [ "${CLEAN_RESOURCE:-0}" != 1 ] && [ -d "${active_root}/resource" ]; then
     mkdir -- "${staging_root}/resource"
-    cp -a -- "${active_root}/resource/." "${staging_root}/resource/"
+    if ! cp -al -- "${active_root}/resource/." "${staging_root}/resource/"; then
+        fail "cannot reuse installed resources with hard links; active models are unchanged"
+    fi
 fi
-cp -a -- "${payload_root}/." "$staging_root/"
+# Unlink each destination before overlaying a packaged file. Truncating a
+# hard-linked destination would also corrupt the model in the rollback tree.
+cp -a --remove-destination -- "${payload_root}/." "$staging_root/"
 
 [ ! -e "$backup_root" ] && [ ! -L "$backup_root" ] || fail "stale migration backup exists"
 if [ -e "$active_root" ] || [ -L "$active_root" ]; then

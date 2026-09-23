@@ -75,6 +75,7 @@ public:
 private:
     bool CredentialValid(RequestDispatchContext& context, InterfaceMsgAuthType interface_auth_type);
 
+    void RegisterManagementRoutes();
     void RegisterCoreRoutes();
     void RegisterNetworkRoutes();
     void RegisterAlgorithmRoutes();

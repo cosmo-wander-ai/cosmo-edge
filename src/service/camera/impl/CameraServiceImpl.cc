@@ -26,8 +26,11 @@
 #include "service/algorithm/IAlgorithmQuery.h"
 #include "service/camera/impl/CameraConfigPersistence.h"
 #include "service/detail/ServiceRegistry.h"
+#include "service/gb28181/IGb28181Management.h"
+#include "service/gb28181/IGb28181SourceService.h"
 #include "service/media/IVideoFrameCodec.h"
 #include "service/model/IModelQuery.h"
+#include "service/onvif/IOnvifService.h"
 #include "service/system/IConfigReadService.h"
 #include "service/task/IScheduleService.h"
 #include "service/task/ITaskChannel.h"
@@ -248,6 +251,43 @@ namespace {
 
 }  // namespace
 
+bool CameraServiceImpl::ResolveSourceUrl(MsgCameraType sourceType, const std::string& source,
+                                         std::string& logicalUrl, std::string& mediaUrl) const {
+    if (sourceType == MsgCameraType::MsgCameraTypeOnvif) {
+        auto& registry = ServiceRegistry::Instance();
+        if (!registry.Has<IOnvifService>() || registry.Get<IOnvifService>().Revision(source) == 0)
+            return false;
+        logicalUrl = source;
+        mediaUrl   = source;  // Resolved only on the demux thread, outside CRUD/monitor locks.
+        return true;
+    }
+    if (sourceType == MsgCameraType::MsgCameraTypeGb28181) {
+        Gb28181Source resolved;
+        if (!ServiceRegistry::Instance().Get<IGb28181SourceService>().Resolve(source, resolved)) {
+            return false;
+        }
+        logicalUrl = std::move(resolved.logicalUrl);
+        mediaUrl   = std::move(resolved.mediaUrl);
+        return true;
+    }
+
+    logicalUrl = util::NormalizeRtspUrl(source);
+    mediaUrl   = logicalUrl;
+    return true;
+}
+
+bool CameraServiceImpl::IsCameraSourceOnline(const CameraEntityPtr& camera) {
+    if (static_cast<MsgCameraType>(camera->channelType) == MsgCameraType::MsgCameraTypeOnvif) {
+        MsgCameraAttr attr;
+        return ServiceRegistry::Instance().Get<ITaskChannel>().GetChannelAttr(camera->videoChannelId, attr) &&
+               attr.channelStatus == ChannelStatus::ChannelStatusOnline;
+    }
+    if (static_cast<MsgCameraType>(camera->channelType) == MsgCameraType::MsgCameraTypeGb28181) {
+        return ServiceRegistry::Instance().Get<IGb28181SourceService>().IsStreamActive(camera->url);
+    }
+    return CheckUrlConnectivity(camera->channel_url_);
+}
+
 // ============================================================
 //  Construction / Destruction
 // ============================================================
@@ -320,7 +360,16 @@ void CameraServiceImpl::InitCameraChannel(CameraEntityPtr camera) {
     camera->conf_file_path_ =
         (std::filesystem::path(cosmo::path::GetCfgPath(conf_file_path_)) / camera->videoChannelId).string();
     camera->channel_task_ = camera->videoChannelId + "-ChannelTask";
-    camera->channel_url_  = camera->url;
+    std::string logical_url;
+    std::string media_url;
+    if (ResolveSourceUrl(static_cast<MsgCameraType>(camera->channelType), camera->url, logical_url,
+                         media_url)) {
+        camera->url          = std::move(logical_url);
+        camera->channel_url_ = std::move(media_url);
+    } else {
+        camera->channel_url_.clear();
+        LOG_WARN("[{}] Invalid camera source {}", camera->videoChannelId, camera->url);
+    }
 
     LoadCameraTaskList(camera);
 
@@ -375,11 +424,11 @@ void CameraServiceImpl::DestroyCameraChannel(CameraEntityPtr camera) {
 //  Per-camera task list persistence (inlined from CameraTaskMng)
 // ============================================================
 
-void CameraServiceImpl::SaveCameraTaskList(const CameraEntityPtr& camera) {
+bool CameraServiceImpl::SaveCameraTaskList(const CameraEntityPtr& camera) {
     auto path =
         (std::filesystem::path(cosmo::path::GetCfgPath(camera->conf_file_path_)) / camera->conf_task_list_)
             .string();
-    (void)util::SaveStructToJsonFile(path, camera->tasks_);
+    return util::SaveStructToJsonFile(path, camera->tasks_);
 }
 
 void CameraServiceImpl::LoadCameraTaskList(CameraEntityPtr camera) {
@@ -681,18 +730,27 @@ void CameraServiceImpl::UpdateChannelState(const CameraEntityPtr& camera) {
 }
 
 void CameraServiceImpl::ProbeCameraOnlineStatus(const CameraEntityPtr& camera) {
+    // Active demux/algorithm tasks skip the network probe below, but must still
+    // renew the managed GB demand lease. This notification performs no network I/O.
+    auto& registry = ServiceRegistry::Instance();
+    if (static_cast<MsgCameraType>(camera->channelType) == MsgCameraType::MsgCameraTypeGb28181 &&
+        registry.Has<IGb28181Management>()) {
+        Gb28181Source source;
+        if (registry.Get<IGb28181SourceService>().Resolve(camera->url, source))
+            registry.Get<IGb28181Management>().Ensure(source.deviceId);
+    }
     // Only probe if the channel is actually stopped to save overhead when already active
     if (ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskIsStart(camera->channel_task_)) {
         return;
     }
 
-    bool isConnected = CheckUrlConnectivity(camera->channel_url_);
+    bool isConnected = IsCameraSourceOnline(camera);
     camera->probed_status_.store(isConnected ? ChannelStatus::ChannelStatusOnline
                                              : ChannelStatus::ChannelStatusOffline);
 }
 
 void CameraServiceImpl::ProbeCameraOnlineStatusNow(const CameraEntityPtr& camera) {
-    bool isConnected = CheckUrlConnectivity(camera->channel_url_);
+    bool isConnected = IsCameraSourceOnline(camera);
     camera->probed_status_.store(isConnected ? ChannelStatus::ChannelStatusOnline
                                              : ChannelStatus::ChannelStatusOffline);
 }
@@ -705,7 +763,6 @@ void CameraServiceImpl::LoadConfig() {
     cameras_       = detail::CameraConfigPersistence::LoadConfig(conf_file_path_, conf_file_name_);
     int max_number = -1;
     for (const auto& camera : cameras_) {
-        camera->url = util::NormalizeRtspUrl(camera->url);
         LOG_INFO("LoadConfig channel Id {}", camera->videoChannelId);
         InitCameraChannel(camera);
         int current_number = -1;
@@ -720,7 +777,7 @@ void CameraServiceImpl::LoadConfig() {
     detail::CameraConfigPersistence::RemoveDiscardedConfigs(conf_file_path_, cameras_);
 }
 
-void CameraServiceImpl::SaveConfig() {
+bool CameraServiceImpl::SaveConfig() {
     LOG_INFO("{}", "Saving configuration...");
 
     std::vector<CameraEntityPtr> snapshot;
@@ -729,7 +786,7 @@ void CameraServiceImpl::SaveConfig() {
         snapshot = cameras_;
     }
 
-    detail::CameraConfigPersistence::SaveConfig(conf_file_path_, conf_file_name_, snapshot);
+    return detail::CameraConfigPersistence::SaveConfig(conf_file_path_, conf_file_name_, snapshot);
 }
 
 void CameraServiceImpl::MemGc() {

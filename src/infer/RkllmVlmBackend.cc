@@ -5,10 +5,15 @@
 #include <cmath>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <memory>
+#include <mutex>
+#include <stdexcept>
 #include <utility>
 
 #include "infer/Qwen3VLUnify.h"
+#include "infer/VlmEvaluationImage.h"
+#include "infer/VlmEvaluationTokens.h"
 #include "media/PixelFormat.h"
 #include "nn/guard/ModelLoadPolicy.h"
 #ifdef COSMO_HAS_MODEL_GUARD
@@ -37,11 +42,42 @@ namespace {
     struct RunContext {
         std::string text;
         bool failed{false};
+        bool evaluation{false};
+        bool finished{false};
+        int last_state{-1};
+        bool has_perf{false};
+        RKLLMPerfStat perf{};
+        std::vector<int32_t> token_ids;
+        std::vector<int> states;
+        std::mutex mutex;
     };
 
     int RkllmResultCallback(RKLLMResult* result, void* userdata, LLMCallState state) {
         auto* context = static_cast<RunContext*>(userdata);
         if (!context) {
+            return 0;
+        }
+        if (context->evaluation) {
+            std::lock_guard<std::mutex> lock(context->mutex);
+            context->last_state = static_cast<int>(state);
+            context->states.push_back(static_cast<int>(state));
+            if (state == RKLLM_RUN_ERROR)
+                context->failed = true;
+            if (state == RKLLM_RUN_NORMAL && result) {
+                if (result->text)
+                    context->text.append(result->text);
+                context->token_ids.push_back(result->token_id);
+            }
+            if (state == RKLLM_RUN_FINISH) {
+                context->finished = true;
+                if (result && result->perf.prefill_tokens > 0 && result->perf.generate_tokens >= 0 &&
+                    std::isfinite(result->perf.prefill_time_ms) && result->perf.prefill_time_ms >= 0 &&
+                    std::isfinite(result->perf.generate_time_ms) && result->perf.generate_time_ms >= 0 &&
+                    std::isfinite(result->perf.memory_usage_mb) && result->perf.memory_usage_mb >= 0) {
+                    context->perf     = result->perf;
+                    context->has_perf = true;
+                }
+            }
             return 0;
         }
         if (state == RKLLM_RUN_ERROR) {
@@ -292,6 +328,13 @@ struct RkllmVlmBackend::Impl {
     LLMHandle llm{nullptr};
     RKLLMCallback callback{};
     ImageEncoderContext encoder;
+    std::unique_ptr<RunContext> evaluation_run;
+    std::string evaluation_prompt;
+    std::vector<float> evaluation_embedding;
+    RKLLMInput evaluation_input{};
+    RKLLMSamplingParam evaluation_sampling{};
+    RKLLMInferParam evaluation_infer{};
+    bool evaluation_poisoned{false};
 };
 
 RkllmVlmBackend::RkllmVlmBackend(std::string model_path) : model_path_(std::move(model_path)) {}
@@ -307,6 +350,14 @@ RkllmVlmBackend::~RkllmVlmBackend() {
     }
     delete impl_;
     impl_ = nullptr;
+}
+
+util::ErrorEnum RkllmVlmBackend::ConfigureGeneration(int max_new_tokens, int context_length) {
+    if (impl_ || max_new_tokens <= 0 || context_length <= max_new_tokens)
+        return util::ErrorEnum::InvalidParam;
+    max_new_tokens_ = max_new_tokens;
+    context_length_ = context_length;
+    return util::ErrorEnum::Success;
 }
 
 util::ErrorEnum RkllmVlmBackend::Init() {
@@ -331,12 +382,18 @@ util::ErrorEnum RkllmVlmBackend::Init() {
     RKLLMParam param = rkllm_createDefaultParam();
     param.model_path = model_path_.c_str();
     param.top_k      = 1;
-    // This backend is used for short visual judgements. 64 image tokens plus the
-    // prompt and answer fit comfortably in 512 tokens, avoiding an oversized KV
-    // cache and generation budget on the edge device.
-    param.max_new_tokens                = 2;
-    param.max_context_len               = 512;
-    param.skip_special_token            = true;
+    // Retain the business defaults unless explicitly configured before initialization.
+    param.max_new_tokens     = max_new_tokens_;
+    param.max_context_len    = context_length_;
+    param.skip_special_token = true;
+    if (evaluation_enabled_) {
+        param.top_p             = 1.0F;
+        param.temperature       = 0.0F;
+        param.repeat_penalty    = 1.0F;
+        param.frequency_penalty = 0.0F;
+        param.presence_penalty  = 0.0F;
+        param.ignore_eos_token  = false;
+    }
     param.extend_param.base_domain_id   = 1;
     candidate->callback.result_callback = RkllmResultCallback;
     if (rkllm_init(&candidate->llm, &param, &candidate->callback) != 0) {
@@ -349,9 +406,302 @@ util::ErrorEnum RkllmVlmBackend::Init() {
         return util::ErrorEnum::Failed;
     }
 
+    if (evaluation_enabled_) {
+        const auto& encoder = candidate->encoder;
+        const auto& input   = encoder.inputs.front();
+        const auto& output  = encoder.outputs.front();
+        if (encoder.io_num.n_input != 1 || encoder.io_num.n_output != 1 || input.n_dims != 4 ||
+            (input.fmt != RKNN_TENSOR_NCHW && input.fmt != RKNN_TENSOR_NHWC) ||
+            (output.type != RKNN_TENSOR_FLOAT16 && output.type != RKNN_TENSOR_FLOAT32) ||
+            input.n_elems != 448 * 448 * 3 || encoder.width != 448 || encoder.height != 448 ||
+            encoder.channels != 3 || encoder.image_tokens != 196 || encoder.embed_size != 1024 ||
+            output.n_elems != 196 * 1024) {
+            ReleaseImageEncoder(candidate->encoder);
+            rkllm_destroy(candidate->llm);
+            candidate->llm = nullptr;
+            return util::ErrorEnum::InvalidParam;
+        }
+    }
     impl_ = candidate.release();
     LOG_INFO("RKLLM multimodal backend initialized. llm:{} vision:{}", model_path_, vision_path.string());
     return util::ErrorEnum::Success;
+}
+
+util::ErrorEnum RkllmVlmBackend::ConfigureEvaluation(const EvaluationOptions& options) {
+    if (impl_ || options.max_new_tokens <= 0 || options.context_length <= 0 ||
+        options.vision_normalization != "embedded_mean127.5_std127.5")
+        return util::ErrorEnum::InvalidParam;
+    const auto ret = ConfigureGeneration(options.max_new_tokens, options.context_length);
+    if (ret != util::ErrorEnum::Success)
+        return ret;
+    evaluation_options_ = options;
+    evaluation_enabled_ = true;
+    return util::ErrorEnum::Success;
+}
+
+nlohmann::json RkllmVlmBackend::GetEvaluationMetadata() const {
+    nlohmann::json result = {
+        {"backend", "rkllm"},
+        {"evaluation_enabled", evaluation_enabled_},
+        {"max_new_tokens", max_new_tokens_},
+        {"context_length", context_length_},
+        {"context_limit_source", "parameters_passed_to_rkllm_init_not_queryable"},
+        {"expected_input_tokens", evaluation_options_.expected_input_tokens},
+        {"input_token_policy", "platform_observed_count_within_context; reference_match_not_required"},
+        {"do_sample", false},
+        {"top_k", 1},
+        {"top_p", 1.0},
+        {"temperature", 0.0},
+        {"repeat_penalty", 1.0},
+        {"thinking", false},
+        {"keep_history", false},
+        {"skip_special_token", true},
+        {"ignore_eos_token", false},
+        {"preprocessing", "inspecsafe_rgb_en_joint_v1"},
+        {"image_size", 448},
+        {"vision_input_type", "uint8_rgb_nhwc"},
+        {"vision_normalization", evaluation_options_.vision_normalization},
+        {"normalization_source", "artifact_declaration_requires_external_parity_validation"},
+        {"input_token_ids_available", false},
+        {"chat_template_source", "SDK internal artifact template; platform-specific deployment"},
+        {"prompt_trailing_ascii_whitespace", "removed"},
+        {"sdk_memory_source", "RKLLMPerfStat.memory_usage_mb: VmHWM in MB"},
+        {"output_tokens_source", "RKLLMPerfStat.generate_tokens; SDK-reported convention"},
+        {"callback_output_tokens_source", "NORMAL result callbacks; FINISH token_id excluded"},
+        {"output_budget_reached_source", "callback_output_tokens >= max_new_tokens; not truncation proof"},
+        {"stop_reason_capability", "SDK exposes finish/error but not EOS versus output limit"}};
+    if (impl_) {
+        result["vision_image_tokens"]       = impl_->encoder.image_tokens;
+        result["vision_embedding_size"]     = impl_->encoder.embed_size;
+        result["vision_outputs"]            = impl_->encoder.io_num.n_output;
+        result["vision_native_input_type"]  = static_cast<int>(impl_->encoder.inputs.front().type);
+        result["vision_native_output_type"] = static_cast<int>(impl_->encoder.outputs.front().type);
+    }
+    return result;
+}
+
+int RkllmVlmBackend::IsEvaluationRunning() const {
+    return impl_ && impl_->llm ? rkllm_is_running(impl_->llm) : -1;
+}
+
+int RkllmVlmBackend::AbortEvaluation() {
+    return impl_ && impl_->llm && evaluation_enabled_ ? rkllm_abort(impl_->llm) : -1;
+}
+
+nlohmann::json RkllmVlmBackend::Evaluate(const VideoFramePtr& image, const std::string& prompt,
+                                         const std::string& input_dump_prefix) {
+    if (!image || !VideoFrameValid(image) ||
+        (image->GetPixelFormat() != media::PixelFormat::PIXEL_RGB8 &&
+         image->GetPixelFormat() != media::PixelFormat::PIXEL_BGR8))
+        return EvaluatePacked(nullptr, 0, 0, 0, false, prompt, input_dump_prefix);
+    return EvaluatePacked(image->GetHostData() ? image->GetHostData() : image->GetData(), image->GetSize(),
+                          static_cast<int>(image->GetWidth()), static_cast<int>(image->GetHeight()),
+                          image->GetPixelFormat() == media::PixelFormat::PIXEL_BGR8, prompt,
+                          input_dump_prefix);
+}
+
+nlohmann::json RkllmVlmBackend::EvaluateRgb(const uint8_t* pixels, size_t bytes, int width, int height,
+                                            const std::string& prompt, const std::string& input_dump_prefix) {
+    return EvaluatePacked(pixels, bytes, width, height, false, prompt, input_dump_prefix);
+}
+
+nlohmann::json RkllmVlmBackend::EvaluatePacked(const uint8_t* pixels, size_t bytes, int width, int height,
+                                               bool bgr, const std::string& prompt,
+                                               const std::string& input_dump_prefix) {
+    using Json         = nlohmann::json;
+    using Clock        = std::chrono::steady_clock;
+    const auto started = Clock::now();
+    Json result        = {{"status", "inference_error"},
+                          {"raw_output", ""},
+                          {"error", nullptr},
+                          {"stop_reason", "not_started"},
+                          {"sdk_state", nullptr},
+                          {"sdk_return_code", nullptr},
+                          {"truncated", nullptr},
+                          {"input_tokens", nullptr},
+                          {"output_tokens", nullptr},
+                          {"prefill_ms", nullptr},
+                          {"generate_ms", nullptr},
+                          {"sdk_memory_mb", nullptr},
+                          {"history_clear_code", nullptr},
+                          {"running_after", nullptr},
+                          {"abort_code", nullptr},
+                          {"output_budget_reached", nullptr},
+                          {"process_restart_required", false},
+                          {"effective_config", GetEvaluationMetadata()}};
+    bool submitted     = false;
+    try {
+        if (!impl_ || !evaluation_enabled_)
+            throw std::runtime_error("evaluation backend not initialized");
+        if (impl_->evaluation_poisoned) {
+            result["process_restart_required"] = true;
+            throw std::runtime_error("evaluation process requires restart after previous SDK failure");
+        }
+        const int running_before = IsEvaluationRunning();
+        if (running_before != 0) {
+            result["process_restart_required"] = true;
+            throw std::runtime_error("SDK not idle before request");
+        }
+        if (!pixels || prompt.find_first_not_of(" \t\r\n") == std::string::npos)
+            throw std::invalid_argument("image and nonempty prompt required");
+        if (prompt.find("<image>") != std::string::npos ||
+            prompt.find("<|image_pad|>") != std::string::npos ||
+            prompt.find("<|vision_start|>") != std::string::npos)
+            throw std::invalid_argument("prompt must not supply additional image placeholders");
+        auto rgb                = vlm_evaluation::ResizeRgb448(pixels, bytes, width, height, bgr);
+        result["preprocess_ms"] = std::chrono::duration<double, std::milli>(Clock::now() - started).count();
+        const auto prompt_end   = prompt.find_last_not_of(" \t\r\n");
+        const std::string sdk_prompt = "<image>" + prompt.substr(0, prompt_end + 1);
+        if (!input_dump_prefix.empty()) {
+            std::ofstream pixel_file(input_dump_prefix + ".rgb.u8", std::ios::binary);
+            pixel_file.write(reinterpret_cast<const char*>(rgb.data()),
+                             static_cast<std::streamsize>(rgb.size()));
+            pixel_file.close();
+            std::ofstream description(input_dump_prefix + ".input.json");
+            description << Json({{"sdk_prompt", sdk_prompt},
+                                 {"input_token_ids", nullptr},
+                                 {"input_shape", {1, 448, 448, 3}},
+                                 {"input_type", "uint8"},
+                                 {"expected_input_tokens", evaluation_options_.expected_input_tokens},
+                                 {"effective_config", GetEvaluationMetadata()}})
+                               .dump(2);
+            description.close();
+            if (!pixel_file || !description)
+                throw std::runtime_error("cannot write input evidence");
+        }
+        const int cleared            = rkllm_clear_kv_cache(impl_->llm, 0, nullptr, nullptr);
+        result["history_clear_code"] = cleared;
+        if (cleared != 0) {
+            result["process_restart_required"] = true;
+            throw std::runtime_error("SDK history clear failed");
+        }
+
+        const auto vision_started = Clock::now();
+        rknn_input vision_input{};
+        vision_input.index = 0;
+        vision_input.type  = RKNN_TENSOR_UINT8;
+        vision_input.fmt   = RKNN_TENSOR_NHWC;
+        vision_input.size  = static_cast<uint32_t>(rgb.size());
+        vision_input.buf   = rgb.data();
+        if (rknn_inputs_set(impl_->encoder.ctx, 1, &vision_input) != RKNN_SUCC ||
+            rknn_run(impl_->encoder.ctx, nullptr) != RKNN_SUCC)
+            throw std::runtime_error("vision inference failed");
+        rknn_output vision_output{};
+        vision_output.want_float = 1;
+        if (rknn_outputs_get(impl_->encoder.ctx, 1, &vision_output, nullptr) != RKNN_SUCC)
+            throw std::runtime_error("vision output retrieval failed");
+        std::vector<float> embedding;
+        try {
+            if (!vision_output.buf || vision_output.size != 196 * 1024 * sizeof(float))
+                throw std::runtime_error("vision output byte size does not match 196x1024 float32");
+            const auto* values = static_cast<const float*>(vision_output.buf);
+            embedding.assign(values, values + 196 * 1024);
+        } catch (...) {
+            rknn_outputs_release(impl_->encoder.ctx, 1, &vision_output);
+            throw;
+        }
+        if (rknn_outputs_release(impl_->encoder.ctx, 1, &vision_output) != RKNN_SUCC)
+            throw std::runtime_error("vision output release failed");
+        if (!std::all_of(embedding.begin(), embedding.end(), [](float v) { return std::isfinite(v); }))
+            throw std::runtime_error("vision output contains non-finite values");
+        result["vision_ms"] =
+            std::chrono::duration<double, std::milli>(Clock::now() - vision_started).count();
+        if (!input_dump_prefix.empty()) {
+            std::ofstream output(input_dump_prefix + ".vision.f32", std::ios::binary);
+            output.write(reinterpret_cast<const char*>(embedding.data()),
+                         static_cast<std::streamsize>(embedding.size() * sizeof(float)));
+            output.close();
+            if (!output)
+                throw std::runtime_error("cannot write vision embedding evidence");
+        }
+        RKLLMInput input{};
+        input.role                                  = "user";
+        input.enable_thinking                       = false;
+        input.input_type                            = RKLLM_INPUT_MULTIMODAL;
+        input.multimodal_input.prompt               = const_cast<char*>(sdk_prompt.c_str());
+        input.multimodal_input.image.image_embed    = embedding.data();
+        input.multimodal_input.image.n_image_tokens = 196;
+        input.multimodal_input.image.n_image        = 1;
+        input.multimodal_input.image.image_start    = "<|vision_start|>";
+        input.multimodal_input.image.image_end      = "<|vision_end|>";
+        input.multimodal_input.image.image_content  = "<|image_pad|>";
+        input.multimodal_input.image.image_width    = 448;
+        input.multimodal_input.image.image_height   = 448;
+        RKLLMSamplingParam sampling{};
+        sampling.top_k          = 1;
+        sampling.top_p          = 1.0F;
+        sampling.temperature    = 0.0F;
+        sampling.repeat_penalty = 1.0F;
+        RKLLMInferParam infer{};
+        infer.mode                        = RKLLM_INFER_GENERATE;
+        infer.keep_history                = 0;
+        infer.max_new_tokens              = max_new_tokens_;
+        infer.sampling_params             = &sampling;
+        impl_->evaluation_run             = std::make_unique<RunContext>();
+        impl_->evaluation_run->evaluation = true;
+        submitted                         = true;
+        // Keep every SDK argument alive even if a failed synchronous call reports
+        // that work is still running; the supervisor must then replace the process.
+        impl_->evaluation_prompt                                   = sdk_prompt;
+        impl_->evaluation_embedding                                = std::move(embedding);
+        impl_->evaluation_input                                    = input;
+        impl_->evaluation_input.multimodal_input.prompt            = impl_->evaluation_prompt.data();
+        impl_->evaluation_input.multimodal_input.image.image_embed = impl_->evaluation_embedding.data();
+        impl_->evaluation_sampling                                 = sampling;
+        impl_->evaluation_infer                                    = infer;
+        impl_->evaluation_infer.sampling_params                    = &impl_->evaluation_sampling;
+        const int ret             = rkllm_run(impl_->llm, &impl_->evaluation_input, &impl_->evaluation_infer,
+                                              impl_->evaluation_run.get());
+        result["sdk_return_code"] = ret;
+        int running_after         = IsEvaluationRunning();
+        if (running_after != 0) {
+            result["abort_code"]               = AbortEvaluation();
+            running_after                      = IsEvaluationRunning();
+            result["process_restart_required"] = true;
+        }
+        result["running_after"] = running_after;
+        const auto& run         = *impl_->evaluation_run;
+        std::lock_guard<std::mutex> lock(impl_->evaluation_run->mutex);
+        result["raw_output"]             = run.text;
+        result["sdk_state"]              = run.last_state;
+        result["output_token_ids"]       = run.token_ids;
+        result["callback_output_tokens"] = run.token_ids.size();
+        result["output_budget_reached"] =
+            vlm_evaluation::OutputBudgetReached(run.token_ids.size(), max_new_tokens_);
+        result["sdk_states"]  = run.states;
+        result["stop_reason"] = run.finished ? "sdk_finish" : "sdk_error";
+        if (run.has_perf) {
+            result["input_tokens"]  = run.perf.prefill_tokens;
+            result["output_tokens"] = run.perf.generate_tokens;
+            result["prefill_ms"]    = run.perf.prefill_time_ms;
+            result["generate_ms"]   = run.perf.generate_time_ms;
+            result["sdk_memory_mb"] = run.perf.memory_usage_mb;
+        }
+        if (ret != 0 || run.failed || !run.finished || running_after != 0)
+            throw std::runtime_error("SDK inference did not complete successfully and idle");
+        result["input_token_reference_match"] =
+            run.has_perf
+                ? nlohmann::json(run.perf.prefill_tokens == evaluation_options_.expected_input_tokens)
+                : nlohmann::json(nullptr);
+        if (!run.has_perf ||
+            !vlm_evaluation::CallbackOutputWithinBudget(run.token_ids.size(), max_new_tokens_) ||
+            !vlm_evaluation::TokenCountsWithinBudget(run.perf.prefill_tokens, run.perf.generate_tokens,
+                                                     context_length_, max_new_tokens_))
+            throw std::invalid_argument(
+                "actual SDK token counts missing, invalid or exceed context/output budget");
+        result["status"] = run.text.empty() ? "empty_output" : "ok";
+    } catch (const std::invalid_argument& error) {
+        result["status"] = "validation_error";
+        result["error"]  = error.what();
+        if (!submitted)
+            result["stop_reason"] = "validation_error";
+    } catch (const std::exception& error) {
+        result["error"] = error.what();
+    }
+    if (impl_ && result["process_restart_required"].get<bool>())
+        impl_->evaluation_poisoned = true;
+    result["inference_ms"] = std::chrono::duration<double, std::milli>(Clock::now() - started).count();
+    return result;
 }
 
 util::ErrorEnum RkllmVlmBackend::Generate(const std::vector<VideoFramePtr>& images,
@@ -413,7 +763,7 @@ util::ErrorEnum RkllmVlmBackend::Generate(const std::vector<VideoFramePtr>& imag
         RKLLMInferParam infer{};
         infer.mode            = RKLLM_INFER_GENERATE;
         infer.keep_history    = 0;
-        infer.max_new_tokens  = 2;
+        infer.max_new_tokens  = max_new_tokens_;
         infer.sampling_params = &sampling;
         RunContext run;
         run.text.reserve(8);

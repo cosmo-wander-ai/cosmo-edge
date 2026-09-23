@@ -1,6 +1,5 @@
+#include "service/management/ManagementService.h"
 // app_init — app_init implementation.
-
-#include "app/app_init.h"
 
 #include <cassert>
 #include <cstdlib>
@@ -12,6 +11,7 @@
 #include "RuntimePathsConfig.h"
 #include "api/ApiRouter.h"
 #include "app/AppConstants.h"
+#include "app/app_init.h"
 #include "media/IOsdTextRenderer.h"
 #include "media/OsdTextRenderer.h"
 #include "service/ai/impl/InferPoolServiceImpl.h"
@@ -46,6 +46,9 @@
 #include "service/face/impl/FaceLibServiceImpl.h"
 #include "service/face/impl/PersonDaoServiceImpl.h"
 #include "service/face/impl/PersonRecogDaoServiceImpl.h"
+#include "service/gb28181/IGb28181SourceService.h"
+#include "service/gb28181/impl/Gb28181ManagementImpl.h"
+#include "service/gb28181/impl/Gb28181SourceServiceImpl.h"
 #include "service/infra/IDbService.h"
 #include "service/infra/ILinkageService.h"
 #include "service/infra/impl/DbServiceImpl.h"
@@ -81,6 +84,7 @@
 #include "service/network/impl/NetworkConfigServiceImpl.h"
 #include "service/onboarding/IOnboardingService.h"
 #include "service/onboarding/impl/OnboardingServiceImpl.h"
+#include "service/onvif/impl/OnvifServiceImpl.h"
 #include "service/path/IUploadStagingService.h"
 #include "service/path/impl/FileServiceImpl.h"
 #include "service/path/impl/UploadStagingServiceImpl.h"
@@ -111,6 +115,7 @@
 #include "util/Log.h"
 #include "util/NnBackendConstants.h"
 #include "util/PathUtil.h"
+#include "util/ProcessShutdown.h"
 
 namespace cosmo::app {
 
@@ -184,6 +189,11 @@ static void RegisterInfrastructureServices() {
         std::make_unique<cosmo::service::DeviceDiscoveryServiceImpl>());
 
     registry.Register<cosmo::service::IHttpClient>(std::make_unique<cosmo::service::HttpClientImpl>());
+    registry.Register<cosmo::service::IGb28181Management>(
+        std::make_unique<cosmo::service::Gb28181ManagementImpl>());
+    registry.Register<cosmo::service::IGb28181SourceService>(
+        std::make_unique<cosmo::service::Gb28181SourceServiceImpl>());
+    registry.Register<cosmo::service::IOnvifService>(std::make_unique<cosmo::service::OnvifServiceImpl>());
 }
 
 static void RegisterBusinessServices() {
@@ -284,6 +294,10 @@ static void RegisterBusinessServices() {
     registry.Register<cosmo::service::IClientMessageService>(
         std::make_unique<cosmo::service::ClientMessageServiceImpl>());
 
+    registry.Register<cosmo::service::IManagementService>(std::make_unique<cosmo::service::ManagementService>(
+        std::filesystem::path(cosmo::path::GetCfgPath()) / "management",
+        cosmo::service::MakeNativeManagedResources()));
+
     auto appInfoService = std::make_unique<cosmo::service::AppInfoServiceImpl>();
     appInfoService->SetDevId(registry.Get<cosmo::service::IDeviceHardware>().GetDevSn());
     appInfoService->SetEngineType(cosmo::util::kEngineType);
@@ -300,6 +314,16 @@ static void RegisterBusinessServices() {
 
 static void InitializeServices() {
     auto& registry = cosmo::service::ServiceRegistry::Instance();
+    try {
+        registry.Get<cosmo::service::IGb28181Management>().Init();
+    } catch (const std::exception&) {
+        LOG_ERRO("{}", "GB28181 management unavailable; restore its configuration and key together");
+    }
+    try {
+        registry.Get<cosmo::service::IOnvifService>().Init();
+    } catch (const std::exception&) {
+        LOG_ERRO("{}", "ONVIF configuration unavailable; restore its configuration and key together");
+    }
 
     // OSD TrueType text renderer initialization
     auto& osd                               = registry.Get<cosmo::media::IOsdTextRenderer>();
@@ -448,6 +472,7 @@ static void StopExternalComponents() {
 }
 
 void SwDeviceInit() {
+    cosmo::util::ProcessShutdown::ResetForStartup();
     RegisterInfrastructureServices();
     RegisterBusinessServices();
     cosmo::service::ServiceRegistry::Instance().CompleteRegistration();
@@ -460,6 +485,7 @@ void SwDeviceRun() {
 }
 
 void SwDeviceDestroy() {
+    cosmo::util::ProcessShutdown::Request();
     StopExternalComponents();
 
     // All externally driven work has stopped. It is now safe to invalidate

@@ -18,6 +18,9 @@ namespace cosmo::service {
 class ICameraDeviceCrud {
 public:
     virtual ~ICameraDeviceCrud() = default;
+    virtual bool FlushConfiguration() {
+        return false;
+    }
 
     /// Add a new camera device.
     /// @param config Camera configuration (populated on success with generated fields).

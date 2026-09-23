@@ -285,9 +285,11 @@ namespace {
 struct Qwen3VLRunner::Impl {
     std::string model_path;
     std::string model_type;  // "qwen3vl" or "qwen3_5"
-    int device_id  = 0;
-    bool do_sample = false;
-    bool inited    = false;
+    int device_id   = 0;
+    bool do_sample  = false;
+    bool inited     = false;
+    bool evaluation = false;
+    EvaluationOptions evaluation_options;
 
     // Only one of the two model types is instantiated
     std::unique_ptr<qwen3vl::Qwen3VLModel> model_vl;
@@ -304,7 +306,30 @@ struct Qwen3VLRunner::Impl {
     }
 };
 
+Qwen3VLRunner::Qwen3VLRunner()  = default;
 Qwen3VLRunner::~Qwen3VLRunner() = default;
+
+Status Qwen3VLRunner::ConfigureEvaluation(const EvaluationOptions& options) {
+    if (!impl_ || !impl_->inited)
+        return Status(COSMO_NN_ERR_GRAPH_NOT_INIT, "runner not initialized");
+    if (impl_->do_sample || options.max_new_tokens <= 0 || options.context_length <= 0 ||
+        options.context_length > impl_->config.SEQLEN || options.max_new_tokens >= options.context_length ||
+        impl_->config.MAX_PATCHES < 784 || impl_->config.MAX_PIXELS < 448 * 448)
+        return Status(COSMO_NN_ERR_PARAM, "evaluation settings exceed artifact limits or enable sampling");
+    if (impl_->model_35)
+        impl_->model_35->SetTraceNetworks(options.trace_networks);
+    impl_->evaluation                   = true;
+    impl_->evaluation_options           = options;
+    impl_->config.evaluation_square_448 = true;
+    return COSMO_NN_OK;
+}
+
+int Qwen3VLRunner::GetContextLength() const {
+    return impl_ ? impl_->config.SEQLEN : 0;
+}
+int Qwen3VLRunner::GetMaxInputLength() const {
+    return impl_ ? impl_->config.MAX_INPUT_LENGTH : 0;
+}
 
 // Opaque interface for default_component.cc (avoids instantiating unique_ptr<Impl> destructor in that TU)
 namespace {
@@ -433,7 +458,7 @@ Status Qwen3VLRunner::Init(const std::string& model_path, const std::string& tok
 template <typename Model>
 Status Qwen3VLRunner::RunImpl(Model& model, Qwen3VLRunner::Impl& impl,
                               const std::vector<std::vector<std::shared_ptr<Blob>>>& inputs,
-                              std::vector<std::vector<std::string>>& text_outputs) {
+                              std::vector<std::vector<std::string>>& text_outputs, EvaluationResult& result) {
     const auto& images  = inputs[0];
     const auto& prompts = inputs[1];
 
@@ -444,9 +469,11 @@ Status Qwen3VLRunner::RunImpl(Model& model, Qwen3VLRunner::Impl& impl,
     for (size_t i = 0; i < images.size(); i++) {
         if (!images[i] || !prompts[i])
             return Status(COSMO_NN_ERR_INVALID_INPUT, "image or prompt blob is null");
-        Blob* image_blob     = images[i].get();
-        Blob* prompt_blob    = prompts[i].get();
-        std::string question = GetPromptFromBlob(prompt_blob);
+        const auto request_start = std::chrono::steady_clock::now();
+        result                   = EvaluationResult{};
+        Blob* image_blob         = images[i].get();
+        Blob* prompt_blob        = prompts[i].get();
+        std::string question     = GetPromptFromBlob(prompt_blob);
         if (question.empty())
             return Status(COSMO_NN_ERR_INVALID_INPUT, "empty prompt");
         const BlobDesc& image_desc = image_blob->GetBlobDesc();
@@ -481,7 +508,8 @@ Status Qwen3VLRunner::RunImpl(Model& model, Qwen3VLRunner::Impl& impl,
         }
 
         std::vector<std::vector<int>> grid_thws = {impl.config.grid_thw};
-        std::string sentence_input    = qwen3vl::BuildImagePrompt(question, grid_thws, impl.is_qwen35());
+        std::string sentence_input =
+            qwen3vl::BuildImagePrompt(question, grid_thws, impl.is_qwen35(), impl.evaluation);
         std::vector<int32_t> tokens_i = impl.tok->Encode(sentence_input);
         std::vector<int> tokens(tokens_i.begin(), tokens_i.end());
         std::cerr << "[Qwen3VLRunner] prompt built model_type=" << impl.model_type
@@ -494,13 +522,33 @@ Status Qwen3VLRunner::RunImpl(Model& model, Qwen3VLRunner::Impl& impl,
             tokens.size() >= static_cast<size_t>(model.SEQLEN))
             return Status(COSMO_NN_ERR_INVALID_INPUT, "input tokens exceed max length");
 
+        result.input_tokens = static_cast<int>(tokens.size());
+        if (impl.evaluation && !impl.evaluation_options.input_dump_prefix.empty()) {
+            const auto& prefix = impl.evaluation_options.input_dump_prefix;
+            std::ofstream pixels_file(prefix + ".pixels.f32", std::ios::binary);
+            pixels_file.write(reinterpret_cast<const char*>(pixel_values.data()),
+                              static_cast<std::streamsize>(pixel_values.size() * sizeof(float)));
+            std::ofstream tokens_file(prefix + ".input.json");
+            tokens_file << nlohmann::json({{"input_ids", tokens},
+                                           {"grid_thw", impl.config.grid_thw},
+                                           {"rendered_prompt", sentence_input}})
+                               .dump(2);
+            pixels_file.close();
+            tokens_file.close();
+            if (!pixels_file || !tokens_file)
+                return Status(COSMO_NN_ERR_OPEN_FILE, "failed to save evaluation input tensors");
+        }
+        if (impl.evaluation && tokens.size() + static_cast<size_t>(impl.evaluation_options.max_new_tokens) >
+                                   static_cast<size_t>(impl.evaluation_options.context_length))
+            return Status(COSMO_NN_ERR_INVALID_INPUT, "input plus output budget exceeds context");
+
         std::vector<int> vit_offset = qwen3vl::FindTokenOffset(tokens, impl.ID_VISION_START);
         if (vit_offset.empty())
             return Status(COSMO_NN_ERR_INVALID_INPUT, "no vision token in input");
         std::cerr << "[Qwen3VLRunner] vit offsets model_type=" << impl.model_type
                   << " count=" << vit_offset.size() << " first=" << vit_offset[0] << std::endl;
 
-        model.clear_history();
+        model.clear_history(impl.evaluation);
         model.forward_embed(tokens);
 
         std::vector<std::vector<int>> grid_thw    = {impl.config.grid_thw};
@@ -537,19 +585,32 @@ Status Qwen3VLRunner::RunImpl(Model& model, Qwen3VLRunner::Impl& impl,
         using clock             = std::chrono::steady_clock;
         auto t_start            = clock::now();
         std::string stop_reason = "unknown";
-        while (token != impl.ID_IM_END && model.history_length < model.SEQLEN) {
+        while (token != impl.ID_IM_END && (impl.evaluation || model.history_length < model.SEQLEN)) {
             full_word_tokens.push_back(token);
             std::string full_decoded = impl.tok->Decode(full_word_tokens);
             size_t prev_len          = prev_decoded.size();
             if (full_decoded.size() >= prev_len)
                 text += full_decoded.substr(prev_len);
             prev_decoded = full_decoded;
+            if (impl.evaluation) {
+                result.raw_output    = full_decoded;
+                result.output_tokens = static_cast<int>(full_word_tokens.size());
+            }
             if (model.do_sample && model.check_stop(text)) {
                 stop_reason = "stop_string";
                 break;
             }
-            if (EndsWithRepeatedPhrase(text, 12, 2)) {
+            if (!impl.evaluation && EndsWithRepeatedPhrase(text, 12, 2)) {
                 stop_reason = "repeated_phrase";
+                break;
+            }
+            if (impl.evaluation &&
+                full_word_tokens.size() >= static_cast<size_t>(impl.evaluation_options.max_new_tokens)) {
+                stop_reason = "max_new_tokens";
+                break;
+            }
+            if (model.history_length >= model.SEQLEN) {
+                stop_reason = "seqlen";
                 break;
             }
             std::vector<int> next_pos = impl.maker->make_next_position_id();
@@ -569,12 +630,20 @@ Status Qwen3VLRunner::RunImpl(Model& model, Qwen3VLRunner::Impl& impl,
                   << " tok/s" << " stop=" << stop_reason << " raw_text=\"" << EscapeForLog(text, 512) << "\""
                   << std::endl;
         text_outputs[i].resize(1);
-        text_outputs[i][0] = FilterOutput(text);
+        result.raw_output    = impl.evaluation ? impl.tok->Decode(full_word_tokens) : text;
+        result.stop_reason   = stop_reason;
+        result.output_tokens = num_tokens;
+        result.truncated     = stop_reason == "seqlen" || stop_reason == "max_new_tokens";
+        result.inference_ms =
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - request_start)
+                .count();
+        text_outputs[i][0] = impl.evaluation ? result.raw_output : FilterOutput(text);
     }
     return COSMO_NN_OK;
 }
 
 Status Qwen3VLRunner::Run(const std::vector<std::vector<std::shared_ptr<Blob>>>& inputs) {
+    evaluation_result_ = EvaluationResult{};
     if (!impl_ || !impl_->inited)
         return Status(COSMO_NN_ERR_GRAPH_NOT_INIT, "runner not inited");
     if (inputs.size() < 2)
@@ -586,8 +655,8 @@ Status Qwen3VLRunner::Run(const std::vector<std::vector<std::shared_ptr<Blob>>>&
 
     try {
         if (impl_->is_qwen35())
-            return RunImpl(*impl_->model_35, *impl_, inputs, text_outputs_);
-        return RunImpl(*impl_->model_vl, *impl_, inputs, text_outputs_);
+            return RunImpl(*impl_->model_35, *impl_, inputs, text_outputs_, evaluation_result_);
+        return RunImpl(*impl_->model_vl, *impl_, inputs, text_outputs_, evaluation_result_);
     } catch (const std::bad_alloc&) {
         return Status(COSMO_NN_ERR_OUT_OF_MEMORY, "Qwen inference ran out of memory");
     } catch (const std::exception& error) {

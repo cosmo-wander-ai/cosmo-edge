@@ -5,9 +5,12 @@
 #include <thread>
 
 #include "media/FileDemuxStrategy.h"
+#include "media/NetworkDemuxStrategy.h"
 #include "media/RtspDemuxStrategy.h"
 #include "media/UsbDemuxStrategy.h"
 #include "util/Log.h"
+#include "util/ProcessShutdown.h"
+#include "util/RtspUrlUtil.h"
 #include "util/TimeUtil.h"
 
 static constexpr const char* kTag = "[DEMUX] ";
@@ -24,33 +27,62 @@ namespace media {
         opened_ = false;
     }
 
+    void VideoDemuxer::RequestStop() {
+        stop_requested_.store(true);
+        cond_.notify_all();
+    }
+
+    void VideoDemuxer::ResetCancellation() {
+        stop_requested_.store(false);
+    }
+
+    bool VideoDemuxer::StopRequested() const {
+        return stop_requested_.load() || util::ProcessShutdown::Requested() ||
+               (io_running_ && !io_running_->load()) ||
+               (io_deadline_ != std::chrono::steady_clock::time_point::max() &&
+                std::chrono::steady_clock::now() >= io_deadline_);
+    }
+
+    void VideoDemuxer::SetIoDeadline(std::chrono::steady_clock::time_point deadline,
+                                     const std::atomic<bool>* running) {
+        io_deadline_ = deadline;
+        io_running_  = running;
+    }
+
+    int VideoDemuxer::InterruptIo(void* opaque) {
+        return static_cast<VideoDemuxer*>(opaque)->StopRequested() ? 1 : 0;
+    }
+
     // Stop video stream on destruction
     VideoDemuxer::~VideoDemuxer() {
-        LOG_INFO("{}Read {} closed.", kTag, filename_);
+        LOG_INFO("{}Read {} closed.", kTag, util::RedactRtspUrl(filename_));
 
         CloseStream();
-        LOG_INFO("{}Read {} Delete.", kTag, filename_);
+        LOG_INFO("{}Read {} Delete.", kTag, util::RedactRtspUrl(filename_));
     }
 
     void VideoDemuxer::SetFile(const std::string& videoFile) {
         if (videoFile != filename_) {
-            LOG_INFO("{}Change File From {} To {}", kTag, filename_, videoFile);
+            LOG_INFO("{}Change File From {} To {}", kTag, util::RedactRtspUrl(filename_),
+                     util::RedactRtspUrl(videoFile));
             filename_ = videoFile;
         }
-        LOG_INFO("{}Ready To Read {}", kTag, filename_);
+        LOG_INFO("{}Ready To Read {}", kTag, util::RedactRtspUrl(filename_));
         return;
     }
 
     void VideoDemuxer::SetForceFps(float new_fps) {
         if (video_force_fps_ != new_fps) {
-            LOG_INFO("{}:{} VideoFps Change From {} To {}", kTag, filename_, video_force_fps_, new_fps);
+            LOG_INFO("{}:{} VideoFps Change From {} To {}", kTag, util::RedactRtspUrl(filename_),
+                     video_force_fps_, new_fps);
             video_force_fps_ = new_fps;
         }
     }
 
     void VideoDemuxer::CloseStream(bool bRepeat) {
         // Looping playback requires VoD file
-        if (bRepeat && strategy_ && strategy_->SupportsRepeat()) {
+        if (bRepeat && !StopRequested() && opened_ && ready_ && filename_ == opened_filename_ && strategy_ &&
+            strategy_->SupportsRepeat()) {
             return;
         }
 
@@ -60,11 +92,19 @@ namespace media {
         if (bsf_ctx_) {
             av_bsf_free(&bsf_ctx_);
             bsf_ctx_ = nullptr;
-            LOG_INFO("{}Stream {} bsf_ctx_ Closed.", kTag, filename_);
+            LOG_INFO("{}Stream {} bsf_ctx_ Closed.", kTag, util::RedactRtspUrl(filename_));
         }
 
         SafeCloseContext();
-        LOG_INFO("{}Stream {} Closed.", kTag, filename_);
+        opened_filename_.clear();
+        {
+            std::lock_guard<std::mutex> lock(metadata_mtx_);
+            extradata_.clear();
+        }
+        width_.store(0, std::memory_order_relaxed);
+        height_.store(0, std::memory_order_relaxed);
+        fps_.store(0, std::memory_order_relaxed);
+        LOG_INFO("{}Stream {} Closed.", kTag, util::RedactRtspUrl(filename_));
         return;
     }
 
@@ -97,6 +137,9 @@ namespace media {
         if (file.compare(0, 7, "rtsp://") == 0) {
             return std::make_unique<RtspDemuxStrategy>(pullTimeoutSec, delayMs);
         }
+        if (file.compare(0, 7, "rtmp://") == 0) {
+            return std::make_unique<NetworkDemuxStrategy>(pullTimeoutSec);
+        }
         // Local file / HTTP file
         return std::make_unique<FileDemuxStrategy>();
     }
@@ -104,11 +147,13 @@ namespace media {
     // Open stream: Verify online status if this function is available
     // pullTimeoutSec default 5 seconds, delayMs default 200ms
     util::ErrorEnum VideoDemuxer::OpenStream(bool bRepeat, int pullTimeoutSec, int delayMs) {
+        if (StopRequested()) {
+            CloseStream();
+            return util::ErrorEnum::DemuxOpenStreamFail;
+        }
         // Looping playback requires VoD file
-        if (bRepeat && strategy_ && strategy_->SupportsRepeat()) {
-            if (!opened_)
-                return util::ErrorEnum::DemuxOpenStreamFail;
-
+        if (bRepeat && opened_ && ready_ && fmt_ctx_ && filename_ == opened_filename_ && strategy_ &&
+            strategy_->SupportsRepeat()) {
             ResetStreamState();
             opened_ = true;
             ready_  = true;
@@ -116,13 +161,13 @@ namespace media {
             // Seek back to the beginning of the file
             int seekRet = av_seek_frame(fmt_ctx_, video_stream_idx_, 0, AVSEEK_FLAG_BACKWARD);
             if (seekRet < 0) {
-                LOG_WARN("{}Seek to beginning failed for {}: [{}]", kTag, filename_, GetAvErr(seekRet));
+                LOG_WARN("{}Seek to beginning failed for {}: [{}]", kTag, util::RedactRtspUrl(filename_),
+                         GetAvErr(seekRet));
                 seekRet = avformat_seek_file(fmt_ctx_, video_stream_idx_, INT64_MIN, 0, INT64_MAX, 0);
                 if (seekRet < 0) {
-                    LOG_WARN("{}avformat_seek_file also failed for {}: [{}]", kTag, filename_,
-                             GetAvErr(seekRet));
-                    opened_ = false;
-                    ready_  = false;
+                    LOG_WARN("{}avformat_seek_file also failed for {}: [{}]", kTag,
+                             util::RedactRtspUrl(filename_), GetAvErr(seekRet));
+                    CloseStream();
                     return util::ErrorEnum::DemuxOpenStreamFail;
                 }
             }
@@ -137,18 +182,31 @@ namespace media {
             return util::ErrorEnum::Success;
         }
 
+        // A probed context has released its FFmpeg stream-probe state and
+        // cannot be reused as a fresh input, even if the URL is unchanged.
+        CloseStream();
         ResetStreamState();
 
         // Release old strategy and its resources before creating a new one
         strategy_.reset();
         strategy_ = CreateStrategy(filename_, pullTimeoutSec, delayMs);
-        auto ret  = strategy_->OpenInput(fmt_ctx_, filename_);
-        if (ret == util::ErrorEnum::Success && fmt_ctx_) {
-            opened_ = true;
+        is_live_.store(strategy_->IsLive(), std::memory_order_relaxed);
+        // Install cancellation before avformat_open_input, not just before
+        // reading packets: connect/handshake and probing can also block.
+        fmt_ctx_ = avformat_alloc_context();
+        if (!fmt_ctx_)
+            return util::ErrorEnum::DemuxOpenStreamFail;
+        fmt_ctx_->interrupt_callback = {&VideoDemuxer::InterruptIo, this};
+        auto ret                     = strategy_->OpenInput(fmt_ctx_, filename_);
+        if (ret == util::ErrorEnum::Success && fmt_ctx_ && !StopRequested()) {
+            opened_          = true;
+            opened_filename_ = filename_;
         } else {
             // Ensure fmt_ctx_ is freed on failure — some OpenInput implementations
             // may partially allocate the context before failing.
-            SafeCloseContext();
+            CloseStream();
+            if (ret == util::ErrorEnum::Success)
+                ret = util::ErrorEnum::DemuxOpenStreamFail;
         }
         return ret;
     }

@@ -73,6 +73,19 @@ util::ErrorEnum UsbDemuxStrategy::OpenInput(AVFormatContext*& fmt_ctx, const std
     };
 
     int retUsb = -1;
+    // avformat_open_input may free its context after a failed preset. Retain
+    // the owning demuxer's cancellation callback across fallback attempts.
+    const AVIOInterruptCB interrupt = fmt_ctx ? fmt_ctx->interrupt_callback : AVIOInterruptCB{};
+    const auto openInput            = [&](AVDictionary** options) {
+        if (interrupt.callback && interrupt.callback(interrupt.opaque))
+            return AVERROR_EXIT;
+        if (!fmt_ctx)
+            fmt_ctx = avformat_alloc_context();
+        if (!fmt_ctx)
+            return AVERROR(ENOMEM);
+        fmt_ctx->interrupt_callback = interrupt;
+        return avformat_open_input(&fmt_ctx, openPath.c_str(), inputFmt, options);
+    };
 
     // Phase 1: try each resolution + each format
     for (int i = 0; (retUsb != 0 || !fmt_ctx) && i < 3; ++i) {
@@ -83,7 +96,7 @@ util::ErrorEnum UsbDemuxStrategy::OpenInput(AVFormatContext*& fmt_ctx, const std
             av_dict_set(&opts, "framerate", framerateRational, 0);
             LOG_INFO("{}USB camera open {} via V4L2 {} {} @ {} fps (tier:{})", kTag, openPath, fmtNames[f],
                      usbTries[i], framerateRational, tier);
-            retUsb = avformat_open_input(&fmt_ctx, openPath.c_str(), inputFmt, &opts);
+            retUsb = openInput(&opts);
             av_dict_free(&opts);
             if (retUsb == 0 && fmt_ctx)
                 break;
@@ -100,7 +113,7 @@ util::ErrorEnum UsbDemuxStrategy::OpenInput(AVFormatContext*& fmt_ctx, const std
         av_dict_set(&opts, "input_format", fmtNames[f], 0);
         av_dict_set(&opts, "use_libv4l2", "1", 0);
         LOG_INFO("{}USB camera open {} via V4L2 {} (device default size/fps)", kTag, openPath, fmtNames[f]);
-        retUsb = avformat_open_input(&fmt_ctx, openPath.c_str(), inputFmt, &opts);
+        retUsb = openInput(&opts);
         av_dict_free(&opts);
         if (retUsb == 0 && fmt_ctx)
             break;
@@ -113,7 +126,7 @@ util::ErrorEnum UsbDemuxStrategy::OpenInput(AVFormatContext*& fmt_ctx, const std
     // Phase 3: bare open with no options
     if (retUsb != 0 || !fmt_ctx) {
         LOG_INFO("{}USB camera open {} via V4L2 (no options, device default)", kTag, openPath);
-        retUsb = avformat_open_input(&fmt_ctx, openPath.c_str(), inputFmt, nullptr);
+        retUsb = openInput(nullptr);
         if (retUsb != 0 || !fmt_ctx) {
             safeClose();
             if (retUsb != 0)

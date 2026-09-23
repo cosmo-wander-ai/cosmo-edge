@@ -19,7 +19,8 @@ esac
 MODEL_GUARD_SDK_ROOT="${COSMO_MODEL_GUARD_SDK_ROOT:-}"
 DEV_MODE=OFF
 BUILD_TESTS_FLAG=OFF
-while getopts "c:m:r:p:tT" opt; do
+BUILD_VLM_EVAL_FLAG=OFF
+while getopts "c:m:r:p:tTE" opt; do
     case ${opt} in
         c) TARGET_CHIP="${OPTARG}" ;;
         m) RESOURCE_DIR="${OPTARG}" ;;
@@ -27,7 +28,8 @@ while getopts "c:m:r:p:tT" opt; do
         p) ROCKCHIP_MEDIA_ROOT_PATH="${OPTARG}" ;;
         t) DEV_MODE=ON ;;
         T) BUILD_TESTS_FLAG=ON ;;
-        *) echo "Usage: $0 -r <rknn-runtime-root> [-c rk3576|rv1126b] [-p <rockchip-media-root>] [-m <resource-dir>] [-t] [-T]"; exit 1 ;;
+        E) BUILD_VLM_EVAL_FLAG=ON; RKLLM_REQUIRED=ON ;;
+        *) echo "Usage: $0 -r <rknn-runtime-root> [-c rk3576|rv1126b] [-p <rockchip-media-root>] [-m <resource-dir>] [-t] [-T] [-E]"; exit 1 ;;
     esac
 done
 
@@ -167,6 +169,7 @@ cmake -S "${PROJECT_ROOT_PATH}" -B "${BUILD_DIR}" \
     "${MODEL_GUARD_CMAKE_ARGS[@]}" \
     -DCOSMO_PACKAGE_MODELS="${PACKAGE_MODELS}" \
     -DBUILD_TESTS="${BUILD_TESTS_FLAG}" \
+    -DBUILD_VLM_EVAL="${BUILD_VLM_EVAL_FLAG}" \
     -DRESOURCE_DIR="${RESOURCE_DIR}" \
     -DRESOURCE_OVERLAY_DIR="${RESOURCE_OVERLAY_DIR}" \
     -DRESOURCE_MODELS_DIR="${RESOURCE_MODELS_DIR}"

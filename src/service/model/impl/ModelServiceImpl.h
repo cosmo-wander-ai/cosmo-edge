@@ -54,6 +54,10 @@ public:
     cosmo::util::ErrorEnum UpdateModel(const std::string& modelCode, const std::string& modelName,
                                        int maxBatch, const std::string& description) override;
 
+    // Reconcile a platform-reserved model ID; never allocate a second native model.
+    cosmo::util::ErrorEnum AddManagedModel(const std::string& code,
+                                           const cosmo::Model::MsgAddRecv& request) override;
+
     // ---- Query ----
     void QueryModels(const std::string& modelName, const std::string& modelCode, int pageNum, int pageSize,
                      int& total, std::vector<cosmo::Model::MsgModel>& rows) override;

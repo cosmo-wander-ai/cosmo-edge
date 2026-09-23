@@ -16,7 +16,7 @@ public:
                                                    const std::string& conf_file_name);
 
     // Save a snapshot of the current camera configuration to a local file.
-    static void SaveConfig(const std::string& conf_file_path, const std::string& conf_file_name,
+    static bool SaveConfig(const std::string& conf_file_path, const std::string& conf_file_name,
                            const std::vector<CameraEntityPtr>& snapshot);
 
     // Clean up redundant abandoned configuration files that exist on disk

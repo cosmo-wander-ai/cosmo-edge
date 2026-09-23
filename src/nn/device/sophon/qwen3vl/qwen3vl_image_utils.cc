@@ -205,7 +205,22 @@ namespace qwen3vl {
             }
         }
 
-        auto resized       = smart_resize(height, width, config.MIN_PIXELS, config.MAX_PIXELS);
+        if (config.evaluation_square_448) {
+            const int side = std::max(width, height);
+            const int left = (side - width) / 2;
+            const int top  = (side - height) / 2;
+            std::vector<uint8_t> square(static_cast<size_t>(side) * side * 3, 128);
+            for (int y = 0; y < height; ++y) {
+                std::memcpy(square.data() + (static_cast<size_t>(y + top) * side + left) * 3,
+                            rgb.data() + static_cast<size_t>(y) * width * 3, static_cast<size_t>(width) * 3);
+            }
+            rgb    = std::move(square);
+            width  = side;
+            height = side;
+        }
+        auto resized       = config.evaluation_square_448
+                                 ? std::make_pair(448, 448)
+                                 : smart_resize(height, width, config.MIN_PIXELS, config.MAX_PIXELS);
         int resized_height = resized.first;
         int resized_width  = resized.second;
 

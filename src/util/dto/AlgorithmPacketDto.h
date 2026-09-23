@@ -79,6 +79,7 @@ struct LayoutSaveReq {
     std::string algorithmProcessdata;
     std::string algorithmMetadata;
     std::string filePath;
+    std::string algorithmName;  // Optional display name for managed installation.
 };
 
 // Response structs for Layout Detail

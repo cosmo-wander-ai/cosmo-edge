@@ -4,6 +4,7 @@
 
 #include "util/Keys.h"
 #include "util/Log.h"
+#include "util/ProcessShutdown.h"
 #include "util/SafeParse.h"
 #include "util/dto/CameraMsgTypes.h"
 
@@ -178,6 +179,8 @@ bool AlgChannel::RecordMp4(RecordParam& record_param) {
 // Start channel: launch demuxer and decoder.
 bool AlgChannel::Start() {
     std::lock_guard<std::shared_mutex> lock(mtx_);
+    if (util::ProcessShutdown::Requested())
+        return false;
     // AlgChannel inherits AlgActionBase, but this Start() only manages demux/decode.
     // If external code still writes to AlgChannel::GetQueue() (e.g. queue named "-flow-channel--1"),
     // the base-class thread must be started to consume data_queue, otherwise queue fills up with Proc:0.

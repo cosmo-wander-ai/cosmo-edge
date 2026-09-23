@@ -29,6 +29,8 @@ if(COSMO_NN_USE_SOPHON_BACKEND)
         "${NN_DIR}/device/sophon/*.h" "${NN_DIR}/device/sophon/*.cc"
     )
     list(APPEND NN_ALL_SRC ${NN_SOPHON_SRC})
+    set_source_files_properties("${NN_DIR}/device/sophon/qwen3vl/qwen3vl_image_utils.cc"
+        PROPERTIES COMPILE_OPTIONS "-ffp-contract=off")
 endif()
 
 if(COSMO_NN_USE_CPU_BACKEND OR COSMO_NN_USE_RKNN_BACKEND)

@@ -22,6 +22,17 @@ task. Tutorials, examples, templates, and scripts are assets the agent may reuse
 
 ## Say the Task Directly
 
+For object-detection customization starting from data, install the independent
+[CosmoEdge training-assistance Skill](https://github.com/cosmo-wander-ai/cosmoedge-training-skill).
+Provide the business goal, the full available dataset, and computing resources. The agent checks
+conditions, proposes a plan, and chooses annotation, training, and evaluation methods for the actual
+materials. It asks specific questions when business definitions or execution conditions need clarification,
+and can reuse existing labels, models, and projects. Tasks requiring application validation also check and
+integrate with the target CosmoEdge environment. See that repository for installation, cases, and tested scope.
+
+The Skill's training assistance and the model-conversion executor described here are maintained separately.
+Model conversion still follows the task assessment and environment checks below.
+
 Open the repository, start your usual coding agent, and describe the work as you would to a developer:
 
 - “I have a trained person-detection model and 20 sanitized test images. It needs to run on an isolated

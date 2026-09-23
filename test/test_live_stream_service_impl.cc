@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "catch_amalgamated.hpp"
+#include "util/ProcessShutdown.h"
 #include "util/TimeUtil.h"
 
 #define private public
@@ -173,4 +174,29 @@ TEST_CASE("LiveStreamServiceImpl: Stop is idempotent and rejects new viewer work
     REQUIRE(sut.ViewerHeartBeat("channel", "algorithm") == cosmo::util::ErrorEnum::SysErr);
     REQUIRE(sut.ViewerDelete("channel", "algorithm"));
     REQUIRE_NOTHROW(sut.SetViewCounts(1));
+}
+
+TEST_CASE("Process shutdown rejects preview leases and new demux workers",
+          "[live-stream][lifecycle][process-shutdown]") {
+    struct ResetShutdown {
+        ~ResetShutdown() {
+            cosmo::util::ProcessShutdown::ResetForStartup();
+        }
+    } reset;
+    LiveStreamDependencies mocks;
+    LiveStreamServiceImpl sut;
+    cosmo::AlgChannelDemux demux("shutdown_fixture");
+    FORBID_CALL(mocks.cameraSvc, GetChannelInst(trompeloeil::_));
+    FORBID_CALL(mocks.cameraSvc, AcquirePreviewChannel(trompeloeil::_));
+
+    cosmo::util::ProcessShutdown::Request();
+    cosmo::ActionNode action;
+    cosmo::AlgChannel channel("shutdown_channel", "shutdown_task", action, "");
+    CHECK_FALSE(channel.Start());
+    cosmo::LiveStream::LiveStreamInfo stream_info;
+    CHECK(sut.ViewerCreate("channel", "", stream_info) == cosmo::util::ErrorEnum::SysErr);
+    demux.Start();
+    CHECK(demux.GetStatus() == cosmo::util::ErrorEnum::ActionReady);
+    CHECK(sut.ViewerDelete("channel", ""));
+    REQUIRE_NOTHROW(sut.Stop());
 }

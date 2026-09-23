@@ -421,7 +421,11 @@ void MP4File::Init()
 	m_IsCloseFlag = false;
 	m_SelfDataMode = 0;
 	m_IsHead = true;
-	m_hvccDecoder.init = 0;		/* add by liwei */
+	m_vpsCount = 0;
+	m_spsCount = 0;
+	m_ppsCount = 0;
+	memset(&m_hvccDecoder, 0, sizeof(m_hvccDecoder));
+	memset(&m_hvccData, 0, sizeof(m_hvccData));
 
 	if(m_realtimeModeBeforeOpen == 0)
 	{
@@ -2648,12 +2652,13 @@ MP4TrackId MP4File::AddEncH265VideoTrack(
 	if(NULL != data)
 	{ 
 		memcpy(data, pVideo, videoLen);
-		mov_hvcc_add_nal_unit(data, videoLen, &m_hvccDecoder);
-		m_vpsCount ++;
-		if((m_vpsCount > 0) && (m_spsCount > 0) && (m_vpsCount > 0))
+		if (mov_hvcc_add_nal_unit(data, videoLen, &m_hvccDecoder) == 0)
 		{
-			mov_assm_hvcc_data(&m_hvccDecoder, &m_hvccData);
-			ModH265VideoTrack(trackId);
+			++m_vpsCount;
+			// The parsed arrays, not wrapping byte counters, determine completeness.
+			// Preserve the existing hvcC until all parameter sets are valid.
+			if (mov_assm_hvcc_data(&m_hvccDecoder, &m_hvccData) == 0)
+				ModH265VideoTrack(trackId);
 		}
 		free(data);
 		data = NULL;
@@ -2727,12 +2732,13 @@ void MP4File::AddH265SequenceParameterSet (MP4TrackId trackId,
 	if(NULL != data)
 	{ 
 		memcpy(data, pSequence, sequenceLen);
-		mov_hvcc_add_nal_unit(data, sequenceLen, &m_hvccDecoder);
-		m_spsCount ++;
-		if((m_vpsCount > 0) && (m_spsCount > 0) && (m_vpsCount > 0))
+		if (mov_hvcc_add_nal_unit(data, sequenceLen, &m_hvccDecoder) == 0)
 		{
-			mov_assm_hvcc_data(&m_hvccDecoder, &m_hvccData);
-			ModH265VideoTrack(trackId);
+			++m_spsCount;
+			// The parsed arrays, not wrapping byte counters, determine completeness.
+			// Preserve the existing hvcC until all parameter sets are valid.
+			if (mov_assm_hvcc_data(&m_hvccDecoder, &m_hvccData) == 0)
+				ModH265VideoTrack(trackId);
 		}
 		free(data);
 		data = NULL;
@@ -2793,12 +2799,13 @@ void MP4File::AddH265PictureParameterSet (MP4TrackId trackId,
 	if(NULL != data)
 	{ 
 		memcpy(data, pPict, pictLen);
-		mov_hvcc_add_nal_unit(data, pictLen, &m_hvccDecoder);
-		m_ppsCount ++;
-		if((m_vpsCount > 0) && (m_spsCount > 0) && (m_vpsCount > 0))
+		if (mov_hvcc_add_nal_unit(data, pictLen, &m_hvccDecoder) == 0)
 		{
-			mov_assm_hvcc_data(&m_hvccDecoder, &m_hvccData);
-			ModH265VideoTrack(trackId);
+			++m_ppsCount;
+			// The parsed arrays, not wrapping byte counters, determine completeness.
+			// Preserve the existing hvcC until all parameter sets are valid.
+			if (mov_assm_hvcc_data(&m_hvccDecoder, &m_hvccData) == 0)
+				ModH265VideoTrack(trackId);
 		}
 		free(data);
 		data = NULL;

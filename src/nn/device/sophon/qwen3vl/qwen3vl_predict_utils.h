@@ -8,7 +8,7 @@ namespace qwen3vl {
 
     // Build prompt text with image placeholders
     std::string BuildImagePrompt(const std::string& input_str, const std::vector<std::vector<int>>& grid_thw,
-                                 bool append_empty_think = false);
+                                 bool append_empty_think = false, bool trim_trailing_text = false);
 
     // Find indices equal to pad_id in input_ids
     std::vector<int> FindTokenOffset(const std::vector<int>& input_ids, int pad_id);

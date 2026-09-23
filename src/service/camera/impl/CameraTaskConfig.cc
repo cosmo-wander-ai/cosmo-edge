@@ -98,6 +98,17 @@ util::ErrorEnum CameraServiceImpl::SaveOrUpdateTask(const std::string& cameraId,
                                                     const std::string& algorithmId,
                                                     const MsgTaskConfig& params,
                                                     const std::string& scheduleId) {
+    return SaveTask(cameraId, algorithmId, params, scheduleId, true);
+}
+
+util::ErrorEnum CameraServiceImpl::PrepareTask(const std::string& cameraId, const std::string& algorithmId,
+                                               const MsgTaskConfig& params, const std::string& scheduleId) {
+    return SaveTask(cameraId, algorithmId, params, scheduleId, false);
+}
+
+util::ErrorEnum CameraServiceImpl::SaveTask(const std::string& cameraId, const std::string& algorithmId,
+                                            const MsgTaskConfig& params, const std::string& scheduleId,
+                                            bool enable) {
     if (ContainsDuplicateRequestParamKeys(params)) {
         LOG_WARN("[{}/{}] SaveOrUpdate rejected duplicate parameter keys", cameraId, algorithmId);
         return util::ErrorEnum::InvalidParam;
@@ -120,7 +131,7 @@ util::ErrorEnum CameraServiceImpl::SaveOrUpdateTask(const std::string& cameraId,
         return util::ErrorEnum::TimeTemplateNotExist;
     }
 
-    bool needs_enable = true;
+    bool needs_enable = enable;
     {
         std::shared_lock<std::shared_mutex> lock(camera->task_mtx_);
         auto it = std::find_if(camera->tasks_.begin(), camera->tasks_.end(),
@@ -131,7 +142,10 @@ util::ErrorEnum CameraServiceImpl::SaveOrUpdateTask(const std::string& cameraId,
                          algorithmId);
                 return util::ErrorEnum::TaskCreateFailed;
             }
-            needs_enable = !(*it)->is_enabled_.load(std::memory_order_acquire);
+            if (!enable && (*it)->is_enabled_.load(std::memory_order_acquire)) {
+                return util::ErrorEnum::InvalidParam;
+            }
+            needs_enable = enable && !(*it)->is_enabled_.load(std::memory_order_acquire);
         } else if (camera->tasks_.size() >= camera->max_task_count_) {
             return util::ErrorEnum::TaskTooMuch;
         }
@@ -177,9 +191,12 @@ util::ErrorEnum CameraServiceImpl::SaveOrUpdateTask(const std::string& cameraId,
         task->data_.taskConfig.params = task->task_->GetParams();
         task->schedule_id_            = scheduleId;
         task->schedule_name_          = scheduleName;
-        task->is_enabled_.store(true, std::memory_order_release);
-        SaveCameraTaskList(camera);
-        start_task = !was_enabled;
+        task->is_enabled_.store(enable, std::memory_order_release);
+        if (!SaveCameraTaskList(camera)) {
+            task->is_enabled_.store(was_enabled, std::memory_order_release);
+            return util::ErrorEnum::SysErr;
+        }
+        start_task = enable && !was_enabled;
     }
 
     if (start_task) {
@@ -353,6 +370,16 @@ bool CameraServiceImpl::ScheduleInUse(const std::string& scheduleId) {
 
 util::ErrorEnum CameraServiceImpl::SwitchTask(const std::string& cameraId, const std::string& algorithmId,
                                               bool enable) {
+    return SetTaskEnabled(cameraId, algorithmId, enable, false);
+}
+
+util::ErrorEnum CameraServiceImpl::SwitchManagedTask(const std::string& cameraId,
+                                                     const std::string& algorithmId, bool enable) {
+    return SetTaskEnabled(cameraId, algorithmId, enable, true);
+}
+
+util::ErrorEnum CameraServiceImpl::SetTaskEnabled(const std::string& cameraId, const std::string& algorithmId,
+                                                  bool enable, bool respectSchedule) {
     // Authorization checks were removed; resource admission remains enforced for real start transitions.
     auto camera = GetCamera(cameraId);
     if (!camera) {
@@ -390,7 +417,10 @@ util::ErrorEnum CameraServiceImpl::SwitchTask(const std::string& cameraId, const
         if (it != camera->tasks_.end()) {
             if ((*it)->is_enabled_ != enable) {
                 (*it)->is_enabled_ = enable;
-                SaveCameraTaskList(camera);
+                if (!SaveCameraTaskList(camera)) {
+                    (*it)->is_enabled_ = !enable;
+                    return util::ErrorEnum::SysErr;
+                }
                 taskToSwitch = *it;
             }
             if (!taskToSwitch) {
@@ -408,6 +438,11 @@ util::ErrorEnum CameraServiceImpl::SwitchTask(const std::string& cameraId, const
             SaveCameraTaskList(camera);
             taskToSwitch = task;
         }
+    }
+    if (respectSchedule && enable &&
+        !ServiceRegistry::Instance().Get<IScheduleService>().InRunTime(taskToSwitch->schedule_id_)) {
+        taskToSwitch->status_.store(CameraTaskStatus::kPause, std::memory_order_release);
+        return util::ErrorEnum::Success;
     }
     // Execute expensive model destroy/rebuild/init asynchronously, freeing HTTP handler thread immediately
     SwitchCameraTaskAsync(camera, taskToSwitch);
@@ -562,10 +597,15 @@ util::ErrorEnum CameraServiceImpl::DeleteTask(const std::string& cameraId, const
                 LOG_INFO("[{}/{}] Not Exist", cameraId, algorithmId);
                 return util::ErrorEnum::TaskNotExist;
             }
-            (*it)->is_enabled_.store(false, std::memory_order_release);
-            task_unit = std::move((*it)->task_);
+            const auto retained = *it;
+            const auto index    = std::distance(camera->tasks_.begin(), it);
             camera->tasks_.erase(it);
-            SaveCameraTaskList(camera);
+            if (!SaveCameraTaskList(camera)) {
+                camera->tasks_.insert(camera->tasks_.begin() + index, retained);
+                return util::ErrorEnum::SysErr;
+            }
+            retained->is_enabled_.store(false, std::memory_order_release);
+            task_unit = std::move(retained->task_);
         }
         // Camera task destruction stops/deletes the flow task.  No task_mtx_ is
         // held while worker threads are joined.
@@ -594,6 +634,14 @@ std::vector<service::camera::CameraTaskDto> CameraServiceImpl::GetTasks(const st
         taskInfo.scheduleId    = task->schedule_id_;
         taskInfo.scheduleName  = task->schedule_name_;
         taskInfo.enable        = task->is_enabled_;
+        taskInfo.ready         = task->task_ && task->task_->IsReady();
+        const auto status      = task->status_.load(std::memory_order_acquire);
+        taskInfo.runtimeState  = status == CameraTaskStatus::kAbnormal ? "failed"
+                                 : status == CameraTaskStatus::kInService
+                                     ? (taskInfo.enable ? "running" : "stopping")
+                                 : !taskInfo.enable                   ? "stopped"
+                                 : status == CameraTaskStatus::kPause ? "scheduled"
+                                                                      : "starting";
         taskInfos.push_back(taskInfo);
     }
     return taskInfos;

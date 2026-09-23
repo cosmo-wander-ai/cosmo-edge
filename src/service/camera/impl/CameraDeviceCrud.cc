@@ -9,11 +9,11 @@
 
 #include "service/camera/impl/CameraServiceImpl.h"
 #include "service/detail/ServiceRegistry.h"
+#include "service/onvif/IOnvifService.h"
 #include "service/task/ITaskChannel.h"
 #include "util/FileUtil.h"
 #include "util/Log.h"
 #include "util/PaginationHelper.h"
-#include "util/RtspUrlUtil.h"
 #include "util/dto/ChannelStatusDto.h"
 
 namespace cosmo::service {
@@ -33,7 +33,10 @@ static int DetermineTaskStatus(int current_status, int data_status, MsgCameraTyp
         return current_status;
     }
     bool is_demux_error = IsDemuxError(data_status);
-    if (channel_type == MsgCameraType::MsgCameraTypeLive || channel_type == MsgCameraType::MsgCameraTypeUsb) {
+    if (channel_type == MsgCameraType::MsgCameraTypeLive ||
+        channel_type == MsgCameraType::MsgCameraTypeOnvif ||
+        channel_type == MsgCameraType::MsgCameraTypeUsb ||
+        channel_type == MsgCameraType::MsgCameraTypeGb28181) {
         if (is_demux_error) {
             return static_cast<int>(CameraTaskStatus::kAbnormal);
         }
@@ -75,6 +78,8 @@ util::ErrorEnum CameraServiceImpl::Add(MsgCameraInfo& config, std::string& id) {
                 oss << "LX";
             } else if (MsgCameraType::MsgCameraTypeUsb == config.channelType) {
                 oss << "US";
+            } else if (MsgCameraType::MsgCameraTypeGb28181 == config.channelType) {
+                oss << "GB";
             } else {
                 oss << "RT";
             }
@@ -104,8 +109,15 @@ util::ErrorEnum CameraServiceImpl::Add(MsgCameraInfo& config, std::string& id) {
             return util::ErrorEnum::FileMoveFailed;
         }
     } else {
-        camera->url = util::NormalizeRtspUrl(config.url);
-        config.url  = camera->url;
+        std::string logical_url;
+        std::string media_url;
+        if (!ResolveSourceUrl(config.channelType, config.url, logical_url, media_url)) {
+            LOG_WARN("Invalid GB28181 source: {}", config.url);
+            return util::ErrorEnum::InvalidParam;
+        }
+        camera->url          = logical_url;
+        camera->channel_url_ = media_url;
+        config.url           = camera->url;
     }
 
     camera->channelType = static_cast<int>(config.channelType);
@@ -118,7 +130,8 @@ util::ErrorEnum CameraServiceImpl::Add(MsgCameraInfo& config, std::string& id) {
     // Immediately trigger a health probe to quickly update channel status to online.
     // This may block for up to the TCP probe timeout, so it must not hold mtx_.
     ProbeCameraOnlineStatusNow(camera);
-    SaveConfig();
+    if (!SaveConfig())
+        return util::ErrorEnum::SysErr;
     return util::ErrorEnum::Success;
 }
 
@@ -134,6 +147,17 @@ util::ErrorEnum CameraServiceImpl::Update(MsgCameraInfo& config) {
         return util::ErrorEnum::CameraNotExist;
     }
     camera->WaitForSwitchThread();
+    const auto source_type  = static_cast<MsgCameraType>(camera->channelType);
+    std::string logical_url = camera->url;
+    std::string media_url   = camera->channel_url_;
+    if (source_type != MsgCameraType::MsgCameraTypeLocalVideo) {
+        if (!ResolveSourceUrl(source_type, config.url, logical_url, media_url)) {
+            LOG_WARN("Invalid GB28181 source: {}", config.url);
+            return util::ErrorEnum::InvalidParam;
+        }
+        config.url = logical_url;
+    }
+
     bool channel_url_changed = false;
     {
         std::lock_guard<std::shared_mutex> lock(mtx_);
@@ -141,23 +165,21 @@ util::ErrorEnum CameraServiceImpl::Update(MsgCameraInfo& config) {
         camera->videoChannelId = config.videoChannelId;
         camera->channelCode    = config.channelCode;
         camera->channelName    = config.channelName;
-        // Local video channels cannot modify URL
-        if (MsgCameraType::MsgCameraTypeLocalVideo != static_cast<MsgCameraType>(camera->channelType)) {
-            camera->url = util::NormalizeRtspUrl(config.url);
-            config.url  = camera->url;
+        if (source_type != MsgCameraType::MsgCameraTypeLocalVideo) {
+            camera->url = logical_url;
         }
         // Update channel URL directly (inlined from CameraTaskMng::SetChannelUrl)
-        channel_url_changed  = camera->channel_url_ != camera->url;
-        camera->channel_url_ = camera->url;
+        channel_url_changed  = camera->channel_url_ != media_url;
+        camera->channel_url_ = media_url;
         LOG_INFO("{}/{} Update", config.videoChannelId, config.channelName);
     }
     if (channel_url_changed) {
-        ServiceRegistry::Instance().Get<ITaskChannel>().TaskChannelSetUrl(camera->videoChannelId,
-                                                                          camera->url);
+        ServiceRegistry::Instance().Get<ITaskChannel>().TaskChannelSetUrl(camera->videoChannelId, media_url);
     }
     // Editing channel may have changed URL; trigger immediate probe to update status.
     ProbeCameraOnlineStatusNow(camera);
-    SaveConfig();
+    if (!SaveConfig())
+        return util::ErrorEnum::SysErr;
     return util::ErrorEnum::Success;
 }
 
@@ -210,7 +232,16 @@ util::ErrorEnum CameraServiceImpl::Delete(const std::string& videoChannelId) {
     }
 
     // Save config (thread-safe)
-    SaveConfig();
+    if (!SaveConfig())
+        return util::ErrorEnum::SysErr;
+    if (static_cast<MsgCameraType>(target->channelType) == MsgCameraType::MsgCameraTypeOnvif &&
+        ServiceRegistry::Instance().Has<IOnvifService>()) {
+        try {
+            ServiceRegistry::Instance().Get<IOnvifService>().Remove(target->url);
+        } catch (const std::exception&) {
+            LOG_WARN("{}", "ONVIF orphan configuration cleanup failed");
+        }
+    }
     LOG_INFO("Delete completed for camera: {}", videoChannelId);
     return util::ErrorEnum::Success;
 }

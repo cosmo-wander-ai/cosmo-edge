@@ -44,6 +44,9 @@ namespace {
             multipart_file_path_ = context.multipart_file_path;
             multipart_file_name_ = context.multipart_file_name;
             multipart_file_size_ = context.multipart_file_size;
+            upload_id_           = context.upload_id;
+            upload_offset_       = context.upload_offset;
+            http_method_         = context.http_method;
             is_entered_          = true;
             ++entered_count_;
             condition_.notify_all();
@@ -85,6 +88,19 @@ namespace {
             return body_;
         }
 
+        std::string UploadId() const {
+            std::lock_guard<std::mutex> lock(mutex_);
+            return upload_id_;
+        }
+        std::string UploadOffset() const {
+            std::lock_guard<std::mutex> lock(mutex_);
+            return upload_offset_;
+        }
+        std::string HttpMethod() const {
+            std::lock_guard<std::mutex> lock(mutex_);
+            return http_method_;
+        }
+
         std::string MultipartFilePath() const {
             std::lock_guard<std::mutex> lock(mutex_);
             return multipart_file_path_;
@@ -112,6 +128,7 @@ namespace {
         std::string multipart_file_path_;
         std::string multipart_file_name_;
         std::uint64_t multipart_file_size_{0};
+        std::string upload_id_, upload_offset_, http_method_;
     };
 
     class BlockingDispatcher final : public cosmo::IRequestDispatcher {
@@ -1015,6 +1032,36 @@ TEST_CASE("HttpServer bounds authenticated multipart spool reservations before w
     }
     runner.Server().UnInitialize();
     runner.Join();
+}
+
+}  // namespace cosmo::network::http
+
+namespace cosmo::network::http {
+TEST_CASE("HttpServer preserves binary PUT bytes and upload headers", "[http-server][management]") {
+    ScopedSignalIgnore ignore_sigpipe(SIGPIPE);
+    auto state = std::make_shared<BlockingDispatchState>();
+    HttpServerRunner runner(state);
+    ReleaseGuard release_guard(state);
+    auto port = FindAvailablePort();
+    REQUIRE(port != 0);
+    REQUIRE(runner.Start(port));
+    auto client = Connect(port);
+    REQUIRE(client.Get() >= 0);
+    const std::string payload("a\0b\xff", 4);
+    const std::string request =
+        "PUT /test/request-lifetime HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+        "Content-Type: application/octet-stream\r\nmtk: test-token\r\n"
+        "X-Upload-Id: opaque-upload\r\nX-Upload-Offset: 1048576\r\n"
+        "Content-Length: 4\r\nConnection: close\r\n\r\n" +
+        payload;
+    REQUIRE(SendAll(client.Get(), request));
+    REQUIRE(state->WaitUntilEntered());
+    CHECK(state->Body() == payload);
+    CHECK(state->UploadId() == "opaque-upload");
+    CHECK(state->UploadOffset() == "1048576");
+    CHECK(state->HttpMethod() == "PUT");
+    state->Release();
+    CHECK(ReadAll(client.Get()).find("200") != std::string::npos);
 }
 
 }  // namespace cosmo::network::http

@@ -176,7 +176,7 @@ util::ErrorEnum ModelImportExporter::ValidateAddModelInputs(
     const std::string& modelCode, const std::string& modelName, const std::string& modelType,
     const std::vector<cosmo::Model::BmodelFileInfo>& bmodel_files, const std::string& vocabFilePath,
     const std::string& tokenizerFilePath, const std::string& characterTableFilePath,
-    std::string& resolved_model_code, std::vector<std::string>& bmodel_paths) {
+    std::string& resolved_model_code, std::vector<std::string>& bmodel_paths, bool reservedCode) {
     namespace fs = std::filesystem;
 
 #ifdef COSMO_NN_USE_RKNN_BACKEND
@@ -196,7 +196,7 @@ util::ErrorEnum ModelImportExporter::ValidateAddModelInputs(
     }
 #endif
 
-    resolved_model_code = generate_unique_model_code_();
+    resolved_model_code = reservedCode ? modelCode : generate_unique_model_code_();
     LOG_INFO("[AddModel] Using resolved model code: {} (request code: {})", resolved_model_code, modelCode);
     if (resolved_model_code.empty())
         return util::ErrorEnum::SysErr;
@@ -550,7 +550,7 @@ util::ErrorEnum ModelImportExporter::AddAtomicModel(
     const std::string& description, const std::vector<cosmo::Model::BmodelFileInfo>& bmodel_files,
     const std::string& vocabFilePath, const std::string& tokenizerFilePath,
     const std::string& characterTableFilePath, const std::string& normalizationMode,
-    const std::string& colorChannel) {
+    const std::string& colorChannel, bool reservedCode) {
     namespace fs = std::filesystem;
 
     const std::string models_dir   = get_model_path_();
@@ -577,9 +577,9 @@ util::ErrorEnum ModelImportExporter::AddAtomicModel(
     // 1-2. Validate inputs
     std::string resolved_model_code;
     std::vector<std::string> bmodel_paths;
-    auto err =
-        ValidateAddModelInputs(modelCode, modelName, modelType, bmodel_files, vocabFilePath,
-                               tokenizerFilePath, characterTableFilePath, resolved_model_code, bmodel_paths);
+    auto err = ValidateAddModelInputs(modelCode, modelName, modelType, bmodel_files, vocabFilePath,
+                                      tokenizerFilePath, characterTableFilePath, resolved_model_code,
+                                      bmodel_paths, reservedCode);
     if (err != util::ErrorEnum::Success)
         return cleanup_and_return(err);
 
@@ -634,7 +634,7 @@ util::ErrorEnum ModelImportExporter::AddAtomicModel(
     }
 
     // 5. Calculate version number
-    std::string version_str = CalculateNextVersion(models_dir, resolved_model_code);
+    std::string version_str = reservedCode ? "V1.0.0" : CalculateNextVersion(models_dir, resolved_model_code);
 
     // 6. Create model directory
     std::string clean_model_name = modelName;
@@ -664,8 +664,9 @@ util::ErrorEnum ModelImportExporter::AddAtomicModel(
         return cleanup_and_return(err);
 
     // 8. Update template config
-    UpdateTemplateConfig(templateDoc, resolved_model_code, version_str, modelName, modelType, description,
-                         bmodel_infos, use_template_defaults, normalizationMode, colorChannel);
+    UpdateTemplateConfig(templateDoc, resolved_model_code, version_str,
+                         reservedCode ? description : modelName, modelType, description, bmodel_infos,
+                         use_template_defaults, normalizationMode, colorChannel);
 
     // 8.1 Validate model output format
     {

@@ -365,6 +365,12 @@ cosmo::util::ErrorEnum AlgorithmLayoutMng::LayoutSave(const algorithm::LayoutSav
     if (!algorithmName.empty())
         doc["algorithmName"] = algorithmName;
 
+    if (!req.algorithmName.empty()) {
+        if (!cosmo::path::IsSafePathComponent(req.algorithmName, 256)) {
+            return cosmo::util::ErrorEnum::InvalidParam;
+        }
+        doc["algorithmName"] = req.algorithmName;
+    }
     doc["algorithmMetadata"]    = persistedAlgorithmMetadata;
     doc["algorithmProcessdata"] = req.algorithmProcessdata;
     doc["atomicList"]           = req.atomicList;

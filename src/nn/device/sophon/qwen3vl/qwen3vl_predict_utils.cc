@@ -52,7 +52,7 @@ namespace qwen3vl {
     }  // namespace
 
     std::string BuildImagePrompt(const std::string& input_str, const std::vector<std::vector<int>>& grid_thw,
-                                 bool append_empty_think) {
+                                 bool append_empty_think, bool trim_trailing_text) {
         std::string prompt = "<|im_start|>user\n";
         for (size_t i = 0; i < grid_thw.size(); i++) {
             int h = grid_thw[i][1], w = grid_thw[i][2];
@@ -62,7 +62,12 @@ namespace qwen3vl {
                 prompt += "<|image_pad|>";
             prompt += "<|vision_end|>";
         }
-        prompt += input_str + "<|im_end|>\n<|im_start|>assistant\n";
+        // The reference template trims the entire content after rendering its image prefix.
+        // Thus leading text whitespace remains internal; only trailing text whitespace is removed.
+        const auto end = trim_trailing_text ? input_str.find_last_not_of(" \t\n\r\f\v") : std::string::npos;
+        prompt +=
+            trim_trailing_text ? input_str.substr(0, end == std::string::npos ? 0 : end + 1) : input_str;
+        prompt += "<|im_end|>\n<|im_start|>assistant\n";
         if (append_empty_think)
             prompt += "<think>\n\n</think>\n\n";
         return prompt;

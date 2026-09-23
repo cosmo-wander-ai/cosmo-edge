@@ -176,11 +176,13 @@ cosmo::util::ErrorEnum AlgorithmServiceImpl::Delete(const std::string& algorithm
         const std::string algorithm_layout_dir = cosmo::path::GetAlgorithmPath();
         std::string fp = cosmo::util::FindPrefixedJsonFile(algorithm_layout_dir, algorithmId);
         if (!fp.empty()) {
-            if (remove(fp.c_str()) == 0)
-                LOG_INFO("Deleted algorithm file: {}", fp);
+            if (!cosmo::util::RemoveFile(fp))
+                return cosmo::util::ErrorEnum::SysErr;
+            LOG_INFO("Deleted algorithm file: {}", fp);
         }
         // Delete the ZIP package if present
-        cosmo::util::RemovePath(it->second.filePath);
+        if (!it->second.filePath.empty() && !cosmo::util::RemovePath(it->second.filePath))
+            return cosmo::util::ErrorEnum::SysErr;
         algorithm_packets_.erase(it);
         return cosmo::util::ErrorEnum::Success;
     }

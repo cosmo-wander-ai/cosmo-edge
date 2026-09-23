@@ -6,14 +6,15 @@ namespace cosmo::nn {
 namespace qwen3vl {
 
     struct Config {
-        int SEQLEN             = 0;
-        int MAX_PREFILL_LENGTH = 0;
-        int MAX_INPUT_LENGTH   = 0;
-        int total_length       = 0;
-        int max_pos            = 0;
-        int MAX_PATCHES        = 0;
-        int MAX_PIXELS         = 0;
-        int MIN_PIXELS         = 0;
+        bool evaluation_square_448 = false;
+        int SEQLEN                 = 0;
+        int MAX_PREFILL_LENGTH     = 0;
+        int MAX_INPUT_LENGTH       = 0;
+        int total_length           = 0;
+        int max_pos                = 0;
+        int MAX_PATCHES            = 0;
+        int MAX_PIXELS             = 0;
+        int MIN_PIXELS             = 0;
         std::vector<int> grid_thw;
         int media_offset        = 0;
         int media_size          = 0;

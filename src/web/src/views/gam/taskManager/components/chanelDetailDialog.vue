@@ -23,7 +23,7 @@
         <el-form-item :label="t('glossary.frameRate') + localeColon">
           <el-input v-model="props.detailChannel.fps" size="small" disabled />
         </el-form-item>
-        <el-form-item :label="'RTSP' + localeColon">
+        <el-form-item :label="t('glossary.streamAddress') + localeColon">
           <el-input v-model="props.detailChannel.url" size="small" disabled />
         </el-form-item>
         <el-form-item v-if="false" :label="t('field.externalChannelNo') + localeColon">

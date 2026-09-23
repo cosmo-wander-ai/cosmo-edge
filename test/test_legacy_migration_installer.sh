@@ -323,15 +323,11 @@ grep -Fxq 'SystemMaxUse=256M' "$policy_root/etc/systemd/journald.conf.d/90-cosmo
 test ! -e "$policy_root/usr/local/lib/cosmo/system-log-retention.py"
 test ! -e "$policy_root/var/lib/cosmo-log-retention/pending"
 
-# Preserved resources must be copied into staging before the package overlays
-# them. Keeping the packaged resource tree in staging while copying the active
-# tree creates an avoidable second model-sized allocation on /appfs.
+# Check actual model inode reuse, package updates and rollback isolation.
+# This behavioral check covers the staging order without requiring the old
+# full-copy implementation, which has been replaced by hard-link reuse.
+python3 "$repo/test/test_upgrade_model_storage.py"
 installer="$repo/scripts/legacy_migration_install.sh"
-preserved_copy_line="$(grep -nF 'cp -a -- "${active_root}/resource/." "${staging_root}/resource/"' "$installer" | cut -d: -f1)"
-payload_copy_line="$(grep -nF 'cp -a -- "${payload_root}/." "$staging_root/"' "$installer" | cut -d: -f1)"
-test -n "$preserved_copy_line"
-test -n "$payload_copy_line"
-test "$preserved_copy_line" -lt "$payload_copy_line"
 if grep -Fq '.packaged-resource' "$installer"; then
     exit 1
 fi

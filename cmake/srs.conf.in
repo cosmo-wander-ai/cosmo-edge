@@ -22,6 +22,19 @@ rtc_server {
     listen 8000;
     candidate *;
 }
+stream_caster {
+    # Media allocation is controlled locally by CosmoEdge. No SIP auto-registration.
+    enabled on;
+    caster gb28181;
+    output rtmp://127.0.0.1:1936/live/[stream];
+    listen @COSMO_GB28181_MEDIA_PORT@;
+    sip {
+        enabled off;
+        listen @COSMO_GB28181_SIP_PORT@;
+        candidate @COSMO_GB28181_CANDIDATE@;
+    }
+}
+
 vhost __defaultVhost__ {
     hls {
         enabled     on;

@@ -1,6 +1,7 @@
 #include "nn/device/sophon/qwen3_5/qwen3_5_model.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
@@ -77,11 +78,28 @@ namespace qwen3_5 {
             out_tensors.size() != static_cast<size_t>(net->output_num)) {
             throw safety::RuntimeError("launch network", "invalid runtime or tensor metadata");
         }
+        const auto started = std::chrono::steady_clock::now();
+        if (trace_networks_) {
+            std::cerr << "[Qwen3_5][network] begin " << net->name << " inputs=";
+            for (const auto& tensor : in_tensors) {
+                std::cerr << "[";
+                for (int dim = 0; dim < tensor.shape.num_dims; ++dim)
+                    std::cerr << (dim ? "," : "") << tensor.shape.dims[dim];
+                std::cerr << "]";
+            }
+            std::cerr << std::endl;
+        }
         if (!bmrt_launch_tensor_ex(p_bmrt_, net->name, in_tensors.data(), net->input_num, out_tensors.data(),
                                    net->output_num, true, false)) {
             throw safety::RuntimeError("launch network", net->name);
         }
         safety::CheckStatus(bm_thread_sync(bm_handle_), "synchronize network");
+        if (trace_networks_) {
+            std::cerr << "[Qwen3_5][network] complete " << net->name << " elapsed_ms="
+                      << std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started)
+                             .count()
+                      << std::endl;
+        }
     }
 
     void Qwen3_5Model::net_launch_decode(int idx, int kv_offset, bm_device_mem_t& input_mem,
@@ -121,8 +139,8 @@ namespace qwen3_5 {
                                    "copy device memory");
     }
 
-    void Qwen3_5Model::clear_history() {
-        if (!support_history)
+    void Qwen3_5Model::clear_history(bool force) {
+        if (!support_history && !force)
             return;
         for (int i = 0; i < NUM_LAYERS; i++) {
             empty(bm_handle_, past_key_[i]);
@@ -192,7 +210,8 @@ namespace qwen3_5 {
             return net != nullptr && net->stage_num > 0 && net->stages != nullptr &&
                    net->input_num >= min_inputs && net->output_num >= min_outputs &&
                    net->stages[0].input_shapes != nullptr && net->stages[0].output_shapes != nullptr &&
-                   net->stages[0].input_mems != nullptr && net->stages[0].output_mems != nullptr;
+                   net->stages[0].input_mems != nullptr && net->stages[0].output_mems != nullptr &&
+                   net->input_dtypes != nullptr && net->output_dtypes != nullptr;
         };
         if (!valid_network(net_embed_, 1, 1) || !valid_network(net_embed_cache_, 1, 1) ||
             !valid_network(net_vit_, 4, 1) || !valid_network(net_lm_, 1, 1) ||
@@ -201,7 +220,7 @@ namespace qwen3_5 {
         }
         for (int i = 0; i < NUM_LAYERS; ++i) {
             const bool full_attention = is_FA(i);
-            if (!valid_network(net_blocks_[i], full_attention ? 3 : 2, full_attention ? 3 : 2) ||
+            if (!valid_network(net_blocks_[i], 2, full_attention ? 3 : 2) ||
                 !valid_network(net_blocks_cache_[i], full_attention ? 5 : 3, full_attention ? 3 : 1)) {
                 throw safety::RuntimeError("inspect model", "invalid block network metadata");
             }
@@ -494,23 +513,29 @@ namespace qwen3_5 {
             safety::CopyDeviceToDevice(bm_handle_, in_tensors[0].device_mem, 0, out_mem, 0, layer_bytes,
                                        "copy block input");
             if (is_FA(idx)) {
-                // Full Attention layer: requires position_ids and attention_mask
+                // Full Attention layer: position IDs and an optional explicit causal mask
                 safety::CopyHostToDevice(bm_handle_, in_tensors[1].device_mem, position_ids_pad.data(),
                                          position_ids_pad.size() * sizeof(int), "copy prefill positions");
-                safety::CopyHostToDevice(bm_handle_, in_tensors[2].device_mem, attention_mask.data(),
-                                         attention_mask.size() * sizeof(uint16_t),
-                                         "copy prefill attention mask");
                 in_tensors[0].shape.dims[1] = token_length;
                 in_tensors[1].shape.dims[1] = token_length;
-                in_tensors[2].shape.dims[2] = token_length;
-                in_tensors[2].shape.dims[3] = token_length;
+                // New exports infer the causal mask internally; old exports accept it.
+                if (in_tensors.size() >= 3) {
+                    safety::CopyHostToDevice(bm_handle_, in_tensors[2].device_mem, attention_mask.data(),
+                                             attention_mask.size() * sizeof(uint16_t),
+                                             "copy prefill attention mask");
+                    in_tensors[2].shape.dims[2] = token_length;
+                    in_tensors[2].shape.dims[3] = token_length;
+                }
             } else {
                 // Linear Attention layer: only needs input + clear recurrent state
                 in_tensors[0].shape.dims[1] = token_length;
                 empty(bm_handle_, in_tensors[1].device_mem);
             }
+            // Use the separately allocated buffer: adjacent dynamic networks may
+            // reuse overlapping runtime memory ranges for their input and output.
+            out_tensors[0].device_mem = dev_buffer_;
             net_launch(net_blocks_[idx], in_tensors, out_tensors);
-            out_mem = net_blocks_[idx]->stages[0].output_mems[0];
+            out_mem = out_tensors[0].device_mem;
             // KV cache writeback: branch by layer type
             if (is_FA(idx)) {
                 const size_t kv_size =
@@ -525,7 +550,21 @@ namespace qwen3_5 {
             } else {
                 // Linear Attention: conv state + recurrent state
                 d2d(past_key_[idx], net_blocks_[idx]->stages[0].output_mems[1]);
-                d2d(past_value_[idx], net_blocks_[idx]->stages[0].input_mems[1]);
+                // New graphs return recurrent state explicitly; older two-output graphs
+                // update input 1 in place. Preserve both artifact contracts.
+                const auto* block = net_blocks_[idx];
+                if (block->output_num >= 3) {
+                    const auto& expected = block->stages[0].input_shapes[1];
+                    const auto& actual   = out_tensors[2].shape;
+                    if (actual.num_dims != expected.num_dims ||
+                        !std::equal(expected.dims, expected.dims + expected.num_dims, actual.dims) ||
+                        out_tensors[2].dtype != block->input_dtypes[1]) {
+                        throw safety::RuntimeError("copy recurrent state", "unexpected output 2 layout");
+                    }
+                    d2d(past_value_[idx], out_tensors[2].device_mem);
+                } else {
+                    d2d(past_value_[idx], block->stages[0].input_mems[1]);
+                }
             }
         }
         // forward lm_head

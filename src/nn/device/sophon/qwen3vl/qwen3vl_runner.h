@@ -17,7 +17,7 @@ class Blob;
  */
 class Qwen3VLRunner {
 public:
-    Qwen3VLRunner() = default;
+    Qwen3VLRunner();
     ~Qwen3VLRunner();
 
     Qwen3VLRunner(const Qwen3VLRunner&)            = delete;
@@ -49,6 +49,27 @@ public:
         return text_outputs_;
     }
 
+    struct EvaluationOptions {
+        int max_new_tokens = 256;
+        int context_length = 2048;
+        std::string input_dump_prefix;
+        bool trace_networks = false;
+    };
+    struct EvaluationResult {
+        std::string raw_output;
+        std::string stop_reason;
+        int input_tokens    = 0;
+        int output_tokens   = 0;
+        bool truncated      = false;
+        double inference_ms = 0;
+    };
+    Status ConfigureEvaluation(const EvaluationOptions& options);
+    const EvaluationResult& GetEvaluationResult() const {
+        return evaluation_result_;
+    }
+    int GetContextLength() const;
+    int GetMaxInputLength() const;
+
     int GetMaxBatchSize() const {
         return max_batch_size_;
     }
@@ -59,11 +80,12 @@ private:
     template <typename Model>
     static Status RunImpl(Model& model, Impl& impl,
                           const std::vector<std::vector<std::shared_ptr<Blob>>>& inputs,
-                          std::vector<std::vector<std::string>>& text_outputs);
+                          std::vector<std::vector<std::string>>& text_outputs, EvaluationResult& result);
 
     std::unique_ptr<Impl> impl_;
     std::vector<std::vector<std::string>> text_outputs_;
     int max_batch_size_ = 1;
+    EvaluationResult evaluation_result_;
 };
 
 }  // namespace cosmo::nn

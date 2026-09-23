@@ -11,7 +11,7 @@ target_include_directories(cosmo_service PRIVATE
 )
 
 target_link_libraries(cosmo_service PRIVATE cosmo_common
-    SQLiteCpp sqlite3 cryptopp pcap
+    SQLiteCpp sqlite3 cryptopp pcap curl cosmo_xml
     uWebSockets uSockets z openssl_ssl openssl_crypto
     ffmpeg_avcodec ffmpeg_avformat ffmpeg_avutil
     event_core event_extra event

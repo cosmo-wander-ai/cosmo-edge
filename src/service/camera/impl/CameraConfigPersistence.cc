@@ -48,7 +48,7 @@ std::vector<CameraEntityPtr> CameraConfigPersistence::LoadConfig(const std::stri
     return cameras;
 }
 
-void CameraConfigPersistence::SaveConfig(const std::string& conf_file_path, const std::string& conf_file_name,
+bool CameraConfigPersistence::SaveConfig(const std::string& conf_file_path, const std::string& conf_file_name,
                                          const std::vector<CameraEntityPtr>& snapshot) {
     LOG_INFO("{}", "CameraConfigPersistence: Saving File Begin");
     std::lock_guard<std::mutex> file_lock(file_mutex_);
@@ -56,8 +56,10 @@ void CameraConfigPersistence::SaveConfig(const std::string& conf_file_path, cons
     auto path = (std::filesystem::path(cosmo::path::GetCfgPath(conf_file_path)) / conf_file_name).string();
     if (!cosmo::util::SaveStructToJsonFile(path, snapshot)) {
         LOG_WARN("Failed to save camera config to {}", path);
+        return false;
     }
     LOG_INFO("{}", "CameraConfigPersistence: Saving File End");
+    return true;
 }
 
 void CameraConfigPersistence::RemoveDiscardedConfigs(const std::string& conf_file_path,

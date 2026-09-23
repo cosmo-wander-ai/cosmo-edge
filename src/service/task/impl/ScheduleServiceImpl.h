@@ -15,6 +15,7 @@ namespace cosmo::service {
 class ScheduleServiceImpl : public IScheduleService {
 public:
     ScheduleServiceImpl();
+    cosmo::util::ErrorEnum PutManaged(const cosmo::MsgScheduleTemplate& config) override;
 
     cosmo::util::ErrorEnum Add(cosmo::MsgScheduleTemplate& config, std::string& id) override;
     cosmo::util::ErrorEnum Update(cosmo::MsgScheduleTemplate& config) override;
