@@ -14,13 +14,23 @@ namespace service {
     class IAlgorithmQuery;
 }  // namespace service
 
-enum class ExportType { Recognize = 1, Behavior, Snapshot, MotorObject, CrowdDensity, LeavePost, WalkDog };
+enum class ExportType {
+    Recognize = 1,
+    Behavior,
+    Snapshot,
+    MotorObject,
+    CrowdDensity,
+    LeavePost,
+    WalkDog,
+    Attributes = 12
+};
 
 /// Convert a category string ("1"-"7") to ExportType enum.
 /// Returns ExportType::Behavior if the category is unknown or empty.
 ExportType CategoryToExportType(const std::string& category);
 
 std::string AlarmTarget(int target);
+void WriteAttributeCsv(std::ostream& os, const std::vector<MsgEventUnit>& records, bool is_en = false);
 std::ostream& WriteExportCsvHeader(std::ostream& os, ExportType type, bool is_en = false,
                                    bool is_cap_orig_id = false);
 

@@ -20,7 +20,8 @@ namespace cosmo::service {
 /// alarm pipeline for event insertion.
 class IAlarmRecordService {
 public:
-    virtual ~IAlarmRecordService() = default;
+    virtual ~IAlarmRecordService()                                                            = default;
+    virtual AttributeSummary QueryAttributeSummary(const cosmo::MsgConditionEvent& condition) = 0;
 
     /// Query alarm events with pagination and filtering.
     /// @param condition Filter and pagination parameters (modified in-place for defaults).

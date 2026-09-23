@@ -30,6 +30,16 @@ PosSaveSensitivity::PosSaveSensitivity(const std::string& taskId, ActionNode& ac
                 input_mode_ = InputMode::Recognition;
             } else if (el.value.ToString() == "auto") {
                 input_mode_ = InputMode::Auto;
+            } else if (el.value.ToString() == "attributes") {
+                input_mode_ = InputMode::Attributes;
+            }
+        }
+        if (el.key.ToString() == "attributeSchema") {
+            try {
+                attribute_schema_       = nlohmann::json::parse(el.value.ToString()).get<AttributeSchema>();
+                attribute_schema_valid_ = ValidateAttributeSchema(attribute_schema_);
+            } catch (const nlohmann::json::exception&) {
+                attribute_schema_valid_ = false;
             }
         }
         if (key::pos_sen::REAL_TIME_ENABLE == el.key.ToString()) {

@@ -49,6 +49,10 @@ export default [
         titleKey: 'nav.faceBody',
       },
       {
+        index: '/eventQuery/attributes',
+        titleKey: 'attributeAnalysis.title',
+      },
+      {
         index: '/eventQuery/carStatistics',
         titleKey: 'nav.vehicleAnalysis',
       },

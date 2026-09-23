@@ -2,12 +2,19 @@
   <div class="form-body">
     <el-alert
       v-if="isResultAccumulationAction"
-      :title="t('flow.resultAccumulationHint')"
+      :title="attributeMode ? t('attributeAnalysis.accumulationHint') : t('flow.resultAccumulationHint')"
       type="info"
       :closable="false"
       show-icon
     />
+    <el-alert v-if="attributeMode" :title="t('attributeAnalysis.observationSettings')" type="info" :closable="false" />
     <el-form label-position="left">
+      <el-form-item v-if="isResultAccumulationAction" :label="t('attributeAnalysis.purpose')">
+        <el-radio-group :model-value="attributeMode" @change="setAttributeMode">
+          <el-radio-button :value="false">{{ t('attributeAnalysis.conditionMode') }}</el-radio-button>
+          <el-radio-button :value="true">{{ t('attributeAnalysis.attributeMode') }}</el-radio-button>
+        </el-radio-group>
+      </el-form-item>
       <div v-if="isAreaAlarmAction" class="area-rule-overview">
         <div class="area-rule-overview__title">{{ t('flow.areaRule.title') }}</div>
         <el-form-item :label="t('flow.areaRule.purposeLabel')" class="form-flex">
@@ -68,7 +75,8 @@
           </template>
 
           <!-- 下拉选择框 -->
-          <div v-if="item.type.includes('modelSelect')">
+          <AttributeSchemaEditor v-if="item.type === 'attributeSchema'" v-model="item.value" :atomicList="attributeSources" />
+          <div v-else-if="item.type.includes('modelSelect')">
             <el-select v-model="item.value" class="form-content" @change="modelSelectChange" :placeholder="t('validate.pleaseSelect', { name: '' })" filterable size="small">
               <el-option v-for="obj in atomicModelList" :key="obj.atomicCode" :label="`${obj.atomicName}（${obj.atomicCode}）`" :value="obj.atomicCode">
               </el-option>
@@ -315,8 +323,10 @@ import {
   isAlarmAlgorithmsKey
 } from './linkageFormCompatibility.js'
 
+import AttributeSchemaEditor from './AttributeSchemaEditor.vue'
 // Props
 const props = defineProps({
+  attributeSources: { type: Array, default: () => [] },
   flowData: {
     type: Object,
     default: () => ({})
@@ -339,6 +349,11 @@ const emit = defineEmits(['config-change'])
 const isResultAccumulationAction = computed(
   () => (props.actionDetail?.actionId || props.actionDetail?.id) === 'BA_20003'
 )
+const attributeMode = computed(() => paramConfigs.value.some(p => p.key === 'inputMode' && p.value === 'attributes'))
+const setAttributeMode = (enabled) => {
+  const mode = paramConfigs.value.find(p => p.key === 'inputMode')
+  if (mode) mode.value = enabled ? 'attributes' : 'auto'
+}
 const isTargetAssociationAction = computed(
   () => (props.actionDetail?.actionId || props.actionDetail?.id) === 'AA_00006'
 )

@@ -24,7 +24,7 @@ const node = (type, text = '') => ({
   removeAttribute(key) { delete this.props[key] },
   getContext: () => new Proxy({}, { get: (target, key) => target[key] ?? (() => {}), set: (target, key, value) => { target[key] = value; return true } })
 })
-export async function mountComponent(entry, { props = {}, mocks = {}, globals = {}, api = {}, router = {}, route = { query: {} }, message = {} } = {}) {
+export async function mountComponent(entry, { props = {}, mocks = {}, globals = {}, api = {}, router = {}, route = { query: {} }, message = {}, components = {} } = {}) {
   const { default: component } = await loadBehaviorModule(entry, {
     mocks: { vue: Vue, '@/i18n': i18n, 'element-plus': { ElMessage: () => {} },
       '@element-plus/icons-vue': Object.fromEntries(['Plus', 'QuestionFilled', 'CircleCheckFilled', 'Search', 'Upload', 'ArrowDown', 'Delete', 'SwitchButton', 'Menu', 'House', 'View', 'Document', 'VideoCamera', 'Connection', 'Cpu', 'Picture', 'Headset', 'Iphone', 'Link', 'Setting', 'DataBoard', 'Monitor', 'Box'].map(name => [name, name])), ...mocks },
@@ -75,6 +75,7 @@ export async function mountComponent(entry, { props = {}, mocks = {}, globals = 
       }
     })
   }
+  for (const [name, component] of Object.entries(components)) app.component(name, component)
   const instance = app.mount(root)
   const all = (predicate, n = root) => [...(predicate(n) ? [n] : []), ...n.children.flatMap((child) => all(predicate, child))]
   const settle = async () => { await Promise.resolve(); await Vue.nextTick(); await Promise.resolve(); await Vue.nextTick() }

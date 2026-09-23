@@ -84,3 +84,48 @@ TEST_CASE("EventHandler: QueryPassengerFlow", "[event-handler]") {
     auto ret = handler.Handle(std::move(data), errc);
     REQUIRE(ret.resData.totalCount == 5);
 }
+
+TEST_CASE("Attribute queries validate scene scope and return requested full summaries",
+          "[attributes][event-handler]") {
+    EventHandlerMocks mocks;
+    auto handler = MakeHandler(mocks);
+    Event::MsgPageRecv query;
+    query.categorys               = {"12"};
+    query.algorithmCodes          = {"scene"};
+    query.timeBegin               = 1000;
+    query.timeEnd                 = 6000;
+    query.pageNum                 = 1;
+    query.pageSize                = 20;
+    query.includeAttributeSummary = true;
+    SECTION("valid query") {
+        REQUIRE_CALL(mocks.alarmRecordSvc, QueryEvents(_, _))
+            .LR_SIDE_EFFECT(_2 = 0)
+            .RETURN(std::vector<MsgEventUnit>{});
+        REQUIRE_CALL(mocks.alarmRecordSvc, QueryAttributeSummary(_)).RETURN(AttributeSummary{});
+        std::error_condition error;
+        const auto result = handler.Handle(std::move(query), error);
+        REQUIRE_FALSE(error);
+        REQUIRE(result.resData.attributeSummary.schemas.empty());
+        return;
+    }
+    SECTION("multiple scenes") {
+        query.algorithmCodes.push_back("other");
+    }
+    SECTION("missing time range") {
+        query.timeEnd = 0;
+    }
+    SECTION("filter without schema") {
+        query.attributeFilters = {{"hat", "yes", "valid"}};
+    }
+    SECTION("bad status") {
+        query.attributeSchemaId = "schema";
+        query.attributeFilters  = {{"hat", "", "absent"}};
+    }
+    SECTION("excess channels") {
+        query.channelIds.resize(129, "channel");
+    }
+    std::error_condition error;
+    const auto result = handler.Handle(std::move(query), error);
+    REQUIRE(error == cosmo::util::ErrorEnum::InvalidParam);
+    REQUIRE(result.resData.attributeSummary.schemas.empty());
+}

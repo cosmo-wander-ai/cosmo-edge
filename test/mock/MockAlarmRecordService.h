@@ -12,6 +12,7 @@ namespace cosmo::test {
 
 class MockAlarmRecordService : public cosmo::service::IAlarmRecordService {
 public:
+    MAKE_MOCK1(QueryAttributeSummary, cosmo::AttributeSummary(const cosmo::MsgConditionEvent&), override);
     MAKE_MOCK2(QueryEvents, std::vector<cosmo::MsgEventUnit>(cosmo::MsgConditionEvent&, int64_t&), override);
     MAKE_MOCK2(QueryAlarmRecords,
                cosmo::service::AlarmQueryResult(const cosmo::service::AlarmQueryCondition&, int), override);

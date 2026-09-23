@@ -78,13 +78,15 @@ void from_json(const nlohmann::json& j, MsgQueryPassengerFlowNumberSend& v) {
 }
 
 void from_json(const nlohmann::json& j, MsgPageSend::ResData& v) {
+    JSON_OPT(j, v, attributeSummary);
     JSON_OPT(j, v, total);
     JSON_OPT(j, v, rows);
 }
 
 void to_json(nlohmann::json& j, const MsgPageSend::ResData& v) {
-    j["total"] = v.total;
-    j["rows"]  = v.rows;
+    j["attributeSummary"] = v.attributeSummary;
+    j["total"]            = v.total;
+    j["rows"]             = v.rows;
 }
 
 void from_json(const nlohmann::json& j, MsgExportAlarmSend::ResData& v) {

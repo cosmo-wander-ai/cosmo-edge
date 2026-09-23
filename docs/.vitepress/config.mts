@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress'
 
 const guideZh = [
+  { text: '目标属性分析', link: '/guide/attribute-analysis' },
   { text: '陌生人告警', link: '/guide/stranger-alarm' },
   { text: '构建指南', link: '/guide/build' },
   { text: 'CV186X 快速开始', link: '/guide/cv186x-quick-start' },
@@ -75,6 +76,7 @@ const communityZh = [
 ]
 
 const guideEn = [
+  { text: 'Object Attribute Analysis', link: '/en/guide/attribute-analysis' },
   { text: 'Stranger Alarms', link: '/en/guide/stranger-alarm' },
   { text: 'Build Guide', link: '/en/guide/build' },
   { text: 'CV186X Quick Start', link: '/en/guide/cv186x-quick-start' },

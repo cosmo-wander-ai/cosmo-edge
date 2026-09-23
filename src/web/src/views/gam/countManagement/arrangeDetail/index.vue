@@ -37,6 +37,7 @@
 </template>
 
 <script setup>
+import { attributeNodes, validAttributeFlow } from '@/utils/attributeAnalysis'
 import {
   ref,
   computed,
@@ -354,6 +355,11 @@ const saveClick = (type) => {
     // 使用最新的 algorithmMetadata 计算结果
     params.algorithmMetadata = JSON.stringify(algorithmMetadata.value || {})
   }
+  if (!validAttributeFlow(params.algorithmProcessdata)) {
+    ElMessage.error(t('attributeAnalysis.invalidFlow'))
+    return
+  }
+  if (attributeNodes(params.algorithmProcessdata).length) params.algorithmCategory = '12'
   console.log(params, '=====params======')
   $API.saveAlgorithmLayout(params).then((res) => {
     if (type === 'sync') {

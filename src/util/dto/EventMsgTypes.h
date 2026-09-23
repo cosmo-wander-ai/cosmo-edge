@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "util/AttributeAnalysis.h"
 #include "util/MsgBaseTypes.h"
 
 namespace cosmo {
@@ -22,6 +23,10 @@ struct MsgConditionDuration {
 };
 
 struct MsgConditionEvent : public MsgConditionPage, public MsgConditionDuration {
+    std::vector<std::string> channelIds;
+    std::string attributeSchemaId;
+    std::vector<AttributeFilter> attributeFilters;
+    bool includeAttributeSummary{false};
     std::vector<std::string> algorithmCodes;
     std::vector<std::string> categorys;
     std::string videoChannelName;  // Channel name

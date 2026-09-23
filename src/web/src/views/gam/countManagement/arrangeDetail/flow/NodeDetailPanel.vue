@@ -102,6 +102,7 @@
           :actionDetail="actionDetail"
           :configObject="nodeData.configObject"
           :atomicList="atomicList"
+          :attributeSources="attributeSources"
           @config-change="handleConfigChange"
         ></dynamic-form>
       </div>
@@ -121,6 +122,7 @@ const props = defineProps({
   nodeId: { type: String, required: true },
   nodeData: { type: Object, default: () => ({}) },
   atomicList: { type: Array, default: () => [] },
+  attributeSources: { type: Array, default: () => [] },
   position: { type: Object, default: () => ({ x: 0, y: 0 }) }
 })
 

@@ -24,6 +24,7 @@ namespace Event {
         struct ResData {
             int64_t total{0};
             std::vector<MsgEventUnit> rows;
+            AttributeSummary attributeSummary;
             friend void to_json(nlohmann::json& j, const ResData& v);
             friend void from_json(const nlohmann::json& j, ResData& v);
         } resData;

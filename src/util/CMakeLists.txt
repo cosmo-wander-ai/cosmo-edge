@@ -1,4 +1,5 @@
 add_library(cosmo_util OBJECT
+    AttributeAnalysis.cc AttributeAnalysis.h
     ArchiveListingValidator.cc ArchiveListingValidator.h
     CipherUtil.cc        CipherUtil.h
     DateTimeFormat.cc    DateTimeFormat.h

@@ -208,6 +208,10 @@ void PosSaveSensitivity::HandTrackData(AlgDataPtr algData, DataDetTrackClassifyP
 }
 
 void PosSaveSensitivity::HandFrame(AlgDataPtr dataPtr) {
+    if (input_mode_ == InputMode::Attributes) {
+        HandAttributeData(dataPtr);
+        return;
+    }
     if (input_mode_ != InputMode::LegacyBehavior) {
         HandAccumulationData(dataPtr);
         return;

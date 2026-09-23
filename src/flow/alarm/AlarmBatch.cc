@@ -8,7 +8,7 @@ namespace cosmo::alarm {
 namespace {
 
     bool IsBatchable(const DataAlarmUnit& unit, OnEventsPropertyType propertyType, unsigned int multiAlarms) {
-        return propertyType == OnEventsPropertyType::None && multiAlarms == 1 &&
+        return !unit.attributeRecord && propertyType == OnEventsPropertyType::None && multiAlarms == 1 &&
                unit.reportType == OnEventsReportType::Trigger && !unit.targets.empty();
     }
 

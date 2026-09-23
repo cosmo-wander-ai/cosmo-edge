@@ -86,6 +86,7 @@ enum class OnEventsPropertyType {
     CountNumber,
     BodyFeature,
     WorkClothesRecognition,
+    Attributes,
     Max,
 };
 

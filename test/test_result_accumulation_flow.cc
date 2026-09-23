@@ -1,13 +1,18 @@
+#include "attribute_test_support.h"
+#include "catch2/trompeloeil.hpp"
 #include "catch_amalgamated.hpp"
 #include "flow/logical/LogicalJudgment.h"
 #include "flow/sensitivity/PosSaveSensitivity.h"
 #include "mem/AllocatorCpu.h"
 #include "mem/MemoryPoolMng.h"
+#include "mock/MockAppInfoService.h"
+#include "support/MockDefaults.h"
+#include "support/ScopedServiceOverride.h"
 
 using namespace cosmo;
 
 namespace {
-ActionNode AccumulationNode(const std::string& id, bool logic) {
+ActionNode AccumulationNode(const std::string& id, bool logic, const AttributeSchema* schema = nullptr) {
     ActionNode node;
     node.actionId     = logic ? "BA_90001" : "BA_20003";
     node.flowActionId = id;
@@ -19,8 +24,14 @@ ActionNode AccumulationNode(const std::string& id, bool logic) {
     } else {
         MsgDynamicKeyValue mode;
         mode.key   = "inputMode";
-        mode.value = "auto";
+        mode.value = schema ? "attributes" : "auto";
         node.configObject.params.push_back(mode);
+        if (schema) {
+            MsgDynamicKeyValue definition;
+            definition.key   = "attributeSchema";
+            definition.value = nlohmann::json(*schema).dump();
+            node.configObject.params.push_back(definition);
+        }
     }
     return node;
 }
@@ -46,6 +57,9 @@ struct MemoryContext {
     }
 };
 struct AccumulationFlow {
+    test::MockAppInfoService appInfoSvc;
+    test::NamedExpectations expectations;
+    test::ScopedServiceOverride<service::IOverviewConfig> overviewConfig{appInfoSvc};
     mem::MemoryPoolMng pool{std::make_unique<mem::AllocatorCpu>(), {384}};
     MemoryContext context{pool};
     ActionNode logic_node{AccumulationNode("judgment", true)};
@@ -55,7 +69,10 @@ struct AccumulationFlow {
     AlgTaskUnit judgment_output;
     AlgTaskUnit alarms;
 
-    AccumulationFlow() {
+    explicit AccumulationFlow(const AttributeSchema* schema = nullptr)
+        : accumulation_node(AccumulationNode("accumulation", false, schema)),
+          accumulation("accumulation-task", accumulation_node) {
+        test::AllowOverviewDisabled(appInfoSvc, expectations);
         for (auto* sink : {&judgment_output, &alarms}) {
             sink->channel_id   = "channel";
             sink->task_id      = "accumulation-task";
@@ -241,4 +258,63 @@ TEST_CASE("Legacy and canonical observation parameters apply with canonical prec
     flow.Feed(3, 3000, {JudgmentTarget(1)});
     flow.Feed(4, 4000, {});
     REQUIRE(flow.alarms.que->RestSize() == (expect_alarm ? 1 : 0));
+}
+
+TEST_CASE("Attributes finalize one record per trajectory across areas with the selected snapshot",
+          "[attributes][flow]") {
+    const auto schema = TestAttributeSchema();
+    AccumulationFlow flow(&schema);
+    auto target = JudgmentTarget(1);
+    TargetAreaUnit second;
+    second.area_id = "second";
+    target.areaSign.areas.push_back(second);
+    auto& observation     = target.classificationObservations["hat-node"];
+    observation.modelCode = "shared-model";
+    AiConfidence classification;
+    classification.label      = "yes";
+    classification.confidence = 0.95f;
+    observation.results.push_back(classification);
+    const auto snapshot = flow.Feed(1, 0, {target}, true, 1, false);
+    flow.Feed(2, 1500, {target}, true, 1, false);
+    flow.Feed(3, 3000, {target}, true, 1, false);
+    flow.Feed(4, 5000, {}, false, 1, false);  // failed frame cannot prove absence
+    REQUIRE(flow.alarms.que->RestSize() == 0);
+    flow.Feed(5, 5500, {}, true, 1, false);
+    REQUIRE(flow.alarms.que->RestSize() == 1);
+    const auto output = flow.alarms.que->Pop();
+    REQUIRE(output->chanDataDec.frame == snapshot);
+    const auto& alarm = output->taskDataAlarm.alarmData->alarms.front();
+    REQUIRE(alarm.attributeRecord.has_value());
+    const auto& record = *alarm.attributeRecord;
+    REQUIRE(ValidateAttributeRecord(record));
+    REQUIRE(record.areaIds.size() == 2);
+    REQUIRE(record.firstSeen == 0);
+    REQUIRE(record.lastSeen == 3000);
+    REQUIRE(record.attributes[0].status == "valid");
+    REQUIRE(record.attributes[1].status == "unknown");
+    flow.Feed(6, 6500, {}, true, 1, false);
+    REQUIRE(flow.alarms.que->RestSize() == 0);
+}
+
+TEST_CASE("Attribute accumulation drops pending tracks on restart and ignores repeated frames",
+          "[attributes][flow]") {
+    const auto schema = TestAttributeSchema();
+    AccumulationFlow flow(&schema);
+    auto target = JudgmentTarget(1);
+    flow.Feed(1, 0, {target}, true, 1, false);
+    flow.Feed(2, 3000, {target}, true, 1, false);
+    SECTION("restart") {
+        flow.Feed(1, 3500, {}, true, 2, false);
+    }
+    SECTION("long gap") {
+        flow.Feed(3, 20000, {}, true, 1, false);
+    }
+    SECTION("duplicate or stale empty frames") {
+        flow.Feed(2, 5000, {}, true, 1, false);
+        flow.Feed(1, 6000, {}, true, 1, false);
+        REQUIRE(flow.alarms.que->RestSize() == 0);
+        return;
+    }
+    flow.Feed(4, 21000, {}, true, 2, false);
+    REQUIRE(flow.alarms.que->RestSize() == 0);
 }

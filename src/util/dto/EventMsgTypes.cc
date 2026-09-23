@@ -10,6 +10,10 @@
 // Auto-generated JSON serialization
 namespace cosmo {
 void to_json(nlohmann::json& j, const MsgConditionEvent& v) {
+    j["channelIds"]              = v.channelIds;
+    j["attributeSchemaId"]       = v.attributeSchemaId;
+    j["attributeFilters"]        = v.attributeFilters;
+    j["includeAttributeSummary"] = v.includeAttributeSummary;
     to_json(j, static_cast<const MsgConditionPage&>(v));
     to_json(j, static_cast<const MsgConditionDuration&>(v));
     j["algorithmCodes"]   = v.algorithmCodes;
@@ -27,6 +31,10 @@ void to_json(nlohmann::json& j, const MsgConditionEvent& v) {
 }
 
 void from_json(const nlohmann::json& j, MsgConditionEvent& v) {
+    JSON_OPT(j, v, channelIds);
+    JSON_OPT(j, v, attributeSchemaId);
+    JSON_OPT(j, v, attributeFilters);
+    JSON_OPT(j, v, includeAttributeSummary);
     from_json(j, static_cast<MsgConditionPage&>(v));
     from_json(j, static_cast<MsgConditionDuration&>(v));
     JSON_OPT(j, v, algorithmCodes);

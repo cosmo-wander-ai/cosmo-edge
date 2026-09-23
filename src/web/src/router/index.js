@@ -40,6 +40,11 @@ const routes = [
         component: () => import('../views/box/eventQuery/faceBody/index.vue')
       },
       {
+        path: '/eventQuery/attributes',
+        name: 'AttributeAnalysis',
+        component: () => import('../views/box/eventQuery/attributes/index.vue')
+      },
+      {
         path: '/eventQuery/carStatistics',
         name: 'CarStatistics',
         component: () => import('../views/box/eventQuery/carStatistics/index.vue')

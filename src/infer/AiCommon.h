@@ -1,6 +1,7 @@
 // AiCommon.h — Common AI detection/tracking/classification data types.
 #pragma once
 
+#include <map>
 #include <optional>
 
 #include "media/VideoFrame.h"
@@ -50,6 +51,12 @@ struct AiDetectRelatedEl {
     AiFeature feature;        // Feature vector for face matching
 };
 
+struct ClassificationObservation {
+    std::string modelCode;
+    bool failed{false};
+    std::vector<AiConfidence> results;
+};
+
 // Detection / tracking / classification result
 struct AiDetectRstEl {
     util::Box box;
@@ -79,7 +86,8 @@ struct AiDetectRstEl {
     AIFilterType filterType{AIFilterType::None};
     std::vector<AiConfidence> classifyRst;
     std::vector<AiAttribute> attrRst;  // Attribute results
-    std::vector<AiOcrValue> ocrRst;    // OCR results
+    std::map<std::string, ClassificationObservation> classificationObservations;
+    std::vector<AiOcrValue> ocrRst;  // OCR results
     TargetAreaSign areaSign;
     TargetPosition targetPos{TargetPosition::kBottom};
     std::vector<int> groupTargets;              // Group target trackIds

@@ -55,6 +55,32 @@ cosmo::db::PassengerFlowCondition ToDao(const cosmo::service::FlowQueryCondition
     return dao;
 }
 
+cosmo::db::QueryTaskEventCondition ToDao(const cosmo::MsgConditionEvent& condition) {
+    cosmo::db::QueryTaskEventCondition condition_db;
+    condition_db.time_begin          = condition.timeBegin;
+    condition_db.channel_ids         = condition.channelIds;
+    condition_db.attribute_schema_id = condition.attributeSchemaId;
+    condition_db.attribute_filters   = condition.attributeFilters;
+    condition_db.time_end            = condition.timeEnd;
+    condition_db.algorithm_codes     = condition.algorithmCodes;
+    condition_db.categories          = condition.categorys;
+    condition_db.camera_name         = condition.videoChannelName;
+    condition_db.page_num            = condition.pageNum;
+    condition_db.page_size           = condition.pageSize;
+    condition_db.report_status       = condition.reportStatus;
+
+    condition_db.lib_person_name   = condition.personName;    // Person name
+    condition_db.lib_person_number = condition.personCode;    // Person code
+    condition_db.lib_faces_id      = condition.matchLibName;  // Matched face lib
+
+    condition_db.prop_color         = condition.propColor;         // Vehicle body color
+    condition_db.prop_related_color = condition.propRelatedColor;  // License plate color
+    condition_db.prop_type          = condition.propType;          // Vehicle type
+    condition_db.prop_direction     = condition.propDirection;     // Vehicle direction
+
+    return condition_db;
+}
+
 // ── DAO → DTO conversions ────────────────────────────────────────────
 
 cosmo::service::AlarmEventRecord ToDto(cosmo::db::TaskEventData&& dao) {
@@ -206,27 +232,9 @@ bool AlarmRecordServiceImpl::InsertFace(cosmo::AlarmRecordUnit& unit) {
 std::vector<cosmo::MsgEventUnit> AlarmRecordServiceImpl::QueryEvents(cosmo::MsgConditionEvent& condition,
                                                                      int64_t& total) {
     std::vector<cosmo::MsgEventUnit> events;
-    cosmo::db::QueryTaskEventCondition condition_db;
-    condition_db.time_begin      = condition.timeBegin;
-    condition_db.time_end        = condition.timeEnd;
-    condition_db.algorithm_codes = condition.algorithmCodes;
-    condition_db.categories      = condition.categorys;
-    condition_db.camera_name     = condition.videoChannelName;
-    condition_db.page_num        = condition.pageNum;
-    condition_db.page_size       = condition.pageSize;
-    condition_db.report_status   = condition.reportStatus;
-
-    condition_db.lib_person_name   = condition.personName;    // Person name
-    condition_db.lib_person_number = condition.personCode;    // Person code
-    condition_db.lib_faces_id      = condition.matchLibName;  // Matched face lib
-
-    condition_db.prop_color         = condition.propColor;         // Vehicle body color
-    condition_db.prop_related_color = condition.propRelatedColor;  // License plate color
-    condition_db.prop_type          = condition.propType;          // Vehicle type
-    condition_db.prop_direction     = condition.propDirection;     // Vehicle direction
-
-    auto rets = db_event_->Query(condition_db);
-    total     = static_cast<int64_t>(rets.total_count);
+    const auto condition_db = ToDao(condition);
+    auto rets               = db_event_->Query(condition_db);
+    total                   = static_cast<int64_t>(rets.total_count);
     for (auto& el : rets.behavior_list) {
         cosmo::MsgEventUnit unit;
         unit.id             = el.id;
@@ -272,6 +280,10 @@ std::vector<cosmo::MsgEventUnit> AlarmRecordServiceImpl::QueryEvents(cosmo::MsgC
 AlarmQueryResult AlarmRecordServiceImpl::QueryAlarmRecords(const AlarmQueryCondition& condition, int order) {
     auto dao_condition = ToDao(condition);
     return ToDto(db_event_->Query(dao_condition, order));
+}
+
+AttributeSummary AlarmRecordServiceImpl::QueryAttributeSummary(const cosmo::MsgConditionEvent& condition) {
+    return db_event_->QueryAttributeSummary(ToDao(condition));
 }
 
 std::vector<cosmo::MsgEventUnit> AlarmRecordServiceImpl::QueryFace(cosmo::MsgConditionEvent& condition,

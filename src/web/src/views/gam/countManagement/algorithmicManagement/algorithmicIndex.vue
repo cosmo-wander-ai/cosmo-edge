@@ -236,7 +236,8 @@ export default {
             { label: t('common.all'), value: '' },
             { label: t('glossary.faceAndBody'), value: 'face' },
             { label: t('glossary.detection'), value: 'detect' },
-            { label: t('glossary.countingAnalytics'), value: 'count' }
+            { label: t('glossary.countingAnalytics'), value: 'count' },
+            { label: t('attributeAnalysis.title'), value: '12' }
           ]
         }
       ]
@@ -250,6 +251,7 @@ export default {
         { label: t('glossary.countingAnalytics'), value: '8', eventType: 'passengerNumber' },
         { label: t('glossary.countingAnalytics'), value: '9', eventType: 'peopleCountByArea' },
         { label: t('glossary.vehicleAnalysis'), value: '10', eventType: 'motorCommodity' },
+        { label: t('attributeAnalysis.title'), value: '12', eventType: 'attributes' },
         { label: t('glossary.countingAnalytics'), value: '11', eventType: 'vehicleNumber' }
       ]
     },

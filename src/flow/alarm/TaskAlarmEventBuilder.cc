@@ -96,7 +96,9 @@ bool TaskAlarm::ShouldFilterTargetAlarm(const AlgDataPtr& algData, const DataAla
 CMsgOnEventsReq TaskAlarm::BuildBaseEventData(const AlgDataPtr& algData, const DataAlarmUnit& alarmUnit) {
     CMsgOnEventsReq eventData;
 
-    eventData.messageId      = util::GenerateUUID();
+    eventData.messageId = util::GenerateUUID();
+    if (alarmUnit.attributeRecord)
+        eventData.messageId = alarmUnit.attributeRecord->recordId;
     eventData.recordId       = alarmUnit.strTrackId;
     eventData.taskId         = m_param.taskId.empty() ? task_id : m_param.taskId;
     eventData.videoChannelId = m_param.videoChannelId.empty() ? GetChannel() : m_param.videoChannelId;
@@ -164,6 +166,12 @@ void TaskAlarm::AttachAlarmMedia(CMsgOnEventsReq& eventData, const AlgDataPtr& a
 // ---------------------------------------------------------------------------
 void TaskAlarm::FillEventProperty(CMsgOnEventsReq& eventData, AlgDataPtr& algData, DataAlarmUnit& alarmUnit,
                                   AlarmIdData& idData) {
+    if (alarmUnit.attributeRecord) {
+        eventData.bHaveProperty       = true;
+        eventData.property.type       = OnEventsPropertyType::Attributes;
+        eventData.property.attributes = *alarmUnit.attributeRecord;
+        return;
+    }
     if (OnEventsPropertyType::Face == m_propertyType) {
         eventData.bHaveProperty = true;
         HandFace(eventData, algData, alarmUnit);
@@ -359,7 +367,7 @@ bool TaskAlarm::FillAlarmData(AlgDataPtr algData) {
         for (const auto index : batch) {
             areaRecAlarmData.targetCount += alarmData->alarms[index].boxs.size();
         }
-        if (ShouldFilterAreaAlarm(now, areaData, areaRecAlarmData)) {
+        if (!first.attributeRecord && ShouldFilterAreaAlarm(now, areaData, areaRecAlarmData)) {
             continue;
         }
 
@@ -369,7 +377,8 @@ bool TaskAlarm::FillAlarmData(AlgDataPtr algData) {
             const auto& alarmUnit = alarmData->alarms[index];
             auto recAlarmData     = makeRecAlarmData(alarmUnit);
             auto& idData          = m_mapAlarmIdStatus[alarmUnit.trackId];
-            if (!ShouldFilterTargetAlarm(algData, alarmUnit, now, idData, recAlarmData)) {
+            if (alarmUnit.attributeRecord ||
+                !ShouldFilterTargetAlarm(algData, alarmUnit, now, idData, recAlarmData)) {
                 acceptedIndices.push_back(index);
             }
         }
@@ -426,7 +435,8 @@ bool TaskAlarm::FillAlarmData(AlgDataPtr algData) {
         } else if (OnEventsPropertyType::Car == eventData.property.type) {
             eventData.property.car.time = alarmUnit.passFlowData.timeSec;
         }
-        eventData.category = GetAlgCategory();
+        eventData.category =
+            eventData.property.type == OnEventsPropertyType::Attributes ? "12" : GetAlgCategory();
 
         DispatchAlarmEvent(eventData);
     }
@@ -434,12 +444,14 @@ bool TaskAlarm::FillAlarmData(AlgDataPtr algData) {
 }
 
 void TaskAlarm::EventRecord(CMsgOnEventsReq& eventData) {
-    if ((OnEventsPropertyType::CountNumber == m_propertyType)) {
+    if (OnEventsPropertyType::CountNumber == m_propertyType &&
+        eventData.property.type != OnEventsPropertyType::Attributes) {
         return;
     }
     AlarmRecordUnit alarmRecordUnit;
-    alarmRecordUnit.id             = eventData.messageId;
-    alarmRecordUnit.category       = GetAlgCategory();
+    alarmRecordUnit.id = eventData.messageId;
+    alarmRecordUnit.category =
+        eventData.property.type == OnEventsPropertyType::Attributes ? "12" : GetAlgCategory();
     alarmRecordUnit.videoChannelId = eventData.videoChannelId;
     alarmRecordUnit.channelName    = eventData.channelName;
     alarmRecordUnit.timestamp      = eventData.itimestamp;

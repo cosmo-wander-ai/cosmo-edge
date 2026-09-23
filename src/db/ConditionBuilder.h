@@ -102,6 +102,10 @@ public:
         }
     }
 
+    void AddBound(const std::string& fragment, std::vector<BindValue> values) {
+        fragments_.push_back({fragment, std::move(values)});
+    }
+
     // Check if any conditions have been added
     [[nodiscard]] bool Empty() const {
         return fragments_.empty();

@@ -1,6 +1,8 @@
 #pragma once
 
+#include "db/ConditionBuilder.h"
 #include "db/DaoBase.h"
+#include "util/AttributeAnalysis.h"
 
 namespace SQLite {
 class Database;
@@ -10,6 +12,9 @@ namespace cosmo::db {
 
 // Task event query condition
 struct QueryTaskEventCondition {
+    std::vector<std::string> channel_ids;
+    std::string attribute_schema_id;
+    std::vector<AttributeFilter> attribute_filters;
     int64_t time_begin{0};
     int64_t time_end{0};
     std::string camera_name;
@@ -100,8 +105,12 @@ public:
     void RemoveItems(const std::vector<std::string>& list);
 
     bool UpdateRecordReportStatus(const std::string& rec_id, bool reported);
+    AttributeSummary QueryAttributeSummary(const QueryTaskEventCondition& condition) const;
 
 private:
+    ConditionBuilder BuildConditions(const QueryTaskEventCondition& condition) const;
+    void CreateAttributeTables();
+    void IndexAttributes(const std::string& id, const AttributeRecord& record);
     std::string table_name_{"t_commonEvent"};
 };
 

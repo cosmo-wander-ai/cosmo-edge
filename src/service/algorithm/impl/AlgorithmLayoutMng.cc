@@ -17,6 +17,7 @@
 #include "nlohmann/json.hpp"
 #include "service/algorithm/IAlgorithmCrud.h"
 #include "service/detail/ServiceRegistry.h"
+#include "util/AttributeAnalysis.h"
 #include "util/DateTimeFormat.h"
 #include "util/Exec.h"
 #include "util/FileUtil.h"
@@ -232,6 +233,9 @@ bool AlgorithmLayoutMng::ResolveActionsFile(const std::string& requested_path, s
 }
 
 cosmo::util::ErrorEnum AlgorithmLayoutMng::LayoutSave(const algorithm::LayoutSaveReq& req) {
+    if (!ValidateAttributeFlow(req.algorithmProcessdata, req.algorithmCategory == "12")) {
+        return cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail;
+    }
     std::string jsonFilePath;
     if (!ResolveLayoutDirectory(req.filePath, false, jsonFilePath) ||
         !cosmo::path::IsSafePathComponent(req.algorithmId)) {
@@ -469,6 +473,28 @@ cosmo::util::ErrorEnum AlgorithmLayoutMng::GetLayoutDetail(const std::string& id
             : "[]";
     if (outResult.algorithmProcessdata.empty())
         outResult.algorithmProcessdata = "[]";
+    try {
+        for (const auto& node : nlohmann::json::parse(outResult.algorithmProcessdata)) {
+            if (node.value("actionId", "") != "BA_20003")
+                continue;
+            bool attributes = false;
+            std::string encoded;
+            for (const auto& param : node.at("configObject").at("params")) {
+                if (param.value("key", "") == "inputMode")
+                    attributes = param.value("value", "") == "attributes";
+                if (param.value("key", "") == "attributeSchema")
+                    encoded = param.value("value", "");
+            }
+            if (attributes && !encoded.empty()) {
+                const auto schema = nlohmann::json::parse(encoded).get<AttributeSchema>();
+                if (ValidateAttributeSchema(schema))
+                    outResult.attributeSchemaId = AttributeSchemaId(schema);
+            }
+        }
+    } catch (const nlohmann::json::exception&) {
+        outResult.attributeSchemaId.clear();
+    }
+
     outResult.atomicList = (doc.contains("atomicList") && doc["atomicList"].is_string())
                                ? doc["atomicList"].get<std::string>()
                                : "[]";

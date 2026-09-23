@@ -8,6 +8,7 @@
 namespace cosmo {
 
 void PosSaveSensitivity::ResetStateOnRestart() {
+    attribute_session_.clear();
     map_track_id_status_.clear();
     observation_context_.clear();
     observation_channel_.clear();

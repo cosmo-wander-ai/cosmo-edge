@@ -20,6 +20,7 @@ class AlarmRecordServiceImpl : public IAlarmRecordService {
 public:
     AlarmRecordServiceImpl();
     ~AlarmRecordServiceImpl() override;
+    AttributeSummary QueryAttributeSummary(const cosmo::MsgConditionEvent& condition) override;
 
     std::vector<cosmo::MsgEventUnit> QueryEvents(cosmo::MsgConditionEvent& condition,
                                                  int64_t& total) override;

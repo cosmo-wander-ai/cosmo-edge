@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "attribute_test_support.h"
 #include "flow/alarm/TaskAlarm.h"
 #include "mock/MockAlarmRecordService.h"
 #include "mock/MockAppInfoService.h"
@@ -176,4 +177,58 @@ TEST_CASE("TaskAlarm emits one event for any number of untracked same-frame targ
     CHECK(notifier.httpEvents[0].targets[0].box.x == 100);
     CHECK(notifier.httpEvents[0].targets[1].box.x == 300);
     CHECK(notifier.httpEvents[0].targets[2].box.x == 500);
+}
+
+TEST_CASE("TaskAlarm persists and pushes independent finalized attribute records", "[attributes][event]") {
+    TaskAlarmDependencies mocks;
+    CapturingEventNotifier notifier;
+    cosmo::test::ScopedServiceOverride<cosmo::service::IEventNotifier> registration(notifier);
+    ALLOW_CALL(mocks.cameraSvc, GetChannelName("channel")).RETURN("Camera");
+    ALLOW_CALL(mocks.configReadSvc, IsNetworkModel()).RETURN(true);
+    std::vector<cosmo::AlarmRecordUnit> saved;
+    REQUIRE_CALL(mocks.alarmRecordSvc, Insert(trompeloeil::_))
+        .TIMES(2)
+        .LR_SIDE_EFFECT(saved.push_back(_1))
+        .RETURN(true);
+    cosmo::ActionNode action;
+    action.actionId     = "BA_00004";
+    action.actionName   = "Alarm";
+    action.flowActionId = "report";
+    cosmo::TaskAlarm reporter("channel", "task", action);
+    cosmo::MsgDynamicKeyValue interval;
+    interval.key   = "param.alarmInterval";
+    interval.value = "60";
+    interval.keys  = {"param", "alarmInterval"};
+    std::vector<cosmo::MsgDynamicKeyValue> params{interval};
+    reporter.SetParam("channel", "task", params);
+    auto frame = MakeTaskAlarmFrame();
+    for (auto& unit : frame->taskDataAlarm.alarmData->alarms) {
+        cosmo::AttributeRecord record;
+        record.recordId = "session-" + unit.strTrackId;
+        record.trackId  = unit.strTrackId;
+        record.schema   = TestAttributeSchema();
+        record.schemaId = cosmo::AttributeSchemaId(record.schema);
+        for (const auto& definition : record.schema.attributes) {
+            cosmo::AttributeValue value;
+            value.key = definition.key;
+            record.attributes.push_back(value);
+        }
+        unit.attributeRecord = record;
+        unit.reportType      = cosmo::OnEventsReportType::Realtime;
+    }
+    reporter.HandFrame(frame);
+    REQUIRE(notifier.httpEvents.size() == 2);
+    REQUIRE(notifier.websocketEvents.size() == 2);
+    REQUIRE(saved.size() == 2);
+    for (const auto& event : notifier.httpEvents) {
+        REQUIRE(event.category == "12");
+        REQUIRE(event.messageId == event.property.attributes.recordId);
+        REQUIRE(event.targets.size() == 1);
+        REQUIRE(cosmo::ValidateAttributeRecord(event.property.attributes));
+        REQUIRE(nlohmann::json(event.property).contains("attributes"));
+    }
+    for (const auto& event : saved) {
+        REQUIRE(event.category == "12");
+        REQUIRE(nlohmann::json::parse(event.property).at("attributes").at("recordId") == event.id);
+    }
 }

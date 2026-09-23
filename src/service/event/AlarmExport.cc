@@ -2,6 +2,7 @@
 /// @brief Alarm record CSV export utilities and service-layer export orchestration.
 #include "service/event/AlarmExport.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -25,7 +26,7 @@ ExportType CategoryToExportType(const std::string& category) {
     static const std::map<std::string, ExportType> kMapping = {
         {"1", ExportType::Recognize},   {"2", ExportType::Behavior},     {"3", ExportType::Snapshot},
         {"4", ExportType::MotorObject}, {"5", ExportType::CrowdDensity}, {"6", ExportType::LeavePost},
-        {"7", ExportType::WalkDog}};
+        {"7", ExportType::WalkDog},     {"12", ExportType::Attributes}};
     auto it = kMapping.find(category);
     if (it != kMapping.end()) {
         return it->second;
@@ -155,6 +156,87 @@ void WriteCsvRowBehavior(std::ostream& os, const MsgEventUnit& el, const std::st
 
 // ── Full CSV export orchestration ───────────────────────────────────
 
+void WriteAttributeCsv(std::ostream& os, const std::vector<MsgEventUnit>& records, bool is_en) {
+    // Keep schema versions separate even if they reuse an attribute key.
+    std::map<std::pair<std::string, std::string>, std::string> columns;
+    std::vector<AttributeRecord> attributes;
+    for (const auto& event : records) {
+        const auto record = nlohmann::json::parse(event.property).at("attributes").get<AttributeRecord>();
+        for (const auto& definition : record.schema.attributes)
+            columns[{record.schemaId, definition.key}] = definition.name;
+        attributes.push_back(record);
+    }
+    auto cell = [&](std::string value) {
+        // Quote separators/newlines and prevent spreadsheet formula interpretation.
+        const auto first = value.find_first_not_of(" \t\r\n");
+        if (first != std::string::npos && std::string("=+-@").find(value[first]) != std::string::npos)
+            value.insert(value.begin(), '\'');
+        os << '"';
+        for (const auto c : value) {
+            if (c == '"')
+                os << '"';
+            os << c;
+        }
+        os << '"';
+    };
+    os << "\xEF\xBB\xBF";
+    for (const auto& name : (is_en ? std::vector<std::string>{"Record ID", "Channel", "Track", "First seen",
+                                                              "Last seen", "Schema version"}
+                                   : std::vector<std::string>{"记录编号", "通道", "追踪对象", "首次出现",
+                                                              "最后出现", "属性定义版本"})) {
+        cell(name);
+        os << ',';
+    }
+    size_t index = 0;
+    for (const auto& [key, name] : columns) {
+        if (index++)
+            os << ',';
+        cell(name + " [" + key.first + "/" + key.second + "]");
+    }
+    os << '\n';
+    for (size_t i = 0; i < records.size(); ++i) {
+        const auto& record = attributes[i];
+        cell(record.recordId);
+        os << ',';
+        cell(records[i].channelName);
+        os << ',';
+        cell(record.trackId);
+        os << ',';
+        cell(FormatTimestamp(record.firstSeen));
+        os << ',';
+        cell(FormatTimestamp(record.lastSeen));
+        os << ',';
+        cell(record.schemaId);
+        for (const auto& [key, name] : columns) {
+            os << ',';
+            std::string text;
+            if (record.schemaId == key.first) {
+                const auto definition =
+                    std::find_if(record.schema.attributes.begin(), record.schema.attributes.end(),
+                                 [&](const auto& a) { return a.key == key.second; });
+                const auto value = std::find_if(record.attributes.begin(), record.attributes.end(),
+                                                [&](const auto& a) { return a.key == key.second; });
+                if (value != record.attributes.end() && definition != record.schema.attributes.end()) {
+                    if (value->status != "valid")
+                        text = value->status == "failed" ? (is_en ? "Inference failed" : "推理失败")
+                                                         : (is_en ? "Unknown" : "无法判断");
+                    else
+                        for (const auto& option : value->values) {
+                            const auto label =
+                                std::find_if(definition->options.begin(), definition->options.end(),
+                                             [&](const auto& item) { return item.value == option; });
+                            if (!text.empty())
+                                text += " / ";
+                            text += label == definition->options.end() ? option : label->name;
+                        }
+                }
+            }
+            cell(text);
+        }
+        os << '\n';
+    }
+}
+
 std::string ExportAlarmRecordsToCsv(const std::vector<MsgEventUnit>& records, ExportType export_type,
                                     const std::string& host_ip, service::IAlgorithmQuery& alg_query,
                                     const std::string& language) {
@@ -174,6 +256,11 @@ std::string ExportAlarmRecordsToCsv(const std::vector<MsgEventUnit>& records, Ex
     }
 
     bool is_en = (language == "en-US" || language == "en_US");
+    if (export_type == ExportType::Attributes) {
+        WriteAttributeCsv(out_file, records, is_en);
+        out_file.flush();
+        return out_file.good() ? web_access_path : std::string{};
+    }
     WriteExportCsvHeader(out_file, export_type, is_en);
     std::string http_dir = "http://" + host_ip;
 

@@ -23,6 +23,7 @@
         :node-id="detailPanelNodeId"
         :node-data="detailPanelNodeData"
         :atomic-list="atomicList"
+        :attribute-sources="attributeSources"
         :position="screenPanelPosition"
         @close="closeDetailPanel"
         @config-change="handlePanelConfigChange"
@@ -54,6 +55,7 @@ import { generateActionId } from './dataTools.js'
 import { insertNodeEdges } from '@/utils/graphEdges.js'
 import { createNodeState, updateAtomicList, updateNodeConfig as replaceNodeConfig } from '@/views/gam/countManagement/arrangeDetail/flow/nodeState.js'
 import { t } from '@/i18n'
+import { attributeClassifierSources } from '@/utils/attributeAnalysis'
 
 import '@vue-flow/core/dist/style.css'
 // theme-default.css 已移除 — 其默认阴影/边框样式由自定义CSS接管
@@ -295,6 +297,7 @@ const applyLayout = () => {
 // ---- 浮动配置面板状态 ----
 const detailPanelRef = ref(null)
 const detailPanelNodeId = ref(null)
+const attributeSources = computed(() => attributeClassifierSources(nodes.value, edges.value, detailPanelNodeId.value))
 const detailPanelNodeData = computed(() =>
   nodes.value.find((node) => String(node.id) === String(detailPanelNodeId.value))?.data || null
 )

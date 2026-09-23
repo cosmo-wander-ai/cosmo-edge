@@ -90,6 +90,7 @@ void to_json(nlohmann::json& j, const LayoutDetailVersion& v) {
 }
 
 void from_json(const nlohmann::json& j, LayoutDetailResult& v) {
+    JSON_OPT(j, v, attributeSchemaId);
     JSON_OPT(j, v, algorithmCode);
     JSON_OPT(j, v, algorithmName);
     JSON_OPT(j, v, algorithmCategory);
@@ -104,6 +105,9 @@ void from_json(const nlohmann::json& j, LayoutDetailResult& v) {
 }
 
 void to_json(nlohmann::json& j, const LayoutDetailResult& v) {
+    if (!v.attributeSchemaId.empty()) {
+        j["attributeSchemaId"] = v.attributeSchemaId;
+    }
     j["algorithmCode"]        = v.algorithmCode;
     j["algorithmName"]        = v.algorithmName;
     j["algorithmCategory"]    = v.algorithmCategory;

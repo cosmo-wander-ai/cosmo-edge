@@ -226,6 +226,11 @@ const algorithmCategoryGroups = computed(() => [
     values: ['8', '9', '11']
   },
   {
+    key: 'attributes',
+    label: t('attributeAnalysis.title'),
+    values: ['12']
+  },
+  {
     key: 'vehicle',
     label: t('glossary.vehicleAnalysis'),
     values: ['10']

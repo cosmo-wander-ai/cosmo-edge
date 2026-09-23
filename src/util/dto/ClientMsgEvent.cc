@@ -66,7 +66,9 @@ void from_json(const nlohmann::json& j, CMsgOnEventsPropertyMachineMaterial& m) 
 }
 
 void to_json(nlohmann::json& j, const CMsgOnEventsProperty& p) {
-    if (OnEventsPropertyType::Face == p.type) {
+    if (OnEventsPropertyType::Attributes == p.type) {
+        j["attributes"] = p.attributes;
+    } else if (OnEventsPropertyType::Face == p.type) {
         j["face"]        = p.face;
         j["recognition"] = p.recognition;
     } else if (OnEventsPropertyType::Body == p.type) {
@@ -98,6 +100,10 @@ void to_json(nlohmann::json& j, const CMsgOnEventsProperty& p) {
 }
 
 void from_json(const nlohmann::json& j, CMsgOnEventsProperty& p) {
+    if (j.contains("attributes")) {
+        j.at("attributes").get_to(p.attributes);
+        p.type = OnEventsPropertyType::Attributes;
+    }
     JSON_OPT(j, p, face);
     JSON_OPT(j, p, recognition);
     JSON_OPT(j, p, body);

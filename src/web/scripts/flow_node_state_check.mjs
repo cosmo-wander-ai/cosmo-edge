@@ -220,7 +220,8 @@ for (const savedMode of [null, 'recognition', 'behavior']) {
     }
   })
   try {
-    assert.equal(form.all(node => node.type === 'el-form-item').length, 0, 'internal settings are not editable')
+    assert.equal(form.all(node => node.type === 'el-select').length, 0, 'technical input modes remain hidden')
+    assert.equal(form.all(node => node.type === 'el-radio-group').length, 1, 'business accumulation purpose is selectable')
     const saved = form.instance.submitForm()
     assert.equal(saved.params.find(p => p.key === 'inputMode')?.value, savedMode || 'recognition')
     assert.equal(saved.params.find(p => p.key === 'param.posSenDurationTimeType')?.value, '1')
@@ -262,7 +263,7 @@ for (const platform of ['bm1688', 'cv186x', 'x86']) {
       assert.equal(metadata.find(p => p.key === 'param.observationIntervalMs')?.value, mode ? '350' : '200')
       assert.equal(metadata.length, 4, 'only four supported task parameters are exposed')
       assert.ok(!metadata.some(p => ['param.minValidFaceCount', 'param.faceSampleIntervalMs'].includes(p.key)))
-      assert.equal(form.all(n => n.type === 'el-form-item').length, 0, 'automatic input and multiplier stay hidden')
+      assert.equal(form.all(n => n.type === 'el-select').length, 0, 'automatic input and multiplier stay hidden')
       if (mode === 'behavior') assert.equal(saved.params.find(p => p.key === 'param.posSenHitCount')?.value, '8')
     } finally { form.unmount() }
   }

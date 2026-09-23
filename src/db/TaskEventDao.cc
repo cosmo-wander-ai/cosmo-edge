@@ -4,6 +4,8 @@
 
 #include <SQLiteCpp/SQLiteCpp.h>
 
+#include <optional>
+
 #include "db/ConditionBuilder.h"
 #include "db/RowFieldReader.h"
 #include "util/DateTimeFormat.h"
@@ -92,10 +94,11 @@ void TaskEventDao::CreateTable() {
     if (!IsColumnExist(all_columns, "targets")) {
         AddColumnToTable(table_name_, "targets", ColumnType::TEXT);
     }
+    CreateAttributeTables();
 }
 
 // Task event record query (parameterized)
-TaskEventsResult TaskEventDao::Query(const QueryTaskEventCondition& condition, int order) const {
+ConditionBuilder TaskEventDao::BuildConditions(const QueryTaskEventCondition& condition) const {
     // Build parameterized conditions
     ConditionBuilder cb;
     cb.AddEqual("area_id", condition.area_id);
@@ -116,6 +119,33 @@ TaskEventsResult TaskEventDao::Query(const QueryTaskEventCondition& condition, i
     if (condition.report_status != -1) {
         cb.AddEqual("isreported", condition.report_status);
     }
+    cb.AddIn("camera_id", condition.channel_ids);
+    if (!condition.attribute_schema_id.empty()) {
+        cb.AddBound(
+            "EXISTS (SELECT 1 FROM t_attributeRecord ar WHERE ar.rec_id=t_commonEvent.rec_id AND "
+            "ar.schema_id=?)",
+            {condition.attribute_schema_id});
+    }
+    for (const auto& filter : condition.attribute_filters) {
+        std::string fragment =
+            "EXISTS (SELECT 1 FROM t_attributeValue av WHERE av.rec_id=t_commonEvent.rec_id AND "
+            "av.attr_key=?";
+        std::vector<BindValue> values{filter.key};
+        if (!filter.value.empty()) {
+            fragment += " AND av.value=?";
+            values.push_back(filter.value);
+        }
+        if (!filter.status.empty()) {
+            fragment += " AND av.status=?";
+            values.push_back(filter.status);
+        }
+        cb.AddBound(fragment + ")", std::move(values));
+    }
+    return cb;
+}
+
+TaskEventsResult TaskEventDao::Query(const QueryTaskEventCondition& condition, int order) const {
+    auto cb = BuildConditions(condition);
 
     // Base SELECT
     std::string base_sql;
@@ -197,9 +227,20 @@ TaskEventsResult TaskEventDao::Query(const QueryTaskEventCondition& condition, i
 }
 
 bool TaskEventDao::Insert(const TaskEventData& data) {
+    std::optional<AttributeRecord> attributes;
+    if (data.category == "12") {
+        try {
+            const auto property = nlohmann::json::parse(data.property);
+            attributes          = property.at("attributes").get<AttributeRecord>();
+            if (!ValidateAttributeRecord(*attributes) || attributes->recordId != data.id)
+                return false;
+        } catch (const nlohmann::json::exception&) {
+            return false;
+        }
+    }
     std::string insert_sql;
     insert_sql.reserve(1024);
-    insert_sql.append(" insert into ")
+    insert_sql.append(attributes ? " insert or ignore into " : " insert into ")
         .append(table_name_)
         .append(
             " (rec_id, category, algorithm_code, create_time, camera_id, camera_outid, camera_name, area_id, "
@@ -247,7 +288,19 @@ bool TaskEventDao::Insert(const TaskEventData& data) {
     stmt.bind(30, data.prop_related_color);
     stmt.bind(31, data.prop_type);
     stmt.bind(32, data.prop_direction);
-    return stmt.exec() > 0;
+    if (!attributes)
+        return stmt.exec() > 0;
+    Begin();
+    try {
+        const bool inserted = stmt.exec() > 0;
+        if (inserted)
+            IndexAttributes(data.id, *attributes);
+        Commit();
+        return true;  // Re-delivery of the same final record is idempotent.
+    } catch (...) {
+        Rollback();
+        throw;
+    }
 }
 
 bool TaskEventDao::UpdateRecordReportStatus(const std::string& rec_id, bool reported) {

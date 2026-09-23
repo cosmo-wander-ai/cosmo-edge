@@ -15,7 +15,7 @@ namespace cosmo {
 // Dynamic key-value pair with expandable keys/values.
 struct MsgDynamicKeyValue {
     util::String<1, 512> key;
-    util::String<0, 2056> value;
+    util::String<0, 65536> value;     // Bounded structured parameters, including attribute schemas.
     std::vector<std::string> keys;    // Expanded keys
     std::vector<std::string> values;  // Expanded values
 };

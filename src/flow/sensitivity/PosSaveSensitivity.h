@@ -13,6 +13,7 @@
 #include "flow/common/AlgDataRecord.h"
 #include "flow/overview/OverviewRecordBehaviorNoneSenRst.h"
 #include "flow/task/TaskBaseParam.h"
+#include "util/AttributeAnalysis.h"
 #include "util/MsgDynamicElement.h"
 
 namespace cosmo {
@@ -76,6 +77,8 @@ private:
     void HandTrackData(AlgDataPtr algData, DataDetTrackClassifyPtr input);
     void HandAccumulationData(AlgDataPtr alg_data);
     void ReportUnmatchedTrack(AlgDataPtr alg_data, TrackIdData& state, bool recognition);
+    void HandAttributeData(AlgDataPtr data);
+    void ReportAttributeTrack(AlgDataPtr data, TrackIdData& state, size_t minSamples);
 
     [[nodiscard]] TaskBaseArea GetArea();
 
@@ -92,8 +95,11 @@ private:
     bool has_track_{false};
     bool has_classify_{false};
     std::map<std::string, TrackIdData> map_track_id_status_;
-    enum class InputMode { LegacyBehavior, Recognition, Auto };
+    enum class InputMode { LegacyBehavior, Recognition, Auto, Attributes };
     InputMode input_mode_{InputMode::LegacyBehavior};
+    AttributeSchema attribute_schema_;
+    bool attribute_schema_valid_{false};
+    std::string attribute_session_;
     uint64_t settings_revision_{0};  // Protected by mtx; observed on the processing thread.
     std::string observation_context_;
     std::string observation_channel_;

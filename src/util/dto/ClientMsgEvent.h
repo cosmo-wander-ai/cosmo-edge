@@ -6,6 +6,7 @@
 #include <string>
 
 #include "util/AiTypes.h"
+#include "util/AttributeAnalysis.h"
 #include "util/MsgBaseTypes.h"
 #include "util/dto/FilterTypes.h"
 #include "util/dto/OverviewTypes.h"
@@ -185,6 +186,7 @@ enum class OnEventsReportType {
 };
 
 struct CMsgOnEventsProperty {
+    AttributeRecord attributes;
     OnEventsPropertyType type{OnEventsPropertyType::None};
     CMsgOnEventsPropertyFace face;                        // Face detection
     CMsgOnEventsPropertyRecognition recognition;          // Face recognition

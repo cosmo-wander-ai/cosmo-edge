@@ -13,7 +13,8 @@ export const getFlowLayoutSpacing = (dimensions = FLOW_NODE_SIZE) => ({
 })
 
 export const getDetailPanelSize = (actionId) =>
-  isAlarmDataAction(actionId) ? ALARM_DETAIL_PANEL_SIZE : DETAIL_PANEL_SIZE
+  actionId === 'BA_20003' ? { width: 760, height: 560 } :
+    isAlarmDataAction(actionId) ? ALARM_DETAIL_PANEL_SIZE : DETAIL_PANEL_SIZE
 
 export const getDetailPanelAnchor = (
   node,

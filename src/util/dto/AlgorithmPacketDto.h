@@ -96,6 +96,7 @@ struct LayoutDetailVersion {
 };
 
 struct LayoutDetailResult {
+    std::string attributeSchemaId;
     std::string algorithmCode;
     std::string algorithmName;
     std::string algorithmCategory;

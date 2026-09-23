@@ -1,3 +1,5 @@
+#include <any>
+
 #include "catch_amalgamated.hpp"
 
 #define private public

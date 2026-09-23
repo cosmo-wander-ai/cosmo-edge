@@ -3,6 +3,8 @@
 
 #include "flow/classify/AiClassifier.h"
 
+#include <algorithm>
+
 #include "flow/common/AlgDataRecord.h"
 #include "flow/common/FlowTaskUtil.h"
 #include "service/detail/ServiceRegistry.h"
@@ -157,6 +159,8 @@ void AiClassifier::HandFramesEx(std::vector<AlgDataPtr> alg_datas) {
     }
 
     action_status = util::ErrorEnum::Success;
+    // Keep only this invocation's outputs: models may be reused by several nodes.
+    const auto before_classification = io_puts;
     if (!io_puts.empty()) {
         action_status = classifier_
                             ? classifier_->ClassifyMultSub(in_images, io_puts, target_have_mult_related, true,
@@ -168,7 +172,27 @@ void AiClassifier::HandFramesEx(std::vector<AlgDataPtr> alg_datas) {
         if (classify_result) {
             classify_result->observation_complete =
                 classify_result->observation_complete && action_status == util::ErrorEnum::Success;
-            for (const auto& el : io_puts[out]) {
+            for (size_t target_index = 0; target_index < io_puts[out].size(); ++target_index) {
+                auto& el              = io_puts[out][target_index];
+                auto& observation     = el.classificationObservations[GetFlowActionId()];
+                observation.modelCode = alg_code_;
+                observation.failed    = action_status != util::ErrorEnum::Success;
+                observation.results.clear();
+                // MultSub may prepend its output; compare source-tagged multisets
+                // instead of assuming the insertion position.
+                auto previous = before_classification[out][target_index].classifyRst;
+                if (!observation.failed) {
+                    for (const auto& value : el.classifyRst) {
+                        auto old = std::find_if(previous.begin(), previous.end(), [&](const auto& item) {
+                            return item.atomic_code == value.atomic_code && item.label == value.label &&
+                                   item.confidence == value.confidence;
+                        });
+                        if (old != previous.end())
+                            previous.erase(old);
+                        else if (value.atomic_code == alg_code_)
+                            observation.results.push_back(value);
+                    }
+                }
                 classify_result->targets.push_back(el);
             }
         }

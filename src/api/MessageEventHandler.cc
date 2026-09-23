@@ -11,6 +11,32 @@
 #include "util/TimeUtil.h"
 
 namespace cosmo {
+namespace {
+    bool ValidAttributeQuery(const MsgConditionEvent& query) {
+        if (query.channelIds.size() > 128 || query.attributeFilters.size() > 32 ||
+            query.attributeSchemaId.size() > 64)
+            return false;
+        const bool attributes = query.includeAttributeSummary || !query.attributeFilters.empty() ||
+                                !query.attributeSchemaId.empty() ||
+                                query.categorys == std::vector<std::string>{"12"};
+        if (!attributes)
+            return true;
+        if (query.algorithmCodes.size() != 1 || query.categorys != std::vector<std::string>{"12"} ||
+            query.timeBegin < 0 || query.timeEnd <= query.timeBegin || query.pageNum < 1 ||
+            query.pageSize < 0 || query.pageSize > 1000)
+            return false;
+        if (!query.attributeFilters.empty() && query.attributeSchemaId.empty())
+            return false;
+        for (const auto& filter : query.attributeFilters) {
+            if (filter.key.empty() || filter.key.size() > 64 || filter.value.size() > 128 ||
+                (filter.value.empty() && filter.status.empty()) ||
+                (!filter.status.empty() && filter.status != "valid" && filter.status != "unknown" &&
+                 filter.status != "failed"))
+                return false;
+        }
+        return true;
+    }
+}  // namespace
 
 // ── Constructor ─────────────────────────────────────────────────────
 
@@ -21,10 +47,15 @@ MessageEventHandler::MessageEventHandler(service::IAlarmRecordService& alarm_ser
 
 // ── Event Page Query ────────────────────────────────────────────────
 
-Event::MsgPageSend MessageEventHandler::Handle(Event::MsgPageRecv&& data,
-                                               std::error_condition& /*errc*/) const {
+Event::MsgPageSend MessageEventHandler::Handle(Event::MsgPageRecv&& data, std::error_condition& errc) const {
     Event::MsgPageSend retData{};
+    if (!ValidAttributeQuery(data)) {
+        errc = util::ErrorEnum::InvalidParam;
+        return retData;
+    }
     retData.resData.rows = alarm_service_.QueryEvents(data, retData.resData.total);
+    if (data.includeAttributeSummary)
+        retData.resData.attributeSummary = alarm_service_.QueryAttributeSummary(data);
     for (auto& event : retData.resData.rows) {
         event.algorithmName = algorithm_query_.GetAlgorithmName(event.algorithmCode);
     }
@@ -35,6 +66,10 @@ Event::MsgPageSend MessageEventHandler::Handle(Event::MsgPageRecv&& data,
 
 Event::MsgExportAlarmSend MessageEventHandler::Handle(Event::MsgExportAlarmRecv&& data,
                                                       std::error_condition& errc) const {
+    if (!ValidAttributeQuery(data)) {
+        errc = util::ErrorEnum::InvalidParam;
+        return {};
+    }
     // Determine export type from request category.
     ExportType export_type = ExportType::Behavior;
     if (!data.categorys.empty()) {

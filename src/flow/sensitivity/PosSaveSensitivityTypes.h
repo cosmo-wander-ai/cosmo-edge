@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "flow/sensitivity/AttributeAccumulator.h"
 #include "flow/sensitivity/PosSaveSensitivity.h"
 #include "flow/sensitivity/PositiveTrackEvidence.h"
 #include "util/dto/ServerMsgTypes.h"
@@ -26,6 +27,8 @@ struct cosmo::PosSaveSensitivity::TrackIdData {
     };
 
     unsigned track_id{0};
+    AttributeAccumulator attributes;
+    AttributeRecord attribute_record;
     std::string track_id_uuid;
     bool is_track_exist{false};  // Aging flag, target still exists. Set true immediately for new targets,
                                  // false when disappearing. Ages when false.
