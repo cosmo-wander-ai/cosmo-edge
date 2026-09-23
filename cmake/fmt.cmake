@@ -1,7 +1,11 @@
 set(FMT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rd/fmt-7.1.2)
 set(FMT_INSTALL_DIR ${THIRDPARTY_INSTALL_PREFIX}/fmt)
 set(FMT_HEADERS ${FMT_INSTALL_DIR}/include)
-set(FMT_LIB ${FMT_INSTALL_DIR}/lib/libfmt.so)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(FMT_LIB ${FMT_INSTALL_DIR}/lib/libfmtd.so)
+else()
+    set(FMT_LIB ${FMT_INSTALL_DIR}/lib/libfmt.so)
+endif()
 
 ExternalProject_Add(
     fmt_external
