@@ -19,7 +19,10 @@ namespace cosmo {
 
 class StreamViewer {
 public:
-    StreamViewer(AlgChannelPtr channelInst, const std::string& channelId, const std::string& algId);
+    /// force_encode_raw selects current decoded frames for a raw preview whose
+    /// passthrough publisher could not receive a fresh keyframe in time.
+    StreamViewer(AlgChannelPtr channelInst, const std::string& channelId, const std::string& algId,
+                 bool force_encode_raw = false);
     ~StreamViewer();
 
     StreamViewer(const StreamViewer&)            = delete;
@@ -118,6 +121,7 @@ private:
     // YUV data
     AsyncQueue<VideoFramePtr> async_frame_queue_;
 
+    std::mutex stop_mtx_;
     std::atomic<bool> stopped_{false};
     std::atomic<bool> preview_ready_{false};
     bool packet_queue_attached_{false};

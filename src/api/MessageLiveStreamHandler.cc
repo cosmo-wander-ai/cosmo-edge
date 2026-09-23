@@ -14,22 +14,24 @@ MessageLiveStreamHandler::MessageLiveStreamHandler(service::ILiveStreamService& 
 LiveStream::MsgRequestLiveStreamSend MessageLiveStreamHandler::Handle(
     LiveStream::MsgRequestLiveStreamRecv&& data, std::error_condition& errc) {
     LiveStream::MsgRequestLiveStreamSend retData{};
-    errc = live_stream_service_.ViewerCreate(data.channelId, data.algorithmId, retData.resData.stream);
+    errc = live_stream_service_.ViewerCreate(data.channelId, data.algorithmId, data.previewSessionId,
+                                             retData.resData.stream);
     return retData;
 }
 
 LiveStream::MsgStreamKeepAliveSend MessageLiveStreamHandler::Handle(LiveStream::MsgStreamKeepAliveRecv&& data,
                                                                     std::error_condition& errc) {
     LiveStream::MsgStreamKeepAliveSend retData{};
-    errc = live_stream_service_.ViewerHeartBeat(data.channelId, data.algorithmId);
+    errc = live_stream_service_.ViewerHeartBeat(data.channelId, data.algorithmId, data.previewSessionId);
     return retData;
 }
 
 LiveStream::MsgStreamStopSend MessageLiveStreamHandler::Handle(LiveStream::MsgStreamStopRecv&& data,
                                                                std::error_condition& errc) {
     LiveStream::MsgStreamStopSend retData{};
-    errc = live_stream_service_.ViewerDelete(data.channelId, data.algorithmId) ? util::ErrorEnum::Success
-                                                                               : util::ErrorEnum::Failed;
+    errc = live_stream_service_.ViewerDelete(data.channelId, data.algorithmId, data.previewSessionId)
+               ? util::ErrorEnum::Success
+               : util::ErrorEnum::Failed;
 
     return retData;
 }

@@ -264,7 +264,6 @@ bool AlgChannelDemux::IsLiveStream() const {
 void AlgChannelDemux::ClearLastFrame() {
     std::lock_guard<std::shared_mutex> lock(demux_mtx_);
     last_frame_.reset();
-    last_key_frame_.reset();
 }
 
 }  // namespace cosmo

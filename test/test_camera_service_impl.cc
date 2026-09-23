@@ -13,6 +13,7 @@
 #include <condition_variable>
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <thread>
 #include <vector>
 
@@ -31,6 +32,19 @@ namespace cosmo::service {
 struct CameraServiceTestAccess {
     static void SetChannelStopGraceMs(CameraServiceImpl& service, uint64_t grace_ms) {
         service.channel_stop_grace_ms_.store(grace_ms, std::memory_order_release);
+    }
+
+    static CameraEntityPtr GetCamera(CameraServiceImpl& service, const std::string& id) {
+        return service.GetCamera(id);
+    }
+
+    static void UpdateChannelState(CameraServiceImpl& service, const CameraEntityPtr& camera) {
+        service.UpdateChannelState(camera);
+    }
+
+    static bool TimerDetached(CameraServiceImpl& service) {
+        std::lock_guard<std::mutex> lock(service.timer_mtx_);
+        return service.stopping_.load(std::memory_order_acquire) && !service.timer_;
     }
 };
 
@@ -267,6 +281,98 @@ TEST_CASE("CameraServiceImpl: preview acquired during stop grace keeps channel a
     REQUIRE(channel_running.load());
 
     REQUIRE_NOTHROW(svc.Stop());
+    std::filesystem::remove_all(test_base);
+}
+
+TEST_CASE("CameraServiceImpl: shutdown closes timer admission for an existing switch worker",
+          "[CameraService][preview][concurrency][shutdown]") {
+    const auto test_base = "/tmp/cosmo_camera_timer_shutdown_" +
+                           std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+    std::filesystem::create_directories(test_base);
+    cosmo::test::ScopedPathOverride path_override(test_base, test_base);
+    CameraServiceDependencies mocks;
+    CameraServiceImpl svc;
+
+    MsgCameraInfo config;
+    config.videoChannelId = "timer-shutdown-camera";
+    config.url            = "rtsp://127.0.0.1:1/test";
+    config.channelType    = MsgCameraType::MsgCameraTypeLive;
+    std::string id;
+    REQUIRE(svc.Add(config, id) == cosmo::util::ErrorEnum::Success);
+    const auto camera = CameraServiceTestAccess::GetCamera(svc, id);
+    REQUIRE(camera);
+
+    const auto exercise = [&](bool pause_in_state_query) {
+        std::promise<void> worker_paused;
+        auto paused = worker_paused.get_future();
+        std::promise<void> resume_worker;
+        auto resume = resume_worker.get_future().share();
+        std::atomic<int> state_queries{0};
+        ALLOW_CALL(mocks.taskSvc, TaskIsStart("timer-shutdown-camera-ChannelTask"))
+            .LR_SIDE_EFFECT({
+                state_queries.fetch_add(1);
+                if (pause_in_state_query) {
+                    worker_paused.set_value();
+                    resume.wait();
+                }
+            })
+            .RETURN(true);
+        REQUIRE_CALL(mocks.taskSvc, TaskStop("timer-shutdown-camera-ChannelTask")).RETURN(true);
+        REQUIRE_CALL(mocks.taskSvc, TaskDelete("timer-shutdown-camera-ChannelTask"))
+            .RETURN(cosmo::util::ErrorEnum::Success);
+
+        // Exercise the actual final channel-state update of an already-admitted
+        // switch worker. No model is needed to hold it at the shutdown boundary.
+        camera->switch_thread_ = std::thread([&]() {
+            if (!pause_in_state_query) {
+                worker_paused.set_value();
+                resume.wait();
+            }
+            CameraServiceTestAccess::UpdateChannelState(svc, camera);
+        });
+        const bool worker_reached_barrier =
+            paused.wait_for(std::chrono::seconds(5)) == std::future_status::ready;
+        bool shutdown_reached_barrier = false;
+        std::thread stopper;
+        if (worker_reached_barrier) {
+            stopper             = std::thread([&]() { svc.Stop(); });
+            const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+            do {
+                shutdown_reached_barrier = CameraServiceTestAccess::TimerDetached(svc);
+                if (shutdown_reached_barrier && !pause_in_state_query) {
+                    // This proves Stop has drained the timer and reached the
+                    // per-camera teardown/join before allowing the worker on.
+                    std::lock_guard<std::mutex> lock(camera->command_mtx_);
+                    shutdown_reached_barrier = camera->deleting_;
+                }
+                if (shutdown_reached_barrier) {
+                    break;
+                }
+                std::this_thread::yield();
+            } while (std::chrono::steady_clock::now() < deadline);
+        }
+
+        // Always release and join before assertions, including a timeout path.
+        resume_worker.set_value();
+        if (stopper.joinable()) {
+            stopper.join();
+        } else {
+            camera->WaitForSwitchThread();
+            svc.Stop();
+        }
+        REQUIRE(worker_reached_barrier);
+        REQUIRE(shutdown_reached_barrier);
+        CHECK(state_queries.load() == (pause_in_state_query ? 1 : 0));
+        CHECK(camera->channel_stop_grace_id_ == kInvalidTaskId);
+        CHECK_FALSE(camera->switch_thread_.joinable());
+    };
+
+    SECTION("worker resumes its channel update after timer destruction") {
+        exercise(false);
+    }
+    SECTION("shutdown detaches the timer after the update has checked task state") {
+        exercise(true);
+    }
     std::filesystem::remove_all(test_base);
 }
 

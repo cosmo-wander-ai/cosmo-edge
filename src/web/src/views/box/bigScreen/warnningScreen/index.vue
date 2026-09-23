@@ -79,10 +79,10 @@
                   <i class="el-icon-search el-input__icon"></i>
                 </template>
               </el-input>
-              <div class="tree-body">
+              <div class="tree-body" :aria-busy="cameraListLoading">
                 <el-tree id="onboarding-camera-tree" ref="tree" class="filter-tree" :data="camearList" :highlight-current="true" node-key="id" default-expand-all :filter-node-method="filterNode">
                   <template #default="{ node, data }">
-                    <div class="custom-tree-node" :class="{'padding-left-18': nodeLabel(data) !== t('common.all')}" @dblclick="handleCameraNodeClick(data)">
+                    <div class="custom-tree-node" :class="{'padding-left-18': nodeLabel(data) !== t('common.all')}" :aria-disabled="!cameraListReady" @dblclick="handleCameraNodeClick(data)">
                       <div v-if="data.channelType == 0 && data.status == 0" class="stnode">
                         <img src="@/assets/close-circle.png" />
                         <span>{{ node.label }}</span>
@@ -104,7 +104,9 @@
             <img src="@/assets/screen-camera.png" :class="{ 'expanded': cameraDrawerVisible }">
             <div class="el-icon-d-arrow-right" :class="{ 'expanded': cameraDrawerVisible }"></div>
           </div>
-          <div class="el-icon-refresh" v-if="cameraDrawerVisible" @click="initCameraList"></div>
+          <button class="camera-refresh" v-if="cameraDrawerVisible" type="button" :aria-label="t('action.refresh')" :disabled="cameraListLoading" @click="initCameraList">
+            <el-icon><Refresh /></el-icon>
+          </button>
         </div>
 
         <!-- 摄像机播放窗口 -->
@@ -252,7 +254,7 @@
 <script setup>
 import { ref, watch, onMounted, onBeforeUnmount, getCurrentInstance } from 'vue'
 import beepOgg from '@/assets/beep.ogg'
-import { Search } from '@element-plus/icons-vue'
+import { Refresh, Search } from '@element-plus/icons-vue'
 import flv from '../components/flvVideo.vue'
 import DetailDialog from '../components/detailDialog.vue'
 import CaptureDialog from '../components/captureDialog.vue'
@@ -285,6 +287,10 @@ const recordDrawerVisible = ref(true)
 const settingDialogVisible = ref(false)
 const cameraFilterText = ref('')
 const camearList = ref([])
+const cameraListLoading = ref(false)
+const cameraListReady = ref(false)
+let cameraListRequestGeneration = 0
+let cameraLayoutRestored = false
 const playedCameraList = ref(Array(4).fill({
   id: '',
   name: '',
@@ -473,6 +479,7 @@ const exitFullScreen = async () => {
 
 const toggleCameraDrawer = () => {
   cameraDrawerVisible.value = !cameraDrawerVisible.value
+  if (cameraDrawerVisible.value) void initCameraList()
 }
 
 // 点击通道列表以外的区域时自动收起
@@ -536,6 +543,7 @@ const getDefaultOverlayAlgorithmId = (taskList) => {
 }
 
 const handleCameraNodeClick = (node) => {
+  if (!cameraListReady.value || cameraListLoading.value) return
   if (node.labelI18nKey === 'common.all' || node.label === '全部') return
   if (node.channelType == 0 && node.status == 0)
     return proxy.$message.error(t('event.cameraOffline'))
@@ -580,28 +588,15 @@ const filterNode = (value, data) => {
   return data.label.indexOf(value) !== -1
 }
 
-const initCameraList = () => {
-  const screenStatusObj = localStorage.getItem('screenStatus')
-  const screenStatus = JSON.parse(screenStatusObj)
-  if (screenStatus) {
-    screenType.value = screenStatus.screenType
-    currentSelectedIndex.value = screenStatus?.currentSelectedIndex || 0
-  }
-
-  console.log(
-    screenType.value,
-    '====this.screenType====',
-    currentSelectedIndex.value
-  )
-
-  const params = {
-    pageNum: 1,
-    pageSize: 1000
-  }
-  $API.boxQueryCameraList(params).then((res) => {
+const initCameraList = async () => {
+  const generation = ++cameraListRequestGeneration
+  cameraListLoading.value = true
+  cameraListReady.value = false
+  try {
+    const res = await $API.boxQueryCameraList({ pageNum: 1, pageSize: 1000 })
+    if (isDestroyed.value || generation !== cameraListRequestGeneration) return
     const { resData } = res
-    let childCameras = []
-    childCameras = resData.rows.map((item) => {
+    const childCameras = resData.rows.map((item) => {
       const {
         videoChannelId,
         channelName,
@@ -614,7 +609,7 @@ const initCameraList = () => {
         label: channelName,
         status: channelStatus,
         channelType: channelType,
-        taskList: taskList
+        taskList: taskList || []
       }
     })
     camearList.value = [
@@ -624,9 +619,29 @@ const initCameraList = () => {
         children: childCameras
       }
     ]
-    console.log(camearList.value, '===========')
-    initPlayedCamera(childCameras)
-  })
+    if (!cameraLayoutRestored) {
+      cameraLayoutRestored = true
+      initPlayedCamera(childCameras)
+    } else {
+      // Refresh metadata without replaying the saved layout or a deep link.
+      // Enabling a task makes it selectable again, but preserves a raw choice.
+      playedCameraList.value = playedCameraList.value.map((camera) => {
+        if (!camera.id) return camera
+        const latest = childCameras.find(item => item.id === camera.id)
+        if (!latest) return { id: '', name: '', taskList: [], runAlgorithmId: '' }
+        const selectedEnabled = latest.taskList.some(task => task.enableStatus == 1 &&
+          String(task.algorithmId) === String(camera.runAlgorithmId))
+        return { ...camera, name: latest.label, taskList: latest.taskList,
+          runAlgorithmId: selectedEnabled ? camera.runAlgorithmId : '' }
+      })
+    }
+    cameraListReady.value = true
+  } catch {
+    // The API interceptor displays the error. Keep stale nodes unselectable
+    // until another drawer opening or the visible refresh button succeeds.
+  } finally {
+    if (generation === cameraListRequestGeneration) cameraListLoading.value = false
+  }
 }
 
 // 恢复本地预览布局，但停用或已删除的算法只恢复为原始流。
@@ -644,6 +659,8 @@ const initPlayedCamera = (childCameras) => {
           runAlgorithmId: ''
         }
       } else {
+        localPlayedCameraList[index].name = resultCamear.label
+        localPlayedCameraList[index].taskList = resultCamear.taskList || []
         const resultAlgorithm = _.find(
           resultCamear.taskList,
           (task) => task.enableStatus == 1 &&
@@ -697,6 +714,24 @@ const initPlayedCamera = (childCameras) => {
 }
 
 const handleRunAlgorithmIdChange = (obj) => {
+  if (obj.retiredAlgorithmId) {
+    // A query sent before this task-stop notification may still report ON.
+    // Do not let its delayed response restore a retired algorithm in the menu.
+    ++cameraListRequestGeneration
+    cameraListLoading.value = false
+    cameraListReady.value = false
+    const updateTasks = (camera) => {
+      if (camera.id !== obj.channelId) return camera
+      return { ...camera, taskList: (camera.taskList || []).map(task =>
+        String(task.algorithmId) === String(obj.retiredAlgorithmId)
+          ? { ...task, enableStatus: 0 } : task) }
+    }
+    playedCameraList.value = playedCameraList.value.map(updateTasks)
+    camearList.value = camearList.value.map(group => ({
+      ...group, children: (group.children || []).map(updateTasks)
+    }))
+    if (cameraDrawerVisible.value) void initCameraList()
+  }
   playedCameraList.value[obj.index] = {
     ...playedCameraList.value[obj.index],
     id: obj.channelId,
@@ -936,6 +971,11 @@ const checkPropertyKey = (data, key) => {
 onMounted(() => {
   EventBus.$emit('changeScreen', true)
   queryPopUpParam()
+  const screenStatus = JSON.parse(localStorage.getItem('screenStatus'))
+  if (screenStatus) {
+    screenType.value = screenStatus.screenType
+    currentSelectedIndex.value = screenStatus.currentSelectedIndex || 0
+  }
   initCameraList()
   queryWarnRecord()
   getAlgorithmInfo()
@@ -1409,13 +1449,27 @@ onBeforeUnmount(() => {
     }
   }
 
-  .el-icon-refresh {
+  .camera-refresh {
     position: absolute;
-    top: 15px;
-    left: 40%;
-    // transform: translate(-50%, -50%);
+    top: 10px;
+    right: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
     color: white;
+    font-size: 18px;
     cursor: pointer;
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: wait;
+    }
   }
 }
 

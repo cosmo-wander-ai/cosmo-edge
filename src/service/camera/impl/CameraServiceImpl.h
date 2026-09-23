@@ -235,6 +235,10 @@ private:
     size_t max_camera_count_{32};
     size_t channel_code_num_{0};
     std::vector<CameraEntityPtr> cameras_;
+    // Protect timer ownership and Schedule/Cancel admission. Camera callers
+    // take channel_state_mtx_ before this lock; never join a callback/worker
+    // while holding it because callbacks also update camera state.
+    std::mutex timer_mtx_;
     std::unique_ptr<PeriodicTimer> timer_;
     TaskId task_monitor_task_id_{kInvalidTaskId};
     TaskId mem_gc_task_id_{kInvalidTaskId};

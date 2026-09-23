@@ -51,6 +51,9 @@ void StreamViewer::MarkReady(std::chrono::nanoseconds first_frame_latency) {
 }
 
 void StreamViewer::Stop() {
+    // Callers that retire/recreate the same stream must wait until the previous
+    // callback queues and publisher have actually been released.
+    std::lock_guard<std::mutex> stop_lock(stop_mtx_);
     if (stopped_.exchange(true)) {
         return;
     }
@@ -72,6 +75,13 @@ void StreamViewer::Stop() {
         frame_queue_attached_ = false;
     }
 
+    // AsyncQueue::Stop drains the current callback but does not join its worker.
+    // Complete that join before declaring the stream fully retired.
+    if (async_packet_queue_) {
+        async_packet_queue_->stop();
+    }
+    async_frame_queue_.stop();
+
     overviewer_.reset();
     encoder_.reset();
     if (video_pusher_) {
@@ -83,7 +93,8 @@ void StreamViewer::Stop() {
     LOG_INFO("{}/{} viewer stopped: publisher released", channel_id_, alg_id_);
 }
 
-StreamViewer::StreamViewer(AlgChannelPtr channelInst, const std::string& channelId, const std::string& algId)
+StreamViewer::StreamViewer(AlgChannelPtr channelInst, const std::string& channelId, const std::string& algId,
+                           bool force_encode_raw)
     : channel_id_(channelId),
       alg_id_(algId),
       channel_inst_(channelInst),
@@ -120,7 +131,7 @@ StreamViewer::StreamViewer(AlgChannelPtr channelInst, const std::string& channel
     LOG_INFO("{}/{} RTMP push URL prepared", channel_id_, alg_id_);
 
     out_fps_ctl_.ChangeFps(attr.fps, ctrl_fps_);
-    const bool shouldEncodeForPreview = !((algId.empty()) && (attr.codec == "H264"));
+    const bool shouldEncodeForPreview = force_encode_raw || !((algId.empty()) && (attr.codec == "H264"));
     // The RTMP pusher receives either raw H264 packets or H264 output from StreamViewerEncoder.
     const auto pushCodecType = media::VideoCodecType::kH264;
 
@@ -162,11 +173,11 @@ StreamViewer::StreamViewer(AlgChannelPtr channelInst, const std::string& channel
 
     // Channel preview, no overlay
     if (algId.empty()) {
-        if (attr.codec == "H264") {
+        if (!shouldEncodeForPreview) {
             data_packet_ = true;
             channelInst->AddViewerPacketQueue(async_packet_queue_);
             packet_queue_attached_ = true;
-        } else {
+        } else if (EncoderReady()) {
 #ifdef COSMO_MEDIA_USE_ROCKCHIP_BACKEND
             channelInst->AddViewerFrameQueue(alg_id_, async_frame_queue_,
                                              [this]() { return PrepareFrameForDecode(); });
@@ -174,6 +185,8 @@ StreamViewer::StreamViewer(AlgChannelPtr channelInst, const std::string& channel
             channelInst->AddViewerFrameQueue(alg_id_, async_frame_queue_);
 #endif
             frame_queue_attached_ = true;
+        } else {
+            LOG_WARN("{}/{} raw preview encoder unavailable", channel_id_, alg_id_);
         }
     } else  // Task preview, overlay
     {

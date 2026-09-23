@@ -105,12 +105,27 @@ namespace {
             channel_id);
     }
 
+    cosmo::util::ErrorEnum PreviewTaskState(const std::string& channel_id, const std::string& algorithm_id) {
+        if (algorithm_id.empty()) {
+            return cosmo::util::ErrorEnum::Success;
+        }
+        const auto tasks = ServiceRegistry::Instance().Get<ICameraTaskConfig>().GetTasks(channel_id);
+        const auto task  = std::find_if(tasks.begin(), tasks.end(), [&](const auto& entry) {
+            return entry.algorithmCode == algorithm_id;
+        });
+        if (task == tasks.end()) {
+            return cosmo::util::ErrorEnum::TaskNotExist;
+        }
+        return task->enable ? cosmo::util::ErrorEnum::Success : cosmo::util::ErrorEnum::ActionStop;
+    }
+
     std::string BuildStreamName(const std::string& channelId, const std::string& algCode) {
         return algCode.empty() ? channelId : COSMO_FORMAT("{}_{}", channelId, algCode);
     }
 
     void PopulateStreamInfo(LiveStream::LiveStreamInfo& info, const std::string& channelId,
-                            const std::string& algCode) {
+                            const std::string& algCode, const std::string& previewSessionId) {
+        info.previewSessionId        = previewSessionId;
         const std::string streamName = BuildStreamName(channelId, algCode);
         const std::string playMode   = util::GetEnvOrDefault("COSMO_STREAM_PLAY_MODE", "srs");
 
@@ -173,6 +188,7 @@ void LiveStreamServiceImpl::Stop() {
     {
         std::unique_lock<std::shared_mutex> lock(mtx_);
         viewers_to_stop.swap(viewers_);
+        viewer_session_ids_.clear();
         for (auto& [key, gate] : starting_viewers_) {
             (void)key;
             gate->cancelled = true;
@@ -228,130 +244,166 @@ void LiveStreamServiceImpl::HeartBeatWatchdog() {
 cosmo::util::ErrorEnum LiveStreamServiceImpl::ViewerCreate(const std::string& channelId,
                                                            const std::string& algCode,
                                                            LiveStream::LiveStreamInfo& streamInfo) {
+    return ViewerCreate(channelId, algCode, {}, streamInfo);
+}
+
+cosmo::util::ErrorEnum LiveStreamServiceImpl::ViewerCreate(const std::string& channelId,
+                                                           const std::string& algCode,
+                                                           const std::string& previewSessionId,
+                                                           LiveStream::LiveStreamInfo& streamInfo) {
     std::shared_lock<std::shared_mutex> lifecycle_lock(lifecycle_mtx_);
     if (stopping_.load(std::memory_order_acquire)) {
         return cosmo::util::ErrorEnum::SysErr;
     }
+    if (previewSessionId.size() > 128) {
+        return cosmo::util::ErrorEnum::InvalidParam;
+    }
     const auto request_started_at = std::chrono::steady_clock::now();
-    auto channel_inst =
-        service::ServiceRegistry::Instance().Get<service::ICameraChannelQuery>().GetChannelInst(channelId);
+    auto channel_inst = ServiceRegistry::Instance().Get<ICameraChannelQuery>().GetChannelInst(channelId);
     if (!channel_inst) {
         return cosmo::util::ErrorEnum::CameraNotExist;
     }
-    auto& camera_task_config = service::ServiceRegistry::Instance().Get<service::ICameraTaskConfig>();
-    if (!algCode.empty()) {
-        const auto tasks   = camera_task_config.GetTasks(channelId);
-        const auto task_it = std::find_if(tasks.begin(), tasks.end(),
-                                          [&](const auto& task) { return task.algorithmCode == algCode; });
-        if (task_it == tasks.end()) {
-            LOG_WARN("viewer rejected: stream={}/{} task=absent", channelId, algCode);
-            return cosmo::util::ErrorEnum::TaskNotExist;
-        }
-        if (!task_it->enable) {
-            LOG_WARN("viewer rejected: stream={}/{} task=stopped", channelId, algCode);
-            return cosmo::util::ErrorEnum::ActionStop;
-        }
+    auto task_state = PreviewTaskState(channelId, algCode);
+    if (task_state != cosmo::util::ErrorEnum::Success) {
+        return task_state;
     }
-
+    auto& camera_task_config = ServiceRegistry::Instance().Get<ICameraTaskConfig>();
     const auto ready_timeout = StreamReadyTimeout(algCode);
     PreviewChannelLease channel_lease(camera_task_config, channelId);
     const auto lease_result = channel_lease.Acquire();
     if (lease_result != cosmo::util::ErrorEnum::Success) {
         return lease_result;
     }
-
-    cosmo::util::ErrorEnum channel_state = channel_inst->GetUrlStatus();
+    auto channel_state = channel_inst->GetUrlStatus();
     if (!WaitForChannelReady(channel_inst, ready_timeout, channel_state)) {
-        LOG_WARN("viewer channel startup failed: stream={}/{} state={}", channelId, algCode,
-                 cosmo::util::ErrorEnumName(channel_state));
         return cosmo::util::ErrorEnum::DemuxNoData;
     }
-
     cosmo::MsgCameraAttr attr;
     if (!channel_inst->GetAttr(attr)) {
         return cosmo::util::ErrorEnum::CameraNotOnline;
     }
-    if (cosmo::ChannelStatus::ChannelStatusOnline != attr.channelStatus) {
+    if (attr.channelStatus != cosmo::ChannelStatus::ChannelStatusOnline) {
         return cosmo::util::ErrorEnum::CameraNotOnline;
     }
 
-    const bool requires_encoder  = !(algCode.empty() && attr.codec == "H264");
+    const bool passthrough       = algCode.empty() && attr.codec == "H264";
+    const auto deadline          = std::chrono::steady_clock::now() + ready_timeout;
     const std::string viewer_key = BuildViewerKey(channelId, algCode);
-
     std::shared_ptr<ViewerStartGate> gate;
-    bool start_owner = false;
-    cosmo::StreamViewerPtr failed_viewer;
+    bool start_owner       = false;
+    bool participant_added = false;
     {
-        // The ready viewer and the startup reservation are checked under one
-        // lock. Exactly one request owns publisher construction for a stream;
-        // concurrent requests share its result instead of opening duplicate
-        // RTMP publishers.
         std::unique_lock<std::shared_mutex> lock(mtx_);
-        auto ready_it = FindViewer(channelId, algCode);
-        if (ready_it != viewers_.end()) {
-            if ((*ready_it)->IsPublishReady()) {
-                (*ready_it)->UpViewerNum();
-                LOG_INFO("viewer reuse: stream={}/{} viewers={} publisher=ready", channelId, algCode,
-                         (*ready_it)->GetViewerNum());
-                PopulateStreamInfo(streamInfo, channelId, algCode);
-                return cosmo::util::ErrorEnum::Success;
+        for (;;) {
+            // Keep this key reserved until the old publisher has fully detached
+            // its queues. Other keys remain available while Stop() joins workers.
+            auto retiring = retiring_viewers_.find(viewer_key);
+            if (retiring != retiring_viewers_.end()) {
+                auto barrier = retiring->second;
+                if (!barrier->cv.wait_until(lock, deadline, [&] { return barrier->finished; })) {
+                    return cosmo::util::ErrorEnum::LiveStreamReadyTimeout;
+                }
+                continue;
             }
-            failed_viewer = *ready_it;
-            viewers_.erase(ready_it);
-            LOG_WARN("viewer reuse rejected: stream={}/{} publisher=failed detail={} release=pending",
-                     channelId, algCode, failed_viewer->LastPublishError());
-        }
-
-        auto starting_it = starting_viewers_.find(viewer_key);
-        if (starting_it != starting_viewers_.end()) {
-            gate = starting_it->second;
-            gate->participants += 1;
-            LOG_INFO("viewer join startup: stream={}/{} waiters={}", channelId, algCode, gate->participants);
-        } else {
-            if (requires_encoder) {
-                const int encoder_count = ViewerEncoderCountLocked();
-                if (encoder_count >= view_counts_.load()) {
-                    LOG_WARN("viewer rejected: stream={}/{} encoder_limit={} active_or_starting={}",
-                             channelId, algCode, view_counts_.load(), encoder_count);
+            auto ready = FindViewer(channelId, algCode);
+            if (ready != viewers_.end()) {
+                const auto observed = *ready;
+                lock.unlock();
+                task_state = PreviewTaskState(channelId, algCode);
+                lock.lock();
+                ready = FindViewer(channelId, algCode);
+                if (ready == viewers_.end() || *ready != observed) {
+                    continue;
+                }
+                if (task_state != cosmo::util::ErrorEnum::Success) {
+                    auto retirement = BeginRetirementLocked(viewer_key, observed);
+                    lock.unlock();
+                    FinishRetirement(viewer_key, retirement);
+                    return task_state;
+                }
+                if ((*ready)->IsPublishReady()) {
+                    auto& sessions = viewer_session_ids_[viewer_key];
+                    if (previewSessionId.empty()) {
+                        (*ready)->UpViewerNum();
+                    } else {
+                        auto [session, added] =
+                            sessions.try_emplace(previewSessionId, std::chrono::steady_clock::now());
+                        session->second = std::chrono::steady_clock::now();
+                        if (added) {
+                            (*ready)->UpViewerNum();
+                        }
+                    }
+                    // A successful acquisition is fresh activity too. Do not
+                    // let the previous client's failure count retire this lease
+                    // before its first scheduled heartbeat arrives.
+                    (*ready)->HeartBeat();
+                    PopulateStreamInfo(streamInfo, channelId, algCode, previewSessionId);
+                    return cosmo::util::ErrorEnum::Success;
+                }
+                auto retirement = BeginRetirementLocked(viewer_key, *ready);
+                lock.unlock();
+                FinishRetirement(viewer_key, retirement);
+                lock.lock();
+                continue;
+            }
+            auto starting = starting_viewers_.find(viewer_key);
+            if (starting != starting_viewers_.end()) {
+                gate = starting->second;
+                if (gate->cancelled) {
+                    if (!gate->cv.wait_until(lock, deadline, [&] { return gate->finished; })) {
+                        return cosmo::util::ErrorEnum::LiveStreamReadyTimeout;
+                    }
+                    continue;
+                }
+                participant_added =
+                    previewSessionId.empty() || gate->session_ids.insert(previewSessionId).second;
+                if (participant_added) {
+                    ++gate->participants;
+                }
+            } else {
+                if (!passthrough && ViewerEncoderCountLocked() >= view_counts_.load()) {
                     return cosmo::util::ErrorEnum::EncodeFailed;
                 }
+                gate               = std::make_shared<ViewerStartGate>();
+                gate->participants = 1;
+                if (!previewSessionId.empty()) {
+                    gate->session_ids.insert(previewSessionId);
+                }
+                participant_added            = true;
+                gate->channel_id             = channelId;
+                gate->algorithm_id           = algCode;
+                gate->requires_encoder       = !passthrough;
+                gate->channel_lease_acquired = true;
+                starting_viewers_.emplace(viewer_key, gate);
+                channel_lease.Commit();
+                start_owner = true;
             }
-            gate                         = std::make_shared<ViewerStartGate>();
-            gate->channel_id             = channelId;
-            gate->requires_encoder       = requires_encoder;
-            gate->channel_lease_acquired = true;
-            starting_viewers_.emplace(viewer_key, gate);
-            channel_lease.Commit();
-            start_owner = true;
-            LOG_INFO("viewer startup reserved: stream={}/{} encoder={}", channelId, algCode,
-                     requires_encoder);
+            break;
         }
     }
-    if (failed_viewer) {
-        StopViewerAndReleasePreview(failed_viewer);
-        LOG_INFO("viewer failed publisher released before restart: stream={}/{}", channelId, algCode);
-    }
-
     if (!start_owner) {
         std::unique_lock<std::shared_mutex> lock(mtx_);
-        if (!gate->cv.wait_for(lock, ready_timeout, [&gate] { return gate->finished; })) {
-            if (gate->participants > 1) {
-                gate->participants -= 1;
+        if (!gate->cv.wait_until(lock, deadline, [&] { return gate->finished; })) {
+            if (participant_added && gate->participants > 0 &&
+                (previewSessionId.empty() || gate->session_ids.erase(previewSessionId) != 0)) {
+                --gate->participants;
+                if (gate->participants == 0) {
+                    gate->cancelled = true;
+                }
             }
-            LOG_WARN("viewer startup wait timeout: stream={}/{} waiters_remaining={}", channelId, algCode,
-                     gate->participants);
             return cosmo::util::ErrorEnum::LiveStreamReadyTimeout;
         }
-        const auto result = gate->result;
+        const auto result = !previewSessionId.empty() && !gate->session_ids.count(previewSessionId)
+                                ? cosmo::util::ErrorEnum::LiveStreamStopped
+                                : gate->result;
         lock.unlock();
         if (result == cosmo::util::ErrorEnum::Success) {
-            PopulateStreamInfo(streamInfo, channelId, algCode);
+            PopulateStreamInfo(streamInfo, channelId, algCode, previewSessionId);
         }
         return result;
     }
 
-    auto finish_failure = [&](cosmo::util::ErrorEnum result, const std::string& stage,
-                              cosmo::StreamViewerPtr viewer) {
+    auto finish_failure = [&](cosmo::util::ErrorEnum result, cosmo::StreamViewerPtr viewer) {
         if (viewer) {
             viewer->Stop();
         }
@@ -373,61 +425,141 @@ cosmo::util::ErrorEnum LiveStreamServiceImpl::ViewerCreate(const std::string& ch
         }
         gate->cv.notify_all();
         cosmo::media::GetPreviewPipelineMetrics().PreviewFailed();
-        LOG_ERRO("viewer startup failed: stream={}/{} stage={} error={} publisher=released", channelId,
-                 algCode, stage, cosmo::util::ErrorEnumName(result));
+        LOG_WARN("viewer startup failed: stream={}/{} error={}", channelId, algCode,
+                 cosmo::util::ErrorEnumName(result));
     };
-
+    auto remaining = [&] {
+        return std::max(std::chrono::milliseconds::zero(),
+                        std::chrono::duration_cast<std::chrono::milliseconds>(
+                            deadline - std::chrono::steady_clock::now()));
+    };
     cosmo::StreamViewerPtr viewer;
     try {
-        viewer = std::make_shared<cosmo::StreamViewer>(channel_inst, channelId, algCode);
-    } catch (const cosmo::util::ErrorMessage& e) {
-        const auto result = static_cast<cosmo::util::ErrorEnum>(e.GetValue().value());
-        LOG_ERRO("viewer publisher construction failed: stream={}/{} detail={}", channelId, algCode,
-                 e.what());
-        finish_failure(result, "publisher-connect", nullptr);
-        return result;
-    } catch (const std::exception& e) {
-        LOG_ERRO("viewer construction failed: stream={}/{} detail={}", channelId, algCode, e.what());
-        finish_failure(cosmo::util::ErrorEnum::LiveStreamPublishFailed, "viewer-construct", nullptr);
-        return cosmo::util::ErrorEnum::LiveStreamPublishFailed;
-    }
-
-    {
-        std::unique_lock<std::shared_mutex> lock(mtx_);
-        gate->viewer = viewer;
-        if (gate->cancelled) {
-            lock.unlock();
-            finish_failure(cosmo::util::ErrorEnum::LiveStreamStopped, "cancelled", viewer);
-            return cosmo::util::ErrorEnum::LiveStreamStopped;
+        // Task state can change during channel startup or retirement of an old publisher.
+        task_state = PreviewTaskState(channelId, algCode);
+        if (task_state != cosmo::util::ErrorEnum::Success) {
+            finish_failure(task_state, nullptr);
+            return task_state;
         }
-    }
-
-    if (!viewer->WaitReady(ready_timeout)) {
         {
-            std::shared_lock<std::shared_mutex> lock(mtx_);
+            std::unique_lock<std::shared_mutex> lock(mtx_);
             if (gate->cancelled) {
+                const auto result = gate->cancel_result;
                 lock.unlock();
-                finish_failure(cosmo::util::ErrorEnum::LiveStreamStopped, "cancelled", viewer);
-                return cosmo::util::ErrorEnum::LiveStreamStopped;
+                finish_failure(result, nullptr);
+                return result;
             }
         }
-        const std::string publish_error = viewer->LastPublishError();
-        const auto result = publish_error.empty() ? cosmo::util::ErrorEnum::LiveStreamReadyTimeout
-                                                  : cosmo::util::ErrorEnum::LiveStreamPublishFailed;
-        if (!publish_error.empty()) {
-            LOG_ERRO("viewer publisher did not become ready: stream={}/{} detail={}", channelId, algCode,
-                     publish_error);
+        viewer = std::make_shared<cosmo::StreamViewer>(channel_inst, channelId, algCode);
+        {
+            std::unique_lock<std::shared_mutex> lock(mtx_);
+            gate->viewer = viewer;
+            if (gate->cancelled) {
+                const auto result = gate->cancel_result;
+                lock.unlock();
+                finish_failure(result, viewer);
+                return result;
+            }
         }
-        finish_failure(result, publish_error.empty() ? "first-frame-timeout" : "publisher-write", viewer);
+        // Give ordinary two-second GOPs time to supply their next IDR before
+        // spending an encoder. The publisher deadline still totals five seconds.
+        bool ready = viewer->WaitReady(passthrough ? std::min(remaining(), std::chrono::milliseconds(3000))
+                                                   : remaining());
+        if (!ready && passthrough && viewer->LastPublishError().empty()) {
+            bool encoder_available = false;
+            {
+                std::unique_lock<std::shared_mutex> lock(mtx_);
+                if (gate->cancelled) {
+                    const auto result = gate->cancel_result;
+                    lock.unlock();
+                    finish_failure(result, viewer);
+                    return result;
+                }
+                encoder_available = ViewerEncoderCountLocked() < view_counts_.load();
+                if (encoder_available) {
+                    gate->requires_encoder = true;
+                }
+            }
+            if (!encoder_available) {
+                LOG_INFO("raw preview waiting for IDR: channel={} encoder capacity unavailable", channelId);
+                // A normal GOP may still deliver its IDR within the original
+                // timeout. Lack of encoder capacity must not shorten that wait.
+                ready = viewer->WaitReady(remaining());
+                if (!ready && viewer->LastPublishError().empty()) {
+                    cosmo::util::ErrorEnum result;
+                    {
+                        std::shared_lock<std::shared_mutex> lock(mtx_);
+                        result = gate->cancelled ? gate->cancel_result : cosmo::util::ErrorEnum::EncodeFailed;
+                    }
+                    finish_failure(result, viewer);
+                    return result;
+                }
+            } else {
+                LOG_INFO("raw preview switching to fresh H264 encoder: channel={} remaining_ms={}", channelId,
+                         remaining().count());
+                // A long GOP cannot be shortened by replaying a stale I frame.
+                // Reserve capacity, fully detach the old publisher, and encode
+                // a fresh continuous decoded frame within the original budget.
+                viewer->Stop();
+                {
+                    std::unique_lock<std::shared_mutex> lock(mtx_);
+                    gate->viewer.reset();
+                    if (gate->cancelled || remaining() <= std::chrono::milliseconds::zero()) {
+                        const auto result = gate->cancelled ? gate->cancel_result
+                                                            : cosmo::util::ErrorEnum::LiveStreamReadyTimeout;
+                        lock.unlock();
+                        finish_failure(result, viewer);
+                        return result;
+                    }
+                }
+                viewer = std::make_shared<cosmo::StreamViewer>(channel_inst, channelId, algCode, true);
+                {
+                    std::unique_lock<std::shared_mutex> lock(mtx_);
+                    gate->viewer = viewer;
+                    if (gate->cancelled) {
+                        const auto result = gate->cancel_result;
+                        lock.unlock();
+                        finish_failure(result, viewer);
+                        return result;
+                    }
+                }
+                ready = viewer->WaitReady(remaining());
+            }
+        }
+        if (!ready) {
+            cosmo::util::ErrorEnum result;
+            {
+                std::shared_lock<std::shared_mutex> lock(mtx_);
+                result = gate->cancelled ? gate->cancel_result
+                         : viewer->LastPublishError().empty()
+                             ? cosmo::util::ErrorEnum::LiveStreamReadyTimeout
+                             : cosmo::util::ErrorEnum::LiveStreamPublishFailed;
+            }
+            finish_failure(result, viewer);
+            return result;
+        }
+        task_state = PreviewTaskState(channelId, algCode);
+        if (task_state != cosmo::util::ErrorEnum::Success) {
+            finish_failure(task_state, viewer);
+            return task_state;
+        }
+    } catch (const cosmo::util::ErrorMessage& error) {
+        const auto result = static_cast<cosmo::util::ErrorEnum>(error.GetValue().value());
+        finish_failure(result, viewer);
         return result;
+    } catch (const std::exception& error) {
+        LOG_ERRO("viewer startup failed: stream={}/{} detail={}", channelId, algCode, error.what());
+        finish_failure(cosmo::util::ErrorEnum::LiveStreamPublishFailed, viewer);
+        return cosmo::util::ErrorEnum::LiveStreamPublishFailed;
     }
-
+    bool owner_active = true;
     {
         std::unique_lock<std::shared_mutex> lock(mtx_);
-        if (gate->cancelled) {
+        if (gate->cancelled || gate->participants == 0) {
+            const auto result = gate->cancel_result;
             lock.unlock();
-            finish_failure(cosmo::util::ErrorEnum::LiveStreamStopped, "cancelled-after-ready", viewer);
-            return cosmo::util::ErrorEnum::LiveStreamStopped;
+            finish_failure(result, viewer);
+            return result;
         }
         for (size_t i = 1; i < gate->participants; ++i) {
             viewer->UpViewerNum();
@@ -435,20 +567,25 @@ cosmo::util::ErrorEnum LiveStreamServiceImpl::ViewerCreate(const std::string& ch
         viewer->MarkReady(std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now() - request_started_at));
         viewers_.push_back(viewer);
-        gate->result                 = cosmo::util::ErrorEnum::Success;
-        gate->finished               = true;
+        auto& sessions = viewer_session_ids_[viewer_key];
+        const auto now = std::chrono::steady_clock::now();
+        for (const auto& id : gate->session_ids) {
+            sessions.emplace(id, now);
+        }
+        owner_active   = previewSessionId.empty() || gate->session_ids.count(previewSessionId) != 0;
+        gate->result   = cosmo::util::ErrorEnum::Success;
+        gate->finished = true;
         gate->channel_lease_acquired = false;
         gate->viewer.reset();
-        auto it = starting_viewers_.find(viewer_key);
-        if (it != starting_viewers_.end() && it->second == gate) {
-            starting_viewers_.erase(it);
-        }
-        LOG_INFO("viewer startup ready: stream={}/{} viewers={} publisher=ready", channelId, algCode,
-                 viewer->GetViewerNum());
+        starting_viewers_.erase(viewer_key);
+        LOG_INFO("viewer startup ready: stream={}/{} viewers={} encoded_raw={}", channelId, algCode,
+                 viewer->GetViewerNum(), passthrough && gate->requires_encoder);
     }
     gate->cv.notify_all();
-
-    PopulateStreamInfo(streamInfo, channelId, algCode);
+    if (!owner_active) {
+        return cosmo::util::ErrorEnum::LiveStreamStopped;
+    }
+    PopulateStreamInfo(streamInfo, channelId, algCode, previewSessionId);
     return cosmo::util::ErrorEnum::Success;
 }
 
@@ -457,125 +594,137 @@ cosmo::util::ErrorEnum LiveStreamServiceImpl::ViewerCreate(const std::string& ch
 // ---------------------------------------------------------------------------
 
 bool LiveStreamServiceImpl::ViewerDelete(const std::string& channelId, const std::string& algCode) {
+    return ViewerDelete(channelId, algCode, {});
+}
+
+bool LiveStreamServiceImpl::ViewerDelete(const std::string& channelId, const std::string& algCode,
+                                         const std::string& previewSessionId) {
     std::shared_lock<std::shared_mutex> lifecycle_lock(lifecycle_mtx_);
     if (stopping_.load(std::memory_order_acquire)) {
         return true;
     }
-
-    cosmo::StreamViewerPtr viewer_to_stop;
-    std::string channel_lease_to_release;
+    const auto key = BuildViewerKey(channelId, algCode);
+    std::shared_ptr<ViewerRetirement> retirement;
+    cosmo::StreamViewerPtr starting_to_stop;
+    bool release_starting_lease = false;
     {
         std::unique_lock<std::shared_mutex> lock(mtx_);
         auto it = FindViewer(channelId, algCode);
-
         if (it != viewers_.end()) {
+            auto& sessions = viewer_session_ids_[key];
+            if (previewSessionId.empty()) {
+                // An unscoped legacy Stop cannot consume a modern client's lease.
+                if (static_cast<size_t>((*it)->GetViewerNum()) <= sessions.size()) {
+                    return true;
+                }
+            } else if (sessions.erase(previewSessionId) == 0) {
+                return true;
+            }
             (*it)->DelViewerNum();
             LOG_INFO("viewer release requested: stream={}/{} viewers_remaining={}", channelId, algCode,
                      (*it)->GetViewerNum());
             if ((*it)->GetViewerNum() <= 0) {
-                viewer_to_stop = *it;
-                viewers_.erase(it);
+                retirement = BeginRetirementLocked(key, *it);
             }
         } else {
-            const auto starting_it = starting_viewers_.find(BuildViewerKey(channelId, algCode));
-            if (starting_it != starting_viewers_.end()) {
-                auto& gate = starting_it->second;
+            auto starting = starting_viewers_.find(key);
+            if (starting != starting_viewers_.end()) {
+                auto& gate = starting->second;
+                if (previewSessionId.empty()) {
+                    if (gate->participants <= gate->session_ids.size()) {
+                        return true;
+                    }
+                } else if (gate->session_ids.erase(previewSessionId) == 0) {
+                    return true;
+                }
                 if (gate->participants > 0) {
-                    gate->participants -= 1;
+                    --gate->participants;
                 }
                 if (gate->participants == 0) {
-                    gate->cancelled = true;
-                    viewer_to_stop  = gate->viewer;
-                    if (gate->channel_lease_acquired) {
-                        channel_lease_to_release     = gate->channel_id;
-                        gate->channel_lease_acquired = false;
-                    }
-                    LOG_INFO("viewer startup cancel requested: stream={}/{} waiters=0", channelId, algCode);
-                } else {
-                    LOG_INFO("viewer startup participant released: stream={}/{} waiters_remaining={}",
-                             channelId, algCode, gate->participants);
+                    gate->cancelled              = true;
+                    starting_to_stop             = gate->viewer;
+                    release_starting_lease       = gate->channel_lease_acquired;
+                    gate->channel_lease_acquired = false;
                 }
-            } else {
-                LOG_INFO("viewer release idempotent: stream={}/{} state=absent", channelId, algCode);
             }
         }
     }
-    if (viewer_to_stop) {
-        viewer_to_stop->Stop();
+    if (retirement) {
+        FinishRetirement(key, retirement);
     }
-    if (!channel_lease_to_release.empty()) {
-        service::ServiceRegistry::Instance().Get<service::ICameraTaskConfig>().ReleasePreviewChannel(
-            channel_lease_to_release);
+    if (starting_to_stop) {
+        starting_to_stop->Stop();
+    }
+    if (release_starting_lease) {
+        ServiceRegistry::Instance().Get<ICameraTaskConfig>().ReleasePreviewChannel(channelId);
     }
     return true;
 }
 
-// ---------------------------------------------------------------------------
-// ViewerHeartBeat
-// ---------------------------------------------------------------------------
-
-// 续期预览并在算法任务停用后主动回收其 viewer，避免无人推理时继续解码、OSD 和编码。
 cosmo::util::ErrorEnum LiveStreamServiceImpl::ViewerHeartBeat(const std::string& channelId,
                                                               const std::string& algCode) {
+    return ViewerHeartBeat(channelId, algCode, {});
+}
+
+cosmo::util::ErrorEnum LiveStreamServiceImpl::ViewerHeartBeat(const std::string& channelId,
+                                                              const std::string& algCode,
+                                                              const std::string& previewSessionId) {
     std::shared_lock<std::shared_mutex> lifecycle_lock(lifecycle_mtx_);
     if (stopping_.load(std::memory_order_acquire)) {
         return cosmo::util::ErrorEnum::SysErr;
     }
-    auto channel_inst =
-        service::ServiceRegistry::Instance().Get<service::ICameraChannelQuery>().GetChannelInst(channelId);
-    if (!channel_inst) {
-        return cosmo::util::ErrorEnum::CameraNotExist;
-    }
-    auto& camera_task_config = service::ServiceRegistry::Instance().Get<service::ICameraTaskConfig>();
-    cosmo::StreamViewerPtr viewer_to_stop;
-    std::unique_lock<std::shared_mutex> lock(mtx_);
-    cosmo::util::ErrorEnum task_state = cosmo::util::ErrorEnum::Success;
-    if (!algCode.empty()) {
-        const auto tasks   = camera_task_config.GetTasks(channelId);
-        const auto task_it = std::find_if(tasks.begin(), tasks.end(),
-                                          [&](const auto& task) { return task.algorithmCode == algCode; });
-        if (task_it == tasks.end()) {
-            task_state = cosmo::util::ErrorEnum::TaskNotExist;
-        } else if (!task_it->enable) {
-            task_state = cosmo::util::ErrorEnum::ActionStop;
-        }
-    }
-
-    LOG_DEBUG("alive channel size {} {}", viewers_.size(), channelId);
-    auto it = FindViewer(channelId, algCode);
-    if (task_state != cosmo::util::ErrorEnum::Success) {
+    const auto key = BuildViewerKey(channelId, algCode);
+    cosmo::StreamViewerPtr observed;
+    {
+        std::shared_lock<std::shared_mutex> lock(mtx_);
+        auto it = FindViewer(channelId, algCode);
         if (it != viewers_.end()) {
-            viewer_to_stop = *it;
-            viewers_.erase(it);
+            observed                  = *it;
+            const auto sessions       = viewer_session_ids_.find(key);
+            const size_t scoped_count = sessions == viewer_session_ids_.end() ? 0 : sessions->second.size();
+            if ((!previewSessionId.empty() &&
+                 (sessions == viewer_session_ids_.end() || !sessions->second.count(previewSessionId))) ||
+                (previewSessionId.empty() && static_cast<size_t>(observed->GetViewerNum()) <= scoped_count)) {
+                return cosmo::util::ErrorEnum::LiveStreamStopped;
+            }
         }
-        lock.unlock();
-        StopViewerAndReleasePreview(viewer_to_stop);
-        LOG_INFO("viewer heartbeat retired: stream={}/{} task_state={}", channelId, algCode,
-                 cosmo::util::ErrorEnumName(task_state));
-        return task_state;
     }
-    if (it != viewers_.end()) {
-        if (!(*it)->IsPublishReady()) {
-            LOG_WARN("viewer heartbeat rejected: stream={}/{} publisher=failed detail={}", channelId, algCode,
-                     (*it)->LastPublishError());
+    auto channel = ServiceRegistry::Instance().Get<ICameraChannelQuery>().GetChannelInst(channelId);
+    const auto task_state =
+        channel ? PreviewTaskState(channelId, algCode) : cosmo::util::ErrorEnum::CameraNotExist;
+    std::shared_ptr<ViewerRetirement> retirement;
+    {
+        std::unique_lock<std::shared_mutex> lock(mtx_);
+        auto it = FindViewer(channelId, algCode);
+        if (!observed || it == viewers_.end() || *it != observed) {
+            if (task_state != cosmo::util::ErrorEnum::Success) {
+                return task_state;
+            }
+            return channel->GetUrlStatus() == cosmo::util::ErrorEnum::Success
+                       ? cosmo::util::ErrorEnum::DemuxNoData
+                       : channel->GetUrlStatus();
+        }
+        const auto sessions       = viewer_session_ids_.find(key);
+        const size_t scoped_count = sessions == viewer_session_ids_.end() ? 0 : sessions->second.size();
+        if ((!previewSessionId.empty() &&
+             (sessions == viewer_session_ids_.end() || !sessions->second.count(previewSessionId))) ||
+            (previewSessionId.empty() && static_cast<size_t>(observed->GetViewerNum()) <= scoped_count)) {
+            return cosmo::util::ErrorEnum::LiveStreamStopped;
+        }
+        if (task_state != cosmo::util::ErrorEnum::Success) {
+            retirement = BeginRetirementLocked(key, observed);
+        } else if (!observed->IsPublishReady()) {
             return cosmo::util::ErrorEnum::LiveStreamPublishFailed;
+        } else {
+            if (!previewSessionId.empty()) {
+                sessions->second.at(previewSessionId) = std::chrono::steady_clock::now();
+            }
+            observed->HeartBeat();
+            return cosmo::util::ErrorEnum::Success;
         }
-        (*it)->HeartBeat();
-        return cosmo::util::ErrorEnum::Success;
     }
-
-    // A successful keepalive for a missing viewer leaves the browser believing
-    // that a stream removed by the watchdog (or a service restart) is still
-    // healthy. Return the source error when one exists, otherwise a normal
-    // no-data error so the client can recreate it. An existing publisher is
-    // deliberately checked before source state: a short RTSP outage must not
-    // tear down a healthy viewer that can resume as soon as demux reconnects.
-    const cosmo::util::ErrorEnum channelState = channel_inst->GetUrlStatus();
-    if (cosmo::util::ErrorEnum::Success != channelState) {
-        LOG_WARN("Channel Stream State {}", channelState);
-        return channelState;
-    }
-    return cosmo::util::ErrorEnum::DemuxNoData;
+    FinishRetirement(key, retirement);
+    return task_state;
 }
 
 // ---------------------------------------------------------------------------
@@ -594,37 +743,116 @@ void LiveStreamServiceImpl::SetViewCounts(int view_num) {
 // Private helpers
 // ---------------------------------------------------------------------------
 
+std::shared_ptr<LiveStreamServiceImpl::ViewerRetirement> LiveStreamServiceImpl::BeginRetirementLocked(
+    const std::string& key, const cosmo::StreamViewerPtr& viewer) {
+    auto retirement              = std::make_shared<ViewerRetirement>();
+    retirement->viewer           = viewer;
+    retirement->requires_encoder = viewer->HaveEncoder();
+    retiring_viewers_[key]       = retirement;
+    viewer_session_ids_.erase(key);
+    viewers_.erase(std::find(viewers_.begin(), viewers_.end(), viewer));
+    return retirement;
+}
+
+void LiveStreamServiceImpl::FinishRetirement(const std::string& key,
+                                             const std::shared_ptr<ViewerRetirement>& retirement) {
+    StopViewerAndReleasePreview(retirement->viewer);
+    {
+        std::unique_lock<std::shared_mutex> lock(mtx_);
+        retirement->finished = true;
+        auto it              = retiring_viewers_.find(key);
+        if (it != retiring_viewers_.end() && it->second == retirement) {
+            retiring_viewers_.erase(it);
+        }
+    }
+    retirement->cv.notify_all();
+}
+
+void LiveStreamServiceImpl::ExpireViewerSessionsLocked(const std::string& key,
+                                                       const cosmo::StreamViewerPtr& viewer,
+                                                       std::chrono::steady_clock::time_point now) {
+    auto sessions = viewer_session_ids_.find(key);
+    if (sessions == viewer_session_ids_.end()) {
+        return;
+    }
+    for (auto it = sessions->second.begin(); it != sessions->second.end();) {
+        if (now - it->second >= kPreviewSessionTimeout) {
+            it = sessions->second.erase(it);
+            viewer->DelViewerNum();
+        } else {
+            ++it;
+        }
+    }
+}
+
 int LiveStreamServiceImpl::ViewerEncoderCountLocked() const {
-    // Caller must hold mtx_ (exclusive or shared)
     const auto ready_count    = std::count_if(viewers_.begin(), viewers_.end(),
                                               [](const auto& viewer) { return viewer->HaveEncoder(); });
     const auto starting_count = std::count_if(
         starting_viewers_.begin(), starting_viewers_.end(),
         [](const auto& item) { return item.second->requires_encoder && !item.second->finished; });
-    return static_cast<int>(ready_count + starting_count);
+    const auto retiring_count = std::count_if(retiring_viewers_.begin(), retiring_viewers_.end(),
+                                              [](const auto& item) { return item.second->requires_encoder; });
+    return static_cast<int>(ready_count + starting_count + retiring_count);
 }
 
 void LiveStreamServiceImpl::CheckAliveTasks() {
-    std::vector<cosmo::StreamViewerPtr> viewers_to_stop;
+    std::vector<cosmo::StreamViewerPtr> snapshot;
+    std::vector<std::pair<std::string, std::shared_ptr<ViewerStartGate>>> starting_snapshot;
     {
-        std::unique_lock<std::shared_mutex> lock(mtx_);
-        auto it = viewers_.begin();
-        while (it != viewers_.end()) {
-            const bool publisher_failed = !(*it)->IsPublishReady();
-            const bool heartbeat_failed = (*it)->HeartBeatCheck();
-            if (publisher_failed || heartbeat_failed) {
-                LOG_INFO("viewer watchdog release: stream={}/{} viewers={} reason={}", (*it)->GetChannelId(),
-                         (*it)->GetAlgId(), (*it)->GetViewerNum(),
-                         publisher_failed ? "publisher-failed" : "heartbeat-timeout");
-                viewers_to_stop.push_back(*it);
-                it = viewers_.erase(it);
-            } else {
-                ++it;
-            }
+        std::shared_lock<std::shared_mutex> lock(mtx_);
+        snapshot = viewers_;
+        for (const auto& item : starting_viewers_) {
+            starting_snapshot.push_back(item);
         }
     }
-    for (auto& viewer : viewers_to_stop) {
-        StopViewerAndReleasePreview(viewer);
+    for (const auto& [key, gate] : starting_snapshot) {
+        const auto state = PreviewTaskState(gate->channel_id, gate->algorithm_id);
+        if (state == cosmo::util::ErrorEnum::Success) {
+            continue;
+        }
+        cosmo::StreamViewerPtr viewer_to_stop;
+        bool release_lease = false;
+        {
+            std::unique_lock<std::shared_mutex> lock(mtx_);
+            auto it = starting_viewers_.find(key);
+            if (it == starting_viewers_.end() || it->second != gate || gate->finished || gate->cancelled) {
+                continue;
+            }
+            gate->cancelled              = true;
+            gate->cancel_result          = state;
+            viewer_to_stop               = gate->viewer;
+            release_lease                = gate->channel_lease_acquired;
+            gate->channel_lease_acquired = false;
+        }
+        if (viewer_to_stop) {
+            viewer_to_stop->Stop();
+        }
+        if (release_lease) {
+            ServiceRegistry::Instance().Get<ICameraTaskConfig>().ReleasePreviewChannel(gate->channel_id);
+        }
+    }
+    for (const auto& viewer : snapshot) {
+        // Camera queries may join a slow switch; never hold the global viewer
+        // lock across that call or across publisher destruction.
+        const auto state = PreviewTaskState(viewer->GetChannelId(), viewer->GetAlgId());
+        const auto key   = BuildViewerKey(viewer->GetChannelId(), viewer->GetAlgId());
+        std::shared_ptr<ViewerRetirement> retirement;
+        {
+            std::unique_lock<std::shared_mutex> lock(mtx_);
+            auto it = FindViewer(viewer->GetChannelId(), viewer->GetAlgId());
+            if (it == viewers_.end() || *it != viewer) {
+                continue;
+            }
+            ExpireViewerSessionsLocked(key, viewer, std::chrono::steady_clock::now());
+            if (state != cosmo::util::ErrorEnum::Success || viewer->GetViewerNum() <= 0 ||
+                !viewer->IsPublishReady() || viewer->HeartBeatCheck()) {
+                retirement = BeginRetirementLocked(key, viewer);
+            }
+        }
+        if (retirement) {
+            FinishRetirement(key, retirement);
+        }
     }
 }
 

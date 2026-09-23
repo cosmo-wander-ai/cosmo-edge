@@ -33,7 +33,9 @@
 <script setup>
 import { ref, shallowRef, nextTick, watch, onBeforeUnmount, onMounted, getCurrentInstance } from 'vue'
 import flvjs from 'flv.js'
+import { v4 as uuidv4 } from 'uuid'
 import { createWhepPlayer } from '@/utils/whepPlayer'
+import { normalizeApiError } from '@/utils/apiError'
 import { t, localeColon } from '@/i18n'
 import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
 
@@ -152,17 +154,19 @@ const stopStreamSession = (session) => {
     try {
       await $API.boxStreamStop({
         channelId: session.channelId,
-        algorithmId: session.algorithmId
+        algorithmId: session.algorithmId,
+        previewSessionId: session.previewSessionId
       })
       return true
     } catch (error) {
-      // ViewerDelete is non-idempotent, so leave a failed Stop to the watchdog.
+      // A session-scoped Stop cannot release a replacement acquisition. A
+      // failed request still expires through the backend's session watchdog.
       console.warn('[Video] Failed to stop stream session:', error)
       return false
     }
   })
   let retiringBarrier = session.stopPromise.then((stopped) => {
-    if (!stopped) {
+    if (!stopped && !session.sessionScoped) {
       return new Promise((resolve) => setTimeout(resolve, kViewerWatchdogGraceMs))
     }
   })
@@ -195,7 +199,8 @@ const getstreamkeepalive = async () => {
   try {
     await $API.boxStreamKeepAlive({
       channelId: session.channelId,
-      algorithmId: session.algorithmId
+      algorithmId: session.algorithmId,
+      previewSessionId: session.previewSessionId
     })
   } catch (error) {
     // A reconnect can create a new viewer with the same channel/algorithm
@@ -204,9 +209,22 @@ const getstreamkeepalive = async () => {
     if (activeStreamSession !== session) return
 
     console.warn('[Video] Stream keepalive failed:', error)
+    const code = String(normalizeApiError(error).code)
+    const algorithmRetired = Boolean(session.algorithmId) &&
+      (code === '12290' || code === '10027') // ActionStop / TaskNotExist
+    const viewerMissing = code === '12802' || code === '12303' || code === '12800'
+    const channelMissing = code === '10024'
+    if (!algorithmRetired && !viewerMissing && !channelMissing) {
+      // A transient network/source error must not erase the user's algorithm
+      // selection. Keep the current player and retry on the next heartbeat.
+      if (code === '10005' || normalizeApiError(error).status === 401) clearHeartbeat()
+      return
+    }
     clearHeartbeat()
     activeStreamSession = null
-    await stopStreamSession(session)
+    // Retiring the old key must not consume the raw handoff's grace window.
+    // Session identity makes a delayed Stop harmless to a newer acquisition.
+    void stopStreamSession(session)
     if (isUnmounted) return
 
     // The Stop request can finish after a replacement stream has committed and
@@ -215,11 +233,12 @@ const getstreamkeepalive = async () => {
     if (activeStreamSession || pendingStreamSession ||
         !sameStreamKey(latestDesiredSession, session)) return
 
-    algorithmId.value = ''
-    if (session.algorithmId) {
+    if (algorithmRetired || channelMissing) {
+      algorithmId.value = ''
       emit('runAlgorithmIdChange', {
-        channelId: session.channelId,
+        channelId: channelMissing ? '' : session.channelId,
         runAlgorithmId: '',
+        retiredAlgorithmId: algorithmRetired ? session.algorithmId : undefined,
         index: props.index
       })
     } else {
@@ -260,10 +279,14 @@ const startProvisionalHeartbeat = (session) => {
     try {
       await $API.boxStreamKeepAlive({
         channelId: session.channelId,
-        algorithmId: session.algorithmId
+        algorithmId: session.algorithmId,
+        previewSessionId: session.previewSessionId
       })
     } catch (error) {
       if (!stopped) {
+        const code = String(normalizeApiError(error).code)
+        if (!['12290', '10027', '10024', '12800', '12802', '12303', '10005'].includes(code) &&
+            normalizeApiError(error).status !== 401) return
         stop()
         if (playbackAttempt) playbackAttempt.cancel(error)
         rejectFailure(error)
@@ -295,6 +318,8 @@ const buildStreamSession = (session, stream) => {
   return {
     channelId: session.channelId,
     algorithmId: session.algorithmId,
+    previewSessionId: session.previewSessionId,
+    sessionScoped: stream.previewSessionId === session.previewSessionId,
     playbackProtocol: protocol,
     sourceUrl: primaryUrl,
     fallbackFlvUrl: fallbackUrl,
@@ -383,7 +408,8 @@ const performLiveStreamRequest = async (session, generation, reason) => {
   const releaseCandidateViewer = async () => {
     if (!candidateViewerOwned) return
     candidateViewerOwned = false
-    await stopStreamSession(session)
+    const retirement = stopStreamSession(session)
+    if (!session.sessionScoped) await retirement
   }
 
   try {
@@ -392,21 +418,24 @@ const performLiveStreamRequest = async (session, generation, reason) => {
 
     const res = await $API.boxRequestLiveStream({
       channelId: session.channelId,
-      algorithmId: session.algorithmId
+      algorithmId: session.algorithmId,
+      previewSessionId: session.previewSessionId
     })
     candidateViewerOwned = true
+    const stream = res?.resData?.stream
+    session.sessionScoped = stream?.previewSessionId === session.previewSessionId
     if (isUnmounted || generation !== streamRequestGeneration) {
       await releaseCandidateViewer()
       if (!isUnmounted) isShowLoading.value = false
       return
     }
 
-    const stream = res?.resData?.stream
     if (!stream) {
       throw new Error('Live stream response is missing stream information')
     }
 
     const candidateSession = buildStreamSession(session, stream)
+    session.sessionScoped = candidateSession.sessionScoped
     console.log('视频预览地址==>', candidateSession.sourceUrl, '--------')
     provisionalHeartbeat = startProvisionalHeartbeat(candidateSession)
     playerWasReplaced = true
@@ -437,7 +466,7 @@ const performLiveStreamRequest = async (session, generation, reason) => {
     if (previousViewerStillActive && previousSession) {
       // Stop is intentionally attempted once. If it fails, its heartbeat has
       // already been removed and the backend watchdog bounds the stale viewer.
-      await stopStreamSession(previousSession)
+      void stopStreamSession(previousSession)
     }
   } catch (error) {
     provisionalHeartbeat?.stop()
@@ -472,12 +501,13 @@ const performLiveStreamRequest = async (session, generation, reason) => {
 
     clearPendingSession(session)
     isShowLoading.value = false
-    const msgCode = error?.resMsg?.[0]?.msgCode ??
-      error?.response?.data?.resMsg?.[0]?.msgCode
+    const msgCode = String(normalizeApiError(error).code)
+    const algorithmRetired = session.algorithmId &&
+      (msgCode === '12290' || msgCode === '10027')
 
     if (activeStreamSession === previousSession && previousSession) {
       restoreParentSelection(previousSession)
-    } else if (session.algorithmId) {
+    } else if (algorithmRetired) {
       // Only a tile without a previous live viewer needs a raw-stream fallback.
       algorithmId.value = ''
       latestDesiredSession = {
@@ -487,9 +517,10 @@ const performLiveStreamRequest = async (session, generation, reason) => {
       emit('runAlgorithmIdChange', {
         channelId: session.channelId,
         runAlgorithmId: '',
+        retiredAlgorithmId: session.algorithmId,
         index: props.index
       })
-    } else if (msgCode === '12303' || msgCode === 12303) {
+    } else if (msgCode === '10024') {
       emit('runAlgorithmIdChange', {
         channelId: '',
         runAlgorithmId: '',
@@ -504,7 +535,8 @@ const performLiveStreamRequest = async (session, generation, reason) => {
 const getrequestLiveStream = (reason = 'prop-sync') => {
   const session = {
     channelId: props.channelId,
-    algorithmId: props.runAlgorithmId || ''
+    algorithmId: props.runAlgorithmId || '',
+    previewSessionId: uuidv4()
   }
   algorithmId.value = session.algorithmId
   if (sameStreamKey(pendingStreamSession, session)) {

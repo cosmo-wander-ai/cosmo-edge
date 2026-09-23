@@ -11,14 +11,16 @@
 namespace cosmo::LiveStream {
 void to_json(nlohmann::json& j, const MsgRequestLiveStreamRecv& v) {
     to_json(j, static_cast<const MsgRecvHead&>(v));
-    j["channelId"]   = v.channelId;
-    j["algorithmId"] = v.algorithmId;
+    j["channelId"]        = v.channelId;
+    j["algorithmId"]      = v.algorithmId;
+    j["previewSessionId"] = v.previewSessionId;
 }
 
 void from_json(const nlohmann::json& j, MsgRequestLiveStreamRecv& v) {
     from_json(j, static_cast<MsgRecvHead&>(v));
     JSON_OPT(j, v, channelId);
     JSON_OPT(j, v, algorithmId);
+    JSON_OPT(j, v, previewSessionId);
 }
 
 void to_json(nlohmann::json& j, const MsgRequestLiveStreamSend& v) {
@@ -33,29 +35,34 @@ void from_json(const nlohmann::json& j, MsgRequestLiveStreamSend& v) {
 
 void to_json(nlohmann::json& j, const MsgStreamKeepAliveRecv& v) {
     to_json(j, static_cast<const MsgRecvHead&>(v));
-    j["channelId"]   = v.channelId;
-    j["algorithmId"] = v.algorithmId;
+    j["channelId"]        = v.channelId;
+    j["algorithmId"]      = v.algorithmId;
+    j["previewSessionId"] = v.previewSessionId;
 }
 
 void from_json(const nlohmann::json& j, MsgStreamKeepAliveRecv& v) {
     from_json(j, static_cast<MsgRecvHead&>(v));
     JSON_OPT(j, v, channelId);
     JSON_OPT(j, v, algorithmId);
+    JSON_OPT(j, v, previewSessionId);
 }
 
 void to_json(nlohmann::json& j, const MsgStreamStopRecv& v) {
     to_json(j, static_cast<const MsgRecvHead&>(v));
-    j["channelId"]   = v.channelId;
-    j["algorithmId"] = v.algorithmId;
+    j["channelId"]        = v.channelId;
+    j["algorithmId"]      = v.algorithmId;
+    j["previewSessionId"] = v.previewSessionId;
 }
 
 void from_json(const nlohmann::json& j, MsgStreamStopRecv& v) {
     from_json(j, static_cast<MsgRecvHead&>(v));
     JSON_OPT(j, v, channelId);
     JSON_OPT(j, v, algorithmId);
+    JSON_OPT(j, v, previewSessionId);
 }
 
 void from_json(const nlohmann::json& j, LiveStreamInfo& v) {
+    JSON_OPT(j, v, previewSessionId);
     JSON_OPT(j, v, protocol);
     JSON_OPT(j, v, url);
     JSON_OPT(j, v, webrtcUrl);
@@ -71,6 +78,7 @@ void from_json(const nlohmann::json& j, LiveStreamInfo& v) {
 }
 
 void to_json(nlohmann::json& j, const LiveStreamInfo& v) {
+    j["previewSessionId"]  = v.previewSessionId;
     j["protocol"]          = v.protocol;
     j["url"]               = v.url;
     j["webrtcUrl"]         = v.webrtcUrl;

@@ -27,7 +27,7 @@ const node = (type, text = '') => ({
 export async function mountComponent(entry, { props = {}, mocks = {}, globals = {}, api = {}, router = {}, route = { query: {} }, message = {} } = {}) {
   const { default: component } = await loadBehaviorModule(entry, {
     mocks: { vue: Vue, '@/i18n': i18n, 'element-plus': { ElMessage: () => {} },
-      '@element-plus/icons-vue': Object.fromEntries(['Plus', 'QuestionFilled', 'CircleCheckFilled', 'Search', 'Upload', 'ArrowDown', 'Delete', 'SwitchButton', 'Menu', 'House', 'View', 'Document', 'VideoCamera', 'Connection', 'Cpu', 'Picture', 'Headset', 'Iphone', 'Link', 'Setting', 'DataBoard', 'Monitor', 'Box'].map(name => [name, name])), ...mocks },
+      '@element-plus/icons-vue': Object.fromEntries(['Plus', 'QuestionFilled', 'CircleCheckFilled', 'Search', 'Refresh', 'Upload', 'ArrowDown', 'Delete', 'SwitchButton', 'Menu', 'House', 'View', 'Document', 'VideoCamera', 'Connection', 'Cpu', 'Picture', 'Headset', 'Iphone', 'Link', 'Setting', 'DataBoard', 'Monitor', 'Box'].map(name => [name, name])), ...mocks },
     globals: { setTimeout, clearTimeout, setInterval, clearInterval, URL, URLSearchParams, ...globals }
   })
   const teleportTargets = new Map()

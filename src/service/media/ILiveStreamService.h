@@ -45,6 +45,24 @@ public:
     virtual cosmo::util::ErrorEnum ViewerHeartBeat(const std::string& channelId,
                                                    const std::string& algCode) = 0;
 
+    // Optional per-acquire identity. Legacy implementations keep their existing contract.
+    virtual cosmo::util::ErrorEnum ViewerCreate(const std::string& channelId, const std::string& algCode,
+                                                const std::string& previewSessionId,
+                                                LiveStream::LiveStreamInfo& streamInfo) {
+        (void)previewSessionId;
+        return ViewerCreate(channelId, algCode, streamInfo);
+    }
+    virtual bool ViewerDelete(const std::string& channelId, const std::string& algCode,
+                              const std::string& previewSessionId) {
+        (void)previewSessionId;
+        return ViewerDelete(channelId, algCode);
+    }
+    virtual cosmo::util::ErrorEnum ViewerHeartBeat(const std::string& channelId, const std::string& algCode,
+                                                   const std::string& previewSessionId) {
+        (void)previewSessionId;
+        return ViewerHeartBeat(channelId, algCode);
+    }
+
     // ── Preview Channel Control ──
 
     /// Set the maximum number of concurrent preview channels.

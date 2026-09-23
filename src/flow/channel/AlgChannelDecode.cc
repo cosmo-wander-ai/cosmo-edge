@@ -233,29 +233,15 @@ void AlgChannelDecode::HandFrame(AlgDataPtr demux_data) {
         return;
     }
 
-    bool just_need_i_frame = (GetMaxFps() < 1.0f) && (viewer_queue_.empty());
-
-    if (!ValidateFrame(video_frame, just_need_i_frame)) {
+    // Preserve the reference chain while the channel runs, including viewer
+    // construction and the short stop grace. Skipping P frames in that window
+    // would make a late decoded-frame viewer wait for the next source IDR.
+    // Sampling and host-copy avoidance happen after decoding, not at its input.
+    if (!ValidateFrame(video_frame, false)) {
         return;
     }
 
-    // When inference is slower than input, backlog quickly amplifies VRAM usage in decode/convert.
-    // Keep keyframes and drop part of non-I frames to stabilize memory.
-    // if ((dec_queue_->RestSize() >= kDecodeBacklogDropThreshold) && (!video_frame->IsIFrame())) {
-    //     dec_queue_->RecordDiscard();
-    // }
-
     PrepareDecoder(video_frame);
-
-    if (just_need_i_frame) {
-        if (!video_frame->IsIFrame()) {
-            return;
-        }
-        if (0 == decode_count_ % 300) {
-            LOG_INFO("{} MaxFps:{} Just Need I Frame, Frame:{} is {} Frame", name_, GetMaxFps(),
-                     video_frame->GetSequence(), video_frame->IsIFrame() ? "I" : "P");
-        }
-    }
 
     duration_stat_.BeginSample();
     bool is_decode_ret = false;
@@ -335,10 +321,23 @@ void AlgChannelDecode::HandFrame(AlgDataPtr demux_data) {
     constexpr bool prepared_viewer_distribution = true;
 #else
     constexpr bool prepared_viewer_distribution = false;
+    bool has_viewer                             = false;
+    {
+        std::lock_guard<std::mutex> lock(mtx_);
+        has_viewer = !viewer_queue_.empty();
+    }
 #endif
 
+    // MPP preserves deferred output selection. CPU/Sophon have already
+    // materialized a backend frame here (Sophon uses device I420 memory).
+    // Discard unused output before resize/distribution; this does not avoid
+    // Sophon's decoder-output allocation and storage conversion.
+#ifdef COSMO_MEDIA_USE_ROCKCHIP_BACKEND
     const bool host_frame_required = !decoded_frame.IsDeferred() || !task_plan.Empty() ||
                                      !viewer_plan.empty() || NeedsHostFrame(output_stream_index);
+#else
+    const bool host_frame_required = GetTaskCount() > 0 || has_viewer || NeedsHostFrame(output_stream_index);
+#endif
     if (!host_frame_required) {
         decoded_frame.Discard();
         duration_stat_.EndSample();

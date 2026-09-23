@@ -116,7 +116,6 @@ private:
     mutable size_t check_active_frame_{0};
     mutable int64_t check_active_ts_{0};
     VideoPacketPtr last_frame_;
-    VideoPacketPtr last_key_frame_;  // 最近 I 帧，用于新 viewer 中途加入时补发起播
     mutable util::ErrorEnum action_status_{util::ErrorEnum::Success};
     std::vector<std::shared_ptr<AsyncQueue<VideoPacketPtr>>> async_packet_queues_;
     AlgChannelMp4Ptr recorder_;

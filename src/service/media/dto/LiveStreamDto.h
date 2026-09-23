@@ -11,6 +11,7 @@ namespace LiveStream {
     struct MsgRequestLiveStreamRecv : public MsgRecvHead {
         std::string channelId;
         std::string algorithmId;
+        std::string previewSessionId;  // Unique per acquisition; empty preserves legacy clients.
     };
 
     void to_json(nlohmann::json& j, const MsgRequestLiveStreamRecv& v);
@@ -18,6 +19,7 @@ namespace LiveStream {
 
     // Stream info for live stream response
     struct LiveStreamInfo {
+        std::string previewSessionId;
         std::string protocol{"rtmp"};
         std::string url;
         std::string webrtcUrl;
@@ -52,6 +54,7 @@ namespace LiveStream {
     struct MsgStreamKeepAliveRecv : public MsgRecvHead {
         std::string channelId;
         std::string algorithmId;
+        std::string previewSessionId;  // Unique per acquisition; empty preserves legacy clients.
     };
 
     void to_json(nlohmann::json& j, const MsgStreamKeepAliveRecv& v);
@@ -63,6 +66,7 @@ namespace LiveStream {
     struct MsgStreamStopRecv : public MsgRecvHead {
         std::string channelId;
         std::string algorithmId;
+        std::string previewSessionId;  // Unique per acquisition; empty preserves legacy clients.
     };
 
     void to_json(nlohmann::json& j, const MsgStreamStopRecv& v);
