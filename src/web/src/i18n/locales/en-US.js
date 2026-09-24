@@ -1235,6 +1235,7 @@ export default {
     enterDNS1: 'Please enter DNS1',
     enterDNS2: 'Please enter DNS2',
     ipError: 'IP error',
+    dnsFormatError: 'Invalid DNS address format (IPv4 only)',
     dnsRangeError: 'DNS first segment range 1-223',
     targetAddress: 'Target Address:',
     enterTargetAddress: 'Please enter target address',
