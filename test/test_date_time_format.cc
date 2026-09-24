@@ -298,3 +298,32 @@ TEST_CASE("DateTime: GetCurrentDateTime returns valid date", "[datetime]") {
     auto now = GetCurrentDateTime();
     REQUIRE(now.Date().Year() >= 2025);
 }
+
+// ─── GetYearWeek ─────────────────────────────────────────────────────────────
+
+TEST_CASE("GetYearWeek: ISO week numbering (GB/T 7408-2005)", "[datetime]") {
+    SECTION("Week starts on Monday") {
+        // 2024-01-01 is a Monday, so each week starts on a Monday-boundary date.
+        REQUIRE(GetYearWeek(YMDDate(2024, 1, 1)) == "2024年第1周");
+        REQUIRE(GetYearWeek(YMDDate(2024, 1, 8)) == "2024年第2周");
+    }
+
+    SECTION("Late December may belong to next year's week 1") {
+        // 2024-12-31 (Tuesday) falls in ISO week 2025-W01.
+        REQUIRE(GetYearWeek(YMDDate(2024, 12, 31)) == "2025年第1周");
+    }
+
+    SECTION("Early January may belong to previous year's last week") {
+        // 2017-01-08 (Sunday) closes the week containing the first Thursday of 2017.
+        REQUIRE(GetYearWeek(YMDDate(2017, 1, 8)) == "2017年第1周");
+        REQUIRE(GetYearWeek(YMDDate(2017, 1, 15)) == "2017年第2周");
+    }
+
+    SECTION("Years with 53 weeks") {
+        // 2015 starts on a Thursday and 2020 on a Wednesday of a leap year: both have W53.
+        REQUIRE(GetYearWeek(YMDDate(2015, 12, 31)) == "2015年第53周");
+        REQUIRE(GetYearWeek(YMDDate(2020, 12, 31)) == "2020年第53周");
+        // The Monday after W53 belongs to the next year's week 1.
+        REQUIRE(GetYearWeek(YMDDate(2016, 1, 4)) == "2016年第1周");
+    }
+}

@@ -417,13 +417,26 @@ int GetYearDay(const YMDDate& date) {
 }
 
 std::string GetYearWeek(const YMDDate& date) {
-    int first_week_day = YMDDate(date.Year(), 1, 1).WeekDay();
-    int weeks          = (GetYearDay(date) + first_week_day - 2) / 7;
-    if (first_week_day > 4 || first_week_day == 0) {
-        return weeks == 0 ? GetYearWeek(YMDDate(date.Year() - 1, 12, 31))
-                          : COSMO_FORMAT("{}年第{}周", date.Year(), weeks);
+    // ISO 8601 / GB/T 7408-2005: weeks run Monday..Sunday and week 1 contains
+    // the first Thursday of the year, so early January may belong to the
+    // previous year and late December to the next year.
+    int day_of_year = GetYearDay(date);              // 0-based
+    int week_day    = date.WeekDay();                // 0=Sunday..6=Saturday
+    int iso_dow     = week_day == 0 ? 7 : week_day;  // 1=Monday..7=Sunday
+    int week        = (day_of_year + 11 - iso_dow) / 7;
+    if (week < 1) {
+        return GetYearWeek(YMDDate(date.Year() - 1, 12, 31));
     }
-    return COSMO_FORMAT("{}年第{}周", date.Year(), weeks + 1);
+    if (week == 53) {
+        // Week 53 exists only when Jan 1 is a Thursday, or a Wednesday of a leap year.
+        int jan1_week_day = YMDDate(date.Year(), 1, 1).WeekDay();
+        int jan1_iso_dow  = jan1_week_day == 0 ? 7 : jan1_week_day;
+        bool has_week_53  = jan1_iso_dow == 4 || (IsLeapYear(date.Year()) && jan1_iso_dow == 3);
+        if (!has_week_53) {
+            return COSMO_FORMAT("{}年第{}周", date.Year() + 1, 1);
+        }
+    }
+    return COSMO_FORMAT("{}年第{}周", date.Year(), week);
 }
 
 DateTime GetDateTime(int64_t timestamp) {
