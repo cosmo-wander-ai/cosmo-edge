@@ -1,7 +1,12 @@
 set(CURL_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rd/curl-8.17.0)
 set(CURL_INSTALL_DIR ${THIRDPARTY_INSTALL_PREFIX}/curl)
 set(CURL_HEADERS ${CURL_INSTALL_DIR}/include)
-set(CURL_LIB ${CURL_INSTALL_DIR}/lib/libcurl.so)
+string(TOUPPER "${CMAKE_BUILD_TYPE}" CURL_BUILD_TYPE)
+if(CURL_BUILD_TYPE STREQUAL "DEBUG")
+    set(CURL_LIB ${CURL_INSTALL_DIR}/lib/libcurl-d.so)
+else()
+    set(CURL_LIB ${CURL_INSTALL_DIR}/lib/libcurl.so)
+endif()
 set(CURL_EXTERNAL_DEPENDS openssl_external)
 
 ExternalProject_Add(

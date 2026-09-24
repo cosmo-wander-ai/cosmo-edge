@@ -1,7 +1,12 @@
 set(GLOG_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rd/glog)
 set(GLOG_INSTALL_DIR ${THIRDPARTY_INSTALL_PREFIX}/glog)
 set(GLOG_HEADERS ${GLOG_INSTALL_DIR}/include)
-set(GLOG_LIB ${GLOG_INSTALL_DIR}/lib/libglog.so)
+string(TOUPPER "${CMAKE_BUILD_TYPE}" GLOG_BUILD_TYPE)
+if(GLOG_BUILD_TYPE STREQUAL "DEBUG")
+    set(GLOG_LIB ${GLOG_INSTALL_DIR}/lib/libglogd.so)
+else()
+    set(GLOG_LIB ${GLOG_INSTALL_DIR}/lib/libglog.so)
+endif()
 
 ExternalProject_Add(
     glog_external
