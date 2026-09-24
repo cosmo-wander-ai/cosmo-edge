@@ -1578,6 +1578,7 @@ export default {
       NoMem: 'Insufficient memory',
       InValidMem: 'Invalid memory',
       InvalidParam: 'Invalid parameter',
+      mqttPortOutOfRange: 'MQTT port must be between 1 and 65535',
       MandatoryParamMiss: 'Required parameter missing',
       FileOpenFailed: 'File open failed',
       FileNotOpened: 'File not opened',
