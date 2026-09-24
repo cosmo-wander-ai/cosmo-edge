@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import lodash from 'lodash'
 import moment from 'moment'
-import { h } from 'vue'
+import { h, inject, provide } from 'vue'
 import { mountComponent } from './helpers/mount_behavior_component.mjs'
 import { attributeDisplay, attributeClassifierSources, validAttributeSchema, validAttributeFlow, parseAttributeSchema } from '../src/utils/attributeAnalysis.js'
 
@@ -35,28 +35,94 @@ assert.equal(attributeDisplay(negativeRecord, binarySchema.attributes[0], 'unkno
 assert.equal(attributeDisplay({ ...original, attributes: [{ key: 'hat', status: 'unknown' }] }, binarySchema.attributes[0], 'unknown', 'failed', 'n/a'), 'unknown', 'historical unknowns must not become negative')
 let savedBinary
 const editor = await mountComponent('views/gam/countManagement/arrangeDetail/flow/AttributeSchemaEditor.vue', {
-  props: { modelValue: JSON.stringify(schema), atomicList: [{ position: 'classify', atomicCode: 'model', atomicName: 'Classifier', labelList: [{ class_name: 'yes', nameCN: 'Present' }, { class_name: 'other', nameCN: 'Other' }] }], 'onUpdate:modelValue': value => { savedBinary = JSON.parse(value) } },
+  props: { modelValue: JSON.stringify(schema), atomicList: [{ position: 'classify', atomicCode: 'model', atomicName: 'Classifier', labelList: [{ class_name: 'yes', nameCN: 'Present', threshold: [0.5, 0.4] }, { class_name: 'other', nameCN: 'Other', threshold: [0.8, 0.7] }] }], 'onUpdate:modelValue': value => { savedBinary = JSON.parse(value) } },
   globals: { TextEncoder },
   components: { 'el-table-column': { render() { return h('el-table-column', this.$attrs) } } }
 })
 try {
-  editor.all(n => n.type === 'el-select')[1].props.activate('binary')
+  const control = field => editor.all(n => n.type === 'el-select' && n.props['data-field'] === field)[0]
+  control('type').props.activate('binary')
   await editor.settle()
   assert.equal(validAttributeSchema(savedBinary), true)
   assert.equal(savedBinary.attributes[0].options[1].label, '')
-  editor.all(n => n.type === 'el-input' && n.props.modelValue === 'attributeAnalysis.no')[0].props.activate('Absent')
+  assert.equal(editor.all(n => n.type === 'el-select' && n.props['data-field'] === 'binary-label').length, 1, 'model labels must be selected instead of typed')
+  assert.equal(editor.all(n => n.type === 'el-input').length, 0, 'raw identifiers and model labels must not require text inputs')
+  control('negative-name').props.activate('Absent')
   await editor.settle()
   assert.equal(savedBinary.attributes[0].options[1].name, 'Absent')
-  editor.all(n => n.type === 'el-select')[0].props.activate('classify')
+  control('source').props.activate('classify')
   await editor.settle()
   assert.equal(savedBinary.attributes[0].options.length, 2, 'changing source keeps binary outcomes')
   assert.equal(savedBinary.attributes[0].options[1].name, 'Absent')
   assert.equal(validAttributeSchema(savedBinary), true)
-  editor.all(n => n.type === 'el-select')[1].props.activate('single')
+  control('binary-label').props.activate('other')
+  await editor.settle()
+  assert.equal(savedBinary.attributes[0].options[0].label, 'other')
+  assert.equal(savedBinary.attributes[0].options[0].value, 'yes', 'existing outcome identities remain stable')
+  assert.equal(savedBinary.attributes[0].threshold, 0.8, 'model threshold follows the selected behavior')
+  const recommended = editor.all(n => n.type === 'el-option' && n.props.value === 0.7 && String(n.props.label).includes('attributeAnalysis.recommendedThreshold'))[0]
+  assert.ok(recommended)
+  control('threshold').props.activate(recommended.props.value)
+  await editor.settle()
+  assert.equal(savedBinary.attributes[0].threshold, 0.7)
+  control('type').props.activate('single')
   await editor.settle()
   assert.equal(savedBinary.attributes[0].options.length, 1)
   assert.equal(validAttributeSchema(savedBinary), true)
 } finally { editor.unmount() }
+// Exercise the customer path through real label selects, including table slots.
+const choiceTables = {
+  'el-table': { props: ['data'], setup(props, { slots }) { provide('attributeRows', () => props.data || []); return () => h('el-table', {}, slots.default?.()) } },
+  'el-table-column': { setup(_, { slots, attrs }) { const rows = inject('attributeRows', () => []); return () => h('el-table-column', attrs, rows().flatMap((row, $index) => slots.default?.({ row, $index }) || [])) } }
+}
+let selectedSchema
+const choiceEditor = await mountComponent('views/gam/countManagement/arrangeDetail/flow/AttributeSchemaEditor.vue', {
+  props: {
+    modelValue: JSON.stringify({ objectType: 'custom-object', attributes: [] }),
+    atomicList: [{ position: 'behavior', atomicCode: 'behavior-model', atomicName: 'Behavior', labelList: [{ class_name: 'phone', nameCN: 'Phone', threshold: [0.8, 0.6] }, { class_name: 'with bag', nameCN: 'Bag', threshold: [0.7] }, { class_name: 'disabled', nameCN: 'Disabled', used: false }] }],
+    'onUpdate:modelValue': value => { selectedSchema = JSON.parse(value) }
+  },
+  components: choiceTables, globals: { TextEncoder },
+  mocks: { '@/i18n': { t: (key, values) => key === 'attributeAnalysis.notLabel' ? `Not ${values.name}` : key } }
+})
+try {
+  const controls = field => choiceEditor.all(n => n.type === 'el-select' && n.props['data-field'] === field)
+  const click = field => choiceEditor.all(n => n.type === 'el-button' && n.props['data-field'] === field)[0].props.onClick()
+  assert.ok(choiceEditor.all(n => n.type === 'el-option' && n.props.value === 'custom-object').length, 'legacy object types remain selectable')
+  click('add-attribute')
+  await choiceEditor.settle()
+  controls('source')[0].props.activate('behavior')
+  await choiceEditor.settle()
+  assert.equal(validAttributeSchema(selectedSchema), true, 'a source selection generates a complete categorical mapping')
+  assert.equal(selectedSchema.attributes[0].name, 'Behavior')
+  assert.deepEqual(selectedSchema.attributes[0].options.map(option => option.label), ['phone', 'with bag'])
+  assert.deepEqual(selectedSchema.attributes[0].options.map(option => option.value), ['phone', 'value'])
+  assert.equal(choiceEditor.all(n => n.type === 'el-input').length, 0)
+  controls('option-label')[0].props.activate('with bag')
+  await choiceEditor.settle()
+  assert.equal(selectedSchema.attributes[0].options[0].label, 'phone', 'duplicate label choices are rejected')
+  choiceEditor.all(n => n.type === 'el-button' && Object.hasOwn(n.props, 'link') && n.props.type === 'danger')[0].props.onClick()
+  await choiceEditor.settle()
+  assert.equal(selectedSchema.attributes[0].options.length, 1)
+  controls('type')[0].props.activate('binary')
+  await choiceEditor.settle()
+  assert.equal(selectedSchema.attributes[0].name, 'Bag')
+  assert.equal(selectedSchema.attributes[0].options[1].name, 'Not Bag')
+  controls('binary-label')[0].props.activate('phone')
+  await choiceEditor.settle()
+  assert.equal(selectedSchema.attributes[0].name, 'Phone')
+  assert.equal(selectedSchema.attributes[0].options[1].name, 'Not Phone')
+  assert.equal(selectedSchema.attributes[0].threshold, 0.8)
+  assert.equal(validAttributeSchema(selectedSchema), true)
+  click('add-attribute')
+  await choiceEditor.settle()
+  choiceEditor.all(n => n.type === 'el-button' && Object.hasOwn(n.props, 'plain') && n.props.type === 'danger')[0].props.onClick()
+  await choiceEditor.settle()
+  click('add-attribute')
+  await choiceEditor.settle()
+  assert.equal(new Set(selectedSchema.attributes.map(attribute => attribute.key)).size, 2, 'generated keys stay unique after deletion and insertion')
+} finally { choiceEditor.unmount() }
+
 const binaryFlow = JSON.parse(JSON.stringify(flow))
 binaryFlow[2].configObject.params.find(p => p.key === 'attributeSchema').value = JSON.stringify(binarySchema)
 assert.equal(validAttributeFlow(binaryFlow), true)

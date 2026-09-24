@@ -6,7 +6,7 @@ Attribute analysis combines classifier outputs for one tracked object into one e
 
 1. Create a video scene task with the **Attribute Analysis** category.
 2. Connect **Decode → Detect → Track → Classifier A → Classifier B → Result accumulation → Event reporting**. Use `AA_00002` classifiers sequentially. Branch fan-in is not an evidence merge and is not supported here.
-3. Set the accumulator purpose to **Object attributes**. Give each attribute a unique key, display name, upstream classifier source, type (single value, multiple values or yes/no), confidence threshold and required vote share.
+3. Set the accumulator purpose to **Object attributes**. Use the selectors for object type, classifier source, attribute type (single value, multiple values or yes/no), confidence threshold and required vote share. Model labels come from the selected classifier; internal attribute and value keys are generated automatically. Display names are filled in and can be selected or customized. Use Custom threshold and vote share for other numeric values.
 4. For single/multiple-value attributes, map raw model labels to value keys and display names, for example `wearing_hat → yes → Wearing a hat` and `no_hat → no → No hat`. For a behavior represented by a positive score, select **Yes / No**, bind one model label and configure both outcome keys and names, such as Calling / Not calling. Missing model output is still not a negative.
 5. Save the scene, bind channels and configure detection areas. Channel tasks can adjust minimum valid observations, observation duration, disappearance timeout and sampling interval. The scene owns attribute definitions.
 
