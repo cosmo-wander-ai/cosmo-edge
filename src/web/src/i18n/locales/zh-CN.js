@@ -1235,6 +1235,7 @@ export default {
     enterDNS1: '请输入DNS1',
     enterDNS2: '请输入DNS2',
     ipError: 'IP错误',
+    dnsFormatError: 'DNS地址格式错误（仅支持IPv4）',
     dnsRangeError: 'DNS地址第1段范围1-223',
     targetAddress: '目标地址：',
     enterTargetAddress: '请输入目标地址',
