@@ -4,7 +4,7 @@
     <el-form inline class="query" @submit.prevent="search">
       <el-form-item :label="t('attributeAnalysis.scene')">
         <el-select v-model="sceneId" filterable @change="changeScene" style="width: 240px" :placeholder="t('attributeAnalysis.selectScene')">
-          <el-option v-for="scene in scenes" :key="scene.algorithmCode" :value="String(scene.algorithmCode)" :label="scene.algorithmName" />
+          <el-option v-for="scene in scenes" :key="scene.algorithmId" :value="String(scene.algorithmId)" :label="scene.algorithmName" />
         </el-select>
       </el-form-item>
       <el-form-item :label="t('field.channelName')">
@@ -143,7 +143,7 @@ async function exportRecords() {
 }
 onMounted(async () => {
   try {
-    const [sceneResponse, channelResponse] = await Promise.all([proxy.$API.algorithmInquire({ algorithmUsage: 1, algorithmCategory: '12', pageNum: 1, pageSize: 1000 }), proxy.$API.getChannelList({ pageNum: 1, pageSize: 1000 })])
+    const [sceneResponse, channelResponse] = await Promise.all([proxy.$API.algorithmInquire({ algorithmUsage: '1', algorithmCategory: '12', pageNum: 1, pageSize: 1000 }), proxy.$API.getChannelList({ pageNum: 1, pageSize: 1000 })])
     scenes.value = (sceneResponse.resData?.rows || []).filter(s => String(s.algorithmCategory) === '12')
     channels.value = channelResponse.resData?.rows || []
   } catch { ElMessage.error(t('attributeAnalysis.queryFailed')) }

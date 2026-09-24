@@ -46,19 +46,24 @@ for (const platform of ['bm1688', 'cv186x', 'x86']) {
 }
 
 const requests = []
+const sceneRequests = []
 const eventPage = await mountComponent('views/box/eventQuery/attributes/index.vue', {
   components, globals: { TextEncoder }, mocks: { moment: { default: moment }, 'element-plus': { ElMessage: { error(message) { throw new Error(message) } } } },
   api: {
-    algorithmInquire: async () => ({ resData: { rows: [{ algorithmCategory: '12', algorithmCode: 'scene', algorithmName: 'Scene' }] } }),
+    algorithmInquire: async request => { sceneRequests.push(request); return { resData: { rows: [{ algorithmCategory: '12', algorithmId: '42', algorithmName: 'Scene' }] } } },
     getChannelList: async () => ({ resData: { rows: [{ videoChannelId: 'a', channelName: 'A' }, { videoChannelId: 'b', channelName: 'B' }] } }),
-    algorithmLayoutDetail: async () => ({ resData: { algorithmProcessdata: JSON.stringify(flow), attributeSchemaId: 'current-version' } }),
+    algorithmLayoutDetail: async request => { assert.equal(request.id, '42'); return { resData: { algorithmProcessdata: JSON.stringify(flow), attributeSchemaId: 'current-version' } } },
     boxQueryEvent: async request => { requests.push(request); return { resData: { total: 0, rows: [], attributeSummary: { schemas: [], statistics: [] } } } }
   }
 })
 try {
-  eventPage.all(n => n.type === 'el-select')[0].props.activate('scene')
+  assert.equal(sceneRequests[0].algorithmUsage, '1', 'algorithm page API requires a string usage filter')
+  const sceneOption = eventPage.all(n => n.type === 'el-option' && n.props.label === 'Scene')[0]
+  assert.equal(sceneOption.props.value, '42', 'scene choices must use algorithmId from the page API')
+  eventPage.all(n => n.type === 'el-select')[0].props.activate(sceneOption.props.value)
   for (let i = 0; i < 8; i++) await eventPage.settle()
   assert.equal(requests[0].attributeSchemaId, 'current-version', 'current definition is queryable before any record exists')
+  assert.deepEqual(JSON.parse(JSON.stringify(requests[0].algorithmCodes)), ['42'])
   const controls = eventPage.all(n => n.type === 'el-select')
   controls[1].props.activate(['a', 'b'])
   controls.at(-1).props.activate('value:yes')
