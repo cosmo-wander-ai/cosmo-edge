@@ -318,3 +318,49 @@ TEST_CASE("Attribute accumulation drops pending tracks on restart and ignores re
     flow.Feed(4, 21000, {}, true, 2, false);
     REQUIRE(flow.alarms.que->RestSize() == 0);
 }
+
+TEST_CASE("Shared classifier binary attributes finalize positive and negative values independently",
+          "[attributes][binary][flow]") {
+    auto schema = TestAttributeSchema();
+    schema.attributes.resize(1);
+    for (const auto& key : {"activity_a", "activity_b", "activity_c"})
+        schema.attributes.push_back({key,
+                                     key,
+                                     "behavior-node",
+                                     "behavior-model",
+                                     "binary",
+                                     0.5,
+                                     0.6,
+                                     {{key, "yes", "Present"}, {"", "no", "Absent"}}});
+    AccumulationFlow flow(&schema);
+    auto target   = JudgmentTarget(1);
+    auto& hat     = target.classificationObservations["hat-node"];
+    hat.modelCode = "shared-model";
+    AiConfidence value;
+    value.label      = "yes";
+    value.confidence = 0.9f;
+    hat.results.push_back(value);
+    auto& behaviors     = target.classificationObservations["behavior-node"];
+    behaviors.modelCode = "behavior-model";
+    for (const auto& key : {"activity_a", "activity_b", "activity_c"}) {
+        value.label      = key;
+        value.confidence = value.label == "activity_b" ? 0.9f : 0.1f;
+        behaviors.results.push_back(value);
+    }
+    flow.Feed(1, 0, {target}, true, 1, false);
+    flow.Feed(2, 1500, {target}, true, 1, false);
+    flow.Feed(3, 3000, {target}, true, 1, false);
+    REQUIRE(flow.alarms.que->RestSize() == 0);
+    flow.Feed(4, 4500, {}, true, 1, false);
+    REQUIRE(flow.alarms.que->RestSize() == 1);
+    const auto output  = flow.alarms.que->Pop();
+    const auto& record = *output->taskDataAlarm.alarmData->alarms.front().attributeRecord;
+    REQUIRE(ValidateAttributeRecord(record));
+    REQUIRE(record.status == "complete");
+    REQUIRE(record.attributes[0].values == std::vector<std::string>{"yes"});
+    REQUIRE(record.attributes[1].values == std::vector<std::string>{"no"});
+    REQUIRE(record.attributes[2].values == std::vector<std::string>{"yes"});
+    REQUIRE(record.attributes[3].values == std::vector<std::string>{"no"});
+    flow.Feed(5, 6000, {}, true, 1, false);
+    REQUIRE(flow.alarms.que->RestSize() == 0);
+}

@@ -29,13 +29,18 @@ bool ValidateAttributeSchema(const AttributeSchema& schema) {
     for (const auto& attr : schema.attributes) {
         if (!Identifier(attr.key) || !keys.insert(attr.key).second || attr.name.empty() ||
             attr.name.size() > 128 || !Identifier(attr.sourceNode) || !Identifier(attr.modelCode) ||
-            (attr.type != "single" && attr.type != "multiple") || !std::isfinite(attr.threshold) ||
-            attr.threshold < 0 || attr.threshold > 1 || !std::isfinite(attr.minRatio) ||
-            attr.minRatio <= 0.5 || attr.minRatio > 1 || attr.options.empty() || attr.options.size() > 64)
+            (attr.type != "single" && attr.type != "multiple" && attr.type != "binary") ||
+            !std::isfinite(attr.threshold) || attr.threshold < 0 || attr.threshold > 1 ||
+            !std::isfinite(attr.minRatio) || attr.minRatio <= 0.5 || attr.minRatio > 1 ||
+            attr.options.empty() || attr.options.size() > 64)
+            return false;
+        const bool binary = attr.type == "binary";
+        if (binary && (attr.options.size() != 2 || attr.options.front().label.empty() ||
+                       !attr.options.back().label.empty()))
             return false;
         std::set<std::string> labels, values;
         for (const auto& option : attr.options) {
-            if (option.label.empty() || option.label.size() > 128 || !Identifier(option.value) ||
+            if ((!binary && option.label.empty()) || option.label.size() > 128 || !Identifier(option.value) ||
                 option.name.empty() || option.name.size() > 128 || !labels.insert(option.label).second ||
                 !values.insert(option.value).second)
                 return false;
@@ -69,7 +74,7 @@ bool ValidateAttributeRecord(const AttributeRecord& record) {
             continue;
         }
         if (value.samples == 0 || value.values.empty() ||
-            (definition->type == "single" && value.values.size() != 1))
+            (definition->type != "multiple" && value.values.size() != 1))
             return false;
         std::set<std::string> values;
         for (const auto& option : value.values) {

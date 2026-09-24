@@ -23,21 +23,61 @@ assert.equal(attributeDisplay({ ...original, attributes: [{ key: 'hat', status: 
 const canvas = flow.map(n => ({ id: n.flowActionId, data: { ...n, configObject: { webConfig: { atomic: { atomicCode: 'model' } } } } }))
 assert.deepEqual(attributeClassifierSources(canvas, flow.map(n => ({ source: n.preFlowActionId, target: n.flowActionId })), 'accumulate').map(s => s.position), ['classify'])
 
+const binarySchema = JSON.parse(JSON.stringify(schema))
+binarySchema.attributes[0].type = 'binary'
+binarySchema.attributes[0].options = [{ label: 'yes', value: 'yes', name: 'Present' }, { label: '', value: 'no', name: 'Absent' }]
+assert.equal(validAttributeSchema(binarySchema), true)
+for (const options of [binarySchema.attributes[0].options.slice(0, 1), [{ label: '', value: 'yes', name: 'Present' }, { label: '', value: 'no', name: 'Absent' }], [{ label: 'yes', value: 'yes', name: 'Present' }, { label: 'no', value: 'no', name: 'Absent' }], [{ label: 'yes', value: 'yes', name: 'Present' }, { label: '', value: 'yes', name: 'Absent' }]]) {
+  assert.equal(validAttributeSchema({ ...binarySchema, attributes: [{ ...binarySchema.attributes[0], options }] }), false)
+}
+const negativeRecord = { schema: binarySchema, attributes: [{ key: 'hat', status: 'valid', values: ['no'] }] }
+assert.equal(attributeDisplay(negativeRecord, binarySchema.attributes[0], 'unknown', 'failed', 'n/a'), 'Absent')
+assert.equal(attributeDisplay({ ...original, attributes: [{ key: 'hat', status: 'unknown' }] }, binarySchema.attributes[0], 'unknown', 'failed', 'n/a'), 'unknown', 'historical unknowns must not become negative')
+let savedBinary
+const editor = await mountComponent('views/gam/countManagement/arrangeDetail/flow/AttributeSchemaEditor.vue', {
+  props: { modelValue: JSON.stringify(schema), atomicList: [{ position: 'classify', atomicCode: 'model', atomicName: 'Classifier', labelList: [{ class_name: 'yes', nameCN: 'Present' }, { class_name: 'other', nameCN: 'Other' }] }], 'onUpdate:modelValue': value => { savedBinary = JSON.parse(value) } },
+  globals: { TextEncoder },
+  components: { 'el-table-column': { render() { return h('el-table-column', this.$attrs) } } }
+})
+try {
+  editor.all(n => n.type === 'el-select')[1].props.activate('binary')
+  await editor.settle()
+  assert.equal(validAttributeSchema(savedBinary), true)
+  assert.equal(savedBinary.attributes[0].options[1].label, '')
+  editor.all(n => n.type === 'el-input' && n.props.modelValue === 'attributeAnalysis.no')[0].props.activate('Absent')
+  await editor.settle()
+  assert.equal(savedBinary.attributes[0].options[1].name, 'Absent')
+  editor.all(n => n.type === 'el-select')[0].props.activate('classify')
+  await editor.settle()
+  assert.equal(savedBinary.attributes[0].options.length, 2, 'changing source keeps binary outcomes')
+  assert.equal(savedBinary.attributes[0].options[1].name, 'Absent')
+  assert.equal(validAttributeSchema(savedBinary), true)
+  editor.all(n => n.type === 'el-select')[1].props.activate('single')
+  await editor.settle()
+  assert.equal(savedBinary.attributes[0].options.length, 1)
+  assert.equal(validAttributeSchema(savedBinary), true)
+} finally { editor.unmount() }
+const binaryFlow = JSON.parse(JSON.stringify(flow))
+binaryFlow[2].configObject.params.find(p => p.key === 'attributeSchema').value = JSON.stringify(binarySchema)
+assert.equal(validAttributeFlow(binaryFlow), true)
+
 const repositoryRoot = process.env.COSMO_REPO_ROOT || fileURLToPath(new URL('../../../', import.meta.url))
 const empty = { default: { render: () => null } }
 const components = { 'el-table-column': { render() { return h('el-table-column', this.$attrs) } } }
 for (const platform of ['bm1688', 'cv186x', 'x86']) {
   const actions = JSON.parse(await readFile(`${repositoryRoot}/data/resource/aiboxresource_${platform}/layout/actions.json`, 'utf8'))
   const action = actions.find(a => a.id === 'BA_20003')
+  const formFlow = platform === 'bm1688' ? binaryFlow : flow
+  const formSchema = platform === 'bm1688' ? binarySchema : schema
   const form = await mountComponent('views/gam/countManagement/arrangeDetail/flow/DynamicForm.vue', {
-    props: { actionDetail: { ...action, flowActionId: 'accumulate' }, configObject: { params: flow[2].configObject.params, webConfig: {} }, attributeSources: [{ position: 'classify', atomicCode: 'model', atomicName: 'Classifier', labelList: [] }] },
+    props: { actionDetail: { ...action, flowActionId: 'accumulate' }, configObject: { params: formFlow[2].configObject.params, webConfig: {} }, attributeSources: [{ position: 'classify', atomicCode: 'model', atomicName: 'Classifier', labelList: [] }] },
     components, globals: { TextEncoder },
     mocks: { '@element-plus/icons-vue': Object.fromEntries(['QuestionFilled', 'ArrowDown', 'ArrowRight', 'CirclePlus', 'CircleClose'].map(name => [name, empty.default])), './ConditionView.vue': empty, './TreeSelectMultiple.vue': empty, 'tree-transfer-vue3': empty, uuid: { v4: () => 'fixture' }, lodash: { default: lodash }, '@/components/eventBus.js': { default: { $emit() {}, $on() {}, $off() {} } } }
   })
   try {
     const saved = form.instance.submitForm()
     assert.equal(saved.params.find(p => p.key === 'inputMode').value, 'attributes')
-    assert.deepEqual(JSON.parse(saved.params.find(p => p.key === 'attributeSchema').value), schema)
+    assert.deepEqual(JSON.parse(saved.params.find(p => p.key === 'attributeSchema').value), formSchema)
     const purpose = form.all(n => n.type === 'el-radio-group')[0]
     purpose.props.activate(false)
     await form.settle()
@@ -52,7 +92,7 @@ const eventPage = await mountComponent('views/box/eventQuery/attributes/index.vu
   api: {
     algorithmInquire: async request => { sceneRequests.push(request); return { resData: { rows: [{ algorithmCategory: '12', algorithmId: '42', algorithmName: 'Scene' }] } } },
     getChannelList: async () => ({ resData: { rows: [{ videoChannelId: 'a', channelName: 'A' }, { videoChannelId: 'b', channelName: 'B' }] } }),
-    algorithmLayoutDetail: async request => { assert.equal(request.id, '42'); return { resData: { algorithmProcessdata: JSON.stringify(flow), attributeSchemaId: 'current-version' } } },
+    algorithmLayoutDetail: async request => { assert.equal(request.id, '42'); return { resData: { algorithmProcessdata: JSON.stringify(binaryFlow), attributeSchemaId: 'current-version' } } },
     boxQueryEvent: async request => { requests.push(request); return { resData: { total: 0, rows: [], attributeSummary: { schemas: [], statistics: [] } } } }
   }
 })
@@ -73,5 +113,11 @@ try {
   assert.deepEqual(JSON.parse(JSON.stringify(requests.at(-1).channelIds)), ['a', 'b'])
   assert.deepEqual(JSON.parse(JSON.stringify(requests.at(-1).attributeFilters)), [{ key: 'hat', value: 'yes', status: 'valid' }])
   assert.equal(requests.at(-1).includeAttributeSummary, true)
+  const negativeOption = eventPage.all(n => n.type === 'el-option' && n.props.label === 'Absent')[0]
+  controls.at(-1).props.activate(negativeOption.props.value)
+  await eventPage.settle()
+  eventPage.all(n => n.type === 'el-button' && n.props.type === 'primary')[0].props.onClick()
+  for (let i = 0; i < 4; i++) await eventPage.settle()
+  assert.deepEqual(JSON.parse(JSON.stringify(requests.at(-1).attributeFilters)), [{ key: 'hat', value: 'no', status: 'valid' }])
 } finally { eventPage.unmount() }
 console.log('Attribute schema, scene form, historical display and multi-channel query checks passed')

@@ -21,9 +21,10 @@ struct AttributeDefinition {
     std::string name;
     std::string sourceNode;
     std::string modelCode;
-    std::string type{"single"};
+    std::string type{"single"};  // single, multiple, or binary
     double threshold{0.5};
     double minRatio{0.6};
+    // Binary: [positive model label, negative outcome with an empty label].
     std::vector<AttributeOption> options;
 };
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(AttributeDefinition, key, name, sourceNode, modelCode, type,

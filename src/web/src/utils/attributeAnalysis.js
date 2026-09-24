@@ -14,11 +14,13 @@ export function validAttributeSchema(schema) {
   return schema.attributes.every(a => {
     if (!identifier(a.key) || keys.has(a.key) || !a.name || a.name.length > 128 || !identifier(a.sourceNode) || !identifier(a.modelCode)) return false
     keys.add(a.key)
-    if (!['single', 'multiple'].includes(a.type) || !Number.isFinite(a.threshold) || a.threshold < 0 || a.threshold > 1 || !Number.isFinite(a.minRatio) || a.minRatio <= 0.5 || a.minRatio > 1) return false
+    if (!['single', 'multiple', 'binary'].includes(a.type) || !Number.isFinite(a.threshold) || a.threshold < 0 || a.threshold > 1 || !Number.isFinite(a.minRatio) || a.minRatio <= 0.5 || a.minRatio > 1) return false
     if (!Array.isArray(a.options) || !a.options.length || a.options.length > 64) return false
+    const binary = a.type === 'binary'
+    if (binary && (a.options.length !== 2 || !a.options[0].label || a.options[1].label !== '')) return false
     const labels = new Set(), values = new Set()
     return a.options.every(o => {
-      if (!o.label || o.label.length > 128 || !identifier(o.value) || !o.name || o.name.length > 128 || labels.has(o.label) || values.has(o.value)) return false
+      if (typeof o.label !== 'string' || (!binary && !o.label) || o.label.length > 128 || !identifier(o.value) || !o.name || o.name.length > 128 || labels.has(o.label) || values.has(o.value)) return false
       labels.add(o.label); values.add(o.value)
       return true
     })

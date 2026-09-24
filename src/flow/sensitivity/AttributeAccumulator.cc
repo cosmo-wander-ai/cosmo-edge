@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 
 namespace cosmo {
 void AttributeAccumulator::Observe(const AttributeSchema& schema, const AiDetectRstEl& target,
@@ -22,13 +23,35 @@ void AttributeAccumulator::Observe(const AttributeSchema& schema, const AiDetect
             (timestamp <= evidence.lastSample || timestamp - evidence.lastSample < interval))
             continue;
         std::map<std::string, double> candidates;
-        for (const auto& result : source->second.results) {
-            if (!std::isfinite(result.confidence) || result.confidence < definition.threshold ||
-                result.confidence > 1)
+        if (definition.type == "binary") {
+            if (definition.options.size() != 2)
                 continue;
-            for (const auto& option : definition.options) {
-                if (option.label == result.label)
-                    candidates[option.value] = std::max(candidates[option.value], double(result.confidence));
+            std::optional<double> score;
+            for (const auto& result : source->second.results) {
+                if (result.label != definition.options.front().label)
+                    continue;
+                if (!std::isfinite(result.confidence) || result.confidence < 0 || result.confidence > 1) {
+                    score.reset();
+                    break;
+                }
+                score = std::max(score.value_or(0), double(result.confidence));
+            }
+            // An absent label is not a negative observation. A successful model
+            // must explicitly provide a valid score for the configured label.
+            if (!score)
+                continue;
+            const bool positive                                    = *score >= definition.threshold;
+            candidates[definition.options[positive ? 0 : 1].value] = positive ? *score : 1 - *score;
+        } else {
+            for (const auto& result : source->second.results) {
+                if (!std::isfinite(result.confidence) || result.confidence < definition.threshold ||
+                    result.confidence > 1)
+                    continue;
+                for (const auto& option : definition.options) {
+                    if (option.label == result.label)
+                        candidates[option.value] =
+                            std::max(candidates[option.value], double(result.confidence));
+                }
             }
         }
         if (candidates.empty())
