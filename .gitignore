@@ -556,3 +556,6 @@ test/video/demo.mp4
 
 # Sanitized logs are part of the versioned v1.1 public benchmark evidence pack.
 !docs/benchmarks/scenario-bench/v1.1/**/*.log
+
+# PR automation scratch
+_pr_meta.json
