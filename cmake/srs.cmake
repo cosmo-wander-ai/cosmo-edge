@@ -21,10 +21,6 @@ set(SRS_GB28181_PATCH_COMMAND
 )
 
 if(COSMO_TARGET_ARCH STREQUAL "aarch64")
-    set(SRS_PATCH_COMMAND
-        bash ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_crossbuild.sh <SOURCE_DIR>
-        COMMAND ${SRS_GB28181_PATCH_COMMAND}
-    )
     set(SRS_CONFIGURE_ARCH_ARGS
         --cross=on
         --cc=${CMAKE_C_COMPILER}
@@ -37,7 +33,6 @@ if(COSMO_TARGET_ARCH STREQUAL "aarch64")
         --cross-prefix=aarch64-linux-gnu-
     )
 elseif(COSMO_TARGET_ARCH STREQUAL "x86_64")
-    set(SRS_PATCH_COMMAND ${SRS_GB28181_PATCH_COMMAND})
     set(SRS_CONFIGURE_ARCH_ARGS
         --cross=off
         --cc=${CMAKE_C_COMPILER}
@@ -57,10 +52,7 @@ ExternalProject_Add(
     SOURCE_DIR ${SRS_SOURCE_DIR}
     DOWNLOAD_COMMAND ${SRS_DOWNLOAD_COMMAND}
 
-    # Patch: bypass native tool checks (g++, unzip, pkg-config) that are
-    # irrelevant for cross-compilation. The Docker build env only has the
-    # aarch64 cross-toolchain, not all native host tools.
-    PATCH_COMMAND ${SRS_PATCH_COMMAND}
+    PATCH_COMMAND ${SRS_GB28181_PATCH_COMMAND}
 
     CONFIGURE_COMMAND <SOURCE_DIR>/configure
         --prefix=${SRS_INSTALL_DIR}
