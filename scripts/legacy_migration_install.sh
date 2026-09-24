@@ -285,7 +285,10 @@ done
     fail "package is missing cosmo-log-cleanup.service"
 [ -f "${payload_root}/scripts/system-log-retention.py" ] ||
     fail "package is missing system-log-retention.py"
+[ -f "${payload_root}/scripts/runtime_supervisor.py" ] ||
+    fail "package is missing runtime_supervisor.py"
 command -v python3 >/dev/null 2>&1 || fail "Python 3 is required for system log retention"
+command -v pgrep >/dev/null 2>&1 || fail "pgrep is required for ordered runtime shutdown"
 # Reject unsupported/custom logging configurations before stopping the engine.
 log_policy check
 
@@ -363,6 +366,8 @@ umask 022
         'User=root' \
         'EnvironmentFile=-/appfs/cosmo_wander/cwai_data/share/cosmo/runtime-paths.env' \
         'ExecStart=/appfs/cosmo_wander/cwai_data/scripts/inte_run_start.sh' \
+        'KillMode=mixed' \
+        'TimeoutStopSec=35' \
         'Restart=on-failure' \
         'RestartSec=10' \
         '' \

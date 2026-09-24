@@ -255,10 +255,11 @@ class PackageProfileTests(unittest.TestCase):
     def test_open_accepts_plain_model(self) -> None:
         verifier.verify_package(self.make_package("public-runtime"), "public-runtime")
 
-    def test_boot_log_cleanup_files_are_mandatory(self) -> None:
+    def test_boot_supervision_and_log_cleanup_files_are_mandatory(self) -> None:
         for required in (
             "scripts/system-log-cleanup.sh",
             "scripts/system-log-retention.py",
+            "scripts/runtime_supervisor.py",
             "scripts/cosmo-log-cleanup.service",
         ):
             with self.subTest(required=required):

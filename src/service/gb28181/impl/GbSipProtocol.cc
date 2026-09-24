@@ -116,6 +116,9 @@ bool IsId(const std::string& value) {
     return value.size() == 20 &&
            std::all_of(value.begin(), value.end(), [](char c) { return c >= '0' && c <= '9'; });
 }
+bool IsAudioChannel(const std::string& value) {
+    return IsId(value) && (value.compare(10, 3, "136") == 0 || value.compare(10, 3, "137") == 0);
+}
 bool IsIpv4(const std::string& value) {
     in_addr address{};
     return inet_pton(AF_INET, value.c_str(), &address) == 1 && ntohl(address.s_addr) != 0 &&

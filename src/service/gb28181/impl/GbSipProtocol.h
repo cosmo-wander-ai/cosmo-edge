@@ -13,6 +13,9 @@ struct Message {
     std::string Header(const std::string& name) const;
 };
 bool IsId(const std::string& value);
+// GB/T 28181 type digits 11-13: voice input (136) / voice output (137).
+// Keep other identifiers compatible instead of assuming all video is type 132.
+bool IsAudioChannel(const std::string& value);
 bool IsIpv4(const std::string& value);
 std::string RandomHex(size_t bytes = 16);
 std::string Md5(const std::string& value);

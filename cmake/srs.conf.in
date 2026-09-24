@@ -3,9 +3,12 @@
 
 listen              1936;
 max_connections     1000;
-daemon              on;
+daemon              off;
 pid                 @COSMO_DATA_DIR@/log/logs/srs.pid;
-srs_log_tank        file;
+# The runtime supervisor captures stdout/stderr, bounds log size and records
+# fatal exit signals. INFO-level PS metadata is too noisy for long NVR runs.
+srs_log_tank        console;
+srs_log_level       warn;
 srs_log_file        @COSMO_DATA_DIR@/log/logs/srs.log;
 
 http_api {

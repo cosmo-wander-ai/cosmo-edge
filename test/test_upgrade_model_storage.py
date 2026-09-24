@@ -27,7 +27,8 @@ class ModelStorageTests(unittest.TestCase):
         (self.payload / "bin").mkdir()
         (self.payload / "bin/cosmo-engine").write_text("new-engine")
         shutil.copyfile(INSTALLER, self.payload / "scripts/install.sh")
-        for name in ("system-log-cleanup.sh", "cosmo-log-cleanup.service", "system-log-retention.py"):
+        for name in ("system-log-cleanup.sh", "cosmo-log-cleanup.service", "system-log-retention.py",
+                     "runtime_supervisor.py"):
             shutil.copy2(INSTALLER.parent / name, self.payload / "scripts" / name)
         (self.payload / "scripts/system-log-cleanup.sh").chmod(0o755)
         for name in ("stop.sh", "start.sh", "inte_run_start.sh"):

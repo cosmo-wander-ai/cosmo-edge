@@ -114,6 +114,20 @@ foreach(attempt RANGE 1 2)
         message(FATAL_ERROR "GB RTP loss patch is not idempotent")
     endif()
 endforeach()
+foreach(attempt RANGE 1 2)
+    execute_process(COMMAND "${CMAKE_COMMAND}" "-DSRS_SOURCE_DIR=${test_source_dir}"
+        -P "${TEST_PROJECT_ROOT}/cmake/patch_srs_gb28181_audio.cmake"
+        RESULT_VARIABLE result)
+    if(NOT result EQUAL 0)
+        message(FATAL_ERROR "GB audio patch failed")
+    endif()
+    file(READ "${test_source_file}" audio_source)
+    if(attempt EQUAL 1)
+        set(first_audio_source "${audio_source}")
+    elseif(NOT audio_source STREQUAL first_audio_source)
+        message(FATAL_ERROR "GB audio patch is not idempotent")
+    endif()
+endforeach()
 foreach(required "COSMO_MANAGED_GB_V1" "local POST required" "external media lease expired"
         "if (receiver_) receiver_->interrupt()" "if (sender_) sender_->interrupt()"
         "external SIP required" "stop_external()" "invalid SSRC")

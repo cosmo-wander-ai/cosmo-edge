@@ -7,6 +7,7 @@
 
 #include "service/detail/ServiceRegistry.h"
 #include "service/gb28181/IGb28181Management.h"
+#include "service/gb28181/impl/GbSipProtocol.h"
 #include "service/network/IHttpClient.h"
 #include "util/Log.h"
 
@@ -29,7 +30,7 @@ bool Gb28181SourceServiceImpl::Resolve(const std::string& source, Gb28181Source&
     if (device_id.rfind(kScheme, 0) == 0) {
         device_id.erase(0, std::char_traits<char>::length(kScheme));
     }
-    if (!IsDeviceId(device_id)) {
+    if (!IsDeviceId(device_id) || gb::IsAudioChannel(device_id)) {
         return false;
     }
 
