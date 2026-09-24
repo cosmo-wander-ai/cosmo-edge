@@ -115,7 +115,7 @@ These are exact short-run boundaries for this protocol, not maximum-capacity cer
 2. Resolve the public scenario descriptors to the device-local model and task configuration.
 3. Run each case with its recorded target FPS and maximum channel count.
 4. Keep raw summaries, commands, and sanitized logs in private evidence; project public measurements and source hashes into the canonical files.
-5. When the private 72-hour source is available, run `npm run benchmarks:v1.1:verify-long-run-private -- --evidence-root <private-run-root>` to verify its hashes and semantics without copying raw evidence into the repository.
+5. When the private 72-hour source is available, use its archived run-specific verifier to check its hashes and semantics without copying raw evidence into the repository.
 6. Run `npm run benchmarks:v1.1:validate` to check case semantics, public scrub, links, deterministic report generation, and checksums.
 7. When the private VLM source is available, run `npm run benchmarks:v1.1:verify-vlm-private -- --evidence-root <private-run-root> --canonical docs/benchmarks/scenario-bench/v1.1/results/vlm-observations.json`.
 8. Run the documentation build to generate bilingual HTML, aggregate indexes, matrices, and the built-output checksum inventory.
