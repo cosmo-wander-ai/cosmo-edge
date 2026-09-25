@@ -10,7 +10,7 @@ services:
       dockerfile: Dockerfile.x86
       args:
         BUILD_ENV_IMAGE: "ghcr.io/cosmo-wander-ai/cosmo_edge-build-env_x86:v1@sha256:3345825c9255b9b73369af7ab6346c2cc7079786eb23309258acf7212ca03c1d"
-        RUNTIME_BASE_IMAGE: "debian:12-slim@sha256:a7ffa3fd2ba09498788cd398575f4340599626c37610af57cc368e70fd564d75"
+        RUNTIME_BASE_IMAGE: "debian:12-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251"
         RESOURCE_DIR: data/resource/aiboxresource_x86
         # Nested GNU Make jobservers can lose pipe descriptors under amd64
         # emulation. Serial is slower but is the reproducible Preview default.
