@@ -11,6 +11,7 @@ namespace cosmo::linkage {
 // IDs emitted by data/resource/*/layout/linkageStorages.json.
 inline constexpr std::string_view kLaAlarmDataCode   = "LA_AlarmData_Code";
 inline constexpr std::string_view kLaAudioDeviceCode = "LA_AudioDevice_Code";
+inline constexpr std::string_view kLaAlarmOutputCode = "LA_AlarmOutput_Code";
 // Keep already-persisted strategies from older releases readable.
 inline constexpr std::string_view kLaAlarmDataLegacyCode   = "EVT_00001";
 inline constexpr std::string_view kLaAudioDeviceLegacyCode = "DA_00001";
@@ -19,6 +20,7 @@ enum class LinkAgeActionKind {
     kUnsupported,
     kAlarm,
     kAudioDevice,
+    kAlarmOutput,
 };
 
 constexpr LinkAgeActionKind ClassifyLinkAgeActionId(std::string_view action_id) {
@@ -27,6 +29,9 @@ constexpr LinkAgeActionKind ClassifyLinkAgeActionId(std::string_view action_id) 
     }
     if (action_id == kLaAudioDeviceCode || action_id == kLaAudioDeviceLegacyCode) {
         return LinkAgeActionKind::kAudioDevice;
+    }
+    if (action_id == kLaAlarmOutputCode) {
+        return LinkAgeActionKind::kAlarmOutput;
     }
     return LinkAgeActionKind::kUnsupported;
 }

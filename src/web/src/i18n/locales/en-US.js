@@ -1900,7 +1900,8 @@ export default {
       '分割视觉大模型': 'Visual Segmentation (VLM)',
       '语言视觉大模型': 'Visual Language (VLM)',
       '算法告警数据': 'Algorithm Alarm Data',
-      '网络音柱联动': 'Network Speaker Linkage'
+      '网络音柱联动': 'Network Speaker Linkage',
+      '告警输出联动': 'Alarm Output Linkage'
     },
     algorithmNames: {
       '吸烟检测': 'Smoking Detection',

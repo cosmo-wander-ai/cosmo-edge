@@ -137,6 +137,35 @@ inventory, size, and SHA-256.
 Device deployments may override the application and data roots with `COSMO_APP_DATA_DIR` and `COSMO_DATA_DIR`.
 Overrides must be controlled absolute paths consistent with the service and persistence policy.
 
+## Alarm Output Linkage
+
+Add **Alarm Output Linkage** under business processing, after an alarm-data node bound to an algorithm.
+The component accepts a logical output channel (1–64) and duration (1–600 seconds, default 5).
+The channel range does not describe the number of physical outputs. Repeated alarms extend the hold
+time on the same channel; channels reset independently when their deadlines expire.
+
+Configure board wiring in `conf/linkAge/alarmOutputs.json` under the user data root and restart the
+application after changes. This example illustrates the format only; confirm the GPIO number and
+active polarity against the actual board:
+
+```json
+{
+  "outputs": [
+    { "id": 1, "gpio": 42, "activeLow": true }
+  ]
+}
+```
+
+`id` is the logical channel, `gpio` is an already exported Linux sysfs GPIO number, and `activeLow`
+is a required boolean (`true` means active low). Both channel IDs and GPIO numbers must be unique.
+The board must configure the GPIO as an output and grant the application write access to its `value`
+file. The application does not export GPIOs or change direction or kernel `active_low` settings.
+Network strategies reference logical channels only, never GPIO paths.
+
+Missing or invalid board configuration leaves outputs unavailable. Permission and write failures
+are logged. Failed resets are retried while running; normal shutdown attempts to reset active
+outputs. Contact states after forced termination, power loss, or hardware failure depend on the board.
+
 ## Ports
 
 | Port | Description |

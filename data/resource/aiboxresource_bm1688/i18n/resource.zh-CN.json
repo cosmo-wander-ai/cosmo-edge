@@ -3585,5 +3585,13 @@
   "resource.param.ba_00004.llmopenai_timeout_ms.llmprovider.openai_vlm.description": "请求超时时间，单位毫秒",
   "resource.param.ba_00004.llmopenai_timeout_ms.llmprovider.openai_vlm.failedtip": "请输入超时时间",
   "resource.param.ba_00004.llmopenai_max_tokens.llmprovider.openai_vlm.description": "最大输出token数",
-  "resource.param.ba_00004.llmopenai_max_tokens.llmprovider.openai_vlm.failedtip": "请输入最大输出token数"
+  "resource.param.ba_00004.llmopenai_max_tokens.llmprovider.openai_vlm.failedtip": "请输入最大输出token数",
+  "resource.action.la_alarmoutput_code.actionname": "告警输出联动",
+  "resource.action.la_alarmoutput_code.remark": "触发盒子告警输出，到期自动恢复",
+  "resource.param.la_alarmoutput_code.duration.description": "输出保持1至600秒；重复告警会延长保持时间",
+  "resource.param.la_alarmoutput_code.duration.failedtip": "请输入1至600的整数",
+  "resource.param.la_alarmoutput_code.duration.name": "持续时长（秒）",
+  "resource.param.la_alarmoutput_code.outputchannel.description": "填写盒子已配置的告警输出通道编号",
+  "resource.param.la_alarmoutput_code.outputchannel.failedtip": "请输入1至64的整数",
+  "resource.param.la_alarmoutput_code.outputchannel.name": "输出通道"
 }

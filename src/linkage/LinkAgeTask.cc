@@ -5,6 +5,7 @@
 #include <algorithm>
 
 #include "linkage/LinkAgeAlarm.h"
+#include "linkage/LinkAgeAlarmOutput.h"
 #include "linkage/LinkAgeAudioDevice.h"
 #include "util/Keys.h"
 #include "util/Log.h"
@@ -12,12 +13,15 @@
 namespace cosmo::linkage {
 namespace {
 
-    LinkAgeBasePtr CreateAction(LinkAgeParamNode& action) {
+    LinkAgeBasePtr CreateAction(LinkAgeParamNode& action,
+                                const std::shared_ptr<AlarmOutputController>& outputs) {
         switch (ClassifyLinkAgeActionId(action.action_id)) {
             case LinkAgeActionKind::kAlarm:
                 return std::make_shared<LinkAgeAlarm>(action);
             case LinkAgeActionKind::kAudioDevice:
                 return std::make_shared<LinkAgeAudioDevice>(action);
+            case LinkAgeActionKind::kAlarmOutput:
+                return std::make_shared<LinkAgeAlarmOutput>(action, outputs);
             case LinkAgeActionKind::kUnsupported:
                 return nullptr;
         }
@@ -38,10 +42,12 @@ namespace {
 
 }  // namespace
 
-LinkAgeTask::LinkAgeTask(const std::string& name, LinkageStrategyWorkflow& strategy) : task_name_(name) {
+LinkAgeTask::LinkAgeTask(const std::string& name, LinkageStrategyWorkflow& strategy,
+                         std::shared_ptr<AlarmOutputController> outputs)
+    : task_name_(name) {
     std::vector<LinkAgeBasePtr> actions;
     for (auto& workflow : strategy.workflow) {
-        auto action_inst = CreateAction(workflow);
+        auto action_inst = CreateAction(workflow, outputs);
         if (!action_inst) {
             LOG_WARN("[{}] {}/{} Not Support", task_name_, workflow.action_id, workflow.action_name);
             continue;
