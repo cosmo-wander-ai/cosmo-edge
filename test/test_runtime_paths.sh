@@ -104,6 +104,9 @@ render_data_dir="${root}/userdata/cwaiuserdata"
         exit 1
     fi
     grep -Fq 'enabled off;' "$COSMO_RUNTIME_SRS_CONF"
+    grep -Fq 'daemon              off;' "$COSMO_RUNTIME_SRS_CONF"
+    grep -Fq 'srs_log_tank        console;' "$COSMO_RUNTIME_SRS_CONF"
+    grep -Fq 'srs_log_level       warn;' "$COSMO_RUNTIME_SRS_CONF"
     grep -Fq 'listen 9001;' "$COSMO_RUNTIME_SRS_CONF"
     grep -Fq 'listen 5060;' "$COSMO_RUNTIME_SRS_CONF"
     grep -Fq 'candidate *;' "$COSMO_RUNTIME_SRS_CONF"

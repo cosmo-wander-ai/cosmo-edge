@@ -95,6 +95,18 @@ if ! port_contract="$(verify_nginx_engine_port_contract "$NGINX_UPSTREAM_CONF" \
 fi
 cosmo_log "$logTag" "Port contract OK: ${port_contract}" "$logFile"
 
+# Check supervisor dependencies before stopping the previous release.
+PLAY_MODE="${COSMO_STREAM_PLAY_MODE:-srs}"
+SUPERVISE_MEDIA=false
+case "$PLAY_MODE" in
+    srs|webrtc|srs-flv|httpflv-srs)
+        command -v python3 >/dev/null
+        command -v pgrep >/dev/null
+        test -f "${SCRIPT_DIR}/runtime_supervisor.py"
+        SUPERVISE_MEDIA=true
+        ;;
+esac
+
 # Stop all running processes before starting (including nginx)
 cosmo_log "$logTag" "Stopping all running processes before start..." "$logFile"
 TRUSTED_STOP_SCRIPT="${COSMO_TRUSTED_STOP_SCRIPT:-${INSTALLPATH}/scripts/stop.sh}"
@@ -132,15 +144,15 @@ export COSMO_STREAM_HTTP_PORT="${COSMO_STREAM_HTTP_PORT:-18088}"
 cosmo_log "$logTag" "Starting nginx..." "$logFile"
 nginx -p "${NGINX_PREFIX}" -c "${NGINX_CONF}"
 
-# Start SRS media server (for srs/webrtc/srs-flv/httpflv-srs play modes)
-PLAY_MODE="${COSMO_STREAM_PLAY_MODE}"
-if [ "$PLAY_MODE" = "srs" ] || [ "$PLAY_MODE" = "webrtc" ] || [ "$PLAY_MODE" = "srs-flv" ] || [ "$PLAY_MODE" = "httpflv-srs" ]; then
-    cosmo_log "$logTag" "Starting SRS media server (mode: ${PLAY_MODE})..." "$logFile"
-    ./srs -c "${SRS_CONF}" &
+# The supervisor owns foreground SRS and the engine, preserves shutdown order,
+# and restarts only the media dependency after exit or sustained health failure.
+if [ "$SUPERVISE_MEDIA" = true ]; then
+    cosmo_log "$logTag" "Starting supervised media and engine (mode: ${PLAY_MODE})..." "$logFile"
+    exec python3 "${SCRIPT_DIR}/runtime_supervisor.py" \
+        --engine "${BINPATH}/cosmo-engine" --media "${BINPATH}/srs" \
+        --config "${SRS_CONF}" --log-dir "${COSMO_LOG_DIR}"
 fi
 
-# Start cosmo-engine (foreground, managed by systemd)
+# Non-SRS modes retain direct engine supervision by systemd/container runtime.
 cosmo_log "$logTag" "Starting cosmo-engine (foreground)..." "$logFile"
-./cosmo-engine
-
-cosmo_log "$logTag" "Script ended." "$logFile"
+exec ./cosmo-engine

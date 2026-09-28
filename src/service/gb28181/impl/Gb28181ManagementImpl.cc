@@ -449,6 +449,14 @@ struct Gb28181ManagementImpl::Impl {
                 return;
             }
             if (device.pending.size() == static_cast<size_t>(xml.total)) {
+                // Count/deduplicate every catalog entry before filtering. An NVR
+                // includes voice endpoints in SumNum, sometimes on separate pages.
+                for (auto it = device.pending.begin(); it != device.pending.end();) {
+                    if (gb::IsAudioChannel(it->first))
+                        it = device.pending.erase(it);
+                    else
+                        ++it;
+                }
                 device.channels = std::move(device.pending);
                 device.pending.clear();
                 device.sn.clear();
@@ -477,6 +485,8 @@ struct Gb28181ManagementImpl::Impl {
             Queue(fd, gb::Response(message, 405));
     }
     std::string Owner(const std::string& channel) const {
+        if (gb::IsAudioChannel(channel))
+            return "";
         std::string owner;
         for (const auto& item : devices_)
             if (item.second.channels.count(channel)) {
@@ -1104,7 +1114,8 @@ Json Gb28181ManagementImpl::Execute(const Json& request) {
     return result.get();
 }
 void Gb28181ManagementImpl::Ensure(const std::string& channelId) {
-    if (!impl_->running_ || util::ProcessShutdown::Requested() || !gb::IsId(channelId))
+    if (!impl_->running_ || util::ProcessShutdown::Requested() || !gb::IsId(channelId) ||
+        gb::IsAudioChannel(channelId))
         return;
     std::lock_guard<std::mutex> lock(impl_->mailbox_mtx_);
     if (impl_->demand_.size() < 256)

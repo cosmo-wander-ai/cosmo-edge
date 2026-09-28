@@ -6,6 +6,7 @@
 #include <condition_variable>
 #include <filesystem>
 #include <mutex>
+#include <thread>
 
 #include "catch_amalgamated.hpp"
 #include "service/detail/ServiceRegistry.h"
@@ -37,9 +38,21 @@ public:
     std::condition_variable changed;
     std::vector<Json> calls;
     int port{19001};
+    bool available{true}, publishing{false};
+    void SetState(bool online, bool active) {
+        std::lock_guard<std::mutex> lock(mtx);
+        available  = online;
+        publishing = active;
+    }
     cosmo::service::HttpResponse Get(const std::string&, long, long,
                                      const std::vector<std::pair<std::string, std::string>>&) override {
-        return {200, R"({"code":0,"streams":[]})"};
+        std::lock_guard<std::mutex> lock(mtx);
+        if (!available)
+            return {503, ""};
+        Json streams = Json::array();
+        if (publishing)
+            streams.push_back({{"name", channelId}, {"app", "live"}, {"publish", {{"active", true}}}});
+        return {200, Json{{"code", 0}, {"streams", streams}}.dump()};
     }
     cosmo::service::HttpResponse Post(const std::string&, const std::string& body, const std::string&, long,
                                       long,
@@ -47,6 +60,8 @@ public:
         std::lock_guard<std::mutex> lock(mtx);
         calls.push_back(Json::parse(body));
         changed.notify_all();
+        if (!available)
+            return {503, ""};
         return {200, Json{{"code", 0}, {"port", port}, {"is_tcp", true}, {"managed", true}}.dump()};
     }
 };
@@ -91,9 +106,9 @@ public:
     void Send(const std::string& bytes) {
         REQUIRE(send(fd, bytes.data(), bytes.size(), MSG_NOSIGNAL) == static_cast<ssize_t>(bytes.size()));
     }
-    gb::Message Read() {
+    gb::Message Read(int timeoutSeconds = 5) {
         gb::Message message;
-        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(timeoutSeconds);
         while (!gb::Pop(input, message)) {
             REQUIRE(std::chrono::steady_clock::now() < deadline);
             pollfd descriptor{fd, POLLIN, 0};
@@ -226,6 +241,137 @@ TEST_CASE("Managed GB rejects unlisted devices even in compatibility mode", "[gb
     Camera other(port);
     other.Send(Packet("REGISTER"));
     CHECK(other.Read().status == 403);
+}
+
+TEST_CASE("Managed GB restores an established stream after media service loss without reregistering",
+          "[gb28181][gb-managed][gb-recovery]") {
+    Root root;
+    Media media;
+    Registration registration(media);
+    cosmo::service::Gb28181ManagementImpl service;
+    service.Init();
+    const int port = FreePort();
+    service.Execute({{"action", "savePlatform"}, {"enabled", true}, {"sipPort", port}});
+    service.Execute({{"action", "saveDevice"}, {"id", deviceId}, {"allowUnauthenticated", true}});
+    Camera camera(port);
+    camera.Send(Packet("REGISTER"));
+    REQUIRE(camera.Read().status == 200);
+    const auto query = camera.Read();
+    const auto start = query.body.find("<SN>") + 4;
+    const auto sn    = query.body.substr(start, query.body.find("</SN>") - start);
+    camera.Send(Packet("MESSAGE", Catalog(sn, channelId)));
+    REQUIRE(camera.Read().status == 200);
+    auto accept = [&](const gb::Message& invite) {
+        REQUIRE(invite.method == "INVITE");
+        const std::string sdp =
+            "v=0\r\nm=video 19002 TCP/RTP/AVP 96\r\na=rtpmap:96 PS/90000\r\na=sendonly\r\n";
+        auto answer = gb::Response(invite, 200, "Content-Type: application/sdp\r\n");
+        answer.replace(answer.find("Content-Length: 0"), 17, "Content-Length: " + std::to_string(sdp.size()));
+        camera.Send(answer + sdp);
+        CHECK(camera.Read().method == "ACK");
+    };
+    auto waitState = [&](const std::string& expected, int seconds) {
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(seconds);
+        while (std::chrono::steady_clock::now() < deadline) {
+            service.Ensure(channelId);
+            const auto state     = service.Execute({{"action", "list"}});
+            const auto& channels = state["devices"][0]["channels"];
+            if (!channels.empty() && channels[0]["state"] == expected)
+                return true;
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        return false;
+    };
+    service.Ensure(channelId);
+    const auto initialInvite = camera.Read();
+    accept(initialInvite);
+    media.SetState(true, true);
+    REQUIRE(waitState("receiving", 6));
+    media.SetState(false, false);
+    REQUIRE(waitState("stream_failed", 30));
+    CHECK(service.Execute({{"action", "list"}})["devices"][0]["online"] == true);
+    media.SetState(true, false);
+    auto recovered = camera.Read(15);
+    if (recovered.method == "BYE")
+        recovered = camera.Read(15);
+    REQUIRE(recovered.method == "INVITE");
+    CHECK(recovered.Header("call-id") != initialInvite.Header("call-id"));
+    accept(recovered);
+    media.SetState(true, true);
+    CHECK(waitState("receiving", 6));
+    service.Execute({{"action", "savePlatform"}, {"enabled", false}});
+}
+
+TEST_CASE("Managed GB completes mixed paged catalogs but exposes and invites only video",
+          "[gb28181][gb-managed]") {
+    const bool udp = GENERATE(false, true);
+    Root root;
+    Media media;
+    Registration registration(media);
+    cosmo::service::Gb28181ManagementImpl service;
+    service.Init();
+    const int port = FreePort();
+    service.Execute({{"action", "savePlatform"}, {"enabled", true}, {"sipPort", port}});
+    service.Execute({{"action", "saveDevice"}, {"id", deviceId}, {"allowUnauthenticated", true}});
+    Camera camera(port, udp);
+    auto packet = [&](const std::string& method, const std::string& body, int sequence) {
+        auto wire = Packet(method, body);
+        if (udp) {
+            wire.replace(wire.find("SIP/2.0/TCP"), 11, "SIP/2.0/UDP");
+            wire.replace(wire.find("CSeq: 1 "), 8, "CSeq: " + std::to_string(sequence) + " ");
+            wire.replace(wire.find("branch=z9hG4bKfixture"), 21,
+                         "branch=z9hG4bKcatalog" + std::to_string(sequence));
+        }
+        camera.Send(wire);
+    };
+    packet("REGISTER", "", 1);
+    REQUIRE(camera.Read().status == 200);
+    auto query = camera.Read();
+    REQUIRE(query.method == "MESSAGE");
+    camera.Send(gb::Response(query, 200));
+    const auto start          = query.body.find("<SN>") + 4;
+    const auto sn             = query.body.substr(start, query.body.find("</SN>") - start);
+    const std::string audioIn = "34020000001360000009", audioOut = "34020000001370000009";
+    packet("MESSAGE", Catalog(sn, channelId, 3), 2);
+    REQUIRE(camera.Read().status == 200);
+    packet("MESSAGE", Catalog(sn, audioIn, 3), 3);
+    REQUIRE(camera.Read().status == 200);
+    // Duplicate pages must not count twice; the final audio page completes
+    // SumNum even though it is never exposed as an addable video channel.
+    packet("MESSAGE", Catalog(sn, audioIn, 3), 4);
+    REQUIRE(camera.Read().status == 200);
+    CHECK_THROWS(
+        service.Execute({{"action", "validateChannel"}, {"deviceId", deviceId}, {"channelId", channelId}}));
+    packet("MESSAGE", Catalog(sn, audioOut, 3), 5);
+    REQUIRE(camera.Read().status == 200);
+    auto snapshot               = service.Execute({{"action", "list"}});
+    const auto snapshotDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (snapshot["devices"][0]["channels"].size() != 1 &&
+           std::chrono::steady_clock::now() < snapshotDeadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        snapshot = service.Execute({{"action", "list"}});
+    }
+    REQUIRE(snapshot["devices"].size() == 1);
+    CHECK(snapshot["devices"][0]["state"] == "registered");
+    const auto channels = snapshot["devices"][0]["channels"];
+    REQUIRE(channels.size() == 1);
+    CHECK(channels[0]["id"] == channelId);
+    for (const auto& audio : {audioIn, audioOut}) {
+        CHECK_THROWS(
+            service.Execute({{"action", "validateChannel"}, {"deviceId", deviceId}, {"channelId", audio}}));
+        service.Ensure(audio);  // Includes old saved audio-only camera entries.
+    }
+    service.Ensure(channelId);
+    const auto invite = camera.Read();
+    CHECK(invite.method == "INVITE");
+    CHECK(gb::User(invite.uri) == channelId);
+    {
+        std::lock_guard<std::mutex> lock(media.mtx);
+        for (const auto& call : media.calls)
+            if (call.contains("id"))
+                CHECK(call["id"] == channelId);
+    }
+    service.Execute({{"action", "savePlatform"}, {"enabled", false}});
 }
 
 namespace {

@@ -37,6 +37,15 @@ jobs:
             ghcr.io/cosmo-wander-ai/cosmo_edge-build-env_x86:v1 bash -lc '
               set -euo pipefail
               python3 test/test_package_profile.py
+              python3 test/test_runtime_supervisor.py
+              bash test/test_runtime_paths.sh
+              bash test/test_legacy_migration_installer.sh
+              python3 test/test_upgrade_model_storage.py
+              audio_test_dir="$(mktemp -d)"
+              cmake -DTEST_PROJECT_ROOT="$PWD" -DTEST_OUTPUT_DIR="$audio_test_dir" \
+                -P test/test_srs_gb28181_patch.cmake
+              python3 test/test_srs_gb28181_audio.py \
+                "$audio_test_dir/srs-source/src/app/srs_app_gb28181.cpp"
               python3 test/test_verify_model_guard_v2_sdk.py
               python3 test/test_verify_model_guard_rknn_v1_sdk.py
               python3 test/test_build_entrypoints.py

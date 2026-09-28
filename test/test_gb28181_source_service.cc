@@ -56,6 +56,11 @@ TEST_CASE("GB28181 source resolves device identity to local SRS media", "[gb2818
     CHECK_FALSE(service.Resolve("3402000000132000000", source));
     CHECK_FALSE(service.Resolve("gb28181://3402000000132000000x", source));
     CHECK_FALSE(service.Resolve("rtsp://34020000001320000001", source));
+    CHECK_FALSE(service.Resolve("34020000001360000001", source));
+    CHECK_FALSE(service.Resolve("gb28181://34020000001370000001", source));
+    // Do not turn audio filtering into a strict camera-type allowlist: NVR
+    // video channels and vendor-assigned video identifiers must keep working.
+    CHECK(service.Resolve("34020000001310000001", source));
 }
 
 TEST_CASE("GB28181 source reports only active SRS live publishers", "[gb28181]") {
