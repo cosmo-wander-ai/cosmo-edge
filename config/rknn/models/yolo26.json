@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "name": "yolo26",
+  "model_type": "yolo26_det",
+  "source_repository_path": "data/resource/aiboxresource_x86/models/yolo26n.onnx",
+  "source_sha256": "d3ca1a5c750501875a51fd6860063828183f4972cbbeb6c2e33ba1fdc5a62f29",
+  "packaging": {
+    "algorithm_code": "9281435"
+  },
+  "conversion": {
+    "input_sha256": "73178587d96121409fbf48830c04ba0b97b9630e0f133f3fe479c853e0d8d35c",
+    "maximum_onnx_opset": 19,
+    "maximum_onnx_ir_version": 9,
+    "optimization_level": 3,
+    "preprocessing_owner": "host",
+    "output_adapter": "yolo26_one2one_6head_v1"
+  },
+  "input": {
+    "name": "images",
+    "shape": [1, 3, 640, 640],
+    "dtype": "float32",
+    "layout": "NCHW",
+    "color": "RGB",
+    "resize": "letterbox_center",
+    "mean": [0.0, 0.0, 0.0],
+    "scale": 0.00392157,
+    "padding_color": [114, 114, 114]
+  },
+  "outputs": [
+    {"name": "output0", "shape": [1, 300, 6], "dtype": "float32"}
+  ],
+  "runtime_outputs": [
+    {"name": "/model.23/one2one_cv2.0/one2one_cv2.0.2/Conv_output_0", "shape": [1, 4, 80, 80]},
+    {"name": "/model.23/one2one_cv3.0/one2one_cv3.0.2/Conv_output_0", "shape": [1, 80, 80, 80]},
+    {"name": "/model.23/one2one_cv2.1/one2one_cv2.1.2/Conv_output_0", "shape": [1, 4, 40, 40]},
+    {"name": "/model.23/one2one_cv3.1/one2one_cv3.1.2/Conv_output_0", "shape": [1, 80, 40, 40]},
+    {"name": "/model.23/one2one_cv2.2/one2one_cv2.2.2/Conv_output_0", "shape": [1, 4, 20, 20]},
+    {"name": "/model.23/one2one_cv3.2/one2one_cv3.2.2/Conv_output_0", "shape": [1, 80, 20, 20]}
+  ],
+  "calibration": {
+    "source": "uniformly sampled frames from data/test-video/Safety Helmet.mp4",
+    "minimum_samples": 32,
+    "labeled": false
+  },
+  "validation": {
+    "class_ids": [0],
+    "fp16": {
+      "minimum_cosine_similarity": 0.999,
+      "maximum_absolute_error": 20.0,
+      "minimum_detection_f1": 0.98,
+      "minimum_matched_iou": 0.9,
+      "maximum_matched_score_error": 0.1
+    },
+    "int8": {
+      "minimum_cosine_similarity": 0.98,
+      "maximum_absolute_error": 350.0,
+      "minimum_detection_f1": 0.9,
+      "minimum_matched_iou": 0.75,
+      "maximum_matched_score_error": 0.2
+    }
+  }
+}
