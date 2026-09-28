@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import agent_workflow as core
+from model_package_validation import check_package
 from conversion_common import (
     ExecutionFailure,
     utc_now,
@@ -1012,7 +1013,13 @@ def _resolve_manifest_artifact(run_dir: Path, entry: dict[str, Any]) -> Path:
     return core.resolve_run_input(run_dir, raw_path)
 
 
-def _package_stage(contract: dict[str, Any], run_dir: Path, parameters: dict[str, Any]) -> dict[str, Any]:
+def _package_stage(
+    contract: dict[str, Any],
+    run_dir: Path,
+    parameters: dict[str, Any],
+    artifacts: list[dict[str, Any]] | None = None,
+    model_info: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     output_kind = str(parameters["raw"].get("outputKind", "bmodel"))
     if output_kind != "model-package":
         return {"id": "S4", "status": "SKIP", "detail": "The task requests a bmodel, not a full import package."}
@@ -1034,27 +1041,15 @@ def _package_stage(contract: dict[str, Any], run_dir: Path, parameters: dict[str
         return {"id": "S4", "status": "FAIL", "detail": "The package directory escapes the current run."}
     if not re.fullmatch(r"prod_[A-Z0-9]+_[0-9]{7}_.+_V[0-9]+\.0\.[0-9]+", package.name):
         return {"id": "S4", "status": "FAIL", "detail": "The package directory name does not match the import contract."}
-    config_path = package / "config.json"
-    model_path = package / "model.nn"
-    if not config_path.is_file() or not model_path.is_file():
-        return {"id": "S4", "status": "FAIL", "detail": "The package must contain config.json and model.nn."}
     try:
+        config_path = core.resolve_run_input(run_dir, str(package / "config.json"))
+        model_path = core.resolve_run_input(run_dir, str(package / "model.nn"))
         config = core.load_json(config_path)
-    except core.WorkflowError as error:
-        return {"id": "S4", "status": "FAIL", "detail": str(error)}
-    if str(config.get("chip_type", "")).lower() != parameters["targetChip"]:
-        return {"id": "S4", "status": "FAIL", "detail": "config.json chip_type differs from the task contract."}
-    models = config.get("models")
-    if not isinstance(models, list) or not models:
-        return {"id": "S4", "status": "FAIL", "detail": "config.json models must be non-empty."}
-    for model in models:
-        if not isinstance(model, dict) or not model.get("inputs") or not model.get("outputs"):
-            return {"id": "S4", "status": "FAIL", "detail": "Each configured model needs inputs and outputs."}
-    return {
-        "id": "S4",
-        "status": "PASS",
-        "detail": "Package name, config.json, model.nn, chip, and tensor declarations are present and self-consistent.",
-    }
+        if not isinstance(config, dict):
+            return {"id": "S4", "status": "FAIL", "detail": "config.json must be an object."}
+        return check_package(config, model_path, run_dir, parameters, artifacts or [], model_info or {})
+    except (core.WorkflowError, OSError, UnicodeError) as error:
+        return {"id": "S4", "status": "FAIL", "detail": core.redact_text(str(error))}
 
 
 def _example_applicable(example: dict[str, Any], parameters: dict[str, Any]) -> bool:
@@ -1224,7 +1219,7 @@ def verify_conversion(
             "detail": tensor_detail,
         }
     )
-    stages.append(_package_stage(contract, run_dir, parameters))
+    stages.append(_package_stage(contract, run_dir, parameters, deliverables, model_info))
     stages.append(
         {
             "id": "S5",
