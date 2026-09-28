@@ -87,6 +87,7 @@
 import { ref, reactive, computed, watch, onMounted, getCurrentInstance } from 'vue'
 import { ElLoading } from 'element-plus'
 import { currentLocale, t, localeColon } from '@/i18n'
+import { isValidMqttPort } from '@/utils/networkPortValidation'
 
 const { proxy } = getCurrentInstance()
 
@@ -117,13 +118,29 @@ const mqttFormData = reactive({
   status: false
 })
 
+/**
+ * 校验数据对接页面的 MQTT 端口，并在超出 TCP 端口范围时显示字段级提示。
+ */
+const validateMqttPort = (_rule, value, callback) => {
+  if (value === '' || value === null || value === undefined) {
+    callback()
+    return
+  }
+  if (!isValidMqttPort(value)) {
+    callback(new Error(t('api.error.mqttPortOutOfRange')))
+    return
+  }
+  callback()
+}
+
 const mqttRules = computed(() => ({
   url: [
     { required: true, message: t('validate.enterField', { field: t('boxOther.serverAddress') }), trigger: 'blur' },
     { max: 256, message: t('boxOther.serverAddressMaxChars', { n: 256 }), trigger: 'blur' }
   ],
   port: [
-    { required: true, message: t('boxOther.enterPort'), trigger: 'blur' }
+    { required: true, message: t('boxOther.enterPort'), trigger: 'blur' },
+    { validator: validateMqttPort, trigger: ['blur', 'change'] }
   ],
   clientId: [
     { required: true, message: t('boxOther.enterClientId'), trigger: 'blur' },

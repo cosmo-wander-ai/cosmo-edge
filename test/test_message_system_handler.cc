@@ -325,3 +325,23 @@ TEST_CASE("SystemHandler: QueryMqttAdapterParam", "[system-handler]") {
     auto ret = handler.Handle(std::move(data), errc);
     REQUIRE(!errc);
 }
+
+TEST_CASE("SystemHandler: SetMqttAdapterParam identifies an out-of-range port", "[system-handler]") {
+    SystemHandlerMocks mocks;
+    auto handler = MakeHandler(mocks);
+    ALLOW_CALL(mocks.configNetSvc, SetMqttParam(_)).RETURN(util::ErrorEnum::InvalidParam);
+
+    System::MsgSetMqttAdapterParamRecv data{};
+    data.enable = true;
+    data.url    = "mqtt.example.com";
+    data.port   = 65536;
+    std::error_condition errc;
+
+    const auto ret = handler.Handle(std::move(data), errc);
+
+    REQUIRE(errc == util::ErrorEnum::InvalidParam);
+    REQUIRE(ret.resMsg.size() == 1);
+    CHECK(ret.resMsg.front().msgCode == "INVALID_MQTT_PORT");
+    CHECK(ret.resMsg.front().messageKey == "api.error.mqttPortOutOfRange");
+    CHECK(ret.resMsg.front().msgText == "MQTT port must be between 1 and 65535");
+}

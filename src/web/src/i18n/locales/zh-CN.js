@@ -1578,6 +1578,7 @@ export default {
       NoMem: '没有足够的内存',
       InValidMem: '无效的内存',
       InvalidParam: '无效的参数',
+      mqttPortOutOfRange: 'MQTT端口必须在1到65535之间',
       MandatoryParamMiss: '必要参数缺失',
       FileOpenFailed: '文件打开失败',
       FileNotOpened: '文件未打开就读取',

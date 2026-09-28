@@ -24,7 +24,9 @@
 namespace cosmo {
 
 namespace {
-    constexpr int kMinLogoSize = 100;  // Minimum valid logo image size in bytes
+    constexpr int kMinLogoSize    = 100;  // Minimum valid logo image size in bytes
+    constexpr int kMinNetworkPort = 1;
+    constexpr int kMaxNetworkPort = 65535;
 
     std::string ReadBootId() {
         std::ifstream input("/proc/sys/kernel/random/boot_id");
@@ -175,10 +177,21 @@ System::MsgQueryMqttAdapterParamSend MessageSystemHandler::Handle(
     return result;
 }
 
-// MQTT parameter setting
+/**
+ * 设置单机模式 MQTT 参数；端口越界时在进入服务层前返回可定位到字段的错误信息。
+ */
 System::MsgSetMqttAdapterParamSend MessageSystemHandler::Handle(System::MsgSetMqttAdapterParamRecv&& data,
                                                                 std::error_condition& errc) {
     System::MsgSetMqttAdapterParamSend result{};
+    if (data.port < kMinNetworkPort || data.port > kMaxNetworkPort) {
+        errc = util::ErrorEnum::InvalidParam;
+        MsgResBase error;
+        error.msgCode    = "INVALID_MQTT_PORT";
+        error.messageKey = "api.error.mqttPortOutOfRange";
+        error.msgText    = "MQTT port must be between 1 and 65535";
+        result.resMsg.push_back(error);
+        return result;
+    }
     service::MqttParam param;
     param.enable   = data.enable;
     param.url      = data.url;
