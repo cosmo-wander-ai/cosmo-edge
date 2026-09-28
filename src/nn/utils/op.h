@@ -129,6 +129,10 @@ public:
     int input_width  = 0;
     int input_height = 0;
 
+    // YOLO E2E decoder only: opt in to channel-major [B, 4 + classes, N]
+    // pixel xywh and class probabilities; the default is decoded [B, N, 6].
+    bool raw_output = false;
+
     // OBB model contract only. Ordinary YOLO decoders retain their own format.
     bool normalized_coordinates = false;
 };

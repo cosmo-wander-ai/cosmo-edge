@@ -271,6 +271,8 @@ Status Yolo26DetPipeline::Init(const PipelineConfig& config, const std::string& 
 
     for (auto& mc : config.models) {
         nlohmann::json p = pipeline_utils::ParseJsonObject(mc.params_json);
+        if (p.contains("raw_output") && !p["raw_output"].is_boolean())
+            return Status(COSMO_NN_ERR_INVALID_CFG, "YOLO E2E raw_output must be a boolean");
         ModelInfo model;
         model.name      = mc.name;
         model.filename  = mc.file_name;
@@ -305,7 +307,10 @@ Status Yolo26DetPipeline::Init(const PipelineConfig& config, const std::string& 
             output.shape     = out_def.shape;
             output.data_type = out_def.data_type;
             if (i == 0)
-                output.op = pipeline_utils::MakeYoloE2EPostOp(conf_thresh, top_k, e2e_input_w, e2e_input_h);
+                output.op =
+                    pipeline_utils::MakeYoloE2EPostOp(conf_thresh, top_k, e2e_input_w, e2e_input_h,
+                                                      pipeline_utils::ReadFloat(p, "nms_threshold", 0.7f),
+                                                      pipeline_utils::ReadBool(p, "raw_output", false));
             model.output_node_infos.push_back(std::move(output));
         }
         model_info_.models.push_back(std::move(model));
@@ -500,7 +505,12 @@ Status GenericDetectorPipeline::Init(const PipelineConfig& config, const std::st
                     output.op = pipeline_utils::MakeYoloV8PostOp(nms_thresh, conf_thresh, top_k, gd_input_w,
                                                                  gd_input_h);
                 } else if (post_type == "yolo_e2e") {
-                    output.op = pipeline_utils::MakeYoloE2EPostOp(conf_thresh, top_k, gd_input_w, gd_input_h);
+                    if (p.contains("raw_output") && !p["raw_output"].is_boolean())
+                        return Status(COSMO_NN_ERR_INVALID_CFG, "YOLO E2E raw_output must be a boolean");
+                    output.op =
+                        pipeline_utils::MakeYoloE2EPostOp(conf_thresh, top_k, gd_input_w, gd_input_h,
+                                                          pipeline_utils::ReadFloat(p, "nms_threshold", 0.7f),
+                                                          pipeline_utils::ReadBool(p, "raw_output", false));
                 } else if (post_type == "yolo_npu") {
                     std::vector<std::vector<std::vector<float>>> anchors;
                     std::vector<float> stride;

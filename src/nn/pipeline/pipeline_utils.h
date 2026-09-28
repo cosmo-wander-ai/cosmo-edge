@@ -53,7 +53,8 @@ namespace pipeline_utils {
                                                int input_width = 0, int input_height = 0);
 
     std::unique_ptr<YoloPost> MakeYoloE2EPostOp(float conf_threshold, int top_k, int input_width = 0,
-                                                int input_height = 0);
+                                                int input_height = 0, float nms_threshold = 0.7f,
+                                                bool raw_output = false);
 
     std::unique_ptr<YoloPost> MakeYoloObbPostOp(float conf_threshold, int top_k, int input_width = 0,
                                                 int input_height = 0, bool normalized_coordinates = false);

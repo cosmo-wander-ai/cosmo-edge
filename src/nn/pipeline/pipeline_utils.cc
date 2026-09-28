@@ -347,9 +347,10 @@ namespace pipeline_utils {
     }
 
     std::unique_ptr<YoloPost> MakeYoloE2EPostOp(float conf_threshold, int top_k, int input_width,
-                                                int input_height) {
+                                                int input_height, float nms_threshold, bool raw_output) {
         auto op                = std::make_unique<YoloPost>("yolo_e2e_postprocess");
-        op->nms_threshold      = 0;
+        op->nms_threshold      = nms_threshold;
+        op->raw_output         = raw_output;
         op->nms_detection_conf = conf_threshold;
         op->top_k              = top_k;
         op->input_width        = input_width;
