@@ -6,6 +6,7 @@
 #include <fstream>
 #include <map>
 #include <ostream>
+#include <string_view>
 
 #include "service/algorithm/IAlgorithmQuery.h"
 #include "util/DateTimeFormat.h"
@@ -94,6 +95,18 @@ std::string AlarmTarget(int target) {
 
 namespace {
 
+    std::string EscapeCsvText(std::string_view text) {
+        std::string escaped;
+        escaped.reserve(text.size());
+        for (char character : text) {
+            if (character == '"') {
+                escaped.push_back('"');
+            }
+            escaped.push_back(character);
+        }
+        return escaped;
+    }
+
     constexpr const char* kReportedText   = "已上传";
     constexpr const char* kUnreportedText = "未上传";
 
@@ -128,16 +141,17 @@ void WriteCsvRowRecognize(std::ostream& os, const MsgEventUnit& el, const std::s
     auto lib_image   = para.recognition.LibImage.empty() ? "" : (http_dir + para.recognition.LibImage);
     auto full_pic    = el.fullPicture.empty() ? "" : (http_dir + el.fullPicture);
 
-    os << "\"" << index << "\t\",\"" << alg_name << "\t\",\"" << detected << "\t\",\"" << lib_image
-       << "\t\",\"" << full_pic << "\t\",\"" << para.recognition.matchLibName << "\t\",\"";
+    os << "\"" << index << "\t\",\"" << EscapeCsvText(alg_name) << "\t\",\"" << EscapeCsvText(detected)
+       << "\t\",\"" << EscapeCsvText(lib_image) << "\t\",\"" << EscapeCsvText(full_pic) << "\t\",\""
+       << EscapeCsvText(para.recognition.matchLibName) << "\t\",\"";
 
     if (para.recognition.matchDegree != -1.0f) {
         os << para.recognition.matchDegree;
     }
 
-    os << "\t\",\"" << para.recognition.matchName << "\t\",\"" << para.recognition.personCode << "\t\",\""
-       << el.channelName << "\t\",\"" << time_string << "\t\",\"" << ReportStatusText(el.reportStatus, is_en)
-       << "\t\",\""
+    os << "\t\",\"" << EscapeCsvText(para.recognition.matchName) << "\t\",\""
+       << EscapeCsvText(para.recognition.personCode) << "\t\",\"" << EscapeCsvText(el.channelName)
+       << "\t\",\"" << time_string << "\t\",\"" << ReportStatusText(el.reportStatus, is_en) << "\t\",\""
        << "\t\"\n";
 }
 
@@ -147,10 +161,9 @@ void WriteCsvRowBehavior(std::ostream& os, const MsgEventUnit& el, const std::st
     auto full_pic    = el.fullPicture.empty() ? "" : (http_dir + el.fullPicture);
     auto alg_name    = alg_query.GetAlgorithmName(el.algorithmCode);
 
-    os << "\"" << index << "\t\",\"" << full_pic << "\t\",\"" << alg_name << "\t\",\"" << el.channelName
-       << "\t\",\"" << el.areaName << "\t\",\"" << time_string << "\t\",\""
-       << ReportStatusText(el.reportStatus, is_en) << "\t\",\""
-       << "\t\"\n";
+    os << "\"" << index << "\t\",\"" << EscapeCsvText(full_pic) << "\t\",\"" << EscapeCsvText(alg_name)
+       << "\t\",\"" << EscapeCsvText(el.channelName) << "\t\",\"" << EscapeCsvText(el.areaName) << "\t\",\""
+       << time_string << "\t\",\"" << ReportStatusText(el.reportStatus, is_en) << "\t\",\"" << "\t\"\n";
 }
 
 // ── Full CSV export orchestration ───────────────────────────────────
