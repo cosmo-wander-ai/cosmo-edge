@@ -297,12 +297,43 @@ requests a complete package.
 | ONNX preflight | Graph checking, zero-input ONNX Runtime smoke, and recorded I/O | Detection accuracy |
 | Conversion artifact | The frozen toolchain generated the artifact and its hash/model info matches this candidate | Device import or sustained runtime |
 | Tensor comparison | The toolchain compared outputs using a user override or the admitted tool's default tolerance policy, and recorded that policy | Business-dataset accuracy |
-| Full-package check | When requested, package name, configuration, and files are self-consistent | Production compatibility |
+| Full-package check (S4) | When requested, CENN framing, embedded artifact identity, and configuration consistency supported by existing evidence | Device runtime or production compatibility |
 | Device/business acceptance | Requires separately authorized test hardware, image/video runs, and accuracy evaluation | Never inherited automatically from a local pass |
 
 Task completion and official-example promotion are separate conclusions. A missing second recording must
 not turn a normal task that met its acceptance into failure. Conversely, local completion is not device or
 production acceptance.
+
+### Full-Package S4 Coverage
+
+S4 follows the CENN v1 definition in `model_header_info.h`: the 80-byte header, version, segment count,
+segment sizes, reserved fields, and actual file size. It then hashes each embedded bmodel in bounded
+chunks. Each payload must match a bmodel whose identity was rechecked against this run's execution
+manifest; the hash of the complete `model.nn` is not a payload identity. Renamed raw bmodels, non-model
+text, damaged containers, and same-size replacement models return `FAIL`.
+
+For the current executor's single bmodel and configuration, S4 compares `chip_type` and effective I/O
+shapes with the frozen task contract. It rechecks the `modelInfo` report hash and direction-labelled
+`input:` and `output:` shapes. `max_batch` defaults to 1, must be at least 1, and overrides the first input
+axis as the engine does. Configured batch placeholders can resolve; other axes must still match the
+frozen shapes. Preprocessing sizes follow known pipeline contracts: `yolov8_det` and `classify` use
+`input_size`; affine `feature` preprocessing uses `output_hw`, and other feature branches use `input_size`.
+Omitted values follow each pipeline's product defaults. Unimplemented pipeline size contracts remain
+`UNVERIFIED` instead of requiring `input_size` universally. Explicit configuration or unambiguously
+mapped report conflicts return `FAIL`. With the `yolov8_det` decoder and verified output shapes, label IDs must be unique and within the
+decoder's class range. Intentional label subsets are allowed; no input size or class count is hardcoded.
+
+Missing reports, unrecognized direction labels, ambiguous multi-network or multi-stage reports,
+multi-model packages without per-segment configuration evidence, unsupported CENN versions, and
+CEMC artifacts needing an authorized runtime return `UNVERIFIED`. Legacy encrypted magic
+`01 00 01 ec` returns `FAIL`, matching the current production load policy. The local check does not decrypt
+protected content. S4 `checks` records field-level observations and expectations; `unverifiedFields`
+retains tensor names and dtypes, preprocessing values, label semantics, and device runtime as unchecked.
+A local `PASS` covers only the deterministic checks above. Configuration readback, actual loading, and
+image-result comparisons are still required during integration.
+
+When a full package is required, S4 `FAIL` yields `FAILED`, and `UNVERIFIED` cannot yield `COMPLETE`.
+A bmodel-only task continues to skip S4 without introducing a package requirement.
 
 ## Test-Device Risk
 
