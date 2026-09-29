@@ -12,12 +12,6 @@ bool ClientMessageServiceImpl::FetchAlgorithmConfig(cosmo::CMsgAlgorithmProcessC
     return false;
 }
 
-bool ClientMessageServiceImpl::FetchAtomicCodeList(cosmo::CMsgGetAtomicCodeListReq& /*req*/,
-                                                   cosmo::CMsgGetAtomicCodeListRsp& /*rsp*/) {
-    LOG_WARN("{}", "Msg:getAtomicCodeList But No Cb");
-    return false;
-}
-
 bool ClientMessageServiceImpl::FetchVideoPlayUrl(cosmo::CMsgGetVideoPlayReq& /*req*/,
                                                  cosmo::CMsgGetVideoPlayRsp& /*rsp*/) {
     LOG_WARN("{}", "Msg:getVideoPlay But No Cb");

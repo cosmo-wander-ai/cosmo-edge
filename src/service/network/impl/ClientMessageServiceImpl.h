@@ -12,8 +12,6 @@ public:
 
     bool FetchAlgorithmConfig(cosmo::CMsgAlgorithmProcessConfigNGReq& req,
                               cosmo::CMsgAlgorithmProcessConfigNGRsp& rsp) override;
-    bool FetchAtomicCodeList(cosmo::CMsgGetAtomicCodeListReq& req,
-                             cosmo::CMsgGetAtomicCodeListRsp& rsp) override;
     bool FetchVideoPlayUrl(cosmo::CMsgGetVideoPlayReq& req, cosmo::CMsgGetVideoPlayRsp& rsp) override;
     void NodeOperatorEventPush(cosmo::MsgOperateNodeRecv& data) override;
 };

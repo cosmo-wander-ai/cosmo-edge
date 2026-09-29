@@ -74,45 +74,6 @@ const SQLite::Database& DaoBase::Db() const {
     return *db_;
 }
 
-size_t DaoBase::QueryRows(const std::string& query_sql) {
-    std::string count_sql = "SELECT COUNT(*) FROM (" + query_sql + ")";
-    SQLite::Statement query(*db_, count_sql);
-    if (query.executeStep()) {
-        return static_cast<size_t>(query.getColumn(0).getInt());
-    }
-    return 0;
-}
-
-std::string& DaoBase::SetCondition(std::string& query_sql, std::vector<std::string>&& cond_vec) const {
-    if (cond_vec.empty()) {
-        return query_sql;
-    }
-
-    query_sql.append(" WHERE ");
-    for (size_t i = 0; i < cond_vec.size(); i++) {
-        if (i > 0) {
-            query_sql.append(" AND ");
-        }
-        query_sql.append(cond_vec[i]);
-    }
-    return query_sql;
-}
-
-std::string& DaoBase::SetCondition(std::string& query_sql, const std::vector<std::string>& cond_vec) const {
-    if (cond_vec.empty()) {
-        return query_sql;
-    }
-
-    query_sql.append(" WHERE ");
-    for (size_t i = 0; i < cond_vec.size(); i++) {
-        if (i > 0) {
-            query_sql.append(" AND ");
-        }
-        query_sql.append(cond_vec[i]);
-    }
-    return query_sql;
-}
-
 void DaoBase::SetLimit(std::string& query_sql, int page_num, int page_size) const {
     if (page_size > 0 && page_num > 0) {
         query_sql.append(" LIMIT " + std::to_string(page_size) + " OFFSET " +
