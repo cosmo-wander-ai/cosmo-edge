@@ -133,14 +133,14 @@ void CpuCropResizeNode::BilinearResize(const uint8_t* src, int src_w, int src_h,
     const float y_ratio = static_cast<float>(src_h) / dst_h;
 
     for (int dy = 0; dy < dst_h; dy++) {
-        float fy     = (dy + 0.5f) * y_ratio - 0.5f;
+        float fy     = std::clamp((dy + 0.5f) * y_ratio - 0.5f, 0.0f, static_cast<float>(src_h - 1));
         int sy       = static_cast<int>(fy);
         float frac_y = fy - sy;
         sy           = std::max(0, std::min(sy, src_h - 1));
         int sy1      = std::min(sy + 1, src_h - 1);
 
         for (int dx = 0; dx < dst_w; dx++) {
-            float fx     = (dx + 0.5f) * x_ratio - 0.5f;
+            float fx     = std::clamp((dx + 0.5f) * x_ratio - 0.5f, 0.0f, static_cast<float>(src_w - 1));
             int sx       = static_cast<int>(fx);
             float frac_x = fx - sx;
             sx           = std::max(0, std::min(sx, src_w - 1));
