@@ -12,9 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ── Non-blocking workflow policy audit ─────────────────────────────
-  # This remains informational until the team agrees to enforce it in
-  # the repository ruleset.
+  # ── Change-scope summary and frontend-build trigger ────────────────
   policy-audit:
     name: policy-audit
     runs-on: ubuntu-latest
@@ -26,21 +24,13 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Audit issue, scope, candidate, and risk evidence
+      - name: Identify affected validation
         id: audit
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-          PR_DRAFT: ${{ github.event.pull_request.draft }}
         run: |
-          set -uo pipefail
-
-          warnings=()
-          add_warning() {
-            warnings+=("$1")
-            echo "::warning::$1"
-          }
+          set -euo pipefail
 
           changed_paths=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
           if grep -Eq '^src/web/' <<< "$changed_paths"; then
@@ -48,88 +38,38 @@ jobs:
           else
             echo "frontend_changed=false" >> "$GITHUB_OUTPUT"
           fi
-          changed_lines=$(git diff --numstat "$BASE_SHA" "$HEAD_SHA" | awk '
-            BEGIN { total = 0 }
-            {
-              if ($1 ~ /^[0-9]+$/) total += $1
-              if ($2 ~ /^[0-9]+$/) total += $2
-            }
-            END { print total }
-          ')
-
-          shopt -s nocasematch
-          if (( changed_lines > 50 )) && \
-             [[ ! "$PR_BODY" =~ (close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#[0-9]+ ]]; then
-            add_warning "Changes over 50 lines must use a closing keyword to reference an agreed issue."
-          fi
-          shopt -u nocasematch
-
-          if [[ "$PR_DRAFT" != "true" ]]; then
-            for heading in \
-              "## Related issue" \
-              "## Root cause" \
-              "## Scope" \
-              "## Candidate identity" \
-              "## Verification" \
-              "## Acceptance and cleanup"; do
-              if ! grep -Fqi "$heading" <<< "$PR_BODY"; then
-                add_warning "PR body is missing required heading: $heading"
-              fi
-            done
-
-            candidate=$(sed -nE \
-              's/^[[:space:]-]*Candidate commit:[[:space:]]*`?([0-9a-fA-F]{7,40})`?.*/\1/p' \
-              <<< "$PR_BODY" | head -n 1)
-            if [[ -z "$candidate" ]]; then
-              add_warning "PR body does not record a candidate commit."
-            elif [[ "$HEAD_SHA" != "$candidate"* ]]; then
-              add_warning "Recorded candidate commit does not match the current PR HEAD."
-            fi
-          fi
 
           risk_notes=()
           if grep -Eq '^(src/api/|src/network/)' <<< "$changed_paths"; then
-            risk_notes+=("API/network changes require authentication, invalid-input, error-response, and lifecycle evidence.")
+            risk_notes+=("API/network changes: verify affected authentication, invalid-input, error-response, and lifecycle behavior.")
           fi
           if grep -Eq '^(src/media/|src/service/media/|src/web/.*(whep|flv|bigScreen))' <<< "$changed_paths"; then
-            risk_notes+=("Media changes require ownership, first-frame, switching, overlay, and sustained-playback evidence.")
+            risk_notes+=("Media changes: verify affected ownership, first-frame, switching, overlay, and sustained-playback behavior.")
           fi
           if grep -Eq '^(src/infer/|src/nn/|src/flow/)' <<< "$changed_paths"; then
-            risk_notes+=("Inference, NN, or flow changes require Sophon package and focused device evidence.")
+            risk_notes+=("Inference and flow changes: test the affected backend; use a matching device for hardware-dependent behavior.")
           fi
           if grep -Eq '^src/web/' <<< "$changed_paths"; then
-            risk_notes+=("Frontend changes require the Docker production build and affected UI evidence.")
+            risk_notes+=("Frontend changes: run the Docker production build and verify affected UI behavior.")
           fi
           if grep -Eq '(^|/)(CMakeLists[.]txt|docker-compose[.]sophon[.]yml)$|^(cmake/|data/resource/|scripts/build)' <<< "$changed_paths"; then
-            risk_notes+=("Build, resource, or package changes require final package checksum and compatibility evidence.")
+            risk_notes+=("Build/resource changes: validate affected targets; for packaged deliverables, verify contents, target, and checksums.")
           fi
 
           {
-            echo "## Workflow policy audit"
+            echo "## PR validation scope"
             echo
-            echo "This job is informational and does not block merging."
-            echo
-            echo "- Changed lines: $changed_lines"
-            echo "- Candidate HEAD: \`$HEAD_SHA\`"
-            echo
-            if (( ${#warnings[@]} == 0 )); then
-              echo "No policy gaps detected."
-            else
-              echo "### Policy gaps"
-              for warning in "${warnings[@]}"; do
-                echo "- $warning"
-              done
-            fi
+            echo "Checks below are suggested from changed paths; run the checks relevant to the actual change."
             if (( ${#risk_notes[@]} > 0 )); then
               echo
-              echo "### Risk-based evidence reminders"
+              echo "### Affected checks"
               for note in "${risk_notes[@]}"; do
                 echo "- $note"
               done
+            else
+              echo "No additional path-specific checks identified."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
-
-          exit 0
 
   # ── Platform-neutral validation tools ─────────────────────────────
   validation-tools:

@@ -65,7 +65,7 @@ We welcome ideas for new features, pipeline nodes, or support for additional mod
 ### 3. Submitting Pull Requests (PRs)
 To keep the engine core stable and maintain high code quality, please follow this workflow for code changes:
 
-1.  **Open an Issue First**: For any non-trivial code changes (more than 50 lines), please open an issue to discuss your proposed design before writing code. This helps ensure your work aligns with the project's roadmap and C++ architecture.
+1.  **Describe the Change**: Explain the reason and scope in your PR. For broad architecture changes or new dependencies, an issue can help discuss the design, but it is optional; line count does not require one.
 2.  **Fork and Branch**: Fork the repository and create a branch from `main`. Name your branch descriptively (e.g., `fix/rtsp-reconnect-latency` or `feat/yolov11-node`).
 3.  **Keep it Focused**: Avoid mixing unrelated fixes or features in a single PR. Small, incremental PRs are much easier to review and merge quickly.
 4.  **Test Your Changes**: Verify that your changes build cleanly on x86, run relevant unit tests, and do not introduce memory leaks or lifecycle issues.

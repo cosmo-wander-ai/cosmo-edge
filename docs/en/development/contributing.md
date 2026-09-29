@@ -22,7 +22,7 @@ This page is for first-time CosmoEdge contributors. Its goal is to make the firs
 | Focused C++ fix | Utility functions, DTOs, service-layer fixes, unit tests | `scripts/build_cpu_test.sh` and `cosmo-tests` |
 | Scenario or model notes | Example config, parameter explanations, integration notes | Docs build + related manual check |
 
-For broad C++ architecture changes, new algorithm nodes, new dependencies, or model-runtime integrations, please open an issue first and discuss the design.
+For broad C++ architecture changes, new algorithm nodes, new dependencies, or model-runtime integrations, you can discuss the design in an issue first. An issue is not required to open a PR.
 
 ## Local Setup
 
@@ -178,4 +178,4 @@ bash scripts/static_analysis.sh --cppcheck --staged
 | C++ dependencies are missing | Run `bash scripts/build_cpu_test.sh` first and install the packages reported by the script. |
 | Formatting check fails | Run `bash scripts/format_check.sh --staged --fix`, then stage the updated files again. |
 
-If a change is larger than 50 lines or affects public APIs, deployment scripts, model formats, or pipeline semantics, open an issue first to describe the design.
+If a change affects public APIs, deployment scripts, model formats, or pipeline semantics, describe the design and compatibility impact in the PR. You can also discuss it in an issue first. Line count does not require an issue.
