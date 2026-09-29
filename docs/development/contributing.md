@@ -22,7 +22,7 @@ next:
 | C++ 单点修复 | 工具函数、DTO、service 层小修、单元测试 | `scripts/build_cpu_test.sh` 和 `cosmo-tests` |
 | 场景或模型说明 | 示例配置、参数解释、接入说明 | 文档构建 + 相关手动验证 |
 
-大范围 C++ 架构调整、新算法节点、新依赖、模型运行时接入，建议先开 issue 讨论设计。
+大范围 C++ 架构调整、新算法节点、新依赖、模型运行时接入，可以先用 issue 讨论设计；提交 PR 不以 issue 为前置条件。
 
 ## 本地准备
 
@@ -178,4 +178,4 @@ bash scripts/static_analysis.sh --cppcheck --staged
 | C++ 依赖缺失 | 先运行 `bash scripts/build_cpu_test.sh`，按脚本报错补系统包。 |
 | 格式检查失败 | 运行 `bash scripts/format_check.sh --staged --fix`，然后重新 `git add`。 |
 
-如果修改超过 50 行或影响公共 API、部署脚本、模型格式、流水线语义，请先开 issue 说明设计，避免后续返工。
+如果修改影响公共 API、部署脚本、模型格式或流水线语义，请在 PR 中说明设计和兼容影响；也可以选择先开 issue 讨论。修改行数不设 issue 门槛。

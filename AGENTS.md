@@ -136,9 +136,9 @@ repository development that needs none of these task-specific capabilities.
 - x86 or mock success is not Sophon-device or production acceptance. Report
   conclusions by the layer actually tested.
 - Preparing an upstream change to `src/nn/`, `src/infer/`, model templates,
-  public APIs, new third-party dependencies, or a broad architecture requires
-  the project's normal issue and review process. An authorized customer fork
-  may continue locally but must identify the divergence.
+  public APIs, new third-party dependencies, or a broad architecture follows
+  the project's normal review process; an Issue is optional. An authorized
+  customer fork may continue locally but must identify the divergence.
 
 ## Safety and evidence
 
