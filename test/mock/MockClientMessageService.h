@@ -15,8 +15,6 @@ public:
     MAKE_MOCK2(FetchAlgorithmConfig,
                bool(cosmo::CMsgAlgorithmProcessConfigNGReq&, cosmo::CMsgAlgorithmProcessConfigNGRsp&),
                override);
-    MAKE_MOCK2(FetchAtomicCodeList, bool(cosmo::CMsgGetAtomicCodeListReq&, cosmo::CMsgGetAtomicCodeListRsp&),
-               override);
     MAKE_MOCK2(FetchVideoPlayUrl, bool(cosmo::CMsgGetVideoPlayReq&, cosmo::CMsgGetVideoPlayRsp&), override);
     MAKE_MOCK1(NodeOperatorEventPush, void(cosmo::MsgOperateNodeRecv&), override);
 };

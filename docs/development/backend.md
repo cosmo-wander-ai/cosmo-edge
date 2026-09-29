@@ -336,7 +336,7 @@ flow 层实现场景任务流水线中的可组合节点：
 
 ### Database（`src/db/`）— SQLite
 
-`DaoBase` 类封装 `SQLite::Database`，提供 `SetCondition()`、`SetLimit()`、`Begin()`、`Commit()`、`Rollback()`。具体 DAO（如 `PersonDao`、`TaskEventDao`、`PassengerFlowDao`）继承该类。`TransactionGuard` 提供 RAII 事务管理。
+`DaoBase` 类封装 `SQLite::Database`，提供 `SetLimit()`、`Begin()`、`Commit()`、`Rollback()`。具体 DAO（如 `PersonDao`、`TaskEventDao`、`PassengerFlowDao`）继承该类。`TransactionGuard` 提供 RAII 事务管理。
 
 ### 第三方依赖
 

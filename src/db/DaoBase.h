@@ -33,14 +33,7 @@ public:
     [[nodiscard]] SQLite::Database& Db();
     [[nodiscard]] const SQLite::Database& Db() const;
 
-    // Retrieve the total row count produced by a given SELECT query string
-    [[nodiscard]] size_t QueryRows(const std::string& query_sql);
-
 protected:
-    // Helper: build WHERE clause from a vector of condition strings and append
-    std::string& SetCondition(std::string& query_sql, std::vector<std::string>&& cond_vec) const;
-    std::string& SetCondition(std::string& query_sql, const std::vector<std::string>& cond_vec) const;
-
     // Helper: append LIMIT/OFFSET clause
     void SetLimit(std::string& query_sql, int page_num, int page_size) const;
 

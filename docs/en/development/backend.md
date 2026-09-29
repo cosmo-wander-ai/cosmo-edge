@@ -344,7 +344,7 @@ Handles video decode/encode (FFmpeg), hardware codecs (Sophon VPP/VPU), OSD rend
 
 ### Database (`src/db/`) — SQLite
 
-The `DaoBase` class wraps `SQLite::Database` and provides `SetCondition()`, `SetLimit()`, `Begin()`, `Commit()`, `Rollback()`. Concrete DAOs (e.g., `PersonDao`, `TaskEventDao`, `PassengerFlowDao`) extend it. `TransactionGuard` provides RAII transaction management.
+The `DaoBase` class wraps `SQLite::Database` and provides `SetLimit()`, `Begin()`, `Commit()`, `Rollback()`. Concrete DAOs (e.g., `PersonDao`, `TaskEventDao`, `PassengerFlowDao`) extend it. `TransactionGuard` provides RAII transaction management.
 
 ### Third-Party Dependencies
 
