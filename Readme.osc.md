@@ -300,8 +300,6 @@ Turn video AI models into deployable edge applications.
 
 ## 微信开发者交流群
 
-2 群即将满员，欢迎使用微信扫描下方二维码，加入 **CosmoEdge 开发者交流 3 群**。
-
 <p align="center">
   <img src="docs/assets/community/wechat-group-3-20260930.png" width="430" alt="CosmoEdge 微信开发者交流 3 群二维码（2026 年 10 月 7 日前有效）">
 </p>
