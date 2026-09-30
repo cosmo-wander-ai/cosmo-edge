@@ -68,7 +68,7 @@ TEST_CASE("RKNN output adapter registry separates implemented tensor contracts",
     using namespace cosmo::nn;
 
     const auto& registry = RknnOutputAdapterRegistry();
-    REQUIRE(registry.size() == 7);
+    REQUIRE(registry.size() == 8);
     CHECK(std::string(RknnOutputAdapterName(RknnOutputAdapterKind::GenericTensorV1)) == "generic_tensor_v1");
     CHECK(std::string(RknnOutputAdapterName(RknnOutputAdapterKind::YoloDfl6HeadV1)) == "yolo_dfl_6head_v1");
     CHECK(std::string(RknnOutputAdapterName(RknnOutputAdapterKind::YoloDfl9HeadScoreSumV1)) ==

@@ -18,6 +18,7 @@ enum class RknnOutputAdapterKind : uint8_t {
     YoloAnchor3HeadV1,
     YoloDfl6HeadV1,
     YoloDfl9HeadScoreSumV1,
+    Yolo26OneToOne6HeadV1,
     YoloPoseV1,
     YoloSegV1,
     YoloObbV1,
@@ -53,11 +54,13 @@ struct RknnOutputAdapterContract {
     bool class_scores_are_probabilities{false};
 };
 
-const std::array<RknnOutputAdapterRegistryEntry, 7>& RknnOutputAdapterRegistry();
+const std::array<RknnOutputAdapterRegistryEntry, 8>& RknnOutputAdapterRegistry();
 const char* RknnOutputAdapterName(RknnOutputAdapterKind kind);
 bool ResolveRknnOutputAdapter(const std::vector<std::vector<int>>& shapes,
                               RknnOutputAdapterContract& contract, std::string& error);
 bool IsRknnYolov8DflAdapter(RknnOutputAdapterKind kind);
+
+bool IsRknnYolo26OneToOneAdapter(RknnOutputAdapterKind kind);
 
 struct RknnYolov8Head {
     const float* data{nullptr};

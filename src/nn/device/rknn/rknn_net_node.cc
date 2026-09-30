@@ -491,6 +491,7 @@ void RknnNetNode::DestroyContext() {
     bound_input_attr_         = {};
     yolov8_heads_             = false;
     native_yolov8_outputs_    = false;
+    yolo26_heads_             = false;
     detector_model_           = false;
     bound_input_eligible_     = true;
     rga_bound_input_eligible_ = true;
@@ -687,12 +688,14 @@ Status RknnNetNode::QueryTensorAttributes() {
     }
     runtime_outputs_.resize(output_attrs_.size());
     float_yolov8_heads_.reserve(output_attrs_.size());
+    float_yolo26_heads_.reserve(output_attrs_.size());
     quantized_yolov8_heads_.reserve(output_attrs_.size());
 
     std::string adapter_error;
     if (!ResolveRknnOutputAdapter(output_shapes, output_adapter_contract_, adapter_error))
         return Status(COSMO_NN_ERR_UNSUPPORT_NET, adapter_error);
     yolov8_heads_ = IsRknnYolov8DflAdapter(output_adapter_contract_.kind);
+    yolo26_heads_ = output_adapter_contract_.kind == RknnOutputAdapterKind::Yolo26OneToOne6HeadV1;
     if (yolov8_heads_) {
         yolov8_class_count_ = output_adapter_contract_.class_count;
         yolov8_point_count_ = output_adapter_contract_.point_count;
@@ -777,7 +780,7 @@ Status RknnNetNode::InitializeLoadedContext(uint64_t context_sequence) {
         DestroyContext();
         return Status(COSMO_NN_ERR_INVALID_CFG, "RKNN input count does not match config.json");
     }
-    const size_t logical_outputs = yolov8_heads_ ? 1 : io_count_.n_output;
+    const size_t logical_outputs = (yolov8_heads_ || yolo26_heads_) ? 1 : io_count_.n_output;
     if (network_output_names.size() != logical_outputs) {
         DestroyContext();
         return Status(COSMO_NN_ERR_INVALID_CFG, "RKNN logical output count does not match config.json");
@@ -811,8 +814,8 @@ Status RknnNetNode::InferTopShapes() {
         return Status(COSMO_NN_ERR_GRAPH_NOT_INIT, "RKNN context is not initialized");
     top_blob_shapes.clear();
     top_blob_data_types.clear();
-    if (yolov8_heads_) {
-        top_blob_shapes.push_back({1, 4 + yolov8_class_count_, yolov8_point_count_});
+    if (yolov8_heads_ || yolo26_heads_) {
+        top_blob_shapes.push_back(output_adapter_contract_.logical_shape);
         top_blob_data_types.push_back(DATA_TYPE_FLOAT);
         return COSMO_NN_OK;
     }
@@ -914,7 +917,7 @@ Status RknnNetNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
         return Status(COSMO_NN_ERR_GRAPH_NOT_INIT, "RKNN context is not initialized");
     if (bottom_blobs.size() != 1 || !bottom_blobs[0])
         return Status(COSMO_NN_ERR_INVALID_INPUT, "RKNN backend requires exactly one input blob");
-    const size_t logical_outputs = yolov8_heads_ ? 1 : output_attrs_.size();
+    const size_t logical_outputs = (yolov8_heads_ || yolo26_heads_) ? 1 : output_attrs_.size();
     if (top_blobs.size() != logical_outputs)
         return Status(COSMO_NN_ERR_INVALID_INPUT, "RKNN output blob count mismatch");
     if (yolov8_heads_ && shared_resource)
@@ -1180,7 +1183,25 @@ Status RknnNetNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
         release_outputs();
         return finish(status);
     };
-    if (yolov8_heads_) {
+    if (yolo26_heads_) {
+        auto top_desc          = top_blobs[0]->GetBlobDesc();
+        const size_t top_count = BlobElementCount(top_desc);
+        if (!top_blobs[0]->GetHandle().base || top_desc.data_type != DATA_TYPE_FLOAT)
+            return finish_output_error(Status(COSMO_NN_ERR_INVALID_INPUT, "RKNN YOLO26 top blob is invalid"));
+        auto& heads = float_yolo26_heads_;
+        heads.clear();
+        for (size_t index = 0; index < outputs.size(); ++index) {
+            if (!outputs[index].buf || outputs[index].size % sizeof(float) != 0)
+                return finish_output_error(Status(COSMO_NN_ERR_NET, "RKNN YOLO26 output buffer is invalid"));
+            heads.push_back({static_cast<const float*>(outputs[index].buf),
+                             outputs[index].size / sizeof(float), TensorShape(output_attrs_[index])});
+        }
+        std::string adapter_error;
+        if (!ReconstructRknnYolo26(heads, input_height, input_width,
+                                   static_cast<float*>(top_blobs[0]->GetHandle().base), top_count,
+                                   adapter_error))
+            return finish_output_error(Status(COSMO_NN_ERR_NET, adapter_error));
+    } else if (yolov8_heads_) {
         auto top_desc          = top_blobs[0]->GetBlobDesc();
         const size_t top_count = BlobElementCount(top_desc);
         if (!top_blobs[0]->GetHandle().base || top_desc.data_type != DATA_TYPE_FLOAT)
