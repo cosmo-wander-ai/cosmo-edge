@@ -2,7 +2,9 @@
 
 #include "service/media/impl/VideoFrameServiceImpl.h"
 
+#include <cstdlib>
 #include <mutex>
+#include <string_view>
 
 #include "media/IOsdTextRenderer.h"
 #include "media/IVideoFrameProc.h"
@@ -16,6 +18,9 @@
 extern "C" {
 #endif
 #include <libavutil/log.h>
+#ifdef COSMO_MEDIA_USE_CPU_BACKEND
+#include <libavutil/cpu.h>
+#endif
 #ifdef __cplusplus
 }
 #endif
@@ -25,6 +30,14 @@ namespace cosmo::service {
 VideoFrameServiceImpl::VideoFrameServiceImpl() {
     static std::once_flag init_flag;
     std::call_once(init_flag, []() {
+#ifdef COSMO_MEDIA_USE_CPU_BACKEND
+        const auto* disable_cpu_optimizations = std::getenv("COSMO_FFMPEG_DISABLE_CPU_OPT");
+        if (disable_cpu_optimizations && std::string_view(disable_cpu_optimizations) == "1") {
+            // The amd64 FFmpeg scaling path can corrupt frames under Apple Silicon emulation.
+            av_force_cpu_flags(0);
+            LOG_WARN("{}", "FFmpeg CPU optimizations disabled by COSMO_FFMPEG_DISABLE_CPU_OPT");
+        }
+#endif
         av_log_set_flags(AV_LOG_SKIP_REPEATED);
         av_log_set_level(AV_LOG_QUIET);
     });

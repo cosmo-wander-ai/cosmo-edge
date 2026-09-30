@@ -20,6 +20,8 @@ services:
     init: true
     restart: unless-stopped
     environment:
+      # Use FFmpeg's scalar path for amd64 emulation on Apple Silicon.
+      COSMO_FFMPEG_DISABLE_CPU_OPT: "1"
       # Loopback HTTP-FLV avoids the long WebRTC ICE/media fallback window on
       # Docker Desktop while preserving SRS as the media server.
       COSMO_STREAM_PLAY_MODE: httpflv-srs
