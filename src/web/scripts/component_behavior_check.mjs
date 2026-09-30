@@ -169,3 +169,4 @@ for (const platform of ['1', '-1', null, '15']) for (const scenario of [
 console.log('Component behavior checks passed')
 
 await import('./edge_behavior_check.mjs')
+await import('./linkage_strategy_behavior_check.mjs')

@@ -137,6 +137,75 @@ inventory, size, and SHA-256.
 Device deployments may override the application and data roots with `COSMO_APP_DATA_DIR` and `COSMO_DATA_DIR`.
 Overrides must be controlled absolute paths consistent with the service and persistence policy.
 
+## Alarm Output Linkage
+
+Add **Alarm Output Linkage** under business processing, after an alarm-data node bound to an algorithm.
+The component accepts a logical output channel (1–64) and duration (1–600 seconds, default 5).
+The channel range does not describe the number of physical outputs. Repeated alarms extend the hold
+time on the same channel; channels reset independently when their deadlines expire.
+
+Configure board wiring in `conf/linkAge/alarmOutputs.json` under the user data root and restart the
+application after changes. This example illustrates the format only; confirm the GPIO number and
+active polarity against the actual board:
+
+```json
+{
+  "outputs": [
+    { "id": 1, "gpio": 42, "activeLow": false }
+  ]
+}
+```
+
+`id` is the logical channel, `gpio` is an already exported Linux sysfs GPIO number, and `activeLow`
+is a required boolean. Both channel IDs and GPIO numbers must be unique.
+The board must configure the GPIO as an output and grant the application write access to its `value`
+file. The application does not export GPIOs or change direction or kernel `active_low` settings.
+Network strategies reference logical channels only, never GPIO paths.
+
+| `activeLow` | Physical GPIO level during an alarm | Physical GPIO level while idle |
+| --- | --- | --- |
+| `false` (active high) | 1 | 0 |
+| `true` (active low) | 0 | 1 |
+
+These are physical levels at the board control pin, not voltages supplied by the ALARMOUT terminals.
+Kernel `active_low=1` inverts the meaning of sysfs `value`; the controller compensates for that
+inversion. A `value` readback alone does not establish the physical level. With active-high wiring
+and kernel `active_low=0`, a five-second alarm changes `value` from 0 to 1, then back to 0 at least
+five seconds after the last trigger. Further alarms extend the hold time.
+
+### Deployment and startup state
+
+Loading the mapping does not proactively reset every pin. A missing mapping also does not return
+existing hardware outputs to idle. Board initialization must export GPIOs, set their direction and
+establish the idle level before the application starts. Keep that ordering across cold boots,
+application restarts and upgrades. For example, active-high outputs need an initial level of 0.
+If a separate service initializes the GPIOs, start the application after that initialization finishes.
+
+Generic application packages do not assign board pins or rewrite board startup scripts. Devices
+using the same SoC, including RK3576, may have different wiring and polarity. A board-specific
+upgrade must check the board, existing mapping and startup configuration, back up changed files,
+set idle levels with the application stopped, and restore configuration if installation fails.
+Preserve existing models, authorization and strategy enable states; a disabled strategy must be
+explicitly enabled before it can trigger an output.
+
+### Linkage acceptance and troubleshooting
+
+Confirm that the strategy is enabled and the alarm matches its bound algorithm and channel, then
+observe activation and reset after the configured duration. An algorithm alarm alone does not
+prove that the strategy executed, and the strategy switch does not indicate the current physical
+output state. For `AlarmOut ... has no board mapping`, check the local configuration and restart
+the application. Investigate other `AlarmOut` errors using GPIO direction, write permissions and
+the reported activation or reset failure.
+
+GPIO readback verifies the control side only. Measure terminal behavior according to the device
+schematic to establish continuity and the electrical output type. An isolated switch output
+typically opens or closes an external circuit rather than supplying power. Mechanical clicking
+is not an acceptance criterion for a solid-state photorelay.
+
+Missing or invalid board configuration leaves outputs unavailable. Permission and write failures
+are logged. Failed resets are retried while running; normal shutdown attempts to reset active
+outputs. Contact states after forced termination, power loss, or hardware failure depend on the board.
+
 ## Ports
 
 | Port | Description |

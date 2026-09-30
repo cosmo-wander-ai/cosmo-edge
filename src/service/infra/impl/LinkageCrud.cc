@@ -9,6 +9,7 @@
 #include <unordered_set>
 
 #include "linkage/LinkAgeAlarm.h"
+#include "linkage/LinkAgeAlarmOutput.h"
 #include "linkage/LinkAgeAudioDevice.h"
 #include "nlohmann/json.hpp"
 #include "service/detail/ServiceRegistry.h"
@@ -263,7 +264,7 @@ cosmo::linkage::LinkAgeTaskPtr LinkageServiceImpl::MakeTask(
         return nullptr;
     }
 
-    return std::make_shared<cosmo::linkage::LinkAgeTask>(name, strategy);
+    return std::make_shared<cosmo::linkage::LinkAgeTask>(name, strategy, alarm_outputs_);
 }
 
 bool LinkageServiceImpl::ValidateWorkflow(const cosmo::linkage::LinkageStrategyWorkflow& strategy) const {
@@ -279,10 +280,13 @@ bool LinkageServiceImpl::ValidateWorkflow(const cosmo::linkage::LinkageStrategyW
         const auto action_kind = cosmo::linkage::ClassifyLinkAgeActionId(node.action_id);
         const bool is_alarm    = action_kind == cosmo::linkage::LinkAgeActionKind::kAlarm;
         const bool is_audio    = action_kind == cosmo::linkage::LinkAgeActionKind::kAudioDevice;
+        const bool is_output   = action_kind == cosmo::linkage::LinkAgeActionKind::kAlarmOutput;
+        cosmo::linkage::LinkAgeAlarmOutputParam output_param;
         if (action_kind == cosmo::linkage::LinkAgeActionKind::kUnsupported || node.flowActionId.empty() ||
             node.flowActionId == cosmo::key::alg::ACTION_ROOT_VALUE ||
             !nodes.emplace(node.flowActionId, &node).second || (is_alarm && !HasValidAlarmBinding(node)) ||
-            (is_audio && !HasValidAudioBinding(node))) {
+            (is_audio && !HasValidAudioBinding(node)) ||
+            (is_output && !cosmo::linkage::ParseAlarmOutputParam(node, output_param))) {
             return false;
         }
         if (node.preFlowActionId == cosmo::key::alg::ACTION_ROOT_VALUE) {
