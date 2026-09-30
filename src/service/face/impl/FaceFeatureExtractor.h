@@ -79,7 +79,7 @@ private:
     std::mutex stop_mutex_;
     std::string name_;
     std::atomic<bool> is_running_{false};
-    std::atomic<bool> is_service_enabled_{true};
+    std::atomic<bool> is_service_enabled_{false};
     std::atomic<bool> is_ready_{false};
     std::atomic<bool> stopped_{false};
 

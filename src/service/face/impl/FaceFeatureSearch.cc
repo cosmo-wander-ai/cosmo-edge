@@ -2,20 +2,25 @@
 // Split from FaceFeatureExtractor.cc to reduce file size (DEBT-007).
 
 #include <chrono>
+#include <cmath>
 #include <thread>
 
 #include "media/PixelFormat.h"
+#include "nlohmann/json.hpp"
 #include "service/detail/ServiceRegistry.h"
 #include "service/face/impl/FaceFeatureExtractor.h"
 #include "service/media/IVideoFrameCodec.h"
 #include "service/media/IVideoFrameTransform.h"
 #include "service/media/dto/DetectMsgTypes.h"
+#include "service/model/IModelPathMapping.h"
 #include "util/AiTypes.h"
 #include "util/CipherUtil.h"
 #include "util/DurationLogger.h"
+#include "util/Exception.h"
 #include "util/FileUtil.h"
 #include "util/GeometricPos.h"
 #include "util/InferConstants.h"
+#include "util/JsonFileUtil.h"
 #include "util/Keys.h"
 #include "util/Log.h"
 #include "util/NToL.h"
@@ -154,7 +159,7 @@ float FaceFeatureExtractor::GetScore(float distance) {
     std::vector<float> scores = GetScoreLevel();
     if (scores.size() < 3) {
         LOG_WARN("{}", "Score Level Invalid");
-        return 0.f;
+        throw util::ErrorMessage(util::ErrorEnum::ServiceNotInit, "Face score calibration unavailable");
     }
 
     float score = 0;
@@ -178,23 +183,28 @@ float FaceFeatureExtractor::GetScore(float distance) {
 }
 
 std::vector<float> FaceFeatureExtractor::GetScoreLevel() {
-    // Online safety: FaceLib::SearchFeature may call GetScore/GetScoreLevel before service thread Init,
-    // must guarantee no crash. If not ready, try synchronous Init; return empty array on failure.
     if (stopped_.load(std::memory_order_acquire)) {
         return {};
     }
-    if (!is_ready_.load(std::memory_order_acquire)) {
-        ServiceEnable();
-        if (!Init()) {
+    // Scoring needs calibration only, not another detector/landmark/recognizer on the NPU.
+    // Resolve each time so importing a replacement model cannot leave stale calibration.
+    std::string cfg_path, model_path;
+    if (!service::ServiceRegistry::Instance().Get<service::IModelPathMapping>().GetModelCfg(
+            "1000005", cfg_path, model_path))
+        return {};
+    nlohmann::json config;
+    if (util::JsonFileUtil::ReadJsonFile(cfg_path, config) != util::ErrorEnum::Success)
+        return {};
+    try {
+        auto scores = config.at("config").at("feature_info").at("score_level").get<std::vector<float>>();
+        if (scores.size() < 3 || !std::isfinite(scores[0]) || !std::isfinite(scores[1]) ||
+            !std::isfinite(scores[2]) || scores[0] <= 0 || scores[1] <= scores[0] || scores[2] <= scores[1]) {
             return {};
         }
-    }
-
-    std::lock_guard<std::shared_mutex> lock(mtx_);
-    if (!is_ready_.load(std::memory_order_acquire) || !recog_inst_) {
+        return scores;
+    } catch (const nlohmann::json::exception&) {
         return {};
     }
-    return recog_inst_->GetScoreLevel();
 }
 
 bool FaceFeatureExtractor::HandMsgQulityAngle(VideoFramePtr frame, MsgGetFeaturesFeature& feature,
@@ -278,6 +288,7 @@ bool FaceFeatureExtractor::HandFeature(VideoFramePtr frame, AiFeature& feature,
 
 std::error_condition FaceFeatureExtractor::HandFeatureImage(VideoFramePtr& image, float quality,
                                                             AiFeature& aifeature, VideoFramePtr& cutImage) {
+    ServiceEnable();
     MsgGetFeaturesFeature feature;
     constexpr int kMaxInitRetries = 30;
     // First request may arrive before background model init; wait up to 3 seconds
@@ -437,6 +448,7 @@ MsgGetFeaturesFeature FaceFeatureExtractor::HandMsgImage(const MsgGetFeaturesIma
 }
 
 MsgGetFeaturesSend FaceFeatureExtractor::HandMsg(const MsgGetFeaturesRecv& data, std::error_condition& errc) {
+    ServiceEnable();
     MsgGetFeaturesSend msg;
     if (stopped_.load(std::memory_order_acquire) || !is_ready_.load(std::memory_order_acquire)) {
         errc = util::ErrorEnum::ServiceNotInit;  // Service not started

@@ -80,6 +80,10 @@ void to_json(nlohmann::json& j, const MsgAiAttribute& v) {
 }
 
 void from_json(const nlohmann::json& j, MsgMatchInfo& v) {
+    JSON_OPT(j, v, personId);
+    JSON_OPT(j, v, personName);
+    JSON_OPT(j, v, personCode);
+    JSON_OPT(j, v, baseImageUrl);
     JSON_OPT(j, v, setPicCount);
     JSON_OPT(j, v, matchId);
     JSON_OPT(j, v, matchDegree);
@@ -89,6 +93,14 @@ void from_json(const nlohmann::json& j, MsgMatchInfo& v) {
 }
 
 void to_json(nlohmann::json& j, const MsgMatchInfo& v) {
+    if (!v.personId.empty())
+        j["personId"] = v.personId;
+    if (!v.personName.empty())
+        j["personName"] = v.personName;
+    if (!v.personCode.empty())
+        j["personCode"] = v.personCode;
+    if (!v.baseImageUrl.empty())
+        j["baseImageUrl"] = v.baseImageUrl;
     j["setPicCount"] = v.setPicCount;
     j["matchId"]     = v.matchId;
     j["matchDegree"] = v.matchDegree;

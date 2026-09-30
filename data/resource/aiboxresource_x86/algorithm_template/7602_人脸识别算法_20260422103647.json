@@ -8,7 +8,7 @@
   "createTime": 1776825407000,
   "updateTime": 1776825407000,
   "confVersionId": "default-7602",
-  "algorithmMetadata": "{\"params\":[],\"region\":{\"heads\":[{\"defaultValue\":\"\",\"description\":\"区域名称：必填，限制32字符\",\"failedTip\":\"请输入长度小于32位且不包含空格的字符串\",\"isColumn\":true,\"key\":\"name\",\"name\":\"区域名称\",\"options\":null,\"range\":\"\",\"regexpr\":\"/^\\\\S{1,32}$/\",\"step\":null,\"type\":\"text\",\"descriptionI18nKey\":\"resource.param.7602.7602.name.description\",\"failedTipI18nKey\":\"resource.param.7602.7602.name.failedtip\",\"nameI18nKey\":\"resource.param.7602.7602.name.name\"}],\"areasTitle\":null},\"regionType\":\"hexagon\",\"scheduleSupport\":false,\"enableShieldedRegion\":false,\"maxAreaCount\":4,\"defaultFullScreen\":false}",
+  "algorithmMetadata": "{\"params\":[{\"key\":\"param.limitScore\",\"type\":\"text\",\"name\":\"相似度阈值\",\"defaultValue\":\"80\",\"value\":\"80\",\"level\":\"2\",\"senior\":0,\"isColumn\":true,\"description\":\"超过此分数才确认为匹配，范围 1–100。\",\"regexpr\":\"\"}],\"region\":{\"heads\":[{\"defaultValue\":\"\",\"description\":\"区域名称：必填，限制32字符\",\"failedTip\":\"请输入长度小于32位且不包含空格的字符串\",\"isColumn\":true,\"key\":\"name\",\"name\":\"区域名称\",\"options\":null,\"range\":\"\",\"regexpr\":\"/^\\\\S{1,32}$/\",\"step\":null,\"type\":\"text\",\"descriptionI18nKey\":\"resource.param.7602.7602.name.description\",\"failedTipI18nKey\":\"resource.param.7602.7602.name.failedtip\",\"nameI18nKey\":\"resource.param.7602.7602.name.name\"}],\"areasTitle\":null},\"regionType\":\"hexagon\",\"scheduleSupport\":false,\"enableShieldedRegion\":false,\"maxAreaCount\":4,\"defaultFullScreen\":false}",
   "configVersionList": [
     {
       "id": "default-7602",
