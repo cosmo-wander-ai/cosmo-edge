@@ -897,6 +897,16 @@ export default {
     passwordChangedLoginAgain: '修改成功，请重新登录'
   },
   imageAnalysis: {
+    compareLibrary: "比对人脸库",
+    selectFaceLibrary: "请选择要比对的人脸库",
+    matchThreshold: "相似度阈值",
+    noFaceLibraries: "暂无人脸库，请先在人脸底库中建库并录入照片",
+    libraryLoadFailed: "读取人脸库失败，请重试",
+    identity: "识别人员 / 编号 / 所属库",
+    similarity: "相似度",
+    unmatched: "未匹配",
+    analysisFailed: "分析失败",
+    someFailed: "部分图片分析失败，请查看失败信息",
     selectAlgorithmPlaceholder: '选择图片分析算法',
     uploadImage: '上传图片',
     analyzing: '分析中...',
@@ -1900,7 +1910,8 @@ export default {
       '分割视觉大模型': '分割视觉大模型',
       '语言视觉大模型': '语言视觉大模型',
       '算法告警数据': '算法告警数据',
-      '网络音柱联动': '网络音柱联动'
+      '网络音柱联动': '网络音柱联动',
+      '告警输出联动': '告警输出联动'
     },
     algorithmNames: {
       '吸烟检测': '吸烟检测',

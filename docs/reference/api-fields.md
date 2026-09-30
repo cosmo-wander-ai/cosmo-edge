@@ -13,6 +13,23 @@ next:
 
 本文从当前 DTO 和路由实现中提炼字段级说明，重点覆盖公开集成最容易用到的通用响应、事件查询、事件记录、HTTP 推送参数和 MQTT 参数。完整 OpenAPI schema 后续可以基于这些 DTO 自动生成。
 
+## 图片人脸库比对
+
+使用现有 `/gtw/cwai/aihost/PTaskCreate`、`PTaskDetectPic`、`PTaskCancle` 路由。客户端应为一次分析使用独立 `taskId`，并在创建、检测和取消时传入相同值，避免不同页面共享任务参数。
+
+在创建任务的 `taskConfig.params` 中传入以下字符串键值：
+
+| key | value | 含义 |
+| --- | --- | --- |
+| `param.faceCompare` | `1` / `0` | 开启人脸库比对 / 仅提取特征；默认关闭 |
+| `param.faceSet` | 逗号分隔的库 ID | 开启比对时必须选择；空字符串清除旧选择 |
+| `param.limitScore` | `0`–`100` | 匹配分数必须大于阈值；`0` 使用底库配置，页面使用 `1`–`100` |
+
+当前入库固定使用 `1000005` 特征模型，图片比对仅接受使用该模型且 `featureInput=0` 的图片特征节点。结果通过 `resData.areaList[].targetList[].matchInfo` 返回：`matched` 表示是否匹配，`matchDegree` 为相似度，`setPicCount` 为参与比对的照片数量。匹配成功时还提供 `personId`、`personName`、`personCode`、`groupId`、`groupName` 和 `baseImageUrl`；低于阈值时保留分数，但不返回候选身份。未匹配的人脸仍保留在结果中。
+
+空库、无效库、特征提取失败或缺少分数标定会返回错误，不应显示成“未匹配”。无脸图片返回空目标结果。其他图片算法及未开启比对的特征提取保持原有结果结构。
+
+
 ## 通用响应
 
 | 字段 | 类型 | 说明 |

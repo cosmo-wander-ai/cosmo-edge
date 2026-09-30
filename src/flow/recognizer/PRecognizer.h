@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "flow/action/PActionBase.h"
+#include "infer/AiLandmarkInterface.h"
 #include "infer/AiRecognizerInterface.h"
 #include "util/DurationStat.h"
 
@@ -25,12 +26,18 @@ public:
 
 private:
     bool AnalysisKey(MsgDynamicKeyValue& param);
+    util::ErrorEnum EnsureFaceLandmarks(VideoFramePtr frame, std::vector<AiDetectRstEl>& targets);
 
     std::shared_mutex mtx_;
     AiRecognizerInterfacePtr inst_;
+    AiLandmarkInterfacePtr face_landmark_inst_;
     util::ErrorEnum action_status_pr_{util::ErrorEnum::Success};
     util::DurationStat duration_stat_;
     std::vector<std::string> face_set_;  // Bound face sets
+    bool face_input_{false};
+    bool compare_enabled_{false};
+    bool params_valid_{true};
+    float limit_score_{0.0F};  // Zero uses the library's configured threshold.
 };
 using PRecognizerPtr = std::shared_ptr<PRecognizer>;
 }  // namespace cosmo

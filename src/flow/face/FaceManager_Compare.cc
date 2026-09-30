@@ -49,8 +49,12 @@ bool FaceManager::FaceCompare(std::vector<std::string> sets, const AiFeature& fe
                          });
     if (max_it != dev_res.end()) {
         float limit_threshold = 0.0f;
-        if (auto lib = GetFaceLib(max_it->group_id)) {
-            limit_threshold = static_cast<float>(lib->GetThreshold());
+        // mtx_ is already held; GetFaceLib would recursively acquire this shared_mutex.
+        for (const auto& lib : face_libs_) {
+            if (lib->GetId() == max_it->group_id) {
+                limit_threshold = static_cast<float>(lib->GetThreshold());
+                break;
+            }
         }
         if (param_limit_score > 0) {
             limit_threshold = param_limit_score;

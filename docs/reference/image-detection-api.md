@@ -185,6 +185,68 @@ mtk: <MTK>
 
 任务创建可能包含模型加载和 Pipeline 初始化。调用端建议为该请求设置不低于 120 秒的超时。重复创建同一个 `taskId` 会复用已创建任务，但调用方仍应管理好自己的任务生命周期。
 
+### 人脸库比对参数
+
+此功能需要部署支持图片人脸库比对的版本，并使用包含 `PA_00005`、`featureInput=0` 和特征模型 `1000005` 的图片算法。仅有人脸检测框不代表已经识别出人员。该特征模型需要五点人脸关键点；流程没有提供完整关键点时，会调用已安装的 `1000016` 模型补齐。
+
+先查询人脸库，选择响应 `resData.faceLibList[]` 中的 `id`，不要把库名称当作 ID。结果使用分页，库数量超过一页时应继续查询。
+
+```http
+POST /gtw/cwai/Library/QueryFaceLibInfo
+Content-Type: application/json
+mtk: <MTK>
+```
+
+```json
+{ "pageNum": 1, "pageSize": 100 }
+```
+
+创建图片任务时传入完整比对配置。下面示例选择两个库，阈值为 70：
+
+```json
+{
+  "mvDebug": "Cosmo-Debug",
+  "taskId": "<FACE_TASK_ID>",
+  "algorithmCode": "<FACE_ALGORITHM_ID>",
+  "algorithmUpdateTime": "<CURRENT_TIME_MILLIS>",
+  "taskConfig": {
+    "params": [
+      { "key": "param.faceCompare", "value": "1" },
+      { "key": "param.faceSet", "value": "<LIBRARY_ID_A>,<LIBRARY_ID_B>" },
+      { "key": "param.limitScore", "value": "70" }
+    ]
+  }
+}
+```
+
+这三个 `value` 均为字符串；参数含义和结果字段见[图片人脸库比对](api-fields.md#图片人脸库比对)。`param.faceCompare=0` 表示只提取特征，不做底库比对。省略该开关时默认不比对。
+
+算法返回的 `algorithmMetadata` 可能没有完整列出上述参数；第三方应按此接口约定传入。网页当前选择的库、开关和阈值是页面临时状态，没有对外读取该页面状态的接口；客户端应保存自己的配置。
+
+### 同一张图片调用两个算法
+
+标准图片接口每次分析一个算法。客户系统可以先分别调用 `PTaskCreate`，创建两个不同 `taskId` 的任务，各自设置算法和参数，再分别调用 `PTaskDetectPic`：
+
+```json
+{
+  "taskId": "<TASK_ID_A>",
+  "algorithmCode": "<ALGORITHM_ID_A>",
+  "imageUrl": "https://images.example.com/input.jpg"
+}
+```
+
+```json
+{
+  "taskId": "<TASK_ID_B>",
+  "algorithmCode": "<ALGORITHM_ID_B>",
+  "imageUrl": "https://images.example.com/input.jpg"
+}
+```
+
+将示例 URL 替换为设备可访问且内容固定的图片地址，也可以分别提交同一份 `imageBase64`。使用推荐的分片上传时，需为两次分析分别上传同一张图片，使用不同 `clientRequestId` 获得两个 `uploadId`；同一个 `uploadId` 只能消费一次。
+
+两个请求可以由客户端并发发送，但实际执行时间受模型调度、显存和设备负载影响，不保证同时完成。分别处理每个响应的 `resCode`，使用自己的业务图片 ID 和 `taskId` 关联结果；一个算法失败不应覆盖另一个算法的结果。等待各自请求结束后，分别取消两个任务。当前网页仍为单算法选择，标准接口也不会自动汇总两份结果。
+
 ## 4. 上传图片
 
 ### 4.1 查询设备上传能力

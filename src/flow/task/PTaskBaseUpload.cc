@@ -58,6 +58,24 @@ static bool IsTargetInArea(const AiDetectRstEl& target, const std::string& areaI
 }
 
 static void DetTarget2MsgTarget(const AiDetectRstEl& target, MsgPTaskTarget& msgTarget) {
+    if (target.matchInfo.setPicCount >= 0) {
+        msgTarget.bHaveMatchInfo = true;
+        auto& result             = msgTarget.matchInfo;
+        const auto& match        = target.matchInfo;
+        result.setPicCount       = match.setPicCount;
+        result.matched           = match.matched;
+        result.matchDegree       = match.match_degree;
+        // A below-threshold candidate must not be presented as an identified person.
+        if (match.matched) {
+            result.matchId      = match.match_id;
+            result.groupId      = match.group_id;
+            result.groupName    = match.group_name;
+            result.personId     = match.person_id;
+            result.personName   = match.name;
+            result.personCode   = match.person_code;
+            result.baseImageUrl = match.base_image_url;
+        }
+    }
     msgTarget.box.x      = target.box.x;
     msgTarget.box.y      = target.box.y;
     msgTarget.box.width  = target.box.width;

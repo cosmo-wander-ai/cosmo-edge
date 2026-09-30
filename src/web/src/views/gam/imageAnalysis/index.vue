@@ -9,6 +9,7 @@
           filterable
           size="default"
           class="algorithm-select"
+          :disabled="analyzing"
           @change="handleAlgorithmChange"
         >
           <el-option
@@ -18,6 +19,19 @@
             :value="item.algorithmId"
           />
         </el-select>
+        <template v-if="isFaceAlgorithm">
+          <el-switch v-model="faceCompareEnabled" :disabled="analyzing" :active-text="$t('imageAnalysis.compareLibrary')" />
+          <el-select v-if="faceCompareEnabled" v-model="selectedFaceLibraries" multiple collapse-tags filterable
+            class="algorithm-select" :disabled="analyzing" :loading="librariesLoading"
+            :placeholder="$t('imageAnalysis.selectFaceLibrary')" @visible-change="visible => visible && loadFaceLibraries()">
+            <el-option v-for="lib in faceLibraries" :key="lib.id" :label="lib.name" :value="lib.id" />
+          </el-select>
+          <label v-if="faceCompareEnabled" class="face-threshold">
+            {{ $t('imageAnalysis.matchThreshold') }}
+            <el-input-number v-model="matchThreshold" :min="1" :max="100" :precision="1" :disabled="analyzing" />
+          </label>
+          <span v-if="faceCompareEnabled && !librariesLoading && !faceLibraries.length">{{ $t('imageAnalysis.noFaceLibraries') }}</span>
+        </template>
         <el-upload
           ref="uploadRef"
           action="#"
@@ -26,6 +40,7 @@
           :on-change="handleFileChange"
           accept="image/*"
           multiple
+          :disabled="analyzing"
         >
           <el-button type="primary" :icon="Upload">{{ $t('imageAnalysis.uploadImage') }}</el-button>
         </el-upload>
@@ -44,6 +59,7 @@
           plain
           :icon="Delete"
           @click="clearAll"
+          :disabled="analyzing"
         >
           {{ $t('action.clear') }}
         </el-button>
@@ -85,6 +101,7 @@
             <div class="image-name" :title="item.name">{{ item.name }}</div>
             <div class="image-status">
               <el-tag v-if="item.analyzing" type="warning" size="small" effect="dark">{{ $t('imageAnalysis.analyzingStatus') }}</el-tag>
+              <el-tag v-else-if="item.result?.error" type="danger" size="small">{{ $t('imageAnalysis.analysisFailed') }}</el-tag>
               <el-tag v-else-if="item.result" type="success" size="small" effect="dark">{{ $t('imageAnalysis.completed') }}</el-tag>
               <el-tag v-else type="info" size="small" effect="plain">{{ $t('imageAnalysis.pending') }}</el-tag>
             </div>
@@ -92,7 +109,8 @@
           <!-- 结果信息面板 -->
           <div v-if="item.result" class="result-panel">
             <!-- 检测类结果 -->
-            <div v-if="getTargetCount(item.result) > 0" class="result-section">
+            <div v-if="item.result.error" class="result-section">{{ item.result.message || $t('imageAnalysis.analysisFailed') }}</div>
+            <div v-else-if="getTargetCount(item.result) > 0" class="result-section">
               <div class="result-label">{{ $t('imageAnalysis.detectedTargets') }}</div>
               <div class="result-tags">
                 <el-tag
@@ -167,6 +185,19 @@
             <div class="preview-targets-title">{{ $t('imageAnalysis.detectionDetails') }}</div>
             <el-table :data="getTargets(previewItem.result)" border size="small" max-height="300">
               <el-table-column type="index" label="#" width="50" />
+              <el-table-column v-if="getTargets(previewItem.result).some(target => target.matchInfo)" :label="$t('imageAnalysis.identity')" min-width="180">
+                <template #default="{ row }">
+                  <template v-if="row.matchInfo?.matched">
+                    <div>{{ row.matchInfo.personName || row.matchInfo.personId }}</div>
+                    <div>{{ row.matchInfo.personCode }}</div>
+                    <div>{{ row.matchInfo.groupName }}</div>
+                  </template>
+                  <span v-else>{{ $t('imageAnalysis.unmatched') }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column v-if="getTargets(previewItem.result).some(target => target.matchInfo)" :label="$t('imageAnalysis.similarity')" width="100">
+                <template #default="{ row }">{{ row.matchInfo?.matchDegree >= 0 ? row.matchInfo.matchDegree.toFixed(1) : '-' }}</template>
+              </el-table-column>
               <el-table-column :label="$t('imageAnalysis.category')" min-width="120">
                 <template #default="{ row }">{{ getTargetLabel(row) }}</template>
               </el-table-column>
@@ -188,7 +219,7 @@
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column :label="$t('imageAnalysis.featurePreview')" min-width="220">
+              <el-table-column v-if="!getTargets(previewItem.result).some(target => target.matchInfo)" :label="$t('imageAnalysis.featurePreview')" min-width="220">
                 <template #default="{ row }">
                   <span v-if="row.featurePreview" class="feature-preview">
                     {{ row.featurePreview }}
@@ -212,11 +243,13 @@ export default {
 
 <script setup>
 import { ref, computed, getCurrentInstance, nextTick, onUnmounted, onDeactivated } from 'vue'
-import { t } from '@/i18n'
+import { t, translateApiMessage } from '@/i18n'
 import { ElMessage } from 'element-plus'
 import { Upload, VideoPlay, Delete } from '@element-plus/icons-vue'
 import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
 import { uploadFileInChunks, UploadPurpose } from '@/utils/chunkUpload'
+import { supportsFaceComparison, faceTaskConfig, imageTargets } from '@/utils/imageFaceAnalysis.mjs'
+import { formatActionableApiError } from '@/utils/apiError'
 
 const { proxy } = getCurrentInstance()
 const $API = proxy.$API
@@ -229,6 +262,23 @@ const uploadedFiles = ref([])
 const results = ref([])
 const analyzing = ref(false)
 const taskCreated = ref(false)
+const analysisTaskId = ref('')
+const faceLibraries = ref([])
+const selectedFaceLibraries = ref([])
+const librariesLoading = ref(false)
+const faceCompareEnabled = ref(true)
+const matchThreshold = ref(80)
+const isFaceAlgorithm = computed(() => supportsFaceComparison(selectedAlgorithmInfo.value))
+const loadFaceLibraries = async () => {
+  librariesLoading.value = true
+  try {
+    const res = await $API.boxQueryFaceLibInfo({ pageNum: 1, pageSize: 1000 })
+    faceLibraries.value = res?.resData?.faceLibList || []
+  } catch {
+    faceLibraries.value = []
+    ElMessage.error(t('imageAnalysis.libraryLoadFailed'))
+  } finally { librariesLoading.value = false }
+}
 const previewVisible = ref(false)
 const previewItem = ref(null)
 const previewIndex = ref(-1)
@@ -279,6 +329,7 @@ const handleAlgorithmChange = async (val) => {
     // 切换前销毁旧的任务，释放显存
     const cancelParams = {
       mvDebug: 'Cosmo-Debug',
+      taskId: analysisTaskId.value,
       algorithmCode: selectedAlgorithmInfo.value.algorithmId
     }
     await $API.pTaskCancle(cancelParams).catch(e => console.error(e))
@@ -286,12 +337,17 @@ const handleAlgorithmChange = async (val) => {
   const alg = algorithmList.value.find(a => a.algorithmId === val)
   selectedAlgorithmInfo.value = alg || null
   taskCreated.value = false
+  results.value = []
+  selectedFaceLibraries.value = []
+  faceCompareEnabled.value = true
+  if (isFaceAlgorithm.value) await loadFaceLibraries()
 }
 
 const cleanupBackend = async () => {
   if (taskCreated.value && selectedAlgorithmInfo.value) {
     const cancelParams = {
       mvDebug: 'Cosmo-Debug',
+      taskId: analysisTaskId.value,
       algorithmCode: selectedAlgorithmInfo.value.algorithmId
     }
     await $API.pTaskCancle(cancelParams).catch(e => console.error(e))
@@ -341,14 +397,20 @@ const clearAll = () => {
 
 // 确保图片任务已创建并同步最新参数
 const ensureTaskCreated = async () => {
-  // 命中缓存则直接复用，避免重复走重模型加载逻辑
-  if (taskCreated.value) return true
   const alg = selectedAlgorithmInfo.value
   if (!alg) return false
 
   try {
+    // 上次清理失败时先结束旧任务，确保本次使用最新的底库和阈值。
+    if (taskCreated.value) {
+      await $API.pTaskCancle({ mvDebug: 'Cosmo-Debug', taskId: analysisTaskId.value, algorithmCode: alg.algorithmId })
+      taskCreated.value = false
+    }
+    analysisTaskId.value = `pic-${Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('')}`
     const createParams = {
+      taskConfig: faceTaskConfig(isFaceAlgorithm.value && faceCompareEnabled.value, selectedFaceLibraries.value, matchThreshold.value),
       mvDebug: 'Cosmo-Debug',
+      taskId: analysisTaskId.value,
       algorithmCode: alg.algorithmId,
       algorithmUpdateTime: alg.algorithmUpdateTime || String(Date.now())
     }
@@ -364,6 +426,7 @@ const ensureTaskCreated = async () => {
     try {
       const cancelParams = {
         mvDebug: 'Cosmo-Debug',
+        taskId: analysisTaskId.value,
         algorithmCode: alg.algorithmId
       }
       await $API.pTaskCancle(cancelParams)
@@ -380,6 +443,10 @@ const startAnalysis = async () => {
   }
   if (uploadedFiles.value.length === 0) {
     ElMessage.warning(t('imageAnalysis.uploadImageFirst'))
+    return
+  }
+  if (isFaceAlgorithm.value && faceCompareEnabled.value && !selectedFaceLibraries.value.length) {
+    ElMessage.warning(t('imageAnalysis.selectFaceLibrary'))
     return
   }
 
@@ -404,6 +471,7 @@ const startAnalysis = async () => {
         getCapabilities: () => $API.getUploadCapabilities()
       })
       const params = {
+        taskId: analysisTaskId.value,
         algorithmCode: selectedAlgorithm.value,
         uploadId: stagedUpload.uploadId,
         needRetImg: true
@@ -422,7 +490,7 @@ const startAnalysis = async () => {
         }).catch(() => {})
       }
       console.error('Analysis failed for image:', uploadedFiles.value[i].name, err)
-      results.value[i] = { error: true }
+      results.value[i] = { error: true, message: formatActionableApiError(err, translateApiMessage, t).displayMessage }
       uploadedFiles.value[i].analyzing = false
     }
   }
@@ -431,6 +499,7 @@ const startAnalysis = async () => {
   try {
     const cancelParams = {
       mvDebug: 'Cosmo-Debug',
+      taskId: analysisTaskId.value,
       algorithmCode: selectedAlgorithmInfo.value.algorithmId
     }
     await $API.pTaskCancle(cancelParams)
@@ -440,7 +509,8 @@ const startAnalysis = async () => {
   }
 
   analyzing.value = false
-  ElMessage.success(t('imageAnalysis.analysisComplete', { n: uploadedFiles.value.length }))
+  if (results.value.some(result => result?.error)) ElMessage.warning(t('imageAnalysis.someFailed'))
+  else ElMessage.success(t('imageAnalysis.analysisComplete', { n: uploadedFiles.value.length }))
 }
 
 // Canvas overlay drawing for detection results
@@ -506,28 +576,14 @@ const drawOverlay = (index) => {
 }
 
 // Result helpers
-const getTargets = (result) => {
-  if (!result) return []
-  // Merge areaList targets and top-level targetList
-  const targets = []
-  if (result.areaList) {
-    result.areaList.forEach(area => {
-      if (area.targetList) {
-        area.targetList.forEach(t => targets.push(t))
-      }
-    })
-  }
-  if (result.targetList) {
-    result.targetList.forEach(t => targets.push(t))
-  }
-  return targets
-}
+const getTargets = imageTargets
 
 const getTargetCount = (result) => {
   return getTargets(result).length
 }
 
 const getTargetLabel = (target) => {
+  if (target?.matchInfo) return target.matchInfo.matched ? (target.matchInfo.personName || target.matchInfo.personId) : t('imageAnalysis.unmatched')
   if (!target?.confidence?.length) return t('common.unknown')
   const top = target.confidence.reduce((a, b) =>
     (b.confidence || 0) > (a.confidence || 0) ? b : a
@@ -536,6 +592,7 @@ const getTargetLabel = (target) => {
 }
 
 const getTargetConfidence = (target) => {
+  if (target?.matchInfo) return target.matchInfo.matchDegree >= 0 ? target.matchInfo.matchDegree.toFixed(1) : '-'
   if (!target?.confidence?.length) return '-'
   const top = target.confidence.reduce((a, b) =>
     (b.confidence || 0) > (a.confidence || 0) ? b : a
@@ -646,9 +703,12 @@ const onPreviewImageLoad = () => {
 
 .toolbar-left {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
 }
+
+.face-threshold { display: flex; align-items: center; gap: 8px; }
 
 .algorithm-select {
   width: 280px;
