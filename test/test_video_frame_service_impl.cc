@@ -17,8 +17,13 @@
 #include "support/ScopedServiceOverride.h"
 
 #if defined(COSMO_MEDIA_USE_CPU_BACKEND)
+#include <algorithm>
 #include <chrono>
 #include <future>
+
+extern "C" {
+#include <libavutil/cpu.h>
+}
 
 #include "media/IOsdTextRenderer.h"
 #include "media/PixelFormat.h"
@@ -84,6 +89,43 @@ private:
 };
 
 }  // namespace
+
+#ifdef COSMO_MEDIA_USE_CPU_BACKEND
+TEST_CASE("CPU scalar preview resize preserves neutral I420 planes", "[VideoFrameService][.cpu-scalar]") {
+    // Run in a fresh process with COSMO_FFMPEG_DISABLE_CPU_OPT=1.
+    VideoFrameServiceFixture fixture;
+    REQUIRE(av_get_cpu_flags() == 0);
+    constexpr int width         = 3040;
+    constexpr int height        = 1368;
+    constexpr int output_width  = 1920;
+    constexpr int output_height = 1088;
+    constexpr int source_size   = width * height * 3 / 2;
+    constexpr int output_size   = output_width * output_height * 3 / 2;
+    cosmo::mem::MemoryPoolMng memory_pool(std::make_unique<cosmo::mem::AllocatorCpu>(),
+                                          {source_size, output_size});
+    cosmo::mem::SetMemoryPoolContext(&memory_pool);
+    struct ContextReset {
+        ~ContextReset() {
+            cosmo::mem::SetMemoryPoolContext(nullptr);
+        }
+    } context_reset;
+    auto frame =
+        std::make_shared<cosmo::media::VideoFrame>(width, height, cosmo::media::PixelFormat::PIXEL_I420);
+    REQUIRE(frame->Active());
+    std::fill_n(frame->GetData(), width * height, 100);
+    std::fill_n(frame->GetData() + width * height, width * height / 2, 128);
+    auto output = fixture.Service().Resize(frame, output_height, output_width);
+    REQUIRE(output);
+    REQUIRE(output->Active());
+    REQUIRE(output->GetWidth() == output_width);
+    REQUIRE(output->GetHeight() == output_height);
+    auto* data       = output->GetData();
+    const int y_size = output_width * output_height;
+    CHECK(std::all_of(data, data + y_size, [](uint8_t value) { return value == 100; }));
+    CHECK(std::all_of(data + y_size, data + y_size * 5 / 4, [](uint8_t value) { return value == 128; }));
+    CHECK(std::all_of(data + y_size * 5 / 4, data + output_size, [](uint8_t value) { return value == 128; }));
+}
+#endif
 
 TEST_CASE("VideoFrameServiceImpl: construction and destruction", "[VideoFrameService][.device]") {
     REQUIRE_NOTHROW([]() { VideoFrameServiceFixture fixture; }());
