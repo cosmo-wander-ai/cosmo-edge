@@ -242,7 +242,7 @@ v1.1 报告覆盖 BM1688、CV186X、RK3576 与 RV1126B。报告包含人员检�
 
 中国大陆用户遇到代码访问、安装、使用、版本获取或设备适配问题，可提交到 [Gitee Issues](https://gitee.com/cosmo-wander-ai/cosmo-edge/issues)；[GitHub Discussions](https://github.com/cosmo-wander-ai/cosmo-edge/discussions) 是 v1.1 官方、可检索的英文问答与社区支持渠道，通用可复现缺陷可提交到 [GitHub Issues](https://github.com/cosmo-wander-ai/cosmo-edge/issues)。代码变更与 Pull Request 仍统一在 GitHub 处理；安全问题请按 [SECURITY.md](SECURITY.md) 私密报告。本次发布不运营 Discord。
 
-中文实时交流可加入 [CosmoEdge 微信开发者交流群](https://github.com/cosmo-wander-ai/cosmo-edge/discussions/112)；微信群用于开发者交流，群内形成的可复现问题和可复用结论请继续沉淀到 GitHub Discussions 或 Issues。
+中文实时交流可扫描[本页底部的二维码](#微信开发者交流群)，加入 CosmoEdge 微信开发者交流 3 群；微信群用于开发者交流，群内形成的可复现问题和可复用结论请继续沉淀到 GitHub Discussions 或 Issues。
 
 ## FAQ
 
@@ -289,3 +289,13 @@ Turn video AI models into deployable edge applications.
 📦 GitHub 管理代码主线和 Pull Request；[Gitee](https://gitee.com/cosmo-wander-ai/cosmo-edge) 自动同步代码，并为中国大陆用户提供版本获取与中文问题反馈入口。详见 [MIRRORING.md](MIRRORING.md)。
 
 </div>
+
+## 微信开发者交流群
+
+2 群即将满员，欢迎使用微信扫描下方二维码，加入 **CosmoEdge 开发者交流 3 群**。
+
+<p align="center">
+  <img src="docs/assets/community/wechat-group-3-20260930.png" width="430" alt="CosmoEdge 微信开发者交流 3 群二维码（2026 年 10 月 7 日前有效）">
+</p>
+
+二维码于 **2026 年 9 月 30 日**更新，**7 天内（2026 年 10 月 7 日前）有效**。如二维码失效，请在[微信群公告](https://github.com/cosmo-wander-ai/cosmo-edge/discussions/112)下留言。
