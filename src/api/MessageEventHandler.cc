@@ -2,9 +2,13 @@
 
 #include "api/MessageEventHandler.h"
 
+#include <chrono>
+#include <fstream>
+
 #include "service/algorithm/IAlgorithmQuery.h"
 #include "service/event/AlarmExport.h"
 #include "service/event/IAlarmRecordService.h"
+#include "service/event/LayaReviewStore.h"
 #include "service/network/INetworkConfig.h"
 #include "util/DateTimeFormat.h"
 #include "util/ErrorCode.h"
@@ -29,6 +33,29 @@ Event::MsgPageSend MessageEventHandler::Handle(Event::MsgPageRecv&& data,
         event.algorithmName = algorithm_query_.GetAlgorithmName(event.algorithmCode);
     }
     return retData;
+}
+
+Event::MsgLayaReviewPageSend MessageEventHandler::Handle(Event::MsgLayaReviewPageRecv&& data,
+                                                         std::error_condition& errc) const {
+    Event::MsgLayaReviewPageSend response;
+    try {
+        response.resData = LayaReviewStore::Instance().Page(data.eventId, data.pageNum, data.pageSize);
+        response.resData["runtime"] = {{"state", "unavailable"}, {"automatic_filtering", false}};
+        try {
+            std::ifstream input("/run/cosmo-laya/status.json");
+            nlohmann::json runtime;
+            input >> runtime;
+            const double now =
+                std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
+            const double age = now - runtime.at("updated_at").get<double>();
+            if (age >= 0 && age < 3)
+                response.resData["runtime"] = runtime;
+        } catch (...) {
+        }
+    } catch (...) {
+        errc = util::ErrorEnum::FileOpenFailed;
+    }
+    return response;
 }
 
 // ── Export Alarm ────────────────────────────────────────────────────

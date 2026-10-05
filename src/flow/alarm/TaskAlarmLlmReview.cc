@@ -6,6 +6,7 @@
 #include <nlohmann/json.hpp>
 #include <sstream>
 
+#include "flow/alarm/AlarmReviewRoi.h"
 #include "flow/alarm/TaskAlarm.h"
 #include "flow/alarm/TaskAlarmInternalTypes.h"
 #include "flow/common/LlmYesNoJudge.h"
@@ -29,25 +30,6 @@ static const Qwen3VLGenerationParam kLlmReviewGenParam{
     0.7f,  // top_p
     0.3f   // temperature
 };
-
-namespace {
-
-    VideoFramePtr ToReviewVlmFrame(const VideoFramePtr& frame) {
-        if (!VideoFrameValid(frame)) {
-            return nullptr;
-        }
-        auto pf = frame->GetPixelFormat();
-        if (pf == media::PixelFormat::PIXEL_BGR8 || pf == media::PixelFormat::PIXEL_RGB8) {
-            return frame;
-        }
-        if (pf == media::PixelFormat::PIXEL_I420) {
-            return service::ServiceRegistry::Instance().Get<service::IVideoFrameTransform>().I4202BGR(frame);
-        }
-        LOG_WARN("{}LLM Review: unsupported input pixel format:{}", kTag, static_cast<int>(pf));
-        return nullptr;
-    }
-
-}  // namespace
 
 bool TaskAlarm::InitLlmReviewer() {
     if (m_param.llmOpenAiConfig.Enabled()) {
@@ -135,52 +117,10 @@ bool TaskAlarm::LlmReviewAlarm(const DataAlarmUnit& alarmUnit, const VideoFrameP
         return true;
     }
 
-    // Important: the decoded frame may be in a hardware/specialized format (e.g. FrameType 4 in logs),
-    // Crop/SDK may not support it. Convert to a standard frame that can be JPEG-encoded before cropping.
-    auto srcFrame =
-        service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().CopyJpegSrcFrame(frame);
-    if (!VideoFrameValid(srcFrame)) {
-        LOG_WARN("{}[{}] LLM Review: CopyJpegSrcFrame failed, skip (allow alarm)", kTag, task_id);
-        return true;
-    }
-
-    const int imgW                 = static_cast<int>(srcFrame->GetWidth());
-    const int imgH                 = static_cast<int>(srcFrame->GetHeight());
-    constexpr int64_t kCropPadding = 48;
-    const int64_t x0 = std::max<int64_t>(0, static_cast<int64_t>(alarmUnit.box.x) - kCropPadding);
-    const int64_t y0 = std::max<int64_t>(0, static_cast<int64_t>(alarmUnit.box.y) - kCropPadding);
-    const int64_t x1 =
-        std::min<int64_t>(imgW, static_cast<int64_t>(alarmUnit.box.x) + alarmUnit.box.width + kCropPadding);
-    const int64_t y1 =
-        std::min<int64_t>(imgH, static_cast<int64_t>(alarmUnit.box.y) + alarmUnit.box.height + kCropPadding);
-    const int64_t cropW      = x1 - x0;
-    const int64_t cropH      = y1 - y0;
-    VideoFramePtr inputFrame = srcFrame;
-    if (cropW > 0 && cropH > 0 && (cropW < imgW || cropH < imgH)) {
-        util::Box roi(static_cast<int>(x0), static_cast<int>(y0), static_cast<int>(cropW),
-                      static_cast<int>(cropH));
-        auto cropped =
-            service::ServiceRegistry::Instance().Get<service::IVideoFrameTransform>().Crop(srcFrame, roi);
-        if (VideoFrameValid(cropped))
-            inputFrame = cropped;
-    }
-    if (!VideoFrameValid(inputFrame)) {
-        LOG_WARN("{}[{}] LLM Review: input frame invalid, skip (allow alarm)", kTag, task_id);
-        return true;
-    }
-    // Local Qwen3VL prefers BGR, and OpenAI-compatible mode can JPEG-encode BGR/RGB/I420.
-    auto bgrFrame = ToReviewVlmFrame(inputFrame);
+    auto roi      = PrepareAlarmReviewRoi(frame, alarmUnit.box);
+    auto bgrFrame = roi.frame;
     if (!VideoFrameValid(bgrFrame)) {
-        LOG_WARN("{}[{}] LLM Review: ToReviewVlmFrame failed, skip (allow alarm)", kTag, task_id);
-        return true;
-    }
-    bgrFrame->SetFrameIndex(frame->GetFrameIndex());
-    bgrFrame->SetTimestamp(frame->GetTimestamp());
-    bgrFrame->SetStreamIndex(frame->GetStreamIndex());
-    auto& transform  = service::ServiceRegistry::Instance().Get<service::IVideoFrameTransform>();
-    bool hasHostData = transform.EnsureHostData(bgrFrame) && bgrFrame->GetHostData();
-    if (!hasHostData && !bgrFrame->GetData()) {
-        LOG_WARN("{}[{}] LLM Review: EnsureHostData failed, skip (allow alarm)", kTag, task_id);
+        LOG_WARN("{}[{}] LLM Review: ROI preparation failed, skip (allow alarm)", kTag, task_id);
         return true;
     }
 

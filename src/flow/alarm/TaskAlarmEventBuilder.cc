@@ -15,6 +15,7 @@
 #include "service/detail/ServiceRegistry.h"
 #include "service/event/IAlarmRecordService.h"
 #include "service/event/IEventNotifier.h"
+#include "service/event/LayaReviewStore.h"
 #include "service/infra/ILinkageService.h"
 #include "service/system/IConfigReadService.h"
 #include "util/JsonStructUtil.h"
@@ -74,6 +75,11 @@ bool TaskAlarm::ShouldFilterTargetAlarm(const AlgDataPtr& algData, const DataAla
         recAlarmData.filterPosition = true;
         m_overviewRecInst.OverviewRecordFrame(recAlarmData);
         return true;
+    }
+
+    // Observation never returns or mutates an alarm decision.
+    if (!alarmUnit.bLlmPrejudged && alarmUnit.reportType == OnEventsReportType::Trigger) {
+        ObserveLayaShadow(alarmUnit, algData->chanDataDec.frame);
     }
 
     // LLM review (trigger-type events only)
@@ -379,6 +385,16 @@ bool TaskAlarm::FillAlarmData(AlgDataPtr algData) {
 
         auto alarmUnit = alarm::MergeAlarmBatch(alarmData->alarms, acceptedIndices);
 
+        auto eventData         = BuildBaseEventData(algData, alarmUnit);
+        const bool layaEnabled = GetAlgId() == "15" && !alarmUnit.bLlmPrejudged &&
+                                 alarmUnit.reportType == OnEventsReportType::Trigger &&
+                                 m_param.layaReviewMode != "disabled";
+        if (layaEnabled && m_param.layaReviewMode == "review" &&
+            !ReviewLayaEvent(eventData, alarmUnit, algData->chanDataDec.frame, true)) {
+            LayaReviewStore::Instance().Publication(eventData.messageId, "filtered");
+            continue;
+        }
+
         // Every accepted tracked target keeps its own count/interval state.
         std::unordered_set<int> updatedTrackIds;
         for (const auto index : acceptedIndices) {
@@ -394,7 +410,6 @@ bool TaskAlarm::FillAlarmData(AlgDataPtr algData) {
         areaData.haveReport    = true;
 
         // Build event
-        auto eventData    = BuildBaseEventData(algData, alarmUnit);
         eventData.targets = alarmUnit.targets;
         AttachAlarmMedia(eventData, algData, alarmUnit);
         auto& idData = m_mapAlarmIdStatus[alarmUnit.trackId];
@@ -418,7 +433,10 @@ bool TaskAlarm::FillAlarmData(AlgDataPtr algData) {
 
         recAlarmData.alarm = true;
         m_overviewRecInst.OverviewRecordFrame(recAlarmData);
-        EventRecord(eventData);
+        const bool eventStored = EventRecord(eventData);
+        if (layaEnabled && m_param.layaReviewMode == "review")
+            LayaReviewStore::Instance().Publication(eventData.messageId,
+                                                    eventStored ? "published" : "alarm_store_failed");
 
         // Adjust time format for dispatch
         if (OnEventsPropertyType::People == eventData.property.type) {
@@ -429,13 +447,16 @@ bool TaskAlarm::FillAlarmData(AlgDataPtr algData) {
         eventData.category = GetAlgCategory();
 
         DispatchAlarmEvent(eventData);
+        if (layaEnabled && m_param.layaReviewMode == "observe") {
+            ReviewLayaEvent(eventData, alarmUnit, algData->chanDataDec.frame, false, eventStored);
+        }
     }
     return true;
 }
 
-void TaskAlarm::EventRecord(CMsgOnEventsReq& eventData) {
+bool TaskAlarm::EventRecord(CMsgOnEventsReq& eventData) {
     if ((OnEventsPropertyType::CountNumber == m_propertyType)) {
-        return;
+        return false;
     }
     AlarmRecordUnit alarmRecordUnit;
     alarmRecordUnit.id             = eventData.messageId;
@@ -471,19 +492,19 @@ void TaskAlarm::EventRecord(CMsgOnEventsReq& eventData) {
             int leaveNum  = eventData.property.people.leaveOrgNum;
             service::ServiceRegistry::Instance().Get<service::IAlarmRecordService>().InsertPassFlow(
                 eventData.videoChannelId, eventData.algorithmId, hour, enterNum, leaveNum);
-            return;
+            return false;
         } else if (OnEventsPropertyType::Car == eventData.property.type) {
             uint64_t hour = atol(eventData.property.car.time.c_str());
             int enterNum  = eventData.property.car.enterOrgNum;
             int leaveNum  = eventData.property.car.leaveOrgNum;
             service::ServiceRegistry::Instance().Get<service::IAlarmRecordService>().InsertPassFlow(
                 eventData.videoChannelId, eventData.algorithmId, hour, enterNum, leaveNum);
-            return;
+            return false;
         }
         (void)util::EncodeJson(eventData.property, alarmRecordUnit.property);
     }
     (void)util::EncodeJson(eventData.targets, alarmRecordUnit.targets);
-    service::ServiceRegistry::Instance().Get<service::IAlarmRecordService>().Insert(alarmRecordUnit);
+    return service::ServiceRegistry::Instance().Get<service::IAlarmRecordService>().Insert(alarmRecordUnit);
 }
 
 }  // namespace cosmo

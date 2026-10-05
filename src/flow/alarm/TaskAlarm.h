@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "flow/action/AlgActionBase.h"
+#include "flow/alarm/LayaShadowObserver.h"
 #include "flow/alarm/TaskAlarmSuppression.h"
 #include "flow/channel/AlgChannel.h"
 #include "flow/common/AlgDataQueueDistributor.h"
@@ -28,20 +29,21 @@
 
 namespace cosmo {
 struct TaskAlarmParam {
-    int alarmInterval{-1};                // Alarm interval, -1 means no limit
-    int targetAlarmInterval{-1};          // Per-target alarm interval, -1 means no limit
-    int targetAlarmCount{0};              // Per-target alarm count, 0 means no limit
-    bool restrainSwitch{false};           // Stationary target dedup switch
-    float overlapRate{0.0};               // Stationary target overlap ratio
-    int restrainTime{0};                  // Stationary target dedup duration (hours)
-    bool overlayTrajectory{false};        // Overlay trajectory
-    bool realtimeEventRecordType{false};  // Whether periodic events record video
-    bool triggerEventRecordType{true};    // Whether triggered events record video
-    float faceScaleParam{1.0};            // Face detection crop scale factor
-    std::string taskId;                   // Polling task ID
-    std::string videoChannelId;           // Polling task channel ID
-    bool enableLlmReview{false};          // LLM review switch (matches old a9313d10)
-    std::string llmAtomicCode;            // Qwen3VL atomic algorithm code
+    int alarmInterval{-1};                   // Alarm interval, -1 means no limit
+    int targetAlarmInterval{-1};             // Per-target alarm interval, -1 means no limit
+    int targetAlarmCount{0};                 // Per-target alarm count, 0 means no limit
+    bool restrainSwitch{false};              // Stationary target dedup switch
+    float overlapRate{0.0};                  // Stationary target overlap ratio
+    int restrainTime{0};                     // Stationary target dedup duration (hours)
+    bool overlayTrajectory{false};           // Overlay trajectory
+    bool realtimeEventRecordType{false};     // Whether periodic events record video
+    bool triggerEventRecordType{true};       // Whether triggered events record video
+    float faceScaleParam{1.0};               // Face detection crop scale factor
+    std::string taskId;                      // Polling task ID
+    std::string videoChannelId;              // Polling task channel ID
+    std::string layaReviewMode{"disabled"};  // disabled, observe, review (experimental)
+    bool enableLlmReview{false};             // LLM review switch (matches old a9313d10)
+    std::string llmAtomicCode;               // Qwen3VL atomic algorithm code
     std::string llmReviewContent;  // User-defined review content (e.g. "flame", "person without helmet")
     OpenAiVlmConfig llmOpenAiConfig;
 };
@@ -50,6 +52,8 @@ class TaskAlarm : public AlgActionBase, public TaskAlarmSuppression {
 public:
     TaskAlarm(const std::string& channelId, const std::string& taskId, ActionNode& action);
     ~TaskAlarm();
+    [[nodiscard]] bool Start() override;
+    void Stop() override;
 
     void QueueStatus(std::vector<AlgActionDataQueueStatus>& queStatus,
                      unsigned int durationSec = 30) override;
@@ -130,6 +134,11 @@ private:
     std::string BuildLlmReviewPrompt(const DataAlarmUnit& alarmUnit);
     LlmReviewResult ParseLlmReviewResult(const std::string& text);
     bool LlmReviewAlarm(const DataAlarmUnit& alarmUnit, const VideoFramePtr& frame);
+    bool ReviewLayaEvent(const CMsgOnEventsReq& event, const DataAlarmUnit& alarmUnit,
+                         const VideoFramePtr& frame, bool review, bool stored = true);
+    void ObserveLayaShadow(const DataAlarmUnit& alarmUnit, const VideoFramePtr& frame);
+    std::shared_ptr<LayaShadowRun> m_layaShadowRun;
+    std::mutex m_layaShadowLifecycle;
 
     bool HandFace(CMsgOnEventsReq& msg, AlgDataPtr algData, DataAlarmUnit& alarmUnit);
     void HandBodyPicture(CMsgOnEventsReq& msg, DataAlarmUnit& alarmUnit, AlarmIdData& alarmIdData);
@@ -150,7 +159,7 @@ private:
     std::deque<DataAlarmUnit> AlarmDataCombineNoAsso(AlgDataPtr algData);
     void AlarmDataCombine(AlgDataPtr algData);
 
-    void EventRecord(CMsgOnEventsReq& eventData);
+    bool EventRecord(CMsgOnEventsReq& eventData);
 
     std::string GetJpgFileName(CMsgOnEventsReq& msg, const std::string& sign, bool needPath = true);
 

@@ -955,6 +955,12 @@ install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/scripts/
             PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_READ GROUP_EXECUTE
 )
 
+# Optional offline Laya runtime; model binaries are supplied as a separate verified resource release.
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/scripts/laya_runtime
+    DESTINATION scripts
+    FILES_MATCHING PATTERN "*.py" PATTERN "*.in"
+    PATTERN "__pycache__" EXCLUDE)
+
 # Service files are not included by the shell-script directory rule above.
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/scripts/cosmo-log-cleanup.service
     DESTINATION scripts

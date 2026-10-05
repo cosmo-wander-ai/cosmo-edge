@@ -20,6 +20,7 @@
 #include "util/Rect.h"
 #include "util/SafeParse.h"
 #include "util/TimeUtil.h"
+#include "util/UuidUtil.h"
 #include "util/dto/ClientMsgEvent.h"
 
 namespace chrono = std::chrono;
@@ -70,7 +71,36 @@ TaskAlarm::~TaskAlarm() {
     LOG_INFO("{}Task:{} Delete", kTag, task_id);
 }
 
+bool TaskAlarm::Start() {
+    std::lock_guard<std::mutex> lock(m_layaShadowLifecycle);
+    if (!running.load()) {
+        auto oldRun = std::atomic_load(&m_layaShadowRun);
+        if (oldRun)
+            oldRun->Invalidate();
+        std::atomic_store(&m_layaShadowRun, std::make_shared<LayaShadowRun>(util::GenerateUUID()));
+    }
+    bool started = AlgActionBase::Start();
+    if (!started) {
+        auto run = std::atomic_load(&m_layaShadowRun);
+        if (run)
+            run->Invalidate();
+    }
+    return started;
+}
+
+void TaskAlarm::Stop() {
+    std::lock_guard<std::mutex> lock(m_layaShadowLifecycle);
+    auto run = std::atomic_load(&m_layaShadowRun);
+    if (run)
+        run->Invalidate();
+    AlgActionBase::Stop();
+}
+
 void TaskAlarm::ResetStateOnRestart() {
+    auto oldRun = std::atomic_load(&m_layaShadowRun);
+    if (oldRun)
+        oldRun->Invalidate();
+    std::atomic_store(&m_layaShadowRun, std::make_shared<LayaShadowRun>(util::GenerateUUID()));
     m_mapAlarmIdStatus.clear();
     m_mapAreaIdStatus.clear();
     m_alarmCount    = 0;
@@ -89,7 +119,8 @@ TaskAlarm::TaskAlarm(const std::string& channelId, const std::string& taskId, Ac
       TaskAlarmSuppression(taskId),
       m_lastAlarmTime(chrono::steady_clock::now()),
       m_overviewRecInst(taskId, "alarm") {
-    action_status = util::ErrorEnum::ActionReady;
+    m_layaShadowRun = std::make_shared<LayaShadowRun>(util::GenerateUUID());
+    action_status   = util::ErrorEnum::ActionReady;
     data_queue->SetMaxSize(3);
 
     for (auto& el : action.configObject.params) {
@@ -178,7 +209,13 @@ bool TaskAlarm::AnalysisKey(MsgDynamicKeyValue& param) {
         return false;
     }
 
-    if (param.keys[1] == key::alarm::INTERVAL) {
+    if (param.keys[1] == "layaReviewMode") {
+        const auto value = param.value.ToString();
+        if (value != "disabled" && value != "observe" && value != "review")
+            return false;
+        m_param.layaReviewMode = value;
+        return true;
+    } else if (param.keys[1] == key::alarm::INTERVAL) {
         auto value = util::ParseInt(param.value);
         if (value != m_param.alarmInterval) {
             LOG_INFO(
