@@ -38,6 +38,32 @@ Json Response(const Json& request) {
 }
 auto Image = [] { return cosmo::LayaShadowPayload{{{"image_width", 1}, {"image_height", 1}}, {1, 2, 3}}; };
 }  // namespace
+TEST_CASE("Laya unsupported images retain their reason without contacting worker",
+          "[laya][review][fallback]") {
+    const bool review = GENERATE(false, true);
+    StoreFixture f;
+    std::atomic<int> calls{0};
+    cosmo::LayaReview service(f.store, [&](const auto&, const auto& request, const auto&) {
+        ++calls;
+        return Response(request);
+    });
+    auto run                 = std::make_shared<cosmo::LayaShadowRun>("epoch-1");
+    auto identity            = Identity("unsupported-image");
+    identity["target_count"] = 2;
+    REQUIRE(service.Submit(identity, run, [] { return cosmo::LayaShadowPayload{}; }, review));
+    Json row;
+    for (int i = 0; i < 100; ++i) {
+        row = f.store.Page("unsupported-image", 1, 10)["rows"][0];
+        if (!row["result"].is_null())
+            break;
+        std::this_thread::sleep_for(5ms);
+    }
+    REQUIRE(calls == 0);
+    REQUIRE(row["result"]["decision"] == "unknown");
+    REQUIRE(row["result"]["reason"] == "unsupported_or_empty_roi");
+    REQUIRE(f.store.Publication("unsupported-image", "published"));
+    REQUIRE(f.store.Page("unsupported-image", 1, 10)["rows"][0]["publication"] == "published");
+}
 TEST_CASE("Laya policy requires qualification and pinned identities", "[laya][review]") {
     auto request  = Identity();
     auto response = Response(request);

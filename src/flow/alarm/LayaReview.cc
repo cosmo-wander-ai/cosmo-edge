@@ -119,27 +119,31 @@ void LayaReview::Work() {
                 result = Unknown("deadline_exceeded");
             else {
                 auto payload = job->prepare();
-                auto request = job->identity;
-                request.update(payload.metadata);
-                request["protocol"]         = "laya-shadow-v1";
-                request["profile"]          = "laya-256p-256s-v1";
-                request["question_id"]      = "helmet-review-en-v1";
-                request["question_version"] = 1;
-                request["image_encoding"]   = "jpeg";
-                request["image_size"]       = payload.jpeg.size();
-                request["request_id"]       = request["event_id"];
-                LayaShadowConfig config;
-                config.socketPath = socket_;
-                config.timeout =
-                    std::chrono::duration_cast<std::chrono::milliseconds>(job->deadline - Clock::now());
+                // Unsupported ROIs have no JPEG or metadata. Preserve their local reason
+                // before assembling a worker request; merging null metadata would throw.
                 if (payload.jpeg.empty())
                     result = Unknown("unsupported_or_empty_roi");
-                else if (config.timeout.count() <= 0)
-                    result = Unknown("deadline_exceeded");
-                // Business qualification must be supported by a later labelled acceptance package.
-                // This candidate ships with the numerical exception and cannot auto-filter by default.
-                else
-                    result = Classify(request, transport_(config, request, payload.jpeg), false);
+                else {
+                    auto request = job->identity;
+                    request.update(payload.metadata);
+                    request["protocol"]         = "laya-shadow-v1";
+                    request["profile"]          = "laya-256p-256s-v1";
+                    request["question_id"]      = "helmet-review-en-v1";
+                    request["question_version"] = 1;
+                    request["image_encoding"]   = "jpeg";
+                    request["image_size"]       = payload.jpeg.size();
+                    request["request_id"]       = request["event_id"];
+                    LayaShadowConfig config;
+                    config.socketPath = socket_;
+                    config.timeout =
+                        std::chrono::duration_cast<std::chrono::milliseconds>(job->deadline - Clock::now());
+                    if (config.timeout.count() <= 0)
+                        result = Unknown("deadline_exceeded");
+                    // Business qualification must be supported by a later labelled acceptance package.
+                    // This candidate retains the numerical exception and cannot auto-filter by default.
+                    else
+                        result = Classify(request, transport_(config, request, payload.jpeg), false);
+                }
             }
         } catch (const std::exception& e) {
             result = Unknown(std::string(e.what()) == "worker_timeout" ? "deadline_exceeded"
