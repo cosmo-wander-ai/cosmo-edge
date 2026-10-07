@@ -173,6 +173,8 @@ void from_json(const nlohmann::json& j, MsgPTaskDetectPicSend::ResData& v) {
     JSON_OPT(j, v, timestamp);
     JSON_OPT(j, v, fullPicture);
     JSON_OPT(j, v, areaList);
+    v.visualJudgments.clear();
+    JSON_OPT(j, v, visualJudgments);
 }
 
 void to_json(nlohmann::json& j, const MsgPTaskDetectPicSend::ResData& v) {
@@ -180,6 +182,10 @@ void to_json(nlohmann::json& j, const MsgPTaskDetectPicSend::ResData& v) {
     j["timestamp"]     = v.timestamp;
     j["fullPicture"]   = v.fullPicture;
     j["areaList"]      = v.areaList;
+    if (!v.visualJudgments.empty())
+        j["visualJudgments"] = v.visualJudgments;
+    else
+        j.erase("visualJudgments");
 }
 
 }  // namespace cosmo

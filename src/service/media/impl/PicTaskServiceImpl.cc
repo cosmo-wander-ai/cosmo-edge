@@ -339,11 +339,21 @@ cosmo::MsgDetectSend PicTaskServiceImpl::ProcessDetectGroup(cosmo::MsgDetectRecv
         ptaskUnitRetData.resData.algorithmCode = ptaskUnit.algorithmCode;
         ptaskUnitRetData.resData.timestamp     = std::to_string(cosmo::util::GetMilliseconds());
         if (!IsTaskConfigEmpty(ptaskUnit.taskConfig)) {
-            SetTaskParam(ptaskUnit.taskId, ptaskUnit.taskConfig);
+            cosmo::MsgTaskConfig saved;
+            if (GetTaskParam(ptaskUnit.taskId, saved) &&
+                nlohmann::json(saved.areas) != nlohmann::json(ptaskUnit.taskConfig.areas)) {
+                saved.areas = ptaskUnit.taskConfig.areas;
+                SetTaskParam(ptaskUnit.taskId, saved);
+            }
         }
         unitErrc = DetectPic(ptaskUnit.taskId, ptaskUnit, ptaskUnitRetData);
 
         LOG_INFO("[PTask] :Detect Task:{} Get:{}", taskUnit, unitErrc.message());
+        for (auto record : ptaskUnitRetData.resData.visualJudgments) {
+            record["event_code"]     = taskUnit;
+            record["algorithm_code"] = ptaskUnit.algorithmCode;
+            retData.data.visualJudgments.push_back(std::move(record));
+        }
         for (const auto& target : ptaskUnitRetData.resData.targetList) {
             // Skip results where logic judgment flow returned false
             if ((target.bHaveLogicResult) && (!target.bLogicResult) && (!data.forceOutputAll)) {

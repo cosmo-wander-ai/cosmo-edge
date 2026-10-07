@@ -9,13 +9,18 @@
 #include "util/UuidUtil.h"
 
 #if defined(COSMO_MEDIA_USE_CPU_BACKEND)
+#include "flow/qwen3vl/PQwen3VLWorker.h"
 #include "flow/qwen3vl/Qwen3VLWorker.h"
+#include "flow/task/PTaskBase.h"
 #include "media/IOsdTextRenderer.h"
 #include "mem/AllocatorCpu.h"
 #include "mem/IDeviceContext.h"
 #include "mem/MemoryPoolMng.h"
+#include "mock/MockAppInfoService.h"
 #include "service/ai/ILlmInferService.h"
+#include "service/media/impl/PicTaskServiceImpl.h"
 #include "service/media/impl/VideoFrameServiceImpl.h"
+#include "util/dto/ActionCodes.h"
 #endif
 
 namespace {
@@ -207,6 +212,12 @@ public:
 class Frames final : public VideoFrameServiceImpl {
 public:
     int failure{0};
+    bool EnsureHostData(VideoFramePtr frame) override {
+        return failure != 5 && VideoFrameServiceImpl::EnsureHostData(frame);
+    }
+    VideoFramePtr DecodeJpeg(const std::vector<u_char>&) override {
+        return std::make_shared<media::VideoFrame>(64, 64, media::PixelFormat::PIXEL_BGR8);
+    }
     VideoFramePtr CopyJpegSrcFrame(VideoFramePtr frame) override {
         if (failure == 1)
             return nullptr;
@@ -413,7 +424,7 @@ TEST_CASE("Laya target ROIs use each overlapping region and retain original targ
 TEST_CASE("Laya ROI image failures remain explicit unknowns and never use full-frame fallback",
           "[visual-flow][video][roi]") {
     FlowFixture f;
-    f.frames.failure = GENERATE(1, 2, 3, 4);
+    f.frames.failure = GENERATE(1, 2, 3, 4, 5);
     std::vector<MsgTaskArea> regions{Region("left", 0, 0.5)}, shield;
     REQUIRE(f.worker.SetArea("camera", "task", regions, shield));
     REQUIRE(f.worker.Start());
@@ -428,6 +439,295 @@ TEST_CASE("Laya ROI image failures remain explicit unknowns and never use full-f
     CHECK(unit.visualJudgments[0]["result"]["reason"] == "empty_or_invalid_roi");
     CHECK(unit.box.width == 32);
     f.worker.Stop();
+    CHECK(f.llm.touched == 0);
+}
+
+namespace {
+ActionNode PictureVisualAction(const std::string& id = "judge") {
+    ActionNode action;
+    action.actionId            = PDAQwen3VL_Code;
+    action.flowActionId        = id;
+    action.configObject.params = {Parameter("vlmProvider", "laya_v"), Parameter("keywords", "helmet")};
+    return action;
+}
+MsgPTaskDetectPicRecv PictureRequest() {
+    MsgPTaskDetectPicRecv request;
+    request.imageData  = {0xff, 0xd8, 0xff, 0xd9};
+    request.needRetImg = false;
+    return request;
+}
+}  // namespace
+
+TEST_CASE("Laya picture pipeline publishes per-node ROI questions without invented detection targets",
+          "[visual-flow][picture]") {
+    FlowFixture f;
+    PTaskBase base;
+    auto alg      = std::make_shared<ActionAlg>();
+    alg->workFlow = {PictureVisualAction("one"), PictureVisualAction("two")};
+    auto task     = base.TaskCreate("picture", alg);
+    REQUIRE(task);
+    MsgTaskConfig config;
+    config.areas = {Region("left", 0, 0.5), Region("right", 0.5, 0.5, {Parameter("keywords", "smoke")})};
+    task->params = config;
+    REQUIRE(base.ModifyTaskParam(task, config));
+    REQUIRE(base.TaskActionInit(task));
+    auto request = PictureRequest();
+    MsgPTaskDetectPicSend response;
+    const int prepared = f.questions.count;
+    REQUIRE(base.TaskDetectPic(task, request, response) == util::ErrorEnum::Success);
+    REQUIRE(response.resData.visualJudgments.size() == 4);
+    CHECK(response.resData.targetList.empty());
+    CHECK(response.resData.areaList.empty());
+    const auto& records = response.resData.visualJudgments;
+    CHECK(records[0]["flow_action_id"] == "one");
+    CHECK(records[2]["flow_action_id"] == "two");
+    CHECK(records[0]["request"]["frame_id"] == records[2]["request"]["frame_id"]);
+    CHECK(records[0]["area_id"] == "left");
+    CHECK(records[1]["area_id"] == "right");
+    CHECK(records[0]["request"]["items"][0]["question_id"] !=
+          records[1]["request"]["items"][0]["question_id"]);
+    CHECK(records[0]["result"]["items"][0]["top1"] == "false");
+    CHECK(records[0]["business_qualified"] == false);
+    CHECK(records[0]["alarm_filter_applied"] == false);
+    CHECK(Json(response).get<MsgPTaskDetectPicSend>().resData.visualJudgments == records);
+    CHECK(f.questions.count == prepared);
+    auto second = PictureRequest();
+    MsgPTaskDetectPicSend secondResponse;
+    REQUIRE(base.TaskDetectPic(task, second, secondResponse) == util::ErrorEnum::Success);
+    CHECK(secondResponse.resData.visualJudgments[0]["request"]["frame_id"] !=
+          records[0]["request"]["frame_id"]);
+    REQUIRE(base.TaskActionDestroy(task));
+    REQUIRE(base.TaskDelete(task));
+    CHECK(f.llm.touched == 0);
+}
+
+TEST_CASE("Laya picture service replaces removed catalog overrides and preserves default provider",
+          "[visual-flow][picture]") {
+    FlowFixture f;
+    PicTaskServiceImpl service;
+    auto alg      = std::make_shared<ActionAlg>();
+    alg->workFlow = {PictureVisualAction()};
+    REQUIRE(service.TaskCreate("picture", alg) == util::ErrorEnum::Success);
+    Json one = {{"id", "one"}, {"version", 1}, {"type", "noul"}, {"instructions", "fire?"}};
+    Json two = {{"id", "two"}, {"version", 1}, {"type", "noul"}, {"instructions", "smoke?"}};
+    MsgTaskConfig config;
+    config.params = {Parameter("visual.question.one", one.dump()),
+                     Parameter("visual.question.two", two.dump()),
+                     Parameter("visual.questions", "[\"two\",\"one\"]")};
+    REQUIRE(service.SetTaskParam("picture", config));
+    auto request = PictureRequest();
+    MsgPTaskDetectPicSend first;
+    REQUIRE(service.DetectPic("picture", request, first) == util::ErrorEnum::Success);
+    REQUIRE(first.resData.visualJudgments.size() == 1);
+    const auto& record = first.resData.visualJudgments[0];
+    REQUIRE(record["result"]["items"].size() == 2);
+    CHECK(record["result"]["items"][0]["question_id"] == "two");
+    CHECK(record["result"]["items"][1]["question_id"] == "one");
+    config = {};
+    REQUIRE(service.SetTaskParam("picture", config));
+    auto next = PictureRequest();
+    MsgPTaskDetectPicSend second;
+    REQUIRE(service.DetectPic("picture", next, second) == util::ErrorEnum::Success);
+    REQUIRE(second.resData.visualJudgments.size() == 1);
+    const auto& replacement = second.resData.visualJudgments[0];
+    REQUIRE(replacement["result"]["items"].size() == 1);
+    CHECK(replacement["result"]["items"][0]["question_id"] == "legacy-default");
+    CHECK(replacement["request"]["config_revision"] != record["request"]["config_revision"]);
+    REQUIRE(service.TaskDelete("picture") == util::ErrorEnum::Success);
+    CHECK(f.llm.touched == 0);
+}
+
+TEST_CASE("Laya picture edit and stop fence in-flight results and restart changes epoch",
+          "[visual-flow][picture]") {
+    FlowFixture f;
+    auto action = PictureVisualAction();
+    PQwen3VLWorker worker(action, "picture");
+    REQUIRE(worker.ActionInit());
+    auto data         = f.Frame();
+    f.decisions.block = true;
+    auto pending      = std::async(std::launch::async, [&] { return worker.HandPic(data); });
+    REQUIRE(f.decisions.Wait(1));
+    auto change = std::vector<MsgDynamicKeyValue>{Parameter("keywords", "smoke")};
+    auto mode   = GENERATE(0, 1, 2);
+    if (mode == 0)
+        REQUIRE(worker.ModifyParam("picture", change));
+    else if (mode == 1) {
+        std::vector<MsgTaskArea> regions{Region("door", 0, 0.5)}, shield;
+        REQUIRE(worker.SetArea("picture", regions, shield));
+    } else
+        worker.ActionDestroy();
+    f.decisions.block = false;
+    CHECK(pending.get() == util::ErrorEnum::ActionStop);
+    CHECK(data->visualDecisions.empty());
+    CHECK_FALSE(worker.ModifyParam("wrong-task", change));
+    REQUIRE(worker.ActionInit());
+    auto next = f.Frame(2);
+    REQUIRE(worker.HandPic(next) == util::ErrorEnum::Success);
+    REQUIRE(next->visualDecisions.size() == 1);
+    auto oldRun = next->visualDecisions[0].run;
+    auto cloned = AlgDataCopy(next);
+    REQUIRE(cloned->visualDecisions.size() == 1);
+    CHECK(cloned->visualFrameId == next->visualFrameId);
+    CHECK(cloned->visualDecisions[0].records == next->visualDecisions[0].records);
+    worker.ActionDestroy();
+    CHECK_FALSE(oldRun->Active());
+    CHECK_FALSE(cloned->visualDecisions[0].run->Active());
+    CHECK(worker.HandPic(f.Frame(3)) == util::ErrorEnum::ActionStop);
+    REQUIRE(worker.ActionInit());
+    auto restarted = f.Frame(4);
+    REQUIRE(worker.HandPic(restarted) == util::ErrorEnum::Success);
+    CHECK(restarted->visualDecisions[0].run->runEpoch != oldRun->runEpoch);
+    CHECK(f.llm.touched == 0);
+}
+
+TEST_CASE("Laya picture ROI failures are explicit unknowns with no full-image substitution",
+          "[visual-flow][picture][roi]") {
+    FlowFixture f;
+    auto action = PictureVisualAction();
+    PQwen3VLWorker worker(action, "picture");
+    std::vector<MsgTaskArea> regions{Region("door", 0, 0.5)}, shield;
+    REQUIRE(worker.SetArea("picture", regions, shield));
+    f.frames.failure = GENERATE(1, 2, 3, 4, 5);
+    auto data        = f.Frame();
+    REQUIRE(worker.HandPic(data) == util::ErrorEnum::Success);
+    REQUIRE(data->visualDecisions.size() == 1);
+    REQUIRE(data->visualDecisions[0].records.size() == 1);
+    const auto& record = data->visualDecisions[0].records[0];
+    CHECK(record["area_id"] == "door");
+    CHECK(record["request"]["roi_id"] == "area-0");
+    CHECK(record["result"]["status"] == "unknown");
+    CHECK(record["result"]["reason"] == "empty_or_invalid_roi");
+    CHECK_FALSE(data->chanDataDetect.detRet);
+    CHECK(f.llm.touched == 0);
+}
+
+TEST_CASE("Laya picture detector targets retain identities and zero-target upstream never falls back",
+          "[visual-flow][picture][roi]") {
+    FlowFixture f;
+    auto action = PictureVisualAction();
+    PQwen3VLWorker worker(action, "picture", true);
+    std::vector<MsgTaskArea> regions{Region("door", 0, 0.75), Region("overlap", 0, 0.5)}, shield;
+    REQUIRE(worker.SetArea("picture", regions, shield));
+    auto data                   = f.Frame();
+    data->chanDataDetect.detRet = std::make_shared<DataDetTrackClassify>();
+    auto empty                  = AlgDataCopy(data);
+    AiDetectRstEl target;
+    target.box         = {8, 8, 16, 16};
+    target.targetId    = "original";
+    target.trackIdInfo = "track";
+    target.trackId     = 9;
+    data->chanDataDetect.detRet->targets.push_back(target);
+    REQUIRE(worker.HandPic(data) == util::ErrorEnum::Success);
+    REQUIRE(data->visualDecisions.size() == 1);
+    REQUIRE(data->visualDecisions[0].records.size() == 2);
+    CHECK(data->visualDecisions[0].records[0]["source_target_id"] == "original");
+    CHECK(data->visualDecisions[0].records[1]["source_track_id"] == "track");
+    CHECK(data->chanDataDetect.detRet->targets.size() == 1);
+    const int count = f.decisions.count;
+    REQUIRE(worker.HandPic(empty) == util::ErrorEnum::Success);
+    CHECK(f.decisions.count == count);
+    REQUIRE(empty->visualDecisions.size() == 1);
+    CHECK(empty->visualDecisions[0].records.empty());
+    CHECK(f.llm.touched == 0);
+}
+
+TEST_CASE("Laya grouped picture response forwards typed results with event binding and saved provider",
+          "[visual-flow][picture][group]") {
+    FlowFixture f;
+    test::MockAppInfoService info;
+    test::ScopedServiceOverride<IAppInfoService> app(info);
+    ALLOW_CALL(info, GetPicTaskGroupCount()).RETURN(1);
+    PicTaskServiceImpl service;
+    auto alg    = std::make_shared<ActionAlg>();
+    auto action = PictureVisualAction();
+    action.configObject.params.clear();  // Provider is a saved task override.
+    alg->workFlow = {action};
+    REQUIRE(service.TaskCreate("helmet-0", alg) == util::ErrorEnum::Success);
+    MsgTaskConfig config;
+    config.params = {Parameter("vlmProvider", "laya_v"), Parameter("keywords", "helmet")};
+    REQUIRE(service.SetTaskParam("helmet-0", config));
+    MsgDetectRecv input;
+    input.eventCodes = {"helmet"};
+    input.imageData  = "/9j/2Q==";
+    MsgPTaskDetectExtParam ext;
+    ext.eventCode = "helmet";
+    MsgPTaskDetectExtParamRule rule{};
+    rule.DetectRegion = {{0, 0}, {0.5, 0}, {0.5, 1}, {0, 1}};
+    ext.rules         = {rule};
+    input.extParam    = {ext};
+    std::error_condition error;
+    auto response = service.ProcessDetectGroup(input, error);
+    REQUIRE(response.data.visualJudgments.size() == 1);
+    CHECK(response.data.result.empty());
+    const auto& record = response.data.visualJudgments[0];
+    CHECK(record["event_code"] == "helmet");
+    CHECK(record["algorithm_code"] == "helmet-0");
+    CHECK(record["area_id"] == "Area-1");
+    CHECK(record["provider"] == "laya_v");
+    CHECK(Json(response).get<MsgDetectSend>().data.visualJudgments == response.data.visualJudgments);
+    const int prepared = f.questions.count;
+    auto again         = service.ProcessDetectGroup(input, error);
+    REQUIRE(again.data.visualJudgments.size() == 1);
+    CHECK(f.questions.count == prepared);
+    CHECK(f.llm.touched == 0);
+}
+
+TEST_CASE("Legacy picture JSON omits empty visual records including reused DTOs", "[visual-flow][picture]") {
+    MsgPTaskDetectPicSend::ResData single;
+    single.visualJudgments = {Json{{"status", "unknown"}}};
+    Json j                 = single;
+    REQUIRE(j.contains("visualJudgments"));
+    single.visualJudgments.clear();
+    to_json(j, single);
+    CHECK_FALSE(j.contains("visualJudgments"));
+    single.visualJudgments = {Json::object()};
+    from_json(j, single);
+    CHECK(single.visualJudgments.empty());
+    MsgDetectSend::Data group;
+    group.visualJudgments = {Json::object()};
+    Json g                = group;
+    group.visualJudgments.clear();
+    to_json(g, group);
+    CHECK_FALSE(g.contains("visualJudgments"));
+    group.visualJudgments = {Json::object()};
+    from_json(g, group);
+    CHECK(group.visualJudgments.empty());
+}
+
+TEST_CASE("Picture publication rejects a stale earlier node and accepts shared run copies",
+          "[visual-flow][picture]") {
+    FlowFixture f;
+    PTaskBase base;
+    auto alg      = std::make_shared<ActionAlg>();
+    alg->workFlow = {PictureVisualAction("first"), PictureVisualAction("later")};
+    auto task     = base.TaskCreate("picture", alg);
+    REQUIRE(task);
+    class AfterJudgment final : public PActionBase {
+    public:
+        bool invalidate;
+        AfterJudgment(ActionNode& action, bool stale) : PActionBase(action, "picture"), invalidate(stale) {}
+        util::ErrorEnum HandPic(AlgDataPtr data) override {
+            if (data->visualDecisions.empty())
+                return util::ErrorEnum::Failed;
+            if (invalidate)
+                data->visualDecisions[0].run->Invalidate();
+            else
+                data->visualDecisions.push_back(data->visualDecisions[0]);
+            return util::ErrorEnum::Success;
+        }
+    };
+    const bool invalidate       = GENERATE(true, false);
+    task->actions[1].actionInst = std::make_shared<AfterJudgment>(task->actions[1].action, invalidate);
+    auto request                = PictureRequest();
+    MsgPTaskDetectPicSend response;
+    auto result = base.TaskDetectPic(task, request, response);
+    if (invalidate) {
+        CHECK(result == util::ErrorEnum::ActionStop);
+        CHECK(response.resData.visualJudgments.empty());
+    } else {
+        CHECK(result == util::ErrorEnum::Success);
+        CHECK(response.resData.visualJudgments.size() == 2);
+    }
     CHECK(f.llm.touched == 0);
 }
 #endif

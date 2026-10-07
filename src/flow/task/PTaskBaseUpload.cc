@@ -14,6 +14,7 @@
 #include "flow/task/PTaskBase.h"
 #include "media/Color.h"
 #include "media/PixelFormat.h"
+#include "service/ai/IVisualDecisionService.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/media/IVideoFrameCodec.h"
 #include "service/media/IVideoFrameOSD.h"
@@ -33,6 +34,31 @@ namespace cosmo {
 std::vector<MsgPoint> ComputeMaskPolygon(const AiMask& mask);
 bool ApplyYuvMask(uint8_t* yuvData, int imgW, int imgH, const AiMask& mask);
 bool ApplyBgrMask(uint8_t* bgrData, int imgW, int imgH, const AiMask& mask);
+
+// A picture may contain several judgment nodes. Publish their records together
+// while all distinct run fences are held, so no partially stale batch escapes.
+static bool PublishVisualAudits(const std::vector<VisualDecisionAudit>& audits,
+                                std::vector<nlohmann::json>& output) {
+    std::vector<std::shared_ptr<service::VisualDecisionRun>> runs;
+    std::vector<nlohmann::json> records;
+    for (const auto& audit : audits) {
+        if (!audit.run)
+            return false;
+        runs.push_back(audit.run);
+        records.insert(records.end(), audit.records.begin(), audit.records.end());
+    }
+    std::sort(runs.begin(), runs.end());
+    runs.erase(std::unique(runs.begin(), runs.end()), runs.end());
+    std::function<bool(size_t)> commit = [&](size_t index) {
+        if (index == runs.size()) {
+            output = std::move(records);
+            return true;
+        }
+        bool published = false;
+        return runs[index]->CommitIfCurrent([&] { published = commit(index + 1); }) && published;
+    };
+    return commit(0);
+}
 
 static VideoFramePtr NormalizePicInputForInference(VideoFramePtr frame) {
     if (!VideoFrameValid(frame)) {
@@ -369,7 +395,10 @@ util::ErrorEnum PTaskBase::TaskDetectPic(PTaskElementPtr task, MsgPTaskDetectPic
         return util::ErrorEnum::NotCreated;
     }
 
+    retData.resData.visualJudgments.clear();
     AlgDataPtr algData                                  = std::make_shared<AlgData>();
+    algData->taskId                                     = task->taskId;
+    algData->visualFrameId                              = util::GenerateUUID();
     std::pair<util::ErrorEnum, VideoFramePtr> imageData = {util::ErrorEnum::Success, nullptr};
     if (!inData.imageData.empty() || !inData.imageBase64.empty()) {
         auto vecPicBin = inData.imageData.empty() ? std::move(util::DecBase64Vec(inData.imageBase64))
@@ -452,6 +481,10 @@ util::ErrorEnum PTaskBase::TaskDetectPic(PTaskElementPtr task, MsgPTaskDetectPic
 
     if (inData.needRetImg)
         DetTargetHandFullPicture(algData, task->params.areas, inData, retData);
+    if (!PublishVisualAudits(algData->visualDecisions, retData.resData.visualJudgments)) {
+        retData.resData.visualJudgments.clear();
+        return util::ErrorEnum::ActionStop;
+    }
     return util::ErrorEnum::Success;
 }
 
