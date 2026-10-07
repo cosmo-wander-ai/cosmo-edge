@@ -32,6 +32,7 @@ struct VisualAuditServiceImpl::State {
     std::atomic<bool> ready{false};
     std::atomic<size_t> recovered{0}, closedRecovered{0}, initializationAttempts{0};
     std::atomic<uint64_t> beginFailed{0}, finishFailed{0}, deliveryFailed{0}, maintenanceFailed{0};
+    std::atomic<uint64_t> busyRetries{0};
     std::mutex retryMutex;
     std::map<std::string, std::string> deliveryRetries;
     std::atomic<uint64_t> retryDropped{0};
@@ -62,18 +63,30 @@ struct VisualAuditServiceImpl::State {
     std::string Execute(const std::function<bool(db::VisualAuditDao&)>& operation) {
         if (!ready)
             return "unavailable";
-        std::unique_lock<std::timed_mutex> lock(mutex, std::defer_lock);
-        if (!lock.try_lock_for(20ms))
-            return "busy";
-        try {
-            db::VisualAuditDao dao(*database);
-            return operation(dao) ? "stored" : "not_applied";
-        } catch (const SQLite::Exception& error) {
-            return error.getErrorCode() == SQLITE_BUSY || error.getErrorCode() == SQLITE_LOCKED
-                       ? "busy"
-                       : "write_failed";
-        } catch (...) {
-            return "invalid_record";
+        const auto deadline = Clock::now() + 250ms;
+        for (;;) {
+            if (Clock::now() >= deadline)
+                return "busy";
+            std::unique_lock<std::timed_mutex> lock(mutex, std::defer_lock);
+            if (!lock.try_lock_until(deadline))
+                return "busy";
+            try {
+                db::VisualAuditDao dao(*database);
+                return operation(dao) ? "stored" : "not_applied";
+            } catch (const SQLite::Exception& error) {
+                if (error.getErrorCode() != SQLITE_BUSY && error.getErrorCode() != SQLITE_LOCKED)
+                    return "write_failed";
+            } catch (...) {
+                return "invalid_record";
+            }
+            // Another engine connection can briefly own the writer lock. A
+            // read-to-write upgrade may return BUSY immediately, so retry the
+            // rolled-back operation, not only SQLite's individual statement.
+            lock.unlock();
+            if (Clock::now() >= deadline)
+                return "busy";
+            ++busyRetries;
+            std::this_thread::sleep_until(std::min(deadline, Clock::now() + 5ms));
         }
     }
 
@@ -202,7 +215,9 @@ Json VisualAuditServiceImpl::Status() const {
             {"delivery_retry_pending", retryCount},
             {"delivery_retry_dropped", state_->retryDropped.load()},
             {"maintenance_failed", state_->maintenanceFailed.load()},
-            {"lock_wait_ms", 20},
+            {"busy_retries", state_->busyRetries.load()},
+            {"lock_wait_ms", 250},
+            {"operation_retry_budget_ms", 250},
             {"sqlite_busy_ms", 20},
             {"unlinked_limit", 10000},
             {"unlinked_age_hours", 24}};

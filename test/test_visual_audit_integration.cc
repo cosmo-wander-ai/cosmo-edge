@@ -153,6 +153,44 @@ TEST_CASE("Visual audit integration: numerical service persists pending before R
     REQUIRE(Row(audit, Id(result))["delivery"] == "returned");
 }
 
+TEST_CASE("Visual audit integration: transient database writers preserve admission and model results",
+          "[visual-audit-integration][visual-audit-transient-write]") {
+    const bool blockAtCompletion = GENERATE(false, true);
+    AuditFile file;
+    VisualAuditServiceImpl audit(file.path);
+    std::future<void> writer;
+    auto blockBriefly = [&] {
+        std::promise<void> locked;
+        auto ready = locked.get_future();
+        writer     = std::async(std::launch::async, [&, locked = std::move(locked)]() mutable {
+            SQLite::Database connection(file.path, SQLite::OPEN_READWRITE | SQLite::OPEN_FULLMUTEX);
+            connection.exec("BEGIN EXCLUSIVE");
+            locked.set_value();
+            std::this_thread::sleep_for(80ms);
+            connection.exec("COMMIT");
+        });
+        ready.get();
+    };
+    VisualDecisionServiceImpl service(
+        Options(),
+        [&](const auto&, const Json& request, const auto& jpeg, auto) {
+            if (blockAtCompletion)
+                blockBriefly();
+            return Reply(request, jpeg);
+        },
+        &audit);
+    if (!blockAtCompletion)
+        blockBriefly();
+    auto result = service.Decide(Request(), Run(), Image, 1s);
+    writer.get();
+    CHECK(result.AllCompleted());
+    CHECK(result.audit.metadata["begin"] == "stored");
+    CHECK(result.audit.metadata["finish"] == "stored");
+    if (result.audit.Begun())
+        CHECK(Row(audit, Id(result))["response"] == result.response);
+    CHECK(audit.Status()["busy_retries"].get<uint64_t>() > 0);
+}
+
 TEST_CASE(
     "Visual audit integration: real alarm service atomically links associated ROI decisions and cleanup",
     "[visual-audit-integration]") {
