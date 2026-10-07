@@ -58,6 +58,18 @@ def normalize_question(question):
     _text(q.get("instructions"), "instructions")
     criteria = q.get("criteria")
     if q["type"] == "choice":
+        # Engine/task JSON objects sort keys. An explicit list preserves the
+        # author's option order across API, DB, C++ and Python round trips.
+        if isinstance(criteria, list):
+            converted = {}
+            for item in criteria:
+                if not isinstance(item, dict) or set(item) != {"label", "description"}:
+                    raise ValueError("ordered criteria require label and description")
+                label = _text(item["label"], "option label")
+                if label in converted:
+                    raise ValueError("duplicate option label")
+                converted[label] = item["description"]
+            criteria = q["criteria"] = converted
         if "labels" in q or not isinstance(criteria, dict) or not 2 <= len(criteria) <= MAX_OPTIONS:
             raise ValueError("choice requires 2..16 ordered criteria and no labels override")
         labels, options = [], []

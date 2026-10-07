@@ -1,5 +1,6 @@
 add_library(cosmo_util OBJECT
     ArchiveListingValidator.cc ArchiveListingValidator.h
+    BoundedProcess.cc    BoundedProcess.h
     CipherUtil.cc        CipherUtil.h
     DateTimeFormat.cc    DateTimeFormat.h
     DurationLogger.cc    DurationLogger.h
