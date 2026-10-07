@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import lodash from 'lodash'
+import { mergeTaskParamSchemasByKey } from '../src/utils/taskParamOwnership.js'
 import { mountComponent } from './helpers/mount_behavior_component.mjs'
 import { readCatalog, validCatalog, questionsFromParams, readRoiQuestions, regionParams } from '../src/utils/visualQuestions.js'
 
@@ -84,3 +85,15 @@ try {
   assert.deepEqual(readCatalog(catalogParam.value), readCatalog(saved))
 } finally { scene.unmount() }
 console.log('Scene question defaults are visible, hydrated and retained in task metadata PASS')
+
+const revised = readCatalog(saved)
+revised.questions[1].instructions = 'Is a person at the entrance?'
+const latest = JSON.stringify(revised)
+const merged = mergeTaskParamSchemasByKey(
+  [{ key: 'visual.catalog', type: 'visualQuestions', value: saved, senior: 2, channelEditable: false }],
+  [{ key: 'visual.catalog', type: 'visualQuestions', value: latest, senior: 0, channelEditable: true }]
+).params[0]
+assert.equal(merged.value, latest)
+assert.equal(merged.defaultValue, latest)
+assert.equal(merged.channelEditable, false)
+console.log('Updated scene catalog becomes the task default while metadata visibility is preserved PASS')

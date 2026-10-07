@@ -1065,6 +1065,7 @@ const rebuildFlowGraph = () => {
 }
 
 const saveMetaDataParams = () => {
+  collectCurrentPanelConfig()
   const list = []
   nodes.value
     .filter((n) => n.type !== 'start' && n.type !== 'end' && !isStageGroupNode(n))

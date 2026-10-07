@@ -250,6 +250,11 @@ export const mergeTaskParamSchemasByKey = (
   )
   const mergeDescriptor = (incomingParam) => {
     const current = existingByKey.get(String(incomingParam?.key ?? ''))
+    // Catalog values are edited in the flow node. Keep metadata visibility and
+    // labels, but carry its latest questions into the channel defaults.
+    if (current?.type === 'visualQuestions' && incomingParam.type === 'visualQuestions') {
+      return { ...current, value: incomingParam.value, defaultValue: incomingParam.value }
+    }
     return current ? { ...current } : { ...incomingParam }
   }
 
