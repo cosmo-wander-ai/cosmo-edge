@@ -1,4 +1,24 @@
 export default {
+  visualQuestions: {
+    "catalog": "Review questions",
+    "question": "Question",
+    "type": "Decision type",
+    "boolean": "Yes / no",
+    "choice": "Multiple choice",
+    "prompt": "Describe what to judge",
+    "option": "Option label",
+    "description": "Description (optional)",
+    "addOption": "Add option",
+    "default": "Use by default",
+    "add": "Add question",
+    "hint": "Default questions apply to the task. Each region can select questions or use its own prompt. Leave empty to keep the original prompt.",
+    "invalid": "Enter questions and valid options, and select 1–8 default questions.",
+    "roiMode": "Region questions",
+    "inherit": "Use task defaults",
+    "select": "Select task questions",
+    "independent": "Use a region prompt",
+    "roiInvalid": "Select 1–8 valid questions or enter a region prompt."
+},
   visualReview: {
   "worker": {"ready": "Ready", "loading": "Loading", "stopped": "Stopped", "unavailable": "Unavailable"},
   "reasonLabel": "Reason",

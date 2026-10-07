@@ -55,12 +55,28 @@ VisualJudgment::VisualJudgment(const std::string& task, const std::string& promp
     try {
         Require(visual::Identity(task), "invalid_task_identity");
         std::map<std::string, Json> catalog;
+        // One stable metadata field lets channel editors add/remove questions
+        // without changing the scene's parameter ownership for every question ID.
+        const auto packed = parameters.find("visual.catalog");
+        if (packed != parameters.end() && !packed->second.empty()) {
+            const auto value = visual::Parse(packed->second);
+            Require(value.is_object() && value.at("questions").is_array(), "invalid_question_catalog");
+            for (const auto& question : value.at("questions")) {
+                Require(question.is_object() && question.at("id").is_string(), "invalid_question_catalog");
+                Require(catalog.emplace(question.at("id").get<std::string>(), question).second,
+                        "duplicate_question_identity");
+            }
+            if (!catalog.empty())
+                bindings_[""] = Selection(value.at("default").dump());
+        }
         for (const auto& [key, value] : parameters) {
             if (key.rfind(kQuestionPrefix, 0) == 0) {
                 auto id       = key.substr(kQuestionPrefix.size());
                 auto question = visual::Parse(value);
                 Require(question.is_object() && question.at("id") == id, "question_key_identity_mismatch");
-                catalog.emplace(id, std::move(question));
+                Require(catalog.emplace(id, std::move(question)).second, "duplicate_question_identity");
+            } else if (key == "visual.catalog") {
+                continue;
             } else if (key == "visual.mode") {
                 Require(value == "review", "unqualified_filtering_disabled");
             } else if (key == "visual.timeout_ms") {
@@ -75,7 +91,7 @@ VisualJudgment::VisualJudgment(const std::string& task, const std::string& promp
         auto selection = parameters.find("visual.questions");
         if (selection != parameters.end())
             bindings_[""] = Selection(selection->second);
-        else {
+        else if (!bindings_.count("")) {
             Require(!catalog.count("legacy-default"), "reserved_question_identity");
             catalog["legacy-default"] = LegacyQuestion("legacy-default", prompt, advanced);
             bindings_[""]             = {"legacy-default"};
@@ -122,7 +138,8 @@ VisualJudgment::VisualJudgment(const std::string& task, const std::string& promp
             }
         }
         Require(!catalog.empty() && catalog.size() <= 32, "too_many_visual_questions");
-        semanticFallback_ = semanticPrompts.has_value() && selection == parameters.end();
+        semanticFallback_ = semanticPrompts.has_value() && selection == parameters.end() &&
+                            bindings_[""] == std::vector<std::string>{"legacy-default"};
         if (semanticFallback_) {
             Require(semanticPrompts->size() + catalog.size() <= 512, "too_many_semantic_questions");
             for (const auto& [key, instruction] : *semanticPrompts) {

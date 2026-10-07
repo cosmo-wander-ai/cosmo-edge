@@ -139,6 +139,9 @@ TEST_CASE("Visual task plan binds ROI overrides and preserves question order thr
     std::vector<MsgDynamicKeyValue> parameters{Parameter("visual.question.one", one.dump()),
                                                Parameter("visual.question.two", two.dump()),
                                                Parameter("visual.questions", "[\"one\"]")};
+    if (GENERATE(false, true))
+        parameters = {
+            Parameter("visual.catalog", Json{{"questions", {one, two}}, {"default", {"one"}}}.dump())};
     parameters = Json(parameters).get<std::vector<MsgDynamicKeyValue>>();
     VisualParameters values;
     UpdateVisualParameters(values, parameters);
@@ -245,6 +248,8 @@ TEST_CASE(
         {"id", "explicit"}, {"version", 1}, {"type", "noul"}, {"instructions", "a custom task question"}};
     VisualParameters config{{"visual.question.explicit", definition.dump()},
                             {"visual.questions", "[\"explicit\"]"}};
+    if (GENERATE(false, true))
+        config = {{"visual.catalog", Json{{"questions", {definition}}, {"default", {"explicit"}}}.dump()}};
     AlarmVisualPlan explicitPlan("task", "", "name", {}, config, {});
     REQUIRE(explicitPlan.Decide(unit, "frame", "roi", Image).AllCompleted());
     CHECK(decisions.requests.back().questions[0].questionId == "explicit");

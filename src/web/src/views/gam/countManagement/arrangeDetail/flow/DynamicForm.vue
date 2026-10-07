@@ -94,6 +94,8 @@
             <el-switch v-model="item.value" active-value="1" inactive-value="0"></el-switch>
           </div>
 
+          <VisualQuestionEditor v-else-if="item.type === 'visualQuestions'" v-model="item.value" />
+
           <!-- 输入框 -->
           <div v-else-if="item.type=== 'text'">
             <el-input v-model="item.value" class="form-content" size="small"></el-input>
@@ -276,6 +278,7 @@
 </template>
 
 <script setup>
+import VisualQuestionEditor from '@/components/VisualQuestionEditor.vue'
 import { ref, onMounted, onBeforeUnmount, getCurrentInstance, watch, computed, toRef } from 'vue'
 import ConditionView from './ConditionView.vue'
 import { v4 } from 'uuid'
@@ -473,9 +476,8 @@ const formReady = ref(false)
 onMounted(() => {
   const params = JSON.parse(props.actionDetail.inputParamConfig)
   params.forEach((item, index) => {
-    const input = _.find(props.configObject?.params, {
-      key: item.key
-    })
+    const input = _.find(props.configObject?.params, { key: item.key }) ||
+      _.find(props.configObject?.webConfig?.metaDataParams, { key: item.key })
     if (input) {
       paramConfigs.value.push({
         ...item,
@@ -958,7 +960,7 @@ const showFormItem = (obj) => {
   ) {
     return false
   }
-  if (obj.level === '2') return false
+  if (obj.level === '2' && obj.type !== 'visualQuestions') return false
   if (hiddenParamKeys.includes(obj.key)) return false
   return isDependsOnSatisfied(obj)
 }

@@ -1,4 +1,24 @@
 export default {
+  visualQuestions: {
+    "catalog": "复核问题",
+    "question": "问题",
+    "type": "判断类型",
+    "boolean": "是／否判断",
+    "choice": "选项判断",
+    "prompt": "描述需要判断的问题",
+    "option": "选项名称",
+    "description": "选项说明（可选）",
+    "addOption": "添加选项",
+    "default": "默认用于任务",
+    "add": "添加问题",
+    "hint": "默认问题用于整个任务；每个区域可选择自己的问题或独立提示词。留空时沿用原提示词。",
+    "invalid": "请填写问题和有效选项，并选择 1–8 个默认问题。",
+    "roiMode": "区域判断方式",
+    "inherit": "沿用任务问题",
+    "select": "选择任务问题",
+    "independent": "使用独立提示词",
+    "roiInvalid": "请选择 1–8 个有效问题，或填写区域提示词。"
+},
   visualReview: {
   "worker": {"ready": "就绪", "loading": "加载中", "stopped": "已停止", "unavailable": "不可用"},
   "reasonLabel": "原因",

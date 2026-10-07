@@ -100,6 +100,7 @@
 
     <el-dialog id="onboarding-area-dialog" :title="dialogTitle" v-model="addDialogVisible" width="560px" center>
       <dynamicform v-model="addAreaDialogConfig" :labelWidth="'200px'" :algorithmCode="props.algorithmCode" ref="submitFormRef" @update:modelValue="handleFormUpdate"></dynamicform>
+      <VisualRoiEditor v-if="addDialogVisible && addAreaType !== 'shield' && areaDialogMode !== 'add-line' && props.config?.visualQuestionEditing" ref="roiEditor" :params="roiParams" :questions="visualQuestions" />
       <template #footer>
         <span class="dialog-footer">
           <el-button size="small" @click="cancelAddClick">{{ t('action.cancel') }}</el-button>
@@ -125,6 +126,8 @@ import { t } from '@/i18n'
 import { resolveResourceParamText } from '@/utils/i18nResource'
 import DetectionCanvas from './DetectionCanvas.vue'
 import dynamicform from './dynamicForm.vue'
+import VisualRoiEditor from '@/components/VisualRoiEditor.vue'
+import { questionsFromParams } from '@/utils/visualQuestions'
 import { getDefaultPointsRatio } from './defaultConfig.js'
 import { v4 } from 'uuid'
 import CatchPhoto from '@/assets/CatchPhoto.png'
@@ -154,6 +157,9 @@ const emit = defineEmits(['update:config'])
 const resolveHeaderName = (item) =>
   resolveResourceParamText(item, props.algorithmCode, 'name')
 
+const roiEditor = ref(null)
+const roiParams = ref([])
+const visualQuestions = computed(() => questionsFromParams([...(props.config?.visualQuestionParams || []), ...(props.config?.taskParam || [])]))
 const width = ref(550)
 const height = ref(550 / 1.8)
 const imgSrc = ref('')
@@ -350,6 +356,7 @@ const handleFormUpdate = (newData) => {
 }
 
 const addArea = (type) => {
+  roiParams.value = []
   addAreaType.value = type
   areaDialogMode.value = 'add-area'
   if (addAreaType.value == 'shield') {
@@ -377,7 +384,8 @@ const addArea = (type) => {
   })
 }
 
-const handleEdit = (index, type) => {
+const handleEdit = (index, type = 'detection') => {
+  roiParams.value = JSON.parse(JSON.stringify(props.config?.taskAreaRows?.[index]?.params || []))
   addAreaType.value = type
   if (isDrawingLine.value) return proxy.$message.warning(t('validate.completeDrawingFirst'))
   areaDialogMode.value = 'edit-area'
@@ -447,6 +455,8 @@ const sureAddClick = async () => {
   const result = await submitFormRef.value?.validateAndCollect()
   if (!result?.valid) return
   addAreaDialogConfig.value = result.params
+  const roi = roiEditor.value?.collect()
+  if (roi && !roi.valid) return proxy.$message.error(t('visualQuestions.roiInvalid'))
 
   if (areaDialogMode.value === 'add-line') {
     console.log('当前addAreaDialogConfig:', JSON.parse(JSON.stringify(addAreaDialogConfig.value)))
@@ -501,64 +511,34 @@ const sureAddClick = async () => {
     updatedConfig.shieldAreaRows = updatedConfig.shieldAreaRows.map(row => ({ ...row }))
   }
 
-  addAreaDialogConfig.value.forEach((item) => {
-    if (addAreaType.value == 'detection') {
-      if (areaDialogMode.value == 'add-area') {
-        const newArea = { ...(updatedConfig?.taskAreaRows?.[0] || {}) }
-        newArea.areaId = v4()
-        newArea.points = getDefaultPointsRatio(width.value, height.value, updatedConfig?.regionType, updatedConfig?.defaultFullScreen)
-        if (associatedAreaConfig.value) {
-          newArea.associatedAreas = getDefaultPointsRatio(width.value, height.value, associatedAreaConfig.value[1].regionType, false, 150)
-        }
-        if (!updatedConfig?.taskAreaRows) {
-          updatedConfig.taskAreaRows = []
-        }
-        // 设置新区域的属性
-        newArea[item.key] = item.value
-        updatedConfig.taskAreaRows.push(newArea)
-        shieldActiveIndex.value = null
-        activeIndex.value = updatedConfig.taskAreaRows.length - 1
-      } else if (areaDialogMode.value == 'edit-area') {
-        // 编辑现有区域（包括检测线）
-        console.log(`编辑检测区域/线，索引: ${activeIndex.value}, 字段: ${item.key}, 新值: ${item.value}`)
-        if (updatedConfig?.taskAreaRows?.[activeIndex.value]) {
-          updatedConfig.taskAreaRows[activeIndex.value] = {
-            ...updatedConfig.taskAreaRows[activeIndex.value],
-            [item.key]: item.value
-          }
-          console.log('更新后的数据:', updatedConfig.taskAreaRows[activeIndex.value])
-        }
-      }
-    } else if (addAreaType.value == 'shield') {
-      if (areaDialogMode.value == 'add-area') {
-        const regionTypeValue = updatedConfig?.regionType
-        const newArea = { name: '', areaId: v4(), shieldPoints: [] }
-        newArea.shieldPoints = getDefaultPointsRatio(
-          width.value,
-          height.value,
-          regionTypeValue == 'hexagon' || regionTypeValue == 'quadrilateral' ? regionTypeValue : 'quadrilateral',
-          updatedConfig?.defaultFullScreen
-        )
-        // 设置新区域的属性
-        newArea[item.key] = item.value
-        if (!updatedConfig?.shieldAreaRows) {
-          updatedConfig.shieldAreaRows = []
-        }
-        updatedConfig.shieldAreaRows.push(newArea)
-        activeIndex.value = null
-        shieldActiveIndex.value = updatedConfig.shieldAreaRows.length - 1
-      } else {
-        // 编辑现有区域
-        if (updatedConfig?.shieldAreaRows?.[shieldActiveIndex.value]) {
-          updatedConfig.shieldAreaRows[shieldActiveIndex.value] = {
-            ...updatedConfig.shieldAreaRows[shieldActiveIndex.value],
-            [item.key]: item.value
-          }
-        }
-      }
+  const detection = addAreaType.value !== 'shield'
+  const rowsKey = detection ? 'taskAreaRows' : 'shieldAreaRows'
+  updatedConfig[rowsKey] ||= []
+  const rows = updatedConfig[rowsKey]
+  let row
+  if (areaDialogMode.value === 'add-area') {
+    row = { name: '', areaId: v4(), params: [] }
+    if (detection) {
+      row.points = getDefaultPointsRatio(width.value, height.value, updatedConfig.regionType, updatedConfig.defaultFullScreen)
+      if (associatedAreaConfig.value) row.associatedAreas = getDefaultPointsRatio(width.value, height.value, associatedAreaConfig.value[1].regionType, false, 150)
+    } else {
+      const type = ['hexagon', 'quadrilateral'].includes(updatedConfig.regionType) ? updatedConfig.regionType : 'quadrilateral'
+      row.shieldPoints = getDefaultPointsRatio(width.value, height.value, type, updatedConfig.defaultFullScreen)
     }
-  })
-  
+    rows.push(row)
+    activeIndex.value = detection ? rows.length - 1 : null
+    shieldActiveIndex.value = detection ? null : rows.length - 1
+  } else {
+    row = rows[detection ? activeIndex.value : shieldActiveIndex.value]
+  }
+  if (!row) return
+  const fields = new Map((roi?.params || row.params || []).map(p => [p.key, p.value]))
+  for (const item of addAreaDialogConfig.value) {
+    row[item.key] = item.value
+    fields.set(item.key, item.value)
+  }
+  row.params = [...fields].map(([key, value]) => ({ key, value }))
+
   // 触发更新事件通知父组件
   console.log('触发config更新:', JSON.parse(JSON.stringify(updatedConfig)))
   emit('update:config', updatedConfig)
