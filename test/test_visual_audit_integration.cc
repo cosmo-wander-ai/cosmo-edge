@@ -16,6 +16,7 @@
 #include "mock/MockNetworkConfig.h"
 #include "service/ai/impl/VisualAuditServiceImpl.h"
 #include "service/ai/impl/VisualDecisionServiceImpl.h"
+#include "service/ai/impl/VisualQuestionServiceImpl.h"
 #include "service/event/impl/AlarmRecordServiceImpl.h"
 #include "support/ScopedServiceOverride.h"
 #include "util/UuidUtil.h"
@@ -439,6 +440,8 @@ TEST_CASE("Visual audit integration: typed query selects the actual audit store 
     test::MockAlgorithmService algorithms;
     test::MockNetworkConfig network;
     MessageEventHandler handler(alarms, algorithms, network);
+    VisualQuestionServiceImpl compiler(VisualQuestionCompilerOptions{});
+    test::ScopedServiceOverride<IVisualQuestionService> questions(compiler);
     auto result = service.Decide(Request(), Run(), Image, 1s);
     Event::MsgLayaReviewPageRecv query;
     query.format    = "typed-v1";
@@ -453,6 +456,8 @@ TEST_CASE("Visual audit integration: typed query selects the actual audit store 
     REQUIRE(response.resData["rows"][0]["response"] == result.response);
     REQUIRE(response.resData["audit_runtime"]["available"] == true);
     REQUIRE(response.resData["automatic_filtering"] == false);
+    REQUIRE(response.resData["question_runtime"]["available"] == false);
+    REQUIRE(response.resData["question_runtime"]["outstanding"] == 0);
     Event::MsgLayaReviewPageRecv invalid;
     invalid.format = "unknown-version";
     (void)handler.Handle(std::move(invalid), error);

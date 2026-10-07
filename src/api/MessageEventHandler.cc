@@ -6,6 +6,7 @@
 #include <fstream>
 
 #include "service/ai/IVisualDecisionService.h"
+#include "service/ai/IVisualQuestionService.h"
 #include "service/algorithm/IAlgorithmQuery.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/event/AlarmExport.h"
@@ -54,6 +55,9 @@ Event::MsgLayaReviewPageSend MessageEventHandler::Handle(Event::MsgLayaReviewPag
             response.resData["automatic_filtering"] = false;
             if (registry.Has<service::IVisualDecisionService>())
                 response.resData["runtime"] = registry.Get<service::IVisualDecisionService>().Counters();
+            if (registry.Has<service::IVisualQuestionService>())
+                response.resData["question_runtime"] =
+                    registry.Get<service::IVisualQuestionService>().Counters();
             return response;
         }
         response.resData = LayaReviewStore::Instance().Page(data.eventId, data.pageNum, data.pageSize);

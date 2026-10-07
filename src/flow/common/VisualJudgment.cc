@@ -154,7 +154,7 @@ VisualJudgment::VisualJudgment(const std::string& task, const std::string& promp
             {"mode", "review"}}.dump());
         run_                = std::make_shared<service::VisualDecisionRun>(task, epoch, revision);
         prepared_ = service::ServiceRegistry::Instance().Get<service::IVisualQuestionService>().Prepare(
-            specs_, run_, std::chrono::milliseconds(specs_.size() > 32 ? 120000 : 60000));
+            specs_, run_, std::chrono::milliseconds(specs_.size() > 32 ? 600000 : 300000));
     } catch (const ConfigError& error) {
         failure_ = error.what();
     } catch (...) {

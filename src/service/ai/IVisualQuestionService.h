@@ -33,7 +33,10 @@ public:
     // share one absolute deadline. No partial catalog is activated.
     virtual std::shared_future<VisualQuestionPreparation> Prepare(
         std::vector<VisualQuestionSpec> questions, std::shared_ptr<VisualDecisionRun> run,
-        std::chrono::milliseconds timeout = std::chrono::milliseconds(60000)) = 0;
+        std::chrono::milliseconds timeout = std::chrono::milliseconds(300000)) = 0;
+    virtual nlohmann::json Counters() const {
+        return nlohmann::json::object();
+    }
 };
 
 }  // namespace cosmo::service
