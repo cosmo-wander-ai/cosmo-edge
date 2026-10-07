@@ -50,6 +50,13 @@ struct VisualAuditServiceImpl::State {
             connection->setBusyTimeout(20);
             if (!connection->tableExists("t_commonEvent") || !connection->tableExists("t_visualAuditV1"))
                 return false;
+            // Alarm queries use another connection. Rollback journaling lets a
+            // reader block audit commits, dropping otherwise completed model
+            // results under ordinary concurrent load. Persist WAL before
+            // accepting work; keep fully synchronous durable writes.
+            if (connection->execAndGet("PRAGMA journal_mode=WAL").getString() != "wal")
+                return false;
+            connection->exec("PRAGMA synchronous=FULL");
             db::VisualAuditDao dao(*connection);
             recovered = dao.RecoverInterrupted(owner, Now());
             database  = std::move(connection);

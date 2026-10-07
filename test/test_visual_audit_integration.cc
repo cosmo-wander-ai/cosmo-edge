@@ -153,6 +153,37 @@ TEST_CASE("Visual audit integration: numerical service persists pending before R
     REQUIRE(Row(audit, Id(result))["delivery"] == "returned");
 }
 
+TEST_CASE("Visual audit integration: concurrent alarm readers do not block durable decisions",
+          "[visual-audit-integration][visual-audit-concurrent-reader]") {
+    const bool readAtCompletion = GENERATE(false, true);
+    AuditFile file;
+    VisualAuditServiceImpl audit(file.path);
+    SQLite::Database reader(file.path, SQLite::OPEN_READWRITE | SQLite::OPEN_FULLMUTEX);
+    auto holdRead = [&] {
+        reader.exec("BEGIN");
+        reader.execAndGet("SELECT COUNT(*) FROM t_visualAuditV1");
+    };
+    VisualDecisionServiceImpl service(
+        Options(),
+        [&](const auto&, const Json& request, const auto& jpeg, auto) {
+            if (readAtCompletion)
+                holdRead();
+            return Reply(request, jpeg);
+        },
+        &audit);
+    if (!readAtCompletion)
+        holdRead();
+    const auto result = service.Decide(Request(), Run(), Image, 1s);
+    reader.exec("ROLLBACK");
+    CHECK(result.AllCompleted());
+    CHECK(result.audit.metadata["begin"] == "stored");
+    CHECK(result.audit.metadata["finish"] == "stored");
+    CHECK(Row(audit, Id(result))["response"] == result.response);
+    CHECK(audit.Status()["begin_failed"] == 0);
+    CHECK(audit.Status()["finish_failed"] == 0);
+    CHECK(reader.execAndGet("PRAGMA journal_mode").getString() == "wal");
+}
+
 TEST_CASE("Visual audit integration: transient database writers preserve admission and model results",
           "[visual-audit-integration][visual-audit-transient-write]") {
     const bool blockAtCompletion = GENERATE(false, true);
