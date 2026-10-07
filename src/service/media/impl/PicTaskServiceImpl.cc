@@ -204,6 +204,13 @@ std::string PicTaskServiceImpl::GetCheckSum() {
 cosmo::util::ErrorEnum PicTaskServiceImpl::DetectPic(const std::string& taskId,
                                                      cosmo::MsgPTaskDetectPicRecv& data,
                                                      cosmo::MsgPTaskDetectPicSend& retData) {
+    return DetectPicImpl(taskId, data, retData, false);
+}
+
+cosmo::util::ErrorEnum PicTaskServiceImpl::DetectPicImpl(const std::string& taskId,
+                                                         cosmo::MsgPTaskDetectPicRecv& data,
+                                                         cosmo::MsgPTaskDetectPicSend& retData,
+                                                         bool areaPatchOnly) {
     if (taskId.empty()) {
         LOG_INFO("Task:{} Empty", taskId);
         return cosmo::util::ErrorEnum::InvalidParam;
@@ -221,6 +228,19 @@ cosmo::util::ErrorEnum PicTaskServiceImpl::DetectPic(const std::string& taskId,
         return cosmo::util::ErrorEnum::NotCreated;
     }
     auto task = it->second;
+    // The service lock protects lifetime; this lock binds the request's
+    // configuration to its inference without serializing unrelated tasks.
+    std::lock_guard<std::mutex> requestLock(task->requestMutex);
+    if (!IsTaskConfigEmpty(data.taskConfig)) {
+        auto config = data.taskConfig;
+        if (areaPatchOnly) {
+            std::lock_guard<std::mutex> configLock(task->configMutex);
+            config       = task->params;
+            config.areas = data.taskConfig.areas;
+        }
+        if (!ApplyTaskConfig(task, std::move(config)))
+            return cosmo::util::ErrorEnum::InvalidParam;
+    }
 
     if (!task->is_started) {
         if (task->startFailedCount > 10) {
@@ -338,15 +358,7 @@ cosmo::MsgDetectSend PicTaskServiceImpl::ProcessDetectGroup(cosmo::MsgDetectRecv
         // Call the underlying DetectPic for single task, not recursively calling Controller
         ptaskUnitRetData.resData.algorithmCode = ptaskUnit.algorithmCode;
         ptaskUnitRetData.resData.timestamp     = std::to_string(cosmo::util::GetMilliseconds());
-        if (!IsTaskConfigEmpty(ptaskUnit.taskConfig)) {
-            cosmo::MsgTaskConfig saved;
-            if (GetTaskParam(ptaskUnit.taskId, saved) &&
-                nlohmann::json(saved.areas) != nlohmann::json(ptaskUnit.taskConfig.areas)) {
-                saved.areas = ptaskUnit.taskConfig.areas;
-                SetTaskParam(ptaskUnit.taskId, saved);
-            }
-        }
-        unitErrc = DetectPic(ptaskUnit.taskId, ptaskUnit, ptaskUnitRetData);
+        unitErrc = DetectPicImpl(ptaskUnit.taskId, ptaskUnit, ptaskUnitRetData, true);
 
         LOG_INFO("[PTask] :Detect Task:{} Get:{}", taskUnit, unitErrc.message());
         for (auto record : ptaskUnitRetData.resData.visualJudgments) {
@@ -433,8 +445,10 @@ bool PicTaskServiceImpl::SetTaskParam(const std::string& taskId, cosmo::MsgTaskC
         LOG_WARN("[{}] Not In Pool, Cant SetParam.", taskId);
         return false;
     }
-    auto task = it->second;
+    return ApplyTaskConfig(it->second, param);
+}
 
+bool PicTaskServiceImpl::ApplyTaskConfig(const cosmo::PTaskElementPtr& task, cosmo::MsgTaskConfig param) {
     for (auto& actionKeyParam : param.params) {
         auto keys = cosmo::util::Split(actionKeyParam.key.ToRefString(), ".");
         actionKeyParam.keys.assign(keys.begin(), keys.end());
@@ -442,8 +456,12 @@ bool PicTaskServiceImpl::SetTaskParam(const std::string& taskId, cosmo::MsgTaskC
 
     cosmo::AreaToLocal(param);
 
-    // Algorithm parameter settings
-    task->params = param;
+    {
+        std::lock_guard<std::mutex> configLock(task->configMutex);
+        if (nlohmann::json(task->params) == nlohmann::json(param))
+            return true;
+        task->params = param;
+    }
 
     // Sync algorithm params to algorithm instance
     return task_base_->ModifyTaskParam(task, param);
@@ -456,6 +474,7 @@ bool PicTaskServiceImpl::GetTaskParam(const std::string& taskId, cosmo::MsgTaskC
         LOG_WARN("[{}] Not In Pool, Cant GetParam.", taskId);
         return false;
     }
+    std::lock_guard<std::mutex> configLock(it->second->configMutex);
     param = it->second->params;
     return true;
 }

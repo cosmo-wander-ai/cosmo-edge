@@ -86,12 +86,12 @@ TEST_CASE("MessageHandler: unknown image and empty batch require only picture de
     }
 }
 
-TEST_CASE("MessageHandler: picture query stores configuration before image decoding",
+TEST_CASE("MessageHandler: picture detect applies configuration before image decoding",
           "[MessageHandler][PicNarrow]") {
     const bool use_fallback = GENERATE(false, true);
     PicTaskServiceImpl pictures;
     ScopedServiceOverride<IPicTaskDetect> detect{pictures};
-    ScopedServiceOverride<IPicTaskQuery> query{pictures};
+    REQUIRE_FALSE(ServiceRegistry::Instance().Has<IPicTaskQuery>());
     MockVideoFrameCodec codec;
     ScopedServiceOverride<IVideoFrameCodec> frame_codec{codec};
     REQUIRE_FALSE(ServiceRegistry::Instance().Has<IPicTaskService>());

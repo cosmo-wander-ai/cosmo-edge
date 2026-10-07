@@ -9,6 +9,7 @@
 #include "util/UuidUtil.h"
 
 #if defined(COSMO_MEDIA_USE_CPU_BACKEND)
+#include "api/MessageHandler.h"
 #include "flow/qwen3vl/PQwen3VLWorker.h"
 #include "flow/qwen3vl/Qwen3VLWorker.h"
 #include "flow/task/PTaskBase.h"
@@ -728,6 +729,126 @@ TEST_CASE("Picture publication rejects a stale earlier node and accepts shared r
         CHECK(result == util::ErrorEnum::Success);
         CHECK(response.resData.visualJudgments.size() == 2);
     }
+    CHECK(f.llm.touched == 0);
+}
+
+TEST_CASE("Picture requests apply distinct configs atomically and snapshots remain readable during inference",
+          "[visual-flow][picture][concurrency]") {
+    FlowFixture f;
+    PicTaskServiceImpl pictures;
+    test::ScopedServiceOverride<IPicTaskDetect> detect(pictures);
+    REQUIRE_FALSE(ServiceRegistry::Instance().Has<IPicTaskQuery>());
+    auto alg      = std::make_shared<ActionAlg>();
+    alg->workFlow = {PictureVisualAction()};
+    REQUIRE(pictures.TaskCreate("picture", alg) == util::ErrorEnum::Success);
+    REQUIRE(pictures.TaskStart("picture"));
+    auto execute = [&](const std::string& areaId, double x) {
+        auto request             = PictureRequest();
+        request.taskId           = "picture";
+        request.taskConfig.areas = {Region(areaId, x, 0.5)};
+        MessageHandler handler;
+        std::error_condition error;
+        auto response = handler.Handle(std::move(request), error);
+        return std::make_pair(error, response);
+    };
+    f.decisions.block = true;
+    auto first        = std::async(std::launch::async, [&] { return execute("left", 0); });
+    REQUIRE(f.decisions.Wait(1));
+    auto snapshot = std::async(std::launch::async, [&] {
+        MsgTaskConfig config;
+        const bool found = pictures.GetTaskParam("picture", config);
+        return std::make_pair(found, config);
+    });
+    REQUIRE(snapshot.wait_for(1s) == std::future_status::ready);
+    auto saved = snapshot.get();
+    REQUIRE(saved.first);
+    REQUIRE(saved.second.areas.size() == 1);
+    CHECK(saved.second.areas[0].areaId == "left");
+    auto second = std::async(std::launch::async, [&] { return execute("right", 0.5); });
+    CHECK(second.wait_for(40ms) == std::future_status::timeout);
+    f.decisions.block = false;
+    auto a            = first.get();
+    auto b            = second.get();
+    CHECK_FALSE(a.first);
+    CHECK_FALSE(b.first);
+    REQUIRE(a.second.resData.visualJudgments.size() == 1);
+    REQUIRE(b.second.resData.visualJudgments.size() == 1);
+    CHECK(a.second.resData.visualJudgments[0]["area_id"] == "left");
+    CHECK(b.second.resData.visualJudgments[0]["area_id"] == "right");
+    CHECK(a.second.resData.visualJudgments[0]["input_roi"] == Json::array({0, 0, 32, 64}));
+    CHECK(b.second.resData.visualJudgments[0]["input_roi"] == Json::array({32, 0, 32, 64}));
+    // Repeating the same request keeps the prepared question configuration.
+    const int prepared = f.questions.count;
+    auto repeat        = execute("right", 0.5);
+    CHECK_FALSE(repeat.first);
+    CHECK(f.questions.count == prepared);
+    CHECK(f.llm.touched == 0);
+}
+
+TEST_CASE("Concurrent grouped picture calls keep request areas and saved question catalog",
+          "[visual-flow][picture][group][concurrency]") {
+    FlowFixture f;
+    test::MockAppInfoService info;
+    test::ScopedServiceOverride<IAppInfoService> app(info);
+    ALLOW_CALL(info, GetPicTaskGroupCount()).RETURN(1);
+    PicTaskServiceImpl pictures;
+    auto alg      = std::make_shared<ActionAlg>();
+    alg->workFlow = {PictureVisualAction()};
+    REQUIRE(pictures.TaskCreate("helmet-0", alg) == util::ErrorEnum::Success);
+    REQUIRE(pictures.TaskStart("helmet-0"));
+    auto run = [&](float x) {
+        MsgDetectRecv input;
+        input.eventCodes = {"helmet"};
+        input.imageData  = "/9j/2Q==";
+        MsgPTaskDetectExtParam ext;
+        ext.eventCode = "helmet";
+        MsgPTaskDetectExtParamRule rule{};
+        rule.DetectRegion = {{x, 0}, {x + 0.5F, 0}, {x + 0.5F, 1}, {x, 1}};
+        ext.rules         = {rule};
+        input.extParam    = {ext};
+        std::error_condition error;
+        return pictures.ProcessDetectGroup(input, error);
+    };
+    f.decisions.block = true;
+    auto first        = std::async(std::launch::async, [&] { return run(0); });
+    REQUIRE(f.decisions.Wait(1));
+    auto second = std::async(std::launch::async, [&] { return run(0.5); });
+    CHECK(second.wait_for(40ms) == std::future_status::timeout);
+    f.decisions.block = false;
+    auto left         = first.get();
+    auto right        = second.get();
+    REQUIRE(left.data.visualJudgments.size() == 1);
+    REQUIRE(right.data.visualJudgments.size() == 1);
+    CHECK(left.data.visualJudgments[0]["input_roi"] == Json::array({0, 0, 32, 64}));
+    CHECK(right.data.visualJudgments[0]["input_roi"] == Json::array({32, 0, 32, 64}));
+    CHECK(left.data.visualJudgments[0]["request"]["config_revision"] !=
+          right.data.visualJudgments[0]["request"]["config_revision"]);
+    CHECK(f.llm.touched == 0);
+}
+
+TEST_CASE("Picture request isolation permits different tasks to infer concurrently",
+          "[visual-flow][picture][concurrency]") {
+    FlowFixture f;
+    PicTaskServiceImpl pictures;
+    auto alg      = std::make_shared<ActionAlg>();
+    alg->workFlow = {PictureVisualAction()};
+    REQUIRE(pictures.TaskCreate("first", alg) == util::ErrorEnum::Success);
+    REQUIRE(pictures.TaskCreate("second", alg) == util::ErrorEnum::Success);
+    REQUIRE(pictures.TaskStart("first"));
+    REQUIRE(pictures.TaskStart("second"));
+    auto execute = [&](const std::string& id) {
+        auto input = PictureRequest();
+        MsgPTaskDetectPicSend output;
+        return pictures.DetectPic(id, input, output);
+    };
+    f.decisions.block = true;
+    auto first        = std::async(std::launch::async, [&] { return execute("first"); });
+    REQUIRE(f.decisions.Wait(1));
+    auto second = std::async(std::launch::async, [&] { return execute("second"); });
+    REQUIRE(f.decisions.Wait(2));
+    f.decisions.block = false;
+    CHECK(first.get() == util::ErrorEnum::Success);
+    CHECK(second.get() == util::ErrorEnum::Success);
     CHECK(f.llm.touched == 0);
 }
 #endif
