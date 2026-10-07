@@ -178,15 +178,18 @@ VisualAuditServiceImpl::~VisualAuditServiceImpl() {
         maintenance_.join();
 }
 
-VisualAuditReceipt VisualAuditServiceImpl::Begin(const Json& request) noexcept {
+VisualAuditReceipt VisualAuditServiceImpl::Begin(const Json& request,
+                                                 std::chrono::milliseconds waitBudget) noexcept {
     VisualAuditReceipt receipt;
     try {
         const auto id                  = request.at("request_id").get<std::string>();
         receipt.metadata["request_id"] = id;
         const auto started             = Clock::now();
-        const auto result =
-            state_->Execute("begin", [&](auto& dao) { return dao.Begin(request, state_->owner, Now()); });
-        receipt.metadata["begin"] = result;
+        const auto budget              = std::clamp(waitBudget, 0ms, 1000ms);
+        const auto result              = state_->Execute(
+            "begin", [&](auto& dao) { return dao.Begin(request, state_->owner, Now()); }, budget);
+        receipt.metadata["begin_retry_budget_ms"] = budget.count();
+        receipt.metadata["begin"]                 = result;
         receipt.metadata["begin_ms"] =
             std::chrono::duration<double, std::milli>(Clock::now() - started).count();
         if (result == "stored") {
@@ -259,6 +262,7 @@ Json VisualAuditServiceImpl::Status() const {
             {"busy_retries", state_->busyRetries.load()},
             {"lock_wait_ms", 250},
             {"operation_retry_budget_ms", 250},
+            {"begin_retry_budget_max_ms", 1000},
             {"finish_retry_budget_ms", 1000},
             {"sqlite_busy_ms", 20},
             {"unlinked_limit", 10000},

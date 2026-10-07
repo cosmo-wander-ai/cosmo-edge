@@ -94,7 +94,15 @@ VisualDecisionResult VisualDecisionServiceImpl::Decide(const VisualDecisionReque
         {"items", Json::array()}};
     for (const auto& question : request.questions)
         job->identity["items"].push_back(visual::ItemIdentity(question));
-    auto receipt = audit_ ? audit_->Begin(job->identity) : VisualAuditReceipt{};
+    // Admission competes with fully synchronous alarm writes on the same
+    // device. Use the caller's remaining time rather than failing every
+    // request after a fixed 250 ms; short requests retain their own deadline.
+    auto auditBudget = std::chrono::milliseconds{250};
+    if (timeout.count() > 0 && timeout.count() <= 30000)
+        auditBudget =
+            std::clamp(std::chrono::duration_cast<std::chrono::milliseconds>(job->deadline - Clock::now()),
+                       std::chrono::milliseconds{0}, std::chrono::milliseconds{1000});
+    auto receipt = audit_ ? audit_->Begin(job->identity, auditBudget) : VisualAuditReceipt{};
     auto audited = [&](VisualDecisionResult result) {
         // Persist the caller-visible deadline/cancellation outcome, not a late
         // worker completion. No database work runs under the queue mutex.

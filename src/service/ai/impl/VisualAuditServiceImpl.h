@@ -15,7 +15,9 @@ public:
     // inherited by inference. Schema/recovery must succeed before admission.
     explicit VisualAuditServiceImpl(const std::string& databasePath);
     ~VisualAuditServiceImpl() override;
-    VisualAuditReceipt Begin(const nlohmann::json& request) noexcept override;
+    VisualAuditReceipt Begin(const nlohmann::json& request,
+                             std::chrono::milliseconds waitBudget = std::chrono::milliseconds{
+                                 250}) noexcept override;
     bool Complete(VisualAuditReceipt& receipt, const nlohmann::json& response) noexcept override;
     nlohmann::json Page(const std::string& eventId, const std::string& requestId, int page,
                         int size) override;

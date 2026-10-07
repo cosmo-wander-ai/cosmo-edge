@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <functional>
 #include <memory>
 #include <nlohmann/json.hpp>
@@ -42,7 +43,9 @@ struct VisualAuditReceipt {
 class IVisualAuditService {
 public:
     virtual ~IVisualAuditService()                                                              = default;
-    virtual VisualAuditReceipt Begin(const nlohmann::json& request) noexcept                    = 0;
+    virtual VisualAuditReceipt Begin(const nlohmann::json& request,
+                                     std::chrono::milliseconds waitBudget = std::chrono::milliseconds{
+                                         250}) noexcept                                         = 0;
     virtual bool Complete(VisualAuditReceipt& receipt, const nlohmann::json& response) noexcept = 0;
     virtual nlohmann::json Page(const std::string& eventId, const std::string& requestId, int page,
                                 int size)                                                       = 0;

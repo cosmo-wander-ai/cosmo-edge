@@ -64,7 +64,7 @@ class Audit final : public IVisualAuditService {
 public:
     bool fail{false};
     Json stored;
-    VisualAuditReceipt Begin(const Json&) noexcept override {
+    VisualAuditReceipt Begin(const Json&, std::chrono::milliseconds) noexcept override {
         return {{{"begin", "stored"}}, {}};
     }
     bool Complete(VisualAuditReceipt& receipt, const Json& value) noexcept override {

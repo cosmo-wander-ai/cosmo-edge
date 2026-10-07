@@ -222,6 +222,50 @@ TEST_CASE("Visual audit integration: transient database writers preserve admissi
     CHECK(audit.Status()["busy_retries"].get<uint64_t>() > 0);
 }
 
+TEST_CASE("Visual audit integration: admission uses the caller deadline during a durable writer",
+          "[visual-audit-integration][visual-audit-admission-deadline]") {
+    const bool shortDeadline = GENERATE(false, true);
+    AuditFile file;
+    VisualAuditServiceImpl audit(file.path);
+    std::atomic<int> calls{0};
+    std::promise<void> locked;
+    auto ready  = locked.get_future();
+    auto writer = std::async(std::launch::async, [&, locked = std::move(locked)]() mutable {
+        SQLite::Database connection(file.path, SQLite::OPEN_READWRITE | SQLite::OPEN_FULLMUTEX);
+        connection.exec("BEGIN IMMEDIATE");
+        locked.set_value();
+        // Device commits exceeded 500 ms while admission was limited to 250 ms.
+        // Reproduce a writer collision without relying on the host's fsync speed.
+        std::this_thread::sleep_for(400ms);
+        connection.exec("COMMIT");
+    });
+    ready.get();
+    VisualDecisionServiceImpl service(
+        Options(),
+        [&](const auto&, const Json& request, const auto& jpeg, auto) {
+            ++calls;
+            return Reply(request, jpeg);
+        },
+        &audit);
+    const auto started = std::chrono::steady_clock::now();
+    auto result        = service.Decide(Request(), Run(), Image, shortDeadline ? 50ms : 3s);
+    const auto elapsed = std::chrono::steady_clock::now() - started;
+    writer.get();
+    if (shortDeadline) {
+        CHECK(elapsed < 200ms);
+        CHECK(calls == 0);
+        CHECK_FALSE(result.AllCompleted());
+        CHECK(result.audit.metadata["begin"] == "busy");
+    } else {
+        CHECK(elapsed < 2s);
+        CHECK(calls == 1);
+        REQUIRE(result.AllCompleted());
+        CHECK(result.audit.metadata["begin"] == "stored");
+        CHECK(Row(audit, Id(result))["response"] == result.response);
+        CHECK(audit.Status()["begin_failed"] == 0);
+    }
+}
+
 TEST_CASE("Visual audit integration: completed decisions survive a longer concurrent writer",
           "[visual-audit-integration][visual-audit-result-write]") {
     AuditFile file;
@@ -404,7 +448,9 @@ TEST_CASE("Visual audit integration: a busy database blocks model admission with
     auto result        = service.Decide(Request(), Run(), Image, 1s);
     const auto elapsed = std::chrono::steady_clock::now() - start;
     file.database->exec("ROLLBACK");
-    REQUIRE(elapsed < 1s);
+    // The caller allows one second; one in-progress SQLite busy wait can add
+    // at most its short timeout plus ordinary scheduler overhead.
+    REQUIRE(elapsed < 1200ms);
     REQUIRE(calls == 0);
     REQUIRE(result.response["reason"] == "audit_store_unavailable");
     REQUIRE(result.audit.metadata["begin"] == "busy");
