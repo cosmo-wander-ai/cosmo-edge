@@ -6,6 +6,8 @@
 
 #include "db/ConditionBuilder.h"
 #include "db/RowFieldReader.h"
+#include "db/ScopedDbSavepoint.h"
+#include "db/VisualAuditDao.h"
 #include "util/DateTimeFormat.h"
 #include "util/Log.h"
 #include "util/UuidUtil.h"
@@ -92,6 +94,7 @@ void TaskEventDao::CreateTable() {
     if (!IsColumnExist(all_columns, "targets")) {
         AddColumnToTable(table_name_, "targets", ColumnType::TEXT);
     }
+    VisualAuditDao(Db()).CreateTable();
 }
 
 // Task event record query (parameterized)
@@ -248,6 +251,15 @@ bool TaskEventDao::Insert(const TaskEventData& data) {
     stmt.bind(31, data.prop_type);
     stmt.bind(32, data.prop_direction);
     return stmt.exec() > 0;
+}
+
+bool TaskEventDao::Insert(const TaskEventData& data, const std::vector<std::string>& visualAuditIds) {
+    ScopedDbSavepoint transaction(Db());
+    const bool inserted = Insert(data);
+    if (inserted)
+        VisualAuditDao(Db()).LinkEvent(data.id, visualAuditIds);
+    transaction.Commit();
+    return inserted;
 }
 
 bool TaskEventDao::UpdateRecordReportStatus(const std::string& rec_id, bool reported) {
