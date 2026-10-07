@@ -308,15 +308,16 @@ void Qwen3VLWorker::ProcessInferResults(std::vector<InferEntry>& entries,
 }
 
 void Qwen3VLWorker::HandFrameBatch(std::vector<AlgDataPtr> alg_datas) {
-    bool needs_local_model = true;
-    {
-        std::shared_lock<std::shared_mutex> lock(mtx);
-        needs_local_model =
-            params_.param.empty() ||
-            std::any_of(params_.param.begin(), params_.param.end(), [](const Qwen3VLWorkerParamEl& p) {
-                return !p.open_ai_config.Enabled() && p.open_ai_config.provider != "laya_v";
-            });
-    }
+    std::vector<InferEntry> entries;
+    CollectInferEntries(alg_datas, entries);
+    if (entries.empty())
+        return;
+
+    // A shared worker also retains configuration for stopped tasks. Only the
+    // frames in this batch determine whether the local VLM must be loaded.
+    const bool needs_local_model = std::any_of(entries.begin(), entries.end(), [](const InferEntry& e) {
+        return !e.parameters.open_ai_config.Enabled() && e.parameters.open_ai_config.provider != "laya_v";
+    });
 
     if (needs_local_model && !local_worker_registered_) {
         service::ServiceRegistry::Instance().Get<service::ILlmInferService>().NotifyWorkerStart();
@@ -333,14 +334,6 @@ void Qwen3VLWorker::HandFrameBatch(std::vector<AlgDataPtr> alg_datas) {
             LOG_WARN("{}[{} {}] Qwen3VL shared instance not initialized", kTag, alg_code_, uuid);
             return;
         }
-    }
-
-    // InferEntry is defined here for use by the three extracted methods
-    std::vector<InferEntry> entries;
-    CollectInferEntries(alg_datas, entries);
-
-    if (entries.empty()) {
-        return;
     }
 
     std::vector<Qwen3VLResult> results;

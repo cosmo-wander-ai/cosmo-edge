@@ -467,6 +467,12 @@ TEST_CASE("Typed alarm ROI preserves actual crop and rejects every full-frame su
 TEST_CASE("Laya video path binds independent ROI prompts and keeps negative results in review mode",
           "[visual-flow][video]") {
     FlowFixture f;
+    SECTION("only the Laya task is configured") {}
+    SECTION("a stopped local VLM task shares the worker") {
+        REQUIRE(f.worker.AddTask("idle-camera", "idle-task"));
+        auto params = std::vector<MsgDynamicKeyValue>{Parameter("vlmProvider", "local_model")};
+        REQUIRE(f.worker.SetParam("idle-camera", "idle-task", params));
+    }
     std::vector<MsgTaskArea> regions{Region("left", 0, 0.5),
                                      Region("right", 0.5, 0.5, {Parameter("keywords", "smoke")})},
         shield;
