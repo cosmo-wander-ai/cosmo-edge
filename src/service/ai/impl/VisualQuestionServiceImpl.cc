@@ -102,7 +102,10 @@ VisualQuestionServiceImpl::VisualQuestionServiceImpl(VisualQuestionCompilerOptio
         try {
             expiry_ = std::thread(&VisualQuestionServiceImpl::Expire, this);
         } catch (...) {
-            stopped_ = true;
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                stopped_ = true;
+            }
             ready_.notify_all();
             worker_.join();
             throw;
@@ -408,7 +411,12 @@ nlohmann::json VisualQuestionServiceImpl::Counters() const {
 
 void VisualQuestionServiceImpl::Stop() {
     std::call_once(stopOnce_, [&] {
-        stopped_ = true;
+        {
+            // Change the wait predicate under the same lock as Work/Expire so
+            // an idle worker cannot miss the stop notification before waiting.
+            std::lock_guard<std::mutex> lock(mutex_);
+            stopped_ = true;
+        }
         ready_.notify_all();
         if (worker_.joinable())
             worker_.join();

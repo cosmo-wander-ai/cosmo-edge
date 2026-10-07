@@ -135,6 +135,20 @@ TEST_CASE("Visual configuration rejects ambiguous option maps before spawning co
     REQUIRE(calls == 0);
 }
 
+TEST_CASE("Visual compiler stop wakes workers racing into an idle wait", "[visual-preparation]") {
+    std::atomic<int> calls{0};
+    for (int i = 0; i < 512; ++i) {
+        VisualQuestionServiceImpl service(Options(), [&](const auto&, const auto& input, auto, const auto&) {
+            ++calls;
+            return Output(Receipt(input));
+        });
+        if (i % 2)
+            std::this_thread::yield();
+        service.Stop();
+    }
+    REQUIRE(calls == 0);
+}
+
 TEST_CASE("Visual compiler serializes cold allocations and cancels obsolete configurations",
           "[visual-preparation]") {
     std::promise<void> entered;
