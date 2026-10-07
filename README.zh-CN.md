@@ -293,7 +293,7 @@ Turn video AI models into deployable edge applications.
 ## 微信开发者交流群
 
 <p align="center">
-  <img src="docs/assets/community/wechat-group-3-20260930.png" width="430" alt="CosmoEdge 微信开发者交流 3 群二维码（2026 年 10 月 7 日前有效）">
+  <img src="docs/assets/community/wechat-group-3-20261007.png" width="430" alt="CosmoEdge 微信开发者交流 3 群二维码（2026 年 10 月 14 日前有效）">
 </p>
 
-二维码于 **2026 年 9 月 30 日**更新，**7 天内（2026 年 10 月 7 日前）有效**。如二维码失效，请在[微信群公告](https://github.com/cosmo-wander-ai/cosmo-edge/discussions/112)下留言。
+二维码于 **2026 年 10 月 7 日**更新，**7 天内（2026 年 10 月 14 日前）有效**。如二维码失效，请在[微信群公告](https://github.com/cosmo-wander-ai/cosmo-edge/discussions/112)下留言。
