@@ -159,6 +159,11 @@ bool Qwen3VLWorker::RemoveTask(const std::string& channel_id, const std::string&
                     }
                     task_areas_.erase(task);
                     task_contexts_.erase(task);
+                    params_.param.erase(
+                        std::remove_if(params_.param.begin(), params_.param.end(),
+                                       [&task](const auto& param) { return param.task_id == task; }),
+                        params_.param.end());
+                    ++params_.param_modify_sign;
                     return true;
                 }
             }
@@ -231,9 +236,8 @@ Qwen3VLWorkerParamEl Qwen3VLWorker::GetTaskParams(const std::string& tid) {
                            [&tid](const auto& p) { return p.task_id == tid; });
     if (it != params_.param.end())
         return *it;
-    if (params_.param.size() == 1)
-        return params_.param[0];
     Qwen3VLWorkerParamEl emptyParam;
+    emptyParam.task_id = tid;
     return emptyParam;
 }
 

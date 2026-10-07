@@ -158,6 +158,11 @@ bool Qwen3VLWorker::AnalysisKey(const std::string& /*channel_id*/, const std::st
 bool Qwen3VLWorker::ModifyParam(const std::string& channel_id, const std::string& tid,
                                 std::vector<MsgDynamicKeyValue>& params) {
     std::lock_guard<std::shared_mutex> lock(mtx);
+    return ApplyParamsLocked(channel_id, tid, params);
+}
+
+bool Qwen3VLWorker::ApplyParamsLocked(const std::string& channel_id, const std::string& tid,
+                                      std::vector<MsgDynamicKeyValue>& params) {
     for (auto& param : params) {
         std::string key_str = param.key.ToString();
         bool is_prompt_key  = (key_str == "keywords") || (key_str == "prompt") ||
@@ -182,43 +187,13 @@ bool Qwen3VLWorker::ModifyParam(const std::string& channel_id, const std::string
 
 bool Qwen3VLWorker::SetParam(const std::string& channel_id, const std::string& tid,
                              std::vector<MsgDynamicKeyValue>& params) {
-    std::string savedPrompt;
-    bool savedAdvancedMode = false;
-    {
-        std::lock_guard<std::shared_mutex> lock(mtx);
-        auto it = std::find_if(params_.param.begin(), params_.param.end(),
-                               [&tid](const auto& p) { return p.task_id == tid; });
-        if (it != params_.param.end()) {
-            savedPrompt       = it->prompt;
-            savedAdvancedMode = it->advanced_mode;
-        }
-        params_.param.clear();
-    }
-    bool ret = ModifyParam(channel_id, tid, params);
-    if (!savedPrompt.empty() || savedAdvancedMode) {
-        std::lock_guard<std::shared_mutex> lock(mtx);
-        auto it = std::find_if(params_.param.begin(), params_.param.end(),
-                               [&tid](const Qwen3VLWorkerParamEl& el) { return el.task_id == tid; });
-        if (it == params_.param.end()) {
-            Qwen3VLWorkerParamEl el;
-            el.task_id       = tid;
-            el.prompt        = savedPrompt;
-            el.advanced_mode = savedAdvancedMode;
-            params_.param.push_back(el);
-        } else {
-            if (it->prompt.empty() && !savedPrompt.empty()) {
-                it->prompt = savedPrompt;
-            }
-            if (!it->advanced_mode && savedAdvancedMode) {
-                // If the new params didn't explicitly set advanced_mode, restore the saved one.
-                // We assume that if new params had it, it would be set in ModifyParam.
-                // But we don't know if the new param specifically set it to diff value.
-                // For safety and same behavior as old code, we don't strictly distinguish.
-                it->advanced_mode = savedAdvancedMode;
-            }
-        }
-    }
-    return ret;
+    std::lock_guard<std::shared_mutex> lock(mtx);
+    // Replace only this task, including explicit empty/false values. Keep the
+    // reset and application atomic to readers and use ModifyParam for patches.
+    auto& task   = EnsureTaskParam(params_.param, tid);
+    task         = Qwen3VLWorkerParamEl{};
+    task.task_id = tid;
+    return ApplyParamsLocked(channel_id, tid, params);
 }
 
 }  // namespace cosmo

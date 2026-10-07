@@ -110,6 +110,8 @@ private:
     void ProcessInferResults(std::vector<InferEntry> &entries, std::vector<Qwen3VLResult> &results);
     bool ValidKey(MsgDynamicKeyValue &param);
     bool AnalysisKey(const std::string &channel_id, const std::string &task_id, MsgDynamicKeyValue &param);
+    bool ApplyParamsLocked(const std::string &channel_id, const std::string &task_id,
+                           std::vector<MsgDynamicKeyValue> &params);
     Qwen3VLWorkerParamEl FoundLocalParamByTask(const AlgTaskUnit &task);
 
     Qwen3VLWorkerParamEl GetTaskParams(const std::string &task_id);
