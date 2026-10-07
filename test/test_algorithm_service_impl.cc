@@ -16,6 +16,7 @@
 
 #include "mock/MockActionService.h"
 #include "mock/MockModelService.h"
+#include "nlohmann/json.hpp"
 #include "service/algorithm/impl/AlgorithmPacketLoader.h"
 #include "service/algorithm/impl/AlgorithmServiceImpl.h"
 #include "support/ScopedServiceOverride.h"
@@ -377,6 +378,66 @@ TEST_CASE("AlgorithmPacketLoader: imported picture packets register with the pic
     REQUIRE(packets.size() == 1);
     REQUIRE(packets[0].id == "9154");
     REQUIRE(packets[0].algorithmUsage == 2);
+    fs::remove_all(root, ec);
+}
+
+TEST_CASE("AlgorithmPacketLoader imports editor layouts with visual question catalogs",
+          "[AlgorithmService][AlgorithmPacketLoader][layout-roundtrip]") {
+    AlgorithmPacketDependencies mocks;
+    namespace fs    = std::filesystem;
+    using Json      = nlohmann::json;
+    const auto root = fs::temp_directory_path() / "cosmo_visual_layout_import_test";
+    std::error_code ec;
+    fs::remove_all(root, ec);
+    fs::create_directories(root);
+    const auto file = root / "9155_VisualQuestions.json";
+    const std::string catalog =
+        R"({"questions":[{"id":"helmet","version":2,"type":"noul","instructions":"Is the person wearing a safety helmet?"}],"default":["helmet"]})";
+    const Json metadata = {{"params", Json::array({{{"key", "visual.catalog"},
+                                                    {"type", "visualQuestions"},
+                                                    {"value", catalog},
+                                                    {"defaultValue", catalog}}})}};
+    const Json workflow =
+        Json::array({{{"actionId", "DA_00003"},
+                      {"flowActionId", "visual"},
+                      {"preFlowActionId", "-1"},
+                      {"configObject",
+                       {{"params", Json::array({{{"key", "vlmProvider"}, {"value", "laya_v"}},
+                                                {{"key", "visual.catalog"}, {"value", catalog}},
+                                                {{"key", "fps"}, {"value", 1}}})}}}}});
+    const Json layout = {{"algorithmId", "9155"},
+                         {"algorithmCode", "9155"},
+                         {"algorithmName", "VisualQuestions"},
+                         {"algorithmCategory", "2"},
+                         {"algorithmUsage", 1},
+                         {"algorithmMetadata", metadata.dump()},
+                         {"algorithmProcessdata", workflow.dump()},
+                         {"atomicList", "[]"},
+                         {"confVersionId", "default-9155"}};
+    std::ofstream(file) << layout.dump();
+    ALLOW_CALL(mocks.actionSvc, UpdateActionAlg2(trompeloeil::_)).RETURN(true);
+    const auto packets = cosmo::service::detail::AlgorithmPacketLoader::LoadFromZipDirectory(root.string());
+    REQUIRE(packets.size() == 1);
+    REQUIRE(packets[0].id == "9155");
+    REQUIRE(packets[0].algorithmCode == 9155);
+    REQUIRE(packets[0].algorithmCategory == 2);
+    REQUIRE(packets[0].algorithmMetadata == metadata.dump());
+    REQUIRE(packets[0].algorithmProcessdata == workflow.dump());
+    REQUIRE(packets[0].processdata->workFlow[0].configObject.params[1].value.ToString() == catalog);
+    fs::remove_all(root, ec);
+}
+
+TEST_CASE("AlgorithmServiceImpl rejects an archive with no loadable algorithms",
+          "[AlgorithmService][layout-roundtrip]") {
+    namespace fs    = std::filesystem;
+    const auto root = fs::temp_directory_path() / "cosmo_empty_algorithm_import_test";
+    std::error_code ec;
+    fs::remove_all(root, ec);
+    fs::create_directories(root);
+    const auto archive = root / "invalid.zip";
+    REQUIRE(WriteStoredZip(archive, "invalid.json", "not-json"));
+    AlgorithmServiceImpl service;
+    REQUIRE(service.Add(archive.string()) == cosmo::util::ErrorEnum::FileAnalysisFailed);
     fs::remove_all(root, ec);
 }
 
