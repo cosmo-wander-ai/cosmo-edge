@@ -273,6 +273,49 @@ TEST_CASE("Visual audit: standalone retention never evicts active or alarm linke
     REQUIRE(f.Row("awaiting-publication")["delivery"] == "pending");
 }
 
+TEST_CASE("Visual audit: recovery does not scan completed result history",
+          "[visual-audit][visual-audit-maintenance-scan]") {
+    Fixture f;
+    {
+        SQLite::Transaction transaction(f.db);
+        SQLite::Statement insert(
+            f.db,
+            "INSERT INTO t_visualAuditV1(request_id,owner,created_ms,finished_ms,request,response,"
+            "delivery) VALUES(?,'owner',100,110,?,?,'returned')");
+        for (int i = 0; i < 2000; ++i) {
+            const auto id      = "history-" + std::to_string(i);
+            const auto request = Request(id, 1);
+            insert.bind(1, id);
+            insert.bind(2, request.dump());
+            insert.bind(3, Result(request, 1).dump());
+            insert.exec();
+            insert.reset();
+        }
+        transaction.commit();
+    }
+    REQUIRE(f.audits.Begin(Request("closed"), "owner", 120));
+    REQUIRE(f.audits.Delivery("closed", "returned"));
+    REQUIRE(f.audits.Begin(Request("active"), "owner", 120));
+    int fullScanSteps = 0;
+    sqlite3_trace_v2(
+        f.db.getHandle(), SQLITE_TRACE_PROFILE,
+        [](unsigned, void* context, void* statement, void*) {
+            *static_cast<int*>(context) += sqlite3_stmt_status(static_cast<sqlite3_stmt*>(statement),
+                                                               SQLITE_STMTSTATUS_FULLSCAN_STEP, 0);
+            return 0;
+        },
+        &fullScanSteps);
+    const auto recovered = f.audits.RecoverClosed(200);
+    sqlite3_trace_v2(f.db.getHandle(), 0, nullptr, nullptr);
+    CHECK(recovered == 1);
+    // Database work must depend on pending records, not large completed JSON
+    // history. The old full scan held the device service mutex past 250 ms.
+    CHECK(fullScanSteps < 64);
+    CHECK(f.Row("closed")["response"]["reason"] == "audit_result_write_failed");
+    CHECK(f.Row("active")["response"].is_null());
+    CHECK(f.db.execAndGet("SELECT COUNT(*) FROM t_visualAuditV1").getInt() == 2002);
+}
+
 TEST_CASE("Visual audit: malformed input and read only failures cannot masquerade as success",
           "[visual-audit]") {
     Fixture f;

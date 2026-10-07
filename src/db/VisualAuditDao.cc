@@ -112,6 +112,12 @@ void VisualAuditDao::CreateTable() {
         "finished_ms INTEGER, request TEXT NOT NULL, response TEXT, delivery TEXT NOT NULL DEFAULT "
         "'pending');"
         "CREATE INDEX IF NOT EXISTS visual_audit_created_v1 ON t_visualAuditV1(created_ms, request_id);"
+        // Recovery runs under the service connection mutex. Do not scan wide
+        // completed JSON rows just to discover that no result needs recovery.
+        "CREATE INDEX IF NOT EXISTS visual_audit_pending_result_v1 ON t_visualAuditV1(request_id) "
+        "WHERE response IS NULL;"
+        "CREATE INDEX IF NOT EXISTS visual_audit_retention_v1 ON t_visualAuditV1(created_ms,request_id) "
+        "WHERE response IS NOT NULL AND delivery<>'pending';"
         "CREATE TABLE IF NOT EXISTS t_visualAuditItemV1 ("
         "request_id TEXT NOT NULL, ordinal INTEGER NOT NULL, item_id TEXT NOT NULL,"
         "identity TEXT NOT NULL, result TEXT, PRIMARY KEY(request_id, item_id), UNIQUE(request_id, ordinal));"
