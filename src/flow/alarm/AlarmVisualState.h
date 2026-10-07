@@ -18,6 +18,8 @@ inline service::VisualDecisionRuns VisualRuns(const DataAlarmUnit& unit) {
 inline void AppendVisualState(DataAlarmUnit& destination, const DataAlarmUnit& source) {
     destination.visualJudgments.insert(destination.visualJudgments.end(), source.visualJudgments.begin(),
                                        source.visualJudgments.end());
+    destination.visualCandidates.insert(destination.visualCandidates.end(), source.visualCandidates.begin(),
+                                        source.visualCandidates.end());
     auto runs = VisualRuns(source);
     destination.visualRuns.insert(destination.visualRuns.end(), runs.begin(), runs.end());
     service::NormalizeVisualRuns(destination.visualRuns);

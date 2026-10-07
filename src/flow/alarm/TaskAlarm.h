@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "flow/action/AlgActionBase.h"
+#include "flow/alarm/AlarmVisualPlan.h"
 #include "flow/alarm/LayaShadowObserver.h"
 #include "flow/alarm/TaskAlarmSuppression.h"
 #include "flow/channel/AlgChannel.h"
@@ -131,6 +132,12 @@ private:
         float confidence{0.0f};
         std::string reason;
     };
+    bool IsTypedAlarmProvider() const;
+    void InvalidateVisualAlarmPlan();
+    void RebuildVisualAlarmPlan();
+    void CaptureVisualAlarmCandidates(const AlgDataPtr& data);
+    void ReviewVisualAlarmEvent(const CMsgOnEventsReq& event, DataAlarmUnit& unit,
+                                const VideoFramePtr& frame);
     bool InitLlmReviewer();
     std::string BuildLlmReviewPrompt(const DataAlarmUnit& alarmUnit);
     LlmReviewResult ParseLlmReviewResult(const std::string& text);
@@ -175,6 +182,12 @@ private:
     std::chrono::steady_clock::time_point m_lastAlarmTime;
     OnEventsPropertyType m_propertyType{OnEventsPropertyType::None};  // Property type
     TaskAlarmParam m_param;
+    TaskAlarmParam m_defaultParam;
+    VisualParameters m_visualParameters;
+    VisualParameters m_defaultVisualParameters;
+    std::shared_ptr<AlarmVisualPlan> m_visualAlarmPlan;
+    mutable std::mutex m_alarmWorkMutex;
+    std::atomic<bool> m_alarmStopped{false};
     TaskBaseArea m_taskArea;
     bool m_areaHaveAsso{false};    // Whether any area has associated areas
     bool m_areaAssoIsArea{false};  // Associated area is a region (not a line), requires association on alarm

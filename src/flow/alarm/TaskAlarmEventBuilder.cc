@@ -87,12 +87,13 @@ bool TaskAlarm::ShouldFilterTargetAlarm(const AlgDataPtr& algData, const DataAla
     }
 
     // Observation never returns or mutates an alarm decision.
-    if (!alarmUnit.bLlmPrejudged && alarmUnit.reportType == OnEventsReportType::Trigger) {
+    if (!IsTypedAlarmProvider() && !alarmUnit.bLlmPrejudged &&
+        alarmUnit.reportType == OnEventsReportType::Trigger) {
         ObserveLayaShadow(alarmUnit, algData->chanDataDec.frame);
     }
 
     // LLM review (trigger-type events only)
-    if (m_param.enableLlmReview && !alarmUnit.bLlmPrejudged &&
+    if (!IsTypedAlarmProvider() && m_param.enableLlmReview && !alarmUnit.bLlmPrejudged &&
         alarmUnit.reportType == OnEventsReportType::Trigger) {
         if (!LlmReviewAlarm(alarmUnit, algData->chanDataDec.frame)) {
             LOG_INFO("{}[{}] trackId:{} Alarm Filter By LLM Review", kTag, task_id, alarmUnit.trackId);
@@ -429,8 +430,9 @@ bool TaskAlarm::FillAlarmData(AlgDataPtr algData) {
 
         auto alarmUnit = alarm::MergeAlarmBatch(alarmData->alarms, acceptedIndices);
 
-        auto eventData         = BuildBaseEventData(algData, alarmUnit);
-        const bool layaEnabled = GetAlgId() == "15" && !alarmUnit.bLlmPrejudged &&
+        auto eventData = BuildBaseEventData(algData, alarmUnit);
+        ReviewVisualAlarmEvent(eventData, alarmUnit, algData->chanDataDec.frame);
+        const bool layaEnabled = !IsTypedAlarmProvider() && GetAlgId() == "15" && !alarmUnit.bLlmPrejudged &&
                                  alarmUnit.reportType == OnEventsReportType::Trigger &&
                                  m_param.layaReviewMode != "disabled";
         if (layaEnabled && m_param.layaReviewMode == "review" &&

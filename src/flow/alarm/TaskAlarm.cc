@@ -74,6 +74,12 @@ TaskAlarm::~TaskAlarm() {
 bool TaskAlarm::Start() {
     std::lock_guard<std::mutex> lock(m_layaShadowLifecycle);
     if (!running.load()) {
+        {
+            std::lock_guard<std::mutex> work(m_alarmWorkMutex);
+            m_alarmStopped = false;
+            if (data_queue && data_queue->IsRunning())
+                RebuildVisualAlarmPlan();
+        }
         auto oldRun = std::atomic_load(&m_layaShadowRun);
         if (oldRun)
             oldRun->Invalidate();
@@ -81,6 +87,8 @@ bool TaskAlarm::Start() {
     }
     bool started = AlgActionBase::Start();
     if (!started) {
+        m_alarmStopped = true;
+        InvalidateVisualAlarmPlan();
         auto run = std::atomic_load(&m_layaShadowRun);
         if (run)
             run->Invalidate();
@@ -90,6 +98,8 @@ bool TaskAlarm::Start() {
 
 void TaskAlarm::Stop() {
     std::lock_guard<std::mutex> lock(m_layaShadowLifecycle);
+    m_alarmStopped = true;
+    InvalidateVisualAlarmPlan();
     auto run = std::atomic_load(&m_layaShadowRun);
     if (run)
         run->Invalidate();
@@ -97,6 +107,9 @@ void TaskAlarm::Stop() {
 }
 
 void TaskAlarm::ResetStateOnRestart() {
+    InvalidateVisualAlarmPlan();
+    std::lock_guard<std::mutex> work(m_alarmWorkMutex);
+    RebuildVisualAlarmPlan();
     auto oldRun = std::atomic_load(&m_layaShadowRun);
     if (oldRun)
         oldRun->Invalidate();
@@ -160,6 +173,9 @@ TaskAlarm::TaskAlarm(const std::string& channelId, const std::string& taskId, Ac
             LOG_INFO("{}Task:{} Init {} Set To {}", kTag, task_id, el.key, logValue);
         }
     }
+    UpdateVisualParameters(m_visualParameters, action.configObject.params);
+    m_defaultParam            = m_param;
+    m_defaultVisualParameters = m_visualParameters;
     LOG_INFO("{}Task:{} Init", kTag, task_id);
 }
 
@@ -186,6 +202,13 @@ void TaskAlarm::ActionInfo(std::vector<ActionRuntimeInfo>& actionInfos) {
 param.alarmInterval
 */
 bool TaskAlarm::AnalysisKey(MsgDynamicKeyValue& param) {
+    auto normalized = param.key.ToString();
+    if (normalized.rfind("param.", 0) == 0)
+        normalized.erase(0, 6);
+    if (normalized.rfind("visual.", 0) == 0) {
+        m_visualParameters[normalized] = param.value.ToString();
+        return true;
+    }
     if (param.keys.empty()) {
         LOG_WARN(
             "ModifyParam "
@@ -328,28 +351,35 @@ bool TaskAlarm::AnalysisKey(MsgDynamicKeyValue& param) {
     return true;
 }
 
-// Modify parameters — incremental update on existing params
-bool TaskAlarm::ModifyParam(const std::string& /*channelId*/, const std::string& /*taskId*/,
+// Configuration setters share the alarm execution lock. Invalidate first so
+// an in-flight model call cannot publish while an edit waits for that lock.
+bool TaskAlarm::ModifyParam(const std::string& channelId, const std::string& taskId,
                             std::vector<MsgDynamicKeyValue>& params) {
+    if (channelId != GetChannel() || taskId != GetTaskId())
+        return false;
+    InvalidateVisualAlarmPlan();
+    std::lock_guard<std::mutex> work(m_alarmWorkMutex);
     std::lock_guard<std::shared_mutex> lock(mtx);
-    for (auto& param : params) {
-        AnalysisKey(param);
-    }
-
-    return false;
+    bool applied = params.empty();
+    for (auto& param : params)
+        applied = AnalysisKey(param) || applied;
+    RebuildVisualAlarmPlan();
+    return applied;
 }
 
-// Set parameters — clear previous params and apply full replacement
-bool TaskAlarm::SetParam(const std::string& /*channelId*/, const std::string& /*taskId*/,
+bool TaskAlarm::SetParam(const std::string& channelId, const std::string& taskId,
                          std::vector<MsgDynamicKeyValue>& params) {
+    if (channelId != GetChannel() || taskId != GetTaskId())
+        return false;
+    InvalidateVisualAlarmPlan();
+    std::lock_guard<std::mutex> work(m_alarmWorkMutex);
     std::lock_guard<std::shared_mutex> lock(mtx);
-    // Clear existing params first
-    m_param = {};
-    for (auto& param : params) {
+    m_param            = m_defaultParam;
+    m_visualParameters = m_defaultVisualParameters;
+    for (auto& param : params)
         AnalysisKey(param);
-    }
-
-    return false;
+    RebuildVisualAlarmPlan();
+    return true;
 }
 
 // Alarm handling — moved to TaskAlarmHandler.cc

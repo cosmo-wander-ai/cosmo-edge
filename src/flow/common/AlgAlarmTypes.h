@@ -109,6 +109,20 @@ struct AlgTaskDataFaceLogicAreaInfo {
     std::string areaName;
 };
 
+class AlarmVisualPlan;
+struct AlarmVisualCandidate {
+    std::shared_ptr<AlarmVisualPlan> plan;
+    std::string frameId;
+    std::string roiId;
+    std::string flowActionId;
+    std::string areaId;
+    std::string trackId;
+    int trackIndex{-1};
+    util::Box box;
+    std::vector<AiConfidence> confidence;
+    std::vector<AiAttribute> attributes;
+};
+
 struct DataAlarmUnit {
     //    OnEventsPropertyType type{OnEventsPropertyType::None};      // property type
     std::string flowActionId;
@@ -149,6 +163,7 @@ struct DataAlarmUnit {
     std::vector<nlohmann::json> visualJudgments;
     std::shared_ptr<service::VisualDecisionRun> visualRun;
     std::vector<std::shared_ptr<service::VisualDecisionRun>> visualRuns;
+    std::vector<AlarmVisualCandidate> visualCandidates;
 };
 
 struct DataAlarm {
