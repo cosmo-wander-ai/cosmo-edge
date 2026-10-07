@@ -8,6 +8,7 @@
 #include <thread>
 
 #include "service/ai/IVisualDecisionService.h"
+#include "service/ai/impl/VisualDecisionPolicy.h"
 #include "service/ai/impl/VisualDecisionProtocol.h"
 
 namespace cosmo::service {
@@ -18,6 +19,8 @@ struct VisualDecisionOptions {
     size_t capacity{3};
     size_t perTaskLimit{2};
     std::string unavailableReason{"release_not_configured"};
+    nlohmann::json acceptance = nlohmann::json::object();
+    std::string acceptanceReason{"not_configured"};
     // Installed service configuration pins both the manifest location and SHA.
     // No model is loaded and no old VLM is invoked when configuration is absent.
     static VisualDecisionOptions FromEnvironment();

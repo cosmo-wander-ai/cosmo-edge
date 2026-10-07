@@ -1,5 +1,11 @@
 export default {
   visualQuestions: {
+    "decisionMode": "Result handling",
+    "reviewOnly": "Record reviews only",
+    "filterAccepted": "Filter with an accepted policy",
+    "acceptedPolicy": "Accepted policy",
+    "policyHint": "Automatic filtering applies only to accepted tasks, questions and regions. Edited configurations retain candidates for review.",
+
     "catalog": "Review questions",
     "question": "Question",
     "type": "Decision type",
@@ -20,6 +26,11 @@ export default {
     "roiInvalid": "Select 1–8 valid questions or enter a region prompt."
 },
   visualReview: {
+  "decisionLabel": "Policy verdict",
+  "actionLabel": "Action",
+  "filtered": "Filtered",
+  "retained": "Retained",
+  "decision": {"accept": "Accept", "reject": "Reject", "unknown": "Unknown"},
   "worker": {"ready": "Ready", "loading": "Loading", "stopped": "Stopped", "unavailable": "Unavailable"},
   "reasonLabel": "Reason",
   "title": "Visual review records",
@@ -27,7 +38,7 @@ export default {
   "typed": "General reviews",
   "legacy": "Legacy helmet reviews",
   "review": "Review",
-  "notice": "Model results are for review only; automatic alarm filtering requires business qualification. Model completion, alarm storage and external delivery are separate states.",
+  "notice": "Automatic filtering applies only to accepted task configurations. Other results are retained for review. Model completion, alarm storage and external delivery are separate states.",
   "legacyNotice": "Historical records use the fixed helmet question and are queried separately from general reviews.",
   "entry": "Review admission",
   "audit": "Audit store",
@@ -56,6 +67,12 @@ export default {
   "modelResult": "Model result",
   "scores": "Option probabilities (configuration order)",
   "reason": {
+    "review_only": "Review only",
+    "unqualified_filtering_disabled": "Task or configuration not accepted for filtering; candidate retained",
+    "qualified_decision": "Accepted policy applied",
+    "low_confidence": "Low confidence",
+    "incomplete_model_result": "Model result incomplete; candidate retained",
+
     "configuration_preparing": "Preparing questions",
     "compiler_queue_full": "Preparation configuration limit reached",
     "compiler_queue_bytes_full": "Preparation input size limit reached",
@@ -89,6 +106,7 @@ export default {
     "pending": "Pending"
   },
   "delivery": {
+    "filtered": "Filtered with review record retained",
     "pending": "Pending",
     "alarm_linked": "Linked to alarm",
     "returned": "Image response prepared",

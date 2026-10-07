@@ -1,5 +1,11 @@
 export default {
   visualQuestions: {
+    "decisionMode": "结果处理",
+    "reviewOnly": "仅记录复核结果",
+    "filterAccepted": "按已验收规则过滤",
+    "acceptedPolicy": "已验收规则",
+    "policyHint": "自动过滤仅对已验收的任务和问题、区域配置生效；修改后先保留结果复核。",
+
     "catalog": "复核问题",
     "question": "问题",
     "type": "判断类型",
@@ -20,6 +26,11 @@ export default {
     "roiInvalid": "请选择 1–8 个有效问题，或填写区域提示词。"
 },
   visualReview: {
+  "decisionLabel": "规则结论",
+  "actionLabel": "处理结果",
+  "filtered": "已过滤",
+  "retained": "保留",
+  "decision": {"accept": "符合", "reject": "不符合", "unknown": "不确定"},
   "worker": {"ready": "就绪", "loading": "加载中", "stopped": "已停止", "unavailable": "不可用"},
   "reasonLabel": "原因",
   "title": "视觉复核记录",
@@ -27,7 +38,7 @@ export default {
   "typed": "通用复核",
   "legacy": "历史安全帽复核",
   "review": "复核",
-  "notice": "当前模型结果仅供复核，业务验收前不自动过滤告警。模型完成、告警落库和外部推送是独立状态。",
+  "notice": "自动过滤只适用于已验收的任务配置，其余结果用于复核。模型完成、告警落库和外部推送是独立状态。",
   "legacyNotice": "历史记录来自固定安全帽问题，与通用复核记录分别查询。",
   "entry": "复核入口",
   "audit": "记录服务",
@@ -56,6 +67,12 @@ export default {
   "modelResult": "模型结果",
   "scores": "候选项概率（按配置顺序）",
   "reason": {
+    "review_only": "仅记录复核结果",
+    "unqualified_filtering_disabled": "当前任务或配置未通过过滤验收，保留候选",
+    "qualified_decision": "按已验收规则处理",
+    "low_confidence": "结果置信度不足",
+    "incomplete_model_result": "模型结果未完成，保留候选",
+
     "configuration_preparing": "问题配置准备中",
     "compiler_queue_full": "问题准备配置数已达上限",
     "compiler_queue_bytes_full": "问题准备数据量已达上限",
@@ -89,6 +106,7 @@ export default {
     "pending": "等待结果"
   },
   "delivery": {
+    "filtered": "已过滤并保留复核记录",
     "pending": "等待处理",
     "alarm_linked": "已关联告警",
     "returned": "图片结果已生成",

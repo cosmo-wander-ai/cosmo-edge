@@ -9,7 +9,9 @@ export function readCatalog(value) {
 
 export function validCatalog(value) {
   try {
-    const { questions, default: selected } = readCatalog(value)
+    const { questions, default: selected, decision } = readCatalog(value)
+    if (decision && (!['review', 'filter'].includes(decision.mode) ||
+        (decision.mode === 'filter' && !/^[A-Za-z0-9_.:-]{1,96}$/.test(decision.profile_id || '')))) return false
     const ids = questions.map(q => q.id)
     if (questions.length > 32 || new Set(ids).size !== ids.length || selected.length > 8 ||
         (questions.length > 0 && selected.length === 0) || new Set(selected).size !== selected.length ||

@@ -267,11 +267,12 @@ std::vector<VisualRoiInput> PrepareVisualRois(const AlgData& data, const std::ve
 
 nlohmann::json VisualRoiRecord(const VisualRoiInput& crop, const service::VisualDecisionResult& result,
                                const std::string& flowActionId) {
-    const auto& roi = crop.input_roi;
+    const auto& roi     = crop.input_roi;
+    const auto decision = result.response.value("decision", nlohmann::json::object());
     return {{"provider", "laya_v"},
-            {"mode", "review"},
-            {"business_qualified", false},
-            {"alarm_filter_applied", false},
+            {"mode", decision.value("mode", "review")},
+            {"business_qualified", decision.value("business_qualified", false)},
+            {"alarm_filter_applied", !result.Retain()},
             {"flow_action_id", flowActionId},
             {"area_id", crop.area_id},
             {"roi_binding_policy", crop.is_det_box ? "target_center_all_matching_areas_or_default"

@@ -10,6 +10,8 @@
             <el-descriptions-item :label="t('visualReview.config')">{{ row.request.config_revision }}</el-descriptions-item>
             <el-descriptions-item :label="t('visualReview.model')">{{ row.request.manifest_sha256 || '—' }}</el-descriptions-item>
             <el-descriptions-item :label="t('visualReview.alarms')">{{ row.events?.join(' / ') || '—' }}</el-descriptions-item>
+            <el-descriptions-item :label="t('visualQuestions.acceptedPolicy')">{{ row.response?.decision?.profile_id || '—' }}</el-descriptions-item>
+            <el-descriptions-item :label="t('visualReview.decisionLabel')">{{ label('decision', row.response?.decision?.verdict) }}</el-descriptions-item>
           </el-descriptions>
           <el-table :data="row.items" :empty-text="t('visualReview.noQuestions')">
             <el-table-column :label="t('visualReview.question')" min-width="160">
@@ -32,7 +34,8 @@
     <el-table-column prop="request.task_id" :label="t('visualReview.task')" min-width="150" show-overflow-tooltip />
     <el-table-column prop="request.roi_id" :label="t('visualReview.roi')" min-width="160" show-overflow-tooltip />
     <el-table-column :label="t('visualReview.status')" min-width="130"><template #default="{ row }">{{ label('result', row.response?.status || 'pending') }}</template></el-table-column>
-    <el-table-column :label="t('visualReview.reasonLabel')" min-width="180"><template #default="{ row }">{{ label('reason', row.response?.reason) }}</template></el-table-column>
+    <el-table-column :label="t('visualReview.actionLabel')" min-width="120"><template #default="{ row }">{{ row.response?.decision ? t(row.response.decision.filter_applied ? 'visualReview.filtered' : 'visualReview.retained') : '—' }}</template></el-table-column>
+    <el-table-column :label="t('visualReview.reasonLabel')" min-width="180"><template #default="{ row }">{{ label('reason', row.response?.reason || row.response?.decision?.reason) }}</template></el-table-column>
     <el-table-column :label="t('visualReview.deliveryLabel')" min-width="160"><template #default="{ row }">{{ label('delivery', row.delivery) }}</template></el-table-column>
   </el-table>
 </template>

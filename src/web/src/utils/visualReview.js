@@ -29,8 +29,9 @@ export function createVisualReviewLoader(request, publish) {
 
 export const reviewStateCodes = {
   result: new Set(['completed', 'partial', 'unknown', 'pending']),
-  delivery: new Set(['pending', 'alarm_linked', 'returned', 'cancelled', 'no_alarm', 'alarm_store_failed', 'interrupted']),
-  reason: new Set(['configuration_preparing', 'compiler_queue_full', 'compiler_queue_bytes_full', 'compile_deadline_exceeded', 'compiler_not_configured', 'process_spawn_failed', 'process_io_failed', 'sequence_budget_exceeded', 'invalid_compiler_receipt', 'stale_task_run', 'service_stopped', 'worker_unavailable', 'deadline_exceeded', 'queue_full', 'audit_store_unavailable', 'audit_result_write_failed', 'engine_restarted', 'missing_prepared_question', 'unsupported_or_empty_roi', 'business_qualification_pending'])
+  decision: new Set(['accept', 'reject', 'unknown']),
+  delivery: new Set(['filtered', 'pending', 'alarm_linked', 'returned', 'cancelled', 'no_alarm', 'alarm_store_failed', 'interrupted']),
+  reason: new Set(['review_only', 'unqualified_filtering_disabled', 'qualified_decision', 'low_confidence', 'incomplete_model_result', 'configuration_preparing', 'compiler_queue_full', 'compiler_queue_bytes_full', 'compile_deadline_exceeded', 'compiler_not_configured', 'process_spawn_failed', 'process_io_failed', 'sequence_budget_exceeded', 'invalid_compiler_receipt', 'stale_task_run', 'service_stopped', 'worker_unavailable', 'deadline_exceeded', 'queue_full', 'audit_store_unavailable', 'audit_result_write_failed', 'engine_restarted', 'missing_prepared_question', 'unsupported_or_empty_roi', 'business_qualification_pending'])
 }
 export function visualReviewLabel(t, group, code) {
   return reviewStateCodes[group]?.has(code) ? t(`visualReview.${group}.${code}`) : code || '—'

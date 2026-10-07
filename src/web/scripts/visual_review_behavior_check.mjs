@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { h } from 'vue'
-import { createVisualReviewLoader, visualReviewScores } from '../src/utils/visualReview.js'
+import { createVisualReviewLoader, visualReviewScores, visualReviewLabel } from '../src/utils/visualReview.js'
 import { mountComponent } from './helpers/mount_behavior_component.mjs'
 
 const typed = (id = 'request-new') => ({ resCode: 1, resData: { schema: 1, format: 'typed-v1', rows: [{ request_id: id, request: { task_id: 'task-2', roi_id: 'roi-2' }, items: [] }], total: 1, automatic_filtering: false, question_runtime: { available: true, queued: 2 }, audit_runtime: { available: true } } })
@@ -81,3 +81,7 @@ try {
   assert.equal(dialog.all(n => n.type === 'legacy-table')[0].props.rows.length, 0, 'closing clears stale results')
 } finally { dialog.unmount() }
 console.log('Visual review behavior: request isolation, typed/legacy routing, strict results, mounted dialog PASS')
+
+assert.equal(visualReviewLabel(key => key, 'delivery', 'filtered'), 'visualReview.delivery.filtered')
+assert.equal(visualReviewLabel(key => key, 'reason', 'unqualified_filtering_disabled'), 'visualReview.reason.unqualified_filtering_disabled')
+assert.equal(visualReviewLabel(key => key, 'decision', 'reject'), 'visualReview.decision.reject')

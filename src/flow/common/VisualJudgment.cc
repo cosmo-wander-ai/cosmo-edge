@@ -55,6 +55,7 @@ VisualJudgment::VisualJudgment(const std::string& task, const std::string& promp
     try {
         Require(visual::Identity(task), "invalid_task_identity");
         std::map<std::string, Json> catalog;
+        bool catalogDecision = false;
         // One stable metadata field lets channel editors add/remove questions
         // without changing the scene's parameter ownership for every question ID.
         const auto packed = parameters.find("visual.catalog");
@@ -68,6 +69,11 @@ VisualJudgment::VisualJudgment(const std::string& task, const std::string& promp
             }
             if (!catalog.empty())
                 bindings_[""] = Selection(value.at("default").dump());
+            if (value.contains("decision")) {
+                catalogDecision = true;
+                mode_           = value.at("decision").value("mode", "review");
+                policyId_       = value.at("decision").value("profile_id", "");
+            }
         }
         for (const auto& [key, value] : parameters) {
             if (key.rfind(kQuestionPrefix, 0) == 0) {
@@ -78,7 +84,13 @@ VisualJudgment::VisualJudgment(const std::string& task, const std::string& promp
             } else if (key == "visual.catalog") {
                 continue;
             } else if (key == "visual.mode") {
-                Require(value == "review", "unqualified_filtering_disabled");
+                // A catalog-owned decision takes precedence over older scene
+                // defaults, allowing the ordinary task editor to persist it.
+                if (!catalogDecision)
+                    mode_ = value;
+            } else if (key == "visual.policy") {
+                if (!catalogDecision)
+                    policyId_ = value;
             } else if (key == "visual.timeout_ms") {
                 auto timeout = visual::Parse(value);
                 Require(timeout.is_number_integer(), "invalid_visual_timeout");
@@ -88,6 +100,8 @@ VisualJudgment::VisualJudgment(const std::string& task, const std::string& promp
             } else
                 Require(key == "visual.questions", "unknown_visual_parameter");
         }
+        Require(mode_ == "review" || mode_ == "filter", "invalid_visual_mode");
+        Require(mode_ != "filter" || visual::Identity(policyId_), "unqualified_filtering_disabled");
         auto selection = parameters.find("visual.questions");
         if (selection != parameters.end())
             bindings_[""] = Selection(selection->second);
@@ -161,14 +175,14 @@ VisualJudgment::VisualJudgment(const std::string& task, const std::string& promp
                     "invalid_question_version");
             specs_.push_back({id, question, ""});
         }
-        const auto revision = Hash(Json{
-            {"catalog", catalog},
-            {"bindings", bindings_},
-            {"semantic_bindings", semanticBindings_},
-            {"semantic_fallback", semanticFallback_},
-            {"geometry", geometry},
-            {"timeout_ms", timeout_.count()},
-            {"mode", "review"}}.dump());
+        Json identity{{"catalog", catalog},
+                      {"bindings", bindings_},
+                      {"semantic_bindings", semanticBindings_},
+                      {"semantic_fallback", semanticFallback_},
+                      {"geometry", geometry}};
+        qualificationRevision_ = Hash(identity.dump());
+        identity.update({{"timeout_ms", timeout_.count()}, {"mode", mode_}, {"policy_id", policyId_}});
+        const auto revision = Hash(identity.dump());
         run_                = std::make_shared<service::VisualDecisionRun>(task, epoch, revision);
         prepared_ = service::ServiceRegistry::Instance().Get<service::IVisualQuestionService>().Prepare(
             specs_, run_, std::chrono::milliseconds(specs_.size() > 32 ? 600000 : 300000));
@@ -242,6 +256,9 @@ service::VisualDecisionResult VisualJudgment::Decide(const std::string& frameId,
         if (!prepared.ready)
             return unknown(prepared.reason);
         service::VisualDecisionRequest request{frameId, roiId, {}};
+        request.mode                  = mode_;
+        request.policyId              = policyId_;
+        request.qualificationRevision = qualificationRevision_;
         for (const auto& id : *ids) {
             auto ref = std::find_if(prepared.questions.begin(), prepared.questions.end(),
                                     [&](const auto& q) { return q.itemId == id; });

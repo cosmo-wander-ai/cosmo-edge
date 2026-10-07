@@ -4,6 +4,11 @@
 #include "service/ai/VisualDecisionFence.h"
 
 namespace cosmo::alarm {
+// Decisions retain an event if any independent candidate survives. Ordinary
+// target batches also remove rejected targets and their overlays; associated
+// composite alarms retain their original geometry when there is no 1:1 map.
+bool RetainVisualTargets(DataAlarmUnit& unit, const std::vector<bool>& keep);
+
 inline service::VisualDecisionRuns VisualRuns(const DataAlarmUnit& unit) {
     auto runs = unit.visualRuns;
     if (unit.visualRun)

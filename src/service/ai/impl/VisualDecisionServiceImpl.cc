@@ -36,6 +36,16 @@ VisualDecisionOptions VisualDecisionOptions::FromEnvironment() {
     } catch (...) {
         options.unavailableReason = "release_identity_invalid";
     }
+    if (options.release.Valid()) {
+        try {
+            options.acceptance       = visual::ReadAcceptance(Environment("COSMO_VISUAL_ACCEPTANCE"),
+                                                              Environment("COSMO_VISUAL_ACCEPTANCE_SHA256"),
+                                                              options.release.manifestSha256);
+            options.acceptanceReason = options.acceptance.empty() ? "not_configured" : "ready";
+        } catch (...) {
+            options.acceptanceReason = "acceptance_identity_invalid";
+        }
+    }
     return options;
 }
 
@@ -88,8 +98,16 @@ VisualDecisionResult VisualDecisionServiceImpl::Decide(const VisualDecisionReque
     auto audited = [&](VisualDecisionResult result) {
         // Persist the caller-visible deadline/cancellation outcome, not a late
         // worker completion. No database work runs under the queue mutex.
-        if (audit_)
-            audit_->Complete(receipt, result.response);
+        result.response["decision"] = visual::EvaluateDecision(
+            options_.acceptance, request, job->run ? job->run->taskId : "", result.response);
+        if (audit_ && !audit_->Complete(receipt, result.response)) {
+            result.response["decision"].update(
+                {{"retain", true}, {"filter_applied", false}, {"reason", "audit_result_write_failed"}});
+        }
+        if (!audit_ && request.mode == "filter") {
+            result.response["decision"].update(
+                {{"retain", true}, {"filter_applied", false}, {"reason", "audit_store_unavailable"}});
+        }
         result.audit = std::move(receipt);
         return result;
     };
@@ -99,6 +117,9 @@ VisualDecisionResult VisualDecisionServiceImpl::Decide(const VisualDecisionReque
     };
     if (timeout.count() <= 0 || timeout.count() > 30000)
         return reject("invalid_timeout");
+    if ((request.mode != "review" && request.mode != "filter") ||
+        (request.mode == "filter" && !visual::Identity(request.policyId)))
+        return reject("invalid_decision_policy");
     if (!job->run || !visual::Identity(job->run->taskId) || !visual::Identity(job->run->runEpoch) ||
         !visual::Identity(job->run->configRevision) || !visual::Identity(request.frameId) ||
         !visual::Identity(request.roiId) || !job->prepare || request.questions.empty() ||
@@ -278,6 +299,8 @@ nlohmann::json VisualDecisionServiceImpl::Counters() const {
             {"queued", queue_.size()},
             {"per_task", perTask_},
             {"audit", auditStatus},
-            {"automatic_filtering", false}};
+            {"acceptance_status", options_.acceptanceReason},
+            {"accepted_profiles", visual::AcceptanceProfiles(options_.acceptance)},
+            {"automatic_filtering", !visual::AcceptanceProfiles(options_.acceptance).empty()}};
 }
 }  // namespace cosmo::service

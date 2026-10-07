@@ -202,8 +202,9 @@ bool VisualAuditDao::Finish(const std::string& requestId, const Json& response, 
 }
 
 bool VisualAuditDao::Delivery(const std::string& requestId, const std::string& status) {
-    Require(ValidId(requestId) && (status == "returned" || status == "cancelled" || status == "no_alarm" ||
-                                   status == "alarm_store_failed" || status == "publication_failed"));
+    Require(ValidId(requestId) &&
+            (status == "returned" || status == "cancelled" || status == "no_alarm" ||
+             status == "alarm_store_failed" || status == "publication_failed" || status == "filtered"));
     SQLite::Statement update(
         Db(), "UPDATE t_visualAuditV1 SET delivery=? WHERE request_id=? AND delivery='pending'");
     update.bind(1, status);

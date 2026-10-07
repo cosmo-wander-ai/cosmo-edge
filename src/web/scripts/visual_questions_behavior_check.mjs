@@ -97,3 +97,23 @@ assert.equal(merged.value, latest)
 assert.equal(merged.defaultValue, latest)
 assert.equal(merged.channelEditable, false)
 console.log('Updated scene catalog becomes the task default while metadata visibility is preserved PASS')
+
+let policySaved = saved
+let policyEditor
+policyEditor = await mountComponent('components/VisualQuestionEditor.vue', {
+  props: { modelValue: saved, 'onUpdate:modelValue': value => { policySaved = value; policyEditor.instance.$.props.modelValue = value } },
+  api: { boxQueryLayaReview: async () => ({ resCode: 1, resData: { runtime: { accepted_profiles: [{ id: 'entrance' }] } } }) }
+})
+try {
+  await policyEditor.settle()
+  policyEditor.all(n => n.type === 'el-select' && n.props['aria-label'] === 'visualQuestions.decisionMode')[0].props.activate('filter')
+  await policyEditor.settle()
+  assert.deepEqual(readCatalog(policySaved).decision, { mode: 'filter', profile_id: 'entrance' })
+  assert.equal(validCatalog(policySaved), true)
+  assert.deepEqual(readCatalog(policySaved).questions, readCatalog(saved).questions)
+  policyEditor.all(n => n.type === 'el-select' && n.props['aria-label'] === 'visualQuestions.decisionMode')[0].props.activate('review')
+  await policyEditor.settle()
+  assert.equal(readCatalog(policySaved).decision.mode, 'review')
+} finally { policyEditor.unmount() }
+assert.equal(validCatalog(JSON.stringify({ ...readCatalog(saved), decision: { mode: 'filter', profile_id: '' } })), false)
+console.log('Accepted filtering selection and return to review preserve question configuration PASS')

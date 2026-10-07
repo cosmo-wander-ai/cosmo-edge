@@ -216,9 +216,9 @@ void Qwen3VLWorker::ProcessInferResults(std::vector<InferEntry>& entries,
         auto& entry       = entries[i];
         auto& result      = results[i];
         const auto visual = entry.parameters.visual_judgment;
-        // Review mode retains every candidate, including negative/unknown model
-        // outcomes. Qualification and filtering are not inferred from scores.
-        bool is_valid = visual ? visual->Run()->Active() : ParseJudgeYesNoTrue(result.text);
+        bool is_valid =
+            visual ? visual->Run()->Active() && (!entry.visual_result || entry.visual_result->Retain())
+                   : ParseJudgeYesNoTrue(result.text);
 
         std::string tid  = entry.resolved_task_id;
         auto task_params = entry.parameters;
@@ -278,7 +278,7 @@ void Qwen3VLWorker::ProcessInferResults(std::vector<InferEntry>& entries,
             } else
                 commit();
         } else if (visual && entry.visual_result && entry.visual_result->audit.lease) {
-            entry.visual_result->audit.lease->Seal("cancelled");
+            entry.visual_result->audit.lease->Seal(visual->Run()->Active() ? "filtered" : "cancelled");
         }
     }
 

@@ -136,7 +136,7 @@ private:
     void InvalidateVisualAlarmPlan();
     void RebuildVisualAlarmPlan();
     void CaptureVisualAlarmCandidates(const AlgDataPtr& data);
-    void ReviewVisualAlarmEvent(const CMsgOnEventsReq& event, DataAlarmUnit& unit,
+    bool ReviewVisualAlarmEvent(const CMsgOnEventsReq& event, DataAlarmUnit& unit,
                                 const VideoFramePtr& frame);
     bool InitLlmReviewer();
     std::string BuildLlmReviewPrompt(const DataAlarmUnit& alarmUnit);

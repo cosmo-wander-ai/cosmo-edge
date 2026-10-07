@@ -1,6 +1,7 @@
 #include <set>
 
 #include "flow/alarm/AlarmReviewRoi.h"
+#include "flow/alarm/AlarmVisualState.h"
 #include "flow/alarm/TaskAlarm.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/media/IVideoFrameCodec.h"
@@ -106,8 +107,9 @@ void TaskAlarm::CaptureVisualAlarmCandidates(const AlgDataPtr& data) {
     }
 }
 
-void TaskAlarm::ReviewVisualAlarmEvent(const CMsgOnEventsReq& event, DataAlarmUnit& unit,
+bool TaskAlarm::ReviewVisualAlarmEvent(const CMsgOnEventsReq& event, DataAlarmUnit& unit,
                                        const VideoFramePtr& frame) {
+    std::vector<bool> keep;
     for (const auto& candidate : unit.visualCandidates) {
         struct Prepared {
             std::mutex mutex;
@@ -164,13 +166,16 @@ void TaskAlarm::ReviewVisualAlarmEvent(const CMsgOnEventsReq& event, DataAlarmUn
         }
         if (result.audit.lease)
             unit.visualAuditLeases.push_back(result.audit.lease);
+        keep.push_back(result.Retain());
+        const auto decision = result.response.value("decision", nlohmann::json::object());
         unit.visualJudgments.push_back({{"provider", "laya_v"},
-                                        {"mode", "review"},
+                                        {"mode", decision.value("mode", "review")},
                                         {"entrypoint", "alarm_review"},
                                         {"event_id", event.messageId},
                                         {"channel_id", event.videoChannelId},
-                                        {"business_qualified", false},
-                                        {"alarm_filter_applied", false},
+                                        {"business_qualified", decision.value("business_qualified", false)},
+                                        {"alarm_filter_applied", !result.Retain()},
+                                        {"target_aggregation", "any"},
                                         {"flow_action_id", candidate.flowActionId},
                                         {"area_id", candidate.areaId},
                                         {"source_track_id", candidate.trackId},
@@ -182,5 +187,6 @@ void TaskAlarm::ReviewVisualAlarmEvent(const CMsgOnEventsReq& event, DataAlarmUn
                                         {"request", std::move(result.request)},
                                         {"result", std::move(result.response)}});
     }
+    return alarm::RetainVisualTargets(unit, keep);
 }
 }  // namespace cosmo

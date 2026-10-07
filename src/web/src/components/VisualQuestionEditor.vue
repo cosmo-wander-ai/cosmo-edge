@@ -24,16 +24,38 @@
         <el-checkbox :model-value="catalog.default.includes(q.id)" @update:model-value="select(q.id, $event)">{{ t('visualQuestions.default') }}</el-checkbox>
       </div>
       <el-button @click="add" :disabled="catalog.questions.length >= 32">{{ t('visualQuestions.add') }}</el-button>
+      <div class="decision-policy">
+        <label>{{ t('visualQuestions.decisionMode') }}</label>
+        <el-select :model-value="catalog.decision?.mode || 'review'" @update:model-value="setMode" :aria-label="t('visualQuestions.decisionMode')">
+          <el-option value="review" :label="t('visualQuestions.reviewOnly')" />
+          <el-option value="filter" :label="t('visualQuestions.filterAccepted')" :disabled="profiles.length === 0" />
+        </el-select>
+        <el-select v-if="catalog.decision?.mode === 'filter'" :model-value="catalog.decision.profile_id" @update:model-value="setProfile" :aria-label="t('visualQuestions.acceptedPolicy')">
+          <el-option v-for="profile in profiles" :key="profile.id" :value="profile.id" :label="profile.id" />
+        </el-select>
+        <p class="hint">{{ t('visualQuestions.policyHint') }}</p>
+      </div>
       <p v-if="!validCatalog(modelValue)" class="error">{{ t('visualQuestions.invalid') }}</p>
     </template>
   </div>
 </template>
 <script setup>
-import { computed } from 'vue'
+import { computed, getCurrentInstance, onMounted, ref } from 'vue'
 import { t } from '@/i18n'
 import { emptyCatalog, readCatalog, validCatalog } from '@/utils/visualQuestions'
 const props = defineProps({ modelValue: { type: String, default: '' } })
 const emit = defineEmits(['update:modelValue'])
+const { proxy } = getCurrentInstance()
+const profiles = ref([])
+onMounted(async () => {
+  if (!proxy.$API?.boxQueryLayaReview) return
+  try {
+    const response = await proxy.$API.boxQueryLayaReview({ format: 'typed-v1', pageNum: 1, pageSize: 1 })
+    if (response?.resCode === 1 && Array.isArray(response.resData?.runtime?.accepted_profiles)) profiles.value = response.resData.runtime.accepted_profiles
+  } catch { /* Review remains available if no accepted policy can be loaded. */ }
+})
+const setMode = mode => update(c => { c.decision = { mode, profile_id: c.decision?.profile_id || (mode === 'filter' ? profiles.value[0]?.id || '' : '') } })
+const setProfile = id => update(c => { c.decision = { mode: 'filter', profile_id: id } })
 const parseFailed = computed(() => { try { readCatalog(props.modelValue); return false } catch { return true } })
 const catalog = computed(() => { try { return readCatalog(props.modelValue) } catch { return emptyCatalog() } })
 const update = fn => { const next = readCatalog(props.modelValue); fn(next); emit('update:modelValue', JSON.stringify(next)) }
@@ -54,5 +76,7 @@ const remove = i => update(c => { const id = c.questions[i].id; c.questions.spli
 .question-title, .option { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
 .question-title .el-select { width: 150px; }
 .options { margin-top: 10px; }
+.decision-policy { margin-top: 16px; }
+.decision-policy .el-select { margin-top: 8px; }
 .error { color: #f56c6c; }
 </style>

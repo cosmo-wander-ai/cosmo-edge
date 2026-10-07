@@ -42,6 +42,9 @@ private:
     bool semanticFallback_{false};
     std::shared_future<service::VisualQuestionPreparation> prepared_;
     std::string failure_;
+    std::string mode_{"review"};
+    std::string policyId_;
+    std::string qualificationRevision_;
     std::chrono::milliseconds timeout_{1500};
 };
 

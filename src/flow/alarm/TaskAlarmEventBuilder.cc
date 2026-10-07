@@ -6,6 +6,7 @@
 // FillEventProperty()   — property type dispatch
 // DispatchAlarmEvent()  — WebSocket/HTTP/linkage push
 
+#include <algorithm>
 #include <filesystem>
 #include <unordered_set>
 
@@ -430,8 +431,24 @@ bool TaskAlarm::FillAlarmData(AlgDataPtr algData) {
 
         auto alarmUnit = alarm::MergeAlarmBatch(alarmData->alarms, acceptedIndices);
 
-        auto eventData = BuildBaseEventData(algData, alarmUnit);
-        ReviewVisualAlarmEvent(eventData, alarmUnit, algData->chanDataDec.frame);
+        const auto originalTargetCount = alarmUnit.targets.size();
+        auto eventData                 = BuildBaseEventData(algData, alarmUnit);
+        if (!ReviewVisualAlarmEvent(eventData, alarmUnit, algData->chanDataDec.frame)) {
+            auto filtered = [&] {
+                commitStaged();
+                auto record            = makeRecAlarmData(alarmUnit);
+                record.filterLlmReview = true;
+                m_overviewRecInst.OverviewRecordFrame(record);
+                for (const auto& lease : alarmUnit.visualAuditLeases)
+                    if (lease)
+                        lease->Seal("filtered");
+            };
+            if (!service::CommitVisualRuns(alarm::VisualRuns(alarmUnit), filtered))
+                for (const auto& lease : alarmUnit.visualAuditLeases)
+                    if (lease)
+                        lease->Seal("cancelled");
+            continue;
+        }
         const bool layaEnabled = !IsTypedAlarmProvider() && GetAlgId() == "15" && !alarmUnit.bLlmPrejudged &&
                                  alarmUnit.reportType == OnEventsReportType::Trigger &&
                                  m_param.layaReviewMode != "disabled";
@@ -441,6 +458,9 @@ bool TaskAlarm::FillAlarmData(AlgDataPtr algData) {
             continue;
         }
 
+        // A retained target can replace the original representative after review.
+        eventData.recordId               = alarmUnit.strTrackId;
+        const bool visualTargetsFiltered = alarmUnit.targets.size() < originalTargetCount;
         // Build event
         eventData.targets = alarmUnit.targets;
         AttachAlarmMedia(eventData, algData, alarmUnit);
@@ -476,7 +496,12 @@ bool TaskAlarm::FillAlarmData(AlgDataPtr algData) {
         auto commitState = [&] {
             std::unordered_set<int> updatedTrackIds;
             for (const auto index : acceptedIndices) {
-                const int trackId = alarmData->alarms[index].trackId;
+                const auto& original = alarmData->alarms[index];
+                const int trackId    = original.trackId;
+                if (visualTargetsFiltered &&
+                    std::none_of(alarmUnit.targets.begin(), alarmUnit.targets.end(),
+                                 [&](const auto& target) { return target.trackId == original.strTrackId; }))
+                    continue;
                 if (trackId < 0 || !updatedTrackIds.insert(trackId).second)
                     continue;
                 auto& state = targetState(trackId);

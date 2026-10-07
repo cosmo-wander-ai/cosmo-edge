@@ -53,8 +53,11 @@ Event::MsgLayaReviewPageSend MessageEventHandler::Handle(Event::MsgLayaReviewPag
             response.resData["format"]              = "typed-v1";
             response.resData["audit_runtime"]       = audit.Status();
             response.resData["automatic_filtering"] = false;
-            if (registry.Has<service::IVisualDecisionService>())
+            if (registry.Has<service::IVisualDecisionService>()) {
                 response.resData["runtime"] = registry.Get<service::IVisualDecisionService>().Counters();
+                response.resData["automatic_filtering"] =
+                    response.resData["runtime"].value("automatic_filtering", false);
+            }
             if (registry.Has<service::IVisualQuestionService>())
                 response.resData["question_runtime"] =
                     registry.Get<service::IVisualQuestionService>().Counters();

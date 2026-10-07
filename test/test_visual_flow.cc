@@ -67,6 +67,7 @@ class Decisions final : public IVisualDecisionService {
 public:
     std::atomic<int> count{0};
     std::atomic<bool> block{false};
+    bool applyPolicy{false};
     std::mutex mutex;
     std::condition_variable changed;
     std::vector<VisualDecisionRequest> requests;
@@ -106,6 +107,14 @@ public:
                 item["top1"]          = "false";
                 item["probabilities"] = {0.8, 0.2};
             }
+        }
+        if (applyPolicy && request.mode == "filter") {
+            const bool retain  = image.jpeg.empty() || request.questions.at(0).questionId == "right";
+            result["decision"] = {{"mode", "filter"},
+                                  {"business_qualified", true},
+                                  {"retain", retain},
+                                  {"filter_applied", !retain},
+                                  {"verdict", retain ? "accept" : "reject"}};
         }
         return {identity, result};
     }
@@ -507,6 +516,32 @@ TEST_CASE("Laya video path binds independent ROI prompts and keeps negative resu
     CHECK_FALSE(alarms[0].visualRun->Active());
 }
 
+TEST_CASE("Laya video filtering emits only retained ROI alarms", "[visual-flow][video][visual-policy]") {
+    FlowFixture f;
+    f.decisions.applyPolicy = true;
+    Json catalog{{"questions",
+                  {{{"id", "left"}, {"version", 1}, {"type", "noul"}, {"instructions", "fire?"}},
+                   {{"id", "right"}, {"version", 1}, {"type", "noul"}, {"instructions", "smoke?"}}}},
+                 {"default", {"left"}},
+                 {"decision", {{"mode", "filter"}, {"profile_id", "fixture"}}}};
+    std::vector<MsgDynamicKeyValue> params{Parameter("visual.catalog", catalog.dump())};
+    REQUIRE(f.worker.ModifyParam("camera", "task", params));
+    std::vector<MsgTaskArea> regions{Region("left", 0, .5),
+                                     Region("right", .5, .5, {Parameter("visual.questions", "[\"right\"]")})},
+        shield;
+    REQUIRE(f.worker.SetArea("camera", "task", regions, shield));
+    REQUIRE(f.worker.Start());
+    REQUIRE(f.worker.GetQueue()->Insert(f.Frame()));
+    auto result = f.Receive();
+    REQUIRE(result);
+    const auto& alarms = result->taskDataAlarm.alarmData->alarms;
+    REQUIRE(alarms.size() == 1);
+    CHECK(alarms[0].areaId == "right");
+    CHECK(f.decisions.count == 2);
+    f.worker.Stop();
+    CHECK(f.llm.touched == 0);
+}
+
 TEST_CASE("Laya video edit fences an in-flight result and restart prepares a fresh run",
           "[visual-flow][video]") {
     FlowFixture f;
@@ -650,6 +685,39 @@ TEST_CASE("Laya picture pipeline publishes per-node ROI questions without invent
     REQUIRE(base.TaskDetectPic(task, second, secondResponse) == util::ErrorEnum::Success);
     CHECK(secondResponse.resData.visualJudgments[0]["request"]["frame_id"] !=
           records[0]["request"]["frame_id"]);
+    REQUIRE(base.TaskActionDestroy(task));
+    REQUIRE(base.TaskDelete(task));
+    CHECK(f.llm.touched == 0);
+}
+
+TEST_CASE("Laya picture filtering returns retained regions and all review records",
+          "[visual-flow][picture][visual-policy]") {
+    FlowFixture f;
+    f.decisions.applyPolicy = true;
+    PTaskBase base;
+    auto alg      = std::make_shared<ActionAlg>();
+    alg->workFlow = {PictureVisualAction()};
+    auto task     = base.TaskCreate("picture", alg);
+    REQUIRE(task);
+    Json catalog{{"questions",
+                  {{{"id", "left"}, {"version", 1}, {"type", "noul"}, {"instructions", "fire?"}},
+                   {{"id", "right"}, {"version", 1}, {"type", "noul"}, {"instructions", "smoke?"}}}},
+                 {"default", {"left"}},
+                 {"decision", {{"mode", "filter"}, {"profile_id", "fixture"}}}};
+    MsgTaskConfig config;
+    config.params = {Parameter("visual.catalog", catalog.dump())};
+    config.areas  = {Region("left", 0, .5),
+                     Region("right", .5, .5, {Parameter("visual.questions", "[\"right\"]")})};
+    task->params  = config;
+    REQUIRE(base.ModifyTaskParam(task, config));
+    REQUIRE(base.TaskActionInit(task));
+    auto request = PictureRequest();
+    MsgPTaskDetectPicSend response;
+    REQUIRE(base.TaskDetectPic(task, request, response) == util::ErrorEnum::Success);
+    REQUIRE(response.resData.visualJudgments.size() == 2);
+    CHECK(response.resData.visualJudgments[0]["alarm_filter_applied"] == true);
+    CHECK(response.resData.visualJudgments[1]["alarm_filter_applied"] == false);
+    REQUIRE(response.resData.targetList.size() == 1);
     REQUIRE(base.TaskActionDestroy(task));
     REQUIRE(base.TaskDelete(task));
     CHECK(f.llm.touched == 0);

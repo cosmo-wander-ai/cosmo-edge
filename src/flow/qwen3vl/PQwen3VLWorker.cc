@@ -2,6 +2,8 @@
 
 #include "flow/qwen3vl/PQwen3VLWorker.h"
 
+#include <algorithm>
+
 #include "flow/common/VisualRoi.h"
 #include "flow/qwen3vl/OpenAiVlmClient.h"
 #include "service/ai/ILlmInferService.h"
@@ -274,6 +276,8 @@ util::ErrorEnum PQwen3VLWorker::HandPic(AlgDataPtr alg_data) {
         if (alg_data->visualFrameId.empty())
             alg_data->visualFrameId = util::GenerateUUID();
         VisualDecisionAudit audit{visual->Run(), {}};
+        std::vector<AiDetectRstEl> retained;
+        bool qualifiedFilter = false;
         for (const auto& roi : PrepareVisualRois(*alg_data, areas, has_upstream_targets_, true)) {
             auto result =
                 visual->Decide(alg_data->visualFrameId, roi.roi_id, roi.area_id, [frame = roi.frame] {
@@ -288,10 +292,47 @@ util::ErrorEnum PQwen3VLWorker::HandPic(AlgDataPtr alg_data) {
                     return image;
                 });
             audit.records.push_back(VisualRoiRecord(roi, result, GetFlowActionId()));
+            const auto decision = result.response.value("decision", nlohmann::json::object());
+            if (decision.value("mode", "review") == "filter" && decision.value("business_qualified", false)) {
+                qualifiedFilter = true;
+            }
+            if (result.Retain()) {
+                AiDetectRstEl target;
+                bool originalFound = false;
+                if (alg_data->chanDataDetect.detRet && !roi.source_target_id.empty()) {
+                    const auto& targets = alg_data->chanDataDetect.detRet->targets;
+                    const auto original = std::find_if(targets.begin(), targets.end(), [&](const auto& item) {
+                        return item.targetId == roi.source_target_id;
+                    });
+                    if (original != targets.end()) {
+                        target        = *original;
+                        originalFound = true;
+                    }
+                }
+                if (!originalFound) {
+                    target.box          = roi.roi;
+                    target.bLogicResult = true;
+                    target.targetId     = roi.source_target_id;
+                    target.trackIdInfo  = roi.source_track_id;
+                    target.trackId      = roi.source_track_index;
+                    target.classifyRst.push_back({decision.value("verdict", "unknown"), "", 1.0f});
+                }
+                // Overlapping regions may independently accept the same detector target.
+                if (target.targetId.empty() ||
+                    std::none_of(retained.begin(), retained.end(),
+                                 [&](const auto& item) { return item.targetId == target.targetId; }))
+                    retained.push_back(std::move(target));
+            }
             if (result.audit.lease)
                 audit.leases.push_back(result.audit.lease);
         }
-        if (visual->Run()->CommitIfCurrent([&] { alg_data->visualDecisions.push_back(std::move(audit)); }))
+        if (visual->Run()->CommitIfCurrent([&] {
+                if (qualifiedFilter) {
+                    alg_data->chanDataDetect.detRet          = std::make_shared<DataDetTrackClassify>();
+                    alg_data->chanDataDetect.detRet->targets = std::move(retained);
+                }
+                alg_data->visualDecisions.push_back(std::move(audit));
+            }))
             return util::ErrorEnum::Success;
         for (const auto& lease : audit.leases)
             lease->Seal("cancelled");

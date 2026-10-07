@@ -532,3 +532,38 @@ TEST_CASE("Visual audit integration: typed query selects the actual audit store 
     (void)handler.Handle(std::move(invalid), error);
     REQUIRE(error);
 }
+
+TEST_CASE("Visual audit preserves filtered decisions without an alarm row",
+          "[visual-audit-integration][visual-policy]") {
+    AuditFile file;
+    VisualAuditServiceImpl audit(file.path);
+    auto options                  = Options();
+    auto request                  = Request();
+    request.mode                  = "filter";
+    request.policyId              = "fixture";
+    request.qualificationRevision = std::string(64, 'f');
+    options.acceptance            = {{"manifest_sha256", options.release.manifestSha256},
+                                     {"profiles",
+                                      {{{"id", "fixture"},
+                                        {"status", "accepted"},
+                                        {"task_ids", {"task"}},
+                                        {"configuration_sha256", request.qualificationRevision},
+                                        {"evidence_ref", "native-fixture"},
+                                        {"aggregation", "all"},
+                                        {"unknown", "keep"},
+                                        {"questions",
+                                         {{{"compiled_sha256", std::string(64, 'e')},
+                                           {"positive_options", {"false"}},
+                                           {"min_probability", .8},
+                                           {"min_margin", .2}}}}}}}};
+    VisualDecisionServiceImpl service(options, Transport, &audit);
+    auto result = service.Decide(request, Run(), Image, 1s);
+    REQUIRE(result.AllCompleted());
+    REQUIRE_FALSE(result.Retain());
+    result.audit.lease->Seal("filtered");
+    const auto row = Row(audit, Id(result));
+    CHECK(row["response"]["decision"]["verdict"] == "reject");
+    CHECK(row["delivery"] == "filtered");
+    CHECK(row["events"].empty());
+    CHECK(file.database->execAndGet("SELECT COUNT(*) FROM t_commonEvent").getInt() == 0);
+}

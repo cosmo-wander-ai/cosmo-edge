@@ -67,6 +67,9 @@ struct VisualDecisionRequest {
     std::string frameId;
     std::string roiId;
     std::vector<VisualQuestionRef> questions;
+    std::string mode{"review"};
+    std::string policyId;
+    std::string qualificationRevision;
 };
 
 struct VisualDecisionResult {
@@ -77,6 +80,11 @@ struct VisualDecisionResult {
     VisualAuditReceipt audit;
     bool AllCompleted() const {
         return response.value("status", std::string()) == "completed";
+    }
+    bool Retain() const {
+        const auto decision = response.find("decision");
+        return decision == response.end() || !decision->value("business_qualified", false) ||
+               !decision->value("filter_applied", false) || decision->value("retain", true);
     }
 };
 
