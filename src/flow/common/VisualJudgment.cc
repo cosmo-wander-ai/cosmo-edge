@@ -48,7 +48,8 @@ void UpdateVisualParameters(VisualParameters& values, const std::vector<MsgDynam
 }
 
 VisualJudgment::VisualJudgment(const std::string& task, const std::string& prompt, bool advanced,
-                               const VisualParameters& parameters, const std::vector<MsgTaskArea>& areas) {
+                               const VisualParameters& parameters, const std::vector<MsgTaskArea>& areas,
+                               const std::optional<std::map<std::string, std::string>>& semanticPrompts) {
     const auto epoch = util::GenerateUUID();
     run_             = std::make_shared<service::VisualDecisionRun>(task, epoch, "invalid_configuration");
     try {
@@ -121,6 +122,18 @@ VisualJudgment::VisualJudgment(const std::string& task, const std::string& promp
             }
         }
         Require(!catalog.empty() && catalog.size() <= 32, "too_many_visual_questions");
+        semanticFallback_ = semanticPrompts.has_value() && selection == parameters.end();
+        if (semanticFallback_) {
+            Require(semanticPrompts->size() + catalog.size() <= 512, "too_many_semantic_questions");
+            for (const auto& [key, instruction] : *semanticPrompts) {
+                Require(!key.empty() && key.size() <= 1024 && !instruction.empty(),
+                        "invalid_semantic_question");
+                auto id = "semantic-" + Hash(key).substr(0, 24);
+                Require(!catalog.count(id), "reserved_question_identity");
+                catalog[id]            = LegacyQuestion(id, instruction, true);
+                semanticBindings_[key] = {id};
+            }
+        }
         for (const auto& [area, ids] : bindings_)
             for (const auto& id : ids)
                 Require(catalog.count(id) == 1, "unknown_question_binding");
@@ -134,12 +147,14 @@ VisualJudgment::VisualJudgment(const std::string& task, const std::string& promp
         const auto revision = Hash(Json{
             {"catalog", catalog},
             {"bindings", bindings_},
+            {"semantic_bindings", semanticBindings_},
+            {"semantic_fallback", semanticFallback_},
             {"geometry", geometry},
             {"timeout_ms", timeout_.count()},
             {"mode", "review"}}.dump());
         run_                = std::make_shared<service::VisualDecisionRun>(task, epoch, revision);
-        prepared_ =
-            service::ServiceRegistry::Instance().Get<service::IVisualQuestionService>().Prepare(specs_, run_);
+        prepared_ = service::ServiceRegistry::Instance().Get<service::IVisualQuestionService>().Prepare(
+            specs_, run_, std::chrono::milliseconds(specs_.size() > 32 ? 120000 : 60000));
     } catch (const ConfigError& error) {
         failure_ = error.what();
     } catch (...) {
@@ -149,20 +164,33 @@ VisualJudgment::VisualJudgment(const std::string& task, const std::string& promp
 
 service::VisualDecisionResult VisualJudgment::Decide(const std::string& frameId, const std::string& roiId,
                                                      const std::string& areaId,
-                                                     service::IVisualDecisionService::Prepare prepare) const {
-    Json identity = {{"request_id", util::GenerateUUID()},
-                     {"task_id", run_->taskId},
-                     {"run_epoch", run_->runEpoch},
-                     {"config_revision", run_->configRevision},
-                     {"frame_id", frameId},
-                     {"roi_id", roiId},
-                     {"manifest_sha256", nullptr},
-                     {"items", Json::array()}};
-    auto selected = bindings_.find(areaId);
-    if (selected == bindings_.end())
+                                                     service::IVisualDecisionService::Prepare prepare,
+                                                     const std::string& semanticKey) const {
+    Json identity                       = {{"request_id", util::GenerateUUID()},
+                                           {"task_id", run_->taskId},
+                                           {"run_epoch", run_->runEpoch},
+                                           {"config_revision", run_->configRevision},
+                                           {"frame_id", frameId},
+                                           {"roi_id", roiId},
+                                           {"manifest_sha256", nullptr},
+                                           {"items", Json::array()}};
+    auto selected                       = bindings_.find(areaId);
+    const std::vector<std::string>* ids = nullptr;
+    bool missingSemantic                = false;
+    if (selected != bindings_.end() && !areaId.empty())
+        ids = &selected->second;
+    else if (semanticFallback_ && !semanticKey.empty()) {
+        auto semantic   = semanticBindings_.find(semanticKey);
+        missingSemantic = semantic == semanticBindings_.end();
+        if (!missingSemantic)
+            ids = &semantic->second;
+    } else {
         selected = bindings_.find("");
-    if (selected != bindings_.end()) {
-        for (const auto& id : selected->second) {
+        if (selected != bindings_.end())
+            ids = &selected->second;
+    }
+    if (ids) {
+        for (const auto& id : *ids) {
             auto spec =
                 std::find_if(specs_.begin(), specs_.end(), [&](const auto& s) { return s.itemId == id; });
             if (spec != specs_.end())
@@ -179,6 +207,10 @@ service::VisualDecisionResult VisualJudgment::Decide(const std::string& frameId,
         return unknown("stale_task_run");
     if (!failure_.empty())
         return unknown(failure_);
+    if (missingSemantic)
+        return unknown("unprepared_semantic_label");
+    if (!ids)
+        return unknown("missing_question_binding");
     if (!prepared_.valid() || prepared_.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready)
         return unknown("configuration_preparing");
     try {
@@ -186,7 +218,7 @@ service::VisualDecisionResult VisualJudgment::Decide(const std::string& frameId,
         if (!prepared.ready)
             return unknown(prepared.reason);
         service::VisualDecisionRequest request{frameId, roiId, {}};
-        for (const auto& id : selected->second) {
+        for (const auto& id : *ids) {
             auto ref = std::find_if(prepared.questions.begin(), prepared.questions.end(),
                                     [&](const auto& q) { return q.itemId == id; });
             if (ref == prepared.questions.end())

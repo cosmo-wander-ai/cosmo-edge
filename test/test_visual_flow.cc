@@ -3,6 +3,7 @@
 #include <thread>
 
 #include "catch_amalgamated.hpp"
+#include "flow/alarm/AlarmVisualPlan.h"
 #include "flow/common/VisualJudgment.h"
 #include "service/ai/impl/VisualDecisionProtocol.h"
 #include "support/ScopedServiceOverride.h"
@@ -182,6 +183,72 @@ TEST_CASE("Visual configuration rejects invalid bindings and unqualified filteri
     CHECK(result.response.at("status") == "unknown");
     CHECK(decisions.count == 0);
     CHECK(questions.count == 0);
+}
+
+TEST_CASE("Alarm visual configuration preserves legacy subject priority and prepares each model label once",
+          "[visual-flow][alarm-plan]") {
+    Questions questions;
+    Decisions decisions;
+    test::ScopedServiceOverride<IVisualQuestionService> q(questions);
+    test::ScopedServiceOverride<IVisualDecisionService> d(decisions);
+    std::vector<std::string> labels;
+    for (int i = 0; i < 80; ++i)
+        labels.push_back("class-" + std::to_string(i));
+    AlarmVisualPlan plan("task", "", "fire detection", labels, {}, {});
+    REQUIRE(questions.latest.size() == 81);
+    const int prepared = questions.count;
+    DataAlarmUnit unit;
+    unit.confidence.push_back({"class-79", "", 0.9F});
+    unit.attrRsts.push_back({"", "class-2", "", 0.8F});
+    CHECK(plan.Subject(unit).source == "confidence_label");
+    auto confidence = plan.Decide(unit, "frame", "roi", Image);
+    REQUIRE(confidence.AllCompleted());
+    const auto confidenceId = confidence.request["items"][0]["question_id"];
+    unit.confidence.clear();
+    CHECK(plan.Subject(unit).source == "attribute_label");
+    auto attribute = plan.Decide(unit, "frame", "roi", Image);
+    REQUIRE(attribute.AllCompleted());
+    CHECK(attribute.request["items"][0]["question_id"] != confidenceId);
+    unit.attrRsts.clear();
+    CHECK(plan.Subject(unit).source == "algorithm_name");
+    CHECK(plan.Decide(unit, "frame", "roi", Image).request["items"][0]["question_id"] == "legacy-default");
+    CHECK(questions.count == prepared);
+    AlarmVisualPlan custom("task", "custom behavior", "name", labels, {}, {});
+    CHECK(questions.latest.size() == 1);
+    unit.confidence.push_back({"not in catalog", "", 0.9F});
+    CHECK(custom.Subject(unit).source == "custom");
+    CHECK(custom.Decide(unit, "frame", "roi", Image).AllCompleted());
+    CHECK(SelectAlarmReviewSubject({}, "", "").source == "generic");
+    CHECK(AlarmReviewInstruction(SelectAlarmReviewSubject({}, "", "")) ==
+          "告警审核。图片为按告警框裁剪后的目标图。判断图片中是否存在有效目标或对应行为。");
+}
+
+TEST_CASE(
+    "Unknown alarm labels never use a different fallback question and explicit ROI questions take precedence",
+    "[visual-flow][alarm-plan]") {
+    Questions questions;
+    Decisions decisions;
+    test::ScopedServiceOverride<IVisualQuestionService> q(questions);
+    test::ScopedServiceOverride<IVisualDecisionService> d(decisions);
+    auto area = Region("door", 0, 0.5, {Parameter("keywords", "door behavior")});
+    AlarmVisualPlan plan("task", "", "name", {"known"}, {}, {area});
+    DataAlarmUnit unit;
+    unit.confidence.push_back({"unknown", "", 0.9F});
+    auto result = plan.Decide(unit, "frame", "roi", Image);
+    CHECK(result.response["reason"] == "unprepared_semantic_label");
+    CHECK(decisions.count == 0);
+    unit.areaId = "door";
+    REQUIRE(plan.Decide(unit, "frame", "roi", Image).AllCompleted());
+    CHECK(decisions.count == 1);
+    Json definition = {
+        {"id", "explicit"}, {"version", 1}, {"type", "noul"}, {"instructions", "a custom task question"}};
+    VisualParameters config{{"visual.question.explicit", definition.dump()},
+                            {"visual.questions", "[\"explicit\"]"}};
+    AlarmVisualPlan explicitPlan("task", "", "name", {}, config, {});
+    REQUIRE(explicitPlan.Decide(unit, "frame", "roi", Image).AllCompleted());
+    CHECK(decisions.requests.back().questions[0].questionId == "explicit");
+    plan.Invalidate();
+    CHECK(plan.Decide(unit, "frame", "roi", Image).response["reason"] == "stale_task_run");
 }
 
 #if defined(COSMO_MEDIA_USE_CPU_BACKEND)

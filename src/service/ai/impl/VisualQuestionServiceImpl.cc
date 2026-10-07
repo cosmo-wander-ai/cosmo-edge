@@ -114,7 +114,7 @@ std::shared_future<VisualQuestionPreparation> VisualQuestionServiceImpl::Prepare
         return reject("compiler_not_configured");
     if (!run || !run->Active())
         return reject("stale_task_run");
-    if (questions.empty() || questions.size() > 32 || timeout.count() < 1 || timeout.count() > 120000)
+    if (questions.empty() || questions.size() > 512 || timeout.count() < 1 || timeout.count() > 120000)
         return reject("invalid_compile_request");
     Json request = {{"questions", Json::array()}};
     std::set<std::string> ids;
@@ -134,7 +134,7 @@ std::shared_future<VisualQuestionPreparation> VisualQuestionServiceImpl::Prepare
     } catch (...) {
         return reject("invalid_compile_request");
     }
-    if (job->input.size() > visual::kMaxJson)
+    if (job->input.size() > 16 * visual::kMaxJson)
         return reject("compile_request_too_large");
     job->inputSha256 = visual::Sha256(reinterpret_cast<const uint8_t*>(job->input.data()), job->input.size());
     job->questions   = std::move(questions);
@@ -163,6 +163,52 @@ std::shared_future<VisualQuestionPreparation> VisualQuestionServiceImpl::Prepare
 }
 
 VisualQuestionPreparation VisualQuestionServiceImpl::Compile(const Job& job) {
+    // A configuration may reference a large class catalog. Keep each compiler
+    // process bounded to its existing 32-question/JSON contract and publish the
+    // complete catalog only after every source-bound receipt has been verified.
+    if (job.questions.size() > 32 || job.input.size() > visual::kMaxJson) {
+        VisualQuestionPreparation combined;
+        combined.manifestSha256 = options_.manifestSha256;
+        combined.inputSha256    = job.inputSha256;
+        combined.cacheHit       = true;
+        size_t offset           = 0;
+        while (offset < job.questions.size()) {
+            if (stopped_)
+                return Failed("service_stopped");
+            if (!job.run->Active())
+                return Failed("stale_task_run");
+            if (Clock::now() >= job.deadline)
+                return Failed("compile_deadline_exceeded");
+            Job part;
+            part.run      = job.run;
+            part.deadline = job.deadline;
+            Json request  = {{"questions", Json::array()}};
+            while (offset < job.questions.size() && part.questions.size() < 32) {
+                const auto& spec = job.questions[offset];
+                request["questions"].push_back({{"question", spec.question}, {"text_state", spec.textState}});
+                auto encoded = request.dump();
+                if (encoded.size() > visual::kMaxJson) {
+                    if (part.questions.empty())
+                        return Failed("compile_request_too_large");
+                    break;
+                }
+                part.questions.push_back(spec);
+                part.input = std::move(encoded);
+                ++offset;
+            }
+            part.inputSha256 =
+                visual::Sha256(reinterpret_cast<const uint8_t*>(part.input.data()), part.input.size());
+            auto result = Compile(part);
+            if (!result.ready)
+                return Failed(result.reason);
+            combined.cacheHit = combined.cacheHit && result.cacheHit;
+            combined.questions.insert(combined.questions.end(), result.questions.begin(),
+                                      result.questions.end());
+        }
+        combined.ready = true;
+        return combined;
+    }
+
     const std::vector<std::string> argv{
         options_.python,     options_.script,         "--manifest", options_.manifestPath,
         "--manifest-sha256", options_.manifestSha256, "--cache",    options_.cacheDirectory};

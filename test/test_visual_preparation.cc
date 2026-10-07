@@ -225,3 +225,76 @@ TEST_CASE("Replacing pending visual configurations frees stale queue slots", "[v
     CHECK(other.get().ready);
     CHECK(replacement.get().ready);
 }
+
+TEST_CASE("Large visual catalogs compile bounded batches with one deadline and atomic activation",
+          "[visual-preparation][catalog]") {
+    const int fault = GENERATE(0, 1, 2);
+    std::vector<VisualQuestionSpec> specs;
+    for (int i = 0; i < 81; ++i) {
+        auto spec           = Specs()[0];
+        spec.itemId         = "label-" + std::to_string(i);
+        spec.question["id"] = spec.itemId;
+        specs.push_back(std::move(spec));
+    }
+    auto run  = Run();
+    int calls = 0;
+    std::vector<size_t> batches;
+    std::vector<std::chrono::steady_clock::time_point> deadlines;
+    VisualQuestionServiceImpl service(Options(),
+                                      [&](const auto&, const auto& input, auto deadline, const auto&) {
+                                          ++calls;
+                                          batches.push_back(Json::parse(input)["questions"].size());
+                                          deadlines.push_back(deadline);
+                                          auto result         = Receipt(input);
+                                          result["cache_hit"] = true;
+                                          if (calls == 2 && fault == 1)
+                                              result["binding"]["manifest_sha256"] = std::string(64, 'f');
+                                          if (calls == 2 && fault == 2)
+                                              run->Invalidate();
+                                          return Output(result);
+                                      });
+    auto result = service.Prepare(specs, run, 5s).get();
+    if (fault == 0) {
+        REQUIRE(result.ready);
+        REQUIRE(result.questions.size() == 81);
+        CHECK(batches == std::vector<size_t>{32, 32, 17});
+        CHECK(result.questions.back().itemId == "label-80");
+        CHECK(result.cacheHit);
+    } else {
+        CHECK_FALSE(result.ready);
+        CHECK(result.questions.empty());
+        CHECK(calls == 2);
+        CHECK(result.reason == (fault == 1 ? "invalid_compiler_receipt" : "stale_task_run"));
+    }
+    CHECK(std::all_of(deadlines.begin(), deadlines.end(), [&](auto d) { return d == deadlines.front(); }));
+}
+
+TEST_CASE("Visual catalog batching obeys byte and aggregate limits without truncation",
+          "[visual-preparation][catalog]") {
+    size_t calls = 0;
+    VisualQuestionServiceImpl service(Options(), [&](const auto&, const auto& input, auto, const auto&) {
+        ++calls;
+        CHECK(input.size() <= visual::kMaxJson);
+        CHECK(Json::parse(input)["questions"].size() <= 32);
+        return Output(Receipt(input));
+    });
+    auto one                     = Specs()[0];
+    one.question["instructions"] = std::string(4000, 'q');
+    std::vector<VisualQuestionSpec> specs;
+    for (int i = 0; i < 20; ++i) {
+        auto spec           = one;
+        spec.itemId         = "q-" + std::to_string(i);
+        spec.question["id"] = spec.itemId;
+        specs.push_back(std::move(spec));
+    }
+    auto result = service.Prepare(specs, Run(), 5s).get();
+    REQUIRE(result.ready);
+    CHECK(result.questions.size() == 20);
+    CHECK(calls == 2);
+    const auto before            = calls;
+    one.question["instructions"] = std::string(visual::kMaxJson + 1, 'x');
+    CHECK(service.Prepare({one}, Run(), 5s).get().reason == "compile_request_too_large");
+    CHECK(service.Prepare(std::vector<VisualQuestionSpec>(513, one), Run(), 5s).get().reason ==
+          "invalid_compile_request");
+    CHECK(calls == before);
+}

@@ -2,6 +2,7 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "service/ai/IVisualQuestionService.h"
@@ -20,7 +21,8 @@ void UpdateVisualParameters(VisualParameters& values, const std::vector<MsgDynam
 class VisualJudgment {
 public:
     VisualJudgment(const std::string& task, const std::string& prompt, bool advanced,
-                   const VisualParameters& parameters, const std::vector<MsgTaskArea>& areas);
+                   const VisualParameters& parameters, const std::vector<MsgTaskArea>& areas,
+                   const std::optional<std::map<std::string, std::string>>& semanticPrompts = std::nullopt);
     void Invalidate() {
         run_->Invalidate();
     }
@@ -29,12 +31,15 @@ public:
     }
     service::VisualDecisionResult Decide(const std::string& frameId, const std::string& roiId,
                                          const std::string& areaId,
-                                         service::IVisualDecisionService::Prepare prepare) const;
+                                         service::IVisualDecisionService::Prepare prepare,
+                                         const std::string& semanticKey = "") const;
 
 private:
     std::shared_ptr<service::VisualDecisionRun> run_;
     std::vector<service::VisualQuestionSpec> specs_;
     std::map<std::string, std::vector<std::string>> bindings_;
+    std::map<std::string, std::vector<std::string>> semanticBindings_;
+    bool semanticFallback_{false};
     std::shared_future<service::VisualQuestionPreparation> prepared_;
     std::string failure_;
     std::chrono::milliseconds timeout_{1500};
