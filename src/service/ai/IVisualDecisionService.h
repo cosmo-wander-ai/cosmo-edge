@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 
+#include "service/ai/IVisualAuditService.h"
+
 namespace cosmo::service {
 
 // A task configuration is immutable for the lifetime of a run. Call Invalidate
@@ -72,6 +74,7 @@ struct VisualDecisionResult {
     // No image bytes or prompts are copied into the audit record.
     nlohmann::json request;
     nlohmann::json response;
+    VisualAuditReceipt audit;
     bool AllCompleted() const {
         return response.value("status", std::string()) == "completed";
     }

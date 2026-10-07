@@ -288,10 +288,14 @@ util::ErrorEnum PQwen3VLWorker::HandPic(AlgDataPtr alg_data) {
                     return image;
                 });
             audit.records.push_back(VisualRoiRecord(roi, result, GetFlowActionId()));
+            if (result.audit.lease)
+                audit.leases.push_back(result.audit.lease);
         }
-        return visual->Run()->CommitIfCurrent([&] { alg_data->visualDecisions.push_back(std::move(audit)); })
-                   ? util::ErrorEnum::Success
-                   : util::ErrorEnum::ActionStop;
+        if (visual->Run()->CommitIfCurrent([&] { alg_data->visualDecisions.push_back(std::move(audit)); }))
+            return util::ErrorEnum::Success;
+        for (const auto& lease : audit.leases)
+            lease->Seal("cancelled");
+        return util::ErrorEnum::ActionStop;
     }
 
     if (!open_ai_config.Enabled() &&

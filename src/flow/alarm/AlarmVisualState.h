@@ -20,6 +20,8 @@ inline void AppendVisualState(DataAlarmUnit& destination, const DataAlarmUnit& s
                                        source.visualJudgments.end());
     destination.visualCandidates.insert(destination.visualCandidates.end(), source.visualCandidates.begin(),
                                         source.visualCandidates.end());
+    destination.visualAuditLeases.insert(destination.visualAuditLeases.end(),
+                                         source.visualAuditLeases.begin(), source.visualAuditLeases.end());
     auto runs = VisualRuns(source);
     destination.visualRuns.insert(destination.visualRuns.end(), runs.begin(), runs.end());
     service::NormalizeVisualRuns(destination.visualRuns);

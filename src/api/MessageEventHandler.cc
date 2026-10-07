@@ -5,7 +5,9 @@
 #include <chrono>
 #include <fstream>
 
+#include "service/ai/IVisualDecisionService.h"
 #include "service/algorithm/IAlgorithmQuery.h"
+#include "service/detail/ServiceRegistry.h"
 #include "service/event/AlarmExport.h"
 #include "service/event/IAlarmRecordService.h"
 #include "service/event/LayaReviewStore.h"
@@ -38,7 +40,22 @@ Event::MsgPageSend MessageEventHandler::Handle(Event::MsgPageRecv&& data,
 Event::MsgLayaReviewPageSend MessageEventHandler::Handle(Event::MsgLayaReviewPageRecv&& data,
                                                          std::error_condition& errc) const {
     Event::MsgLayaReviewPageSend response;
+    if (!data.format.empty() && data.format != "typed-v1") {
+        errc = util::ErrorEnum::InvalidParam;
+        return response;
+    }
     try {
+        if (data.format == "typed-v1") {
+            auto& registry   = service::ServiceRegistry::Instance();
+            auto& audit      = registry.Get<service::IVisualAuditService>();
+            response.resData = audit.Page(data.eventId, data.requestId, data.pageNum, data.pageSize);
+            response.resData["format"]              = "typed-v1";
+            response.resData["audit_runtime"]       = audit.Status();
+            response.resData["automatic_filtering"] = false;
+            if (registry.Has<service::IVisualDecisionService>())
+                response.resData["runtime"] = registry.Get<service::IVisualDecisionService>().Counters();
+            return response;
+        }
         response.resData = LayaReviewStore::Instance().Page(data.eventId, data.pageNum, data.pageSize);
         response.resData["runtime"] = {{"state", "unavailable"}, {"automatic_filtering", false}};
         try {

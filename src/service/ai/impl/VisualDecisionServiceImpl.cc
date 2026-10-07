@@ -39,8 +39,11 @@ VisualDecisionOptions VisualDecisionOptions::FromEnvironment() {
     return options;
 }
 
-VisualDecisionServiceImpl::VisualDecisionServiceImpl(VisualDecisionOptions options, Transport transport)
-    : options_(std::move(options)), transport_(transport ? std::move(transport) : visual::Exchange) {
+VisualDecisionServiceImpl::VisualDecisionServiceImpl(VisualDecisionOptions options, Transport transport,
+                                                     IVisualAuditService* audit)
+    : options_(std::move(options)),
+      transport_(transport ? std::move(transport) : visual::Exchange),
+      audit_(audit) {
     if (options_.capacity == 0 || options_.capacity > 32 || options_.perTaskLimit == 0 ||
         options_.perTaskLimit > options_.capacity)
         throw std::invalid_argument("invalid_visual_queue_limits");
@@ -54,7 +57,7 @@ VisualDecisionServiceImpl::~VisualDecisionServiceImpl() {
 
 bool VisualDecisionServiceImpl::Available() const {
     std::lock_guard<std::mutex> lock(mutex_);
-    return options_.release.Valid() && !stopped_;
+    return options_.release.Valid() && !stopped_ && (!audit_ || audit_->Status().value("available", false));
 }
 
 VisualDecisionResult VisualDecisionServiceImpl::Decide(const VisualDecisionRequest& request,
@@ -67,21 +70,32 @@ VisualDecisionResult VisualDecisionServiceImpl::Decide(const VisualDecisionReque
     job->run       = std::move(run);
     job->prepare   = std::move(prepare);
     job->questions = request.questions;
-    job->identity  = {{"protocol", visual::kProtocol},
-                      {"profile", visual::kProfile},
-                      {"manifest_sha256", options_.release.manifestSha256},
-                      {"request_id", cosmo::util::GenerateUUID()},
-                      {"frame_id", request.frameId},
-                      {"roi_id", request.roiId},
-                      {"task_id", job->run ? job->run->taskId : ""},
-                      {"run_epoch", job->run ? job->run->runEpoch : ""},
-                      {"config_revision", job->run ? job->run->configRevision : ""},
-                      {"items", Json::array()}};
+    job->identity  = {
+        {"protocol", visual::kProtocol},
+        {"profile", visual::kProfile},
+        {"manifest_sha256",
+         options_.release.manifestSha256.empty() ? Json(nullptr) : Json(options_.release.manifestSha256)},
+        {"request_id", cosmo::util::GenerateUUID()},
+        {"frame_id", request.frameId},
+        {"roi_id", request.roiId},
+        {"task_id", job->run ? job->run->taskId : ""},
+        {"run_epoch", job->run ? job->run->runEpoch : ""},
+        {"config_revision", job->run ? job->run->configRevision : ""},
+        {"items", Json::array()}};
     for (const auto& question : request.questions)
         job->identity["items"].push_back(visual::ItemIdentity(question));
+    auto receipt = audit_ ? audit_->Begin(job->identity) : VisualAuditReceipt{};
+    auto audited = [&](VisualDecisionResult result) {
+        // Persist the caller-visible deadline/cancellation outcome, not a late
+        // worker completion. No database work runs under the queue mutex.
+        if (audit_)
+            audit_->Complete(receipt, result.response);
+        result.audit = std::move(receipt);
+        return result;
+    };
     auto reject = [&](const std::string& reason) {
         ++rejected_;
-        return Unknown(job->identity, reason);
+        return audited(Unknown(job->identity, reason));
     };
     if (timeout.count() <= 0 || timeout.count() > 30000)
         return reject("invalid_timeout");
@@ -98,24 +112,35 @@ VisualDecisionResult VisualDecisionServiceImpl::Decide(const VisualDecisionReque
         return reject("stale_task_run");
     if (!options_.release.Valid())
         return reject(options_.unavailableReason);
+    if (audit_ && !receipt.Begun())
+        return reject("audit_store_unavailable");
+    if (Clock::now() >= job->deadline)
+        return reject("deadline_exceeded");
     job->identity["deadline_monotonic_ms"] =
         visual::MonotonicMilliseconds() +
         std::chrono::duration_cast<std::chrono::milliseconds>(job->deadline - Clock::now()).count();
     auto future = job->promise.get_future();
+    std::string admissionFailure;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         if (stopped_)
-            return reject("service_stopped");
-        if (outstanding_ >= options_.capacity)
-            return reject("queue_full");
-        const auto found = perTask_.find(job->run->taskId);
-        if (found != perTask_.end() && found->second >= options_.perTaskLimit)
-            return reject("task_queue_full");
-        queue_.push_back(job);
-        ++outstanding_;
-        ++perTask_[job->run->taskId];
-        ++accepted_;
+            admissionFailure = "service_stopped";
+        else if (outstanding_ >= options_.capacity)
+            admissionFailure = "queue_full";
+        else {
+            const auto found = perTask_.find(job->run->taskId);
+            if (found != perTask_.end() && found->second >= options_.perTaskLimit)
+                admissionFailure = "task_queue_full";
+            else {
+                queue_.push_back(job);
+                ++outstanding_;
+                ++perTask_[job->run->taskId];
+                ++accepted_;
+            }
+        }
     }
+    if (!admissionFailure.empty())
+        return reject(admissionFailure);
     ready_.notify_one();
     if (future.wait_until(job->deadline) != std::future_status::ready)
         Finish(job, Unknown(job->identity, "deadline_exceeded"));
@@ -131,7 +156,7 @@ VisualDecisionResult VisualDecisionServiceImpl::Decide(const VisualDecisionReque
         ++partial_;
     else
         ++unknown_;
-    return result;
+    return audited(std::move(result));
 }
 
 void VisualDecisionServiceImpl::Finish(const std::shared_ptr<Job>& job, VisualDecisionResult result) {
@@ -239,9 +264,11 @@ void VisualDecisionServiceImpl::Work() {
 
 nlohmann::json VisualDecisionServiceImpl::Counters() const {
     std::lock_guard<std::mutex> lock(mutex_);
+    const auto auditStatus = audit_ ? audit_->Status() : Json{{"available", false}};
     return {{"provider", "laya"},
             {"manifest_sha256", options_.release.manifestSha256},
-            {"available", options_.release.Valid() && !stopped_},
+            {"available",
+             options_.release.Valid() && !stopped_ && (!audit_ || auditStatus.value("available", false))},
             {"accepted", accepted_.load()},
             {"rejected", rejected_.load()},
             {"completed", completed_.load()},
@@ -250,6 +277,7 @@ nlohmann::json VisualDecisionServiceImpl::Counters() const {
             {"outstanding", outstanding_},
             {"queued", queue_.size()},
             {"per_task", perTask_},
+            {"audit", auditStatus},
             {"automatic_filtering", false}};
 }
 }  // namespace cosmo::service

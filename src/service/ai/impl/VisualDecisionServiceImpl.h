@@ -28,7 +28,8 @@ public:
     using Transport = std::function<visual::Json(const std::string&, const visual::Json&,
                                                  const std::vector<uint8_t>&, visual::Clock::time_point)>;
     explicit VisualDecisionServiceImpl(
-        VisualDecisionOptions options = VisualDecisionOptions::FromEnvironment(), Transport transport = {});
+        VisualDecisionOptions options = VisualDecisionOptions::FromEnvironment(), Transport transport = {},
+        IVisualAuditService* audit = nullptr);
     ~VisualDecisionServiceImpl() override;
     bool Available() const override;
     VisualDecisionResult Decide(const VisualDecisionRequest& request, std::shared_ptr<VisualDecisionRun> run,
@@ -50,6 +51,7 @@ private:
     void Finish(const std::shared_ptr<Job>& job, VisualDecisionResult result);
     const VisualDecisionOptions options_;
     const Transport transport_;
+    IVisualAuditService* const audit_;
     mutable std::mutex mutex_;
     std::condition_variable ready_;
     std::deque<std::shared_ptr<Job>> queue_;

@@ -14,6 +14,7 @@ namespace cosmo {
 struct VisualDecisionAudit {
     std::shared_ptr<service::VisualDecisionRun> run;
     std::vector<nlohmann::json> records;
+    std::vector<std::shared_ptr<service::VisualAuditLease>> leases;
 };
 
 // Note: AlgDataCopy

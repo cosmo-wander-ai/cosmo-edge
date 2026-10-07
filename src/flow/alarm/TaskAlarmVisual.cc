@@ -162,6 +162,8 @@ void TaskAlarm::ReviewVisualAlarmEvent(const CMsgOnEventsReq& event, DataAlarmUn
             std::lock_guard<std::mutex> lock(prepared->mutex);
             geometry = prepared->metadata;
         }
+        if (result.audit.lease)
+            unit.visualAuditLeases.push_back(result.audit.lease);
         unit.visualJudgments.push_back({{"provider", "laya_v"},
                                         {"mode", "review"},
                                         {"entrypoint", "alarm_review"},
@@ -176,6 +178,7 @@ void TaskAlarm::ReviewVisualAlarmEvent(const CMsgOnEventsReq& event, DataAlarmUn
                                         {"alarm_box", {box.x, box.y, box.width, box.height}},
                                         {"subject_source", candidate.plan->Subject(subject).source},
                                         {"roi", std::move(geometry)},
+                                        {"audit", std::move(result.audit.metadata)},
                                         {"request", std::move(result.request)},
                                         {"result", std::move(result.response)}});
     }

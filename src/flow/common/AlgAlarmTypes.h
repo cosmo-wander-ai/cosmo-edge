@@ -18,7 +18,8 @@
 namespace cosmo {
 namespace service {
     class VisualDecisionRun;
-}
+    class VisualAuditLease;
+}  // namespace service
 
 enum class AlarmDataType {
     AlarmDataTypeTrack,               // Alarm with tracking and trackId
@@ -163,6 +164,7 @@ struct DataAlarmUnit {
     std::vector<nlohmann::json> visualJudgments;
     std::shared_ptr<service::VisualDecisionRun> visualRun;
     std::vector<std::shared_ptr<service::VisualDecisionRun>> visualRuns;
+    std::vector<std::shared_ptr<service::VisualAuditLease>> visualAuditLeases;
     std::vector<AlarmVisualCandidate> visualCandidates;
 };
 

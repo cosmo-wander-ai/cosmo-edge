@@ -12,6 +12,10 @@ namespace cosmo {
 namespace Event {
     struct MsgLayaReviewPageRecv : public MsgRecvHead {
         std::string eventId;
+        std::string requestId;
+        // Empty preserves the original helmet-review response; typed-v1 uses
+        // the main alarm database and per-question numerical audit schema.
+        std::string format;
         int pageNum{1};
         int pageSize{20};
     };

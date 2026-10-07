@@ -5,6 +5,7 @@
 #include <SQLiteCpp/Exception.h>
 
 #include <filesystem>
+#include <set>
 #include <thread>
 
 #include "service/detail/ServiceRegistry.h"
@@ -184,16 +185,49 @@ cosmo::db::FaceTaskEventData AlarmRecordServiceImpl::AlarmDataToFaceEventData(
 }
 
 bool AlarmRecordServiceImpl::Insert(cosmo::AlarmRecordUnit& unit) {
+    std::set<std::string> uniqueAudits;
+    auto property    = nlohmann::json::parse(unit.property, nullptr, false);
+    const bool typed = property.is_object() && property.contains("visualJudgments") &&
+                       property["visualJudgments"].is_array() && !property["visualJudgments"].empty();
+    if (typed) {
+        try {
+            for (auto& record : property["visualJudgments"]) {
+                if (!record.contains("audit"))
+                    continue;
+                auto& audit           = record["audit"];
+                audit["alarm_record"] = "stored";
+                if (audit.value("begin", std::string()) != "stored")
+                    continue;  // The event retains the explicit audit write failure.
+                const auto id = audit.at("request_id").get<std::string>();
+                if (audit.at("schema") != 1 || id.empty() || record.at("request").at("request_id") != id)
+                    return false;
+                uniqueAudits.insert(id);
+            }
+            unit.property = property.dump();
+        } catch (...) {
+            return false;
+        }
+    }
     auto data = AlarmDataToEventData(unit);
+    const std::vector<std::string> audits(uniqueAudits.begin(), uniqueAudits.end());
+    const auto insert = [&] {
+        return audits.empty() ? db_event_->Insert(data) : db_event_->Insert(data, audits);
+    };
     try {
-        return db_event_->Insert(data);
+        return insert();
     } catch (const SQLite::Exception&) {
         std::this_thread::sleep_for(timing::kSlowPollInterval);
         try {
-            return db_event_->Insert(data);
+            return insert();
         } catch (const SQLite::Exception& e) {
             LOG_WARN("Insert:{} catch error:{}", unit.id, e.what());
         }
+    }
+    if (typed) {
+        for (auto& record : property["visualJudgments"])
+            if (record.contains("audit"))
+                record["audit"]["alarm_record"] = "failed";
+        unit.property = property.dump();
     }
     return false;
 }

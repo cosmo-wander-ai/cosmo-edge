@@ -491,9 +491,22 @@ bool TaskAlarm::FillAlarmData(AlgDataPtr algData) {
             m_lastAlarmTime = now;
             m_overviewRecInst.OverviewRecordFrame(recAlarmData);
         };
+        auto recordEvent = [&] {
+            // Successful persistence and dispatch must carry the same audit
+            // property. A failed write never publishes the provisional status.
+            for (auto& record : eventData.property.visualJudgments)
+                if (record.contains("audit"))
+                    record["audit"]["alarm_record"] = "stored";
+            const bool stored = EventRecord(eventData);
+            if (!stored)
+                for (auto& record : eventData.property.visualJudgments)
+                    if (record.contains("audit"))
+                        record["audit"]["alarm_record"] = "failed";
+            return stored;
+        };
         auto publish = [&] {
             commitState();
-            eventStored = EventRecord(eventData);
+            eventStored = recordEvent();
             // Decision metadata is part of the actual alarm property JSON and
             // follows the alarm's existing retention, export and dispatch path.
             dispatch();
@@ -501,12 +514,20 @@ bool TaskAlarm::FillAlarmData(AlgDataPtr algData) {
         // Prepare media before taking the fence; no slow inference/cropping runs
         // inside it. An edit/stop cannot commit an event from the previous run.
         if (hasVisualRuns) {
-            if (!service::CommitVisualRuns(alarm::VisualRuns(alarmUnit), publish))
+            if (!service::CommitVisualRuns(alarm::VisualRuns(alarmUnit), publish)) {
+                for (const auto& lease : alarmUnit.visualAuditLeases)
+                    if (lease)
+                        lease->Seal("cancelled");
                 continue;
+            }
         } else {
             commitState();
-            eventStored = EventRecord(eventData);
+            eventStored = recordEvent();
         }
+        if (!eventStored)
+            for (const auto& lease : alarmUnit.visualAuditLeases)
+                if (lease)
+                    lease->Seal("alarm_store_failed");
         if (layaEnabled && m_param.layaReviewMode == "review")
             LayaReviewStore::Instance().Publication(eventData.messageId,
                                                     eventStored ? "published" : "alarm_store_failed");

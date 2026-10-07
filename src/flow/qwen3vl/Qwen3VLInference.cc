@@ -242,6 +242,8 @@ void Qwen3VLWorker::ProcessInferResults(std::vector<InferEntry>& entries,
             unit.ocrString     = kw;
             if (visual && entry.visual_result) {
                 unit.visualRun = visual->Run();
+                if (entry.visual_result->audit.lease)
+                    unit.visualAuditLeases.push_back(entry.visual_result->audit.lease);
                 unit.visualJudgments.push_back(
                     VisualRoiRecord(entry.crop_info, *entry.visual_result, unit.flowActionId));
             }
@@ -269,10 +271,14 @@ void Qwen3VLWorker::ProcessInferResults(std::vector<InferEntry>& entries,
             unit.targets.push_back(std::move(target));
 
             auto commit = [&] { data->taskDataAlarm.alarmData->alarms.push_back(std::move(unit)); };
-            if (visual)
-                visual->Run()->CommitIfCurrent(commit);
-            else
+            if (visual) {
+                if (!visual->Run()->CommitIfCurrent(commit) && entry.visual_result &&
+                    entry.visual_result->audit.lease)
+                    entry.visual_result->audit.lease->Seal("cancelled");
+            } else
                 commit();
+        } else if (visual && entry.visual_result && entry.visual_result->audit.lease) {
+            entry.visual_result->audit.lease->Seal("cancelled");
         }
     }
 

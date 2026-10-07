@@ -28,6 +28,9 @@ public:
     // Called once at engine startup, before inference starts. Never marks the
     // current owner's work interrupted and never rewrites a completed result.
     size_t RecoverInterrupted(const std::string& currentOwner, int64_t nowMs);
+    // A terminal delivery means the last producer is done. If its final write
+    // failed, keep an explicit unknown result instead of leaking a pending row.
+    size_t RecoverClosed(int64_t nowMs);
     // Standalone picture/no-alarm/cancelled records only. Active pending records
     // and every record still linked to a retained alarm are excluded.
     size_t PruneUnlinked(int64_t olderThanMs, int keepNewest = 10000);

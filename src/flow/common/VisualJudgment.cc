@@ -201,7 +201,14 @@ service::VisualDecisionResult VisualJudgment::Decide(const std::string& frameId,
         }
     }
     auto unknown = [&](const std::string& reason) {
-        return service::VisualDecisionResult{identity, visual::Failure(identity, reason)};
+        service::VisualDecisionResult result{identity, visual::Failure(identity, reason)};
+        auto& registry = service::ServiceRegistry::Instance();
+        if (registry.Has<service::IVisualAuditService>()) {
+            auto& audit  = registry.Get<service::IVisualAuditService>();
+            result.audit = audit.Begin(identity);
+            audit.Complete(result.audit, result.response);
+        }
+        return result;
     };
     if (!run_->Active())
         return unknown("stale_task_run");

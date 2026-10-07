@@ -91,13 +91,13 @@ namespace {
         Require(response.at("status") == status);
     }
 
-    Json Interrupted(const Json& request) {
+    Json Interrupted(const Json& request, const std::string& reason = "engine_restarted") {
         auto result      = request;
         result["status"] = "unknown";
-        result["reason"] = "engine_restarted";
+        result["reason"] = reason;
         for (auto& item : result["items"]) {
             item["status"]             = "unknown";
-            item["reason"]             = "engine_restarted";
+            item["reason"]             = reason;
             item["business_qualified"] = false;
         }
         return result;
@@ -228,6 +228,23 @@ size_t VisualAuditDao::RecoverInterrupted(const std::string& currentOwner, int64
         Db(), "UPDATE t_visualAuditV1 SET delivery='interrupted' WHERE owner<>? AND delivery='pending'");
     update.bind(1, currentOwner);
     update.exec();
+    transaction.Commit();
+    return pending.size();
+}
+
+size_t VisualAuditDao::RecoverClosed(int64_t nowMs) {
+    Require(nowMs >= 0);
+    ScopedDbSavepoint transaction(Db());
+    std::vector<Json> pending;
+    {
+        SQLite::Statement query(
+            Db(), "SELECT request FROM t_visualAuditV1 WHERE delivery<>'pending' AND response IS NULL");
+        while (query.executeStep())
+            pending.push_back(Json::parse(query.getColumn(0).getString()));
+    }
+    for (const auto& request : pending)
+        Finish(request.at("request_id").get<std::string>(), Interrupted(request, "audit_result_write_failed"),
+               nowMs);
     transaction.Commit();
     return pending.size();
 }

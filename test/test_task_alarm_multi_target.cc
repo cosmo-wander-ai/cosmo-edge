@@ -487,7 +487,8 @@ struct AlarmVisualDependencies {
 
 TEST_CASE("Generic Laya alarm review preserves every target and binds decisions to the real event",
           "[visual-flow][alarm-generic]") {
-    const bool oneUnit = GENERATE(false, true);
+    const bool oneUnit      = GENERATE(false, true);
+    const bool storeSuccess = GENERATE(false, true);
     TaskAlarmDependencies mocks;
     AlarmVisualDependencies visual;
     CapturingEventNotifier notifier;
@@ -497,7 +498,7 @@ TEST_CASE("Generic Laya alarm review preserves every target and binds decisions 
     std::string stored;
     REQUIRE_CALL(mocks.alarmRecordSvc, Insert(trompeloeil::_))
         .LR_SIDE_EFFECT(stored = _1.property)
-        .RETURN(true);
+        .RETURN(storeSuccess);
     cosmo::ActionNode action;
     cosmo::TaskAlarm alarm("channel", "task", action);
     auto parameters = TypedAlarmParameters();
@@ -522,13 +523,15 @@ TEST_CASE("Generic Laya alarm review preserves every target and binds decisions 
         CHECK(record["event_id"] == event.messageId);
         CHECK(record["entrypoint"] == "alarm_review");
         CHECK(record["alarm_filter_applied"] == false);
+        CHECK(record["audit"]["alarm_record"] == (storeSuccess ? "stored" : "failed"));
         CHECK(record["roi"]["reason"] == "invalid_source_frame");
         REQUIRE(record["result"]["status"] == "completed");
         CHECK(record["result"]["items"][0]["top1"] == "false");
         rois.insert(record["request"]["roi_id"]);
     }
     CHECK(rois.size() == 2);
-    CHECK(nlohmann::json::parse(stored)["visualJudgments"] == event.property.visualJudgments);
+    if (storeSuccess)
+        CHECK(nlohmann::json::parse(stored)["visualJudgments"] == event.property.visualJudgments);
 }
 
 TEST_CASE(

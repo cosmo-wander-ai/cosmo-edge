@@ -16,6 +16,7 @@
 #include "media/OsdTextRenderer.h"
 #include "service/ai/impl/InferPoolServiceImpl.h"
 #include "service/ai/impl/LlmInferServiceImpl.h"
+#include "service/ai/impl/VisualAuditServiceImpl.h"
 #include "service/ai/impl/VisualDecisionServiceImpl.h"
 #include "service/ai/impl/VisualQuestionServiceImpl.h"
 #include "service/algorithm/IAlgorithmCrud.h"
@@ -170,10 +171,6 @@ static void RegisterInfrastructureServices() {
         std::make_unique<cosmo::service::InferPoolServiceImpl>());
     registry.Register<cosmo::service::ILlmInferService>(
         std::make_unique<cosmo::service::LlmInferServiceImpl>());
-    registry.Register<cosmo::service::IVisualDecisionService>(
-        std::make_unique<cosmo::service::VisualDecisionServiceImpl>());
-    registry.Register<cosmo::service::IVisualQuestionService>(
-        std::make_unique<cosmo::service::VisualQuestionServiceImpl>());
 
     // Preserve HTTP, MQTT, then network configuration construction order.
     // Registry shutdown destroys these services in the reverse order.
@@ -258,6 +255,16 @@ static void RegisterBusinessServices() {
 
     registry.Register<cosmo::service::IAlarmRecordService>(
         std::make_unique<cosmo::service::AlarmRecordServiceImpl>());
+
+    registry.Register<cosmo::service::IVisualAuditService>(
+        std::make_unique<cosmo::service::VisualAuditServiceImpl>(cosmo::path::GetDbPath() + "/ied.db"));
+    registry.Register<cosmo::service::IVisualDecisionService>(
+        std::make_unique<cosmo::service::VisualDecisionServiceImpl>(
+            cosmo::service::VisualDecisionOptions::FromEnvironment(),
+            cosmo::service::VisualDecisionServiceImpl::Transport{},
+            &registry.Get<cosmo::service::IVisualAuditService>()));
+    registry.Register<cosmo::service::IVisualQuestionService>(
+        std::make_unique<cosmo::service::VisualQuestionServiceImpl>());
 
     registry.Register<cosmo::service::IAlarmPushService>(
         std::make_unique<cosmo::service::AlarmPushServiceImpl>());

@@ -47,7 +47,12 @@ static bool PublishVisualAudits(const std::vector<VisualDecisionAudit>& audits,
         runs.push_back(audit.run);
         records.insert(records.end(), audit.records.begin(), audit.records.end());
     }
-    return service::CommitVisualRuns(std::move(runs), [&] { output = std::move(records); });
+    const bool published = service::CommitVisualRuns(std::move(runs), [&] { output = std::move(records); });
+    for (const auto& audit : audits)
+        for (const auto& lease : audit.leases)
+            if (lease)
+                lease->Seal(published ? "returned" : "cancelled");
+    return published;
 }
 
 static VideoFramePtr NormalizePicInputForInference(VideoFramePtr frame) {

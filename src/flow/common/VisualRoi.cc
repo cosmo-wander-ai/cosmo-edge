@@ -281,6 +281,7 @@ nlohmann::json VisualRoiRecord(const VisualRoiInput& crop, const service::Visual
             {"source_track_index", crop.source_track_index},
             {"input_roi", {roi.x, roi.y, roi.width, roi.height}},
             {"request", result.request},
+            {"audit", result.audit.metadata},
             {"result", result.response}};
 }
 }  // namespace cosmo
