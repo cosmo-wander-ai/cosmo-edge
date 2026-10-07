@@ -9,6 +9,7 @@
 #include <stdexcept>
 
 #include "db/VisualAuditDao.h"
+#include "util/Log.h"
 #include "util/UuidUtil.h"
 
 namespace cosmo::service {
@@ -33,6 +34,7 @@ struct VisualAuditServiceImpl::State {
     std::atomic<size_t> recovered{0}, closedRecovered{0}, initializationAttempts{0};
     std::atomic<uint64_t> beginFailed{0}, finishFailed{0}, deliveryFailed{0}, maintenanceFailed{0};
     std::atomic<uint64_t> busyRetries{0};
+    std::atomic<const char*> activeOperation{"idle"};
     std::mutex retryMutex;
     std::map<std::string, std::string> deliveryRetries;
     std::atomic<uint64_t> retryDropped{0};
@@ -57,6 +59,20 @@ struct VisualAuditServiceImpl::State {
             if (connection->execAndGet("PRAGMA journal_mode=WAL").getString() != "wal")
                 return false;
             connection->exec("PRAGMA synchronous=FULL");
+            sqlite3_trace_v2(
+                connection->getHandle(), SQLITE_TRACE_PROFILE,
+                [](unsigned, void*, void* statement, void* elapsed) {
+                    const auto milliseconds = *static_cast<sqlite3_uint64*>(elapsed) / 1000000;
+                    if (milliseconds >= 100) {
+                        // sqlite3_sql keeps parameters unexpanded; never log
+                        // request payloads, prompts or result values.
+                        const char* sql = sqlite3_sql(static_cast<sqlite3_stmt*>(statement));
+                        LOG_WARN("Visual audit SQL {} ms: {}", milliseconds,
+                                 sql ? std::string(sql).substr(0, 80) : "unknown");
+                    }
+                    return 0;
+                },
+                nullptr);
             db::VisualAuditDao dao(*connection);
             recovered = dao.RecoverInterrupted(owner, Now());
             database  = std::move(connection);
@@ -67,7 +83,7 @@ struct VisualAuditServiceImpl::State {
         }
     }
 
-    std::string Execute(const std::function<bool(db::VisualAuditDao&)>& operation,
+    std::string Execute(const char* name, const std::function<bool(db::VisualAuditDao&)>& operation,
                         std::chrono::milliseconds retryBudget = 250ms) {
         if (!ready)
             return "unavailable";
@@ -76,15 +92,27 @@ struct VisualAuditServiceImpl::State {
             if (Clock::now() >= deadline)
                 return "busy";
             std::unique_lock<std::timed_mutex> lock(mutex, std::defer_lock);
-            if (!lock.try_lock_until(deadline))
+            if (!lock.try_lock_until(deadline)) {
+                LOG_WARN("Visual audit {} mutex wait expired; holder={}", name, activeOperation.load());
                 return "busy";
+            }
+            activeOperation             = name;
+            const auto operationStarted = Clock::now();
             try {
                 db::VisualAuditDao dao(*database);
-                return operation(dao) ? "stored" : "not_applied";
+                const bool applied = operation(dao);
+                activeOperation    = "idle";
+                const auto elapsed =
+                    std::chrono::duration<double, std::milli>(Clock::now() - operationStarted).count();
+                if (elapsed >= 100)
+                    LOG_WARN("Visual audit {} held connection for {} ms", name, elapsed);
+                return applied ? "stored" : "not_applied";
             } catch (const SQLite::Exception& error) {
+                activeOperation = "idle";
                 if (error.getErrorCode() != SQLITE_BUSY && error.getErrorCode() != SQLITE_LOCKED)
                     return "write_failed";
             } catch (...) {
+                activeOperation = "idle";
                 return "invalid_record";
             }
             // Another engine connection can briefly own the writer lock. A
@@ -99,7 +127,7 @@ struct VisualAuditServiceImpl::State {
     }
 
     void Delivery(const std::string& id, const std::string& status) {
-        const auto result = Execute([&](auto& dao) { return dao.Delivery(id, status); });
+        const auto result = Execute("delivery", [&](auto& dao) { return dao.Delivery(id, status); });
         // Not applied includes already-linked/deleted/terminal requests.
         // Retain bounded retries when last-owner delivery races a DB lock;
         // otherwise an ended request could remain pending until a restart.
@@ -157,7 +185,7 @@ VisualAuditReceipt VisualAuditServiceImpl::Begin(const Json& request) noexcept {
         receipt.metadata["request_id"] = id;
         const auto started             = Clock::now();
         const auto result =
-            state_->Execute([&](auto& dao) { return dao.Begin(request, state_->owner, Now()); });
+            state_->Execute("begin", [&](auto& dao) { return dao.Begin(request, state_->owner, Now()); });
         receipt.metadata["begin"] = result;
         receipt.metadata["begin_ms"] =
             std::chrono::duration<double, std::milli>(Clock::now() - started).count();
@@ -186,7 +214,7 @@ bool VisualAuditServiceImpl::Complete(VisualAuditReceipt& receipt, const Json& r
         // Admission and other operations keep their short 250 ms budget;
         // persistent contention still returns an explicit failure.
         const auto result =
-            state_->Execute([&](auto& dao) { return dao.Finish(id, response, Now()); }, 1000ms);
+            state_->Execute("finish", [&](auto& dao) { return dao.Finish(id, response, Now()); }, 1000ms);
         receipt.metadata["finish"] = result;
         receipt.metadata["finish_ms"] =
             std::chrono::duration<double, std::milli>(Clock::now() - started).count();
@@ -202,7 +230,7 @@ bool VisualAuditServiceImpl::Complete(VisualAuditReceipt& receipt, const Json& r
 Json VisualAuditServiceImpl::Page(const std::string& eventId, const std::string& requestId, int page,
                                   int size) {
     Json result;
-    const auto status = state_->Execute([&](auto& dao) {
+    const auto status = state_->Execute("page", [&](auto& dao) {
         result = dao.Page(eventId, requestId, page, size);
         return true;
     });
@@ -243,7 +271,7 @@ void VisualAuditServiceImpl::Maintain() {
         return;
     }
     state_->RetryDeliveries();
-    const auto status = state_->Execute([&](auto& dao) {
+    const auto status = state_->Execute("maintenance", [&](auto& dao) {
         state_->closedRecovered += dao.RecoverClosed(Now());
         dao.PruneUnlinked(std::max<int64_t>(0, Now() - 86400000), 10000);
         return true;
