@@ -16,6 +16,9 @@
 #include "util/dto/ClientMsgEvent.h"
 
 namespace cosmo {
+namespace service {
+    class VisualDecisionRun;
+}
 
 enum class AlarmDataType {
     AlarmDataTypeTrack,               // Alarm with tracking and trackId
@@ -141,6 +144,10 @@ struct DataAlarmUnit {
     /// Graphic-text judgment is already completed by upstream (e.g. Qwen3VL node), event reporting side does
     /// not do a second LLM audit
     bool bLlmPrejudged{false};
+    // Typed numerical decisions remain independent per ROI/question. The run
+    // fence is local only; serialized events contain identities, never a pointer.
+    std::vector<nlohmann::json> visualJudgments;
+    std::shared_ptr<service::VisualDecisionRun> visualRun;
 };
 
 struct DataAlarm {

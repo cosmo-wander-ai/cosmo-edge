@@ -199,3 +199,29 @@ TEST_CASE("Visual preparation retains compiler errors and stop cancels the owned
         REQUIRE(queued.get().reason == "service_stopped");
     }
 }
+
+TEST_CASE("Replacing pending visual configurations frees stale queue slots", "[visual-preparation]") {
+    std::promise<void> entered;
+    std::atomic<bool> release{false};
+    VisualQuestionServiceImpl service(Options(),
+                                      [&](const auto&, const auto& input, auto, const auto& cancelled) {
+                                          if (!release.load()) {
+                                              entered.set_value();
+                                              while (!release && !cancelled())
+                                                  std::this_thread::sleep_for(1ms);
+                                          }
+                                          return Output(Receipt(input));
+                                      });
+    auto first = service.Prepare(Specs(), Run("running"), 5s);
+    entered.get_future().wait();
+    auto old       = Run("old");
+    auto oldFuture = service.Prepare(Specs(), old, 5s);
+    auto other     = service.Prepare(Specs(), Run("other"), 5s);
+    old->Invalidate();
+    auto replacement = service.Prepare(Specs(), Run("replacement"), 5s);
+    release          = true;
+    CHECK(oldFuture.get().reason == "stale_task_run");
+    CHECK(first.get().ready);
+    CHECK(other.get().ready);
+    CHECK(replacement.get().ready);
+}

@@ -144,6 +144,15 @@ std::shared_future<VisualQuestionPreparation> VisualQuestionServiceImpl::Prepare
         std::lock_guard<std::mutex> lock(mutex_);
         if (stopped_)
             return reject("service_stopped");
+        for (auto it = queue_.begin(); it != queue_.end();) {
+            if (!(*it)->run->Active() || Clock::now() >= (*it)->deadline) {
+                (*it)->promise.set_value(
+                    Failed((*it)->run->Active() ? "compile_deadline_exceeded" : "stale_task_run"));
+                it = queue_.erase(it);
+                --outstanding_;
+            } else
+                ++it;
+        }
         if (outstanding_ >= 3)
             return reject("compiler_queue_full");
         queue_.push_back(job);

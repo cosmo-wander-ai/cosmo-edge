@@ -163,9 +163,13 @@ bool Qwen3VLWorker::ModifyParam(const std::string& channel_id, const std::string
 
 bool Qwen3VLWorker::ApplyParamsLocked(const std::string& channel_id, const std::string& tid,
                                       std::vector<MsgDynamicKeyValue>& params) {
+    auto& task = EnsureTaskParam(params_.param, tid);
+    UpdateVisualParameters(task.visual_parameters, params);
     for (auto& param : params) {
         std::string key_str = param.key.ToString();
-        bool is_prompt_key  = (key_str == "keywords") || (key_str == "prompt") ||
+        if (key_str.rfind("visual.", 0) == 0)
+            continue;
+        bool is_prompt_key = (key_str == "keywords") || (key_str == "prompt") ||
                              (param.keys.size() >= 1 && param.keys[0] == "keywords") ||
                              (param.keys.size() >= 2 && param.keys[1] == "prompt");
         bool is_adv_mode_key = (key_str == "advanced_mode");
@@ -182,6 +186,7 @@ bool Qwen3VLWorker::ApplyParamsLocked(const std::string& channel_id, const std::
         AnalysisKey(channel_id, tid, param);
     }
     params_.param_modify_sign++;
+    RebuildVisualLocked(tid);
     return true;
 }
 
@@ -190,7 +195,9 @@ bool Qwen3VLWorker::SetParam(const std::string& channel_id, const std::string& t
     std::lock_guard<std::shared_mutex> lock(mtx);
     // Replace only this task, including explicit empty/false values. Keep the
     // reset and application atomic to readers and use ModifyParam for patches.
-    auto& task   = EnsureTaskParam(params_.param, tid);
+    auto& task = EnsureTaskParam(params_.param, tid);
+    if (task.visual_judgment)
+        task.visual_judgment->Invalidate();
     task         = Qwen3VLWorkerParamEl{};
     task.task_id = tid;
     return ApplyParamsLocked(channel_id, tid, params);

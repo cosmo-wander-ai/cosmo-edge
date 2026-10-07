@@ -13,6 +13,7 @@
 #include "mock/MockAppInfoService.h"
 #include "mock/MockCameraService.h"
 #include "mock/MockConfigReadService.h"
+#include "service/ai/IVisualDecisionService.h"
 #include "service/event/IEventNotifier.h"
 #include "support/MockDefaults.h"
 #include "support/ScopedServiceOverride.h"
@@ -109,6 +110,111 @@ cosmo::AlgDataPtr MakeUntrackedTaskAlarmFrame() {
 }
 
 }  // namespace
+
+TEST_CASE("Typed visual ROI records follow the actual merged alarm record and dispatch",
+          "[visual-flow][alarm]") {
+    TaskAlarmDependencies mocks;
+    CapturingEventNotifier notifier;
+    cosmo::test::ScopedServiceOverride<cosmo::service::IEventNotifier> registration(notifier);
+    REQUIRE_CALL(mocks.cameraSvc, GetChannelName("channel")).RETURN("Camera");
+    REQUIRE_CALL(mocks.configReadSvc, IsNetworkModel()).RETURN(true);
+    std::string stored;
+    REQUIRE_CALL(mocks.alarmRecordSvc, Insert(trompeloeil::_))
+        .LR_SIDE_EFFECT(stored = _1.property)
+        .RETURN(true);
+    cosmo::ActionNode action;
+    action.flowActionId = "alarm-flow";
+    cosmo::TaskAlarm alarm("channel", "task", action);
+    auto frame = MakeTaskAlarmFrame();
+    auto run   = std::make_shared<cosmo::service::VisualDecisionRun>("task", "epoch", "revision");
+    for (auto& unit : frame->taskDataAlarm.alarmData->alarms) {
+        unit.bLlmPrejudged = true;
+        unit.visualRun     = run;
+        unit.visualJudgments.push_back(
+            {{"roi_id", unit.strTrackId},
+             {"items", nlohmann::json::array({{{"status", "completed"}, {"top1", "false"}},
+                                              {{"status", "unknown"}, {"reason", "deadline_exceeded"}}})}});
+    }
+    alarm.HandFrame(frame);
+    REQUIRE(notifier.httpEvents.size() == 1);
+    const auto& event = notifier.httpEvents.front();
+    REQUIRE(event.bHaveProperty);
+    REQUIRE(event.property.visualJudgments.size() == 2);
+    CHECK(event.property.visualJudgments[0]["roi_id"] == "track-4");
+    CHECK(event.property.visualJudgments[1]["roi_id"] == "track-9");
+    auto record = nlohmann::json::parse(stored);
+    CHECK(record["visualJudgments"] == event.property.visualJudgments);
+    auto reloaded = nlohmann::json(event).get<cosmo::CMsgOnEventsReq>();
+    CHECK(reloaded.property.visualJudgments == event.property.visualJudgments);
+}
+
+TEST_CASE("Stopped visual runs cannot publish queued alarm units", "[visual-flow][alarm]") {
+    TaskAlarmDependencies mocks;
+    CapturingEventNotifier notifier;
+    cosmo::test::ScopedServiceOverride<cosmo::service::IEventNotifier> registration(notifier);
+    FORBID_CALL(mocks.alarmRecordSvc, Insert(trompeloeil::_));
+    cosmo::ActionNode action;
+    action.flowActionId = "alarm-flow";
+    cosmo::TaskAlarm alarm("channel", "task", action);
+    auto frame = MakeTaskAlarmFrame();
+    auto run   = std::make_shared<cosmo::service::VisualDecisionRun>("task", "epoch", "revision");
+    for (auto& unit : frame->taskDataAlarm.alarmData->alarms) {
+        unit.bLlmPrejudged = true;
+        unit.visualRun     = run;
+    }
+    run->Invalidate();
+    alarm.HandFrame(frame);
+    CHECK(notifier.httpEvents.empty());
+    CHECK(alarm.GetAlarmRealCnt() == 0);
+}
+
+TEST_CASE("Visual invalidation during event construction does not consume suppression or alarm budgets",
+          "[visual-flow][alarm][epoch]") {
+    TaskAlarmDependencies mocks;
+    CapturingEventNotifier notifier;
+    cosmo::test::ScopedServiceOverride<cosmo::service::IEventNotifier> registration(notifier);
+    auto oldRun = std::make_shared<cosmo::service::VisualDecisionRun>("task", "old", "revision");
+    int builds  = 0;
+    REQUIRE_CALL(mocks.cameraSvc, GetChannelName("channel"))
+        .TIMES(2)
+        .LR_SIDE_EFFECT(if (++builds == 1) oldRun->Invalidate())
+        .RETURN("Camera");
+    REQUIRE_CALL(mocks.configReadSvc, IsNetworkModel()).RETURN(true);
+    REQUIRE_CALL(mocks.alarmRecordSvc, Insert(trompeloeil::_)).RETURN(true);
+    cosmo::ActionNode action;
+    action.flowActionId = "alarm-flow";
+    cosmo::TaskAlarm alarm("channel", "task", action);
+    std::vector<cosmo::MsgDynamicKeyValue> params;
+    for (const auto& [key, value] :
+         std::vector<std::pair<std::string, std::string>>{{"targetAlarmCount", "1"},
+                                                          {"alarmInterval", "300"},
+                                                          {"targetAlarmInterval", "300"},
+                                                          {"restrainSwitch", "1"},
+                                                          {"overlapRate", "0.5"},
+                                                          {"restrainTime", "1"}}) {
+        cosmo::MsgDynamicKeyValue p;
+        p.key   = "param." + key;
+        p.keys  = {"param", key};
+        p.value = value;
+        params.push_back(p);
+    }
+    // Legacy TaskAlarm setters return false even when applied; verify behavior below.
+    alarm.SetParam("channel", "task", params);
+    auto send = [&](std::shared_ptr<cosmo::service::VisualDecisionRun> run) {
+        auto frame = MakeTaskAlarmFrame();
+        frame->taskDataAlarm.alarmData->alarms.resize(1);
+        auto& unit         = frame->taskDataAlarm.alarmData->alarms.front();
+        unit.bLlmPrejudged = true;
+        unit.visualRun     = std::move(run);
+        alarm.HandFrame(frame);
+    };
+    send(oldRun);
+    REQUIRE(alarm.GetAlarmRealCnt() == 0);
+    REQUIRE(notifier.httpEvents.empty());
+    send(std::make_shared<cosmo::service::VisualDecisionRun>("task", "new", "revision-2"));
+    CHECK(alarm.GetAlarmRealCnt() == 1);
+    CHECK(notifier.httpEvents.size() == 1);
+}
 
 TEST_CASE("TaskAlarm emits one event with all same-frame abnormal targets", "[alarm][batch][event]") {
     TaskAlarmDependencies mocks;

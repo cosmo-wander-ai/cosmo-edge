@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <nlohmann/json_fwd.hpp>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
 
@@ -205,6 +205,7 @@ struct CMsgOnEventsProperty {
                           // frame people counting result)
     bool bHaveTarget{false};
     CMsgOnEventsPropertyTarget target;  // Target info
+    std::vector<nlohmann::json> visualJudgments;
 };
 
 // Conditional: CCM/CEC/CE by type, CC(bHaveTarget, target)

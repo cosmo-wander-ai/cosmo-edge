@@ -1,3 +1,5 @@
+#include <nlohmann/json.hpp>
+
 #include "catch_amalgamated.hpp"
 
 #define private public

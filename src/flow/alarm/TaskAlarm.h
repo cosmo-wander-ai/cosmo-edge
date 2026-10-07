@@ -98,7 +98,8 @@ private:
                                MsgRecAlarm& recAlarmData);
     bool ShouldFilterTargetAlarm(const AlgDataPtr& algData, const DataAlarmUnit& alarmUnit,
                                  const std::chrono::steady_clock::time_point& now, AlarmIdData& idData,
-                                 MsgRecAlarm& recAlarmData);
+                                 MsgRecAlarm& recAlarmData,
+                                 TaskAlarmSuppression* stagedSuppression = nullptr);
     CMsgOnEventsReq BuildBaseEventData(const AlgDataPtr& algData, const DataAlarmUnit& alarmUnit);
     void AttachAlarmMedia(CMsgOnEventsReq& eventData, const AlgDataPtr& algData, DataAlarmUnit& alarmUnit);
     void FillEventProperty(CMsgOnEventsReq& eventData, AlgDataPtr& algData, DataAlarmUnit& alarmUnit,
