@@ -16,6 +16,7 @@
 #include "media/OsdTextRenderer.h"
 #include "service/ai/impl/InferPoolServiceImpl.h"
 #include "service/ai/impl/LlmInferServiceImpl.h"
+#include "service/ai/impl/VisualDecisionServiceImpl.h"
 #include "service/algorithm/IAlgorithmCrud.h"
 #include "service/algorithm/IAlgorithmLayout.h"
 #include "service/algorithm/IAlgorithmQuery.h"
@@ -168,6 +169,8 @@ static void RegisterInfrastructureServices() {
         std::make_unique<cosmo::service::InferPoolServiceImpl>());
     registry.Register<cosmo::service::ILlmInferService>(
         std::make_unique<cosmo::service::LlmInferServiceImpl>());
+    registry.Register<cosmo::service::IVisualDecisionService>(
+        std::make_unique<cosmo::service::VisualDecisionServiceImpl>());
 
     // Preserve HTTP, MQTT, then network configuration construction order.
     // Registry shutdown destroys these services in the reverse order.
