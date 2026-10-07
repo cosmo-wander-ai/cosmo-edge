@@ -17,6 +17,7 @@ public:
             throw std::invalid_argument("audit requires a serialized SQLite connection");
         sqlite3_mutex_enter(mutex_);
         try {
+            ownsTransaction_ = sqlite3_get_autocommit(db_.getHandle()) != 0;
             db_.exec("SAVEPOINT cosmo_visual_audit");
         } catch (...) {
             sqlite3_mutex_leave(mutex_);
@@ -26,8 +27,15 @@ public:
     ~ScopedDbSavepoint() {
         if (!committed_) {
             try {
-                db_.exec("ROLLBACK TO cosmo_visual_audit");
-                db_.exec("RELEASE cosmo_visual_audit");
+                if (ownsTransaction_) {
+                    // A failed outer RELEASE may retain a pending writer lock.
+                    // ROLLBACK TO + RELEASE retries the blocked commit, so end
+                    // the transaction outright when this scope started it.
+                    db_.exec("ROLLBACK");
+                } else {
+                    db_.exec("ROLLBACK TO cosmo_visual_audit");
+                    db_.exec("RELEASE cosmo_visual_audit");
+                }
             } catch (...) {
                 // The original SQLite error must reach the caller.
             }
@@ -45,6 +53,7 @@ private:
     SQLite::Database& db_;
     sqlite3_mutex* mutex_;
     bool committed_{false};
+    bool ownsTransaction_{false};
 };
 
 }  // namespace cosmo::db

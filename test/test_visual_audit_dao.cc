@@ -1,4 +1,5 @@
 #include <SQLiteCpp/SQLiteCpp.h>
+#include <sqlite3.h>
 
 #include <atomic>
 #include <filesystem>
@@ -384,4 +385,36 @@ TEST_CASE("Visual audit: reopening a file database preserves linkage and explici
         REQUIRE(audits.Page("", "stored")["total"] == 0);
         REQUIRE(audits.Page("", "pending")["rows"][0]["delivery"] == "interrupted");
     }
+}
+
+TEST_CASE("Visual audit: a busy commit releases the outer transaction before the reader finishes",
+          "[visual-audit][busy-commit]") {
+    const auto path =
+        std::filesystem::temp_directory_path() / ("visual-busy-" + cosmo::util::GenerateUUID() + ".db");
+    struct Cleanup {
+        std::filesystem::path path;
+        ~Cleanup() {
+            std::error_code error;
+            std::filesystem::remove(path, error);
+        }
+    } cleanup{path};
+    SQLite::Database writer(path.string(),
+                            SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE | SQLite::OPEN_FULLMUTEX);
+    TaskEventDao(writer).CreateTable();
+    writer.setBusyTimeout(20);
+    SQLite::Database reader(path.string(), SQLite::OPEN_READWRITE | SQLite::OPEN_FULLMUTEX);
+    reader.exec("BEGIN");
+    REQUIRE(reader.execAndGet("SELECT COUNT(*) FROM t_commonEvent").getInt() == 0);
+    VisualAuditDao audits(writer);
+    REQUIRE_THROWS_AS(audits.Begin(Request("blocked"), "owner", 100), SQLite::Exception);
+    // ROLLBACK TO followed by RELEASE can itself need the same exclusive lock.
+    // The failed write must leave no transaction or pending lock behind.
+    CHECK(sqlite3_get_autocommit(writer.getHandle()) == 1);
+    SQLite::Database observer(path.string(), SQLite::OPEN_READONLY | SQLite::OPEN_FULLMUTEX);
+    CHECK_NOTHROW(observer.execAndGet("SELECT COUNT(*) FROM t_commonEvent"));
+    reader.exec("ROLLBACK");
+    REQUIRE(audits.Begin(Request("next"), "owner", 200));
+    REQUIRE(audits.Page()["total"] == 1);
+    REQUIRE(sqlite3_get_autocommit(writer.getHandle()) == 1);
+    REQUIRE(TaskEventDao(reader).Insert(Event("next-alarm"), {"next"}));
 }
