@@ -24,7 +24,8 @@ def notify(message):
         channel.sendto(message.encode(), address)
 
 
-def serve(manifest, manifest_sha256, runtime, logs, backend_factory=Backend):
+def serve(manifest, manifest_sha256, runtime, logs, backend_factory=Backend,
+          request_reader=read_request, response_writer=write_response, error_response=None):
     runtime = Path(runtime)
     logs = Path(logs)
     runtime.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -72,7 +73,7 @@ def serve(manifest, manifest_sha256, runtime, logs, backend_factory=Backend):
         server.listen(2)
         server.settimeout(.5)
         status('ready')
-        notify('READY=1\nSTATUS=Laya candidate C ready; business qualification pending')
+        notify('READY=1\nSTATUS=Laya worker ready; business qualification pending')
         while not stopping:
             # Only the serving thread sends a watchdog pulse; a hung inference is restarted.
             status('ready')
@@ -84,18 +85,28 @@ def serve(manifest, manifest_sha256, runtime, logs, backend_factory=Backend):
             request = None
             with conn:
                 try:
-                    request, encoded = read_request(conn)
+                    request, encoded = request_reader(conn)
                     result = backend.infer(request, encoded)
                     completed += 1
                 except (ValueError, TypeError, KeyError, OSError, RuntimeError) as error:
                     logger.info(json.dumps({'event': 'request_error', 'type': type(error).__name__}))
                     if request is None:
                         continue
-                    result = response_base(request)
-                    result.update(decision_status='unavailable', reason=type(error).__name__)
+                    if error_response:
+                        result = error_response(request, 'worker_error')
+                    else:
+                        result = response_base(request)
+                        result.update(decision_status='unavailable', reason=type(error).__name__)
                 try:
                     conn.settimeout(.5)
-                    write_response(conn, result)
+                    response_writer(conn, result)
+                except ValueError:
+                    if error_response:
+                        result = error_response(request, 'invalid_worker_response')
+                        try:
+                            response_writer(conn, result)
+                        except OSError:
+                            pass
                 except OSError:
                     pass  # Engine deadline expired; no callback or event mutation is possible.
                 logger.info(json.dumps({'event': 'result', 'request': request, 'result': result}, allow_nan=False))

@@ -79,14 +79,18 @@ class DynamicImageFrontend:
         metadata.update({"question_id": p["question_id"], "question_version": p["question_version"],
                          "compiled_question_sha256": self.sha256, "profile": PROFILE["id"],
                          "mask_policy": p["mask_policy"], "business_qualified": False})
+        return {"pixel_values": patchify_square(img), "metadata": metadata, **self.question_inputs()}
+
+    def question_inputs(self):
+        """Fresh question arrays; multiple questions may reuse one visual encoding."""
+        p = self.pack
         s = p["sequence"]
-        return {"pixel_values": patchify_square(img),
-                "input_ids": np.asarray(s["input_ids"], dtype=np.int64)[None],
+        return {"input_ids": np.asarray(s["input_ids"], dtype=np.int64)[None],
                 "valid_length": s["valid_length"], "image_position": s["image_position"],
                 "marker_positions": np.asarray(s["marker_positions"], dtype=np.int64)[None],
                 "marker_mask": np.ones((1, len(p["option_labels"])), dtype=bool),
                 "qtype": p["qtype"], "option_labels": list(p["option_labels"]),
-                "temperature": dict(p["temperature"]), "metadata": metadata,
+                "temperature": dict(p["temperature"]),
                 **{key: value.copy() for key, value in self.masks.items()}}
 
 

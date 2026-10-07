@@ -63,6 +63,8 @@ def normalize_question(question):
         labels, options = [], []
         for label, description in criteria.items():
             _text(label, "option label")
+            if len(json.dumps(label, ensure_ascii=False).encode("utf-8")) > 256:
+                raise ValueError("option label byte limit exceeded")
             if description is not None:
                 _text(description, "option description", empty=True)
             labels.append(label)
