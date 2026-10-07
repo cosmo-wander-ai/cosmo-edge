@@ -718,6 +718,15 @@ TEST_CASE("Laya picture filtering returns retained regions and all review record
     CHECK(response.resData.visualJudgments[0]["alarm_filter_applied"] == true);
     CHECK(response.resData.visualJudgments[1]["alarm_filter_applied"] == false);
     REQUIRE(response.resData.targetList.size() == 1);
+    // Product serialization exposes areaList, not the internal flat targetList.
+    const Json encoded = Json(response);
+    const auto& areas  = encoded.at("resData").at("areaList");
+    REQUIRE(areas.size() == 2);
+    CHECK(areas[0]["bDetected"] == false);
+    CHECK(areas[0]["targetList"].empty());
+    CHECK(areas[1]["bDetected"] == true);
+    CHECK(areas[1]["targetList"].size() == 1);
+
     REQUIRE(base.TaskActionDestroy(task));
     REQUIRE(base.TaskDelete(task));
     CHECK(f.llm.touched == 0);

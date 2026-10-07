@@ -317,11 +317,29 @@ util::ErrorEnum PQwen3VLWorker::HandPic(AlgDataPtr alg_data) {
                     target.trackId      = roi.source_track_index;
                     target.classifyRst.push_back({decision.value("verdict", "unknown"), "", 1.0f});
                 }
-                // Overlapping regions may independently accept the same detector target.
-                if (target.targetId.empty() ||
-                    std::none_of(retained.begin(), retained.end(),
-                                 [&](const auto& item) { return item.targetId == target.targetId; }))
+                target.bLogicResult = true;
+                target.areaSign.areas.clear();
+                if (!roi.area_id.empty()) {
+                    TargetAreaUnit area;
+                    area.area_id          = roi.area_id;
+                    const auto configured = std::find_if(areas.begin(), areas.end(), [&](const auto& value) {
+                        return value.areaId == roi.area_id;
+                    });
+                    if (configured != areas.end())
+                        area.area_name = configured->name;
+                    target.areaSign.areas.push_back(std::move(area));
+                }
+                // The public picture response groups targets by areaSign. Keep
+                // only accepted region memberships when several ROIs share a target.
+                auto previous = std::find_if(retained.begin(), retained.end(), [&](const auto& item) {
+                    return !target.targetId.empty() && item.targetId == target.targetId;
+                });
+                if (previous == retained.end())
                     retained.push_back(std::move(target));
+                else
+                    previous->areaSign.areas.insert(previous->areaSign.areas.end(),
+                                                    target.areaSign.areas.begin(),
+                                                    target.areaSign.areas.end());
             }
             if (result.audit.lease)
                 audit.leases.push_back(result.audit.lease);
