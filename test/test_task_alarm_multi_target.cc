@@ -4,6 +4,7 @@
 // clang-format on
 
 #include <memory>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -282,4 +283,111 @@ TEST_CASE("TaskAlarm emits one event for any number of untracked same-frame targ
     CHECK(notifier.httpEvents[0].targets[0].box.x == 100);
     CHECK(notifier.httpEvents[0].targets[1].box.x == 300);
     CHECK(notifier.httpEvents[0].targets[2].box.x == 500);
+}
+
+TEST_CASE("Associated alarm flows preserve every visual audit and configuration fence",
+          "[visual-flow][alarm][association]") {
+    const bool untrackedPrimary = GENERATE(false, true);
+    TaskAlarmDependencies mocks;
+    CapturingEventNotifier notifier;
+    cosmo::test::ScopedServiceOverride<cosmo::service::IEventNotifier> registration(notifier);
+    REQUIRE_CALL(mocks.cameraSvc, GetChannelName("channel")).RETURN("Camera");
+    REQUIRE_CALL(mocks.configReadSvc, IsNetworkModel()).RETURN(true);
+    std::string stored;
+    REQUIRE_CALL(mocks.alarmRecordSvc, Insert(trompeloeil::_))
+        .LR_SIDE_EFFECT(stored = _1.property)
+        .RETURN(true);
+    cosmo::ActionNode action;
+    cosmo::TaskAlarm alarm("channel", "task", action);
+    auto frame       = MakeTaskAlarmFrame();
+    auto& data       = *frame->taskDataAlarm.alarmData;
+    data.multiAlarms = 2;
+    for (size_t i = 0; i < data.alarms.size(); ++i) {
+        auto& unit         = data.alarms[i];
+        unit.flowActionId  = "flow-" + std::to_string(i);
+        unit.bLlmPrejudged = true;
+        unit.visualRun =
+            std::make_shared<cosmo::service::VisualDecisionRun>("task", unit.flowActionId, "revision");
+        unit.visualJudgments.push_back({{"roi_id", unit.strTrackId}, {"flow_action_id", unit.flowActionId}});
+    }
+    if (untrackedPrimary)
+        data.alarms.front().trackId = -1;
+    alarm.HandFrame(frame);
+    REQUIRE(notifier.httpEvents.size() == 1);
+    REQUIRE(notifier.httpEvents.front().property.visualJudgments.size() == 2);
+    std::set<std::string> flows;
+    for (const auto& record : notifier.httpEvents.front().property.visualJudgments)
+        flows.insert(record.at("flow_action_id"));
+    CHECK(flows == std::set<std::string>{"flow-0", "flow-1"});
+    CHECK(nlohmann::json::parse(stored)["visualJudgments"] ==
+          notifier.httpEvents.front().property.visualJudgments);
+}
+
+TEST_CASE("Invalidating either associated visual flow cancels publication without consuming target budgets",
+          "[visual-flow][alarm][association][epoch]") {
+    const int cancelled = GENERATE(0, 1);
+    TaskAlarmDependencies mocks;
+    CapturingEventNotifier notifier;
+    cosmo::test::ScopedServiceOverride<cosmo::service::IEventNotifier> registration(notifier);
+    auto first        = std::make_shared<cosmo::service::VisualDecisionRun>("task", "first", "revision");
+    auto second       = std::make_shared<cosmo::service::VisualDecisionRun>("task", "second", "revision");
+    auto cancelledRun = cancelled == 0 ? first : second;
+    int builds        = 0;
+    REQUIRE_CALL(mocks.cameraSvc, GetChannelName("channel"))
+        .TIMES(2)
+        .LR_SIDE_EFFECT(if (++builds == 1) cancelledRun->Invalidate())
+        .RETURN("Camera");
+    REQUIRE_CALL(mocks.configReadSvc, IsNetworkModel()).RETURN(true);
+    REQUIRE_CALL(mocks.alarmRecordSvc, Insert(trompeloeil::_)).RETURN(true);
+    cosmo::ActionNode action;
+    cosmo::TaskAlarm alarm("channel", "task", action);
+    cosmo::MsgDynamicKeyValue limit;
+    limit.key   = "param.targetAlarmCount";
+    limit.keys  = {"param", "targetAlarmCount"};
+    limit.value = "1";
+    std::vector<cosmo::MsgDynamicKeyValue> parameters{limit};
+    alarm.SetParam("channel", "task", parameters);
+    auto send = [&] {
+        auto frame                  = MakeTaskAlarmFrame();
+        auto& data                  = *frame->taskDataAlarm.alarmData;
+        data.multiAlarms            = 2;
+        data.alarms[0].flowActionId = "first";
+        data.alarms[1].flowActionId = "second";
+        data.alarms[0].visualRun    = first;
+        data.alarms[1].visualRun    = second;
+        for (auto& unit : data.alarms) {
+            unit.bLlmPrejudged = true;
+            unit.visualJudgments.push_back({{"roi_id", unit.strTrackId}});
+        }
+        alarm.HandFrame(frame);
+    };
+    send();
+    CHECK(notifier.httpEvents.empty());
+    CHECK(alarm.GetAlarmRealCnt() == 0);
+    first  = std::make_shared<cosmo::service::VisualDecisionRun>("task", "fresh-first", "revision");
+    second = std::make_shared<cosmo::service::VisualDecisionRun>("task", "fresh-second", "revision");
+    send();
+    CHECK(notifier.httpEvents.size() == 1);
+    CHECK(alarm.GetAlarmRealCnt() == 1);
+}
+
+TEST_CASE("A stopped secondary visual contributor prevents an otherwise unguarded alarm publication",
+          "[visual-flow][alarm][association]") {
+    TaskAlarmDependencies mocks;
+    CapturingEventNotifier notifier;
+    cosmo::test::ScopedServiceOverride<cosmo::service::IEventNotifier> registration(notifier);
+    FORBID_CALL(mocks.alarmRecordSvc, Insert(trompeloeil::_));
+    FORBID_CALL(mocks.cameraSvc, GetChannelName(trompeloeil::_));
+    cosmo::ActionNode action;
+    cosmo::TaskAlarm alarm("channel", "task", action);
+    auto frame                                             = MakeTaskAlarmFrame();
+    frame->taskDataAlarm.alarmData->multiAlarms            = 2;
+    frame->taskDataAlarm.alarmData->alarms[0].flowActionId = "first";
+    auto& second                                           = frame->taskDataAlarm.alarmData->alarms[1];
+    second.flowActionId                                    = "second";
+    second.visualRun = std::make_shared<cosmo::service::VisualDecisionRun>("task", "stopped", "revision");
+    second.visualRun->Invalidate();
+    alarm.HandFrame(frame);
+    CHECK(notifier.httpEvents.empty());
+    CHECK(alarm.GetAlarmRealCnt() == 0);
 }

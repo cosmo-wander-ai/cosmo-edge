@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <sstream>
 
+#include "flow/alarm/AlarmVisualState.h"
 #include "flow/alarm/TaskAlarm.h"
 #include "flow/alarm/TaskAlarmInternalTypes.h"
 #include "flow/common/AlgDataRecord.h"
@@ -106,6 +107,7 @@ DataAlarmUnit TaskAlarm::AlarmDataCombineAlarm(DataAlarmUnit alarm, DataAlarmUni
     // Find the alarm with a trackId as the primary alarm
     if (alarm.trackId < 0) {
         unit = assoAlarm;
+        alarm::AppendVisualState(unit, alarm);
         // Use primary alarm's areaId for overlay region lookup
         unit.areaId   = alarm.areaId;
         unit.areaName = alarm.areaName;
@@ -124,6 +126,7 @@ DataAlarmUnit TaskAlarm::AlarmDataCombineAlarm(DataAlarmUnit alarm, DataAlarmUni
 
     } else {
         unit = alarm;
+        alarm::AppendVisualState(unit, assoAlarm);
         if (!assoAlarm.boxs.empty())
             unit.boxs.insert(unit.boxs.end(), assoAlarm.boxs.begin(), assoAlarm.boxs.end());
         if (!assoAlarm.targets.empty())

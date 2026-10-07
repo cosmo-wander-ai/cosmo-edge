@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <limits>
 
+#include "flow/alarm/AlarmVisualState.h"
+
 namespace cosmo::alarm {
 namespace {
 
@@ -15,7 +17,7 @@ namespace {
     bool HasSameBatchKey(const DataAlarmUnit& left, const DataAlarmUnit& right) {
         return left.flowActionId == right.flowActionId && left.areaId == right.areaId &&
                left.assoAreaId == right.assoAreaId && left.reportType == right.reportType &&
-               left.visualRun == right.visualRun && left.bLlmPrejudged == right.bLlmPrejudged;
+               VisualRuns(left) == VisualRuns(right) && left.bLlmPrejudged == right.bLlmPrejudged;
     }
 
     util::Box UnionBoxes(const util::Box& left, const util::Box& right) {
@@ -106,7 +108,7 @@ DataAlarmUnit MergeAlarmBatch(const std::deque<DataAlarmUnit>& alarms,
         Append(result.boxs, member.boxs);
         Append(result.friends, member.friends);
         Append(result.bestInfos, member.bestInfos);
-        Append(result.visualJudgments, member.visualJudgments);
+        AppendVisualState(result, member);
     }
     result.box = unionBox;
     if (acceptedIndices.size() > 1) {

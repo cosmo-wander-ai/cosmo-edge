@@ -15,6 +15,7 @@ struct AlarmReviewRoi {
     int sourceWidth{0};
     int sourceHeight{0};
     std::string mode{"invalid"};
+    std::string failure;
 };
 
 inline util::Box AlarmReviewCropBox(int width, int height, const util::Box& box) {
@@ -31,4 +32,7 @@ inline util::Box AlarmReviewCropBox(int width, int height, const util::Box& box)
 // Existing Qwen review crop, extracted without initializing any inference service.
 // Crop failure retains the existing full-frame fallback and makes it explicit.
 AlarmReviewRoi PrepareAlarmReviewRoi(const VideoFramePtr& frame, const util::Box& box);
+// Typed numerical review requires verified target pixels. Failures retain ROI
+// metadata but return no frame; callers must publish an explicit unknown result.
+AlarmReviewRoi PrepareAlarmReviewRoiStrict(const VideoFramePtr& frame, const util::Box& box);
 }  // namespace cosmo

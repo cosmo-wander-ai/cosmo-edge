@@ -148,6 +148,7 @@ struct DataAlarmUnit {
     // fence is local only; serialized events contain identities, never a pointer.
     std::vector<nlohmann::json> visualJudgments;
     std::shared_ptr<service::VisualDecisionRun> visualRun;
+    std::vector<std::shared_ptr<service::VisualDecisionRun>> visualRuns;
 };
 
 struct DataAlarm {

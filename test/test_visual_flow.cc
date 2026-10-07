@@ -3,6 +3,7 @@
 #include <thread>
 
 #include "catch_amalgamated.hpp"
+#include "flow/alarm/AlarmReviewRoi.h"
 #include "flow/alarm/AlarmVisualPlan.h"
 #include "flow/common/VisualJudgment.h"
 #include "service/ai/impl/VisualDecisionProtocol.h"
@@ -291,11 +292,17 @@ public:
             return nullptr;
         if (failure == 2)
             throw std::runtime_error("copy failure");
+        if (failure == 8)
+            return std::make_shared<media::VideoFrame>(32, 32, media::PixelFormat::PIXEL_BGR8);
         return frame;
     }
     VideoFramePtr Crop(VideoFramePtr frame, const util::Box box) override {
         if (failure == 3)
             throw std::runtime_error("crop failure");
+        if (failure == 6)
+            return nullptr;
+        if (failure == 7)
+            return frame;
         return VideoFrameServiceImpl::Crop(frame, box);
     }
     std::vector<u_char> EncodeJpeg(VideoFramePtr frame) override {
@@ -337,7 +344,7 @@ struct FlowFixture {
     Text text;
     test::ScopedServiceOverride<mem::IDeviceContext> deviceRegistration{device};
     test::ScopedServiceOverride<media::IOsdTextRenderer> textRegistration{text};
-    mem::MemoryPoolMng pool{std::make_unique<mem::AllocatorCpu>(), {64 * 64 * 3}};
+    mem::MemoryPoolMng pool{std::make_unique<mem::AllocatorCpu>(), {64 * 64 * 3, 256 * 192 * 3}};
     struct PoolScope {
         explicit PoolScope(mem::MemoryPoolMng& value) {
             mem::SetMemoryPoolContext(&value);
@@ -388,6 +395,74 @@ struct FlowFixture {
     }
 };
 }  // namespace
+
+TEST_CASE("Typed alarm ROI preserves actual crop and rejects every full-frame substitution",
+          "[visual-flow][alarm-roi]") {
+    FlowFixture fixture;
+    auto frame = std::make_shared<media::VideoFrame>(256, 192, media::PixelFormat::PIXEL_BGR8);
+    REQUIRE(VideoFrameValid(frame));
+    frame->SetFrameIndex(123);
+    frame->SetTimestamp(456);
+    frame->SetStreamIndex(7);
+    const util::Box target(100, 80, 20, 30);
+    SECTION("measured crop retains source geometry and frame identity") {
+        auto roi = PrepareAlarmReviewRoiStrict(frame, target);
+        INFO(roi.failure);
+        REQUIRE(VideoFrameValid(roi.frame));
+        CHECK(roi.failure.empty());
+        CHECK(roi.mode == "cropped");
+        CHECK(roi.requested == util::Box(52, 32, 116, 126));
+        CHECK(roi.actual == roi.requested);
+        CHECK(roi.sourceWidth == 256);
+        CHECK(roi.sourceHeight == 192);
+        CHECK(roi.frame->GetWidth() == 116);
+        CHECK(roi.frame->GetHeight() == 126);
+        CHECK(roi.frame->GetFrameIndex() == 123);
+        CHECK(roi.frame->GetTimestamp() == 456);
+        CHECK(roi.frame->GetStreamIndex() == 7);
+    }
+    SECTION("a requested full image is explicit and still host verified") {
+        auto roi = PrepareAlarmReviewRoiStrict(frame, {0, 0, 256, 192});
+        REQUIRE(VideoFrameValid(roi.frame));
+        CHECK(roi.mode == "full_frame");
+        CHECK(roi.actual == util::Box(0, 0, 256, 192));
+    }
+    SECTION("failed preparation retains a stage and never returns fallback pixels") {
+        const auto fault       = GENERATE(1, 2, 3, 5, 6, 7, 8);
+        fixture.frames.failure = fault;
+        const std::map<int, std::string> reasons{
+            {1, "source_copy_failed"},        {2, "source_copy_failed"}, {3, "roi_crop_failed"},
+            {5, "roi_host_data_unavailable"}, {6, "roi_crop_failed"},    {7, "roi_bounds_unverified"},
+            {8, "source_geometry_mismatch"}};
+        auto roi = PrepareAlarmReviewRoiStrict(frame, target);
+        CHECK_FALSE(VideoFrameValid(roi.frame));
+        CHECK(roi.failure == reasons.at(fault));
+    }
+    SECTION("invalid source is a typed failure") {
+        auto roi = PrepareAlarmReviewRoiStrict({}, target);
+        CHECK_FALSE(roi.frame);
+        CHECK(roi.failure == "invalid_source_frame");
+    }
+    SECTION("padding cannot rescue empty or off-image targets") {
+        for (const auto& box : std::vector<util::Box>{{100, 80, 0, 30},
+                                                      {100, 80, -1, 30},
+                                                      {-25, 80, 20, 30},
+                                                      {257, 80, 20, 30},
+                                                      {100, -40, 20, 30},
+                                                      {100, 193, 20, 30}}) {
+            auto roi = PrepareAlarmReviewRoiStrict(frame, box);
+            CHECK_FALSE(roi.frame);
+            CHECK(roi.failure == "invalid_target_roi");
+        }
+    }
+    SECTION("legacy crop-failure policy remains isolated") {
+        fixture.frames.failure = 6;
+        auto roi               = PrepareAlarmReviewRoi(frame, target);
+        REQUIRE(VideoFrameValid(roi.frame));
+        CHECK(roi.mode == "full_frame_fallback");
+        CHECK(roi.actual == util::Box(0, 0, 256, 192));
+    }
+}
 
 TEST_CASE("Laya video path binds independent ROI prompts and keeps negative results in review mode",
           "[visual-flow][video]") {

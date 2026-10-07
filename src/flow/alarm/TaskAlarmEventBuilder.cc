@@ -10,6 +10,7 @@
 #include <unordered_set>
 
 #include "flow/alarm/AlarmBatch.h"
+#include "flow/alarm/AlarmVisualState.h"
 #include "flow/alarm/TaskAlarm.h"
 #include "flow/alarm/TaskAlarmInternalTypes.h"
 #include "service/ai/IVisualDecisionService.h"
@@ -51,7 +52,7 @@ bool TaskAlarm::ShouldFilterAreaAlarm(const chrono::steady_clock::time_point& no
 bool TaskAlarm::ShouldFilterTargetAlarm(const AlgDataPtr& algData, const DataAlarmUnit& alarmUnit,
                                         const chrono::steady_clock::time_point& now, AlarmIdData& idData,
                                         MsgRecAlarm& recAlarmData, TaskAlarmSuppression* stagedSuppression) {
-    if (alarmUnit.visualRun && !alarmUnit.visualRun->Active())
+    if (!service::VisualRunsActive(alarm::VisualRuns(alarmUnit)))
         return true;
     auto recordFilter = [&] {
         if (!stagedSuppression)
@@ -365,10 +366,11 @@ bool TaskAlarm::FillAlarmData(AlgDataPtr algData) {
             continue;
         }
 
-        const auto now       = chrono::steady_clock::now();
-        const auto& first    = alarmData->alarms[batch.front()];
-        const auto visualRun = first.visualRun;
-        if (visualRun && !visualRun->Active())
+        const auto now           = chrono::steady_clock::now();
+        const auto& first        = alarmData->alarms[batch.front()];
+        const auto visualRuns    = alarm::VisualRuns(first);
+        const bool hasVisualRuns = !visualRuns.empty();
+        if (!service::VisualRunsActive(visualRuns))
             continue;
         auto& areaData               = m_mapAreaIdStatus[first.areaId];
         auto areaRecAlarmData        = makeRecAlarmData(first);
@@ -378,8 +380,8 @@ bool TaskAlarm::FillAlarmData(AlgDataPtr algData) {
         }
         bool areaFiltered = false;
         auto filterArea   = [&] { areaFiltered = ShouldFilterAreaAlarm(now, areaData, areaRecAlarmData); };
-        if (visualRun) {
-            if (!visualRun->CommitIfCurrent(filterArea))
+        if (hasVisualRuns) {
+            if (!service::CommitVisualRuns(visualRuns, filterArea))
                 continue;
         } else
             filterArea();
@@ -393,12 +395,12 @@ bool TaskAlarm::FillAlarmData(AlgDataPtr algData) {
         std::map<unsigned, AlarmIdData> stagedTargets;
         std::vector<MsgRecAlarm> stagedFilters;
         auto targetState = [&](int trackId) -> AlarmIdData& {
-            if (!visualRun)
+            if (!hasVisualRuns)
                 return m_mapAlarmIdStatus[trackId];
             return stagedTargets.try_emplace(trackId, m_mapAlarmIdStatus[trackId]).first->second;
         };
         auto commitStaged = [&] {
-            if (!visualRun)
+            if (!hasVisualRuns)
                 return;
             static_cast<TaskAlarmSuppression&>(*this) = stagedSuppression;
             for (const auto& [id, state] : stagedTargets)
@@ -414,14 +416,14 @@ bool TaskAlarm::FillAlarmData(AlgDataPtr algData) {
             auto recAlarmData     = makeRecAlarmData(alarmUnit);
             auto& idData          = targetState(alarmUnit.trackId);
             if (!ShouldFilterTargetAlarm(algData, alarmUnit, now, idData, recAlarmData,
-                                         visualRun ? &stagedSuppression : nullptr)) {
+                                         hasVisualRuns ? &stagedSuppression : nullptr)) {
                 acceptedIndices.push_back(index);
-            } else if (visualRun)
+            } else if (hasVisualRuns)
                 stagedFilters.push_back(recAlarmData);
         }
         if (acceptedIndices.empty()) {
-            if (visualRun)
-                visualRun->CommitIfCurrent(commitStaged);
+            if (hasVisualRuns)
+                service::CommitVisualRuns(visualRuns, commitStaged);
             continue;
         }
 
@@ -496,8 +498,8 @@ bool TaskAlarm::FillAlarmData(AlgDataPtr algData) {
         };
         // Prepare media before taking the fence; no slow inference/cropping runs
         // inside it. An edit/stop cannot commit an event from the previous run.
-        if (alarmUnit.visualRun) {
-            if (!alarmUnit.visualRun->CommitIfCurrent(publish))
+        if (hasVisualRuns) {
+            if (!service::CommitVisualRuns(alarm::VisualRuns(alarmUnit), publish))
                 continue;
         } else {
             commitState();
@@ -507,7 +509,7 @@ bool TaskAlarm::FillAlarmData(AlgDataPtr algData) {
             LayaReviewStore::Instance().Publication(eventData.messageId,
                                                     eventStored ? "published" : "alarm_store_failed");
 
-        if (!alarmUnit.visualRun)
+        if (!hasVisualRuns)
             dispatch();
         if (layaEnabled && m_param.layaReviewMode == "observe") {
             ReviewLayaEvent(eventData, alarmUnit, algData->chanDataDec.frame, false, eventStored);

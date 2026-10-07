@@ -14,7 +14,7 @@
 #include "flow/task/PTaskBase.h"
 #include "media/Color.h"
 #include "media/PixelFormat.h"
-#include "service/ai/IVisualDecisionService.h"
+#include "service/ai/VisualDecisionFence.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/media/IVideoFrameCodec.h"
 #include "service/media/IVideoFrameOSD.h"
@@ -47,17 +47,7 @@ static bool PublishVisualAudits(const std::vector<VisualDecisionAudit>& audits,
         runs.push_back(audit.run);
         records.insert(records.end(), audit.records.begin(), audit.records.end());
     }
-    std::sort(runs.begin(), runs.end());
-    runs.erase(std::unique(runs.begin(), runs.end()), runs.end());
-    std::function<bool(size_t)> commit = [&](size_t index) {
-        if (index == runs.size()) {
-            output = std::move(records);
-            return true;
-        }
-        bool published = false;
-        return runs[index]->CommitIfCurrent([&] { published = commit(index + 1); }) && published;
-    };
-    return commit(0);
+    return service::CommitVisualRuns(std::move(runs), [&] { output = std::move(records); });
 }
 
 static VideoFramePtr NormalizePicInputForInference(VideoFramePtr frame) {
