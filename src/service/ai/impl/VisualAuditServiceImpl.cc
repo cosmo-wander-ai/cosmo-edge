@@ -67,10 +67,11 @@ struct VisualAuditServiceImpl::State {
         }
     }
 
-    std::string Execute(const std::function<bool(db::VisualAuditDao&)>& operation) {
+    std::string Execute(const std::function<bool(db::VisualAuditDao&)>& operation,
+                        std::chrono::milliseconds retryBudget = 250ms) {
         if (!ready)
             return "unavailable";
-        const auto deadline = Clock::now() + 250ms;
+        const auto deadline = Clock::now() + retryBudget;
         for (;;) {
             if (Clock::now() >= deadline)
                 return "busy";
@@ -180,7 +181,12 @@ bool VisualAuditServiceImpl::Complete(VisualAuditReceipt& receipt, const Json& r
     try {
         const auto id      = receipt.metadata.at("request_id").get<std::string>();
         const auto started = Clock::now();
-        const auto result  = state_->Execute([&](auto& dao) { return dao.Finish(id, response, Now()); });
+        // A model result is already available here. Allow an ordinary alarm
+        // writer to commit before discarding that result's durable record.
+        // Admission and other operations keep their short 250 ms budget;
+        // persistent contention still returns an explicit failure.
+        const auto result =
+            state_->Execute([&](auto& dao) { return dao.Finish(id, response, Now()); }, 1000ms);
         receipt.metadata["finish"] = result;
         receipt.metadata["finish_ms"] =
             std::chrono::duration<double, std::milli>(Clock::now() - started).count();
@@ -225,6 +231,7 @@ Json VisualAuditServiceImpl::Status() const {
             {"busy_retries", state_->busyRetries.load()},
             {"lock_wait_ms", 250},
             {"operation_retry_budget_ms", 250},
+            {"finish_retry_budget_ms", 1000},
             {"sqlite_busy_ms", 20},
             {"unlinked_limit", 10000},
             {"unlinked_age_hours", 24}};

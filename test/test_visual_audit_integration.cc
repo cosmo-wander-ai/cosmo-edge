@@ -222,6 +222,43 @@ TEST_CASE("Visual audit integration: transient database writers preserve admissi
     CHECK(audit.Status()["busy_retries"].get<uint64_t>() > 0);
 }
 
+TEST_CASE("Visual audit integration: completed decisions survive a longer concurrent writer",
+          "[visual-audit-integration][visual-audit-result-write]") {
+    AuditFile file;
+    VisualAuditServiceImpl audit(file.path);
+    std::future<void> writer;
+    VisualDecisionServiceImpl service(
+        Options(),
+        [&](const auto&, const Json& request, const auto& jpeg, auto) {
+            std::promise<void> locked;
+            auto ready = locked.get_future();
+            writer     = std::async(std::launch::async, [&, locked = std::move(locked)]() mutable {
+                SQLite::Database connection(file.path, SQLite::OPEN_READWRITE | SQLite::OPEN_FULLMUTEX);
+                connection.exec("BEGIN IMMEDIATE");
+                locked.set_value();
+                // The BM1688 mixed soak observed a completed model result lose
+                // its durable record after a roughly 400 ms writer collision.
+                std::this_thread::sleep_for(400ms);
+                connection.exec("COMMIT");
+            });
+            ready.get();
+            return Reply(request, jpeg);
+        },
+        &audit);
+    const auto started = std::chrono::steady_clock::now();
+    auto result        = service.Decide(Request(), Run(), Image, 3s);
+    writer.get();
+    CHECK(std::chrono::steady_clock::now() - started < 2s);
+    REQUIRE(result.AllCompleted());
+    CHECK(result.audit.metadata["finish"] == "stored");
+    CHECK(audit.Status()["finish_failed"] == 0);
+    CHECK(Row(audit, Id(result))["response"] == result.response);
+    result.audit.lease->Seal("returned");
+    audit.Maintain();
+    CHECK(Row(audit, Id(result))["response"] == result.response);
+    CHECK(audit.Status()["closed_results_recovered"] == 0);
+}
+
 TEST_CASE(
     "Visual audit integration: real alarm service atomically links associated ROI decisions and cleanup",
     "[visual-audit-integration]") {
@@ -389,8 +426,11 @@ TEST_CASE("Visual audit integration: finish write failure stays explicit and pen
                 return Reply(request, jpeg);
             },
             &audit);
-        auto result = service.Decide(Request(), Run(), Image, 1s);
+        const auto started = std::chrono::steady_clock::now();
+        auto result        = service.Decide(Request(), Run(), Image, 1s);
+        const auto elapsed = std::chrono::steady_clock::now() - started;
         file.database->exec("ROLLBACK");
+        CHECK(elapsed < 1500ms);
         id = Id(result);
         REQUIRE(result.AllCompleted());
         REQUIRE(result.audit.metadata["begin"] == "stored");
