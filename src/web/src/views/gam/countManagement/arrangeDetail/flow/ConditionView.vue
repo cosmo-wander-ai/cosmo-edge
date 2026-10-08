@@ -65,6 +65,7 @@ defineOptions({ name: 'RecursiveCondition' })
 
 // Props
 const props = defineProps({
+  flowData: { type: Array, default: () => [] },
   condition: {
     type: Object,
     default: () => null
@@ -88,7 +89,6 @@ const tasksArr = ref([])
 const thresholdArr = ref([])
 const categoriesLabelListObj = ref({})
 const categoriesLabelListArr = ref([])
-const flowData = ref([])
 
 // Watch
 watch(() => props.condition?.keyL, (newVal) => {
@@ -110,7 +110,7 @@ watch(() => props.condition?.keyL, (newVal) => {
       props.condition.rightType = 'select2'
     } else {
       const result = _.find(tasksArr.value, { key: newVal })
-      props.condition.rightType = result ? result.type : 'select'
+      props.condition.rightType = result ? result.type : 'text'
     }
     handleRightData(props.condition.keyL)
   } else if (props.condition) {
@@ -145,8 +145,7 @@ const handleTaskData = () => {
   thresholdArr.value = []
   tasksArr.value = []
   const customMetadata = localStorage.getItem('customMetadata')
-  if (!customMetadata) return
-  JSON.parse(customMetadata).forEach((obj) => {
+  JSON.parse(customMetadata || '[]').forEach((obj) => {
     tasksArr.value.push({
       ...obj,
       id: obj.key,
@@ -181,7 +180,7 @@ const handleLeftData = () => {
   if (!props.atomicList) return
   leftData.value = []
   categoriesLabelListArr.value = []
-  if (props.atomicList.length !== 0 && props.atomicList[0]?.labelList?.length > 0) {
+  if (props.atomicList.some(item => item?.labelList?.length > 0)) {
     leftData.value = [
       {
         label: t('glossary.algConfidence'),
@@ -238,6 +237,18 @@ const handleLeftData = () => {
     })
   }
 
+  if (props.flowData.some(node => String(node.actionId).startsWith('P'))) {
+    leftData.value.push({ label: t('imageAnalysis.workflowResults'), id: -4, children: [
+      { id: 'picture.count', label: t('imageAnalysis.pictureCount'), type: 'text' },
+      { id: 'picture.matchedCount', label: t('imageAnalysis.pictureMatchedCount'), type: 'text' },
+      { id: 'match.score', label: t('imageAnalysis.matchScore'), type: 'text' },
+      { id: 'match.matched', label: t('imageAnalysis.matchResult'), type: 'text' },
+      { id: 'ocr.text', label: t('imageAnalysis.ocrText'), type: 'text' },
+      ...props.flowData.filter(node => ['PB_90001', 'PB_90003', 'PB_90002', 'PB_00006', 'PDA_00003'].includes(node.actionId)).map(node => ({
+        id: `node.${node.flowActionId}`, label: `${node.actionName} (${node.flowActionId})`, type: 'text'
+      }))
+    ] })
+  }
   if (tasksArr.value.length !== 0) {
     leftData.value.push({
       label: t('glossary.taskParams'),

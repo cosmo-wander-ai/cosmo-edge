@@ -19,69 +19,6 @@
 
 namespace cosmo::service {
 
-namespace {
-
-    std::vector<cosmo::MsgTaskArea> ChinaMobileTaskAreaToLocal(
-        const cosmo::MsgPTaskDetectExtParam& ext_param) {
-        std::vector<cosmo::MsgTaskArea> areas;
-        int area_id             = 0;
-        size_t DetectRegionSize = 4;
-        for (auto& rule : ext_param.rules) {
-            area_id += 1;
-            // Rectangle 4 points
-            if (DetectRegionSize != rule.DetectRegion.size()) {
-                continue;
-            }
-            cosmo::MsgTaskArea area;
-            area.areaId = "Area-" + std::to_string(area_id);
-            area.name   = area.areaId;
-            for (auto& coordinate : rule.DetectRegion) {
-                // Coordinate points
-                if (2 != coordinate.size()) {
-                    break;
-                }
-                float x = coordinate.at(0);
-                float y = coordinate.at(1);
-                if (x < 0.0f) {
-                    x = 0.0f;
-                }
-                if (x > 1.0f) {
-                    x = 1.0f;
-                }
-
-                if (y < 0.0f) {
-                    y = 0.0f;
-                }
-                if (y > 1.0f) {
-                    y = 1.0f;
-                }
-                cosmo::MsgPoint point;
-                point.x = x;
-                point.y = y;
-                area.points.push_back(point);
-            }
-            if (DetectRegionSize != area.points.size()) {
-                continue;
-            }
-            areas.push_back(area);
-        }
-
-        return areas;
-    }
-
-    std::vector<cosmo::MsgTaskArea> ChinaMobileTaskAreaToLocal(
-        const std::string& taskId, const std::vector<cosmo::MsgPTaskDetectExtParam>& ext_params) {
-        auto it = std::find_if(ext_params.begin(), ext_params.end(),
-                               [&](const auto& ext_param) { return ext_param.eventCode == taskId; });
-        if (it != ext_params.end()) {
-            return ChinaMobileTaskAreaToLocal(*it);
-        }
-
-        return {};
-    }
-
-}  // namespace
-
 PicTaskServiceImpl::PicTaskServiceImpl() : task_base_(std::make_unique<cosmo::PTaskBase>()) {
     LOG_INFO("{}", "PicTaskServiceImpl Init");
 }
@@ -103,32 +40,24 @@ cosmo::util::ErrorEnum PicTaskServiceImpl::TaskCreate(const std::string& taskId,
         LOG_WARN("Task:{} Cannot Create Without Algorithm Configuration", taskId);
         return cosmo::util::ErrorEnum::ActionFailed;
     }
-    std::lock_guard<std::shared_mutex> lock(mtx_);
-    if (stopping_) {
-        LOG_WARN("Task:{} Cannot Create While PicTaskService Is Stopping", taskId);
-        return cosmo::util::ErrorEnum::ServiceNotInit;
-    }
-    auto it = tasks_.find(taskId);
-    if (it != tasks_.end()) {
-        auto old_task = it->second;
-        if (old_task && old_task->GetVersion() != action_alg->algorithmUpdateTime) {
-            LOG_INFO("Task:{} Algorithm Updated. Recreating task ({} -> {})", taskId, old_task->GetVersion(),
-                     action_alg->algorithmUpdateTime);
-            DestroyTask(old_task);
-            tasks_.erase(it);
-        } else {
-            LOG_WARN("Task:{} In Pool, Cant Repeat.", taskId);
-            return cosmo::util::ErrorEnum::Created;
-        }
-    }
-
     auto task_el = task_base_->TaskCreate(taskId, action_alg);
-    if (!task_el) {
-        LOG_WARN("Task:{} Create Failed.", taskId);
+    if (!task_el)
         return cosmo::util::ErrorEnum::ActionFailed;
+    cosmo::PTaskElementPtr old_task;
+    {
+        std::lock_guard<std::shared_mutex> lock(mtx_);
+        if (stopping_)
+            return cosmo::util::ErrorEnum::ServiceNotInit;
+        const auto it = tasks_.find(taskId);
+        if (it != tasks_.end()) {
+            if (it->second->GetVersion() == action_alg->algorithmUpdateTime &&
+                it->second->GetAlgId() == action_alg->algorithmCode)
+                return cosmo::util::ErrorEnum::Created;
+            old_task = it->second;
+        }
+        tasks_[taskId] = task_el;
     }
-
-    tasks_[taskId] = task_el;
+    DestroyTask(old_task);
     return cosmo::util::ErrorEnum::Success;
 }
 
@@ -137,36 +66,30 @@ cosmo::util::ErrorEnum PicTaskServiceImpl::TaskDelete(const std::string& taskId)
         LOG_INFO("Task:{} Empty", taskId);
         return cosmo::util::ErrorEnum::InvalidParam;
     }
-    std::lock_guard<std::shared_mutex> lock(mtx_);
-    auto task_el = tasks_.find(taskId);
-    if (task_el != tasks_.end()) {
-        auto old_task = task_el->second;
-        tasks_.erase(taskId);
-
-        DestroyTask(old_task);
-        LOG_INFO("Delete {}", taskId);
-    } else {
-        LOG_WARN("Task:{} Not Found", taskId);
-        return cosmo::util::ErrorEnum::NotInit;
+    cosmo::PTaskElementPtr task;
+    {
+        std::lock_guard<std::shared_mutex> lock(mtx_);
+        const auto it = tasks_.find(taskId);
+        if (it == tasks_.end())
+            return cosmo::util::ErrorEnum::NotInit;
+        task = it->second;
+        tasks_.erase(it);
     }
-
+    DestroyTask(task);
     return cosmo::util::ErrorEnum::Success;
 }
 
 bool PicTaskServiceImpl::TaskStart(const std::string& taskId) {
-    std::lock_guard<std::shared_mutex> lock(mtx_);
-    if (stopping_) {
-        LOG_WARN("[{}] Cannot Start While PicTaskService Is Stopping", taskId);
-        return false;
+    cosmo::PTaskElementPtr task;
+    {
+        std::shared_lock<std::shared_mutex> lock(mtx_);
+        const auto it = tasks_.find(taskId);
+        if (stopping_ || it == tasks_.end())
+            return false;
+        task = it->second;
     }
-    auto it = tasks_.find(taskId);
-    if (it == tasks_.end()) {
-        LOG_WARN("[{}] Not In Pool, Cant Start.", taskId);
-        return false;
-    }
-
-    // Sync algorithm params to algorithm instance
-    return task_base_->TaskActionInit(it->second);
+    cosmo::PictureTaskLease lease(task);
+    return lease && task_base_->TaskActionInit(task);
 }
 
 void PicTaskServiceImpl::TaskDeleteAll() {
@@ -204,23 +127,28 @@ std::string PicTaskServiceImpl::GetCheckSum() {
 cosmo::util::ErrorEnum PicTaskServiceImpl::DetectPic(const std::string& taskId,
                                                      cosmo::MsgPTaskDetectPicRecv& data,
                                                      cosmo::MsgPTaskDetectPicSend& retData) {
+    if (!data.taskConfig.areas.empty() || !data.taskConfig.shieldedAreas.empty() ||
+        (data.resultMode != "business" && data.resultMode != "debug" && data.resultMode != "legacy"))
+        return cosmo::util::ErrorEnum::InvalidParam;
     if (taskId.empty()) {
         LOG_INFO("Task:{} Empty", taskId);
         return cosmo::util::ErrorEnum::InvalidParam;
     }
-    // Keep a shared service lock through inference. Shutdown takes the unique
-    // lock before moving tasks out, so it cannot destroy action instances while
-    // an in-flight request is using them.
-    std::shared_lock<std::shared_mutex> lock(mtx_);
-    if (stopping_) {
-        return cosmo::util::ErrorEnum::ServiceNotInit;
+    cosmo::PTaskElementPtr task;
+    {
+        std::shared_lock<std::shared_mutex> lock(mtx_);
+        if (stopping_)
+            return cosmo::util::ErrorEnum::ServiceNotInit;
+        const auto it = tasks_.find(taskId);
+        if (it == tasks_.end())
+            return cosmo::util::ErrorEnum::NotCreated;
+        task = it->second;
     }
-    auto it = tasks_.find(taskId);
-    if (it == tasks_.end()) {
-        LOG_WARN("Task:{} Not In Pool, .", taskId);
+    cosmo::PictureTaskLease lease(task);
+    if (!lease)
         return cosmo::util::ErrorEnum::NotCreated;
-    }
-    auto task = it->second;
+    if (!data.algorithmCode.empty() && data.algorithmCode != task->GetAlgId())
+        return cosmo::util::ErrorEnum::InvalidParam;
 
     if (!task->is_started) {
         if (task->startFailedCount > 10) {
@@ -272,7 +200,11 @@ cosmo::MsgPTaskCreateSend PicTaskServiceImpl::ProcessPTaskCreate(cosmo::MsgPTask
     }
     // 3. Set task parameters
     LOG_INFO("{} Create {} Task", data.taskId, action_alg->algorithmName);
-    SetTaskParam(data.taskId, data.taskConfig);
+    if (!SetTaskParam(data.taskId, data.taskConfig)) {
+        errc = cosmo::util::ErrorEnum::InvalidParam;
+        TaskDelete(data.taskId);
+        return retData;
+    }
 
     if (tast_create_status ==
         cosmo::util::ErrorEnum::Success) {  // Only start newly created tasks; existing tasks need no restart
@@ -324,13 +256,13 @@ cosmo::MsgDetectSend PicTaskServiceImpl::ProcessDetectGroup(cosmo::MsgDetectRecv
             service::ServiceRegistry::Instance().Get<service::IAppInfoService>().GetPicTaskGroupCount();
         std::string task_unit_ext = taskUnit + "-" + std::to_string(ramdon);
         cosmo::MsgPTaskDetectPicRecv ptaskUnit;
-        ptaskUnit.mvDebug          = data.mvDebug;
-        ptaskUnit.taskId           = task_unit_ext;
-        ptaskUnit.algorithmCode    = task_unit_ext;
-        ptaskUnit.imageUrl         = data.imageUrl;
-        ptaskUnit.imageBase64      = data.imageData;
-        ptaskUnit.needRetImg       = false;  // No overlay image needed
-        ptaskUnit.taskConfig.areas = ChinaMobileTaskAreaToLocal(taskUnit, data.extParam);
+        ptaskUnit.mvDebug       = data.mvDebug;
+        ptaskUnit.taskId        = task_unit_ext;
+        ptaskUnit.algorithmCode = taskUnit;
+        ptaskUnit.imageUrl      = data.imageUrl;
+        ptaskUnit.imageBase64   = data.imageData;
+        ptaskUnit.needRetImg    = false;  // No overlay image needed
+        ptaskUnit.resultMode    = "legacy";
 
         std::error_condition unitErrc;
         cosmo::MsgPTaskDetectPicSend ptaskUnitRetData{};
@@ -338,10 +270,7 @@ cosmo::MsgDetectSend PicTaskServiceImpl::ProcessDetectGroup(cosmo::MsgDetectRecv
         // Call the underlying DetectPic for single task, not recursively calling Controller
         ptaskUnitRetData.resData.algorithmCode = ptaskUnit.algorithmCode;
         ptaskUnitRetData.resData.timestamp     = std::to_string(cosmo::util::GetMilliseconds());
-        if (!IsTaskConfigEmpty(ptaskUnit.taskConfig)) {
-            SetTaskParam(ptaskUnit.taskId, ptaskUnit.taskConfig);
-        }
-        unitErrc = DetectPic(ptaskUnit.taskId, ptaskUnit, ptaskUnitRetData);
+        unitErrc                               = DetectPic(ptaskUnit.taskId, ptaskUnit, ptaskUnitRetData);
 
         LOG_INFO("[PTask] :Detect Task:{} Get:{}", taskUnit, unitErrc.message());
         for (const auto& target : ptaskUnitRetData.resData.targetList) {
@@ -417,36 +346,33 @@ std::vector<std::string> PicTaskServiceImpl::QueryRealTasks(bool started) {
 }
 
 bool PicTaskServiceImpl::SetTaskParam(const std::string& taskId, cosmo::MsgTaskConfig& param) {
-    std::lock_guard<std::shared_mutex> lock(mtx_);
-    auto it = tasks_.find(taskId);
-    if (it == tasks_.end()) {
-        LOG_WARN("[{}] Not In Pool, Cant SetParam.", taskId);
+    if (!param.areas.empty() || !param.shieldedAreas.empty())
         return false;
+    cosmo::PTaskElementPtr task;
+    {
+        std::shared_lock<std::shared_mutex> lock(mtx_);
+        const auto it = tasks_.find(taskId);
+        if (stopping_ || it == tasks_.end())
+            return false;
+        task = it->second;
     }
-    auto task = it->second;
-
-    for (auto& actionKeyParam : param.params) {
-        auto keys = cosmo::util::Split(actionKeyParam.key.ToRefString(), ".");
-        actionKeyParam.keys.assign(keys.begin(), keys.end());
-    }
-
-    cosmo::AreaToLocal(param);
-
-    // Algorithm parameter settings
-    task->params = param;
-
-    // Sync algorithm params to algorithm instance
-    return task_base_->ModifyTaskParam(task, param);
+    cosmo::PictureTaskLease lease(task);
+    return lease && task_base_->ModifyTaskParam(task, param);
 }
 
 bool PicTaskServiceImpl::GetTaskParam(const std::string& taskId, cosmo::MsgTaskConfig& param) {
-    std::shared_lock<std::shared_mutex> lock(mtx_);
-    auto it = tasks_.find(taskId);
-    if (it == tasks_.end()) {
-        LOG_WARN("[{}] Not In Pool, Cant GetParam.", taskId);
-        return false;
+    cosmo::PTaskElementPtr task;
+    {
+        std::shared_lock<std::shared_mutex> lock(mtx_);
+        const auto it = tasks_.find(taskId);
+        if (it == tasks_.end())
+            return false;
+        task = it->second;
     }
-    param = it->second->params;
+    cosmo::PictureTaskLease lease(task);
+    if (!lease)
+        return false;
+    param = task->params;
     return true;
 }
 
@@ -468,6 +394,12 @@ size_t PicTaskServiceImpl::TaskCount() {
 void PicTaskServiceImpl::DestroyTask(const cosmo::PTaskElementPtr& task) noexcept {
     if (!task) {
         return;
+    }
+    {
+        std::unique_lock<std::mutex> lock(task->mtx);
+        task->retired = true;
+        task->idle.notify_all();
+        task->idle.wait(lock, [&] { return !task->executing; });
     }
     try {
         if (task->is_started && !task_base_->TaskActionDestroy(task)) {

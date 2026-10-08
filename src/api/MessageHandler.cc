@@ -105,17 +105,14 @@ MsgOperateNodeSend MessageHandler::Handle(MsgOperateNodeRecv&& data, std::error_
 // Picture detection interface
 MsgPTaskDetectPicSend MessageHandler::Handle(MsgPTaskDetectPicRecv&& data, std::error_condition& errc) {
     MsgPTaskDetectPicSend retData{};
+    retData.resData.schemaVersion = data.resultMode == "legacy" ? 1 : 2;
+    retData.resData.requestId     = data.requestId;
+    retData.resData.status        = "failed";
     retData.resData.algorithmCode = data.algorithmCode;
     retData.resData.timestamp     = std::to_string(util::GetMilliseconds());
     if (data.taskId.empty()) {
         data.taskId = data.algorithmCode;
     }
-    if (!IsTaskConfigEmpty(data.taskConfig))  // Set parameter if not empty
-    {
-        service::ServiceRegistry::Instance().Get<service::IPicTaskQuery>().SetTaskParam(data.taskId,
-                                                                                        data.taskConfig);
-    }
-
     errc = service::ServiceRegistry::Instance().Get<service::IPicTaskDetect>().DetectPic(data.taskId, data,
                                                                                          retData);
     return retData;

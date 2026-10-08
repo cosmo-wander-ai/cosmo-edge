@@ -5,6 +5,7 @@
       <div class="toolbar-left">
         <el-select
           v-model="selectedAlgorithm"
+          :disabled="analyzing"
           :placeholder="$t('imageAnalysis.selectAlgorithmPlaceholder')"
           filterable
           size="default"
@@ -22,6 +23,7 @@
           ref="uploadRef"
           action="#"
           :auto-upload="false"
+          :disabled="analyzing"
           :show-file-list="false"
           :on-change="handleFileChange"
           accept="image/*"
@@ -43,18 +45,32 @@
           type="danger"
           plain
           :icon="Delete"
+          :disabled="analyzing"
           @click="clearAll"
         >
           {{ $t('action.clear') }}
         </el-button>
       </div>
       <div class="toolbar-right">
+        <el-switch v-model="debugResults" :disabled="analyzing" :active-text="$t('imageAnalysis.debugResults')" />
         <span class="file-count" v-if="uploadedFiles.length > 0">
           {{ $t('imageAnalysis.selectedImages', { n: uploadedFiles.length }) }}
         </span>
       </div>
     </div>
 
+    <el-collapse v-if="parameterFields.length" class="parameter-panel">
+      <el-collapse-item :title="$t('imageAnalysis.parameters')" name="parameters">
+        <el-form label-position="top" :disabled="analyzing" class="parameter-grid">
+          <el-form-item v-for="field in parameterFields" :key="field.key" :label="resolveI18nText(field)">
+            <el-select v-if="field.options?.length" v-model="parameterValues[field.key]" clearable>
+              <el-option v-for="option in field.options" :key="option.value" :value="String(option.value)" :label="resolveI18nOptionLabel(option)" />
+            </el-select>
+            <el-input v-else v-model="parameterValues[field.key]" :placeholder="String(field.defaultValue || '')" clearable />
+          </el-form-item>
+        </el-form>
+      </el-collapse-item>
+    </el-collapse>
     <!-- 内容区域 -->
     <div class="content-section" v-if="uploadedFiles.length > 0 || results.length > 0">
       <!-- 图片预览 / 结果网格 -->
@@ -85,12 +101,16 @@
             <div class="image-name" :title="item.name">{{ item.name }}</div>
             <div class="image-status">
               <el-tag v-if="item.analyzing" type="warning" size="small" effect="dark">{{ $t('imageAnalysis.analyzingStatus') }}</el-tag>
+              <el-tag v-else-if="item.result?.error" type="danger" size="small">{{ $t('imageAnalysis.failed') }}</el-tag>
               <el-tag v-else-if="item.result" type="success" size="small" effect="dark">{{ $t('imageAnalysis.completed') }}</el-tag>
               <el-tag v-else type="info" size="small" effect="plain">{{ $t('imageAnalysis.pending') }}</el-tag>
             </div>
           </div>
           <!-- 结果信息面板 -->
           <div v-if="item.result" class="result-panel">
+            <div v-for="output in item.result.outputs || []" :key="output.nodeId" class="result-label">
+              {{ output.name }}: {{ decisionLabel(output.decision) }} ({{ output.matchedCount }})
+            </div>
             <!-- 检测类结果 -->
             <div v-if="getTargetCount(item.result) > 0" class="result-section">
               <div class="result-label">{{ $t('imageAnalysis.detectedTargets') }}</div>
@@ -163,6 +183,16 @@
             <el-descriptions-item :label="$t('field.algorithmName')">{{ previewItem.result.algorithmCode || resolveResourceAlgorithmName(selectedAlgorithmInfo) }}</el-descriptions-item>
             <el-descriptions-item :label="$t('imageAnalysis.detectionCount')">{{ getTargetCount(previewItem.result) }}</el-descriptions-item>
           </el-descriptions>
+          <el-table v-if="previewItem.result.outputs?.length" :data="previewItem.result.outputs" border size="small">
+            <el-table-column prop="name" :label="$t('imageAnalysis.workflowResults')" />
+            <el-table-column :label="$t('imageAnalysis.logicResult')"><template #default="{ row }">{{ decisionLabel(row.decision) }}</template></el-table-column>
+            <el-table-column prop="matchedCount" :label="$t('imageAnalysis.detectionCount')" />
+          </el-table>
+          <el-collapse v-if="previewItem.result.nodes?.length">
+            <el-collapse-item :title="$t('imageAnalysis.executionDetails')" name="trace">
+              <pre class="execution-json">{{ JSON.stringify(previewItem.result, null, 2) }}</pre>
+            </el-collapse-item>
+          </el-collapse>
           <div v-if="getTargetCount(previewItem.result) > 0" class="preview-targets">
             <div class="preview-targets-title">{{ $t('imageAnalysis.detectionDetails') }}</div>
             <el-table :data="getTargets(previewItem.result)" border size="small" max-height="300">
@@ -177,14 +207,14 @@
                 <template #default="{ row }">
                   <span v-if="row.box">
                     [{{ (row.box.x || 0).toFixed(3) }}, {{ (row.box.y || 0).toFixed(3) }},
-                     {{ (row.box.w || 0).toFixed(3) }}, {{ (row.box.h || 0).toFixed(3) }}]
+                     {{ (row.box.width || 0).toFixed(3) }}, {{ (row.box.height || 0).toFixed(3) }}]
                   </span>
                 </template>
               </el-table-column>
               <el-table-column :label="$t('imageAnalysis.logicResult')" width="80">
                 <template #default="{ row }">
                   <el-tag :type="row.bLogicResult ? 'danger' : 'success'" size="small">
-                    {{ row.bLogicResult ? $t('imageAnalysis.hit') : $t('status.normal') }}
+                    {{ decisionLabel(row.decision) }}
                   </el-tag>
                 </template>
               </el-table-column>
@@ -213,9 +243,10 @@ export default {
 <script setup>
 import { ref, computed, getCurrentInstance, nextTick, onUnmounted, onDeactivated } from 'vue'
 import { t } from '@/i18n'
+import { v4 as uuid } from 'uuid'
 import { ElMessage } from 'element-plus'
 import { Upload, VideoPlay, Delete } from '@element-plus/icons-vue'
-import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
+import { resolveResourceAlgorithmName, resolveI18nText, resolveI18nOptionLabel } from '@/utils/i18nResource'
 import { uploadFileInChunks, UploadPurpose } from '@/utils/chunkUpload'
 
 const { proxy } = getCurrentInstance()
@@ -229,6 +260,17 @@ const uploadedFiles = ref([])
 const results = ref([])
 const analyzing = ref(false)
 const taskCreated = ref(false)
+const taskId = ref(uuid())
+const debugResults = ref(false)
+const parameterFields = ref([])
+const parameterValues = ref({})
+let stopped = false
+const decisionLabel = (decision) => ({
+  matched: t('imageAnalysis.matched'),
+  not_matched: t('imageAnalysis.notMatched'),
+  unknown: t('imageAnalysis.unknownDecision'),
+  not_evaluated: t('imageAnalysis.notEvaluated')
+}[decision] || t('imageAnalysis.notEvaluated'))
 const previewVisible = ref(false)
 const previewItem = ref(null)
 const previewIndex = ref(-1)
@@ -279,6 +321,7 @@ const handleAlgorithmChange = async (val) => {
     // 切换前销毁旧的任务，释放显存
     const cancelParams = {
       mvDebug: 'Cosmo-Debug',
+      taskId: taskId.value,
       algorithmCode: selectedAlgorithmInfo.value.algorithmId
     }
     await $API.pTaskCancle(cancelParams).catch(e => console.error(e))
@@ -286,12 +329,26 @@ const handleAlgorithmChange = async (val) => {
   const alg = algorithmList.value.find(a => a.algorithmId === val)
   selectedAlgorithmInfo.value = alg || null
   taskCreated.value = false
+  taskId.value = uuid()
+  parameterFields.value = []
+  parameterValues.value = {}
+  if (alg) {
+    try {
+      const detail = await $API.algorithmLayoutDetail({ id: alg.algorithmId })
+      if (selectedAlgorithm.value !== val) return
+      const raw = detail?.resData?.algorithmMetadata
+      const metadata = typeof raw === 'string' ? JSON.parse(raw) : raw
+      parameterFields.value = (metadata?.params || []).filter(field => field.key && field.key !== 'atomicCode')
+      parameterValues.value = Object.fromEntries(parameterFields.value.map(field => [field.key, String(field.defaultValue || '')]))
+    } catch (error) { console.error('Image parameter loading failed', error) }
+  }
 }
 
 const cleanupBackend = async () => {
   if (taskCreated.value && selectedAlgorithmInfo.value) {
     const cancelParams = {
       mvDebug: 'Cosmo-Debug',
+      taskId: taskId.value,
       algorithmCode: selectedAlgorithmInfo.value.algorithmId
     }
     await $API.pTaskCancle(cancelParams).catch(e => console.error(e))
@@ -301,10 +358,11 @@ const cleanupBackend = async () => {
 
 // 页面离开时，销毁任务释放显存
 onUnmounted(async () => {
+  stopped = true;
   await cleanupBackend()
   releasePreviews()
 })
-onDeactivated(cleanupBackend)
+onDeactivated(() => { stopped = true; return cleanupBackend() })
 
 const handleFileChange = (file) => {
   const raw = file?.raw
@@ -349,6 +407,7 @@ const ensureTaskCreated = async () => {
   try {
     const createParams = {
       mvDebug: 'Cosmo-Debug',
+      taskId: taskId.value,
       algorithmCode: alg.algorithmId,
       algorithmUpdateTime: alg.algorithmUpdateTime || String(Date.now())
     }
@@ -364,6 +423,7 @@ const ensureTaskCreated = async () => {
     try {
       const cancelParams = {
         mvDebug: 'Cosmo-Debug',
+      taskId: taskId.value,
         algorithmCode: alg.algorithmId
       }
       await $API.pTaskCancle(cancelParams)
@@ -383,6 +443,7 @@ const startAnalysis = async () => {
     return
   }
 
+  stopped = false
   analyzing.value = true
   results.value = new Array(uploadedFiles.value.length).fill(null)
 
@@ -394,6 +455,7 @@ const startAnalysis = async () => {
 
   // 2. 逐张分析图片
   for (let i = 0; i < uploadedFiles.value.length; i++) {
+    if (stopped) break
     uploadedFiles.value[i].analyzing = true
     let stagedUpload
     try {
@@ -405,6 +467,10 @@ const startAnalysis = async () => {
       })
       const params = {
         algorithmCode: selectedAlgorithm.value,
+        taskId: taskId.value,
+        requestId: uuid(),
+        resultMode: debugResults.value ? 'debug' : 'business',
+        taskConfig: { params: Object.entries(parameterValues.value).filter(([, value]) => value !== '').map(([key, value]) => ({ key, value })) },
         uploadId: stagedUpload.uploadId,
         needRetImg: true
       }
@@ -431,6 +497,7 @@ const startAnalysis = async () => {
   try {
     const cancelParams = {
       mvDebug: 'Cosmo-Debug',
+      taskId: taskId.value,
       algorithmCode: selectedAlgorithmInfo.value.algorithmId
     }
     await $API.pTaskCancle(cancelParams)
@@ -464,7 +531,7 @@ const drawOverlay = (index) => {
   const colors = ['#3182ce', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#4299e1', '#06b6d4']
 
   targets.forEach((target, tIdx) => {
-    if (!target.box) return
+    if (!target.box || target.filtered) return
     const color = colors[tIdx % colors.length]
     // 后端返回的是像素坐标
     const { x, y, width: bw, height: bh } = target.box
@@ -498,7 +565,7 @@ const drawOverlay = (index) => {
       ctx.fillStyle = '#00ff00'
       target.landmark.forEach(pt => {
         ctx.beginPath()
-        ctx.arc(pt.x, pt.y, 3, 0, Math.PI * 2)
+        ctx.arc(pt.xRatio ?? pt.x, pt.yRatio ?? pt.y, 3, 0, Math.PI * 2)
         ctx.fill()
       })
     }
@@ -508,19 +575,8 @@ const drawOverlay = (index) => {
 // Result helpers
 const getTargets = (result) => {
   if (!result) return []
-  // Merge areaList targets and top-level targetList
-  const targets = []
-  if (result.areaList) {
-    result.areaList.forEach(area => {
-      if (area.targetList) {
-        area.targetList.forEach(t => targets.push(t))
-      }
-    })
-  }
-  if (result.targetList) {
-    result.targetList.forEach(t => targets.push(t))
-  }
-  return targets
+  if (Array.isArray(result.targetList)) return result.targetList
+  return (result.areaList || []).flatMap(area => area.targetList || [])
 }
 
 const getTargetCount = (result) => {
@@ -528,6 +584,7 @@ const getTargetCount = (result) => {
 }
 
 const getTargetLabel = (target) => {
+  if (target?.texts?.length) return target.texts.join(' / ')
   if (!target?.confidence?.length) return t('common.unknown')
   const top = target.confidence.reduce((a, b) =>
     (b.confidence || 0) > (a.confidence || 0) ? b : a
@@ -570,7 +627,7 @@ const drawPreviewOverlay = () => {
     const colors = ['#3182ce', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#4299e1', '#06b6d4']
 
     targets.forEach((target, tIdx) => {
-      if (!target.box) return
+      if (!target.box || target.filtered) return
       const color = colors[tIdx % colors.length]
       const { x, y, width: bw, height: bh } = target.box
       // 跳过无效的零尺寸框的矩形绘制（如 Qwen3VL 纯文本结果 box={0,0,0,0}）
@@ -608,7 +665,7 @@ const drawPreviewOverlay = () => {
         ctx.fillStyle = '#00ff00'
         target.landmark.forEach(pt => {
           ctx.beginPath()
-          ctx.arc(pt.x, pt.y, radius, 0, Math.PI * 2)
+          ctx.arc(pt.xRatio ?? pt.x, pt.yRatio ?? pt.y, radius, 0, Math.PI * 2)
           ctx.fill()
         })
       }
@@ -622,6 +679,10 @@ const onPreviewImageLoad = () => {
 </script>
 
 <style lang="scss" scoped>
+.parameter-panel { margin: 0 0 16px; padding: 0 16px; background: var(--bg-white); }
+.parameter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.execution-json { max-height: 400px; overflow: auto; white-space: pre-wrap; }
+
 .image-analysis-page {
   display: flex;
   flex-direction: column;

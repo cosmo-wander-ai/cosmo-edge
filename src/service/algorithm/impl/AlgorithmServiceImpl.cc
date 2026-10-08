@@ -263,19 +263,20 @@ cosmo::util::ErrorEnum AlgorithmServiceImpl::AddFromJson(const std::string& algo
         ms_timestamp = static_cast<int64_t>(cosmo::util::GetCurrentDateTime().ToTimeStamp()) * 1000;
 
         algorithm::AlgorithmPacketInfo newPacket;
-        newPacket.id                   = algorithm_code;
-        newPacket.algorithmCode        = std::stoi(algorithm_code);
-        newPacket.algorithmName        = algorithmName;
-        newPacket.algorithmCategory    = algorithmCategory;
-        newPacket.algorithmUsage       = algorithmUsage;
-        newPacket.remark               = remark;
-        newPacket.eventType            = eventType;
-        newPacket.status               = 1;
-        newPacket.createTime           = ms_timestamp;
-        newPacket.updateTime           = ms_timestamp;
-        newPacket.confVersionId        = "default-" + algorithm_code;
-        newPacket.confVersionName      = "默认";
-        newPacket.algorithmMetadata    = detail::kDefaultAlgorithmMetadata;
+        newPacket.id                = algorithm_code;
+        newPacket.algorithmCode     = std::stoi(algorithm_code);
+        newPacket.algorithmName     = algorithmName;
+        newPacket.algorithmCategory = algorithmCategory;
+        newPacket.algorithmUsage    = algorithmUsage;
+        newPacket.remark            = remark;
+        newPacket.eventType         = eventType;
+        newPacket.status            = 1;
+        newPacket.createTime        = ms_timestamp;
+        newPacket.updateTime        = ms_timestamp;
+        newPacket.confVersionId     = "default-" + algorithm_code;
+        newPacket.confVersionName   = "默认";
+        newPacket.algorithmMetadata =
+            algorithmUsage == 2 ? "{\"params\":[]}" : detail::kDefaultAlgorithmMetadata;
         newPacket.algorithmProcessdata = "[]";
         newPacket.atomicList           = "[]";
         algorithm_packets_.emplace(algorithm_code, std::move(newPacket));

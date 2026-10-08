@@ -46,6 +46,8 @@ void to_json(nlohmann::json& j, const ActionAlg& a) {
     j["algorithmCheckSum"]   = a.algorithmCheckSum;
     j["algorithmMinFps"]     = a.algorithmMinFps;
     j["category"]            = a.category;
+    if (!a.pictureDefaults.empty())
+        j["pictureDefaults"] = a.pictureDefaults;
 }
 
 void from_json(const nlohmann::json& j, ActionAlg& a) {
@@ -56,6 +58,7 @@ void from_json(const nlohmann::json& j, ActionAlg& a) {
     JSON_OPT(j, a, algorithmCheckSum);
     JSON_OPT(j, a, algorithmMinFps);
     JSON_OPT(j, a, category);
+    JSON_OPT(j, a, pictureDefaults);
 }
 
 void to_json(nlohmann::json& j, const MsgLoadLocalAlgorithmActionRecv& r) {

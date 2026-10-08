@@ -170,7 +170,7 @@ mtk: <MTK>
 | `algorithmUpdateTime` | Yes | Current 13-digit millisecond timestamp compatibility field; the current task loads the local algorithm by `algorithmCode` |
 | `taskId` | Recommended | Globally unique client-generated ID; defaults to `algorithmCode` when omitted |
 | `mvDebug` | Recommended | The current image-analysis client uses `Cosmo-Debug` |
-| `taskConfig` | No | Per-task parameter, region, and face-gallery overrides |
+| `taskConfig` | No | Per-task parameters and library bindings; regions are unsupported |
 
 Production integrations should provide a unique `taskId`. If multiple clients omit it, they share the default task, and one client may affect another by cancelling that task.
 
@@ -281,7 +281,9 @@ mtk: <MTK>
 {
   "taskId": "<TASK_ID>",
   "algorithmCode": "<ALGORITHM_CODE>",
-  "uploadId": "<UPLOAD_ID>"
+  "uploadId": "<UPLOAD_ID>",
+  "resultMode": "business",
+  "needRetImg": false
 }
 ```
 
@@ -311,41 +313,52 @@ or:
 
 Choose exactly one of `uploadId`, `imageBase64`, and `imageUrl`. JSON request bodies are limited to 1 MB by default, so production integrations and high-resolution images should use `uploadId`. With `imageUrl`, the URL must be reachable from the CosmoEdge device.
 
-## 6. Parse Detection Results
+## 6. Parse Workflow Results
 
-### Example Response
+The default `resultMode: "business"` executes the configured models, filters, rules and output nodes, returning `schemaVersion: 2`. Image tasks have no regions. Nonempty `taskConfig.areas` or `shieldedAreas` are rejected; the new response has no `areaList`.
 
 ```json
 {
   "resCode": 1,
   "resMsg": [],
   "resData": {
-    "algorithmCode": "7602",
-    "timestamp": "1787068800123",
-    "fullPicture": "data:image/jpeg;base64,/9j/4AAQ...",
-    "areaList": [
+    "schemaVersion": 2,
+    "requestId": "image-001",
+    "algorithmCode": "<ALGORITHM_CODE>",
+    "status": "completed",
+    "timestamp": "1770000000000",
+    "fullPicture": "",
+    "outputs": [
       {
-        "areaId": "-1",
-        "areaName": "default",
-        "bDetected": false,
-        "targetList": [
+        "nodeId": "output",
+        "name": "Helmet check",
+        "decision": "matched",
+        "targetIds": [
+          "detect:0"
+        ],
+        "matchedCount": 1
+      }
+    ],
+    "targetList": [
+      {
+        "targetId": "detect:0",
+        "sourceNodeId": "detect",
+        "atomicCode": "<MODEL_CODE>",
+        "decision": "matched",
+        "rules": {
+          "rule": "matched"
+        },
+        "filtered": false,
+        "box": {
+          "x": 120,
+          "y": 80,
+          "width": 160,
+          "height": 180
+        },
+        "confidence": [
           {
-            "box": {
-              "x": 120,
-              "y": 80,
-              "width": 160,
-              "height": 180
-            },
-            "confidence": [
-              {
-                "label": "face",
-                "confidence": 0.96
-              }
-            ],
-            "landmark": [
-              {"xRatio": 158.0, "yRatio": 132.0},
-              {"xRatio": 232.0, "yRatio": 131.0}
-            ]
+            "label": "person",
+            "confidence": 0.96
           }
         ]
       }
@@ -354,40 +367,41 @@ Choose exactly one of `uploadId`, `imageBase64`, and `imageUrl`. JSON request bo
 }
 ```
 
-The current HTTP response exposes targets at:
+Read each decision in `resData.outputs[]` and resolve its `targetIds` against `resData.targetList[]`. IDs remain stable through forks; `rules` preserves decisions by node ID. `output.targets` defaults to `matched`; `all` includes all unfiltered targets. A detector without a rule matches when it finds targets. An image rule can match with zero targets, for example a count-equals-zero condition.
 
-```text
-resData.areaList[].targetList[]
-```
-
-Merge the `targetList` values from all areas to obtain the targets for the whole image. Do not depend on a top-level `resData.targetList`, which is not emitted by the current JSON response.
-
-### Target Fields
-
-| Field | Description |
+| Field | Meaning |
 | --- | --- |
-| `box.x`, `box.y` | Pixel coordinates of the bounding-box top-left corner |
-| `box.width`, `box.height` | Bounding-box width and height in pixels |
-| `confidence[]` | Detector and downstream classifier outputs; each item contains `label` and `confidence` |
-| `bLogicResult` | May appear when the Pipeline has a logic node; indicates whether the target meets its condition |
-| `landmark[]` | Landmark output; current compatibility keys are `xRatio` and `yRatio`, but the values are used as pixel coordinates |
-| `maskPolygon[]` | Segmentation contour using normalized `xRatio` and `yRatio` values |
-| `featurePreview` | Debug preview of the first feature-vector values, not a complete business-comparison feature |
+| `decision` | `matched`, `not_matched`, or `unknown` (insufficient evidence); targets can also be `not_evaluated` |
+| `box` | Pixel `x/y/width/height` |
+| `confidence[]` | Detector and classifier labels and confidence |
+| `attributes[]`, `texts[]` | Attribute classifications and OCR text |
+| `matchInfo` | Library scores, group and match information; an empty library is unknown, not an unmatched result |
+| `landmark[]` | Pixel coordinates using the compatibility keys `xRatio/yRatio` |
+| `maskPolygon[]` | Normalized `xRatio/yRatio` segmentation contours |
+| `rules` | Decisions by node ID; missing evidence stays unknown even under NOT |
+| `errorNodeId` | Failed node; check top-level `resCode` as well. Failure clears partial business outputs |
 
-Count faces from the target list, for example:
+`resultMode: "debug"` additionally returns node timing, input/output counts, skipped nodes, filtered targets and unmatched targets. `filtered` and `filterReason` explain filtering. Use output `targetIds`, rather than all debug targets, for business decisions.
 
-```javascript
-const targets = (response.resData.areaList || [])
-  .flatMap(area => area.targetList || [])
-const faces = targets.filter(target =>
-  (target.confidence || []).some(item => item.label === 'face')
-)
-console.log('face count:', faces.length)
-```
+Explicit `resultMode: "legacy"` temporarily preserves the old `areaList` response wrapper, while running the same region-free workflow. New clients should use business mode.
 
-Do not use only `area.bDetected` to determine whether a face was found. That field represents an area-logic trigger. A pure detector Pipeline without a logic node may return targets while the field is `false`.
+Set `needRetImg: false` to disable the annotated image. Otherwise `fullPicture` may be a file-service URL or `data:image/jpeg;base64,...`; only selected output targets are drawn.
 
-`fullPicture` is the full image with detection overlays. It may be a URL when a file service is configured, or a `data:image/jpeg;base64,...` value when no file service is available. The current JSON protocol has no stable switch to disable this field, so clients should accept both forms and ignore it when it is not needed.
+### Parameters and Image Components
+
+Requests accept `taskConfig.params: [{"key":"aiParam.person.confidence","value":"0.6"}]`. Precedence is model defaults → node configuration → scenario defaults → task creation parameters → request overrides. Overrides never persist into another request and cannot change `atomicCode`.
+
+Components include detection, target/whole-image classification, landmarks, features, OCR, DINO, SAM, whole-image/target-crop VLM, target filtering, target rules, image rules, conditional branches, library matching and result output. Crops use model detection boxes, not user-defined regions. Filtering supports labels, confidence, pixel area and shortest side; motion, region and duration conditions are unavailable.
+
+Rules may reference `aiOut.<label>.threshold`, `aiOut.attr.<category>`, `aiParam.<label>.confidence`, `picture.count`, `picture.matchedCount`, `match.score`, `match.matched`, `ocr.text`, and `node.<flowActionId>`. Referenced nodes must be ancestors on the current branch. Conditional branches execute their descendants only when matched; unknown and false skip them. Graphs support single parents and forks, but not joins.
+
+VLM uses `inputType=image` (default) or `targets`; classification defaults to `targets` and supports `image`. Library matching is separate from feature extraction: select `match.libraryType=face/body` and `match.mode=matched/unmatched`; bind comma-separated library IDs with `param.faceSet` or `param.workClothesSet`. `param.limitScore` ranges from 0 to 100. Required models and libraries must exist on the device.
+
+### Video-to-image Templates
+
+Run `python tools/generate_picture_templates.py` to generate templates for the three platforms, or pass `--check` to verify reproducibility. Original video templates are retained. Each resource directory contains `layout/picture-template-conversions.json`, listing source IDs, image IDs and exclusions.
+
+Compatible templates remove decoding, tracking and sensitivity history, replacing video event output with image result output. Their meaning is a single-frame state, not a sustained video event. Region, tripwire, absence and historical counting workflows are excluded. Template availability does not imply that the corresponding chip-specific model is installed or device-validated. Image result output does not automatically create video events or send external notifications.
 
 ## 7. Cancel the Task
 

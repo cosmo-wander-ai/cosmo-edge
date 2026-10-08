@@ -3,6 +3,7 @@
 #pragma once
 
 #include <chrono>
+#include <map>
 #include <unordered_map>
 
 #include "flow/common/AlgDetectTypes.h"
@@ -22,6 +23,11 @@ struct AlgData {
     bool bHaveClassify{false};
     bool bHaveLandmark{false};  // Used for recognizer to decide whether to use box (area) or landmark
     bool bHaveLogic{false};     // Used for logic judgement flow in image algorithms
+    // Request-local picture rule state. Copied at forks; never shared between requests.
+    std::map<std::string, std::map<std::string, std::string>> pictureRules;
+    std::map<std::string, std::string> pictureDecisions;
+    std::string pictureDecision;
+    bool pictureBranch{true};
     std::chrono::steady_clock::time_point firstTimePoint;
 
     // ---- Channel-level data (shared by all tasks) ----

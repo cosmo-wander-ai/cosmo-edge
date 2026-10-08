@@ -9,10 +9,8 @@
 #include <vector>
 
 #include "flow/action/PActionBase.h"
-#include "flow/task/TaskBaseParam.h"
 #include "infer/AiDetectorUnify.h"
 #include "util/DurationStat.h"
-#include "util/GeometricPos.h"
 
 namespace cosmo {
 struct PDetectorParam {
@@ -31,9 +29,6 @@ public:
     bool ModifyParam(const std::string& taskId, std::vector<MsgDynamicKeyValue>& params) override;
     // Set parameters — clear previous parameters, set all new parameters
     bool SetParam(const std::string& taskId, std::vector<MsgDynamicKeyValue>& params) override;
-    // Set areas — clear previous areas, set all new areas
-    bool SetArea(const std::string& taskId, std::vector<MsgTaskArea>& areas,
-                 std::vector<MsgTaskArea>& shieldedAreas) override;
 
 private:
     [[nodiscard]] bool ValidKey(const MsgDynamicKeyValue& param) const;
@@ -45,7 +40,6 @@ private:
     size_t handle_frames_{0};
     size_t filter_frames_{0};
     PDetectorParam params_;
-    TaskBaseArea task_area_;
     util::ErrorEnum action_status_{util::ErrorEnum::Success};
     util::DurationStat duration_stat_;
 };

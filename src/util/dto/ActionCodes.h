@@ -123,6 +123,13 @@ inline constexpr std::string_view PARecognizer_Name = "原子特征提取";
 inline constexpr std::string_view PALogicalJudgment_Code = "PB_90001";
 inline constexpr std::string_view PALogicalJudgment_Name = "逻辑判断";
 
+inline constexpr std::string_view PAOcr_Code           = "PA_00011";
+inline constexpr std::string_view PAFilter_Code        = "PB_00002";
+inline constexpr std::string_view PAOutput_Code        = "PB_00004";
+inline constexpr std::string_view PAMatch_Code         = "PB_00006";
+inline constexpr std::string_view PAImageJudgment_Code = "PB_90003";
+inline constexpr std::string_view PABranch_Code        = "PB_90002";
+
 inline constexpr std::string_view PDADino_Code    = "PDA_00001";
 inline constexpr std::string_view PDASam_Code     = "PDA_00002";
 inline constexpr std::string_view PDAQwen3VL_Code = "PDA_00003";

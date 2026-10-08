@@ -897,6 +897,21 @@ export default {
     passwordChangedLoginAgain: 'Password changed. Please log in again.'
   },
   imageAnalysis: {
+    debugResults: 'Debug details',
+    parameters: 'Analysis parameters',
+    failed: 'Analysis failed',
+    workflowResults: 'Workflow results',
+    executionDetails: 'Execution details',
+    matched: 'Matched',
+    notMatched: 'Not matched',
+    unknownDecision: 'Unknown',
+    notEvaluated: 'Not evaluated',
+    pictureCount: 'Target count',
+    pictureMatchedCount: 'Matched target count',
+    matchScore: 'Library match score',
+    matchResult: 'Library matched',
+    ocrText: 'Recognized text',
+
     selectAlgorithmPlaceholder: 'Select image analysis algorithm',
     uploadImage: 'Upload Image',
     analyzing: 'Analyzing...',

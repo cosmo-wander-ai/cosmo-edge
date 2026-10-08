@@ -33,10 +33,8 @@ bool PActionBase::ModifyParam(const std::string& /*taskId*/, std::vector<MsgDyna
     return false;
 }
 
-bool PActionBase::SetParam(const std::string& /*taskId*/, std::vector<MsgDynamicKeyValue>& params) {
-    LOG_WARN("[Task:{} Action:{}] Have Not SetParam Override Function. params size:{}", task_id_,
-             action_.actionId, params.size());
-    return false;
+bool PActionBase::SetParam(const std::string&, std::vector<MsgDynamicKeyValue>&) {
+    return true;  // Actions with no runtime parameters accept the shared parameter snapshot.
 }
 
 bool PActionBase::SetArea(const std::string& /*taskId*/, std::vector<MsgTaskArea>& /*areas*/,

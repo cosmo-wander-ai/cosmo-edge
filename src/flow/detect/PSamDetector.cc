@@ -111,6 +111,9 @@ util::ErrorEnum PSamDetector::HandPic(AlgDataPtr algData) {
     float imgW   = origImg->GetWidth();
     float imgH   = origImg->GetHeight();
 
+    if (algData->chanDataDetect.detRet && algData->chanDataDetect.detRet->targets.empty())
+        return util::ErrorEnum::Success;
+
     // If a prior action (e.g. YOLO or DINO) produced detection boxes, use them as prompts
     bool hasPreviousTargets =
         algData->chanDataDetect.detRet && !algData->chanDataDetect.detRet->targets.empty();
@@ -169,6 +172,8 @@ util::ErrorEnum PSamDetector::HandPic(AlgDataPtr algData) {
         // No prior targets: use segmentation masks/polygons as new targets
         algData->chanDataDetect.detRet->targets = samResults;
     } else {
+        if (samResults.size() != algData->chanDataDetect.detRet->targets.size())
+            return util::ErrorEnum::FlowDataInvalid;
         // Prior targets exist: align and update segmentation polygons by inference order
         for (size_t i = 0; i < samResults.size() && i < algData->chanDataDetect.detRet->targets.size(); ++i) {
             algData->chanDataDetect.detRet->targets[i].mask = samResults[i].mask;

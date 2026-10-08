@@ -48,22 +48,26 @@ static VideoFramePtr NormalizePicInputForInference(VideoFramePtr frame) {
     return nullptr;
 }
 
-static bool IsTargetInArea(const AiDetectRstEl& target, const std::string& areaId) {
-    for (const auto& targetArea : target.areaSign.areas) {
-        if (areaId == targetArea.area_id) {
-            return true;
-        }
-    }
-    return false;
-}
-
-static void DetTarget2MsgTarget(const AiDetectRstEl& target, MsgPTaskTarget& msgTarget) {
+void DetTarget2MsgTarget(const AiDetectRstEl& target, MsgPTaskTarget& msgTarget) {
     msgTarget.box.x      = target.box.x;
     msgTarget.box.y      = target.box.y;
     msgTarget.box.width  = target.box.width;
     msgTarget.box.height = target.box.height;
 
     msgTarget.bLogicResult = target.bLogicResult;
+    for (const auto& attr : target.attrRst)
+        msgTarget.attributes.push_back({attr.category, attr.label});
+    for (const auto& text : target.ocrRst)
+        msgTarget.texts.push_back(text.value);
+    if (target.matchInfo.setPicCount >= 0) {
+        msgTarget.bHaveMatchInfo        = true;
+        msgTarget.matchInfo.setPicCount = target.matchInfo.setPicCount;
+        msgTarget.matchInfo.matchId     = target.matchInfo.match_id;
+        msgTarget.matchInfo.matchDegree = target.matchInfo.match_degree;
+        msgTarget.matchInfo.groupId     = target.matchInfo.group_id;
+        msgTarget.matchInfo.groupName   = target.matchInfo.group_name;
+        msgTarget.matchInfo.matched     = target.matchInfo.matched;
+    }
 
     MsgAiConfidence confidencedet;
     confidencedet.label      = target.confidence.label;
@@ -104,98 +108,6 @@ static void DetTarget2MsgTarget(const AiDetectRstEl& target, MsgPTaskTarget& msg
     }
 }
 
-static MsgPTaskArea ProcessAreaTargets(const MsgTaskArea& area, const std::vector<AiDetectRstEl>& targets,
-                                       bool bHaveLogic) {
-    MsgPTaskArea recArea;
-    recArea.areaId     = area.areaId;
-    recArea.areaName   = area.name;
-    bool bAreaDetected = false;
-
-    for (const auto& target : targets) {
-        if (IsTargetInArea(target, area.areaId)) {
-            MsgPTaskTarget msgTarget;
-            msgTarget.bHaveLogicResult = bHaveLogic;
-
-            DetTarget2MsgTarget(target, msgTarget);
-            if (target.bLogicResult) {
-                bAreaDetected = true;
-            }
-
-            recArea.targetList.push_back(msgTarget);
-        }
-    }
-
-    recArea.bDetected = bAreaDetected;
-    return recArea;
-}
-
-void DetData2MsgData(const std::vector<MsgTaskArea>& inAreas, DataDetTrackClassifyPtr frame,
-                     std::vector<MsgPTaskArea>& outAreas, std::vector<MsgPTaskTarget>& outTargets,
-                     bool bHaveLogic) {
-    if (!frame) {
-        return;
-    }
-
-    for (const auto& target : frame->targets) {
-        MsgPTaskTarget msgTarget;
-        msgTarget.bHaveLogicResult = bHaveLogic;
-        DetTarget2MsgTarget(target, msgTarget);
-        outTargets.push_back(msgTarget);
-    }
-
-    if (inAreas.empty()) {
-        bool bAreaDetected = false;
-        MsgPTaskArea area;
-        area.areaId   = "-1";
-        area.areaName = "default";
-        for (const auto& target : frame->targets) {
-            MsgPTaskTarget msgTarget;
-            DetTarget2MsgTarget(target, msgTarget);
-            if (target.bLogicResult) {
-                bAreaDetected = true;
-            }
-            area.targetList.push_back(msgTarget);
-        }
-        area.bDetected = bAreaDetected;
-        outAreas.push_back(area);
-        return;
-    }
-
-    for (const auto& area : inAreas) {
-        outAreas.push_back(ProcessAreaTargets(area, frame->targets, bHaveLogic));
-    }
-}
-
-void RecogData2MsgData(const std::vector<MsgTaskArea>& /*inAreas*/, AlgTaskDataRecog taskDatarecog,
-                       std::vector<MsgPTaskArea>& outAreas, std::vector<MsgPTaskTarget>& outTargets) {
-    for (auto& area : taskDatarecog.areas) {
-        if (area.bLogicResult) {
-            MsgPTaskArea recArea;
-            recArea.areaId   = area.areaId;
-            recArea.areaName = area.areaName;
-            MsgPTaskTarget msgTarget;
-            msgTarget.box.x      = area.box.x;
-            msgTarget.box.y      = area.box.y;
-            msgTarget.box.width  = area.box.width;
-            msgTarget.box.height = area.box.height;
-            recArea.targetList.push_back(msgTarget);
-            outAreas.push_back(recArea);
-
-            MsgPTaskTarget outTarget;
-            outTarget.bLogicResult = true;
-            outTarget.box.x        = area.box.x;
-            outTarget.box.y        = area.box.y;
-            outTarget.box.width    = area.box.width;
-            outTarget.box.height   = area.box.height;
-            MsgAiConfidence score;
-            score.confidence = area.average;
-            score.label      = "score";
-            outTarget.confidence.push_back(score);
-            outTargets.push_back(outTarget);
-        }
-    }
-}
-
 void PTaskBase::UploadImage(std::vector<uint8_t>& data, const std::string& url, const std::string& sign) {
     std::string messageId = util::GenerateUUID();
     std::string filePath  = cosmo::path::GetRecordJsonPath();
@@ -220,8 +132,8 @@ void PTaskBase::UploadImage(std::vector<uint8_t>& data, const std::string& url, 
         nullptr, "jpg", fileName, bucket, url);
 }
 
-void PTaskBase::DetTargetHandFullPicture(AlgDataPtr algData, const std::vector<MsgTaskArea>& inAreas,
-                                         MsgPTaskDetectPicRecv& /*data*/, MsgPTaskDetectPicSend& retData) {
+void PTaskBase::DetTargetHandFullPicture(AlgDataPtr algData, MsgPTaskDetectPicRecv& /*data*/,
+                                         MsgPTaskDetectPicSend& retData) {
     // Original image
     auto origImg = service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().CopyJpegSrcFrame(
         algData->chanDataDec.frame);
@@ -238,21 +150,11 @@ void PTaskBase::DetTargetHandFullPicture(AlgDataPtr algData, const std::vector<M
     box_color.red   = uint8_t(255);
     box_color.green = 0;
     box_color.blue  = 0;
-    for (auto& areaTargets : retData.resData.areaList)  // Overlay all targets
-    {
-        for (auto& target : areaTargets.targetList) {
-            // target.box.height);
-            // Skip targets that have logic judgment but failed
-            if ((algData->bHaveLogic) && (!target.bLogicResult)) {
+    if (algData->chanDataDetect.detRet) {
+        for (const auto& target : algData->chanDataDetect.detRet->targets) {
+            if (target.box.width <= 0 || target.box.height <= 0)
                 continue;
-            }
-
-            util::Box box;
-            box.x         = target.box.x;
-            box.y         = target.box.y;
-            box.width     = target.box.width;
-            box.height    = target.box.height;
-            auto boxLines = GetBoxOsdLines(box, origImg->GetWidth(), origImg->GetHeight());
+            auto boxLines = GetBoxOsdLines(target.box, origImg->GetWidth(), origImg->GetHeight());
             service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().DrawLines(
                 origImg, boxLines, box_color, lineWidth);
         }
@@ -330,15 +232,6 @@ void PTaskBase::DetTargetHandFullPicture(AlgDataPtr algData, const std::vector<M
                 service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().CopyJpegSrcFrame(origImg);
         }
     }
-
-    // Overlay detection areas
-    auto areaLines  = GetAreasOsdLines(inAreas, origImg->GetWidth(), origImg->GetHeight());
-    box_color.red   = 0;
-    box_color.green = 0;
-    box_color.blue  = 0xff;
-    lineWidth       = 2;
-    service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().DrawLines(origImg, areaLines,
-                                                                                  box_color, lineWidth);
 
     auto fullJpeg = service::ServiceRegistry::Instance().Get<service::IVideoFrameCodec>().EncodeJpeg(origImg);
 
@@ -418,35 +311,16 @@ util::ErrorEnum PTaskBase::TaskDetectPic(PTaskElementPtr task, MsgPTaskDetectPic
     algData->chanDataDec.frame = imageData.second;
 
     if (!algData->chanDataDec.frame || (!algData->chanDataDec.frame->Active())) {
-        LOG_INFO("Pic:{} & {} Are Dec Failed", inData.imageUrl, inData.imageBase64);
+        LOG_WARN("Picture decode failed for task {}", inData.taskId);
         return util::ErrorEnum::ImageDecodeFailed;
     }
 
-    std::lock_guard<std::shared_mutex> lock(task->mtx);
-    for (auto& taNode : task->actions) {
-        auto ret = taNode.actionInst->HandPic(algData);
-        if (util::ErrorEnum::Success != ret) {
-            LOG_WARN("[{} {}] {}/{} Detect Pic Failed", task->taskId, task->GetAlgName(),
-                     taNode.action.actionId, taNode.action.actionName);
-            return ret;
-        }
-
-        LOG_INFO("[{} {}] {}/{} Detect Pic target:{}", task->taskId, task->GetAlgName(),
-                 taNode.action.actionId, taNode.action.actionName,
-                 algData->chanDataDetect.detRet ? algData->chanDataDetect.detRet->targets.size() : 0);
-    }
-    if (AlgDataType::TaskDataRecognizer == algData->dataType) {
-        RecogData2MsgData(task->params.areas, algData->taskDatarecog, retData.resData.areaList,
-                          retData.resData.targetList);
-        LOG_INFO("[{} {}] RecogResult:{} areaList.size:{}", task->taskId, task->GetAlgName(),
-                 algData->taskDatarecog.areas.size(), retData.resData.areaList.size());
-    } else {
-        DetData2MsgData(task->params.areas, algData->chanDataDetect.detRet, retData.resData.areaList,
-                        retData.resData.targetList, algData->bHaveLogic);
-    }
-
-    if (inData.needRetImg)
-        DetTargetHandFullPicture(algData, task->params.areas, inData, retData);
+    AlgDataPtr rendered;
+    const auto result = ExecutePicture(task, algData, inData, retData, rendered);
+    if (result != util::ErrorEnum::Success)
+        return result;
+    if (inData.needRetImg && rendered)
+        DetTargetHandFullPicture(rendered, inData, retData);
     return util::ErrorEnum::Success;
 }
 

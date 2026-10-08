@@ -38,6 +38,7 @@ public:
 class PictureLlm final : public cosmo::service::ILlmInferService {
 public:
     int calls{0};
+    std::string reply{"是"};
     bool EnsureInit(const std::string&) override {
         return true;
     }
@@ -53,7 +54,7 @@ public:
         REQUIRE(prompts.size() == 1);
         REQUIRE(images.front()->GetData() != nullptr);
         cosmo::Qwen3VLResult result;
-        result.text = "yes";
+        result.text = reply;
         results.push_back(result);
         return cosmo::util::ErrorEnum::Success;
     }
@@ -110,7 +111,34 @@ TEST_CASE("Picture Qwen accepts host-backed frames and rejects failed transfers"
         CHECK(llm.calls == 1);
         REQUIRE(data->chanDataDetect.detRet);
         REQUIRE(data->chanDataDetect.detRet->targets.size() == 1);
-        CHECK(data->chanDataDetect.detRet->targets.front().classifyRst.front().label == "yes");
+        CHECK(data->chanDataDetect.detRet->targets.front().classifyRst.front().label == "是");
+    }
+    SECTION("Negative and ambiguous replies are not positive decisions") {
+        llm.reply = "否";
+        REQUIRE(worker.HandPic(data) == cosmo::util::ErrorEnum::Success);
+        CHECK(data->pictureDecision == "not_matched");
+        CHECK_FALSE(data->chanDataDetect.detRet->targets.front().bLogicResult);
+        llm.reply = "uncertain";
+        REQUIRE(worker.HandPic(data) == cosmo::util::ErrorEnum::Success);
+        CHECK(data->pictureDecision == "unknown");
+        CHECK_FALSE(data->chanDataDetect.detRet->targets.front().bLogicResult);
+    }
+    SECTION("Target crops preserve original target identity") {
+        cosmo::MsgDynamicKeyValue param;
+        param.key   = "inputType";
+        param.value = "targets";
+        std::vector<cosmo::MsgDynamicKeyValue> params{param};
+        REQUIRE(worker.SetParam("picture-host-regression", params));
+        data->chanDataDetect.detRet = std::make_shared<cosmo::DataDetTrackClassify>();
+        cosmo::AiDetectRstEl target;
+        target.targetId = "detector:0";
+        target.box      = cosmo::util::Box(8, 8, 32, 32);
+        data->chanDataDetect.detRet->targets.push_back(target);
+        REQUIRE(worker.HandPic(data) == cosmo::util::ErrorEnum::Success);
+        CHECK(llm.calls == 1);
+        CHECK(data->chanDataDetect.detRet->targets.front().targetId == "detector:0");
+        CHECK(data->pictureDecisions.at("detector:0") == "matched");
+        CHECK(data->pictureDecision.empty());
     }
     SECTION("A failed host transfer never falls through to inference") {
         transform.fail_transfer = true;

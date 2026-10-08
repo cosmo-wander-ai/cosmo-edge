@@ -1523,6 +1523,21 @@ const submitForm = () => {
       )
     }
   }
+  if (String(props.actionDetail.actionId || props.actionDetail.id || '').startsWith('P')) {
+    configObject.webConfig.metaDataParams = configObject.webConfig.metaDataParams.filter(item => !String(item.key).endsWith('.detPostion'))
+    if (labelFilterListType.value) {
+      targetLabelArr.value.forEach(item => configObject.params.push({
+        key: `filter.${item.labelCode}.side.min`, value: item.sideMinIsEnable == '1' ? '60' : '0'
+      }))
+    }
+    // Picture execution does not have a channel form to materialize defaults.
+    configObject.webConfig.metaDataParams.forEach(item => {
+      const value = item.value || item.defaultValue
+      if (value !== undefined && value !== '' && !configObject.params.some(param => param.key === item.key)) {
+        configObject.params.push({ key: item.key, value: String(value) })
+      }
+    })
+  }
   return configObject
 }
 

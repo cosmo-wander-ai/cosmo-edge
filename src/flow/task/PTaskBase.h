@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <atomic>
+#include <condition_variable>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -23,13 +25,17 @@ namespace cosmo {
 struct PTaskAction {
     ActionNode action;          // Orchestration parameters
     PActionBasePtr actionInst;  // Current action instance
-    PActionBasePtr sonAction;   // Child node instance
+    std::vector<MsgDynamicKeyValue> modelParams;
+    PActionBasePtr sonAction;  // Child node instance
 };
 
 struct PTaskElement {
-    bool is_started{false};
+    std::atomic<bool> is_started{false};
     int startFailedCount{0};
-    std::shared_mutex mtx;           // Lock for task execution
+    std::mutex mtx;
+    std::condition_variable idle;
+    bool executing{false};
+    bool retired{false};             // Lock for task execution
     std::string taskId;              // Globally unique task ID
     std::string flowActionId{"-1"};  // Root action's flowActionId
     std::string errorInfo;
@@ -50,6 +56,36 @@ struct PTaskElement {
 };
 using PTaskElementPtr = std::shared_ptr<PTaskElement>;
 
+// A task lease serializes mutable model instances without holding a lock during inference.
+class PictureTaskLease {
+public:
+    explicit PictureTaskLease(PTaskElementPtr task) : task_(std::move(task)) {
+        std::unique_lock<std::mutex> lock(task_->mtx);
+        task_->idle.wait(lock, [&] { return !task_->executing || task_->retired; });
+        active_ = !task_->retired;
+        if (active_)
+            task_->executing = true;
+    }
+    ~PictureTaskLease() {
+        if (!active_)
+            return;
+        {
+            std::lock_guard<std::mutex> lock(task_->mtx);
+            task_->executing = false;
+        }
+        task_->idle.notify_all();
+    }
+    explicit operator bool() const {
+        return active_;
+    }
+    PictureTaskLease(const PictureTaskLease&)            = delete;
+    PictureTaskLease& operator=(const PictureTaskLease&) = delete;
+
+private:
+    PTaskElementPtr task_;
+    bool active_{false};
+};
+
 class PTaskBase {
 public:
     PTaskBase();
@@ -64,13 +100,18 @@ public:
     util::ErrorEnum TaskDetectPic(PTaskElementPtr task, MsgPTaskDetectPicRecv& data,
                                   MsgPTaskDetectPicSend& retData);
 
+    // Execute an already decoded frame. Shared by the HTTP path and deterministic workflow tests.
+    util::ErrorEnum ExecutePicture(PTaskElementPtr task, AlgDataPtr input,
+                                   const MsgPTaskDetectPicRecv& request, MsgPTaskDetectPicSend& response,
+                                   AlgDataPtr& rendered);
+
     // Apply task parameters to algorithm action instances
     bool ModifyTaskParam(PTaskElementPtr task, MsgTaskConfig& param);
 
 private:
     void UploadImage(std::vector<uint8_t>& data, const std::string& url, const std::string& sign);
-    void DetTargetHandFullPicture(AlgDataPtr algData, const std::vector<MsgTaskArea>& inAreas,
-                                  MsgPTaskDetectPicRecv& data, MsgPTaskDetectPicSend& retData);
+    void DetTargetHandFullPicture(AlgDataPtr algData, MsgPTaskDetectPicRecv& data,
+                                  MsgPTaskDetectPicSend& retData);
     std::shared_mutex m_mtx;
 
     PDetectorMng m_detectorMng;              // Detector management instance

@@ -24,6 +24,7 @@
 #include "util/Log.h"
 #include "util/PathUtil.h"
 #include "util/dto/AlgorithmMsgTypes.h"
+#include "util/dto/PictureWorkflow.h"
 
 namespace cosmo::service::detail {
 namespace alg = algorithm;
@@ -304,6 +305,20 @@ cosmo::util::ErrorEnum AlgorithmLayoutMng::LayoutSave(const algorithm::LayoutSav
     cosmo::util::ErrorEnum ret = cosmo::util::JsonFileUtil::ReadJsonFile(layoutFilePath, doc);
     const bool targetExisted   = ret == cosmo::util::ErrorEnum::Success || useExistingFile;
     const auto previousDoc     = ret == cosmo::util::ErrorEnum::Success ? doc : existingDoc;
+    const bool pictureLayout   = req.algorithmUsage == "2" || GetStr(previousDoc, "algorithmUsage") == "2" ||
+                               (oldFormatDocLoaded && GetStr(oldFormatDoc, "algorithmUsage") == "2");
+    if (pictureLayout) {
+        try {
+            auto workflow = nlohmann::json::parse(req.algorithmProcessdata).get<std::vector<ActionNode>>();
+            std::string error;
+            if (workflow.empty() || !ValidatePictureWorkflow(workflow, error)) {
+                LOG_WARN("Invalid picture layout: {}", error);
+                return cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail;
+            }
+        } catch (const std::exception&) {
+            return cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail;
+        }
+    }
     const auto& ownershipSourceDoc =
         !useExistingFile && ret != cosmo::util::ErrorEnum::Success && oldFormatDocLoaded ? oldFormatDoc
                                                                                          : previousDoc;
@@ -338,6 +353,12 @@ cosmo::util::ErrorEnum AlgorithmLayoutMng::LayoutSave(const algorithm::LayoutSav
     if (!FreezeLegacyChannelOwnership(req.algorithmMetadata, validatedMetadata, ownershipSourceDoc,
                                       persistedAlgorithmMetadata)) {
         return cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail;
+    }
+    if (pictureLayout) {
+        // Image scenarios have parameters only; never persist video region/schedule metadata.
+        auto metadata = nlohmann::json::parse(persistedAlgorithmMetadata);
+        persistedAlgorithmMetadata =
+            nlohmann::json{{"params", metadata.value("params", nlohmann::json::array())}}.dump();
     }
     int64_t algorithmCode = 0;
     try {

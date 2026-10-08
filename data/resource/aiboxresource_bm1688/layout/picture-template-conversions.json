@@ -1,0 +1,134 @@
+[
+  {
+    "source": "10",
+    "name": "火焰检测",
+    "picture": "92000010",
+    "reason": "single-image adaptation; tracking and sensitivity removed"
+  },
+  {
+    "source": "11",
+    "name": "吸烟检测",
+    "picture": "92000011",
+    "reason": "single-image adaptation; tracking and sensitivity removed"
+  },
+  {
+    "source": "12",
+    "name": "打电话检测",
+    "picture": "92000012",
+    "reason": "single-image adaptation; tracking and sensitivity removed"
+  },
+  {
+    "source": "13",
+    "name": "人流量统计",
+    "picture": null,
+    "reason": "requires region, temporal history or unsupported action: BA_00005"
+  },
+  {
+    "source": "15",
+    "name": "未戴安全帽",
+    "picture": "92000015",
+    "reason": "single-image adaptation; tracking and sensitivity removed"
+  },
+  {
+    "source": "16",
+    "name": "离岗检测",
+    "picture": null,
+    "reason": "requires region, temporal history or unsupported action: BA_00005"
+  },
+  {
+    "source": "21283",
+    "name": "视觉分割大模型分析",
+    "picture": null,
+    "reason": "requires region, temporal history or unsupported action: BA_00005"
+  },
+  {
+    "source": "22",
+    "name": "玩手机检测",
+    "picture": "92000022",
+    "reason": "single-image adaptation; tracking and sensitivity removed"
+  },
+  {
+    "source": "29",
+    "name": "车牌识别",
+    "picture": "92000029",
+    "reason": "single-image adaptation; tracking and sensitivity removed"
+  },
+  {
+    "source": "2",
+    "name": "人脸比对",
+    "picture": "92000002",
+    "reason": "single-image adaptation; tracking and sensitivity removed"
+  },
+  {
+    "source": "32",
+    "name": "未穿反光衣",
+    "picture": "92000032",
+    "reason": "single-image adaptation; tracking and sensitivity removed"
+  },
+  {
+    "source": "34707",
+    "name": "视觉语言大模型分析",
+    "picture": "92034707",
+    "reason": "single-image adaptation; tracking and sensitivity removed"
+  },
+  {
+    "source": "3",
+    "name": "区域入侵",
+    "picture": null,
+    "reason": "requires region, temporal history or unsupported action: BA_00005"
+  },
+  {
+    "source": "51",
+    "name": "区域人数统计",
+    "picture": null,
+    "reason": "requires region, temporal history or unsupported action: BA_00005"
+  },
+  {
+    "source": "57",
+    "name": "绊线检测",
+    "picture": null,
+    "reason": "requires region, temporal history or unsupported action: BA_00005"
+  },
+  {
+    "source": "58",
+    "name": "未穿工服",
+    "picture": "92000058",
+    "reason": "single-image adaptation; tracking and sensitivity removed"
+  },
+  {
+    "source": "5",
+    "name": "人员聚集",
+    "picture": null,
+    "reason": "requires region, temporal history or unsupported action: BA_00005"
+  },
+  {
+    "source": "65",
+    "name": "睡岗检测",
+    "picture": "92000065",
+    "reason": "single-image adaptation; tracking and sensitivity removed"
+  },
+  {
+    "source": "6",
+    "name": "人员跌倒",
+    "picture": "92000006",
+    "reason": "single-image adaptation; tracking and sensitivity removed"
+  },
+  {
+    "source": "7",
+    "name": "车辆违停",
+    "picture": null,
+    "reason": "requires region, temporal history or unsupported action: BA_00005"
+  },
+  {
+    "source": "8533",
+    "name": "视觉检测大模型分析",
+    "picture": null,
+    "reason": "requires region, temporal history or unsupported action: BA_00005"
+  },
+  {
+    "source": "9",
+    "name": "烟雾检测",
+    "picture": "92000009",
+    "reason": "single-image adaptation; tracking and sensitivity removed"
+  }
+]

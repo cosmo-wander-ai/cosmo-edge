@@ -897,6 +897,21 @@ export default {
     passwordChangedLoginAgain: '修改成功，请重新登录'
   },
   imageAnalysis: {
+    debugResults: '调试详情',
+    parameters: '分析参数',
+    failed: '分析失败',
+    workflowResults: '编排结果',
+    executionDetails: '执行详情',
+    matched: '命中',
+    notMatched: '未命中',
+    unknownDecision: '无法判断',
+    notEvaluated: '未判断',
+    pictureCount: '目标数量',
+    pictureMatchedCount: '命中目标数量',
+    matchScore: '库比对分数',
+    matchResult: '库比对命中',
+    ocrText: '识别文字',
+
     selectAlgorithmPlaceholder: '选择图片分析算法',
     uploadImage: '上传图片',
     analyzing: '分析中...',

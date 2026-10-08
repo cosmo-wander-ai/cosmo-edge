@@ -136,12 +136,13 @@ void BuildDefaultLayoutJson(nlohmann::json& outDoc, const std::string& algorithm
                             const std::string& algorithmName, int algorithmCategory, int algorithmUsage,
                             int checkType, int64_t msTimestamp, const std::string& remark) {
     std::string default_version_id = "default-" + algorithmCode;
+    const char* metadata           = algorithmUsage == 2 ? "{\"params\":[]}" : kDefaultAlgorithmMetadata;
 
     nlohmann::json default_version;
     default_version["id"]                   = default_version_id;
     default_version["name"]                 = "默认";
     default_version["algorithmCode"]        = algorithmCode;
-    default_version["algorithmMetadata"]    = kDefaultAlgorithmMetadata;
+    default_version["algorithmMetadata"]    = metadata;
     default_version["algorithmProcessdata"] = "[]";
     default_version["atomicList"]           = "[]";
     default_version["algorithmUpdateTime"]  = static_cast<uint64_t>(msTimestamp);
@@ -157,7 +158,7 @@ void BuildDefaultLayoutJson(nlohmann::json& outDoc, const std::string& algorithm
     outDoc["createTime"]        = msTimestamp;
     outDoc["updateTime"]        = msTimestamp;
     outDoc["confVersionId"]     = default_version_id;
-    outDoc["algorithmMetadata"] = kDefaultAlgorithmMetadata;
+    outDoc["algorithmMetadata"] = metadata;
     outDoc["configVersionList"] = nlohmann::json::array({default_version});
 }
 

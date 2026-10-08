@@ -51,6 +51,7 @@ struct ActionAlg {
     std::string category;
     float algorithmMinFps{-1.0};
     std::vector<ActionNode> workFlow;
+    std::vector<MsgDynamicKeyValue> pictureDefaults;  // Nonempty metadata defaults, applied per request.
 };
 
 void to_json(nlohmann::json& j, const ActionAlg& a);

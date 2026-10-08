@@ -91,6 +91,10 @@ bool PClassifier::ValidKey(MsgDynamicKeyValue& param) {
 }
 
 bool PClassifier::AnalysisKey(MsgDynamicKeyValue& param) {
+    if (param.key == "inputType") {
+        whole_image_ = param.value == "image";
+        return true;
+    }
     if (!ValidKey(param)) {
         return false;
     }
@@ -110,6 +114,7 @@ bool PClassifier::ModifyParam(const std::string& /*taskId*/, std::vector<MsgDyna
 // Set parameters - clear all existing parameters and apply new ones.
 bool PClassifier::SetParam(const std::string& /*taskId*/, std::vector<MsgDynamicKeyValue>& params) {
     std::lock_guard<std::shared_mutex> lock(m_mtx);
+    whole_image_ = false;
     for (auto& param : params) {
         AnalysisKey(param);
     }
@@ -126,6 +131,13 @@ util::ErrorEnum PClassifier::HandPic(AlgDataPtr algData) {
         return util::ErrorEnum::FrameDataInvalid;
     }
 
+    if (whole_image_) {
+        algData->chanDataDetect.detRet = std::make_shared<DataDetTrackClassify>();
+        AiDetectRstEl target;
+        target.box =
+            util::Box(0, 0, algData->chanDataDec.frame->GetWidth(), algData->chanDataDec.frame->GetHeight());
+        algData->chanDataDetect.detRet->targets.push_back(std::move(target));
+    }
     if (!algData->chanDataDetect.detRet) {
         return util::ErrorEnum::FlowDataNull;
     }
@@ -151,6 +163,9 @@ util::ErrorEnum PClassifier::HandPic(AlgDataPtr algData) {
         if (m_inst == instance)
             m_actionStatus = result;
     }
+
+    if (result != util::ErrorEnum::Success)
+        return result;
 
     algData->dataType = AlgDataType::TaskDataClassify;
     return util::ErrorEnum::Success;

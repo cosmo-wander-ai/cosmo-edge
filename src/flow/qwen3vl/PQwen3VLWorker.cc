@@ -2,6 +2,9 @@
 
 #include "flow/qwen3vl/PQwen3VLWorker.h"
 
+#include <algorithm>
+
+#include "flow/common/LlmYesNoJudge.h"
 #include "flow/qwen3vl/OpenAiVlmClient.h"
 #include "service/ai/ILlmInferService.h"
 #include "service/detail/ServiceRegistry.h"
@@ -30,6 +33,8 @@ PQwen3VLWorker::~PQwen3VLWorker() {
 }
 
 bool PQwen3VLWorker::ActionInit() {
+    if (worker_registered_)
+        return true;
     if (open_ai_config_.Enabled()) {
         LOG_INFO("[{} {}] PQwen3VLWorker using OpenAI VLM provider", GetTaskId(), GetFlowActionId());
         return true;
@@ -69,6 +74,10 @@ bool PQwen3VLWorker::ValidKey(MsgDynamicKeyValue& param) {
 }
 
 bool PQwen3VLWorker::AnalysisKey(MsgDynamicKeyValue& param) {
+    if (param.key == "inputType") {
+        target_input_ = param.value == "targets";
+        return true;
+    }
     if (!ValidKey(param))
         return false;
 
@@ -180,6 +189,7 @@ bool PQwen3VLWorker::SetParam(const std::string& /*task_id*/, std::vector<MsgDyn
     std::lock_guard<std::shared_mutex> lock(mtx_);
     // Reset to default parameters
     prompt_           = "";
+    target_input_     = false;
     advanced_mode_    = false;
     generation_style_ = Qwen3VLGenerationStyle::STANDARD;
     gen_param_        = {};
@@ -211,17 +221,6 @@ util::ErrorEnum PQwen3VLWorker::HandPic(AlgDataPtr alg_data) {
         }
     }
 
-    auto frame = alg_data->chanDataDec.frame;
-    // Host-backed CPU/RK frames expose pixels through GetData(), while Sophon uses
-    // a separate GetHostData() copy. The transform validates access for each backend.
-    if (!service::ServiceRegistry::Instance().Get<service::IVideoFrameTransform>().EnsureHostData(frame)) {
-        LOG_WARN("[{} {}] Qwen3VL EnsureHostData failed on picture frame", GetTaskId(), GetFlowActionId());
-        return util::ErrorEnum::InvalidParam;
-    }
-
-    std::vector<VideoFramePtr> images;
-    images.push_back(frame);
-
     std::string prompt;
     Qwen3VLGenerationParam gen_param;
 
@@ -235,35 +234,67 @@ util::ErrorEnum PQwen3VLWorker::HandPic(AlgDataPtr alg_data) {
         }
     }
 
-    std::vector<std::string> prompts = {prompt};
-    std::vector<Qwen3VLResult> qwen_results;
-
-    auto ret = open_ai_config.Enabled()
-                   ? OpenAiVlmClient::Generate(open_ai_config, images, prompts, gen_param, qwen_results)
-                   : service::ServiceRegistry::Instance().Get<service::ILlmInferService>().Generate(
-                         images, prompts, gen_param, qwen_results);
-
-    if (ret != util::ErrorEnum::Success) {
-        LOG_WARN("[{} {}] Qwen3VL Generate failed: {}", GetTaskId(), GetFlowActionId(), ret);
-        return ret;
+    bool targets_input;
+    {
+        std::shared_lock<std::shared_mutex> lock(mtx_);
+        targets_input = target_input_;
     }
-
     if (!alg_data->chanDataDetect.detRet) {
+        if (targets_input)
+            return util::ErrorEnum::FlowDataInvalid;
         alg_data->chanDataDetect.detRet = std::make_shared<DataDetTrackClassify>();
     }
-
-    if (!qwen_results.empty()) {
-        AiDetectRstEl rst;
-        rst.box          = {0, 0, 0, 0};
-        rst.bLogicResult = true;
-        // Store result in classify field so it can carry text for display
-        AiConfidence clf;
-        clf.label      = qwen_results[0].text;
-        clf.confidence = 1.0f;
-        rst.classifyRst.push_back(clf);
-
-        alg_data->chanDataDetect.detRet->targets.push_back(rst);
+    auto& targets = alg_data->chanDataDetect.detRet->targets;
+    if (!targets_input) {
+        targets.clear();
+        AiDetectRstEl target;
+        target.targetId = GetFlowActionId() + ":0";
+        targets.push_back(target);
     }
+    auto& transform = service::ServiceRegistry::Instance().Get<service::IVideoFrameTransform>();
+    for (auto& target : targets) {
+        if (target.bFilter)
+            continue;
+        auto frame = alg_data->chanDataDec.frame;
+        if (targets_input) {
+            const int x = std::max(0, target.box.x), y = std::max(0, target.box.y);
+            const int right = std::min(static_cast<int>(frame->GetWidth()), target.box.x + target.box.width);
+            const int bottom =
+                std::min(static_cast<int>(frame->GetHeight()), target.box.y + target.box.height);
+            if (right <= x || bottom <= y)
+                return util::ErrorEnum::InvalidParam;
+            frame = transform.Crop(frame, util::Box(x, y, right - x, bottom - y));
+        }
+        if (!frame || !transform.EnsureHostData(frame))
+            return util::ErrorEnum::InvalidParam;
+        std::vector<Qwen3VLResult> results;
+        const auto status =
+            open_ai_config.Enabled()
+                ? OpenAiVlmClient::Generate(open_ai_config, {frame}, {prompt}, gen_param, results)
+                : service::ServiceRegistry::Instance().Get<service::ILlmInferService>().Generate(
+                      {frame}, {prompt}, gen_param, results);
+        if (status != util::ErrorEnum::Success)
+            return status;
+        if (results.size() != 1)
+            return util::ErrorEnum::FlowDataInvalid;
+        const auto judge           = ParseJudgeYesNo(results.front().text);
+        const std::string decision = judge == LlmJudgeYesNo::Unknown
+                                         ? "unknown"
+                                         : (judge == LlmJudgeYesNo::Yes ? "matched" : "not_matched");
+        target.bLogicResult        = judge == LlmJudgeYesNo::Yes;
+        AiConfidence confidence;
+        confidence.label       = results.front().text;
+        confidence.atomic_code = GetAtomicCode();
+        confidence.confidence  = 1.0F;
+        target.classifyRst.push_back(confidence);
+        alg_data->pictureRules[GetFlowActionId()][target.targetId] = decision;
+        alg_data->pictureDecisions[target.targetId]                = decision;
+        if (!targets_input) {
+            alg_data->pictureDecision                          = decision;
+            alg_data->pictureRules[GetFlowActionId()]["image"] = decision;
+        }
+    }
+    alg_data->bHaveLogic = true;
 
     return util::ErrorEnum::Success;
 }

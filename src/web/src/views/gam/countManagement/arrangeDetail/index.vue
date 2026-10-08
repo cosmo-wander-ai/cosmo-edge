@@ -24,7 +24,7 @@
               <arrange-flow v-if="showArrangeFlow" ref="flowRef" :width="width" :height="height" :algorithmData="algorithmData" :algorithmMetadata="algorithmMetadata" :actionList="actionList" :atomicCode="$route.query.algorithmId" @onMetadata="syncMetadata"></arrange-flow>
             </div>
           </el-tab-pane>
-          <el-tab-pane :label="t('glossary.detectionArea')" name="detection">
+          <el-tab-pane v-if="String(algorithmUsage) !== '2'" :label="t('glossary.detectionArea')" name="detection">
             <detection ref="detectionRef" :algorithmMetadata="algorithmMetadata"></detection>
           </el-tab-pane>
           <el-tab-pane :label="t('glossary.paramConfig')" name="config">
@@ -225,6 +225,10 @@ const getDetail = (algorithmId, isChooseModel) => {
 }
 
 const initMetadata = () => {
+  if (String(algorithmUsage.value) === '2') {
+    algorithmMetadata.value = { params: algorithmMetadata.value?.params || [] }
+    return
+  }
   algorithmMetadata.value = {
     params: [],
     region: {
@@ -379,6 +383,10 @@ const saveClick = (type) => {
 
 // 检测区域保存：从子组件读取并合并到 algorithmMetadata
 const handleDetcetionData = () => {
+  if (String(algorithmUsage.value) === '2') {
+    algorithmMetadata.value = { params: algorithmMetadata.value?.params || [] }
+    return
+  }
   if (
     !detectionRef.value ||
     typeof detectionRef.value.saveDetection !== 'function'

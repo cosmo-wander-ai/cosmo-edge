@@ -34,6 +34,7 @@ private:
     // Parameter configuration
     std::string prompt_{""};
     bool advanced_mode_{false};
+    bool target_input_{false};
     bool worker_registered_{false};  // True after NotifyWorkerStart(); guards NotifyWorkerStop()
     Qwen3VLGenerationStyle generation_style_{Qwen3VLGenerationStyle::STANDARD};
     Qwen3VLGenerationParam gen_param_;

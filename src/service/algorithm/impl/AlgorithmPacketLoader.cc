@@ -362,6 +362,19 @@ void AlgorithmPacketLoader::ActivateProcessdata(algorithm::AlgorithmPacketInfo& 
         packet.processdata->algorithmName       = packet.algorithmName;
         packet.processdata->algorithmUpdateTime = packet.algorithmUpdateTime;
         packet.processdata->category            = std::to_string(packet.algorithmCategory);
+        if (packet.algorithmUsage == 2) {
+            MsgAlgorithmMetaData pictureMetadata;
+            if (DecodeAlgorithmMetadata(packet.algorithmMetadata, pictureMetadata)) {
+                for (const auto& param : pictureMetadata.params) {
+                    if (param.defaultValue.empty())
+                        continue;
+                    MsgDynamicKeyValue value;
+                    value.key   = param.key;
+                    value.value = param.defaultValue;
+                    packet.processdata->pictureDefaults.push_back(std::move(value));
+                }
+            }
+        }
         // Dispatch to the corresponding action manager based on algorithmUsage
         if (packet.algorithmUsage == 2) {
             ServiceRegistry::Instance().Get<IActionService>().UpdatePicActionAlg(*packet.processdata);

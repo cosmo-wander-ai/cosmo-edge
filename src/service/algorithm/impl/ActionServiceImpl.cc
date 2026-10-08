@@ -1,9 +1,9 @@
+#include "util/dto/PictureWorkflow.h"
 // ActionServiceImpl — ActionService implementation — manages video & picture algorithm orchestrations
-
-#include "service/algorithm/impl/ActionServiceImpl.h"
 
 #include <shared_mutex>
 
+#include "service/algorithm/impl/ActionServiceImpl.h"
 #include "util/JsonStructUtil.h"
 #include "util/Keys.h"
 #include "util/Log.h"
@@ -107,8 +107,11 @@ bool ActionServiceImpl::DoUpdateActionAlg(cosmo::ActionAlg& action_alg_in, std::
     cosmo::ActionAlgPtr alg_new = std::make_shared<cosmo::ActionAlg>(action_alg_in);
 
     // Sort workflow by dependency chain
-    std::sort(alg_new->workFlow.begin(), alg_new->workFlow.end(),
-              [](const auto& a, const auto& b) { return a.flowActionId == b.preFlowActionId; });
+    std::string workflowError;
+    if (!full_compat_atom_keys && !OrderWorkflow(alg_new->workFlow, workflowError)) {
+        LOG_WARN("Invalid workflow: {}", workflowError);
+        return false;
+    }
 
     for (auto& action : alg_new->workFlow) {
         if (needs_logic_expand(action.actionId)) {
@@ -233,9 +236,10 @@ bool ActionServiceImpl::UpdatePicActionAlg(cosmo::ActionAlg& actionAlg) {
 
     // Picture action codes that need atomic parameter extraction
     auto needs_atom = [](const std::string& id) {
-        return (id == cosmo::PADetect_Code) || (id == cosmo::PAClassify_Code) ||
-               (id == cosmo::PALandmark_Code) || (id == cosmo::PARecognizer_Code) ||
-               (id == cosmo::PDADino_Code) || (id == cosmo::PDASam_Code) || (id == cosmo::PDAQwen3VL_Code);
+        return (id == cosmo::PAOcr_Code) || (id == cosmo::PAMatch_Code) || (id == cosmo::PADetect_Code) ||
+               (id == cosmo::PAClassify_Code) || (id == cosmo::PALandmark_Code) ||
+               (id == cosmo::PARecognizer_Code) || (id == cosmo::PDADino_Code) ||
+               (id == cosmo::PDASam_Code) || (id == cosmo::PDAQwen3VL_Code);
     };
 
     return DoUpdateActionAlg(actionAlg, pic_mtx_, pic_algs_, needs_atom, needs_logic,

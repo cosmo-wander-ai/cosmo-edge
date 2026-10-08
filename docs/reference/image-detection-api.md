@@ -170,7 +170,7 @@ mtk: <MTK>
 | `algorithmUpdateTime` | 是 | 当前时间的 13 位毫秒时间戳兼容字段；当前任务实际按 `algorithmCode` 从本地算法库加载 |
 | `taskId` | 建议 | 调用方生成的全局唯一 ID；省略时默认等于 `algorithmCode` |
 | `mvDebug` | 建议 | 当前图片分析客户端使用 `Cosmo-Debug` |
-| `taskConfig` | 否 | 本次任务的参数、区域和人脸库等覆盖配置 |
+| `taskConfig` | 否 | 本次任务的参数与库绑定配置，不支持区域 |
 
 生产集成建议显式提供唯一的 `taskId`。如果多个客户端都省略该字段，它们会使用同一个默认任务；其中一个客户端取消任务可能影响其他客户端。
 
@@ -281,7 +281,9 @@ mtk: <MTK>
 {
   "taskId": "<TASK_ID>",
   "algorithmCode": "<ALGORITHM_CODE>",
-  "uploadId": "<UPLOAD_ID>"
+  "uploadId": "<UPLOAD_ID>",
+  "resultMode": "business",
+  "needRetImg": false
 }
 ```
 
@@ -311,41 +313,52 @@ mtk: <MTK>
 
 `uploadId`、`imageBase64` 和 `imageUrl` 只能选择一种。JSON 请求体默认上限为 1 MB，因此生产接入和高清图片应使用 `uploadId`。使用 `imageUrl` 时，URL 必须可从 CosmoEdge 设备访问，下载失败会返回业务错误。
 
-## 6. 解析检测结果
+## 6. 解析编排结果
 
-### 响应示例
+图片接口默认使用 `resultMode: "business"`，顺着配置的模型、筛选、判断和输出节点执行，返回 `schemaVersion: 2`。图片任务没有检测区域：不配置区域，不接受非空 `taskConfig.areas` 或 `shieldedAreas`，新响应没有 `areaList`。
 
 ```json
 {
   "resCode": 1,
   "resMsg": [],
   "resData": {
-    "algorithmCode": "7602",
-    "timestamp": "1787068800123",
-    "fullPicture": "data:image/jpeg;base64,/9j/4AAQ...",
-    "areaList": [
+    "schemaVersion": 2,
+    "requestId": "image-001",
+    "algorithmCode": "<ALGORITHM_CODE>",
+    "status": "completed",
+    "timestamp": "1770000000000",
+    "fullPicture": "",
+    "outputs": [
       {
-        "areaId": "-1",
-        "areaName": "default",
-        "bDetected": false,
-        "targetList": [
+        "nodeId": "output",
+        "name": "Helmet check",
+        "decision": "matched",
+        "targetIds": [
+          "detect:0"
+        ],
+        "matchedCount": 1
+      }
+    ],
+    "targetList": [
+      {
+        "targetId": "detect:0",
+        "sourceNodeId": "detect",
+        "atomicCode": "<MODEL_CODE>",
+        "decision": "matched",
+        "rules": {
+          "rule": "matched"
+        },
+        "filtered": false,
+        "box": {
+          "x": 120,
+          "y": 80,
+          "width": 160,
+          "height": 180
+        },
+        "confidence": [
           {
-            "box": {
-              "x": 120,
-              "y": 80,
-              "width": 160,
-              "height": 180
-            },
-            "confidence": [
-              {
-                "label": "face",
-                "confidence": 0.96
-              }
-            ],
-            "landmark": [
-              {"xRatio": 158.0, "yRatio": 132.0},
-              {"xRatio": 232.0, "yRatio": 131.0}
-            ]
+            "label": "person",
+            "confidence": 0.96
           }
         ]
       }
@@ -354,40 +367,41 @@ mtk: <MTK>
 }
 ```
 
-当前 HTTP 响应中的目标列表位于：
-
-```text
-resData.areaList[].targetList[]
-```
-
-调用方可以将所有区域的 `targetList` 合并后得到整张图片的目标集合。不要依赖未出现在当前 JSON 响应中的顶层 `resData.targetList`。
-
-### 目标字段
+业务方读取 `resData.outputs[]` 的结论，再用 `targetIds` 关联 `resData.targetList[]`。同一个目标经过分支时保持 `targetId`，`rules` 按节点 ID 保存判断。输出节点的 `output.targets` 默认为 `matched`；设为 `all` 可返回通过筛选的全部目标。没有判断节点的检测流水线以检测到目标作为命中。整图判断可以在目标数为零时仍命中，例如“目标数量等于 0”。
 
 | 字段 | 说明 |
 | --- | --- |
-| `box.x`、`box.y` | 检测框左上角像素坐标 |
-| `box.width`、`box.height` | 检测框像素宽高 |
-| `confidence[]` | 检测和后续分类节点输出；每项包含 `label` 和 `confidence` |
-| `bLogicResult` | 仅 Pipeline 包含逻辑判断时可能返回，表示该目标是否满足逻辑条件 |
-| `landmark[]` | 关键点节点输出；当前兼容字段名为 `xRatio`、`yRatio`，值按像素坐标使用 |
-| `maskPolygon[]` | 分割轮廓；使用 `xRatio`、`yRatio`，值为归一化坐标 |
-| `featurePreview` | 特征向量前若干项的调试预览，不是可用于业务比对的完整特征 |
+| `decision` | `matched` 命中、`not_matched` 未命中、`unknown` 证据不足；目标还可为 `not_evaluated` |
+| `box` | `x/y/width/height` 均为像素坐标 |
+| `confidence[]` | 检测与分类输出的标签及置信度 |
+| `attributes[]`、`texts[]` | 属性分类结果、OCR 文字 |
+| `matchInfo` | 库比对分数、分组及命中信息；空库不能作为“未命中”证据 |
+| `landmark[]` | 关键点，兼容键名为 `xRatio/yRatio`，值为像素坐标 |
+| `maskPolygon[]` | 分割轮廓，`xRatio/yRatio` 为归一化坐标 |
+| `rules` | 每个判断节点的结果；缺少输入时保留 `unknown`，取反也不会变为命中 |
+| `errorNodeId` | 执行失败节点；同时检查顶层 `resCode`，失败时不返回部分成功结论 |
 
-人脸数量应按目标列表统计，例如：
+`resultMode: "debug"` 额外返回节点耗时、输入/输出数量、跳过状态以及被筛除/未命中目标；`filtered`、`filterReason` 解释筛选结果。调试目标不能直接用作告警目标，应使用输出节点的 `targetIds`。
 
-```javascript
-const targets = (response.resData.areaList || [])
-  .flatMap(area => area.targetList || [])
-const faces = targets.filter(target =>
-  (target.confidence || []).some(item => item.label === 'face')
-)
-console.log('face count:', faces.length)
-```
+显式指定 `resultMode: "legacy"` 可临时获得旧版 `areaList` 包装；它仅用于协议兼容，内部仍执行同一套无区域编排。新客户端应使用默认业务响应。
 
-不要只使用 `area.bDetected` 判断是否检测到人脸。该字段表示区域逻辑是否触发；没有逻辑节点的纯检测 Pipeline 即使返回了目标，也可能为 `false`。
+`needRetImg: false` 关闭叠加图。开启时 `fullPicture` 可能为文件服务 URL 或 `data:image/jpeg;base64,...`，仅绘制输出选中的目标。
 
-`fullPicture` 是叠加检测框后的整图。配置了文件服务时它可能是 URL；没有可用文件服务时会返回 `data:image/jpeg;base64,...`。当前 JSON 协议没有提供稳定的关闭该字段开关，客户端应允许两种返回形式并按需忽略。
+### 参数与图片组件
+
+每次请求可携带 `taskConfig.params: [{"key":"aiParam.person.confidence","value":"0.6"}]`。参数优先级为：模型默认值 → 节点配置 → 场景模板默认值 → 创建任务参数 → 本次请求参数。请求覆盖不会保存到任务中，也不能改 `atomicCode`。
+
+图片组件包括检测、目标/整图分类、关键点、特征提取、OCR、DINO、SAM、整图/目标裁剪 VLM、目标筛选、目标判断、整图判断、条件分支、库比对和结果输出。目标裁剪使用模型检测框，不是用户配置区域。筛选支持类别、置信度、像素面积和最短边；不提供运动、区域或持续时间条件。
+
+条件可引用 `aiOut.<label>.threshold`、`aiOut.attr.<category>`、`aiParam.<label>.confidence`、`picture.count`、`picture.matchedCount`、`match.score`、`match.matched`、`ocr.text` 和 `node.<flowActionId>`。节点引用必须位于当前分支的上游。条件分支只有命中才执行后续节点；未命中或无法判断时跳过。当前图支持单父节点与分叉，不支持合流。
+
+VLM 用 `inputType=image`（默认）或 `targets` 选择整图/目标输入；分类默认 `targets`，可设为 `image`。库比对独立于特征提取：`match.libraryType=face/body`、`match.mode=matched/unmatched`，通过 `param.faceSet` 或 `param.workClothesSet` 绑定逗号分隔的库 ID，`param.limitScore` 范围 0–100。绑定库和所需模型必须实际存在于设备上。
+
+### 从视频模板生成图片模板
+
+运行 `python tools/generate_picture_templates.py` 生成三个平台的对应图片模板，`--check` 校验产物是否最新。原视频模板保留。转换记录位于各资源目录的 `layout/picture-template-conversions.json`，包含源模板、图片模板 ID 和不转换的原因。
+
+可转换模板去掉解码、跟踪、持续时间与视频告警节点，将事件输出替换为图片结果输出。它们表达单张图片可判断的状态，不保留视频持续时间语义。含区域、绊线、离岗、历史计数等条件的模板不会转换。模板提供编排配置，不能替代对应芯片模型的安装和实测。图片输出不自动创建视频事件或触发外部推送。
 
 ## 7. 取消任务
 

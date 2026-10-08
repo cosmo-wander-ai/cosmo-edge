@@ -100,7 +100,7 @@ bool PDetector::AnalysisKey(const MsgDynamicKeyValue& param) {
         AiConfidence confidence;
         confidence.label      = param.keys[1];
         confidence.confidence = util::ParseFloat(param.value);
-        if (confidence.confidence < 0.01f) {
+        if (confidence.confidence < 0.0f || confidence.confidence > 1.0f) {
             LOG_WARN(
                 "ModifyParam "
                 "[{} {}] param.key {} value {}",
@@ -144,22 +144,6 @@ bool PDetector::SetParam(const std::string& /*taskId*/, std::vector<MsgDynamicKe
     return true;
 }
 
-// Set areas — clear previous areas, set all new areas
-bool PDetector::SetArea(const std::string& taskId, std::vector<MsgTaskArea>& areas,
-                        std::vector<MsgTaskArea>& shieldedAreas) {
-    std::lock_guard<std::shared_mutex> lock(mtx_);
-    task_area_.taskId        = taskId;
-    task_area_.areas         = areas;
-    task_area_.shieldedAreas = shieldedAreas;
-    for (auto& area : task_area_.areas) {
-        area.iderectionType = GetDirectionTypeFromMsg(area.params);
-        for (auto& assArea : area.associatedAreas) {
-            assArea.iderectionType = GetDirectionTypeFromMsg(assArea.params);
-        }
-    }
-    return true;
-}
-
 util::ErrorEnum PDetector::HandPic(AlgDataPtr algData) {
     if (!algData || !algData->chanDataDec.frame || !algData->chanDataDec.frame->Active()) {
         return util::ErrorEnum::FrameDataInvalid;
@@ -187,6 +171,9 @@ util::ErrorEnum PDetector::HandPic(AlgDataPtr algData) {
             action_status_ = result;
     }
 
+    if (result != util::ErrorEnum::Success)
+        return result;
+
     if (!algData->chanDataDetect.detRet) {
         algData->chanDataDetect.detRet            = std::make_shared<DataDetTrackClassify>();
         algData->chanDataDetect.detRet->picWidth  = algData->chanDataDec.frame->GetWidth();
@@ -197,8 +184,6 @@ util::ErrorEnum PDetector::HandPic(AlgDataPtr algData) {
         algData->chanDataDetect.detRet->targets.insert(algData->chanDataDetect.detRet->targets.end(),
                                                        detRsts[0].begin(), detRsts[0].end());
 
-    std::vector<AiLabelParam> labelPos;
-    TargetSignAreas(algData->chanDataDetect.detRet, task_area_.areas, task_area_.shieldedAreas, labelPos);
     return util::ErrorEnum::Success;
 }
 

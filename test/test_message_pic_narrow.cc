@@ -69,7 +69,9 @@ TEST_CASE("MessageHandler: unknown image and empty batch require only picture de
     SECTION("Empty configuration reaches decoding without a query registration") {
         MockVideoFrameCodec codec;
         ScopedServiceOverride<IVideoFrameCodec> frame_codec{codec};
-        REQUIRE(pictures.TaskCreate("known", std::make_shared<ActionAlg>()) == util::ErrorEnum::Success);
+        auto algorithm           = std::make_shared<ActionAlg>();
+        algorithm->algorithmCode = "known";
+        REQUIRE(pictures.TaskCreate("known", algorithm) == util::ErrorEnum::Success);
         REQUIRE(pictures.TaskStart("known"));
         REQUIRE_CALL(codec, DecodeJpeg(_)).RETURN(nullptr);
         MsgPTaskDetectPicRecv request;
@@ -86,7 +88,7 @@ TEST_CASE("MessageHandler: unknown image and empty batch require only picture de
     }
 }
 
-TEST_CASE("MessageHandler: picture query stores configuration before image decoding",
+TEST_CASE("MessageHandler: picture request parameters never mutate stored task configuration",
           "[MessageHandler][PicNarrow]") {
     const bool use_fallback = GENERATE(false, true);
     PicTaskServiceImpl pictures;
@@ -96,35 +98,26 @@ TEST_CASE("MessageHandler: picture query stores configuration before image decod
     ScopedServiceOverride<IVideoFrameCodec> frame_codec{codec};
     REQUIRE_FALSE(ServiceRegistry::Instance().Has<IPicTaskService>());
     const std::string task_id = use_fallback ? "algorithm" : "explicit-task";
-    REQUIRE(pictures.TaskCreate(task_id, std::make_shared<ActionAlg>()) == util::ErrorEnum::Success);
+    auto algorithm            = std::make_shared<ActionAlg>();
+    algorithm->algorithmCode  = "algorithm";
+    REQUIRE(pictures.TaskCreate(task_id, algorithm) == util::ErrorEnum::Success);
     REQUIRE(pictures.TaskStart(task_id));
     MsgPTaskDetectPicRecv request;
     request.taskId        = use_fallback ? "" : task_id;
     request.algorithmCode = "algorithm";
     request.imageData     = {1, 2, 3};
-    MsgTaskArea area;
-    area.areaId = "configured-before-decode";
-    request.taskConfig.areas.push_back(area);
-    bool observed_saved_config    = false;
-    const auto check_saved_config = [&]() {
-        // DetectPic holds a shared lock. Read from another thread to avoid recursive locking.
-        auto snapshot = std::async(std::launch::async, [&]() {
-                            MsgTaskConfig saved;
-                            const bool found = pictures.GetTaskParam(task_id, saved);
-                            return std::make_pair(found, saved);
-                        }).get();
-        REQUIRE(snapshot.first);
-        REQUIRE(snapshot.second.areas.size() == 1);
-        CHECK(snapshot.second.areas[0].areaId == "configured-before-decode");
-        observed_saved_config = true;
-    };
-    REQUIRE_CALL(codec, DecodeJpeg(std::vector<uint8_t>{1, 2, 3}))
-        .LR_SIDE_EFFECT(check_saved_config())
-        .RETURN(nullptr);
+    MsgDynamicKeyValue overrideParam;
+    overrideParam.key   = "custom.threshold";
+    overrideParam.value = "0.9";
+    request.taskConfig.params.push_back(overrideParam);
+    REQUIRE_CALL(codec, DecodeJpeg(std::vector<uint8_t>{1, 2, 3})).RETURN(nullptr);
     MessageHandler handler;
     std::error_condition error;
     auto response = handler.Handle(std::move(request), error);
-    CHECK(observed_saved_config);
+    MsgTaskConfig saved;
+    REQUIRE(pictures.GetTaskParam(task_id, saved));
+    CHECK(saved.params.empty());
+    CHECK(saved.areas.empty());
     CHECK(error == util::ErrorEnum::ImageDecodeFailed);
     CHECK(response.resData.algorithmCode == "algorithm");
     CHECK(response.resData.targetList.empty());

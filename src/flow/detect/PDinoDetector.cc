@@ -150,7 +150,9 @@ bool PDinoDetector::ModifyParam(const std::string& /*taskId*/, std::vector<MsgDy
     const float original_text  = text_confidence_;
     bool valid                 = true;
     for (auto& param : params) {
-        valid = AnalysisKey(param) && valid;
+        if (param.key == "keywords" || param.key == "aiParam.box.confidence" ||
+            param.key == "aiParam.text.confidence")
+            valid = AnalysisKey(param) && valid;
     }
     if (!valid) {
         prompt_          = original_prompt;
@@ -171,7 +173,9 @@ bool PDinoDetector::SetParam(const std::string& /*taskId*/, std::vector<MsgDynam
 
     bool valid = true;
     for (auto& param : params) {
-        valid = AnalysisKey(param) && valid;
+        if (param.key == "keywords" || param.key == "aiParam.box.confidence" ||
+            param.key == "aiParam.text.confidence")
+            valid = AnalysisKey(param) && valid;
     }
     if (!valid) {
         prompt_          = original_prompt;

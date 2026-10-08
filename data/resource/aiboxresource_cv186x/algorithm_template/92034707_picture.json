@@ -1,0 +1,35 @@
+{
+  "algorithmId": "92034707",
+  "algorithmCode": 92034707,
+  "algorithmName": "图片视觉语言大模型分析",
+  "algorithmCategory": 2,
+  "algorithmUsage": 2,
+  "checkType": 42626,
+  "createTime": 1776074334000,
+  "updateTime": 1776074334000,
+  "confVersionId": "default-92034707",
+  "algorithmMetadata": "{\"params\":[]}",
+  "configVersionList": [
+    {
+      "id": "default-92034707",
+      "name": "默认",
+      "algorithmCode": "92034707",
+      "algorithmMetadata": "{\"params\":[]}",
+      "algorithmProcessdata": "[{\"actionId\":\"PDA_00003\",\"actionName\":\"语言视觉大模型\",\"remark\":\"\",\"flowActionId\":\"4a05a806\",\"preFlowActionId\":\"-1\",\"configObject\":{\"webConfig\":{\"labelList\":[],\"labelFilterList\":[],\"metaDataParams\":[],\"atomic\":{\"atomicCode\":\"8888999\",\"atomicName\":\"Qwen3VL\",\"position\":\"4a05a806\",\"labelList\":[]}},\"params\":[{\"key\":\"atomicCode\",\"value\":\"8888999\"},{\"key\":\"advanced_mode\",\"value\":\"0\"},{\"key\":\"keywords\",\"value\":\"穿红色衣服的人\"},{\"key\":\"generationStyle\",\"value\":\"standard\"}]},\"actionNameI18nKey\":\"resource.action.34707.da_00003.4a05a806.actionname\"},{\"actionId\":\"PB_00004\",\"actionName\":\"图片结果输出\",\"remark\":\"\",\"flowActionId\":\"7ec477cd\",\"preFlowActionId\":\"4a05a806\",\"configObject\":{\"webConfig\":{},\"params\":[{\"key\":\"output.targets\",\"value\":\"matched\"}]},\"actionNameI18nKey\":\"resource.action.pb_00004.actionname\"}]",
+      "atomicList": "[{\"position\":\"4a05a806\",\"atomicCode\":\"8888999\",\"atomicName\":\"Qwen3VL\",\"labelList\":[]}]",
+      "algorithmUpdateTime": 202609300001,
+      "remark": "单张图片判断，不含跟踪、持续时间或区域条件。"
+    }
+  ],
+  "algorithmProcessdata": "[{\"actionId\":\"PDA_00003\",\"actionName\":\"语言视觉大模型\",\"remark\":\"\",\"flowActionId\":\"4a05a806\",\"preFlowActionId\":\"-1\",\"configObject\":{\"webConfig\":{\"labelList\":[],\"labelFilterList\":[],\"metaDataParams\":[],\"atomic\":{\"atomicCode\":\"8888999\",\"atomicName\":\"Qwen3VL\",\"position\":\"4a05a806\",\"labelList\":[]}},\"params\":[{\"key\":\"atomicCode\",\"value\":\"8888999\"},{\"key\":\"advanced_mode\",\"value\":\"0\"},{\"key\":\"keywords\",\"value\":\"穿红色衣服的人\"},{\"key\":\"generationStyle\",\"value\":\"standard\"}]},\"actionNameI18nKey\":\"resource.action.34707.da_00003.4a05a806.actionname\"},{\"actionId\":\"PB_00004\",\"actionName\":\"图片结果输出\",\"remark\":\"\",\"flowActionId\":\"7ec477cd\",\"preFlowActionId\":\"4a05a806\",\"configObject\":{\"webConfig\":{},\"params\":[{\"key\":\"output.targets\",\"value\":\"matched\"}]},\"actionNameI18nKey\":\"resource.action.pb_00004.actionname\"}]",
+  "atomicList": "[{\"position\":\"4a05a806\",\"atomicCode\":\"8888999\",\"atomicName\":\"Qwen3VL\",\"labelList\":[]}]",
+  "remark": "单张图片判断，不含跟踪、持续时间或区域条件。",
+  "description": "",
+  "algorithmNameI18nKey": "resource.algorithm.92034707.algorithmname",
+  "id": "92034707",
+  "gafAlgorithmId": "92034707",
+  "gafAlgorithmName": "图片视觉语言大模型分析",
+  "algorithmUpdateTime": 202609300001,
+  "sourceVideoAlgorithmCode": "34707",
+  "remarkI18nKey": "resource.algorithm.92034707.remark"
+}

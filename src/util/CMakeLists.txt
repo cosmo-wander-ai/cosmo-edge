@@ -58,6 +58,7 @@ add_library(cosmo_util OBJECT
     dto/TaskMsgTypes.cc
     dto/TaskMsgTypes_TaskCreate.cc
     dto/TaskMsgTypes_PicTask.cc
+    dto/PictureWorkflow.cc
     dto/OverviewTypes.cc
     dto/AlgorithmPacketDto.cc
     dto/AlgorithmMsgTypes.cc

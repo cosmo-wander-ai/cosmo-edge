@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <map>
+
 #include "util/dto/TaskAreaTypes.h"
 
 namespace cosmo {
@@ -65,7 +67,9 @@ struct MsgPTaskDetectPicRecv : public MsgRecvHead {
     std::string uploadId;       // Authenticated staged image ID (HTTP)
     // Populated only by authenticated HTTP dispatch; omitted from JSON.
     std::vector<std::uint8_t> imageData;
-    bool needRetImg{true};  // Need overlay picture
+    bool needRetImg{true};               // Need overlay picture
+    std::string resultMode{"business"};  // legacy, business, debug
+    std::string requestId;
 
     MsgTaskConfig taskConfig;
 };
@@ -74,6 +78,15 @@ void to_json(nlohmann::json& j, const MsgPTaskDetectPicRecv& r);
 void from_json(const nlohmann::json& j, MsgPTaskDetectPicRecv& r);
 
 struct MsgPTaskTarget {
+    std::string targetId;
+    std::string sourceNodeId;
+    std::string atomicCode;
+    std::string decision;
+    bool filtered{false};
+    std::string filterReason;
+    std::map<std::string, std::string> rules;
+    std::vector<MsgAiAttribute> attributes;
+    std::vector<std::string> texts;
     bool bHaveLogicResult{false};
     bool bLogicResult{false};
     MsgRectReal box;
@@ -101,7 +114,32 @@ struct MsgPTaskArea {
 
 // Create task response
 struct MsgPTaskDetectPicSend : public MsgSendHead {
+    struct Output {
+        std::string nodeId;
+        std::string name;
+        std::string decision;
+        std::vector<std::string> targetIds;
+        size_t matchedCount{0};
+        friend void to_json(nlohmann::json& j, const Output& v);
+        friend void from_json(const nlohmann::json& j, Output& v);
+    };
+    struct NodeResult {
+        std::string nodeId;
+        std::string actionId;
+        std::string status;
+        size_t inputCount{0};
+        size_t outputCount{0};
+        double durationMs{0};
+        friend void to_json(nlohmann::json& j, const NodeResult& v);
+        friend void from_json(const nlohmann::json& j, NodeResult& v);
+    };
     struct ResData {
+        int schemaVersion{1};
+        std::string requestId;
+        std::string status;
+        std::string errorNodeId;
+        std::vector<Output> outputs;
+        std::vector<NodeResult> nodes;
         std::string algorithmCode;
         std::string timestamp;
         std::string fullPicture;
