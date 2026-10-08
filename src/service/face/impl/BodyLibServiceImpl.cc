@@ -13,6 +13,7 @@
 #include "service/ai/IInferPoolService.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/face/IPersonRecogDaoService.h"
+#include "service/media/IVideoFrameTransform.h"
 #include "service/model/IModelPathMapping.h"
 #include "util/Log.h"
 #include "util/PathUtil.h"
@@ -23,15 +24,26 @@ static constexpr const char* kTag = "BODY-LIB-SVC ";
 namespace cosmo::service {
 
 std::vector<float> BodyLibServiceImpl::ExtractBodyFeature(const VideoFramePtr& imageData) {
-    if (!imageData) {
+    if (!VideoFrameValid(imageData)) {
+        return {};
+    }
+
+    // Sophon JPEG decoding returns I420, while detection and recognition expect
+    // packed BGR/RGB. Normalize before either model, as in picture-task inference.
+    auto image = imageData;
+    if (image->GetPixelFormat() == media::PixelFormat::PIXEL_I420) {
+        image = ServiceRegistry::Instance().Get<IVideoFrameTransform>().I4202BGR(image);
+    }
+    if (!VideoFrameValid(image) || (image->GetPixelFormat() != media::PixelFormat::PIXEL_BGR8 &&
+                                    image->GetPixelFormat() != media::PixelFormat::PIXEL_RGB8)) {
+        LOG_WARN("{}", "ExtractBodyFeature: cannot normalize image for inference");
         return {};
     }
 
     auto& modelSvc = ServiceRegistry::Instance().Get<IModelPathMapping>();
 
     // Step 1: Detect pedestrian bounding box using model 1001003
-    util::Box personBox{0, 0, static_cast<int>(imageData->GetWidth()),
-                        static_cast<int>(imageData->GetHeight())};
+    util::Box personBox{0, 0, static_cast<int>(image->GetWidth()), static_cast<int>(image->GetHeight())};
     std::string detCfg, detModel;
     if (modelSvc.GetModelCfg("1001003", detCfg, detModel)) {
         auto pool = ServiceRegistry::Instance().Get<IInferPoolService>().GetDetectPool("1001003");
@@ -42,7 +54,7 @@ std::vector<float> BodyLibServiceImpl::ExtractBodyFeature(const VideoFramePtr& i
         conf.confidence = 0.3f;
         confThres.push_back(conf);
         std::vector<AiDetectRstEl> detResults;
-        if (detector.Detect(imageData, confThres, detResults) == util::ErrorEnum::Success &&
+        if (detector.Detect(image, confThres, detResults) == util::ErrorEnum::Success &&
             !detResults.empty()) {
             int bestArea = 0;
             for (auto& det : detResults) {
@@ -71,7 +83,7 @@ std::vector<float> BodyLibServiceImpl::ExtractBodyFeature(const VideoFramePtr& i
     AiDetectRstEl target;
     target.box = personBox;
     targets.push_back(target);
-    if (recognizer.Recognize(imageData, targets, true) != util::ErrorEnum::Success) {
+    if (recognizer.Recognize(image, targets, true) != util::ErrorEnum::Success) {
         LOG_WARN("{}", "Extract body feature failed");
         return {};
     }

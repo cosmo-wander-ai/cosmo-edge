@@ -3,10 +3,12 @@
 #include "api/MessageBodyLibHandler.h"
 
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 
 #include "api/StagedImageInput.h"
 #include "db/TransactionGuard.h"
+#include "media/VideoFrame.h"
 #include "service/camera/ICameraTaskConfig.h"
 #include "service/face/IBodyLibService.h"
 #include "service/face/IPersonRecogDaoService.h"
@@ -186,7 +188,7 @@ BodyLib::MsgQueryPersonPicturesSend MessageBodyLibHandler::Handle(BodyLib::MsgQu
 }
 
 BodyLib::MsgAddLibPersonSend MessageBodyLibHandler::Handle(BodyLib::MsgAddLibPersonRecv&& data,
-                                                           std::error_condition& /*errc*/) {
+                                                           std::error_condition& errc) {
     BodyLib::MsgAddLibPersonSend ret{};
     if (static_cast<Operation>(data.personOperation) != Operation::Add) {
         throw util::ErrorMessage(util::ErrorEnum::OperationNotSupport);
@@ -196,6 +198,7 @@ BodyLib::MsgAddLibPersonSend MessageBodyLibHandler::Handle(BodyLib::MsgAddLibPer
                                  "Workwear count for single photo cannot be empty");
     }
 
+    std::error_condition failure = util::ErrorEnum::FileNotExist;
     for (auto& personSrc : data.personList) {
         if (personSrc.pictureUrl.empty()) {
             continue;
@@ -236,17 +239,27 @@ BodyLib::MsgAddLibPersonSend MessageBodyLibHandler::Handle(BodyLib::MsgAddLibPer
         try {
             auto picBin    = util::ReadFileBin(srcPath);
             auto imageData = video_codec_.DecodeJpeg(picBin);
-            if (imageData) {
-                finalFeature = body_lib_svc_.ExtractBodyFeature(imageData);
-            } else {
+            if (!VideoFrameValid(imageData)) {
                 LOG_WARN("{} Decode Jpeg failed for {}", kTag, srcPath);
+                failure = util::ErrorEnum::DecodeFailed;
+                continue;
             }
+            finalFeature = body_lib_svc_.ExtractBodyFeature(imageData);
         } catch (const std::exception& e) {
             LOG_WARN("{} Feature extraction exception: {}", kTag, e.what());
+            failure = util::ErrorEnum::GetFeatureFailed;
+            continue;
+        }
+        if (finalFeature.empty() || !std::all_of(finalFeature.begin(), finalFeature.end(),
+                                                 [](float v) { return std::isfinite(v); })) {
+            LOG_WARN("{} AddLibPerson skip: empty or invalid body feature", kTag);
+            failure = util::ErrorEnum::GetFeatureFailed;
+            continue;
         }
 
         std::string dstFileName = personId + ".jpg";
         if (!dao_svc_.AddPerson(personId, data.personLibId.ToString(), dstFileName, finalFeature)) {
+            failure = util::ErrorEnum::DatabaseFailed;
             continue;
         }
 
@@ -263,6 +276,8 @@ BodyLib::MsgAddLibPersonSend MessageBodyLibHandler::Handle(BodyLib::MsgAddLibPer
     // Invalidate body cache for the modified library
     if (!ret.resData.personId.empty()) {
         InvalidateBodyCache(data.personLibId);
+    } else {
+        errc = failure;
     }
     return ret;
 }
