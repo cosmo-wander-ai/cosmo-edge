@@ -102,7 +102,9 @@
           :actionDetail="actionDetail"
           :configObject="nodeData.configObject"
           :atomicList="atomicList"
+          :sceneParams="sceneParams"
           @config-change="handleConfigChange"
+          @picture-match-param-change="emit('picture-match-param-change', $event)"
         ></dynamic-form>
       </div>
     </div>
@@ -121,10 +123,11 @@ const props = defineProps({
   nodeId: { type: String, required: true },
   nodeData: { type: Object, default: () => ({}) },
   atomicList: { type: Array, default: () => [] },
+  sceneParams: { type: Array, default: () => [] },
   position: { type: Object, default: () => ({ x: 0, y: 0 }) }
 })
 
-const emit = defineEmits(['close', 'config-change'])
+const emit = defineEmits(['close', 'config-change', 'picture-match-param-change'])
 
 // ---- 从 nodeData 提取子数据 ----
 const actionDetail = computed(() => props.nodeData?.actionDetail)

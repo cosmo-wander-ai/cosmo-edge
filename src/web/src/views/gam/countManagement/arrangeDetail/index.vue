@@ -21,7 +21,7 @@
                   <el-option v-for="item in templateList" :key="item.algorithmCode" :label="resolveResourceAlgorithmName(item)" :value="item.algorithmCode" />
                 </el-select>
               </div>
-              <arrange-flow v-if="showArrangeFlow" ref="flowRef" :width="width" :height="height" :algorithmData="algorithmData" :algorithmMetadata="algorithmMetadata" :actionList="actionList" :atomicCode="$route.query.algorithmId" @onMetadata="syncMetadata"></arrange-flow>
+              <arrange-flow v-if="showArrangeFlow" ref="flowRef" :width="width" :height="height" :algorithmData="algorithmData" :algorithmMetadata="algorithmMetadata" :actionList="actionList" :atomicCode="$route.query.algorithmId" @onMetadata="syncMetadata" @picture-match-param-change="handlePictureMatchParamChange"></arrange-flow>
             </div>
           </el-tab-pane>
           <el-tab-pane v-if="String(algorithmUsage) !== '2'" :label="t('glossary.detectionArea')" name="detection">
@@ -51,6 +51,7 @@ import { ElMessageBox, ElMessage } from 'element-plus'
 import ArrangeFlow from './flow/ArrangeFlow.vue'
 import Detection from './flow/Detection.vue'
 import ParameterSetting from './flow/ParameterSetting.vue'
+import { updatePictureMatchDefaults } from './flow/nodeState.js'
 import { v4 } from 'uuid'
 import moment from 'moment'
 import EventBus from '@/components/eventBus.js'
@@ -86,6 +87,13 @@ const algorithmVersion = ref('')
 const actionList = ref([])
 const algorithmData = ref({})
 const algorithmMetadata = ref({})
+const handlePictureMatchParamChange = (param) => {
+  if (String(algorithmUsage.value) !== '2') return
+  algorithmMetadata.value = {
+    ...algorithmMetadata.value,
+    params: updatePictureMatchDefaults(algorithmMetadata.value.params, param)
+  }
+}
 const tabActiveName = ref('flow')
 const templateList = ref([])
 const selectedTemplate = ref('')

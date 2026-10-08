@@ -61,7 +61,14 @@
           </template>
 
           <!-- 下拉选择框 -->
-          <div v-if="item.type.includes('modelSelect')">
+          <library-select
+            v-if="isPictureMatchLibrary(item)"
+            v-model="item.value"
+            @update:model-value="updatePictureMatchParam(item, $event)"
+            :type="item.key === 'param.faceSet' ? 'faceSet' : 'workClothesSet'"
+            class="form-content"
+          />
+          <div v-else-if="item.type.includes('modelSelect')">
             <el-select v-model="item.value" class="form-content" @change="modelSelectChange" :placeholder="t('validate.pleaseSelect', { name: '' })" filterable size="small">
               <el-option v-for="obj in atomicModelList" :key="obj.atomicCode" :label="`${obj.atomicName}（${obj.atomicCode}）`" :value="obj.atomicCode">
               </el-option>
@@ -96,7 +103,7 @@
 
           <!-- 输入框 -->
           <div v-else-if="item.type=== 'text'">
-            <el-input v-model="item.value" class="form-content" size="small"></el-input>
+            <el-input v-model="item.value" class="form-content" size="small" @update:model-value="updatePictureMatchParam(item, $event)"></el-input>
           </div>
 
           <!-- 树选择器多选 -->
@@ -278,6 +285,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, getCurrentInstance, watch, computed, toRef } from 'vue'
 import ConditionView from './ConditionView.vue'
+import LibrarySelect from './LibrarySelect.vue'
 import { v4 } from 'uuid'
 import EventBus from '@/components/eventBus.js'
 import TreeSelectMultiple from './TreeSelectMultiple.vue'
@@ -322,12 +330,27 @@ const props = defineProps({
     type: Object,
     default: () => ({})
   },
+  sceneParams: {
+    type: Array,
+    default: () => []
+  },
   atomicList: {
     type: Array,
     default: () => []
   }
 })
-const emit = defineEmits(['config-change'])
+const emit = defineEmits(['config-change', 'picture-match-param-change'])
+
+const isPictureLibraryMatch = computed(
+  () => (props.actionDetail?.actionId || props.actionDetail?.id) === 'PB_00006'
+)
+const isPictureMatchLibrary = item => isPictureLibraryMatch.value &&
+  (item.key === 'param.faceSet' || item.key === 'param.workClothesSet')
+const updatePictureMatchParam = (item, value) => {
+  if (!isPictureMatchLibrary(item) && !(isPictureLibraryMatch.value && item.key === 'param.limitScore')) return
+  // Only explicit edits update scene defaults; hydration must not overwrite them.
+  emit('picture-match-param-change', { ...item, value: String(value ?? ''), defaultValue: String(value ?? '') })
+}
 
 const isAreaAlarmAction = computed(
   () =>
@@ -473,13 +496,19 @@ const formReady = ref(false)
 onMounted(() => {
   const params = JSON.parse(props.actionDetail.inputParamConfig)
   params.forEach((item, index) => {
-    const input = _.find(props.configObject?.params, {
-      key: item.key
-    })
+    // Nonempty scene defaults override node params during picture execution.
+    const sceneDefault = isPictureLibraryMatch.value &&
+      (isPictureMatchLibrary(item) || item.key === 'param.limitScore')
+      ? props.sceneParams.find(param => param.key === item.key)?.defaultValue
+      : undefined
+    const input = sceneDefault !== undefined && sceneDefault !== null && String(sceneDefault) !== ''
+      ? { value: sceneDefault }
+      : _.find(props.configObject?.params, { key: item.key }) ||
+        (isPictureLibraryMatch.value && _.find(props.configObject?.webConfig?.metaDataParams, { key: item.key }))
     if (input) {
       paramConfigs.value.push({
         ...item,
-        value: input.value
+        value: input.value ?? input.defaultValue ?? item.defaultValue ?? ''
       })
     } else {
       paramConfigs.value.push({
@@ -498,8 +527,6 @@ onMounted(() => {
     areaRuleUiType.value = inferAreaRuleUiType(currentAreaParams.value)
     areaRulePurpose.value = getAreaRulePurpose(areaRuleUiType.value)
   }
-
-  console.log(paramConfigs.value, '=============paramConfigs', props.atomicList)
 
   const modelSelect = _.find(paramConfigs.value, function (obj) {
     return obj.type.includes('modelSelect')
@@ -948,6 +975,10 @@ const isDependsOnSatisfied = (obj, visited = new Set()) => {
 }
 
 const showFormItem = (obj) => {
+  if (isPictureMatchLibrary(obj)) {
+    const kind = paramConfigs.value.find(item => item.key === 'match.libraryType')?.value || 'face'
+    return obj.key === (kind === 'body' ? 'param.workClothesSet' : 'param.faceSet') && isDependsOnSatisfied(obj)
+  }
   if (isAreaAlarmAction.value && areaRuleTechnicalKeys.includes(obj.key)) {
     return false
   }
@@ -958,7 +989,7 @@ const showFormItem = (obj) => {
   ) {
     return false
   }
-  if (obj.level === '2') return false
+  if (obj.level === '2' && !(isPictureLibraryMatch.value && obj.key === 'param.limitScore')) return false
   if (hiddenParamKeys.includes(obj.key)) return false
   return isDependsOnSatisfied(obj)
 }
@@ -1532,8 +1563,9 @@ const submitForm = () => {
     }
     // Picture execution does not have a channel form to materialize defaults.
     configObject.webConfig.metaDataParams.forEach(item => {
-      const value = item.value || item.defaultValue
-      if (value !== undefined && value !== '' && !configObject.params.some(param => param.key === item.key)) {
+      const value = isPictureLibraryMatch.value ? (item.value ?? item.defaultValue) : (item.value || item.defaultValue)
+      if (isPictureLibraryMatch.value) item.defaultValue = value
+      if (value !== undefined && (value !== '' || isPictureMatchLibrary(item)) && !configObject.params.some(param => param.key === item.key)) {
         configObject.params.push({ key: item.key, value: String(value) })
       }
     })

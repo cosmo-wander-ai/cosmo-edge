@@ -23,9 +23,11 @@
         :node-id="detailPanelNodeId"
         :node-data="detailPanelNodeData"
         :atomic-list="atomicList"
+        :scene-params="algorithmMetadata.params || []"
         :position="screenPanelPosition"
         @close="closeDetailPanel"
         @config-change="handlePanelConfigChange"
+        @picture-match-param-change="emit('picture-match-param-change', $event)"
       />
     </main>
 
@@ -52,7 +54,7 @@ import EventBus from '@/components/eventBus.js'
 import _ from 'lodash'
 import { generateActionId } from './dataTools.js'
 import { insertNodeEdges } from '@/utils/graphEdges.js'
-import { createNodeState, updateAtomicList, updateNodeConfig as replaceNodeConfig } from '@/views/gam/countManagement/arrangeDetail/flow/nodeState.js'
+import { createNodeState, collectNodeMetadata, updateAtomicList, updateNodeConfig as replaceNodeConfig } from '@/views/gam/countManagement/arrangeDetail/flow/nodeState.js'
 import { t } from '@/i18n'
 
 import '@vue-flow/core/dist/style.css'
@@ -86,12 +88,17 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
+  algorithmMetadata: {
+    type: Object,
+    default: () => ({})
+  },
   algorithmData: {
     type: Object,
     default: () => ({})
   }
 })
 
+const emit = defineEmits(['picture-match-param-change'])
 const nodes = ref([])
 const edges = ref([])
 const nodeTypes = {
@@ -1065,17 +1072,8 @@ const rebuildFlowGraph = () => {
 }
 
 const saveMetaDataParams = () => {
-  const list = []
-  nodes.value
-    .filter((n) => n.type !== 'start' && n.type !== 'end' && !isStageGroupNode(n))
-    .forEach((n) => {
-      const meta =
-        n.data?.configObject?.webConfig?.metaDataParams ?? []
-      if (Array.isArray(meta)) {
-        meta.forEach((m) => list.push({ ...m }))
-      }
-    })
-  return list
+  collectCurrentPanelConfig()
+  return collectNodeMetadata(nodes.value.filter(n => n.type !== 'start' && n.type !== 'end' && !isStageGroupNode(n)))
 }
 
 const saveFlowData = () => {
