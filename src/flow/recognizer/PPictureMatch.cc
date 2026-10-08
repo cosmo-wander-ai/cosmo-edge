@@ -59,7 +59,7 @@ util::ErrorEnum PPictureMatch::HandPic(AlgDataPtr data) {
     if (!data || !data->chanDataDetect.detRet)
         return util::ErrorEnum::FlowDataInvalid;
     if (libraries_.empty())
-        return util::ErrorEnum::InvalidParam;
+        return body_ ? util::ErrorEnum::BodyLibraryNotConfigured : util::ErrorEnum::FaceLibraryNotConfigured;
     if (body_ && !comparator_)
         return util::ErrorEnum::NotInit;
     for (auto& target : data->chanDataDetect.detRet->targets) {

@@ -4,6 +4,7 @@
 
 #include "catch_amalgamated.hpp"
 #include "flow/logical/PictureRule.h"
+#include "flow/recognizer/PPictureMatch.h"
 #include "flow/task/PTaskBase.h"
 #include "util/dto/ActionCodes.h"
 #include "util/dto/PictureWorkflow.h"
@@ -374,4 +375,38 @@ TEST_CASE("Picture unknown results explain unavailable comparison evidence", "[p
     nlohmann::json json = response;
     CHECK(json["resData"]["outputs"][0]["reason"] == reason);
     CHECK(json.get<MsgPTaskDetectPicSend>().resData.outputs.front().reason == reason);
+}
+
+TEST_CASE("Picture comparison reports the missing library instead of invalid parameters",
+          "[picture][workflow][missing-library]") {
+    const auto body          = GENERATE(false, true);
+    const auto selection     = GENERATE(std::string("omitted"), std::string(""), std::string(" , , "));
+    const std::string key    = body ? "param.workClothesSet" : "param.faceSet";
+    auto node                = Node("match", PAMatch_Code);
+    node.configObject.params = {Param("match.libraryType", body ? "body" : "face")};
+    if (selection != "omitted")
+        node.configObject.params.push_back(Param(key, selection));
+    // Selecting the other library type must not satisfy this component's requirement.
+    node.configObject.params.push_back(Param(body ? "param.faceSet" : "param.workClothesSet", "other"));
+    auto action = std::make_shared<PPictureMatch>("picture-test", node);
+    std::vector<MsgDynamicKeyValue> previous{Param("match.libraryType", body ? "body" : "face"),
+                                             Param(key, "previous-library")};
+    REQUIRE(action->SetParam("picture-test", previous));
+    auto task = Task();
+    PTaskAction entry;
+    entry.action     = node;
+    entry.actionInst = action;
+    task->actions.push_back(entry);
+    PTaskBase runtime;
+    MsgPTaskDetectPicRecv request;
+    MsgPTaskDetectPicSend response;
+    AlgDataPtr rendered;
+    const auto status = runtime.ExecutePicture(task, Input(), request, response, rendered);
+    CHECK(make_error_condition(status).message() ==
+          (body ? "没有设置工服底库，请先选择工服分组" : "没有设置人脸底库，请先选择人脸分组"));
+    CHECK(util::ErrorEnumName(status) == (body ? "BodyLibraryNotConfigured" : "FaceLibraryNotConfigured"));
+    CHECK(response.resData.status == "failed");
+    CHECK(response.resData.errorNodeId == "match");
+    CHECK(response.resData.outputs.empty());
+    CHECK(response.resData.targetList.empty());
 }

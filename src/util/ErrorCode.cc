@@ -77,6 +77,8 @@ std::string ErrorCategory::message(int code) const {
         CaseStr(ServiceNotInit, "服务未启动");
         CaseStr(DependServiceNotInit, "依赖的服务未启动");
         CaseStr(DependLibEmpty, "依赖的库为空");
+        CaseStr(FaceLibraryNotConfigured, "没有设置人脸底库，请先选择人脸分组");
+        CaseStr(BodyLibraryNotConfigured, "没有设置工服底库，请先选择工服分组");
         CaseStr(PersonLibNotEmpty, "工服库删除失败，工服库绑定了工服照");
         CaseStr(NotSupport, "系统支持问题");
         CaseStr(FileMoveFailed, "文件移动失败");
@@ -273,6 +275,8 @@ std::string ErrorEnumName(ErrorEnum code) {
         CaseName(ServiceNotInit);
         CaseName(DependServiceNotInit);
         CaseName(DependLibEmpty);
+        CaseName(FaceLibraryNotConfigured);
+        CaseName(BodyLibraryNotConfigured);
         CaseName(PersonLibNotEmpty);
         CaseName(NotSupport);
         CaseName(FileMoveFailed);

@@ -1622,6 +1622,8 @@ export default {
       ServiceNotInit: 'Service not initialized',
       DependServiceNotInit: 'Dependent service not initialized',
       DependLibEmpty: 'Dependent library is empty',
+      FaceLibraryNotConfigured: 'No face library configured. Please select a face group.',
+      BodyLibraryNotConfigured: 'No workwear library configured. Please select a workwear group.',
       PersonLibNotEmpty: 'Work clothes library is bound to photos',
       NotSupport: 'Not supported',
       FileMoveFailed: 'File move failed',

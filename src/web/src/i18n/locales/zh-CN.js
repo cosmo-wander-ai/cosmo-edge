@@ -1622,6 +1622,8 @@ export default {
       ServiceNotInit: '服务未启动',
       DependServiceNotInit: '依赖的服务未启动',
       DependLibEmpty: '依赖的库为空',
+      FaceLibraryNotConfigured: '没有设置人脸底库，请先选择人脸分组',
+      BodyLibraryNotConfigured: '没有设置工服底库，请先选择工服分组',
       PersonLibNotEmpty: '工服库删除失败，工服库绑定了工服照',
       NotSupport: '系统支持问题',
       FileMoveFailed: '文件移动失败',

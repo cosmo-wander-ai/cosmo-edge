@@ -157,6 +157,10 @@ enum class ErrorEnum : uint32_t {
     InternalError,                  // Internal error
     NoFaceDetected,                 // No face detected
 
+    // Keep established API error values stable by using a separate comparison range.
+    FaceLibraryNotConfigured = 0x4100,  // No face library selected for comparison
+    BodyLibraryNotConfigured,           // No workwear library selected for comparison
+
     ArticlesReidLibCountOverFlow = 0x5000,  // Article library count reached the limit
     ArticlesReidLibOverflow,                // Article library single-library photo limit reached
     ArticlesReidPicSizeIllegal,             // Article photo resolution is substandard
