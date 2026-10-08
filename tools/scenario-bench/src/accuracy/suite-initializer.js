@@ -63,7 +63,7 @@ export function initializeAccuracySuite({ inputRoot, outputDir, targetChip = 'bm
       eventFlushTimeoutSec: 15,
       eventPollIntervalSec: 1,
       eventSettleMinSec: 5,
-      earlyStopPollIntervalSec: 5,
+      earlyStopPollIntervalSec: 1,
       readyTimeoutSec: 120,
       readyPollIntervalSec: 1,
       infrastructureRetriesPerTrial: 1,

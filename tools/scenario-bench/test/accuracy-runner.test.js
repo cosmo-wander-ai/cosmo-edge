@@ -236,6 +236,7 @@ test('execution identity tracks the selected sample set and effective measuremen
 });
 
 test('execution accepts concurrency one, two, and four without eligibility policy', () => {
+  assert.equal(resolveAccuracyExecution(suite()).concurrency, 4);
   for (const concurrency of [1, 2, 4]) {
     const execution = resolveAccuracyExecution(suite(), { concurrency });
     assert.equal(execution.concurrency, concurrency);
