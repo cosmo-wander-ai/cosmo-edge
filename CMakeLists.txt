@@ -872,6 +872,7 @@ if(DEFINED RESOURCE_DIR AND IS_DIRECTORY "${RESOURCE_DIR}")
         PATTERN ".git" EXCLUDE
         PATTERN "models" EXCLUDE
         PATTERN "model-artifacts" EXCLUDE
+        PATTERN "laya_runtime" EXCLUDE
         PATTERN "__pycache__" EXCLUDE PATTERN "*.pyc" EXCLUDE PATTERN "*.pyo" EXCLUDE
     )
     if(DEFINED RESOURCE_OVERLAY_DIR AND IS_DIRECTORY "${RESOURCE_OVERLAY_DIR}")
@@ -955,11 +956,7 @@ install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/scripts/
             PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_READ GROUP_EXECUTE
 )
 
-# Optional offline Laya runtime; model binaries are supplied as a separate verified resource release.
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/scripts/laya_runtime
-    DESTINATION scripts
-    FILES_MATCHING PATTERN "*.py" PATTERN "*.in"
-    PATTERN "__pycache__" EXCLUDE)
+# Laya inference is native. Offline conversion/reference tools are not device payloads.
 
 # Service files are not included by the shell-script directory rule above.
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/scripts/cosmo-log-cleanup.service
