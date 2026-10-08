@@ -39,10 +39,21 @@ def allowed(key):
         key.startswith("filter.") and len(key.split(".")) == 4 and key.split(".")[2] in {"confidence", "side", "size"})
 
 
-def field(key, name, default="", kind="text", options=None, level="1"):
-    result = dict(key=key, name=name, type=kind, defaultValue=default, level=level, regexpr="")
+def field(locales, action, key, names, default="", kind="text", options=None, level="1"):
+    prefix = f"resource.param.picture.{action.lower()}.{key.lower().replace('.', '_')}"
+
+    def translate(suffix, labels):
+        translation_key = prefix + suffix
+        for lang, label in zip(("zh-CN", "en-US"), labels):
+            locales[lang][translation_key] = label
+        return translation_key
+
+    result = dict(key=key, name=names[0], nameI18nKey=translate(".name", names),
+                  type=kind, defaultValue=default, level=level, regexpr="")
     if options:
-        result["options"] = [dict(name=n, value=v) for n, v in options]
+        result["options"] = [dict(name=labels[0], value=value,
+                                  labelI18nKey=translate(f".option.{value}", labels))
+                             for labels, value in options]
     return result
 
 
@@ -55,12 +66,16 @@ def catalog(actions, locales):
         "PB_90001": decode(by_id["BA_90001"]["inputParamConfig"], []),
         "PB_90003": decode(by_id["BA_90001"]["inputParamConfig"], []),
         "PB_90002": decode(by_id["BA_90001"]["inputParamConfig"], []),
-        "PB_00004": [field("output.name", "结果名称 / Output name"), field("output.targets", "返回目标 / Targets", "matched", "select", [("命中 / Matched", "matched"), ("全部 / All", "all")])],
-        "PB_00006": [field("match.libraryType", "比对库类型 / Library type", "face", "select", [("人脸 / Face", "face"), ("工服 / Workwear", "body")]),
-                     field("match.mode", "判断方式 / Match mode", "matched", "select", [("命中 / Matched", "matched"), ("未命中 / Unmatched", "unmatched")]),
-                     field("param.faceSet", "人脸库 / Face libraries", kind="faceSet", level="2"),
-                     field("param.workClothesSet", "工服库 / Workwear libraries", kind="workClothesSet", level="2"),
-                     field("param.limitScore", "比对阈值 0–100 / Score", "80", level="2")]
+        "PB_00004": [field(locales, "PB_00004", "output.name", ("结果名称", "Output name")),
+                     field(locales, "PB_00004", "output.targets", ("返回目标", "Targets"), "matched", "select",
+                           [(("命中", "Matched"), "matched"), (("全部", "All"), "all")])],
+        "PB_00006": [field(locales, "PB_00006", "match.libraryType", ("比对库类型", "Library type"), "face", "select",
+                           [(("人脸", "Face"), "face"), (("工服", "Workwear"), "body")]),
+                     field(locales, "PB_00006", "match.mode", ("判断方式", "Match mode"), "matched", "select",
+                           [(("命中", "Matched"), "matched"), (("未命中", "Unmatched"), "unmatched")]),
+                     field(locales, "PB_00006", "param.faceSet", ("人脸库", "Face libraries"), kind="faceSet", level="2"),
+                     field(locales, "PB_00006", "param.workClothesSet", ("工服库", "Workwear libraries"), kind="workClothesSet", level="2"),
+                     field(locales, "PB_00006", "param.limitScore", ("比对阈值（0–100）", "Match score (0–100)"), "80", level="2")]
     }
     for code, names in NAMES.items():
         action = by_id.get(code)
@@ -75,11 +90,13 @@ def catalog(actions, locales):
                 locales[lang][key] = label
     classify = by_id["PA_00002"]
     config = [p for p in decode(classify["inputParamConfig"], []) if p.get("key") != "inputType"]
-    config.append(field("inputType", "分类输入 / Classification input", "targets", "select", [("目标 / Targets", "targets"), ("整图 / Whole image", "image")]))
+    config.append(field(locales, "PA_00002", "inputType", ("分类输入", "Classification input"), "targets", "select",
+                        [(("目标", "Targets"), "targets"), (("整图", "Whole image"), "image")]))
     classify["inputParamConfig"] = compact(config)
     vlm = by_id["PDA_00003"]
     config = [p for p in decode(vlm["inputParamConfig"], []) if p.get("key") != "inputType"]
-    config.append(field("inputType", "判断输入 / Judgment input", "image", "select", [("整图 / Whole image", "image"), ("目标 / Targets", "targets")]))
+    config.append(field(locales, "PDA_00003", "inputType", ("判断输入", "Judgment input"), "image", "select",
+                        [(("整图", "Whole image"), "image"), (("目标", "Targets"), "targets")]))
     vlm["inputParamConfig"] = compact(config)
     # Extraction and comparison are independent nodes in picture workflows.
     feature = by_id["PA_00005"]
@@ -222,6 +239,8 @@ def generate(check=False):
                                picture=str(result["algorithmCode"]) if result else None, reason=reason))
             if result:
                 save(resource / "algorithm_template" / f"{result['algorithmCode']}_picture.json", result)
+                # Ship one usable scene per generated template in fresh installations.
+                save(resource / "algorithm" / f"{result['algorithmCode']}_picture.json", result)
         # Existing picture templates also have no region configuration.
         for path in (resource / "algorithm_template").glob("*.json"):
             document = json.loads(path.read_text(encoding="utf-8"))
