@@ -54,11 +54,8 @@ private:
     std::string engine_type_;
     std::string dev_id_;
     std::chrono::steady_clock::time_point start_time_;
-    std::atomic<bool> have_manager_{false};
     std::atomic<bool> overview_structure_record_{false};
     std::atomic<bool> overview_structure_file_{false};
-    std::atomic<bool> model_debug_{false};
-    std::atomic<int> pic_task_group_count_{3};
     std::atomic<size_t> number_{0};
 };
 

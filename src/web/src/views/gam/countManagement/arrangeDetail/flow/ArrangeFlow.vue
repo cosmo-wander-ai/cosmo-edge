@@ -13,7 +13,6 @@
       >
         <Background pattern-color="#e5e7eb" gap="16" />
         <Controls  :show-interactive="false" />
-        <!-- <MiniMap /> -->
       </VueFlow>
 
       <!-- 浮动配置面板（在 VueFlow 外部，使用屏幕坐标定位） -->
@@ -46,7 +45,6 @@ import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import ActionView from './ActionView.vue'
 import { Controls } from '@vue-flow/controls'
-import { MiniMap } from '@vue-flow/minimap'
 import dagre from 'dagre'
 import EventBus from '@/components/eventBus.js'
 import _ from 'lodash'
@@ -57,7 +55,6 @@ import { t } from '@/i18n'
 
 import '@vue-flow/core/dist/style.css'
 // theme-default.css 已移除 — 其默认阴影/边框样式由自定义CSS接管
-import '@vue-flow/minimap/dist/style.css'
 import '@vue-flow/controls/dist/style.css'
 
 import CustomFormNode from './CustomFormNode.vue'

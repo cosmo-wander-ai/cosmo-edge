@@ -24,6 +24,7 @@ namespace {
 
     constexpr size_t kLogTimestampLength = 15;
     constexpr int kMaxLogPageSize        = 1000;
+    constexpr int kPicTaskGroupCount     = 3;
 
     std::optional<std::string> ExtractLogTimestamp(const std::string& filename) {
         if (filename.size() < kLogTimestampLength) {
@@ -95,7 +96,7 @@ void AppInfoServiceImpl::SetEngineType(std::string engine_type) {
 // ── UserDataUtil ──
 
 bool AppInfoServiceImpl::GetHaveManager() {
-    return have_manager_;
+    return false;
 }
 
 std::string AppInfoServiceImpl::GetEngineType() {
@@ -114,7 +115,7 @@ int64_t AppInfoServiceImpl::GetAppRuntime() {
 }
 
 int AppInfoServiceImpl::GetPicTaskGroupCount() {
-    return pic_task_group_count_;
+    return kPicTaskGroupCount;
 }
 
 std::string AppInfoServiceImpl::UserDataPath() {
@@ -144,7 +145,7 @@ bool AppInfoServiceImpl::GetOverviewStructureFile() {
 }
 
 bool AppInfoServiceImpl::GetModelDebug() {
-    return model_debug_;
+    return false;
 }
 
 size_t AppInfoServiceImpl::GetNumber() {
