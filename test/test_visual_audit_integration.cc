@@ -1,4 +1,5 @@
 #include <SQLiteCpp/SQLiteCpp.h>
+#include <sqlite3.h>
 
 #include <atomic>
 #include <cmath>
@@ -124,7 +125,71 @@ struct Gate {
         Open();
     }
 };
+
+// Stall the audit connection inside COMMIT, reproducing slow durable storage
+// while its service mutex is still held. No production test hook is needed.
+struct AuditCommitPause {
+    static inline AuditCommitPause* active = nullptr;
+    std::atomic<bool> armed{false};
+    Gate gate;
+    static int Install(sqlite3* database, char**, const sqlite3_api_routines*) {
+        sqlite3_commit_hook(
+            database,
+            [](void* context) {
+                auto& pause = *static_cast<AuditCommitPause*>(context);
+                if (pause.armed.exchange(false)) {
+                    pause.gate.entered.set_value();
+                    pause.gate.release.wait();
+                }
+                return 0;
+            },
+            active);
+        return SQLITE_OK;
+    }
+    AuditCommitPause() {
+        active = this;
+        if (sqlite3_auto_extension(reinterpret_cast<void (*)()>(Install)) != SQLITE_OK)
+            throw std::runtime_error("cannot install audit commit pause");
+    }
+    ~AuditCommitPause() {
+        gate.Open();
+        sqlite3_cancel_auto_extension(reinterpret_cast<void (*)()>(Install));
+        active = nullptr;
+    }
+};
 }  // namespace
+
+TEST_CASE("Visual audit integration: review pages remain available during a durable result commit",
+          "[visual-audit-integration][visual-audit-read-isolation]") {
+    AuditFile file;
+    AuditCommitPause pause;
+    VisualAuditServiceImpl audit(file.path);
+    VisualDecisionServiceImpl service(
+        Options(),
+        [&](const auto&, const Json& request, const auto& jpeg, auto) {
+            pause.armed = true;
+            return Reply(request, jpeg);
+        },
+        &audit);
+    auto entered = pause.gate.entered.get_future();
+    auto decision =
+        std::async(std::launch::async, [&] { return service.Decide(Request(), Run(), Image, 3s); });
+    const auto commitEntered = entered.wait_for(3s);
+    auto reader              = std::async(std::launch::async, [&] { return audit.Page("", "", 1, 20); });
+    const auto pageReady     = reader.wait_for(500ms);
+    pause.gate.Open();
+    const auto result = decision.get();
+    CHECK(commitEntered == std::future_status::ready);
+    CHECK(pageReady == std::future_status::ready);
+    REQUIRE(result.AllCompleted());
+    Json page;
+    REQUIRE_NOTHROW(page = reader.get());
+    REQUIRE(page["total"] == 1);
+    REQUIRE(page["rows"].size() == 1);
+    CHECK(page["rows"][0]["response"].is_null());
+    CHECK(Row(audit, Id(result))["response"] == result.response);
+    CHECK(audit.Status()["finish_failed"] == 0);
+}
 
 TEST_CASE("Visual audit integration: numerical service persists pending before ROI and immutable final items",
           "[visual-audit-integration]") {

@@ -232,14 +232,14 @@ bool VisualAuditServiceImpl::Complete(VisualAuditReceipt& receipt, const Json& r
 
 Json VisualAuditServiceImpl::Page(const std::string& eventId, const std::string& requestId, int page,
                                   int size) {
-    Json result;
-    const auto status = state_->Execute("page", [&](auto& dao) {
-        result = dao.Page(eventId, requestId, page, size);
-        return true;
-    });
-    if (status != "stored")
-        throw std::runtime_error("visual_audit_" + status);
-    return result;
+    if (!state_->ready)
+        throw std::runtime_error("visual_audit_unavailable");
+    // WAL readers can inspect the last committed snapshot while a durable
+    // result is being flushed. Sharing the writer mutex instead made ordinary
+    // review queries fail whenever fsync exceeded its 250 ms wait budget.
+    SQLite::Database reader(state_->databasePath, SQLite::OPEN_READONLY | SQLite::OPEN_FULLMUTEX);
+    reader.setBusyTimeout(250);
+    return db::VisualAuditDao(reader).Page(eventId, requestId, page, size);
 }
 
 Json VisualAuditServiceImpl::Status() const {
