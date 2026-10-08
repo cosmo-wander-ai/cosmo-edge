@@ -70,7 +70,7 @@ Qwen3VLWorker::~Qwen3VLWorker() {
 }
 
 Qwen3VLWorker::Qwen3VLWorker(ActionNode& action)
-    : AlgActionBase(AlgActionType::AlgActionQwen3VL, action, "", "", action.atomicCode + " Qwen3VLWorker"),
+    : AlgActionBase(AlgActionType::AlgActionQwen3VL, action, "", "", action.atomicCode + " VLM"),
       alg_code_(action.atomicCode) {
     action_status = util::ErrorEnum::ActionReady;
     uuid          = util::GenerateUUID();
