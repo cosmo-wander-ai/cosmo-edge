@@ -250,24 +250,26 @@ Status CpuNetNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
         if (input_types_[i] == ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT) {
             input_tensors.emplace_back(Ort::Value::CreateTensor<float>(
                 memory_info, static_cast<float*>(data), element_count, shape.data(), shape.size()));
-            // Diagnostic: print input data statistics
-            auto* fdata = static_cast<float*>(data);
-            float fmin = fdata[0], fmax = fdata[0], fsum = 0;
-            for (size_t k = 0; k < std::min(element_count, (size_t)100000); k++) {
-                if (fdata[k] < fmin)
-                    fmin = fdata[k];
-                if (fdata[k] > fmax)
-                    fmax = fdata[k];
-                fsum += fdata[k];
+            // Skip diagnostic data reads when debug logging is disabled or the tensor is empty.
+            if (cosmo::log::GetLogLevel() <= LOG_LEVEL_DEBUG && element_count > 0) {
+                auto* fdata = static_cast<float*>(data);
+                float fmin = fdata[0], fmax = fdata[0], fsum = 0;
+                for (size_t k = 0; k < std::min(element_count, (size_t)100000); k++) {
+                    if (fdata[k] < fmin)
+                        fmin = fdata[k];
+                    if (fdata[k] > fmax)
+                        fmax = fdata[k];
+                    fsum += fdata[k];
+                }
+                size_t sample = std::min(element_count, (size_t)100000);
+                LOG_DEBUG(
+                    "[CpuNetNode] Input[{}:{}] shape=[{},{},{},{}] min={} max={} mean={} first5=[{},{},{},{},{}]",
+                    i, input_names_[i], shape.size() > 0 ? shape[0] : 0, shape.size() > 1 ? shape[1] : 0,
+                    shape.size() > 2 ? shape[2] : 0, shape.size() > 3 ? shape[3] : 0, fmin, fmax, fsum / sample,
+                    element_count > 0 ? fdata[0] : 0, element_count > 1 ? fdata[1] : 0,
+                    element_count > 2 ? fdata[2] : 0, element_count > 3 ? fdata[3] : 0,
+                    element_count > 4 ? fdata[4] : 0);
             }
-            size_t sample = std::min(element_count, (size_t)100000);
-            LOG_DEBUG(
-                "[CpuNetNode] Input[{}:{}] shape=[{},{},{},{}] min={} max={} mean={} first5=[{},{},{},{},{}]",
-                i, input_names_[i], shape.size() > 0 ? shape[0] : 0, shape.size() > 1 ? shape[1] : 0,
-                shape.size() > 2 ? shape[2] : 0, shape.size() > 3 ? shape[3] : 0, fmin, fmax, fsum / sample,
-                element_count > 0 ? fdata[0] : 0, element_count > 1 ? fdata[1] : 0,
-                element_count > 2 ? fdata[2] : 0, element_count > 3 ? fdata[3] : 0,
-                element_count > 4 ? fdata[4] : 0);
         } else if (input_types_[i] == ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32) {
             input_tensors.emplace_back(Ort::Value::CreateTensor<int32_t>(
                 memory_info, static_cast<int32_t*>(data), element_count, shape.data(), shape.size()));
