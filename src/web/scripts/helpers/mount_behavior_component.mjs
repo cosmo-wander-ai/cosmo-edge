@@ -24,7 +24,7 @@ const node = (type, text = '') => ({
   removeAttribute(key) { delete this.props[key] },
   getContext: () => new Proxy({}, { get: (target, key) => target[key] ?? (() => {}), set: (target, key, value) => { target[key] = value; return true } })
 })
-export async function mountComponent(entry, { props = {}, mocks = {}, globals = {}, api = {}, router = {}, route = { query: {} }, message = {} } = {}) {
+export async function mountComponent(entry, { props = {}, mocks = {}, globals = {}, api = {}, router = {}, route = { query: {} }, message = {}, wrap = component => component } = {}) {
   const { default: component } = await loadBehaviorModule(entry, {
     mocks: { vue: Vue, '@/i18n': i18n, 'element-plus': { ElMessage: () => {} },
       '@element-plus/icons-vue': Object.fromEntries(['Plus', 'QuestionFilled', 'CircleCheckFilled', 'Search', 'Upload', 'ArrowDown', 'Delete', 'SwitchButton', 'Menu', 'House', 'View', 'Document', 'VideoCamera', 'Connection', 'Cpu', 'Picture', 'Headset', 'Iphone', 'Link', 'Setting', 'DataBoard', 'Monitor', 'Box'].map(name => [name, name])), ...mocks },
@@ -44,7 +44,7 @@ export async function mountComponent(entry, { props = {}, mocks = {}, globals = 
     remove(n) { n.parent?.children.splice(n.parent.children.indexOf(n), 1); n.parent = null }
   })
   const root = node('root')
-  const app = renderer.createApp(component, props)
+  const app = renderer.createApp(wrap(component), props)
   app.config.globalProperties.$API = api
   app.config.globalProperties.$route = route
   app.config.globalProperties.$router = router
@@ -79,5 +79,5 @@ export async function mountComponent(entry, { props = {}, mocks = {}, globals = 
   const all = (predicate, n = root) => [...(predicate(n) ? [n] : []), ...n.children.flatMap((child) => all(predicate, child))]
   const settle = async () => { await Promise.resolve(); await Vue.nextTick(); await Promise.resolve(); await Vue.nextTick() }
   await settle()
-  return { root, instance, all, settle, unmount: () => app.unmount() }
+  return { root, instance, all, settle, teleportTargets, unmount: () => app.unmount() }
 }

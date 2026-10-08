@@ -6,7 +6,8 @@ import {
   FLOW_NODE_SIZE,
   getDetailPanelAnchor,
   getDetailPanelSize,
-  getFlowLayoutSpacing
+  getFlowLayoutSpacing,
+  getFlowBounds
 } from '../src/views/gam/countManagement/arrangeDetail/flow/layoutGeometry.js'
 
 const spacing = getFlowLayoutSpacing(FLOW_NODE_SIZE)
@@ -27,5 +28,12 @@ assert.deepEqual(alarmPanelSize, ALARM_DETAIL_PANEL_SIZE)
 assert.ok(alarmPanelSize.width >= DETAIL_PANEL_SIZE.width * 2)
 const alarmPanel = getDetailPanelAnchor(node, FLOW_NODE_SIZE, alarmPanelSize)
 assert.equal(alarmPanel.x, 500 + FLOW_NODE_SIZE.width / 2 - alarmPanelSize.width / 2)
+
+assert.deepEqual(getFlowBounds([node, { position: { x: -40, y: -20 } }]), {
+  minX: -40, minY: -20, maxX: 500 + FLOW_NODE_SIZE.width, maxY: 200 + FLOW_NODE_SIZE.height
+})
+assert.deepEqual(getFlowBounds([node], () => ({ width: 20, height: 30 }), {
+  minX: 0, minY: 0, maxX: 1000, maxY: 800
+}), { minX: 0, minY: 0, maxX: 1000, maxY: 800 })
 
 console.log('linkage flow layout checks passed')

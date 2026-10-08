@@ -7,6 +7,20 @@ export const DETAIL_PANEL_GAP = 12
 
 export const getFlowNodeDimensions = () => ({ ...FLOW_NODE_SIZE })
 
+export const getFlowBounds = (
+  nodes,
+  getDimensions = getFlowNodeDimensions,
+  initial = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
+) => nodes.reduce((bounds, node) => {
+  const { width, height } = getDimensions(node)
+  return {
+    minX: Math.min(bounds.minX, node.position.x),
+    minY: Math.min(bounds.minY, node.position.y),
+    maxX: Math.max(bounds.maxX, node.position.x + width),
+    maxY: Math.max(bounds.maxY, node.position.y + height)
+  }
+}, initial)
+
 export const getFlowLayoutSpacing = (dimensions = FLOW_NODE_SIZE) => ({
   nodesep: Math.max(40, Math.min(240, Math.round(dimensions.height * 0.5))),
   ranksep: Math.max(50, Math.min(320, Math.round(dimensions.width * 0.4)))
