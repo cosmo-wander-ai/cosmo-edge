@@ -63,10 +63,16 @@
       <el-collapse-item :title="$t('imageAnalysis.parameters')" name="parameters">
         <el-form label-position="top" :disabled="analyzing" class="parameter-grid">
           <el-form-item v-for="field in parameterFields" :key="field.key" :label="resolveI18nText(field)">
-            <el-select v-if="field.options?.length" v-model="parameterValues[field.key]" clearable>
+            <LibrarySelect
+              v-if="getLibraryType(field)"
+              v-model="parameterValues[field.key]"
+              :type="getLibraryType(field)"
+              :disabled="analyzing"
+            />
+            <el-select v-else-if="field.options?.length" v-model="parameterValues[field.key]" clearable>
               <el-option v-for="option in field.options" :key="option.value" :value="String(option.value)" :label="resolveI18nOptionLabel(option)" />
             </el-select>
-            <el-input v-else v-model="parameterValues[field.key]" :placeholder="String(field.defaultValue || '')" clearable />
+            <el-input v-else v-model="parameterValues[field.key]" :placeholder="String(field.defaultValue ?? '')" clearable />
           </el-form-item>
         </el-form>
       </el-collapse-item>
@@ -248,6 +254,7 @@ import { ElMessage } from 'element-plus'
 import { Upload, VideoPlay, Delete } from '@element-plus/icons-vue'
 import { resolveResourceAlgorithmName, resolveI18nText, resolveI18nOptionLabel } from '@/utils/i18nResource'
 import { uploadFileInChunks, UploadPurpose } from '@/utils/chunkUpload'
+import LibrarySelect from '@/views/gam/countManagement/arrangeDetail/flow/LibrarySelect.vue'
 
 const { proxy } = getCurrentInstance()
 const $API = proxy.$API
@@ -264,6 +271,12 @@ const taskId = ref(uuid())
 const debugResults = ref(false)
 const parameterFields = ref([])
 const parameterValues = ref({})
+// Legacy scenes may label library bindings as text; their keys remain stable.
+const getLibraryType = field => {
+  if (field?.key === 'param.faceSet' || field?.type === 'faceSet') return 'faceSet'
+  if (field?.key === 'param.workClothesSet' || field?.type === 'workClothesSet') return 'workClothesSet'
+  return ''
+}
 let stopped = false
 const decisionLabel = (decision) => ({
   matched: t('imageAnalysis.matched'),
@@ -339,7 +352,7 @@ const handleAlgorithmChange = async (val) => {
       const raw = detail?.resData?.algorithmMetadata
       const metadata = typeof raw === 'string' ? JSON.parse(raw) : raw
       parameterFields.value = (metadata?.params || []).filter(field => field.key && field.key !== 'atomicCode')
-      parameterValues.value = Object.fromEntries(parameterFields.value.map(field => [field.key, String(field.defaultValue || '')]))
+      parameterValues.value = Object.fromEntries(parameterFields.value.map(field => [field.key, String(field.defaultValue ?? '')]))
     } catch (error) { console.error('Image parameter loading failed', error) }
   }
 }
@@ -470,7 +483,12 @@ const startAnalysis = async () => {
         taskId: taskId.value,
         requestId: uuid(),
         resultMode: debugResults.value ? 'debug' : 'business',
-        taskConfig: { params: Object.entries(parameterValues.value).filter(([, value]) => value !== '').map(([key, value]) => ({ key, value })) },
+        taskConfig: {
+          params: Object.entries(parameterValues.value)
+            // An explicit empty library binding must override scene defaults.
+            .filter(([key, value]) => value !== '' || getLibraryType(parameterFields.value.find(field => field.key === key)))
+            .map(([key, value]) => ({ key, value }))
+        },
         uploadId: stagedUpload.uploadId,
         needRetImg: true
       }

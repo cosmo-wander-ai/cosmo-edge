@@ -171,3 +171,5 @@ console.log('Component behavior checks passed')
 await import('./edge_behavior_check.mjs')
 await import('./picture_library_selection_check.mjs')
 await import('./picture_match_node_check.mjs')
+
+await import('./image_analysis_library_check.mjs')
