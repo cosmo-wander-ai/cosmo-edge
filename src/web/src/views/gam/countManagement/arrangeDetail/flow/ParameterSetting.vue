@@ -26,7 +26,10 @@
                 </el-tooltip>{{ localeColon }}
               </div>
               <div class="param-value">
-                <template v-if="item.moduleType === 'slider'">
+                <template v-if="isLibraryType(item.moduleType)">
+                  <library-select v-model="item.defaultValue" :type="item.moduleType" />
+                </template>
+                <template v-else-if="item.moduleType === 'slider'">
                   <el-slider v-model.number="item.defaultValue" :min="Number(item.scopeMinValue)" :max="Number(item.scopeMaxValue)"></el-slider>
                 </template>
                 <template v-else-if="item.moduleType === 'switch'">
@@ -148,7 +151,8 @@
           <div v-if="item.showMore">
             <div class="formDiv">
               <div class="formtext">{{ t('glossary.defaultValue') }}{{ localeColon }}</div>
-              <el-input v-model="item.defaultValue" :placeholder="t('validate.pleaseEnter', { name: '' })" class="formR" size="small" @focus="isEditing = true" @blur="isEditing = false"></el-input>
+              <library-select v-if="isLibraryType(item.moduleType)" v-model="item.defaultValue" :type="item.moduleType" class="formR" />
+              <el-input v-else v-model="item.defaultValue" :placeholder="t('validate.pleaseEnter', { name: '' })" class="formR" size="small" @focus="isEditing = true" @blur="isEditing = false"></el-input>
             </div>
 
             <div class="formDiv">
@@ -218,6 +222,7 @@ import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { t, localeColon, currentLocale } from '@/i18n'
 import { resolveI18nOptionLabel, resolveI18nText } from '@/utils/i18nResource'
+import LibrarySelect from './LibrarySelect.vue'
 import {
   deriveChannelEditableFromVisibility,
   normalizeChannelVisibilitySelection,
@@ -234,6 +239,7 @@ const props = defineProps({
 
 // Data
 const isSelecting = ref(false)
+const isLibraryType = type => type === 'faceSet' || type === 'workClothesSet'
 const viewMode = ref('simple')
 const showMore = ref(false)
 const options = computed(() => [
