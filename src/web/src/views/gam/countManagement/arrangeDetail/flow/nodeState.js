@@ -20,6 +20,20 @@ export const updatePictureMatchDefaults = (params, changed) => {
   return source.map(param => param.key === changed.key ? { ...param, value, defaultValue: value } : param)
 }
 
+// Read the actual graph, including old persisted metadata with both library fields.
+// Keep both bindings when separate match nodes genuinely use both library kinds.
+export const filterPictureLibraryParams = (params, process) => {
+  let graph = process
+  try { if (typeof graph === 'string') graph = JSON.parse(graph) } catch { return params }
+  if (!Array.isArray(graph)) return params
+  const matches = graph.filter(node => node.actionId === 'PB_00006')
+  if (!matches.length) return params
+  const active = new Set(matches.map(node =>
+    node.configObject?.params?.find(p => p.key === 'match.libraryType')?.value === 'body'
+      ? 'param.workClothesSet' : 'param.faceSet'))
+  return params.filter(p => !['param.faceSet', 'param.workClothesSet'].includes(p.key) || active.has(p.key))
+}
+
 export const collectNodeMetadata = nodes => {
   const actionId = node => node.data?.actionId || node.data?.actionDetail?.actionId || node.data?.actionDetail?.id
   const ownedKeys = new Set(nodes.filter(node => actionId(node) === 'PB_00006')
@@ -30,7 +44,9 @@ export const collectNodeMetadata = nodes => {
     if (!Array.isArray(metadata)) return []
     // Older converted templates left comparison descriptors on the extraction
     // node. The dedicated match node now owns these descriptors.
-    return metadata.filter(param => !(ownedKeys.has(param.key) && actionId(node) === 'PA_00005' && pictureMatchKeys.has(param.key)))
+    const applicable = actionId(node) === 'PB_00006' && Array.isArray(node.data?.configObject?.params)
+      ? filterPictureLibraryParams(metadata, [{ actionId: 'PB_00006', configObject: node.data.configObject }]) : metadata
+    return applicable.filter(param => !(ownedKeys.has(param.key) && actionId(node) === 'PA_00005' && pictureMatchKeys.has(param.key)))
       .map(param => ({ ...param }))
   })
 }

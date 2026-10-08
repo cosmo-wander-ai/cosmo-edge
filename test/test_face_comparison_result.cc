@@ -31,6 +31,8 @@ TEST_CASE("Face comparison reports usable samples to picture decisions", "[face-
     auto library         = std::make_shared<FaceLib>(std::move(definition));
     REQUIRE(manager.AddFaceLib(library) == util::ErrorEnum::Success);
     auto person = std::make_shared<Person>("comparison-person");
+    person->SetName("Matched person");
+    person->SetSerialNumber("employee-1");
     manager.AddPerson(library, person);
     auto add = [&](const std::string& id, std::vector<float> values) {
         AiFeature feature;
@@ -77,6 +79,14 @@ TEST_CASE("Face comparison reports usable samples to picture decisions", "[face-
     CHECK(data->pictureDecisions.at("face") == expected);
     CHECK(result.matchInfo.setPicCount == (expected == "unknown" ? 0 : 2));
     CHECK(result.bLogicResult == (expected == "matched"));
+    if (expected != "unknown") {
+        CHECK(result.matchInfo.match_id == "first");
+        CHECK(result.matchInfo.name == "Matched person");
+        CHECK(result.matchInfo.person_code == "employee-1");
+        CHECK(result.matchInfo.person_id == person->GetId());
+        CHECK(result.matchInfo.group_name == "comparison fixture");
+        CHECK(result.matchInfo.base_image_url.find("first.jpg") != std::string::npos);
+    }
 
     // Reusing a result with an empty/nonexistent library must clear prior metadata.
     AiDetectMatchHighScoreInfo reused = result.matchInfo;

@@ -86,6 +86,10 @@ void from_json(const nlohmann::json& j, MsgMatchInfo& v) {
     JSON_OPT(j, v, groupId);
     JSON_OPT(j, v, groupName);
     JSON_OPT(j, v, matched);
+    JSON_OPT(j, v, name);
+    JSON_OPT(j, v, baseImageUrl);
+    JSON_OPT(j, v, personId);
+    JSON_OPT(j, v, personCode);
 }
 
 void to_json(nlohmann::json& j, const MsgMatchInfo& v) {
@@ -95,6 +99,14 @@ void to_json(nlohmann::json& j, const MsgMatchInfo& v) {
     j["groupId"]     = v.groupId;
     j["groupName"]   = v.groupName;
     j["matched"]     = v.matched;
+    if (!v.name.empty())
+        j["name"] = v.name;
+    if (!v.baseImageUrl.empty())
+        j["baseImageUrl"] = v.baseImageUrl;
+    if (!v.personId.empty())
+        j["personId"] = v.personId;
+    if (!v.personCode.empty())
+        j["personCode"] = v.personCode;
 }
 
 void from_json(const nlohmann::json& j, MsgTaskConfig& v) {

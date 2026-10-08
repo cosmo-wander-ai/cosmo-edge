@@ -301,3 +301,77 @@ TEST_CASE("Picture scenario defaults survive serialization and respect request p
     REQUIRE(runtime.ExecutePicture(task, Input(), request, response, rendered) == util::ErrorEnum::Success);
     REQUIRE(response.resData.outputs.front().decision == "matched");
 }
+
+TEST_CASE("Picture results retain library evidence independently of business hits", "[picture][workflow]") {
+    PTaskBase runtime;
+    auto task = Task();
+    AddRule(task, Node("out", PAOutput_Code));
+    auto input          = Input();
+    input->bHaveLogic   = true;
+    auto& target        = input->chanDataDetect.detRet->targets.front();
+    target.targetId     = "person:0";
+    target.bLogicResult = false;  // A uniform match does not trigger the no-uniform rule.
+    input->pictureDecisions[target.targetId] = "not_matched";
+    target.matchInfo.setPicCount             = 2;
+    target.matchInfo.matched                 = true;
+    target.matchInfo.match_id                = "reference-1";
+    target.matchInfo.name                    = "Reference name";
+    target.matchInfo.group_id                = "library-1";
+    target.matchInfo.group_name              = "Library name";
+    target.matchInfo.base_image_url          = "/reference.jpg";
+    target.matchInfo.person_id               = "person-1";
+    target.matchInfo.person_code             = "code-1";
+    target.matchInfo.match_degree            = 87.25F;
+    MsgPTaskDetectPicRecv request;
+    MsgPTaskDetectPicSend response;
+    AlgDataPtr rendered;
+    REQUIRE(runtime.ExecutePicture(task, input, request, response, rendered) == util::ErrorEnum::Success);
+    REQUIRE(response.resData.outputs.front().decision == "not_matched");
+    REQUIRE(response.resData.outputs.front().matchedCount == 0);
+    REQUIRE(response.resData.outputs.front().targetIds.empty());
+    REQUIRE(rendered->chanDataDetect.detRet->targets.empty());
+    REQUIRE(response.resData.targetList.size() == 1);
+    nlohmann::json json = response;
+    const auto& match   = json["resData"]["targetList"][0]["matchInfo"];
+    CHECK(match["matched"] == true);
+    CHECK(match["matchId"] == "reference-1");
+    CHECK(match["name"] == "Reference name");
+    CHECK(match["groupName"] == "Library name");
+    CHECK(match["baseImageUrl"] == "/reference.jpg");
+    CHECK(match["personId"] == "person-1");
+    CHECK(match["personCode"] == "code-1");
+    CHECK(match["matchDegree"] == 87.25);
+    const auto restored = json.get<MsgPTaskDetectPicSend>();
+    CHECK(restored.resData.targetList.front().matchInfo.name == "Reference name");
+    CHECK(restored.resData.targetList.front().matchInfo.baseImageUrl == "/reference.jpg");
+    // Existing clients' payloads without the new optional fields remain valid.
+    nlohmann::json legacy = {{"matched", true}, {"matchDegree", 87.25}};
+    CHECK(legacy.get<MsgMatchInfo>().name.empty());
+
+    target.bFilter = true;
+    REQUIRE(runtime.ExecutePicture(task, input, request, response, rendered) == util::ErrorEnum::Success);
+    CHECK(response.resData.targetList.empty());
+}
+
+TEST_CASE("Picture unknown results explain unavailable comparison evidence", "[picture][workflow]") {
+    PTaskBase runtime;
+    auto task = Task();
+    AddRule(task, Node("out", PAOutput_Code));
+    auto input                               = Input();
+    input->bHaveLogic                        = true;
+    auto& target                             = input->chanDataDetect.detRet->targets.front();
+    target.targetId                          = "person:0";
+    target.matchInfo.setPicCount             = GENERATE(0, -1);
+    input->pictureDecisions[target.targetId] = "unknown";
+    MsgPTaskDetectPicRecv request;
+    MsgPTaskDetectPicSend response;
+    AlgDataPtr rendered;
+    REQUIRE(runtime.ExecutePicture(task, input, request, response, rendered) == util::ErrorEnum::Success);
+    REQUIRE(response.resData.outputs.front().decision == "unknown");
+    CHECK(response.resData.targetList.empty());
+    const std::string reason =
+        target.matchInfo.setPicCount == 0 ? "no_comparable_samples" : "insufficient_evidence";
+    nlohmann::json json = response;
+    CHECK(json["resData"]["outputs"][0]["reason"] == reason);
+    CHECK(json.get<MsgPTaskDetectPicSend>().resData.outputs.front().reason == reason);
+}

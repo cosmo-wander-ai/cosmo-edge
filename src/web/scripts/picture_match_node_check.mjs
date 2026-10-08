@@ -4,7 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import lodash from 'lodash'
 import { mountComponent } from './helpers/mount_behavior_component.mjs'
-import { collectNodeMetadata, updatePictureMatchDefaults } from '../src/views/gam/countManagement/arrangeDetail/flow/nodeState.js'
+import { collectNodeMetadata, updatePictureMatchDefaults, filterPictureLibraryParams } from '../src/views/gam/countManagement/arrangeDetail/flow/nodeState.js'
 import { mergeTaskParamSchemasByKey } from '../src/utils/taskParamOwnership.js'
 
 const repositoryRoot = process.env.COSMO_REPO_ROOT || fileURLToPath(new URL('../../../', import.meta.url))
@@ -49,6 +49,7 @@ for (const [kind, key, name] of [
     selector().props.activate(['12', '34'])
     await panel.settle()
     const saved = panel.instance.submitForm()
+    assert.equal(saved.webConfig.metaDataParams.some(p => p.key === (kind === 'body' ? 'param.faceSet' : 'param.workClothesSet')), false, 'inactive library must not leak into scene parameters')
     const sceneParams = [{ key, defaultValue: '99', value: '99', senior: 2, channelEditable: false }]
     const synced = updatePictureMatchDefaults(sceneParams, changes.at(-1))
     assert.equal(synced[0].defaultValue, '12,34', 'an explicit selection must replace an older scene default')
@@ -111,3 +112,9 @@ for (const [kind, key, name] of [
   } finally { panel.unmount() }
 }
 console.log('Picture match node panel library checks passed')
+
+const bindings = [{ key: 'param.faceSet' }, { key: 'param.workClothesSet' }, { key: 'custom' }]
+const matchNode = kind => ({ actionId: 'PB_00006', configObject: { params: [{ key: 'match.libraryType', value: kind }] } })
+assert.deepEqual(filterPictureLibraryParams(bindings, [matchNode('face'), matchNode('body')]), bindings, 'mixed match graphs must preserve both bindings')
+assert.deepEqual(filterPictureLibraryParams(bindings, undefined), bindings, 'missing graphs must preserve legacy fields')
+assert.deepEqual(filterPictureLibraryParams(bindings, [matchNode('body')]).map(p => p.key), ['param.workClothesSet', 'custom'])

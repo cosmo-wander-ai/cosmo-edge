@@ -107,6 +107,10 @@ TEST_CASE("BodyLibService: BodyCompare with match above threshold returns true",
     REQUIRE(match_info.person_id == "person-001");
     REQUIRE(match_info.name == "Worker A");
     REQUIRE(match_info.group_id == "lib-001");
+    REQUIRE(match_info.group_name == "Body Lib");
+    REQUIRE(match_info.match_id == "person-001");
+    REQUIRE_FALSE(match_info.base_image_url.empty());
+    REQUIRE(match_info.base_image_url.find("Worker A") != std::string::npos);
 }
 
 TEST_CASE("BodyLibService: BodyCompare with match below threshold returns false", "[body-lib]") {

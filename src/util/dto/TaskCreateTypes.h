@@ -118,6 +118,7 @@ struct MsgPTaskDetectPicSend : public MsgSendHead {
         std::string nodeId;
         std::string name;
         std::string decision;
+        std::string reason;
         std::vector<std::string> targetIds;
         size_t matchedCount{0};
         friend void to_json(nlohmann::json& j, const Output& v);

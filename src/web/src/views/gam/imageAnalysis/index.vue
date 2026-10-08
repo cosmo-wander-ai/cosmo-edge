@@ -115,8 +115,10 @@
           <!-- 结果信息面板 -->
           <div v-if="item.result" class="result-panel">
             <div v-for="output in item.result.outputs || []" :key="output.nodeId" class="result-label">
-              {{ output.name }}: {{ decisionLabel(output.decision) }} ({{ output.matchedCount }})
+              {{ output.name || resolveResourceAlgorithmName(selectedAlgorithmInfo) }}: {{ decisionLabel(output.decision) }} ({{ output.matchedCount }})
+              <div v-if="output.decision === 'unknown'" class="decision-reason">{{ decisionReason(output) }}</div>
             </div>
+            <LibraryMatchResults :targets="getTargets(item.result)" />
             <!-- 检测类结果 -->
             <div v-if="getTargetCount(item.result) > 0" class="result-section">
               <div class="result-label">{{ $t('imageAnalysis.detectedTargets') }}</div>
@@ -135,7 +137,7 @@
             </div>
             <!-- 无结果 -->
             <div v-else class="result-section">
-              <div class="result-label empty-result">{{ $t('imageAnalysis.noTargetsDetected') }}</div>
+              <div class="result-label empty-result">{{ emptyResultLabel(item.result) }}</div>
             </div>
           </div>
         </div>
@@ -194,6 +196,10 @@
             <el-table-column :label="$t('imageAnalysis.logicResult')"><template #default="{ row }">{{ decisionLabel(row.decision) }}</template></el-table-column>
             <el-table-column prop="matchedCount" :label="$t('imageAnalysis.detectionCount')" />
           </el-table>
+          <div v-for="output in previewItem.result.outputs || []" :key="output.nodeId">
+            <p v-if="output.decision === 'unknown'">{{ decisionReason(output) }}</p>
+          </div>
+          <LibraryMatchResults :targets="getTargets(previewItem.result)" />
           <el-collapse v-if="previewItem.result.nodes?.length">
             <el-collapse-item :title="$t('imageAnalysis.executionDetails')" name="trace">
               <pre class="execution-json">{{ JSON.stringify(previewItem.result, null, 2) }}</pre>
@@ -255,6 +261,8 @@ import { Upload, VideoPlay, Delete } from '@element-plus/icons-vue'
 import { resolveResourceAlgorithmName, resolveI18nText, resolveI18nOptionLabel } from '@/utils/i18nResource'
 import { uploadFileInChunks, UploadPurpose } from '@/utils/chunkUpload'
 import LibrarySelect from '@/views/gam/countManagement/arrangeDetail/flow/LibrarySelect.vue'
+import { filterPictureLibraryParams } from '@/views/gam/countManagement/arrangeDetail/flow/nodeState'
+import LibraryMatchResults from './LibraryMatchResults.vue'
 
 const { proxy } = getCurrentInstance()
 const $API = proxy.$API
@@ -351,7 +359,8 @@ const handleAlgorithmChange = async (val) => {
       if (selectedAlgorithm.value !== val) return
       const raw = detail?.resData?.algorithmMetadata
       const metadata = typeof raw === 'string' ? JSON.parse(raw) : raw
-      parameterFields.value = (metadata?.params || []).filter(field => field.key && field.key !== 'atomicCode')
+      parameterFields.value = filterPictureLibraryParams(metadata?.params || [], detail?.resData?.algorithmProcessdata)
+        .filter(field => field.key && field.key !== 'atomicCode')
       parameterValues.value = Object.fromEntries(parameterFields.value.map(field => [field.key, String(field.defaultValue ?? '')]))
     } catch (error) { console.error('Image parameter loading failed', error) }
   }
@@ -588,6 +597,15 @@ const drawOverlay = (index) => {
       })
     }
   })
+}
+
+// Unknown means insufficient evidence, not a negative match or an empty detector.
+const decisionReason = output => output.reason === 'no_comparable_samples'
+  ? t('imageAnalysis.noComparableSamples') : t('imageAnalysis.insufficientEvidence')
+const emptyResultLabel = result => {
+  if (result?.error) return t('imageAnalysis.failed')
+  if (result?.outputs?.some(output => output.decision === 'unknown')) return t('imageAnalysis.insufficientEvidence')
+  return result?.schemaVersion >= 2 ? t('imageAnalysis.noQualifyingTargets') : t('imageAnalysis.noTargetsDetected')
 }
 
 // Result helpers

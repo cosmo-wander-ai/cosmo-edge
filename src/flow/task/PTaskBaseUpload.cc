@@ -60,13 +60,17 @@ void DetTarget2MsgTarget(const AiDetectRstEl& target, MsgPTaskTarget& msgTarget)
     for (const auto& text : target.ocrRst)
         msgTarget.texts.push_back(text.value);
     if (target.matchInfo.setPicCount >= 0) {
-        msgTarget.bHaveMatchInfo        = true;
-        msgTarget.matchInfo.setPicCount = target.matchInfo.setPicCount;
-        msgTarget.matchInfo.matchId     = target.matchInfo.match_id;
-        msgTarget.matchInfo.matchDegree = target.matchInfo.match_degree;
-        msgTarget.matchInfo.groupId     = target.matchInfo.group_id;
-        msgTarget.matchInfo.groupName   = target.matchInfo.group_name;
-        msgTarget.matchInfo.matched     = target.matchInfo.matched;
+        msgTarget.bHaveMatchInfo         = true;
+        msgTarget.matchInfo.setPicCount  = target.matchInfo.setPicCount;
+        msgTarget.matchInfo.matchId      = target.matchInfo.match_id;
+        msgTarget.matchInfo.matchDegree  = target.matchInfo.match_degree;
+        msgTarget.matchInfo.groupId      = target.matchInfo.group_id;
+        msgTarget.matchInfo.groupName    = target.matchInfo.group_name;
+        msgTarget.matchInfo.matched      = target.matchInfo.matched;
+        msgTarget.matchInfo.name         = target.matchInfo.name;
+        msgTarget.matchInfo.baseImageUrl = target.matchInfo.base_image_url;
+        msgTarget.matchInfo.personId     = target.matchInfo.person_id;
+        msgTarget.matchInfo.personCode   = target.matchInfo.person_code;
     }
 
     MsgAiConfidence confidencedet;

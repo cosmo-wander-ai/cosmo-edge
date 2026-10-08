@@ -897,6 +897,13 @@ export default {
     passwordChangedLoginAgain: 'Password changed. Please log in again.'
   },
   imageAnalysis: {
+    libraryMatches: 'Successful library matches',
+    matchedName: 'Matched name',
+    matchedLibrary: 'Matched library',
+    referenceUnavailable: 'Reference image unavailable',
+    noComparableSamples: 'No comparable library samples. Check the selected library, sample features and model compatibility.',
+    insufficientEvidence: 'Insufficient evidence. Check execution details.',
+    noQualifyingTargets: 'No targets meet the workflow conditions',
     debugResults: 'Debug details',
     parameters: 'Analysis parameters',
     failed: 'Analysis failed',

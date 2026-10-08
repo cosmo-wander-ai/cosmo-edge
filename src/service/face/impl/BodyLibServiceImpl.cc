@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
 #include <set>
 
 #include "infer/AiDetectInterface.h"
@@ -14,6 +15,7 @@
 #include "service/face/IPersonRecogDaoService.h"
 #include "service/model/IModelPathMapping.h"
 #include "util/Log.h"
+#include "util/PathUtil.h"
 #include "util/TimeUtil.h"
 
 static constexpr const char* kTag = "BODY-LIB-SVC ";
@@ -111,12 +113,15 @@ bool BodyLibServiceImpl::BodyCompare(const std::vector<std::string>& lib_ids,
                 continue;
             ++match_info.setPicCount;
             if (score > best_score) {
-                best_score              = score;
-                match_info.match_degree = score;
-                match_info.group_id     = lib_id;
-                match_info.person_id    = person.id;
-                match_info.name         = person.pictureName;
-                best_lib_threshold      = cur_lib_threshold;
+                best_score                = score;
+                match_info.match_degree   = score;
+                match_info.group_id       = lib_id;
+                match_info.person_id      = person.id;
+                match_info.name           = person.pictureName;
+                match_info.match_id       = person.id;
+                match_info.group_name     = person.personLib.name;
+                match_info.base_image_url = person.pictureUrl;
+                best_lib_threshold        = cur_lib_threshold;
             }
         }
     }
@@ -167,9 +172,14 @@ void BodyLibServiceImpl::FetchLibData(const std::string& lib_id,
     persons.clear();
     for (auto& r : result.person_list) {
         MsgQueryPersonPicturesS::Person p{};
-        p.id              = r.id;
-        p.pictureName     = r.picture_name;
-        p.pictureUrl      = r.picture_url;
+        p.id          = r.id;
+        p.pictureName = r.picture_name;
+        p.pictureUrl  = r.picture_url;
+        if (p.pictureUrl.empty()) {
+            const auto filename = r.picture_name.empty() ? r.id + ".jpg" : r.picture_name;
+            p.pictureUrl =
+                path::GetWebDir((std::filesystem::path(path::GetPersonLibPhotoDir()) / filename).string());
+        }
         p.createTimestamp = r.create_timestamp;
         p.updateTimestamp = r.update_timestamp;
         p.feature         = std::move(r.feature);

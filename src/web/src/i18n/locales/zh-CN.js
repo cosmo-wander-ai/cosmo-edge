@@ -897,6 +897,13 @@ export default {
     passwordChangedLoginAgain: '修改成功，请重新登录'
   },
   imageAnalysis: {
+    libraryMatches: '底库比对成功',
+    matchedName: '命中名称',
+    matchedLibrary: '命中底库',
+    referenceUnavailable: '底库图片不可用',
+    noComparableSamples: '没有可参与比对的有效底库样本，请检查所选底库、样本特征及模型是否匹配。',
+    insufficientEvidence: '缺少有效判断依据，请查看调试详情。',
+    noQualifyingTargets: '没有符合编排条件的目标',
     debugResults: '调试详情',
     parameters: '分析参数',
     failed: '分析失败',

@@ -37,6 +37,7 @@ bool FaceManager::FaceCompare(std::vector<std::string> sets, const AiFeature& fe
         // Always record the best score even if below threshold
         FacePicPtr face_pic = res.first;
         AiDetectMatchHighScoreInfo temp{};
+        temp.match_id       = face_pic->GetId();
         temp.match_degree   = res.second;
         temp.group_name     = face_lib->GetName();
         temp.group_id       = face_lib->GetId();
@@ -64,6 +65,7 @@ bool FaceManager::FaceCompare(std::vector<std::string> sets, const AiFeature& fe
         if (param_limit_score > 0) {
             limit_threshold = param_limit_score;
         }
+        info.match_id       = max_it->match_id;
         info.match_degree   = max_it->match_degree;
         info.name           = max_it->name;
         info.group_id       = max_it->group_id;

@@ -1514,6 +1514,7 @@ const submitForm = () => {
   }
   paramConfigs.value.forEach((item) => {
     if (item.level === '2') {
+      if (isPictureMatchLibrary(item) && !showFormItem(item)) return
       if (item.dependsOn) {
         const dependsOn = _.find(configObject.params, {
           key: item.dependsOn.key

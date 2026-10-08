@@ -212,6 +212,8 @@ void to_json(nlohmann::json& j, const MsgPTaskDetectPicSend::Output& v) {
     j["decision"]     = v.decision;
     j["targetIds"]    = v.targetIds;
     j["matchedCount"] = v.matchedCount;
+    if (!v.reason.empty())
+        j["reason"] = v.reason;
 }
 
 void from_json(const nlohmann::json& j, MsgPTaskDetectPicSend::Output& v) {
@@ -220,6 +222,7 @@ void from_json(const nlohmann::json& j, MsgPTaskDetectPicSend::Output& v) {
     j.at("decision").get_to(v.decision);
     j.at("targetIds").get_to(v.targetIds);
     j.at("matchedCount").get_to(v.matchedCount);
+    JSON_OPT(j, v, reason);
 }
 
 void to_json(nlohmann::json& j, const MsgPTaskDetectPicSend::NodeResult& v) {

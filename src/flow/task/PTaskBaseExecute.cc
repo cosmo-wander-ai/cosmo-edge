@@ -168,10 +168,11 @@ util::ErrorEnum PTaskBase::ExecutePicture(PTaskElementPtr task, AlgDataPtr input
             continue;
 
         MsgPTaskDetectPicSend::Output output;
-        output.nodeId        = node.flowActionId;
-        output.name          = Param(params, "output.name", task->GetAlgName());
-        const auto selection = Param(params, "output.targets", "matched");
-        bool unknown         = false;
+        output.nodeId           = node.flowActionId;
+        output.name             = Param(params, "output.name", task->GetAlgName());
+        const auto selection    = Param(params, "output.targets", "matched");
+        bool unknown            = false;
+        bool onlyMissingSamples = true;
         if (data->pictureBranch && data->chanDataDetect.detRet) {
             for (const auto& target : data->chanDataDetect.detRet->targets) {
                 auto decision         = data->pictureDecisions.find(target.targetId);
@@ -181,14 +182,20 @@ util::ErrorEnum PTaskBase::ExecutePicture(PTaskElementPtr task, AlgDataPtr input
                 const bool matched = !target.bFilter && !is_unknown &&
                                      data->pictureDecision != "not_matched" &&
                                      (!data->bHaveLogic || target.bLogicResult);
-                if (!target.bFilter && is_unknown)
-                    unknown = true;
+                if (!target.bFilter && is_unknown) {
+                    unknown            = true;
+                    onlyMissingSamples = onlyMissingSamples && target.matchInfo.setPicCount == 0;
+                }
                 if (matched)
                     ++output.matchedCount;
                 const bool selected = !target.bFilter && (selection == "all" || matched);
                 if (selected)
                     output.targetIds.push_back(target.targetId);
-                if (selected || request.resultMode == "debug" || (!business && !target.bFilter)) {
+                // Library evidence is useful even when an inverted business rule does not fire.
+                // Keep output targetIds and matchedCount restricted to the business selection.
+                const bool libraryMatch = !target.bFilter && target.matchInfo.matched;
+                if (selected || libraryMatch || request.resultMode == "debug" ||
+                    (!business && !target.bFilter)) {
                     auto msg      = MakeTarget(target, *data, business);
                     auto existing = returned.find(target.targetId);
                     if (existing == returned.end()) {
@@ -226,6 +233,8 @@ util::ErrorEnum PTaskBase::ExecutePicture(PTaskElementPtr task, AlgDataPtr input
             output.decision = data->pictureDecision;
         if (!data->pictureBranch && output.decision != "unknown")
             output.decision = "not_matched";
+        if (output.decision == "unknown")
+            output.reason = unknown && onlyMissingSamples ? "no_comparable_samples" : "insufficient_evidence";
         result.outputs.push_back(std::move(output));
     }
     if (!business) {

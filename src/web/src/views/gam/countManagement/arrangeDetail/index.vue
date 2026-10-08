@@ -51,7 +51,7 @@ import { ElMessageBox, ElMessage } from 'element-plus'
 import ArrangeFlow from './flow/ArrangeFlow.vue'
 import Detection from './flow/Detection.vue'
 import ParameterSetting from './flow/ParameterSetting.vue'
-import { updatePictureMatchDefaults } from './flow/nodeState.js'
+import { updatePictureMatchDefaults, filterPictureLibraryParams } from './flow/nodeState.js'
 import { v4 } from 'uuid'
 import moment from 'moment'
 import EventBus from '@/components/eventBus.js'
@@ -210,6 +210,7 @@ const getDetail = (algorithmId, isChooseModel) => {
     algorithmName.value = isChooseModel ? prevName : resolveResourceAlgorithmName(resData)
     algorithmData.value = resData
     algorithmMetadata.value = JSON.parse(algorithmData.value.algorithmMetadata)
+    algorithmMetadata.value.params = filterPictureLibraryParams(algorithmMetadata.value.params || [], resData.algorithmProcessdata)
     if (isChooseModel) {
       algorithmData.value.algorithmCode = route.query.algorithmId
     }
@@ -499,7 +500,7 @@ const handleMetaData = () => {
     }
   })
 
-  algorithmMetadata.value.params = newMetaDataParams
+  algorithmMetadata.value.params = filterPictureLibraryParams(newMetaDataParams, flowRef.value.saveFlowData?.()?.algorithmProcessdata)
   console.log(incomingParams, '===handleMetaData====', newMetaDataParams)
   return true
 }
