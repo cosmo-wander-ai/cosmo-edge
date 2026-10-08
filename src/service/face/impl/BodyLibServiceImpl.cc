@@ -4,6 +4,8 @@
 #include "service/face/impl/BodyLibServiceImpl.h"
 
 #include <algorithm>
+#include <cmath>
+#include <set>
 
 #include "infer/AiDetectInterface.h"
 #include "infer/AiRecognizerInterface.h"
@@ -82,22 +84,32 @@ std::vector<float> BodyLibServiceImpl::ExtractBodyFeature(const VideoFramePtr& i
 bool BodyLibServiceImpl::BodyCompare(const std::vector<std::string>& lib_ids,
                                      const AiFeature& runtime_feature, AiDetectMatchHighScoreInfo& match_info,
                                      float limit_score, CompareFeatureFunc compare_fn) {
+    match_info             = {};
+    match_info.setPicCount = 0;
+    if (runtime_feature.feature.empty())
+        return false;
+    std::set<std::string> visited;
     float best_score         = -1.0f;
     float best_lib_threshold = 60.0f;
 
     for (const auto& lib_id : lib_ids) {
+        if (!visited.insert(lib_id).second)
+            continue;
         std::vector<MsgQueryPersonPicturesS::Person> person_list;
         float cur_lib_threshold = 60.0f;
         FetchLibData(lib_id, person_list, cur_lib_threshold);
 
         for (const auto& person : person_list) {
-            if (person.feature.empty()) {
+            if (person.feature.empty() || person.feature.size() != runtime_feature.feature.size()) {
                 continue;
             }
             AiFeature lib_feature;
             lib_feature.feature = person.feature;
 
             float score = compare_fn(lib_feature, runtime_feature);
+            if (!std::isfinite(score) || score < 0)
+                continue;
+            ++match_info.setPicCount;
             if (score > best_score) {
                 best_score              = score;
                 match_info.match_degree = score;
@@ -109,7 +121,7 @@ bool BodyLibServiceImpl::BodyCompare(const std::vector<std::string>& lib_ids,
         }
     }
 
-    if (best_score > 0) {
+    if (match_info.setPicCount > 0) {
         float effective_threshold = limit_score > 0 ? limit_score : best_lib_threshold;
         match_info.matched        = (best_score > effective_threshold);
         LOG_INFO("{}BodyCompare bestScore:{} threshold:{} (libThreshold:{}) matched:{}", kTag, best_score,

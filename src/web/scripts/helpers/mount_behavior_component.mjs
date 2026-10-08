@@ -18,6 +18,7 @@ export const i18n = {
 }
 const node = (type, text = '') => ({
   type, text, props: {}, children: [], parent: null, style: {},
+  get childNodes() { return this.children },
   addEventListener() {}, removeEventListener() {},
   getRootNode: () => ({ activeElement: null }),
   setAttribute(key, value) { this.props[key] = value },

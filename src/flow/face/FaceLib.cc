@@ -2,6 +2,7 @@
 
 #include "flow/face/FaceLib.h"
 
+#include <cmath>
 #include <future>
 
 #include "flow/face/FacePic.h"
@@ -99,9 +100,11 @@ bool FaceLib::SaveData() {
     return true;
 }
 
-std::pair<FacePicPtr, float> FaceLib::SearchFeature(const AiFeature &feature) const {
+std::pair<FacePicPtr, float> FaceLib::SearchFeature(const AiFeature &feature, size_t *compared_count) const {
     std::shared_lock<std::shared_mutex> lock(mtx_);
-    if (vec_faces_.empty()) {
+    if (compared_count)
+        *compared_count = 0;
+    if (vec_faces_.empty() || feature.feature.empty()) {
         return {nullptr, -1.0f};
     }
 
@@ -115,7 +118,12 @@ std::pair<FacePicPtr, float> FaceLib::SearchFeature(const AiFeature &feature) co
         division /= 2;
     }
 
-    std::vector<std::future<std::pair<size_t, float>>> thr_cmp(division);
+    struct SearchResult {
+        size_t index;
+        float distance;
+        size_t count;
+    };
+    std::vector<std::future<SearchResult>> thr_cmp(division);
     size_t part_size = vec_faces_.size() / division + 1;
     for (size_t i = 0; i < division; ++i) {
         size_t beg_idx = part_size * i;
@@ -125,16 +133,22 @@ std::pair<FacePicPtr, float> FaceLib::SearchFeature(const AiFeature &feature) co
             constexpr float kMinDistSentinel = 9999999.0f;
             float min_dist                   = kMinDistSentinel;
             size_t similar_idx               = vec_faces_.size();
+            size_t count                     = 0;
             for (size_t j = beg_idx; j < end_idx; ++j) {
+                if (vec_faces_[j]->GetFeature().feature.size() != feature.feature.size())
+                    continue;
                 auto dist =
                     service::ServiceRegistry::Instance().Get<service::IFaceFeature>().CalculateFaceScore(
                         vec_faces_[j]->GetFeature(), feature);
+                if (!std::isfinite(dist) || dist >= kMinDistSentinel)
+                    continue;
+                ++count;
                 if (dist < min_dist) {
                     similar_idx = j;
                     min_dist    = dist;
                 }
             }
-            return std::make_pair(similar_idx, min_dist);
+            return SearchResult{similar_idx, min_dist, count};
         });
     }
 
@@ -142,8 +156,10 @@ std::pair<FacePicPtr, float> FaceLib::SearchFeature(const AiFeature &feature) co
     dev_res.reserve(thr_cmp.size());
     for (size_t i = 0; i < thr_cmp.size(); ++i) {
         auto res = thr_cmp[i].get();
-        if (res.first < vec_faces_.size()) {
-            dev_res.push_back(res);
+        if (compared_count)
+            *compared_count += res.count;
+        if (res.index < vec_faces_.size()) {
+            dev_res.emplace_back(res.index, res.distance);
         }
     }
 

@@ -228,6 +228,15 @@ export default {
           model: 'algorithmName'
         },
         {
+          label: t('field.dataSourceType'),
+          model: 'algorithmUsage',
+          type: 'select',
+          dataList: [
+            { label: t('common.all'), value: '' },
+            ...this.algorithmUsageOptions
+          ]
+        },
+        {
           label: t('field.taskType'),
           model: 'algorithmCategory',
           type: 'select',

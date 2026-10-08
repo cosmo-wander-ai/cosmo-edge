@@ -61,7 +61,8 @@ public:
     void SetData(DataType &&data);
 
     // Search for most similar face
-    [[nodiscard]] std::pair<FacePicPtr, float> SearchFeature(const AiFeature &feature) const;
+    [[nodiscard]] std::pair<FacePicPtr, float> SearchFeature(const AiFeature &feature,
+                                                             size_t *compared_count = nullptr) const;
 
 private:
     // Load

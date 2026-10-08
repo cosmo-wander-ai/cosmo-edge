@@ -1,3 +1,5 @@
+#include <limits>
+
 #include "catch_amalgamated.hpp"
 // Unit tests for BodyLibServiceImpl (DEBT-C06).
 // Validates cache behavior, TTL, invalidation, and match logic.
@@ -99,6 +101,7 @@ TEST_CASE("BodyLibService: BodyCompare with match above threshold returns true",
     // Compare function returns score 85 — above lib threshold 70
     bool result = sut.BodyCompare({"lib-001"}, runtime_feature, match_info, -1.0f, MakeFixedCompare(85.0f));
     REQUIRE(result);
+    REQUIRE(match_info.setPicCount == 1);
     REQUIRE(match_info.matched);
     REQUIRE(match_info.match_degree == Catch::Approx(85.0f));
     REQUIRE(match_info.person_id == "person-001");
@@ -136,6 +139,7 @@ TEST_CASE("BodyLibService: BodyCompare with match below threshold returns false"
     // Compare returns 50 — below lib threshold 80
     bool result = sut.BodyCompare({"lib-002"}, runtime_feature, match_info, -1.0f, MakeFixedCompare(50.0f));
     REQUIRE_FALSE(result);
+    REQUIRE(match_info.setPicCount == 1);
     REQUIRE_FALSE(match_info.matched);
 }
 
@@ -239,6 +243,36 @@ TEST_CASE("BodyLibService: InvalidateCache forces cache refresh", "[body-lib]") 
     sut.BodyCompare({"lib-inv"}, rf, mi, -1.0f, MakeFixedCompare(80.0f));
     sut.InvalidateCache("lib-inv");
     sut.BodyCompare({"lib-inv"}, rf, mi, -1.0f, MakeFixedCompare(80.0f));
+}
+
+TEST_CASE("BodyLibService: counts usable samples and resets stale results", "[body-lib]") {
+    BodyLibDaoDependency mocks;
+    service::BodyLibServiceImpl sut;
+    db::PersonRecogQueryResult records;
+    for (const auto& feature : std::vector<std::vector<float>>{{}, {1, 2}, {1}, {2}, {3}}) {
+        db::PersonRecogRecord person;
+        person.feature = feature;
+        records.person_list.push_back(person);
+    }
+    ALLOW_CALL(mocks.personRecogDaoSvc, QueryPersons(trompeloeil::_)).RETURN(records);
+    ALLOW_CALL(mocks.personRecogDaoSvc, QueryPersonLib(trompeloeil::_))
+        .RETURN(db::PersonRecogLibQueryResult{});
+    AiFeature runtime;
+    runtime.feature = {1};
+    AiDetectMatchHighScoreInfo info;
+    info.matched = true;
+    // Zero is a valid nonmatch. Negative and NaN scores indicate no comparison.
+    CHECK_FALSE(sut.BodyCompare({"lib", "lib"}, runtime, info, 80,
+                                MakeSequentialCompare({0, -1, std::numeric_limits<float>::quiet_NaN()})));
+    CHECK(info.setPicCount == 1);
+    CHECK(info.match_degree == 0);
+    CHECK_FALSE(info.matched);
+    CHECK_FALSE(sut.BodyCompare({}, runtime, info, 80, MakeFixedCompare(95)));
+    CHECK(info.setPicCount == 0);
+    CHECK(info.match_degree == -1);
+    CHECK(info.group_id.empty());
+    CHECK_FALSE(sut.BodyCompare({"lib"}, runtime, info, 80, MakeFixedCompare(-1)));
+    CHECK(info.setPicCount == 0);
 }
 
 }  // namespace cosmo::test
