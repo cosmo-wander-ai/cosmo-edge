@@ -2,6 +2,8 @@
 
 #include "flow/alarm/TaskFaceAlarmMng.h"
 
+#include <algorithm>
+
 #include "util/Log.h"
 
 namespace cosmo {

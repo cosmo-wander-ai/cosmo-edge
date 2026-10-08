@@ -2,6 +2,8 @@
 
 #include "flow/logical/FaceLogicMng.h"
 
+#include <algorithm>
+
 #include "util/Log.h"
 
 namespace cosmo {
