@@ -150,7 +150,7 @@ test('device doctor performs only read-side admission checks and sanitizes devic
       warnings: ['http://device.invalid/private/video.mp4'],
     }));
     assert.equal(admission.profile, 'full');
-    assert.equal(admission.concurrency, 1);
+    assert.equal(admission.concurrency, 4);
     assert.equal(admission.selection.count, 4);
     assert.equal(JSON.stringify(admission).includes('device.invalid'), false);
     assert.equal(JSON.stringify(admission).includes('/private/'), false);
