@@ -20,6 +20,7 @@
 #include "util/JsonStructUtil.h"
 #include "util/Log.h"
 #include "util/PathUtil.h"
+#include "util/ResourceBudget.h"
 #include "util/TimeUtil.h"
 #include "util/UuidUtil.h"
 
@@ -124,11 +125,12 @@ CMsgOnEventsReq TaskAlarm::BuildBaseEventData(const AlgDataPtr& algData, const D
 }
 
 // ---------------------------------------------------------------------------
-// AttachAlarmMedia — recording trigger + alarm picture
+// AttachAlarmMedia — admit event media before recording and picture attachment
 // ---------------------------------------------------------------------------
 void TaskAlarm::AttachAlarmMedia(CMsgOnEventsReq& eventData, const AlgDataPtr& algData,
                                  DataAlarmUnit& alarmUnit) {
-    if (!algData->chanDataDec.frame) {
+    if (!algData->chanDataDec.frame ||
+        !util::AdmitEventMediaWrite(cosmo::path::GetEventRootPath(), 1024 * 1024)) {
         return;
     }
 
@@ -433,6 +435,8 @@ bool TaskAlarm::FillAlarmData(AlgDataPtr algData) {
     return true;
 }
 
+// Persist an event and compensate synchronous local media if its database insert fails.
+// Active recordings and asynchronous uploads are left for aged orphan reclamation.
 void TaskAlarm::EventRecord(CMsgOnEventsReq& eventData) {
     if ((OnEventsPropertyType::CountNumber == m_propertyType)) {
         return;
@@ -483,7 +487,52 @@ void TaskAlarm::EventRecord(CMsgOnEventsReq& eventData) {
         (void)util::EncodeJson(eventData.property, alarmRecordUnit.property);
     }
     (void)util::EncodeJson(eventData.targets, alarmRecordUnit.targets);
-    service::ServiceRegistry::Instance().Get<service::IAlarmRecordService>().Insert(alarmRecordUnit);
+    auto& records = service::ServiceRegistry::Instance().Get<service::IAlarmRecordService>();
+    if (records.Insert(alarmRecordUnit)) {
+        return;
+    }
+    LOG_WARN("Event insert failed; checking media compensation for {}", eventData.messageId);
+    if (service::ServiceRegistry::Instance().Get<service::IConfigReadService>().IsNetworkModel() ||
+        !eventData.video.empty()) {
+        LOG_WARN("Event media compensation deferred for asynchronous recording or upload");
+        return;
+    }
+    try {
+        if (records.HasStoredEvent(eventData.messageId)) {
+            return;
+        }
+        const auto directory = std::filesystem::path(cosmo::path::GetEventPath(eventData.itimestamp, false));
+        std::error_code ec;
+        if (std::filesystem::exists(directory / (eventData.messageId + "_video.tmp"), ec) || ec) {
+            return;
+        }
+        auto files = eventData.files;
+        files.push_back(".json");
+        for (const auto& suffix : files) {
+            if (suffix.empty() || (suffix.front() != '_' && suffix.front() != '.') ||
+                suffix.find('/') != std::string::npos || suffix.find('\\') != std::string::npos) {
+                continue;
+            }
+            std::filesystem::remove(directory / (eventData.messageId + suffix), ec);
+            if (ec)
+                LOG_WARN("Event media compensation failed: {}", ec.message());
+            ec.clear();
+        }
+        eventData.files.clear();
+        eventData.fullPicture.clear();
+        eventData.orignalPicture.clear();
+        eventData.detectedPicture.clear();
+        eventData.videostructured.clear();
+        eventData.overviewFile.clear();
+        eventData.property.machineMaterial.baseImageUrl.clear();
+        for (auto& person : eventData.property.persons) {
+            person.fullPicture.clear();
+            person.orignalPicture.clear();
+            person.targetPicture.clear();
+        }
+    } catch (const std::exception& error) {
+        LOG_WARN("Event media compensation deferred: {}", error.what());
+    }
 }
 
 }  // namespace cosmo

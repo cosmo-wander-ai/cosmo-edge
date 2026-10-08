@@ -15,6 +15,7 @@ public:
     MAKE_MOCK2(QueryEvents, std::vector<cosmo::MsgEventUnit>(cosmo::MsgConditionEvent&, int64_t&), override);
     MAKE_MOCK2(QueryAlarmRecords,
                cosmo::service::AlarmQueryResult(const cosmo::service::AlarmQueryCondition&, int), override);
+    MAKE_MOCK1(HasStoredEvent, bool(const std::string&), override);
     MAKE_MOCK1(QueryPassengerFlow, cosmo::service::FlowQueryResult(const cosmo::service::FlowQueryCondition&),
                override);
     MAKE_MOCK2(UpdateAlarmReportStatus, bool(const std::string&, bool), override);

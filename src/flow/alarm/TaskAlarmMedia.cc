@@ -15,15 +15,21 @@
 #include "util/JsonStructUtil.h"
 #include "util/Log.h"
 #include "util/PathUtil.h"
+#include "util/ResourceBudget.h"
 
 static constexpr const char* kTag = "TaskAlarm ";
 
 namespace cosmo {
 
+// Reject new recordings while event storage is below its emergency waterline.
 std::string TaskAlarm::RecordMp4(int targetId, const std::string& messageId, const int64_t& frameSeq,
                                  const int64_t& streamIndex, const int64_t& frameTimestamp,
                                  std::string jsonUrl, const std::string& jsonPath, RetroDirect retroDirect,
                                  std::string& overviewUrl) {
+    if (!util::AdmitEventMediaWrite(cosmo::path::GetEventRootPath(), 1024 * 1024)) {
+        LOG_WARN("Recording admission rejected by storage reserve");
+        return "";
+    }
 #ifdef DURATION_LOG
     auto timpointBegin = std::chrono::high_resolution_clock::now();
 #endif
@@ -123,6 +129,7 @@ std::vector<std::pair<util::Point, util::Point>> TaskAlarm::GetBoxLines(util::Bo
     return util::GetBoxOsdLines(box, width, height);
 }
 
+// Persist recording metadata only when the event volume can retain emergency headroom.
 std::string TaskAlarm::RecordVideoJson(CMsgOnEventsReq& event) {
     MsgAlarmVideoOverviewInfo jsonFileInfo;
     jsonFileInfo.algorithmCode = GetAlgId();
@@ -134,13 +141,13 @@ std::string TaskAlarm::RecordVideoJson(CMsgOnEventsReq& event) {
     fileName = (std::filesystem::path(fileName) / (event.messageId + ".json")).string();
     auto ret = util::EncodeJson(jsonFileInfo, jsonStr);
     if (ret) {
-        ret = util::WriteFile(fileName, jsonStr);
+        ret = util::WriteEventMediaFile(cosmo::path::GetEventRootPath(), fileName, jsonStr);
         if (false == ret) {
             LOG_WARN("write record video file Failed {}", fileName);
             return "";
         }
     }
-    return fileName;
+    return ret ? fileName : "";
 }
 
 }  // namespace cosmo

@@ -3,6 +3,7 @@
 #include "service/event/impl/AlarmRecordServiceImpl.h"
 
 #include <SQLiteCpp/Exception.h>
+#include <SQLiteCpp/Statement.h>
 
 #include <filesystem>
 #include <thread>
@@ -272,6 +273,16 @@ std::vector<cosmo::MsgEventUnit> AlarmRecordServiceImpl::QueryEvents(cosmo::MsgC
 AlarmQueryResult AlarmRecordServiceImpl::QueryAlarmRecords(const AlarmQueryCondition& condition, int order) {
     auto dao_condition = ToDao(condition);
     return ToDto(db_event_->Query(dao_condition, order));
+}
+
+// Preserve media referenced by either event table; failed queries must never authorize deletion.
+bool AlarmRecordServiceImpl::HasStoredEvent(const std::string& record_id) {
+    SQLite::Statement statement(db_event_->Db(),
+                                "SELECT 1 FROM t_commonEvent WHERE rec_id=? UNION ALL "
+                                "SELECT 1 FROM t_faceEvent WHERE rec_id=? LIMIT 1");
+    statement.bind(1, record_id);
+    statement.bind(2, record_id);
+    return statement.executeStep();
 }
 
 std::vector<cosmo::MsgEventUnit> AlarmRecordServiceImpl::QueryFace(cosmo::MsgConditionEvent& condition,

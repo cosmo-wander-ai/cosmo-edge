@@ -35,6 +35,9 @@ public:
     /// @return Result set containing matched records and metadata.
     virtual AlarmQueryResult QueryAlarmRecords(const AlarmQueryCondition& condition, int order) = 0;
 
+    /// Check both event tables before reclaiming an unindexed media file; database errors propagate.
+    virtual bool HasStoredEvent(const std::string& record_id) = 0;
+
     /// Query passenger flow statistics for a time range and camera.
     /// @param condition Passenger flow query condition.
     /// @return Result set with enter/leave counts per time bucket.

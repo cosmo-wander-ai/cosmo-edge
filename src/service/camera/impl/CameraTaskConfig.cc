@@ -378,6 +378,7 @@ util::ErrorEnum CameraServiceImpl::SwitchManagedTask(const std::string& cameraId
     return SetTaskEnabled(cameraId, algorithmId, enable, true);
 }
 
+// Apply the desired switch; disabling must proceed even when persistence fails.
 util::ErrorEnum CameraServiceImpl::SetTaskEnabled(const std::string& cameraId, const std::string& algorithmId,
                                                   bool enable, bool respectSchedule) {
     // Authorization checks were removed; resource admission remains enforced for real start transitions.
@@ -396,7 +397,7 @@ util::ErrorEnum CameraServiceImpl::SetTaskEnabled(const std::string& cameraId, c
         std::shared_lock<std::shared_mutex> lock(camera->task_mtx_);
         auto it = std::find_if(camera->tasks_.begin(), camera->tasks_.end(),
                                [&](const CameraTaskPtr& cfg) { return cfg->algorithm_code_ == algorithmId; });
-        if (it != camera->tasks_.end() && (*it)->is_enabled_.load(std::memory_order_acquire) == enable) {
+        if (enable && it != camera->tasks_.end() && (*it)->is_enabled_.load(std::memory_order_acquire)) {
             return util::ErrorEnum::Success;
         }
     }
@@ -409,23 +410,23 @@ util::ErrorEnum CameraServiceImpl::SetTaskEnabled(const std::string& cameraId, c
     }
 
     CameraTaskPtr taskToSwitch = nullptr;
+    bool persistence_failed    = false;
     {
         std::lock_guard<std::shared_mutex> lock(camera->task_mtx_);
 
         auto it = std::find_if(camera->tasks_.begin(), camera->tasks_.end(),
                                [&](const CameraTaskPtr& cfg) { return cfg->algorithm_code_ == algorithmId; });
         if (it != camera->tasks_.end()) {
-            if ((*it)->is_enabled_ != enable) {
-                (*it)->is_enabled_ = enable;
-                if (!SaveCameraTaskList(camera)) {
-                    (*it)->is_enabled_ = !enable;
+            const bool was_enabled = (*it)->is_enabled_.load(std::memory_order_acquire);
+            (*it)->is_enabled_     = enable;
+            if (was_enabled != enable || camera->task_config_dirty_.load()) {
+                persistence_failed = !SaveCameraTaskList(camera);
+                if (persistence_failed && enable) {
+                    (*it)->is_enabled_ = was_enabled;
                     return util::ErrorEnum::SysErr;
                 }
-                taskToSwitch = *it;
             }
-            if (!taskToSwitch) {
-                return util::ErrorEnum::Success;
-            }
+            taskToSwitch = *it;
         } else {
             CameraTaskPtr task    = std::make_shared<CameraTask>();
             task->algorithm_code_ = algorithmId;
@@ -435,7 +436,11 @@ util::ErrorEnum CameraServiceImpl::SetTaskEnabled(const std::string& cameraId, c
             }
             task->is_enabled_ = enable;
             camera->tasks_.push_back(task);
-            SaveCameraTaskList(camera);
+            persistence_failed = !SaveCameraTaskList(camera);
+            if (persistence_failed && enable) {
+                camera->tasks_.pop_back();
+                return util::ErrorEnum::SysErr;
+            }
             taskToSwitch = task;
         }
     }
@@ -446,6 +451,10 @@ util::ErrorEnum CameraServiceImpl::SetTaskEnabled(const std::string& cameraId, c
     }
     // Execute expensive model destroy/rebuild/init asynchronously, freeing HTTP handler thread immediately
     SwitchCameraTaskAsync(camera, taskToSwitch);
+    if (persistence_failed) {
+        LOG_WARN("[{}/{}] Stop scheduled with task configuration persistence pending", cameraId, algorithmId);
+        return util::ErrorEnum::SysErr;
+    }
     return util::ErrorEnum::Success;
 }
 

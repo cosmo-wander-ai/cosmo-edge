@@ -34,4 +34,26 @@ struct StorageResourceBudget {
 [[nodiscard]] std::uint64_t UsableStorageBytesAfterReclaim(const StorageResourceBudget& budget,
                                                            std::uint64_t reclaimable_bytes);
 
+constexpr std::uint64_t kEventMediaReserveBytes = 512ULL * 1024 * 1024;
+constexpr std::uint64_t kEventMediaResumeBytes  = 2ULL * 1024 * 1024 * 1024;
+
+/// Apply event-media hysteresis to a measured budget. Call under the writer's lock.
+/// Pause below the emergency reserve and resume only at the retention waterline.
+class EventMediaAdmission {
+public:
+    bool Admit(const StorageResourceBudget& budget, std::uint64_t bytes);
+
+private:
+    bool paused_{false};
+};
+
+/// Check admission before starting a recording or appending a sample on this data volume.
+[[nodiscard]] bool AdmitEventMediaWrite(const std::string& root, std::uint64_t bytes);
+
+/// Serialize admission and synchronous writes; remove partial files on write failure.
+[[nodiscard]] bool WriteEventMediaFile(const std::string& root, const std::string& file,
+                                       const std::uint8_t* data, int size);
+[[nodiscard]] bool WriteEventMediaFile(const std::string& root, const std::string& file,
+                                       const std::string& data);
+
 }  // namespace cosmo::util

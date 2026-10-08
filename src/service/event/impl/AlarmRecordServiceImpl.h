@@ -26,6 +26,8 @@ public:
 
     AlarmQueryResult QueryAlarmRecords(const AlarmQueryCondition& condition, int order) override;
 
+    bool HasStoredEvent(const std::string& record_id) override;
+
     FlowQueryResult QueryPassengerFlow(const FlowQueryCondition& condition) override;
 
     bool UpdateAlarmReportStatus(const std::string& record_id, bool reported) override;
