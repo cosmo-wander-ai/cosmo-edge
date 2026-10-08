@@ -9,6 +9,7 @@
 #include <mutex>
 #include <shared_mutex>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 
 #include "flow/action/ActionBranchMng.h"
@@ -121,12 +122,22 @@ private:
     bool TaskRegist(TaskElementPtr task);
     void TaskUnRegist(TaskElementPtr task);
     void RegisterActionHandlers();
-    void RegisterMngProviders();
+
+    template <typename Visitor>
+    void ForEachManager(Visitor&& visitor) {
+        // Keep the existing status output order for both aggregation methods.
+        std::apply([&visitor](auto&... managers) { (visitor(managers), ...); },
+                   std::tie(channel_mng_, detect_mng_, dino_detect_mng_, qwen3_vl_mng_, sam2_segment_mng_,
+                            track_mng_, classify_mng_, classify_group_mng_, classify_area_mng_,
+                            classify_attr_mng_, landmark_mng_, ocr_mng_, recognizer_mng_,
+                            ai_video_quality_mng_, filter_mng_, logical_judgment_mng_, sensitivity_mng_,
+                            pos_save_sensitivity_mng_, task_alarm_mng_, area_alarm_mng_, face_logic_mng_,
+                            task_face_alarm_mng_, action_branch_mng_, target_choose_best_mng_));
+    }
 
 private:
     mutable std::shared_mutex mtx_;
     std::unordered_map<std::string_view, ActionHandler> action_handlers_;
-    std::vector<IMngStatusProvider*> mng_providers_;  // QueueStatus/ActionInfo unified traversal
 
     AlgChannelMng channel_mng_;                // Channel/Camera management instance
     AiDetectMng detect_mng_;                   // Detection management instance
@@ -152,17 +163,6 @@ private:
     TaskFaceAlarmMng task_face_alarm_mng_;        // Behavior-based face comparison
     ActionBranchMng action_branch_mng_;           // Branch judgment management instance
     TargetChooseBestMng target_choose_best_mng_;  // Target selection
-
-    // Adapters for MapActionMng derived classes (declaration order must be after corresponding Mng)
-    MngStatusAdapter<AiClassifyMng> classify_mng_adapter_{classify_mng_};
-    MngStatusAdapter<AiClassifyGroupMng> classify_group_mng_adapter_{classify_group_mng_};
-    MngStatusAdapter<AiClassifyAreaMng> classify_area_mng_adapter_{classify_area_mng_};
-    MngStatusAdapter<AiClassifyAttrMng> classify_attr_mng_adapter_{classify_attr_mng_};
-    MngStatusAdapter<AiLandmarkMng> landmark_mng_adapter_{landmark_mng_};
-    MngStatusAdapter<AiOcrMng> ocr_mng_adapter_{ocr_mng_};
-    MngStatusAdapter<AiVideoQualityMng> ai_video_quality_mng_adapter_{ai_video_quality_mng_};
-    MngStatusAdapter<AiTrackMng> track_mng_adapter_{track_mng_};
-    MngStatusAdapter<TargetChooseBestMng> target_choose_best_mng_adapter_{target_choose_best_mng_};
 };
 
 using TaskBasePtr = std::shared_ptr<TaskBase>;

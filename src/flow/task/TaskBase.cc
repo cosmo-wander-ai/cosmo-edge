@@ -11,9 +11,7 @@ namespace cosmo {
 
 TaskBase::TaskBase() {
     RegisterActionHandlers();
-    RegisterMngProviders();
-    LOG_INFO("TaskBase Init, {} action handlers registered, {} mng providers", action_handlers_.size(),
-             mng_providers_.size());
+    LOG_INFO("TaskBase Init, {} action handlers registered", action_handlers_.size());
 }
 
 TaskBase::~TaskBase() {

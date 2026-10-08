@@ -17,40 +17,12 @@
 namespace cosmo {
 
 // ──────────────────────────────────────────────────────
-// IMngStatusProvider: Unified interface for QueueStatus/ActionInfo
-// TaskBase uses this interface to iterate through all Mng instances
-// ──────────────────────────────────────────────────────
-struct IMngStatusProvider {
-    virtual ~IMngStatusProvider() = default;
-    virtual void QueueStatus(std::vector<AlgActionDataQueueStatus>& queStatus, unsigned int durationSec) = 0;
-    virtual void ActionInfo(std::vector<ActionRuntimeInfo>& actionInfos)                                 = 0;
-};
-
-// Adapter: Wraps any class with QueueStatus/ActionInfo methods as IMngStatusProvider
-// Used for MapActionMng derived classes (they do not inherit IMngStatusProvider directly because some InstT
-// lack these methods)
-template <typename T>
-class MngStatusAdapter : public IMngStatusProvider {
-public:
-    explicit MngStatusAdapter(T& mng) : mng_(mng) {}
-    void QueueStatus(std::vector<AlgActionDataQueueStatus>& s, unsigned int d) override {
-        mng_.QueueStatus(s, d);
-    }
-    void ActionInfo(std::vector<ActionRuntimeInfo>& i) override {
-        mng_.ActionInfo(i);
-    }
-
-private:
-    T& mng_;
-};
-
-// ──────────────────────────────────────────────────────
 // VectorActionMng: Stores instances using vector<shared_ptr<T>>
 // Applicable to: ActionBranchMng, LogicalJudgmentMng, SensitivityMng,
 //         PosSaveSensitivityMng, TaskAlarmMng, AreaAlarmMng, TargetFilterMng
 // ──────────────────────────────────────────────────────
 template <typename InstT>
-class VectorActionMng : public IMngStatusProvider {
+class VectorActionMng {
 public:
     using InstPtr = std::shared_ptr<InstT>;
 
@@ -62,15 +34,14 @@ public:
         LOG_INFO("{} Delete", mng_name);
     }
 
-    void QueueStatus(std::vector<AlgActionDataQueueStatus>& queStatus,
-                     unsigned int durationSec = 30) override {
+    void QueueStatus(std::vector<AlgActionDataQueueStatus>& queStatus, unsigned int durationSec = 30) {
         std::shared_lock<std::shared_mutex> lock(mtx);
         for (auto& inst : insts) {
             inst->QueueStatus(queStatus, durationSec);
         }
     }
 
-    void ActionInfo(std::vector<ActionRuntimeInfo>& actionInfos) override {
+    void ActionInfo(std::vector<ActionRuntimeInfo>& actionInfos) {
         std::shared_lock<std::shared_mutex> lock(mtx);
         for (auto& inst : insts) {
             inst->ActionInfo(actionInfos);
@@ -246,7 +217,7 @@ protected:
 //                 TaskIsFull, TaskIsEmpty, GetAlgCode, ModifyParam
 // ──────────────────────────────────────────────────────
 template <typename InstT>
-class MultiChannelActionMng : public IMngStatusProvider {
+class MultiChannelActionMng {
 public:
     using InstPtr = std::shared_ptr<InstT>;
 
@@ -338,8 +309,7 @@ public:
         return true;
     }
 
-    void QueueStatus(std::vector<AlgActionDataQueueStatus>& queStatus,
-                     unsigned int durationSec = 30) override {
+    void QueueStatus(std::vector<AlgActionDataQueueStatus>& queStatus, unsigned int durationSec = 30) {
         std::shared_lock<std::shared_mutex> lock(m_mtx);
         for (auto it = m_insts.begin(); it != m_insts.end(); it++) {
             for (auto& inst : it->second) {
@@ -348,7 +318,7 @@ public:
         }
     }
 
-    void ActionInfo(std::vector<ActionRuntimeInfo>& actionInfos) override {
+    void ActionInfo(std::vector<ActionRuntimeInfo>& actionInfos) {
         std::shared_lock<std::shared_mutex> lock(m_mtx);
         for (auto it = m_insts.begin(); it != m_insts.end(); it++) {
             for (auto& inst : it->second) {
