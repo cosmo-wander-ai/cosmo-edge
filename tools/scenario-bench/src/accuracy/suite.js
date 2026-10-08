@@ -118,7 +118,7 @@ function normalizeDefaults(raw = {}) {
       'defaults.eventSettleMinSec',
     ),
     earlyStopPollIntervalSec: requirePositiveNumber(
-      raw.earlyStopPollIntervalSec ?? 5,
+      raw.earlyStopPollIntervalSec ?? 1,
       'defaults.earlyStopPollIntervalSec',
     ),
     readyTimeoutSec: requirePositiveNumber(raw.readyTimeoutSec ?? 120, 'defaults.readyTimeoutSec'),

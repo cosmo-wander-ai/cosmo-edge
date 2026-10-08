@@ -142,7 +142,6 @@ test('observation stops only after Event/Page makes the expectation irreversible
     expectation: { minEvents: 1 },
     timeBegin: now,
     observeSec: 45,
-    pollIntervalSec: 5,
     now: () => now,
     monotonicNow: () => now,
     sleep: async (ms) => { now += ms; },
@@ -153,7 +152,7 @@ test('observation stops only after Event/Page makes the expectation irreversible
   });
   assert.equal(result.earlyStopped, true);
   assert.equal(result.triggerStatus, 'PASS');
-  assert.equal(result.actualSec, 10);
+  assert.equal(result.actualSec, 2);
   assert.equal(result.queryCount, 2);
 });
 

@@ -114,45 +114,12 @@ bool TaskBase::TaskDelete(TaskElementPtr task) {
     return true;
 }
 
-void TaskBase::RegisterMngProviders() {
-    mng_providers_ = {
-        &channel_mng_,
-        &detect_mng_,
-        &dino_detect_mng_,
-        &qwen3_vl_mng_,
-        &sam2_segment_mng_,
-        &track_mng_adapter_,
-        &classify_mng_adapter_,
-        &classify_group_mng_adapter_,
-        &classify_area_mng_adapter_,
-        &classify_attr_mng_adapter_,
-        &landmark_mng_adapter_,
-        &ocr_mng_adapter_,
-        &recognizer_mng_,
-        &ai_video_quality_mng_adapter_,
-        &filter_mng_,
-        &logical_judgment_mng_,
-        &sensitivity_mng_,
-        &pos_save_sensitivity_mng_,
-        &task_alarm_mng_,
-        &area_alarm_mng_,
-        &face_logic_mng_,
-        &task_face_alarm_mng_,
-        &action_branch_mng_,
-        &target_choose_best_mng_adapter_,
-    };
-}
-
 void TaskBase::QueueStatus(std::vector<AlgActionDataQueueStatus>& queStatus, unsigned int durationSec) {
-    for (auto* p : mng_providers_) {
-        p->QueueStatus(queStatus, durationSec);
-    }
+    ForEachManager([&](auto& manager) { manager.QueueStatus(queStatus, durationSec); });
 }
 
 void TaskBase::ActionInfo(std::vector<ActionRuntimeInfo>& actionInfos) {
-    for (auto* p : mng_providers_) {
-        p->ActionInfo(actionInfos);
-    }
+    ForEachManager([&](auto& manager) { manager.ActionInfo(actionInfos); });
 }
 
 bool TaskBase::TaskStart(TaskElementPtr task) {

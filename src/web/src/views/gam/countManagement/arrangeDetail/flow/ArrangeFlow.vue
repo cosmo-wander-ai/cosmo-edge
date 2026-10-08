@@ -13,7 +13,6 @@
       >
         <Background pattern-color="#e5e7eb" gap="16" />
         <Controls  :show-interactive="false" />
-        <!-- <MiniMap /> -->
       </VueFlow>
 
       <!-- 浮动配置面板（在 VueFlow 外部，使用屏幕坐标定位） -->
@@ -41,23 +40,21 @@
 
 
 <script setup>
-import { ref, markRaw, watch, nextTick, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, markRaw, watch, nextTick, computed, provide, readonly } from 'vue'
 import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import ActionView from './ActionView.vue'
 import { Controls } from '@vue-flow/controls'
-import { MiniMap } from '@vue-flow/minimap'
 import dagre from 'dagre'
-import EventBus from '@/components/eventBus.js'
+import { flowEditorKey } from '@/views/gam/countManagement/arrangeDetail/flow/flowEditorContext.js'
 import _ from 'lodash'
 import { generateActionId } from './dataTools.js'
-import { insertNodeEdges } from '@/utils/graphEdges.js'
-import { createNodeState, updateAtomicList, updateNodeConfig as replaceNodeConfig } from '@/views/gam/countManagement/arrangeDetail/flow/nodeState.js'
+import { addFlowNode, createFlowGraph, deleteFlowNode, deleteFollowingFlow } from '@/utils/graphEdges.js'
+import { collectFlowData, collectMetaDataParams, createNodeState, updateAtomicList, updateNodeConfig as replaceNodeConfig } from '@/views/gam/countManagement/arrangeDetail/flow/nodeState.js'
 import { t } from '@/i18n'
 
 import '@vue-flow/core/dist/style.css'
 // theme-default.css 已移除 — 其默认阴影/边框样式由自定义CSS接管
-import '@vue-flow/minimap/dist/style.css'
 import '@vue-flow/controls/dist/style.css'
 
 import CustomFormNode from './CustomFormNode.vue'
@@ -69,6 +66,7 @@ import NodeDetailPanel from './NodeDetailPanel.vue'
 import {
   getDetailPanelAnchor,
   getDetailPanelSize,
+  getFlowBounds,
   getFlowLayoutSpacing,
   getFlowNodeDimensions
 } from './layoutGeometry.js'
@@ -94,6 +92,8 @@ const props = defineProps({
 
 const nodes = ref([])
 const edges = ref([])
+const activeEdgeId = ref(null)
+const closeEdgeMenu = () => { activeEdgeId.value = null }
 const nodeTypes = {
   start: markRaw(StartNode),
   customForm: markRaw(CustomFormNode),
@@ -104,7 +104,7 @@ const edgeTypes = {
   action: markRaw(ActionEdge)
 }
 
-const { setNodes, setEdges, addNodes, onPaneReady, getEdges } = useVueFlow()
+const { onPaneReady } = useVueFlow()
 const flowInstance = ref(null)
 const templateVersion = ref(0)
 const hasFitViewOnce = ref(false)
@@ -276,7 +276,6 @@ const applyLayout = () => {
   const stageNodes = buildStageGroupNodes(positioned)
   const nextNodes = [...stageNodes, ...positioned]
   nodes.value = nextNodes
-  setNodes(nextNodes)
 
   if (!hasFitViewOnce.value && flowInstance.value) {
     requestAnimationFrame(() => {
@@ -321,7 +320,6 @@ const handleViewportMove = (transform) => {
 const updateNodeConfig = (nodeId, config) => {
   const nextNodes = replaceNodeConfig(nodes.value, nodeId, config)
   nodes.value = nextNodes
-  setNodes(nextNodes)
 }
 
 const handlePanelConfigChange = (config) => {
@@ -376,18 +374,7 @@ const openDetailPanel = (nodeId) => {
 
     // 计算所有节点的总边界
     const allVisible = nodes.value.filter((n) => !isStageGroupNode(n))
-    const bounds = allVisible.reduce(
-      (acc, n) => {
-        const d = getNodeDimensions(n)
-        return {
-          minX: Math.min(acc.minX, n.position.x),
-          minY: Math.min(acc.minY, n.position.y),
-          maxX: Math.max(acc.maxX, n.position.x + d.width),
-          maxY: Math.max(acc.maxY, n.position.y + d.height)
-        }
-      },
-      { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
-    )
+    const bounds = getFlowBounds(allVisible, getNodeDimensions)
 
     // 将面板区域也纳入边界
     bounds.minX = Math.min(bounds.minX, panelX)
@@ -422,18 +409,7 @@ const closeDetailPanel = () => {
     const visibleNodes = nodes.value.filter((n) => !isStageGroupNode(n))
     if (!visibleNodes.length) return
 
-    const bounds = visibleNodes.reduce(
-      (acc, n) => {
-        const d = getNodeDimensions(n)
-        return {
-          minX: Math.min(acc.minX, n.position.x),
-          minY: Math.min(acc.minY, n.position.y),
-          maxX: Math.max(acc.maxX, n.position.x + d.width),
-          maxY: Math.max(acc.maxY, n.position.y + d.height)
-        }
-      },
-      { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
-    )
+    const bounds = getFlowBounds(visibleNodes, getNodeDimensions)
 
     const cx = (bounds.minX + bounds.maxX) / 2
     const cy = (bounds.minY + bounds.maxY) / 2
@@ -459,7 +435,6 @@ const markNodeSelected = (id) => {
     return { ...n, data, style }
   })
   nodes.value = updated
-  setNodes(updated)
 }
 
 /** 清除所有节点选中态 */
@@ -473,7 +448,6 @@ const clearNodeSelected = () => {
     return { ...n, data, style }
   })
   nodes.value = updated
-  setNodes(updated)
 }
 
 const handleNodeActive = (payload) => {
@@ -484,7 +458,7 @@ const handleNodeActive = (payload) => {
     (typeof payload === 'string' || typeof payload === 'number' ? payload : '')
   if (!id) return
   openDetailPanel(String(id))
-  EventBus.$emit('edgeMenu:open', null)
+  closeEdgeMenu()
 }
 
 const handleNodeDragStart = (payload) => {
@@ -492,12 +466,12 @@ const handleNodeDragStart = (payload) => {
   const id = payload?.node?.id ?? payload?.id ?? ''
   if (!id) return
   markNodeSelected(String(id))
-  EventBus.$emit('edgeMenu:open', null)
+  closeEdgeMenu()
 }
 
 const handlePaneClick = () => {
   closeDetailPanel()
-  EventBus.$emit('edgeMenu:open', null)
+  closeEdgeMenu()
 }
 
 const focusNode = (nodeId) => {
@@ -524,20 +498,7 @@ const centerView = () => {
   const visibleNodes = nodes.value.filter((node) => !isStageGroupNode(node))
   if (!visibleNodes.length) return
 
-  const bounds = visibleNodes.reduce(
-    (acc, node) => {
-      const x = node.position.x
-      const y = node.position.y
-      const dimensions = getNodeDimensions(node)
-      return {
-        minX: Math.min(acc.minX, x),
-        minY: Math.min(acc.minY, y),
-        maxX: Math.max(acc.maxX, x + dimensions.width),
-        maxY: Math.max(acc.maxY, y + dimensions.height)
-      }
-    },
-    { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
-  )
+  const bounds = getFlowBounds(visibleNodes, getNodeDimensions)
 
   const cx = (bounds.minX + bounds.maxX) / 2
   const cy = (bounds.minY + bounds.maxY) / 2
@@ -557,41 +518,6 @@ const handleEdgeMenuFocus = (nodeId) => {
   })
 }
 
-const handleLayoutRequest = () => {
-  requestAnimationFrame(() => {
-    applyLayout()
-  })
-}
-
-const handleCollapseAll = (payload = {}) => {
-  closeDetailPanel()
-}
-
-const handleOpenDetailPanel = (nodeId) => {
-  openDetailPanel(nodeId)
-}
-
-const handleCloseDetailPanel = (deletedNodeId) => {
-  // 如果删除的正是当前面板展示的节点，关闭面板（不保存）
-  if (detailPanelNodeId.value === deletedNodeId) {
-    detailPanelNodeId.value = null
-    clearNodeSelected()
-  }
-}
-
-const handleRemoveNodes = (ids) => {
-  if (!Array.isArray(ids) || ids.length === 0) return
-  if (ids.some((id) => String(id) === String(detailPanelNodeId.value))) {
-    detailPanelNodeId.value = null
-  }
-  setNodes((ns) => ns.filter((n) => !ids.includes(n.id)))
-  nodes.value = nodes.value.filter((n) => !ids.includes(n.id))
-  // 同步清理 atomicList 中对应 position
-  atomicList.value = (atomicList.value || []).filter(
-    (a) => !ids.includes(String(a.position))
-  )
-}
-
 const handleAddComponentDialogOpen = ({ edgeId, x, y, mode, sourceId } = {}) => {
   addDialogMode.value = mode || 'insert'
   addDialogSourceId.value = sourceId || ''
@@ -607,24 +533,41 @@ const handleAtomicUpdate = (payload) => {
   atomicList.value = updateAtomicList(atomicList.value, payload)
 }
 
-EventBus.$on('edgeMenu:focus', handleEdgeMenuFocus)
-EventBus.$on('flow:layout:request', handleLayoutRequest)
-EventBus.$on('flow:collapseAll', handleCollapseAll)
-EventBus.$on('flow:openDetailPanel', handleOpenDetailPanel)
-EventBus.$on('flow:closeDetailPanel', handleCloseDetailPanel)
-EventBus.$on('flow:removeNodes', handleRemoveNodes)
-EventBus.$on('flow:addComponentDialog:open', handleAddComponentDialogOpen)
-EventBus.$on('flow:atomic:update', handleAtomicUpdate)
+const commitGraph = ({ nodes: nextNodes, edges: nextEdges, removedNodeIds = [] }) => {
+  if (removedNodeIds.some(id => String(id) === String(detailPanelNodeId.value))) {
+    detailPanelNodeId.value = null
+  }
+  atomicList.value = atomicList.value.filter(atomic => !removedNodeIds.includes(String(atomic.position)))
+  nodes.value = nextNodes
+  edges.value = nextEdges
+}
 
-onBeforeUnmount(() => {
-  EventBus.$off('edgeMenu:focus', handleEdgeMenuFocus)
-  EventBus.$off('flow:layout:request', handleLayoutRequest)
-  EventBus.$off('flow:collapseAll', handleCollapseAll)
-  EventBus.$off('flow:openDetailPanel', handleOpenDetailPanel)
-  EventBus.$off('flow:closeDetailPanel', handleCloseDetailPanel)
-  EventBus.$off('flow:removeNodes', handleRemoveNodes)
-  EventBus.$off('flow:addComponentDialog:open', handleAddComponentDialogOpen)
-  EventBus.$off('flow:atomic:update', handleAtomicUpdate)
+const deleteNode = (nodeId) => {
+  commitGraph(deleteFlowNode(nodes.value, edges.value, nodeId, Date.now()))
+  closeEdgeMenu()
+}
+
+const deleteFollowing = (operation) => {
+  const result = deleteFollowingFlow(nodes.value, edges.value, { ...operation, timestamp: Date.now() })
+  commitGraph(result)
+  if (result.sourceId) handleEdgeMenuFocus(result.sourceId)
+  closeEdgeMenu()
+}
+
+provide(flowEditorKey, {
+  nodes: readonly(nodes),
+  edges: readonly(edges),
+  activeEdgeId: readonly(activeEdgeId),
+  closeEdgeMenu,
+  toggleEdgeMenu(edgeId) {
+    if (nodes.value.some(node => node.data?.expanded)) closeDetailPanel()
+    activeEdgeId.value = activeEdgeId.value === edgeId ? null : edgeId
+  },
+  openDetailPanel,
+  openAddDialog: handleAddComponentDialogOpen,
+  deleteNode,
+  deleteFollowing,
+  updateAtomic: handleAtomicUpdate
 })
 
 const getNodeTypeForAction = (action) => {
@@ -790,13 +733,8 @@ const addComponentFromAction = (action) => {
 }
 
 const getEdgeEndpoints = (edgeId) => {
-  const edgesArr = 'value' in getEdges ? getEdges.value : getEdges
-  const edge = Array.isArray(edgesArr)
-    ? edgesArr.find((e) => e.id === edgeId)
-    : undefined
-  return edge
-    ? { source: edge.source, target: edge.target }
-    : { source: undefined, target: undefined }
+  const edge = edges.value.find(edge => edge.id === edgeId)
+  return edge || { source: undefined, target: undefined }
 }
 
 const addComponentFromDialog = (type, label, action) => {
@@ -860,48 +798,13 @@ const addComponentFromDialog = (type, label, action) => {
       })
     }
   }
-  nodes.value = [...nodes.value, newNode]
-
-  if (mode === 'insert') {
-    edges.value = insertNodeEdges(
-      edges.value,
-      { edgeId, source, target },
-      newNodeId,
-      generateActionId
-    )
-  } else {
-    // 分支模式：从 sourceId 发出一条新分支到新节点，并默认再添加一个结束节点
-    const newEndId = generateActionId()
-    const endNode = {
-      id: newEndId,
-      type: 'end',
-      position: { x: addDialogX.value + 300, y: addDialogY.value + 40 },
-      data: {}
-    }
-    nodes.value = [...nodes.value, endNode]
-    const nextEdges = [...edges.value]
-    if (source) {
-      nextEdges.push({
-        id: generateActionId(),
-        type: 'action',
-        source,
-        target: newNodeId
-      })
-    }
-    nextEdges.push({
-      id: generateActionId(),
-      type: 'action',
-      source: newNodeId,
-      target: newEndId
-    })
-    edges.value = nextEdges
-  }
+  commitGraph(addFlowNode(nodes.value, edges.value, newNode, {
+    mode, edgeId, source, target, x: addDialogX.value, y: addDialogY.value
+  }, generateActionId))
 
   addDialogVisible.value = false
 
-  nextTick(() => {
-    EventBus.$emit('edgeMenu:focus', newNodeId)
-  })
+  nextTick(() => handleEdgeMenuFocus(newNodeId))
 }
 
 const rebuildFlowGraph = () => {
@@ -909,50 +812,9 @@ const rebuildFlowGraph = () => {
   columnCenterX.value = {}
   lockedCenterY.value = {}
 
-  // 基础开始节点
-  const baseNodesStart = [
-    {
-      id: '-1',
-      type: 'start',
-      position: { x: -220, y: 80 },
-      data: {}
-    }
-  ]
-
-  // 如果没有数据，只渲染开始和结束节点
-  if (items.length === 0) {
-    const endNodeId = `end-${Date.now()}`
-    const emptyNodes = [
-      ...baseNodesStart,
-      {
-        id: endNodeId,
-        type: 'end',
-        position: { x: 320, y: 80 },
-        data: {}
-      }
-    ]
-
-    const emptyEdges = [
-      {
-        id: 'e-start-end',
-        type: 'action',
-        source: '-1',
-        target: endNodeId
-      }
-    ]
-
-    nodes.value = emptyNodes
-    edges.value = emptyEdges
-    setNodes(emptyNodes)
-    setEdges(emptyEdges)
-
-    // 应用布局并居中显示
-    requestAnimationFrame(() => {
-      applyLayout()
-    })
-
-    return
-  }
+  detailPanelNodeId.value = null
+  closeEdgeMenu()
+  addDialogVisible.value = false
 
   const actionMap = new Map(
     (Array.isArray(props.actionList) ? props.actionList : []).map((a) => [
@@ -999,63 +861,7 @@ const rebuildFlowGraph = () => {
       }
     }
   })
-  const nextNodes = [...baseNodesStart, ...dataNodes]
-  const edgesArr = []
-  items.forEach((item) => {
-    const src =
-      item.preFlowActionId === '-1' || item.preFlowActionId === -1
-        ? '-1'
-        : String(item.preFlowActionId)
-    const tgt = String(item.flowActionId)
-    edgesArr.push({
-      id: generateActionId(),
-      type: 'action',
-      source: src,
-      target: tgt
-    })
-  })
-  const hasOutgoing = new Set(
-    items.map((i) => String(i.preFlowActionId)).filter((v) => v && v !== '-1')
-  )
-  const allIds = new Set(items.map((i) => String(i.flowActionId)))
-  const terminalIds = Array.from(allIds).filter((id) => !hasOutgoing.has(id))
-  if (terminalIds.length > 1) {
-    // 多分支：为每个末尾节点拼接一个独立结束节点
-    terminalIds.forEach((id) => {
-      const endId = `end-${id}`
-      nextNodes.push({
-        id: endId,
-        type: 'end',
-        position: { x: 960, y: 120 },
-        data: {}
-      })
-      edgesArr.push({
-        id: generateActionId(),
-        type: 'action',
-        source: id,
-        target: endId
-      })
-    })
-  } else if (terminalIds.length === 1) {
-    // 单分支：创建结束节点
-    const endNodeId = `end-${Date.now()}`
-    nextNodes.push({
-      id: endNodeId,
-      type: 'end',
-      position: { x: 960, y: 120 },
-      data: {}
-    })
-    edgesArr.push({
-      id: generateActionId(),
-      type: 'action',
-      source: terminalIds[0],
-      target: endNodeId
-    })
-  }
-  nodes.value = nextNodes
-  edges.value = edgesArr
-  setNodes(nextNodes)
-  setEdges(edgesArr)
+  commitGraph(createFlowGraph(items, dataNodes, generateActionId, Date.now()))
 
   // 渲染完成后居中显示
   requestAnimationFrame(() => {
@@ -1065,86 +871,19 @@ const rebuildFlowGraph = () => {
 }
 
 const saveMetaDataParams = () => {
-  const list = []
-  nodes.value
-    .filter((n) => n.type !== 'start' && n.type !== 'end' && !isStageGroupNode(n))
-    .forEach((n) => {
-      const meta =
-        n.data?.configObject?.webConfig?.metaDataParams ?? []
-      if (Array.isArray(meta)) {
-        meta.forEach((m) => list.push({ ...m }))
-      }
-    })
-  return list
+  collectCurrentPanelConfig()
+  return collectMetaDataParams(nodes.value)
 }
 
 const saveFlowData = () => {
   // 先收集当前浮动面板的配置（如果有打开的面板）
   collectCurrentPanelConfig()
-  const incomingMap = new Map()
-  edges.value.forEach((e) => {
-    if (e.target) incomingMap.set(e.target, e.source)
+  const { items, atomicCollected } = collectFlowData(nodes.value, edges.value)
+  // Algorithm templates keep canonical action names from the action catalog.
+  items.forEach(item => {
+    const action = (Array.isArray(props.actionList) ? props.actionList : []).find(action => action.id === item.actionId)
+    item.actionName = action?.actionName || item.actionName
   })
-
-  const items = []
-  const atomicCollected = []
-
-  nodes.value
-    .filter((n) => n.type !== 'start' && n.type !== 'end' && !isStageGroupNode(n))
-    .forEach((n) => {
-      const actionId = n.data?.actionId || ''
-      // 保存时同样用 actionList 标准名称归一化，修正历史脏数据
-      const actionMeta = (Array.isArray(props.actionList) ? props.actionList : []).find(a => a.id === actionId)
-      const actionName = actionMeta?.actionName || n.data?.actionName || ''
-      const remark = n.data?.description || ''
-      const flowActionId = String(n.id)
-      let preFlowActionId = incomingMap.get(n.id)
-      if (
-        !preFlowActionId ||
-        preFlowActionId === 'start' ||
-        preFlowActionId === '-1'
-      ) {
-        preFlowActionId = '-1'
-      } else {
-        preFlowActionId = String(preFlowActionId)
-      }
-
-      const configObject = n.data?.configObject ?? {
-        webConfig: {
-          labelList: [],
-          labelFilterList: [],
-          metaDataParams: [],
-          atomic: {}
-        },
-        params: []
-      }
-
-      const atomic = configObject?.webConfig?.atomic
-      if (atomic && (atomic.position || atomic.labelList)) {
-        // Spread original atomic first to preserve sidecar fields (*I18nKey),
-        // then override with current values so edits take precedence.
-        atomicCollected.push({
-          ...atomic,
-          position: atomic.position || flowActionId,
-          atomicCode: atomic.atomicCode || '',
-          atomicName: atomic.atomicName || '',
-          labelList: atomic.labelList || []
-        })
-      }
-
-      // Spread original flow item first to preserve sidecar fields (*I18nKey),
-      // then override with current values so edits take precedence.
-      const originalFlowItem = n.data?.flowData || {}
-      items.push({
-        ...originalFlowItem,
-        actionId,
-        actionName,
-        remark,
-        flowActionId,
-        preFlowActionId,
-        configObject
-      })
-    })
 
   const params = {
     algorithmId: props.algorithmData?.algorithmCode || '',
@@ -1163,10 +902,9 @@ const saveFlowData = () => {
 // Expose functions to parent component
 const clearFlow = () => {
   detailPanelNodeId.value = null
-  setNodes([])
-  setEdges([])
-  nodes.value = []
-  edges.value = []
+  closeEdgeMenu()
+  addDialogVisible.value = false
+  commitGraph({ nodes: [], edges: [] })
   newFlowData.value = []
   atomicList.value = []
   columnCenterX.value = {}

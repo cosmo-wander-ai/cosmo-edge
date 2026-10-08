@@ -18,7 +18,7 @@ export async function runAccuracyDoctor({
   clientFactory = null,
   mediaProbe = inspectLocalMedia,
   selection = null,
-  concurrency = 1,
+  concurrency = 4,
 } = {}) {
   const checkedAt = new Date().toISOString();
   const checks = [];

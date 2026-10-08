@@ -77,7 +77,7 @@ node src/accuracy-cli.js init-suite \
 export COSMO_ACCURACY_TOKEN='<short-lived-token>'
 node src/accuracy-cli.js doctor \
   --profile full \
-  --concurrency 1 \
+  --concurrency 4 \
   --suite /private/suite/suite.yml \
   --data-root /private/dataset \
   --target-chip bm1688 \
@@ -104,7 +104,7 @@ node src/accuracy-cli.js doctor \
 ```bash
 node src/accuracy-cli.js run \
   --profile full \
-  --concurrency 2 \
+  --concurrency 4 \
   --suite /private/suite/suite.yml \
   --data-root /private/dataset \
   --target-chip bm1688 \
@@ -121,12 +121,14 @@ node src/accuracy-cli.js run \
 - 命中率只统计有效 PASS/FAIL，基础设施 ERROR 单独显示且不进入分母；
 - 完整测量即使含 FAIL 也退出 `0`；
 - 无法完成 trial 或严格清理失败时退出 `2`；
-- CV 可用 `--concurrency 1|2|4` 并行；
+- CV 默认并发 4，可用 `--concurrency 1|2|4` 显式指定；
 - VLM 始终在全部 CV 结束后串行运行。
 
 `--profile full` 运行完整选择集。`--profile quick` 选择带 `quick` tag 的代表样本；还可以用
 `--case`、`--task` 或 `--tag` 直接筛选。过滤和并发只是执行选择，不会把结果降级或取消
 某种资格，因为工具没有资格/基线概念。
+
+提前结束检查由 `defaults.earlyStopPollIntervalSec` 控制，默认 1 秒；suite 中的显式值优先。
 
 ## 单个样本如何测量
 

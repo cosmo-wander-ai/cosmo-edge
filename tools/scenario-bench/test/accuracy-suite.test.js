@@ -99,7 +99,7 @@ test('loads and fingerprints a measurement suite without leaking absolute paths'
     }
     assert.equal(loaded.defaults.readyPollIntervalSec, 1);
     assert.equal(loaded.defaults.eventPollIntervalSec, 1);
-    assert.equal(loaded.defaults.earlyStopPollIntervalSec, 5);
+    assert.equal(loaded.defaults.earlyStopPollIntervalSec, 1);
     assert.match(loaded.identity.suiteSha256, /^[a-f0-9]{64}$/);
     assert.match(loaded.identity.caseManifestSha256, /^[a-f0-9]{64}$/);
     assert.match(loaded.tasks[0].taskConfigSha256, /^[a-f0-9]{64}$/);

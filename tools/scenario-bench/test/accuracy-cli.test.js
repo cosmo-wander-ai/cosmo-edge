@@ -31,7 +31,7 @@ test('accuracy help exposes the focused measurement commands without gate option
   assert.equal(result.stdout.includes('--password <'), false);
   assert.match(result.stdout, /--password-stdin/);
   assert.match(result.stdout, /--profile <full\|quick>/);
-  assert.match(result.stdout, /--concurrency <1\|2\|4>/);
+  assert.match(result.stdout, /--concurrency <1\|2\|4>.*default: 4/);
   for (const removed of ['--purpose', '--baseline', '--exploratory', 'compare-survey', 'import-legacy']) {
     assert.equal(result.stdout.includes(removed), false);
   }
@@ -64,6 +64,7 @@ test('execution options preserve quick selection, filters, and concurrency', () 
     },
   });
   assert.equal(accuracyExecutionOptions({}).profile, 'full');
+  assert.equal(accuracyExecutionOptions({}).concurrency, 4);
 });
 
 test('v4 resume refuses pre-v4 or identity-less partial evidence', () => {
@@ -96,6 +97,7 @@ test('init-suite creates a review-required draft and hashed legacy cases', async
     const cases = fs.readFileSync(path.join(output, 'cases.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
     assert.match(draft, /REVIEW_REQUIRED/);
     assert.match(draft, /schemaVersion: 3/);
+    assert.match(draft, /earlyStopPollIntervalSec: 1/);
     assert.equal(cases.length, 2);
     assert.ok(cases.every((item) => /^[a-f0-9]{64}$/.test(item.sha256)));
     assert.deepEqual(fs.readdirSync(path.join(output, 'task-configs')), []);
