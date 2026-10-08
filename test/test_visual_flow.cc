@@ -6,6 +6,7 @@
 #include "flow/alarm/AlarmReviewRoi.h"
 #include "flow/alarm/AlarmVisualPlan.h"
 #include "flow/common/VisualJudgment.h"
+#include "flow/common/VisualRoi.h"
 #include "service/ai/impl/VisualDecisionProtocol.h"
 #include "support/ScopedServiceOverride.h"
 #include "util/UuidUtil.h"
@@ -409,6 +410,32 @@ struct FlowFixture {
     }
 };
 }  // namespace
+
+TEST_CASE("Visual ROI downscaling preserves valid even I420 dimensions", "[visual-flow][roi-resize]") {
+    Device device;
+    Text text;
+    test::ScopedServiceOverride<mem::IDeviceContext> deviceRegistration(device);
+    test::ScopedServiceOverride<media::IOsdTextRenderer> textRegistration(text);
+    mem::MemoryPoolMng pool(std::make_unique<mem::AllocatorCpu>(), {1920 * 1080 * 3});
+    FlowFixture::PoolScope poolScope(pool);
+    Frames frames;
+    test::ScopedServiceOverride<IVideoFrameTransform> transform(frames);
+    test::ScopedServiceOverride<IVideoFrameOSD> osd(frames);
+    AlgData data;
+    data.chanDataDec.frame = std::make_shared<media::VideoFrame>(960, 1080, media::PixelFormat::PIXEL_I420);
+    REQUIRE(VideoFrameValid(data.chanDataDec.frame));
+    data.chanDataDec.frame->SetFrameIndex(321);
+    data.chanDataDec.frame->SetTimestamp(654);
+    auto rois = PrepareVisualRois(data, {}, false, true);
+    REQUIRE(rois.size() == 1);
+    REQUIRE(VideoFrameValid(rois[0].frame));
+    CHECK(rois[0].frame->GetWidth() == 852);
+    CHECK(rois[0].frame->GetHeight() == 960);
+    CHECK(rois[0].frame->GetPixelFormat() == media::PixelFormat::PIXEL_BGR8);
+    CHECK(rois[0].frame->GetFrameIndex() == 321);
+    CHECK(rois[0].frame->GetTimestamp() == 654);
+    CHECK(rois[0].input_roi == util::Box(0, 0, 960, 1080));
+}
 
 TEST_CASE("Typed alarm ROI preserves actual crop and rejects every full-frame substitution",
           "[visual-flow][alarm-roi]") {

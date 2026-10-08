@@ -206,8 +206,10 @@ namespace {
             auto& transform  = service::ServiceRegistry::Instance().Get<service::IVideoFrameTransform>();
             if ((width > 960 || height > 960) && frame->GetPixelFormat() == PixelFormat::PIXEL_I420) {
                 const double scale = std::min(960.0 / std::max(1, width), 960.0 / std::max(1, height));
-                auto resized       = transform.Resize(frame, std::max(32, static_cast<int>(height * scale)),
-                                                      std::max(32, static_cast<int>(width * scale)));
+                // I420 chroma planes require even dimensions on both backends.
+                const int resizeHeight = std::max(32, static_cast<int>(height * scale) & ~1);
+                const int resizeWidth  = std::max(32, static_cast<int>(width * scale) & ~1);
+                auto resized           = transform.Resize(frame, resizeHeight, resizeWidth);
                 if (VideoFrameValid(resized))
                     frame = resized;
             }
