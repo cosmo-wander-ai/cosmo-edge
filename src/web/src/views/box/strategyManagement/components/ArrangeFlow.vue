@@ -4,7 +4,6 @@
       <VueFlow v-model:nodes="nodes" v-model:edges="edges" :node-types="nodeTypes" :edge-types="edgeTypes" @node-click="handleNodeClick" @pane-click="closeDetailPanel" @move="handleViewportMove">
         <Background pattern-color="#e5e7eb" gap="16" />
         <Controls :show-interactive="false" />
-        <!-- <MiniMap /> -->
       </VueFlow>
       <NodeDetailPanel
         v-if="detailPanelNodeId"
@@ -34,12 +33,10 @@ import { ref, markRaw, watch, nextTick, computed, onBeforeUnmount } from 'vue'
 import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
-import { MiniMap } from '@vue-flow/minimap'
 import dagre from 'dagre'
 import _ from 'lodash'
 
 import '@vue-flow/core/dist/style.css'
-import '@vue-flow/minimap/dist/style.css'
 import '@vue-flow/controls/dist/style.css'
 
 import EventBus from '@/components/eventBus.js'
