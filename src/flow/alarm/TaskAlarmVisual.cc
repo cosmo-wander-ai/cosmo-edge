@@ -62,7 +62,7 @@ void TaskAlarm::RebuildVisualAlarmPlan() {
         }
         plan = std::make_shared<AlarmVisualPlan>(task_id, m_param.llmReviewContent, GetAlgName(),
                                                  std::vector<std::string>(labels.begin(), labels.end()),
-                                                 m_visualParameters, uniqueAreas);
+                                                 m_visualParameters, uniqueAreas, m_param.llmAtomicCode);
     }
     std::atomic_store(&m_visualAlarmPlan, std::move(plan));
 }

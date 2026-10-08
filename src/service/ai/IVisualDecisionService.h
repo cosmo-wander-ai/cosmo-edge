@@ -18,8 +18,25 @@ namespace cosmo::service {
 // result cannot cross the configuration/stop boundary after Decide returns.
 class VisualDecisionRun {
 public:
-    VisualDecisionRun(std::string task, std::string epoch, std::string revision)
-        : taskId(std::move(task)), runEpoch(std::move(epoch)), configRevision(std::move(revision)) {}
+    VisualDecisionRun(std::string task, std::string epoch, std::string revision, std::string model = "")
+        : taskId(std::move(task)),
+          runEpoch(std::move(epoch)),
+          configRevision(std::move(revision)),
+          atomicCode(std::move(model)) {}
+    ~VisualDecisionRun() {
+        if (releaseModel_)
+            releaseModel_();
+    }
+    bool AcquireModel(const std::function<void()>& acquire, std::function<void()> release) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!active_)
+            return false;
+        if (!releaseModel_) {
+            acquire();
+            releaseModel_ = std::move(release);
+        }
+        return true;
+    }
     void Invalidate() {
         std::lock_guard<std::mutex> lock(mutex_);
         active_ = false;
@@ -39,10 +56,12 @@ public:
     const std::string taskId;
     const std::string runEpoch;
     const std::string configRevision;
+    const std::string atomicCode;
 
 private:
     mutable std::mutex mutex_;
     bool active_{true};
+    std::function<void()> releaseModel_;
 };
 
 // Produced by configuration preparation, never from a worker's answer. Labels
@@ -55,6 +74,9 @@ struct VisualQuestionRef {
     int qtype{-1};
     std::vector<std::string> orderedOptions;
     nlohmann::json temperature;
+    // Native model-bound preparation; not persisted in alarm/audit records.
+    nlohmann::json nativeSpec;
+    std::string modelIdentity;
 };
 
 struct VisualDecisionImage {
@@ -97,7 +119,7 @@ public:
     virtual ~IVisualDecisionService() = default;
     virtual bool Available() const    = 0;
     // Thread-safe; reserves capacity before preparing the crop. Queueing, JPEG
-    // preparation, IPC and all questions share one absolute deadline.
+    // preparation and all questions share one absolute deadline.
     virtual VisualDecisionResult Decide(
         const VisualDecisionRequest& request, std::shared_ptr<VisualDecisionRun> run, Prepare prepare,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(1500)) = 0;

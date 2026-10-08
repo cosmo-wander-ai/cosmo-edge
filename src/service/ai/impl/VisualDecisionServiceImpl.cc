@@ -50,14 +50,16 @@ VisualDecisionOptions VisualDecisionOptions::FromEnvironment() {
 }
 
 VisualDecisionServiceImpl::VisualDecisionServiceImpl(VisualDecisionOptions options, Transport transport,
-                                                     IVisualAuditService* audit)
+                                                     IVisualAuditService* audit,
+                                                     NativeInference nativeInference)
     : options_(std::move(options)),
       transport_(transport ? std::move(transport) : visual::Exchange),
+      nativeInference_(std::move(nativeInference)),
       audit_(audit) {
     if (options_.capacity == 0 || options_.capacity > 32 || options_.perTaskLimit == 0 ||
         options_.perTaskLimit > options_.capacity)
         throw std::invalid_argument("invalid_visual_queue_limits");
-    if (options_.release.Valid())
+    if (nativeInference_ || options_.release.Valid())
         worker_ = std::thread(&VisualDecisionServiceImpl::Work, this);
 }
 
@@ -67,7 +69,8 @@ VisualDecisionServiceImpl::~VisualDecisionServiceImpl() {
 
 bool VisualDecisionServiceImpl::Available() const {
     std::lock_guard<std::mutex> lock(mutex_);
-    return options_.release.Valid() && !stopped_ && (!audit_ || audit_->Status().value("available", false));
+    return (nativeInference_ || options_.release.Valid()) && !stopped_ &&
+           (!audit_ || audit_->Status().value("available", false));
 }
 
 VisualDecisionResult VisualDecisionServiceImpl::Decide(const VisualDecisionRequest& request,
@@ -92,6 +95,11 @@ VisualDecisionResult VisualDecisionServiceImpl::Decide(const VisualDecisionReque
         {"run_epoch", job->run ? job->run->runEpoch : ""},
         {"config_revision", job->run ? job->run->configRevision : ""},
         {"items", Json::array()}};
+    if (nativeInference_) {
+        job->identity["atomic_code"] = job->run ? job->run->atomicCode : "";
+        if (!request.questions.empty())
+            job->identity["manifest_sha256"] = request.questions.front().modelIdentity;
+    }
     for (const auto& question : request.questions)
         job->identity["items"].push_back(visual::ItemIdentity(question));
     // Admission competes with fully synchronous alarm writes on the same
@@ -139,7 +147,15 @@ VisualDecisionResult VisualDecisionServiceImpl::Decide(const VisualDecisionReque
             return reject("invalid_question_reference");
     if (!job->run->Active())
         return reject("stale_task_run");
-    if (!options_.release.Valid())
+    if (nativeInference_) {
+        if (job->run->atomicCode.empty())
+            return reject("model_not_bound");
+        for (const auto& question : request.questions)
+            if (!question.nativeSpec.is_object() || !visual::Sha256Identity(question.modelIdentity) ||
+                question.modelIdentity != request.questions.front().modelIdentity)
+                return reject("bound_model_changed");
+    }
+    if (!nativeInference_ && !options_.release.Valid())
         return reject(options_.unavailableReason);
     if (audit_ && !receipt.Begun())
         return reject("audit_store_unavailable");
@@ -257,19 +273,25 @@ void VisualDecisionServiceImpl::Work() {
                         wire["image_width"]    = image.width;
                         wire["image_height"]   = image.height;
                         const auto imageSha    = visual::Sha256(image.jpeg.data(), image.jpeg.size());
-                        result                 = {wire,
-                                                  visual::ValidateResponse(
-                                      wire, job->questions, options_.release, imageSha,
-                                      transport_(options_.socketPath, wire, image.jpeg, job->deadline))};
+                        if (nativeInference_)
+                            result = {wire,
+                                      nativeInference_(wire, job->questions, job->run, image, job->deadline)};
+                        else
+                            result = {wire,
+                                      visual::ValidateResponse(
+                                          wire, job->questions, options_.release, imageSha,
+                                          transport_(options_.socketPath, wire, image.jpeg, job->deadline))};
                     }
                 }
             } catch (const std::exception& e) {
                 const std::string message = e.what();
                 const bool known = message == "deadline_exceeded" || message == "roi_prepare_error" ||
                                    message == "invalid_worker_response" || message == "invalid_response_size";
-                result = Unknown(wire, known ? message : "worker_unavailable");
+                result = Unknown(wire, known              ? message
+                                       : nativeInference_ ? "native_inference_failed"
+                                                          : "worker_unavailable");
             } catch (...) {
-                result = Unknown(wire, "worker_unavailable");
+                result = Unknown(wire, nativeInference_ ? "native_inference_failed" : "worker_unavailable");
             }
             if (!job->run->Active())
                 result = Unknown(wire, "stale_task_run");
@@ -295,9 +317,10 @@ nlohmann::json VisualDecisionServiceImpl::Counters() const {
     std::lock_guard<std::mutex> lock(mutex_);
     const auto auditStatus = audit_ ? audit_->Status() : Json{{"available", false}};
     return {{"provider", "laya"},
+            {"execution", nativeInference_ ? "in_engine" : "legacy_ipc"},
             {"manifest_sha256", options_.release.manifestSha256},
-            {"available",
-             options_.release.Valid() && !stopped_ && (!audit_ || auditStatus.value("available", false))},
+            {"available", (nativeInference_ || options_.release.Valid()) && !stopped_ &&
+                              (!audit_ || auditStatus.value("available", false))},
             {"accepted", accepted_.load()},
             {"rejected", rejected_.load()},
             {"completed", completed_.load()},

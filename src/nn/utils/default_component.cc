@@ -86,6 +86,10 @@ Status DefaultComponent::ParseDinoOutput(std::vector<std::vector<ObjectInfoV1>>&
     return pipeline_->ParseDinoDetectionOutput(outputs, text_threshold, box_threshold);
 }
 
+Status DefaultComponent::PrepareText(const std::string& input, std::string& output) {
+    return pipeline_->PrepareText(input, output);
+}
+
 int DefaultComponent::GetMaxBatchSize() const {
     return pipeline_->GetMaxBatchSize();
 }

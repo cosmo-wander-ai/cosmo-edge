@@ -342,7 +342,7 @@ const subTypeToMain = {
   yolov11_det: 'detect', yolov12_det: 'detect', yolo26_det: 'detect',
   yolo26_obb_det: 'detect',
   classify: 'classify', keypoints: 'keypoints', feature: 'feature', ocr: 'ocr',
-  dino: 'foundation', sam2: 'foundation', qwen3vl: 'foundation', qwen3_5: 'foundation'
+  dino: 'foundation', sam2: 'foundation', qwen3vl: 'foundation', qwen3_5: 'foundation', laya_v: 'foundation'
 }
 
 const loadModelTypes = () => {

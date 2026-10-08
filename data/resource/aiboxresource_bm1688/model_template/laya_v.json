@@ -1,0 +1,131 @@
+{
+  "model_type": "laya_v",
+  "chip_type": "BM1688",
+  "algorithm_code": "7200001",
+  "version": "V1",
+  "reduce": "",
+  "models": [
+    {
+      "name": "LayaVNative",
+      "file_name": "tower.bmodel",
+      "file_md5": "",
+      "max_batch": 1,
+      "inputs": [
+        {
+          "name": "pixel_values",
+          "shape": [
+            1,
+            256,
+            768
+          ],
+          "data_type": 0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "tower_features_LayerNormalization",
+          "shape": [
+            1,
+            256,
+            1152
+          ],
+          "data_type": 0
+        }
+      ],
+      "params": {}
+    },
+    {
+      "name": "laya_vision_adapter",
+      "file_name": "adapter.bmodel",
+      "file_md5": "",
+      "max_batch": 1,
+      "inputs": [
+        {
+          "name": "tower_features",
+          "shape": [
+            1,
+            256,
+            1152
+          ],
+          "data_type": 0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "visual_tokens_Concat_f32",
+          "shape": [
+            1,
+            130,
+            768
+          ],
+          "data_type": 0
+        }
+      ],
+      "params": {}
+    },
+    {
+      "name": "laya_decision_core",
+      "file_name": "decision.bmodel",
+      "file_md5": "",
+      "max_batch": 1,
+      "inputs": [
+        {
+          "name": "inputs_embeds",
+          "shape": [
+            1,
+            256,
+            768
+          ],
+          "data_type": 0
+        },
+        {
+          "name": "full_attention_mask",
+          "shape": [
+            1,
+            1,
+            256,
+            256
+          ],
+          "data_type": 0
+        },
+        {
+          "name": "sliding_attention_mask",
+          "shape": [
+            1,
+            1,
+            256,
+            256
+          ],
+          "data_type": 0
+        },
+        {
+          "name": "type_embedding",
+          "shape": [
+            1,
+            1,
+            768
+          ],
+          "data_type": 0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "hidden_states_Add_f32",
+          "shape": [
+            1,
+            256,
+            768
+          ],
+          "data_type": 0
+        }
+      ],
+      "params": {}
+    }
+  ],
+  "labels": [],
+  "config": {
+    "tokenizer_file": "tokenizer.json",
+    "profile": "laya-256p-256s-v1",
+    "asset_layout": "laya-native-v1"
+  }
+}

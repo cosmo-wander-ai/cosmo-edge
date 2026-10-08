@@ -91,13 +91,16 @@ VisualQuestionCompilerOptions VisualQuestionCompilerOptions::FromEnvironment() {
     }
 }
 
-VisualQuestionServiceImpl::VisualQuestionServiceImpl(VisualQuestionCompilerOptions options, Executor executor)
+VisualQuestionServiceImpl::VisualQuestionServiceImpl(VisualQuestionCompilerOptions options, Executor executor,
+                                                     NativeCompiler nativeCompiler)
     : options_(std::move(options)),
-      executor_(executor ? std::move(executor)
-                         : [](const auto& argv, const auto& input, auto deadline, const auto& cancelled) {
-                               return util::RunBoundedProcess(argv, input, deadline, cancelled);
-                           }) {
-    if (options_.Valid()) {
+      executor_(
+          executor ? std::move(executor)
+                   : [](const auto& argv, const auto& input, auto deadline,
+                        const auto&
+                            cancelled) { return util::RunBoundedProcess(argv, input, deadline, cancelled); }),
+      nativeCompiler_(std::move(nativeCompiler)) {
+    if (nativeCompiler_ || options_.Valid()) {
         worker_ = std::thread(&VisualQuestionServiceImpl::Work, this);
         try {
             expiry_ = std::thread(&VisualQuestionServiceImpl::Expire, this);
@@ -127,7 +130,7 @@ std::shared_future<VisualQuestionPreparation> VisualQuestionServiceImpl::Prepare
         job->promise.set_value(Failed(reason));
         return future;
     };
-    if (!options_.Valid())
+    if (!nativeCompiler_ && !options_.Valid())
         return reject("compiler_not_configured");
     if (!run || !run->Active())
         return reject("stale_task_run");
@@ -207,6 +210,8 @@ std::unique_ptr<VisualQuestionServiceImpl::Job> VisualQuestionServiceImpl::Batch
 }
 
 VisualQuestionPreparation VisualQuestionServiceImpl::Compile(const Job& job, bool& retryable) {
+    if (nativeCompiler_)
+        return nativeCompiler_(job.questions, job.run);
     const std::vector<std::string> argv{
         options_.python,     options_.script,         "--manifest", options_.manifestPath,
         "--manifest-sha256", options_.manifestSha256, "--cache",    options_.cacheDirectory};
@@ -347,6 +352,13 @@ void VisualQuestionServiceImpl::Work() {
                 result = Failed("stale_task_run");
             if (stopped_)
                 result = Failed("service_stopped");
+            if (result.ready && nativeCompiler_) {
+                if (!job->combined.manifestSha256.empty() &&
+                    job->combined.manifestSha256 != result.manifestSha256)
+                    result = Failed("bound_model_changed");
+                else
+                    job->combined.manifestSha256 = result.manifestSha256;
+            }
             if (result.ready) {
                 job->combined.cacheHit = job->combined.cacheHit && result.cacheHit;
                 job->combined.questions.insert(job->combined.questions.end(), result.questions.begin(),
@@ -394,7 +406,7 @@ nlohmann::json VisualQuestionServiceImpl::Counters() const {
     Json queued = Json::array();
     for (const auto& job : queue_)
         queued.push_back(state(job));
-    return {{"available", options_.Valid() && !stopped_},
+    return {{"available", (nativeCompiler_ || options_.Valid()) && !stopped_},
             {"max_configurations", options_.maxConfigurations},
             {"max_input_bytes", options_.maxInputBytes},
             {"input_bytes", inputBytes_},

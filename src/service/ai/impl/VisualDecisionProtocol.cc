@@ -82,7 +82,7 @@ namespace {
         }
     }
 
-    void ValidateScores(const Json& row, const VisualQuestionRef& question) {
+    void ValidateScores(const Json& row, const VisualQuestionRef& question, bool native) {
         Require(row.at("business_qualified").is_boolean() && !row.at("business_qualified").get<bool>(),
                 "worker_qualification_rejected");
         Require(row.at("qtype").is_number_integer() && row.at("qtype") == question.qtype &&
@@ -125,6 +125,10 @@ namespace {
             Require(std::abs(weights[i] / denom - values[i]) <= 1e-5, "invalid_worker_scores");
         for (const auto& action : acts)
             Number(action);
+        if (native) {
+            Require(Number(row.at("elapsed_ms")) >= 0, "invalid_native_timing");
+            return;
+        }
         const auto& timing = row.at("decision_timing_ms");
         Require(timing.is_object() && timing.size() == 4, "invalid_worker_timing");
         for (const auto* stage : {"h2d_ms", "launch_sync_ms", "d2h_ms", "total_ms"})
@@ -248,7 +252,8 @@ Json Failure(const Json& request, const std::string& reason) {
 }
 
 Json ValidateResponse(const Json& request, const std::vector<VisualQuestionRef>& questions,
-                      const Release& release, const std::string& imageSha256, const Json& response) {
+                      const Release& release, const std::string& imageSha256, const Json& response,
+                      bool native) {
     try {
         Require(response.is_object() && response.at("protocol") == kProtocol &&
                     response.at("profile") == kProfile &&
@@ -267,7 +272,7 @@ Json ValidateResponse(const Json& request, const std::vector<VisualQuestionRef>&
             Require(row.at("business_qualified").is_boolean() && !row.at("business_qualified").get<bool>(),
                     "worker_qualification_rejected");
             if (row.at("status") == "completed") {
-                ValidateScores(row, questions[i]);
+                ValidateScores(row, questions[i], native);
                 ++completed;
             } else {
                 Require(row.at("status") == "unknown" && row.size() == 7 &&

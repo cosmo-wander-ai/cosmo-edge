@@ -85,12 +85,6 @@ Qwen3VLWorker::Qwen3VLWorker(ActionNode& action)
 
 bool Qwen3VLWorker::Qwen3VLSdkInit() {
     // Use global shared Qwen3VL instance
-    if (service::ServiceRegistry::Instance().Get<service::ILlmInferService>().IsInitialized()) {
-        action_status       = util::ErrorEnum::AI_INST_CREATED;
-        detector_inst_init_ = true;
-        return true;
-    }
-
     bool ok = service::ServiceRegistry::Instance().Get<service::ILlmInferService>().EnsureInit(alg_code_);
     if (!ok) {
         action_status = util::ErrorEnum::AI_INST_CREATEFAILED;
@@ -300,7 +294,8 @@ void Qwen3VLWorker::RebuildVisualLocked(const std::string& tid) {
         const auto area     = task_areas_.find(tid);
         it->visual_judgment = std::make_shared<VisualJudgment>(
             tid, it->prompt, it->advanced_mode, it->visual_parameters,
-            area == task_areas_.end() ? std::vector<MsgTaskArea>{} : area->second.areas);
+            area == task_areas_.end() ? std::vector<MsgTaskArea>{} : area->second.areas, std::nullopt,
+            alg_code_);
     }
 }
 

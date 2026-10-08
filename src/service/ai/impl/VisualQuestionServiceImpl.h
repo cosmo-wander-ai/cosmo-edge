@@ -27,12 +27,14 @@ struct VisualQuestionCompilerOptions {
 
 class VisualQuestionServiceImpl final : public IVisualQuestionService {
 public:
-    using Executor = std::function<util::BoundedProcessResult(
+    using Executor       = std::function<util::BoundedProcessResult(
         const std::vector<std::string>&, const std::string&, std::chrono::steady_clock::time_point,
         const std::function<bool()>&)>;
+    using NativeCompiler = std::function<VisualQuestionPreparation(
+        const std::vector<VisualQuestionSpec>&, const std::shared_ptr<VisualDecisionRun>&)>;
     explicit VisualQuestionServiceImpl(
         VisualQuestionCompilerOptions options = VisualQuestionCompilerOptions::FromEnvironment(),
-        Executor executor                     = {});
+        Executor executor = {}, NativeCompiler nativeCompiler = {});
     ~VisualQuestionServiceImpl() override;
     std::shared_future<VisualQuestionPreparation> Prepare(std::vector<VisualQuestionSpec> questions,
                                                           std::shared_ptr<VisualDecisionRun> run,
@@ -62,6 +64,7 @@ private:
     void Expire();
     const VisualQuestionCompilerOptions options_;
     const Executor executor_;
+    const NativeCompiler nativeCompiler_;
     mutable std::mutex mutex_;
     std::condition_variable ready_;
     std::deque<std::shared_ptr<Job>> queue_;

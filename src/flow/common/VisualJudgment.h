@@ -22,7 +22,8 @@ class VisualJudgment {
 public:
     VisualJudgment(const std::string& task, const std::string& prompt, bool advanced,
                    const VisualParameters& parameters, const std::vector<MsgTaskArea>& areas,
-                   const std::optional<std::map<std::string, std::string>>& semanticPrompts = std::nullopt);
+                   const std::optional<std::map<std::string, std::string>>& semanticPrompts = std::nullopt,
+                   const std::string& atomicCode                                            = "");
     void Invalidate() {
         run_->Invalidate();
     }

@@ -234,8 +234,8 @@ void PQwen3VLWorker::RebuildVisualJudgment() {
         worker_registered_ = false;
     }
     if (!stopped_ && open_ai_config_.provider == "laya_v")
-        visual_judgment_ = std::make_shared<VisualJudgment>(GetTaskId(), prompt_, advanced_mode_,
-                                                            visual_parameters_, areas_);
+        visual_judgment_ = std::make_shared<VisualJudgment>(
+            GetTaskId(), prompt_, advanced_mode_, visual_parameters_, areas_, std::nullopt, GetAtomicCode());
 }
 
 bool PQwen3VLWorker::SetArea(const std::string& task_id, std::vector<MsgTaskArea>& areas,

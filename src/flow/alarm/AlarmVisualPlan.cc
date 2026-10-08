@@ -38,11 +38,12 @@ namespace {
 AlarmVisualPlan::AlarmVisualPlan(const std::string& task, const std::string& custom,
                                  const std::string& algorithmName,
                                  const std::vector<std::string>& modelLabels,
-                                 const VisualParameters& parameters, const std::vector<MsgTaskArea>& areas)
+                                 const VisualParameters& parameters, const std::vector<MsgTaskArea>& areas,
+                                 const std::string& atomicCode)
     : custom_(custom),
       algorithmName_(algorithmName),
       judgment_(task, AlarmReviewInstruction(SelectAlarmReviewSubject({}, custom, algorithmName)), true,
-                parameters, areas, LabelPrompts(custom, modelLabels)) {}
+                parameters, areas, LabelPrompts(custom, modelLabels), atomicCode) {}
 
 AlarmReviewSubject AlarmVisualPlan::Subject(const DataAlarmUnit& alarm) const {
     return SelectAlarmReviewSubject(alarm, custom_, algorithmName_);

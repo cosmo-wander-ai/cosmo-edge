@@ -39,8 +39,6 @@ bool TaskAlarm::InitLlmReviewer() {
         }
         return true;
     }
-    if (service::ServiceRegistry::Instance().Get<service::ILlmInferService>().IsInitialized())
-        return true;
     if (m_param.llmAtomicCode.empty()) {
         LOG_WARN("{}[{}] LLM Review: llmAtomicCode is empty", kTag, task_id);
         return false;

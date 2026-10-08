@@ -49,9 +49,10 @@ void UpdateVisualParameters(VisualParameters& values, const std::vector<MsgDynam
 
 VisualJudgment::VisualJudgment(const std::string& task, const std::string& prompt, bool advanced,
                                const VisualParameters& parameters, const std::vector<MsgTaskArea>& areas,
-                               const std::optional<std::map<std::string, std::string>>& semanticPrompts) {
+                               const std::optional<std::map<std::string, std::string>>& semanticPrompts,
+                               const std::string& atomicCode) {
     const auto epoch = util::GenerateUUID();
-    run_             = std::make_shared<service::VisualDecisionRun>(task, epoch, "invalid_configuration");
+    run_ = std::make_shared<service::VisualDecisionRun>(task, epoch, "invalid_configuration", atomicCode);
     try {
         Require(visual::Identity(task), "invalid_task_identity");
         std::map<std::string, Json> catalog;
@@ -175,7 +176,8 @@ VisualJudgment::VisualJudgment(const std::string& task, const std::string& promp
                     "invalid_question_version");
             specs_.push_back({id, question, ""});
         }
-        Json identity{{"catalog", catalog},
+        Json identity{{"atomic_code", atomicCode},
+                      {"catalog", catalog},
                       {"bindings", bindings_},
                       {"semantic_bindings", semanticBindings_},
                       {"semantic_fallback", semanticFallback_},
@@ -183,7 +185,7 @@ VisualJudgment::VisualJudgment(const std::string& task, const std::string& promp
         qualificationRevision_ = Hash(identity.dump());
         identity.update({{"timeout_ms", timeout_.count()}, {"mode", mode_}, {"policy_id", policyId_}});
         const auto revision = Hash(identity.dump());
-        run_                = std::make_shared<service::VisualDecisionRun>(task, epoch, revision);
+        run_                = std::make_shared<service::VisualDecisionRun>(task, epoch, revision, atomicCode);
         prepared_ = service::ServiceRegistry::Instance().Get<service::IVisualQuestionService>().Prepare(
             specs_, run_, std::chrono::milliseconds(specs_.size() > 32 ? 600000 : 300000));
     } catch (const ConfigError& error) {

@@ -11,3 +11,4 @@
 #include "detection_pipeline.h"
 #include "feature_pipeline.h"
 #include "keypoints_pipeline.h"
+#include "laya_pipeline.h"

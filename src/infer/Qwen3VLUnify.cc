@@ -233,6 +233,18 @@ util::ErrorEnum Qwen3VLUnify::Forward(const std::vector<VideoFramePtr>& images,
 #endif
 }
 
+util::ErrorEnum Qwen3VLUnify::PrepareText(const std::string& input, std::string& output) {
+#ifndef COSMO_NN_USE_RKLLM_BACKEND
+    if (generator_) {
+        auto status = generator_->PrepareText(input, output);
+        if (bool(status))
+            return util::ErrorEnum::Success;
+        LOG_WARN("VLM prompt preparation failed: {}", status.description());
+    }
+#endif
+    return util::ErrorEnum::Failed;
+}
+
 util::ErrorEnum Qwen3VLUnify::GetMaxBatchSize(size_t* value) const {
 #ifdef COSMO_NN_USE_RKLLM_BACKEND
     if (!rkllm_backend_) {

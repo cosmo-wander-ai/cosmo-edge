@@ -31,7 +31,8 @@ bool ValidQuestion(const VisualQuestionRef& question);
 Json ItemIdentity(const VisualQuestionRef& question);
 Json Failure(const Json& request, const std::string& reason);
 Json ValidateResponse(const Json& request, const std::vector<VisualQuestionRef>& questions,
-                      const Release& release, const std::string& imageSha256, const Json& response);
+                      const Release& release, const std::string& imageSha256, const Json& response,
+                      bool native = false);
 Json Exchange(const std::string& socketPath, const Json& request, const std::vector<uint8_t>& jpeg,
               Clock::time_point deadline);
 int64_t MonotonicMilliseconds();

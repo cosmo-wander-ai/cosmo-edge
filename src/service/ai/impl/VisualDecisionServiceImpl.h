@@ -28,11 +28,14 @@ struct VisualDecisionOptions {
 
 class VisualDecisionServiceImpl final : public IVisualDecisionService {
 public:
-    using Transport = std::function<visual::Json(const std::string&, const visual::Json&,
-                                                 const std::vector<uint8_t>&, visual::Clock::time_point)>;
+    using Transport       = std::function<visual::Json(const std::string&, const visual::Json&,
+                                                       const std::vector<uint8_t>&, visual::Clock::time_point)>;
+    using NativeInference = std::function<visual::Json(
+        const visual::Json&, const std::vector<VisualQuestionRef>&, const std::shared_ptr<VisualDecisionRun>&,
+        const VisualDecisionImage&, visual::Clock::time_point)>;
     explicit VisualDecisionServiceImpl(
         VisualDecisionOptions options = VisualDecisionOptions::FromEnvironment(), Transport transport = {},
-        IVisualAuditService* audit = nullptr);
+        IVisualAuditService* audit = nullptr, NativeInference nativeInference = {});
     ~VisualDecisionServiceImpl() override;
     bool Available() const override;
     VisualDecisionResult Decide(const VisualDecisionRequest& request, std::shared_ptr<VisualDecisionRun> run,
@@ -54,6 +57,7 @@ private:
     void Finish(const std::shared_ptr<Job>& job, VisualDecisionResult result);
     const VisualDecisionOptions options_;
     const Transport transport_;
+    const NativeInference nativeInference_;
     IVisualAuditService* const audit_;
     mutable std::mutex mutex_;
     std::condition_variable ready_;

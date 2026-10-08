@@ -27,7 +27,7 @@ class IVisualQuestionService {
 public:
     virtual ~IVisualQuestionService() = default;
     // Asynchronous configuration preparation, never called for every frame.
-    // A single compiler process owns the large tokenizer allocation. The caller
+    // The selected model owns the tokenizer allocation. The caller
     // activates all returned refs atomically through run->CommitIfCurrent().
     // Up to 512 catalog entries; native compiler jobs remain <=32 questions and
     // share one absolute deadline. No partial catalog is activated.

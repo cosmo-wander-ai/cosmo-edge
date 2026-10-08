@@ -20,7 +20,7 @@ class AlarmVisualPlan {
 public:
     AlarmVisualPlan(const std::string& task, const std::string& custom, const std::string& algorithmName,
                     const std::vector<std::string>& modelLabels, const VisualParameters& parameters,
-                    const std::vector<MsgTaskArea>& areas);
+                    const std::vector<MsgTaskArea>& areas, const std::string& atomicCode = "");
     void Invalidate() {
         judgment_.Invalidate();
     }

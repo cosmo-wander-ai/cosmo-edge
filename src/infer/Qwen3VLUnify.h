@@ -41,6 +41,8 @@ public:
                              const std::vector<std::string>& prompts, const Qwen3VLGenerationParam& gen_param,
                              std::vector<Qwen3VLResult>& results);
 
+    util::ErrorEnum PrepareText(const std::string& input, std::string& output);
+
     util::ErrorEnum GetMaxBatchSize(size_t* value) const;
 
 private:
