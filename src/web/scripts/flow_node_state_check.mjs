@@ -234,15 +234,40 @@ for (const linkage of [false, true]) {
     assert.equal(savedItems().find(item => item.flowActionId === 'node-2').preFlowActionId, inserted.flowActionId)
     assert.deepEqual(savedItems(1), secondBefore, 'insertion leaves the other canvas unchanged')
 
-    // The retained branch operation has no visible menu item in this UI.
-    graphs[0].editor.openAddDialog({ mode: 'branch', sourceId: '-1', x: 10, y: 20 })
-    await editor.settle()
-    chooseAction()
+    // Existing saved branches remain editable through the visible edge menu.
+    const branchNode = 'saved-branch'
+    reload([...savedItems(), {
+      ...plain(imported), flowActionId: branchNode, actionName: 'Saved branch',
+      remark: '', preFlowActionId: '-1'
+    }])
     await editor.settle()
     assert.equal(graphs[0].edges.filter(edge => edge.source === '-1').length, 2)
     assert.equal(graphs[0].nodes.filter(node => node.type === 'end').length, 2)
-    const branchNode = savedItems().at(-1).flowActionId
+    assert.deepEqual(savedItems().find(item => item.flowActionId === branchNode).configObject, config)
+    const branchEndEdge = graphs[0].edges.find(edge => edge.source === branchNode).id
+    click(edgeControl(branchEndEdge, 'edge-action-button'))
+    await editor.settle()
+    click(edgeControl(branchEndEdge, 'menu-item'))
+    await editor.settle()
+    assert.equal(dialogRoots().length, 1)
+    chooseAction()
+    await editor.settle()
+    const branchInserted = savedItems().find(item => item.preFlowActionId === branchNode)
+    assert.ok(branchInserted, 'a node can be inserted into a saved branch')
+    assert.equal(graphs[0].edges.filter(edge => edge.source === '-1').length, 2)
+    assert.equal(graphs[0].nodes.filter(node => node.type === 'end').length, 2)
+    assert.deepEqual(savedItems(1), secondBefore, 'editing a loaded branch leaves the other canvas unchanged')
     openNode(branchNode)
+    await editor.settle()
+    input().props.activate('edited-saved-branch')
+    const savedBranches = savedItems()
+    assert.equal(savedBranches.find(item => item.flowActionId === branchNode).configObject.params[0].value, 'edited-saved-branch')
+    assert.deepEqual(savedBranches.find(item => item.flowActionId === branchNode).extension, { retained: true })
+    reload(savedBranches)
+    await editor.settle()
+    assert.deepEqual(savedItems(), savedBranches, 'saved branches, inserted nodes and extension fields round-trip')
+    assert.equal(graphs[0].nodes.filter(node => node.type === 'end').length, 2)
+    openNode(branchInserted.flowActionId)
     await editor.settle()
     const branchEdge = graphs[0].edges.find(edge => edge.target === branchNode).id
     click(edgeControl(branchEdge, 'edge-action-button'))
@@ -251,6 +276,7 @@ for (const linkage of [false, true]) {
     click(editor.all(node => hasClass(node, 'menu-item'), branchRoot)[1])
     await editor.settle()
     assert.equal(savedItems().some(item => item.flowActionId === branchNode), false)
+    assert.equal(savedItems().some(item => item.flowActionId === branchInserted.flowActionId), false)
     assert.equal(graphs[0].nodes.filter(node => node.type === 'end').length, 1)
     assert.equal(editor.all(node => node.type === 'el-input').length, 0, 'following-flow deletion closes the affected panel')
 

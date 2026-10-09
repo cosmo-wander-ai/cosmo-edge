@@ -22,18 +22,11 @@ export function insertNodeEdges(
   return nextEdges
 }
 
-export function addFlowNode(nodes, edges, node, { mode, edgeId, source, target, x, y }, createId) {
-  const nextNodes = [...nodes, node]
-  if (mode === 'insert') {
-    return { nodes: nextNodes, edges: insertNodeEdges(edges, { edgeId, source, target }, node.id, createId) }
+export function addFlowNode(nodes, edges, node, { edgeId, source, target }, createId) {
+  return {
+    nodes: [...nodes, node],
+    edges: insertNodeEdges(edges, { edgeId, source, target }, node.id, createId)
   }
-
-  const endId = createId()
-  nextNodes.push({ id: endId, type: 'end', position: { x: x + 300, y: y + 40 }, data: {} })
-  const nextEdges = [...edges]
-  if (source) nextEdges.push({ id: createId(), type: 'action', source, target: node.id })
-  nextEdges.push({ id: createId(), type: 'action', source: node.id, target: endId })
-  return { nodes: nextNodes, edges: nextEdges }
 }
 
 // Reconnect predecessors before deciding which branch ends have become empty.
