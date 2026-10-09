@@ -58,6 +58,28 @@ std::string ScheduleServiceImpl::GetDefaultId() {
 
 // ── CRUD ────────────────────────────────────────────────────────────────────
 
+cosmo::util::ErrorEnum ScheduleServiceImpl::PutManaged(const cosmo::MsgScheduleTemplate& config) {
+    if (config.scheduleId.empty() || config.is_default || ScheduleInDefault(config.scheduleId)) {
+        return cosmo::util::ErrorEnum::InvalidParam;
+    }
+    std::lock_guard<std::shared_mutex> lock(mtx_);
+    auto candidate = config_;
+    auto it        = std::find_if(candidate.begin(), candidate.end(),
+                                  [&](const auto& value) { return value.scheduleId == config.scheduleId; });
+    if (it == candidate.end()) {
+        if (candidate.size() >= kMaxScheduleCount)
+            return cosmo::util::ErrorEnum::TimeTemplateCountLimit;
+        candidate.push_back(config);
+    } else {
+        *it = config;
+    }
+    auto path = (std::filesystem::path(cosmo::path::GetCfgPath()) / kConfFileName).string();
+    if (!cosmo::util::SaveStructToJsonFile(path, candidate))
+        return cosmo::util::ErrorEnum::SysErr;
+    config_.swap(candidate);
+    return cosmo::util::ErrorEnum::Success;
+}
+
 cosmo::util::ErrorEnum ScheduleServiceImpl::Add(cosmo::MsgScheduleTemplate& config, std::string& id) {
     config.scheduleId = cosmo::util::GenerateUUID();
     id                = config.scheduleId;
@@ -118,11 +140,14 @@ cosmo::util::ErrorEnum ScheduleServiceImpl::Delete(const std::string& scheduleId
         return cosmo::util::ErrorEnum::TimeTemplateNotExist;
     }
     LOG_INFO("{}/{} Delete", it->scheduleId, it->scheduleName);
+    auto previous = config_;
     config_.erase(it);
 
     auto path = (std::filesystem::path(cosmo::path::GetCfgPath()) / kConfFileName).string();
     if (!cosmo::util::SaveStructToJsonFile(path, config_)) {
         LOG_WARN("Failed to save schedule config to {}", path);
+        config_.swap(previous);
+        return cosmo::util::ErrorEnum::SysErr;
     }
     return cosmo::util::ErrorEnum::Success;
 }

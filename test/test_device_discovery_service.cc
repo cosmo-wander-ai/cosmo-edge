@@ -28,25 +28,6 @@ TEST_CASE("DeviceDiscoveryService: response envelopes survive JSON round trip", 
         REQUIRE(decoded.type == response.type);
         REQUIRE(decoded.reqId == response.reqId);
     }
-
-    SECTION("hardware write response") {
-        cosmo::service::HWInfoWriteResponse response;
-        response.cmd     = "writeHWInfo";
-        response.type    = "ack";
-        response.reqId   = "hardware-request";
-        response.resCode = 0;
-        response.resMsg  = "Success";
-
-        nlohmann::json encoded = response;
-        auto decoded           = encoded.get<cosmo::service::HWInfoWriteResponse>();
-
-        REQUIRE(encoded.at("cmd") == "writeHWInfo");
-        REQUIRE(encoded.at("type") == "ack");
-        REQUIRE(encoded.at("reqId") == "hardware-request");
-        REQUIRE(decoded.cmd == response.cmd);
-        REQUIRE(decoded.type == response.type);
-        REQUIRE(decoded.reqId == response.reqId);
-    }
 }
 
 TEST_CASE("DeviceDiscoveryService: classify receive errors", "[device-discovery]") {

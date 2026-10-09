@@ -21,6 +21,13 @@ namespace cosmo::service {
 class ICameraTaskConfig {
 public:
     virtual ~ICameraTaskConfig() = default;
+    virtual cosmo::util::ErrorEnum SwitchManagedTask(const std::string&, const std::string&, bool) {
+        return cosmo::util::ErrorEnum::InvalidParam;
+    }
+    virtual cosmo::util::ErrorEnum PrepareTask(const std::string&, const std::string&,
+                                               const cosmo::MsgTaskConfig&, const std::string&) {
+        return cosmo::util::ErrorEnum::InvalidParam;
+    }
 
     // ── Task Parameter Management ──
 

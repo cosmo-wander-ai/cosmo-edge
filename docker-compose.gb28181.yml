@@ -1,0 +1,12 @@
+# Optional overlay for docker-compose.x86.yml / docker-compose.x86.windows.yml.
+# Set the SAME SIP port in the platform UI. Choose unused host ports when other
+# GB platforms share the host. Advertise the camera-reachable host IPv4 in the UI.
+services:
+  cosmo-x86:
+    environment:
+      COSMO_GB28181_MEDIA_PORT: "${COSMO_GB_MEDIA_PORT:-9001}"
+    ports:
+      - "${COSMO_GB_SIP_PORT:-5060}:${COSMO_GB_SIP_PORT:-5060}/tcp"
+      - "${COSMO_GB_SIP_PORT:-5060}:${COSMO_GB_SIP_PORT:-5060}/udp"
+      - "${COSMO_GB_MEDIA_PORT:-9001}:${COSMO_GB_MEDIA_PORT:-9001}/tcp"
+      - "${COSMO_GB_MEDIA_PORT:-9001}:${COSMO_GB_MEDIA_PORT:-9001}/udp"

@@ -60,6 +60,7 @@ View logs:
   ```bash
   ./scripts/macos-docker-preview.sh logs --follow
   ```
+
 ## Windows x86 Docker Troubleshooting
 
 If you are setting up `cosmo-edge` on Windows using the x86 Docker configuration, check the following:
@@ -74,10 +75,14 @@ If you are setting up `cosmo-edge` on Windows using the x86 Docker configuration
 
    ```powershell
    docker compose -f docker-compose.x86.windows.yml up -d --build
+   ```
+
 5. **Docker logs**: To view the x86 Docker logs, run:
-   ```powershell 
+
+   ```powershell
    docker compose -f docker-compose.x86.windows.yml logs -f
-   
+   ```
+
 ## Port Conflicts
 
 The x86 Compose file publishes:

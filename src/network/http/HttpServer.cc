@@ -394,6 +394,23 @@ std::unique_ptr<HttpReqTask> HttpServer::BuildHttpReqTask(struct evhttp_request*
     task->interface    = context.uri;
     task->mtk          = context.credential;
     task->principal    = context.principal;
+    switch (evhttp_request_get_command(req)) {
+        case EVHTTP_REQ_POST:
+            task->http_method = "POST";
+            break;
+        case EVHTTP_REQ_PUT:
+            task->http_method = "PUT";
+            break;
+        default:
+            task->http_method = "OTHER";
+            break;
+    }
+    if (const auto* id = FindHeader(evhttp_request_get_input_headers(req), "X-Upload-Id")) {
+        task->upload_id = id;
+    }
+    if (const auto* offset = FindHeader(evhttp_request_get_input_headers(req), "X-Upload-Offset")) {
+        task->upload_offset = offset;
+    }
 
     auto* input_headers = evhttp_request_get_input_headers(req);
     if (const auto* forwarded_for = FindHeader(input_headers, "x-forwarded-for")) {
@@ -640,7 +657,8 @@ bool HttpServer::Initialize(const std::string& host_ip, int port, DispatcherFact
     evhttp_set_gencb(event_http_, ComGenCb, this);
 
     // allow post method
-    evhttp_set_allowed_methods(event_http_, EVHTTP_REQ_POST | EVHTTP_REQ_GET | EVHTTP_REQ_HEAD);
+    evhttp_set_allowed_methods(event_http_,
+                               EVHTTP_REQ_POST | EVHTTP_REQ_GET | EVHTTP_REQ_HEAD | EVHTTP_REQ_PUT);
 
     bound_socket_ = evhttp_bind_socket_with_handle(event_http_, host_ip.c_str(), static_cast<uint16_t>(port));
     if (bound_socket_ == nullptr) {

@@ -379,6 +379,7 @@ async function commandDiagnoseThreshold(args) {
     device: args.device,
     auth,
     selection,
+    concurrency: 1,
   });
   if (doctor.status !== 'PASS') throw new Error('doctor failed before threshold diagnostic');
   const abortController = new AbortController();
@@ -394,7 +395,7 @@ async function commandDiagnoseThreshold(args) {
     await client.login();
     const device = sanitizedDeviceIdentity(await client.queryDeviceInfo());
     const runId = newRunId();
-    const execution = resolveAccuracyExecution(suite, { selectedCases: [item] });
+    const execution = resolveAccuracyExecution(suite, { selectedCases: [item], concurrency: 1 });
     const identity = {
       ...buildRunIdentity({
         suite,
@@ -551,7 +552,7 @@ function executionProfile(value = 'full') {
   return profile;
 }
 
-function executionConcurrency(value = '1') {
+function executionConcurrency(value = '4') {
   const concurrency = Number(value);
   if (![1, 2, 4].includes(concurrency)) {
     throw new Error('--concurrency must be 1, 2, or 4');
@@ -598,7 +599,7 @@ Authentication:
 
 Run options:
   --profile <full|quick>  Full selection, or representative cases tagged "quick" (default: full)
-  --concurrency <1|2|4>  Run up to one, two, or four CV samples in parallel
+  --concurrency <1|2|4>  Run up to one, two, or four CV samples in parallel (default: 4)
   --resume       Resume a protocol v4 partial when inputs, device, and tool still match
   --case <ids>   Comma-separated case IDs
   --task <ids>   Comma-separated task IDs

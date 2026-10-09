@@ -5,6 +5,13 @@ information belongs only in the ignored `output/agent-runs/` directory. These
 rules support agent-assisted work without changing the normal contributor
 workflow.
 
+## Branch naming
+
+- Do not use the `codex/` prefix for new branches in this project.
+- Use purpose-based names such as `feat/gb28181-onvif-access`, `fix/<topic>`,
+  or `docs/<topic>`. Follow an explicit user-provided branch name.
+- Do not rename unrelated existing branches unless the user requests it.
+
 ## Repository map
 
 - `src/` — C++ engine, split by subsystem.
@@ -129,9 +136,9 @@ repository development that needs none of these task-specific capabilities.
 - x86 or mock success is not Sophon-device or production acceptance. Report
   conclusions by the layer actually tested.
 - Preparing an upstream change to `src/nn/`, `src/infer/`, model templates,
-  public APIs, new third-party dependencies, or a broad architecture requires
-  the project's normal issue and review process. An authorized customer fork
-  may continue locally but must identify the divergence.
+  public APIs, new third-party dependencies, or a broad architecture follows
+  the project's normal review process; an Issue is optional. An authorized
+  customer fork may continue locally but must identify the divergence.
 
 ## Safety and evidence
 

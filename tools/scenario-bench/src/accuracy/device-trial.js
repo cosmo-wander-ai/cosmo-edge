@@ -359,7 +359,7 @@ export async function observeUntilDecisiveEvent({
   expectation,
   timeBegin,
   observeSec,
-  pollIntervalSec = 5,
+  pollIntervalSec = 1,
   signal,
   now = () => Date.now(),
   monotonicNow = () => performance.now(),

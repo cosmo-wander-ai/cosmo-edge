@@ -25,6 +25,7 @@
 #include "service/network/IHttpLifecycle.h"
 #include "util/Log.h"
 #include "util/PathUtil.h"
+#include "util/ProcessShutdown.h"
 #include "util/Version.h"
 
 namespace cosmo::app {
@@ -196,7 +197,10 @@ int Application::run(const char* base_dir) {
 
         auto& http_lifecycle =
             cosmo::service::ServiceRegistry::Instance().Get<cosmo::service::IHttpLifecycle>();
-        shutdown_signals->Start([&http_lifecycle]() { http_lifecycle.RequestHttpStop(); });
+        shutdown_signals->Start([&http_lifecycle]() {
+            cosmo::util::ProcessShutdown::Request();
+            http_lifecycle.RequestHttpStop();
+        });
 
         // Blocking — runs the HTTP server event loop until shutdown.
         SwDeviceRun();

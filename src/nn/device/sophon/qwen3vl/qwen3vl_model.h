@@ -42,7 +42,7 @@ namespace qwen3vl {
         int forward_first(const ArrayInt& position_ids);
         int forward_next(const ArrayInt& position_ids);
         bool check_stop(const std::string& text);
-        void clear_history();
+        void clear_history(bool force = false);
 
         /** Used by runner to copy device image blob to host, returns handle passable to bm_memcpy_d2s */
         void* get_bm_handle() const {

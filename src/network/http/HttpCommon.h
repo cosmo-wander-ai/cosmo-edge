@@ -89,6 +89,9 @@ struct HttpReqTask : cosmo::MsgTask {
     std::string x_forwarded_for;
     std::string mtk;
     std::string principal;
+    std::string http_method;
+    std::string upload_id;
+    std::string upload_offset;
     std::string range_request;
     std::string body;
     bool has_tmp_path{false};

@@ -11,7 +11,7 @@ mkdir -p "$payload/scripts" "$payload/bin" "$payload/files/Interface" \
     "$payload/web" "$active/resource/models" "$active/bin"
 cp "$repo/scripts/legacy_migration_install.sh" "$payload/scripts/install.sh"
 cp "$repo/scripts/system-log-cleanup.sh" "$repo/scripts/cosmo-log-cleanup.service" \
-    "$repo/scripts/system-log-retention.py" "$payload/scripts/"
+    "$repo/scripts/system-log-retention.py" "$repo/scripts/runtime_supervisor.py" "$payload/scripts/"
 printf 'new\n' >"$payload/bin/cosmo-engine"
 printf '#!/bin/sh\ntouch "$COSMO_MIGRATION_TEST_ROOT/stop.called"\n' >"$payload/scripts/stop.sh"
 printf '#!/bin/sh\n' >"$payload/scripts/start.sh"
@@ -48,6 +48,8 @@ grep -Fxq 'ExecStart=/appfs/cosmo_wander/cwai_data/scripts/inte_run_start.sh' "$
 grep -Fxq 'EnvironmentFile=-/appfs/cosmo_wander/cwai_data/share/cosmo/runtime-paths.env' "$service"
 grep -Fxq 'Restart=on-failure' "$service"
 grep -Fxq 'RestartSec=10' "$service"
+grep -Fxq 'KillMode=mixed' "$service"
+grep -Fxq 'TimeoutStopSec=35' "$service"
 test -L "$root/etc/systemd/system/multi-user.target.wants/cosmo.service"
 cleanup_service="$root/etc/systemd/system/cosmo-log-cleanup.service"
 cmp "$repo/scripts/cosmo-log-cleanup.service" "$cleanup_service"
@@ -78,7 +80,7 @@ rm -rf -- "$payload" "$active"
 mkdir -p "$payload/scripts" "$payload/bin" "$payload/resource/models" "$active/resource/models"
 cp "$repo/scripts/legacy_migration_install.sh" "$payload/scripts/install.sh"
 cp "$repo/scripts/system-log-cleanup.sh" "$repo/scripts/cosmo-log-cleanup.service" \
-    "$repo/scripts/system-log-retention.py" "$payload/scripts/"
+    "$repo/scripts/system-log-retention.py" "$repo/scripts/runtime_supervisor.py" "$payload/scripts/"
 printf 'new\n' >"$payload/bin/cosmo-engine"
 printf '#!/bin/sh\n' >"$payload/scripts/stop.sh"
 printf '#!/bin/sh\n' >"$payload/scripts/start.sh"
@@ -117,7 +119,7 @@ mkdir -p "$rk_payload/scripts" "$rk_payload/bin" "$rk_payload/files/Interface" \
     "$rk_legacy_data/cwai" "$rk_legacy_data/runtime" "$rk_legacy_data/web"
 cp "$repo/scripts/legacy_migration_install.sh" "$rk_payload/scripts/install.sh"
 cp "$repo/scripts/system-log-cleanup.sh" "$repo/scripts/cosmo-log-cleanup.service" \
-    "$repo/scripts/system-log-retention.py" "$rk_payload/scripts/"
+    "$repo/scripts/system-log-retention.py" "$repo/scripts/runtime_supervisor.py" "$rk_payload/scripts/"
 printf 'new\n' >"$rk_payload/bin/cosmo-engine"
 printf '#!/bin/sh\n' >"$rk_payload/scripts/stop.sh"
 printf '#!/bin/sh\n' >"$rk_payload/scripts/start.sh"
@@ -323,15 +325,11 @@ grep -Fxq 'SystemMaxUse=256M' "$policy_root/etc/systemd/journald.conf.d/90-cosmo
 test ! -e "$policy_root/usr/local/lib/cosmo/system-log-retention.py"
 test ! -e "$policy_root/var/lib/cosmo-log-retention/pending"
 
-# Preserved resources must be copied into staging before the package overlays
-# them. Keeping the packaged resource tree in staging while copying the active
-# tree creates an avoidable second model-sized allocation on /appfs.
+# Check actual model inode reuse, package updates and rollback isolation.
+# This behavioral check covers the staging order without requiring the old
+# full-copy implementation, which has been replaced by hard-link reuse.
+python3 "$repo/test/test_upgrade_model_storage.py"
 installer="$repo/scripts/legacy_migration_install.sh"
-preserved_copy_line="$(grep -nF 'cp -a -- "${active_root}/resource/." "${staging_root}/resource/"' "$installer" | cut -d: -f1)"
-payload_copy_line="$(grep -nF 'cp -a -- "${payload_root}/." "$staging_root/"' "$installer" | cut -d: -f1)"
-test -n "$preserved_copy_line"
-test -n "$payload_copy_line"
-test "$preserved_copy_line" -lt "$payload_copy_line"
 if grep -Fq '.packaged-resource' "$installer"; then
     exit 1
 fi

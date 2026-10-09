@@ -1,6 +1,5 @@
 <template>
   <div class="start-node">
-    <!-- <button type="button" class="node-delete" @click.stop="handleDelete">×</button> -->
     <Handle type="source" :position="Position.Right" />
     <div class="node-icon">
       <svg viewBox="0 0 24 24" width="30" height="30" fill="#fff">
@@ -12,7 +11,7 @@
 </template>
 
 <script setup>
-import { Handle, Position, useVueFlow } from '@vue-flow/core'
+import { Handle, Position } from '@vue-flow/core'
 import { t } from '@/i18n'
 
 const props = defineProps({
@@ -22,37 +21,6 @@ const props = defineProps({
   },
 })
 
-const { getEdges, setEdges, setNodes } = useVueFlow()
-
-const handleDelete = () => {
-  const edges = getEdges && 'value' in getEdges ? getEdges.value : getEdges
-  const incoming = edges.filter((e) => e.target === props.id)
-  const outgoing = edges.filter((e) => e.source === props.id)
-
-  const newEdges = []
-
-  incoming.forEach((i) => {
-    outgoing.forEach((o) => {
-      if (i.source && o.target && i.source !== o.target) {
-        newEdges.push({
-          id: `${i.id}-${o.id}-bridge`,
-          source: i.source,
-          target: o.target,
-          type: o.type || 'default',
-          data: o.data,
-        })
-      }
-    })
-  })
-
-  setEdges((current) =>
-    current
-      .filter((e) => e.source !== props.id && e.target !== props.id)
-      .concat(newEdges),
-  )
-
-  setNodes((nodes) => nodes.filter((n) => n.id !== props.id))
-}
 </script>
 
 <style scoped>

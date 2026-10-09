@@ -187,7 +187,7 @@ export class AccuracyRunner {
 
 export function resolveAccuracyExecution(suite, {
   profile = 'full',
-  concurrency = 1,
+  concurrency = 4,
   selectedCases = null,
 } = {}) {
   if (!ACCURACY_EXECUTION_PROFILES.has(profile)) {

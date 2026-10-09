@@ -2,6 +2,12 @@
 
 #include "infer/AiComponment.h"
 
+#include <algorithm>
+#include <limits>
+#include <new>
+
+#include "nn/utils/blob_memory_size_info.h"
+
 #ifdef COSMO_NN_USE_SOPHON_BACKEND
 #include "bmcv_api_ext.h"
 #include "bmlib_runtime.h"
@@ -221,113 +227,149 @@ std::shared_ptr<cosmo::nn::Blob> ConvertImageToBlob(VideoFramePtr image) {
     return blob;
 }
 
+namespace {
+
+    util::ErrorEnum AllocateDataBlob(size_t rows, size_t columns, nn::DataType type,
+                                     std::shared_ptr<nn::Blob>& blob) {
+        const auto max_dimension = static_cast<size_t>(std::numeric_limits<int>::max());
+        if (rows == 0 || columns == 0 || columns > max_dimension || rows > max_dimension / columns) {
+            return util::ErrorEnum::InvalidParam;
+        }
+        // Match NaiveDevice's flattened element count before narrowing or allocating.
+        const nn::BlobMemorySizeInfo size_info{type, {static_cast<int>(rows * columns)}};
+        if (nn::GetBlobMemoryBytesSize(size_info) <= 0) {
+            return util::ErrorEnum::InvalidParam;
+        }
+        nn::BlobDesc desc;
+        desc.data_type = type;
+        desc.dims      = {static_cast<int>(rows), static_cast<int>(columns)};
+        blob           = std::make_shared<nn::Blob>(desc, true);
+        return blob->GetHandle().base ? util::ErrorEnum::Success : util::ErrorEnum::NoMem;
+    }
+
+}  // namespace
+
 util::ErrorEnum ConvertDatasToBlobs(const std::vector<std::vector<int>>& datas,
-                                    std::vector<std::shared_ptr<cosmo::nn::Blob>>& blobs) {
+                                    std::vector<std::shared_ptr<nn::Blob>>& blobs) {
     if (datas.empty()) {
-        LOG_INFO("{}", "Input Datas Is Empty.");
         return util::ErrorEnum::InvalidParam;
     }
-
-    for (size_t i = 0; i < datas.size(); i++) {
-        auto data = datas[i];
-        cosmo::nn::BlobDesc desc;
-        desc.data_type = cosmo::nn::DataType::DATA_TYPE_INT32;
-        desc.dims      = {1, static_cast<int>(data.size())};
-        auto blob      = std::make_shared<cosmo::nn::Blob>(desc, true);
-        auto blob_ptr  = reinterpret_cast<int32_t*>(blob->GetHandle().base);
-        for (size_t j = 0; j < data.size(); j++) {
-            blob_ptr[j] = data[j];
+    try {
+        std::vector<std::shared_ptr<nn::Blob>> pending;
+        pending.reserve(datas.size());
+        for (const auto& data : datas) {
+            std::shared_ptr<nn::Blob> blob;
+            const auto result = AllocateDataBlob(1, data.size(), nn::DATA_TYPE_INT32, blob);
+            if (result != util::ErrorEnum::Success) {
+                return result;
+            }
+            auto* destination = static_cast<int32_t*>(blob->GetHandle().base);
+            for (size_t column = 0; column < data.size(); ++column) {
+                destination[column] = static_cast<int32_t>(data[column]);
+            }
+            pending.push_back(std::move(blob));
         }
-        blobs.push_back(blob);
+        blobs.insert(blobs.end(), pending.begin(), pending.end());
+    } catch (const std::bad_alloc&) {
+        return util::ErrorEnum::NoMem;
     }
-
     return util::ErrorEnum::Success;
 }
 
 util::ErrorEnum ConvertDatasToBlobsFloat(const std::vector<std::vector<int>>& datas,
-                                         std::vector<std::shared_ptr<cosmo::nn::Blob>>& blobs) {
+                                         std::vector<std::shared_ptr<nn::Blob>>& blobs) {
     if (datas.empty()) {
-        LOG_INFO("{}", "Input Datas Is Empty.");
         return util::ErrorEnum::InvalidParam;
     }
-
-    for (size_t i = 0; i < datas.size(); i++) {
-        auto data = datas[i];
-        cosmo::nn::BlobDesc desc;
-        desc.data_type = cosmo::nn::DataType::DATA_TYPE_FLOAT;
-        desc.dims      = {1, static_cast<int>(data.size())};
-        auto blob      = std::make_shared<cosmo::nn::Blob>(desc, true);
-        auto blob_ptr  = reinterpret_cast<float*>(blob->GetHandle().base);
-        for (size_t j = 0; j < data.size(); j++) {
-            blob_ptr[j] = static_cast<float>(data[j]);
+    try {
+        std::vector<std::shared_ptr<nn::Blob>> pending;
+        pending.reserve(datas.size());
+        for (const auto& data : datas) {
+            std::shared_ptr<nn::Blob> blob;
+            const auto result = AllocateDataBlob(1, data.size(), nn::DATA_TYPE_FLOAT, blob);
+            if (result != util::ErrorEnum::Success) {
+                return result;
+            }
+            auto* destination = static_cast<float*>(blob->GetHandle().base);
+            for (size_t column = 0; column < data.size(); ++column) {
+                destination[column] = static_cast<float>(data[column]);
+            }
+            pending.push_back(std::move(blob));
         }
-        blobs.push_back(blob);
+        blobs.insert(blobs.end(), pending.begin(), pending.end());
+    } catch (const std::bad_alloc&) {
+        return util::ErrorEnum::NoMem;
     }
-
     return util::ErrorEnum::Success;
 }
 
 util::ErrorEnum ConvertDatasToBlobs(const std::vector<std::vector<std::vector<int>>>& datas,
-                                    std::vector<std::shared_ptr<cosmo::nn::Blob>>& blobs) {
+                                    std::vector<std::shared_ptr<nn::Blob>>& blobs) {
     if (datas.empty()) {
-        LOG_INFO("{}", "Input Datas Is Empty.");
         return util::ErrorEnum::InvalidParam;
     }
-
-    for (size_t i = 0; i < datas.size(); i++) {
-        auto data = datas[i];
-        if (data.size() < 1) {
-            LOG_INFO("{}", "Data Is Empty.");
-            return util::ErrorEnum::InvalidParam;
-        }
-
-        int targets = static_cast<int>(data.size());
-        int stride  = static_cast<int>(data[0].size());
-        cosmo::nn::BlobDesc desc;
-        desc.data_type = cosmo::nn::DataType::DATA_TYPE_INT32;
-        desc.dims      = {targets, stride};
-        auto blob      = std::make_shared<cosmo::nn::Blob>(desc, true);
-        auto blob_ptr  = reinterpret_cast<int32_t*>(blob->GetHandle().base);
-        for (size_t j = 0; j < data.size(); j++) {
-            for (size_t k = 0; k < data[j].size(); k++) {
-                blob_ptr[j * static_cast<size_t>(stride) + k] = data[j][k];
+    try {
+        std::vector<std::shared_ptr<nn::Blob>> pending;
+        pending.reserve(datas.size());
+        for (const auto& data : datas) {
+            if (data.empty() || data.front().empty() ||
+                !std::all_of(data.begin(), data.end(),
+                             [&](const auto& row) { return row.size() == data.front().size(); })) {
+                return util::ErrorEnum::InvalidParam;
             }
+            std::shared_ptr<nn::Blob> blob;
+            const auto result = AllocateDataBlob(data.size(), data.front().size(), nn::DATA_TYPE_INT32, blob);
+            if (result != util::ErrorEnum::Success) {
+                return result;
+            }
+            auto* destination  = static_cast<int32_t*>(blob->GetHandle().base);
+            const auto columns = data.front().size();
+            for (size_t row = 0; row < data.size(); ++row) {
+                for (size_t column = 0; column < columns; ++column) {
+                    destination[row * columns + column] = static_cast<int32_t>(data[row][column]);
+                }
+            }
+            pending.push_back(std::move(blob));
         }
-        blobs.push_back(blob);
+        blobs.insert(blobs.end(), pending.begin(), pending.end());
+    } catch (const std::bad_alloc&) {
+        return util::ErrorEnum::NoMem;
     }
-
     return util::ErrorEnum::Success;
 }
 
 util::ErrorEnum ConvertDatasToBlobsFloat(const std::vector<std::vector<std::vector<int>>>& datas,
-                                         std::vector<std::shared_ptr<cosmo::nn::Blob>>& blobs) {
+                                         std::vector<std::shared_ptr<nn::Blob>>& blobs) {
     if (datas.empty()) {
-        LOG_INFO("{}", "Input Datas Is Empty.");
         return util::ErrorEnum::InvalidParam;
     }
-
-    for (size_t i = 0; i < datas.size(); i++) {
-        auto data = datas[i];
-        if (data.size() < 1) {
-            LOG_INFO("{}", "Data Is Empty.");
-            return util::ErrorEnum::InvalidParam;
-        }
-
-        int targets = static_cast<int>(data.size());
-        int stride  = static_cast<int>(data[0].size());
-        cosmo::nn::BlobDesc desc;
-        desc.data_type = cosmo::nn::DataType::DATA_TYPE_FLOAT;
-        desc.dims      = {targets, stride};
-        auto blob      = std::make_shared<cosmo::nn::Blob>(desc, true);
-        auto blob_ptr  = reinterpret_cast<float*>(blob->GetHandle().base);
-        for (size_t j = 0; j < data.size(); j++) {
-            for (size_t k = 0; k < data[j].size(); k++) {
-                blob_ptr[j * static_cast<size_t>(stride) + k] = static_cast<float>(data[j][k]);
+    try {
+        std::vector<std::shared_ptr<nn::Blob>> pending;
+        pending.reserve(datas.size());
+        for (const auto& data : datas) {
+            if (data.empty() || data.front().empty() ||
+                !std::all_of(data.begin(), data.end(),
+                             [&](const auto& row) { return row.size() == data.front().size(); })) {
+                return util::ErrorEnum::InvalidParam;
             }
+            std::shared_ptr<nn::Blob> blob;
+            const auto result = AllocateDataBlob(data.size(), data.front().size(), nn::DATA_TYPE_FLOAT, blob);
+            if (result != util::ErrorEnum::Success) {
+                return result;
+            }
+            auto* destination  = static_cast<float*>(blob->GetHandle().base);
+            const auto columns = data.front().size();
+            for (size_t row = 0; row < data.size(); ++row) {
+                for (size_t column = 0; column < columns; ++column) {
+                    destination[row * columns + column] = static_cast<float>(data[row][column]);
+                }
+            }
+            pending.push_back(std::move(blob));
         }
-        blobs.push_back(blob);
+        blobs.insert(blobs.end(), pending.begin(), pending.end());
+    } catch (const std::bad_alloc&) {
+        return util::ErrorEnum::NoMem;
     }
-
     return util::ErrorEnum::Success;
 }
 

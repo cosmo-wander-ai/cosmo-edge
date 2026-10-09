@@ -461,8 +461,8 @@ class ModelConversionWorkflowTest(unittest.TestCase):
         self.assertNotIn("must-not-be-copied", json.dumps(record))
         self.assertFalse(record["credentialMaterialStored"])
 
-    def _make_verifiable_run(self, root: Path, tensor_status: str) -> tuple[Path, Path, dict]:
-        contract = make_contract()
+    def _make_verifiable_run(self, root: Path, tensor_status: str, contract=None) -> tuple[Path, Path, dict]:
+        contract = contract or make_contract()
         run_dir, contract_path = prepare_run(root, contract)
         source_path = run_dir / "inputs" / "candidate.onnx"
         (run_dir / "verification").mkdir()
@@ -553,6 +553,58 @@ class ModelConversionWorkflowTest(unittest.TestCase):
         }
         (run_dir / "execution-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
         return run_dir, contract_path, contract
+
+    def test_package_failure_and_missing_evidence_propagate_to_verdict(self):
+        from test_model_package_validation import cenn
+
+        for scenario, expected_s4, expected_verdict in (
+            ("valid", "PASS", "COMPLETE"),
+            ("text", "FAIL", "FAILED"),
+            ("wrong-candidate", "FAIL", "FAILED"),
+            ("missing-report", "UNVERIFIED", "PARTIAL"),
+            ("protected", "UNVERIFIED", "PARTIAL"),
+            ("artifact-tamper", "UNVERIFIED", "FAILED"),
+        ):
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
+                contract = make_contract()
+                contract["parameters"].update({
+                    "outputKind": "model-package",
+                    "packageDirectory": "prod_BM1688_1234567_fixture_V1.0.0",
+                })
+                run_dir, contract_path, contract = self._make_verifiable_run(Path(directory), "PASS", contract)
+                package = run_dir / contract["parameters"]["packageDirectory"]
+                package.mkdir()
+                artifact = run_dir / "artifacts/candidate_320_bm1688_f16.bmodel"
+                payload = artifact.read_bytes()
+                (package / "model.nn").write_bytes(cenn(payload))
+                (package / "config.json").write_text(json.dumps({
+                    "chip_type": "BM1688", "model_type": "yolov8_det", "labels": [{"id": "0"}, {"id": "1"}],
+                    "models": [{"inputs": [{"shape": [1, 3, 320, 320]}],
+                                "outputs": [{"shape": [1, 6, 2100]}],
+                                "params": {"input_size": [320, 320]}}],
+                }))
+                manifest_path = run_dir / "execution-manifest.json"
+                manifest = json.loads(manifest_path.read_text())
+                report = run_dir / "verification/model-info.txt"
+                report.write_text("input: images, [1,3,320,320], float32\noutput: output, [1,6,2100], float32\n")
+                manifest["stages"]["modelInfo"].update({
+                    "report": "verification/model-info.txt", "reportSha256": core.sha256_file(report),
+                })
+                manifest_path.write_text(json.dumps(manifest))
+                if scenario == "text":
+                    (package / "model.nn").write_bytes(b"not a model")
+                elif scenario == "wrong-candidate":
+                    (package / "model.nn").write_bytes(cenn(b"x" * len(payload)))
+                elif scenario == "missing-report":
+                    report.unlink()
+                elif scenario == "protected":
+                    (package / "model.nn").write_bytes(b"CEMC" + bytes(80))
+                elif scenario == "artifact-tamper":
+                    artifact.write_bytes(b"x" * len(payload))
+                evidence = conversion.verify_conversion(contract_path, run_dir, contract)
+                self.assertEqual(next(stage for stage in evidence["stages"] if stage["id"] == "S4")["status"], expected_s4)
+                self.assertEqual(evidence["developmentVerdict"], expected_verdict)
+                self.assertEqual(evidence["deviceVerdict"], "NOT_RUN")
 
     def test_development_and_promotion_verdicts_are_independent(self):
         with tempfile.TemporaryDirectory() as directory:

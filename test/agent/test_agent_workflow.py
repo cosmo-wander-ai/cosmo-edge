@@ -1,3 +1,4 @@
+import io
 import json
 import os
 import subprocess
@@ -18,6 +19,12 @@ import agent_workflow  # noqa: E402
 
 
 class AgentWorkflowTest(unittest.TestCase):
+    def setUp(self):
+        environment = mock.patch.dict(os.environ)
+        environment.start()
+        self.addCleanup(environment.stop)
+        os.environ.pop("COSMO_AGENT_RUNS_ROOT", None)
+
     def _model_contract(self, run_id: str) -> dict:
         return {
             "schemaVersion": "1.0",
@@ -114,6 +121,49 @@ class AgentWorkflowTest(unittest.TestCase):
             contract_path.write_text(json.dumps(fixture), encoding="utf-8")
             with self.assertRaisesRegex(agent_workflow.WorkflowError, "must match"):
                 agent_workflow.resolve_contract_context(contract_path, root)
+
+    def test_external_runs_root_supports_start_and_contract_resolution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "checkout"
+            root.mkdir()
+            runs_root = Path(directory) / "private-runs"
+            source = root / "model.onnx"
+            source.write_bytes(b"fixture")
+
+            with (
+                mock.patch.dict(os.environ, {"COSMO_AGENT_RUNS_ROOT": str(runs_root)}),
+                mock.patch.object(
+                    agent_workflow, "host_inventory", return_value=self._model_inventory()
+                ),
+            ):
+                run_dir, contract_path, contract, assessment = agent_workflow.create_task_run(
+                    task="model-conversion",
+                    objective="Convert a synthetic model.",
+                    materials=[source],
+                    target_chip="bm1688",
+                    run_id="external-run",
+                    project_root=root,
+                )
+                self.assertEqual(run_dir, runs_root / "external-run")
+                self.assertEqual(contract["allowedChanges"], [str(run_dir) + "/"])
+                self.assertFalse((root / "output" / "agent-runs").exists())
+                self.assertEqual(
+                    agent_workflow.resolve_contract_context(contract_path, root)[1], run_dir
+                )
+
+                with mock.patch.object(
+                    agent_workflow,
+                    "create_task_run",
+                    return_value=(run_dir, contract_path, contract, assessment),
+                ):
+                    with mock.patch("sys.stdout", new_callable=io.StringIO) as output:
+                        agent_workflow.start_main(["--objective", "fixture", "--format", "json"])
+                result = json.loads(output.getvalue())
+                self.assertEqual(result["runDirectory"], str(run_dir))
+                self.assertEqual(result["contract"], str(contract_path))
+                self.assertEqual(
+                    result["routeAssessment"], str(run_dir / "route-assessment.json")
+                )
 
     def test_run_input_rejects_parent_traversal_and_symlink_escape(self):
         with tempfile.TemporaryDirectory() as directory:

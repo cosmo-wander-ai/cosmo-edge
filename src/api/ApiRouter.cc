@@ -109,6 +109,7 @@ ApiRouter::ApiRouter(MessageFromType from)
       onboarding_handler_(std::make_unique<MessageOnboardingHandler>(
           service::ServiceRegistry::Instance().Get<service::IOnboardingService>())),
       from_(from) {
+    RegisterManagementRoutes();
     RegisterCoreRoutes();
     RegisterNetworkRoutes();
     RegisterAlgorithmRoutes();

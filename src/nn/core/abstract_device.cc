@@ -1,7 +1,5 @@
 #include "nn/core/abstract_device.h"
 
-#include <mutex>
-
 #include "nn/utils/blob_memory_size_info.h"
 
 namespace cosmo::nn {
@@ -29,13 +27,8 @@ DeviceType AbstractDevice::GetDeviceType() {
 }
 
 std::map<DeviceType, std::shared_ptr<AbstractDevice>>& GetGlobDeviceMap() {
-    static std::once_flag device_once;
-    static std::shared_ptr<std::map<DeviceType, std::shared_ptr<AbstractDevice>>> device_map;
-
-    std::call_once(device_once,
-                   []() { device_map.reset(new std::map<DeviceType, std::shared_ptr<AbstractDevice>>()); });
-
-    return *device_map;
+    static std::map<DeviceType, std::shared_ptr<AbstractDevice>> device_map;
+    return device_map;
 }
 
 AbstractDevice* GetDevice(DeviceType type) {

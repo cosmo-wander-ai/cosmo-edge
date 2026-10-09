@@ -20,6 +20,9 @@ namespace cosmo::service {
 class IScheduleService {
 public:
     virtual ~IScheduleService() = default;
+    virtual cosmo::util::ErrorEnum PutManaged(const cosmo::MsgScheduleTemplate&) {
+        return cosmo::util::ErrorEnum::InvalidParam;
+    }
 
     /// Add a new schedule template.
     /// @param config Schedule template configuration (modified in-place with defaults).

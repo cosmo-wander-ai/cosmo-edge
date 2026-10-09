@@ -1,10 +1,29 @@
 set(SRS_ORIGINAL_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rd/srs-6.0-r0/trunk)
-set(SRS_SOURCE_DIR ${SRS_ORIGINAL_SOURCE_DIR})
+set(SRS_SOURCE_DIR ${CMAKE_BINARY_DIR}/srs_source)
 set(SRS_INSTALL_DIR ${THIRDPARTY_INSTALL_PREFIX}/srs)
+set(SRS_DOWNLOAD_COMMAND
+    ${CMAKE_COMMAND} -E rm -rf <SOURCE_DIR>
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${SRS_ORIGINAL_SOURCE_DIR} <SOURCE_DIR>
+)
+set(SRS_GB28181_PATCH_COMMAND
+    ${CMAKE_COMMAND}
+        "-DSRS_SOURCE_DIR=<SOURCE_DIR>"
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181.cmake
+    COMMAND ${CMAKE_COMMAND}
+        "-DSRS_SOURCE_DIR=<SOURCE_DIR>"
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181_managed.cmake
+    COMMAND ${CMAKE_COMMAND}
+        "-DSRS_SOURCE_DIR=<SOURCE_DIR>"
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181_queue.cmake
+    COMMAND ${CMAKE_COMMAND}
+        "-DSRS_SOURCE_DIR=<SOURCE_DIR>"
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181_loss.cmake
+    COMMAND ${CMAKE_COMMAND}
+        "-DSRS_SOURCE_DIR=<SOURCE_DIR>"
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181_audio.cmake
+)
 
 if(COSMO_TARGET_ARCH STREQUAL "aarch64")
-    set(SRS_DOWNLOAD_COMMAND "")
-    set(SRS_PATCH_COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_crossbuild.sh <SOURCE_DIR>)
     set(SRS_CONFIGURE_ARCH_ARGS
         --cross=on
         --cc=${CMAKE_C_COMPILER}
@@ -17,12 +36,6 @@ if(COSMO_TARGET_ARCH STREQUAL "aarch64")
         --cross-prefix=aarch64-linux-gnu-
     )
 elseif(COSMO_TARGET_ARCH STREQUAL "x86_64")
-    set(SRS_SOURCE_DIR ${CMAKE_BINARY_DIR}/srs_source)
-    set(SRS_DOWNLOAD_COMMAND
-        ${CMAKE_COMMAND} -E rm -rf <SOURCE_DIR>
-        COMMAND ${CMAKE_COMMAND} -E copy_directory ${SRS_ORIGINAL_SOURCE_DIR} <SOURCE_DIR>
-    )
-    set(SRS_PATCH_COMMAND ${CMAKE_COMMAND} -E true)
     set(SRS_CONFIGURE_ARCH_ARGS
         --cross=off
         --cc=${CMAKE_C_COMPILER}
@@ -32,19 +45,17 @@ elseif(COSMO_TARGET_ARCH STREQUAL "x86_64")
 endif()
 
 # SRS uses its own ./configure && make build system (not CMake).
-# Build artifacts go into ${SRS_SOURCE_DIR}/objs/ as SRS does not reliably
-# support true out-of-source builds (internal scripts use relative paths).
-# The objs/ directory is already covered by 3rd/srs-6.0-r0/.gitignore.
+# Build artifacts go into a private source copy under the build directory because
+# SRS does not reliably support true out-of-source builds (internal scripts use
+# relative paths). Keeping the copy outside 3rd/ also lets us apply compatibility
+# patches without modifying vendored sources.
 ExternalProject_Add(
     srs_external
 
     SOURCE_DIR ${SRS_SOURCE_DIR}
     DOWNLOAD_COMMAND ${SRS_DOWNLOAD_COMMAND}
 
-    # Patch: bypass native tool checks (g++, unzip, pkg-config) that are
-    # irrelevant for cross-compilation. The Docker build env only has the
-    # aarch64 cross-toolchain, not all native host tools.
-    PATCH_COMMAND ${SRS_PATCH_COMMAND}
+    PATCH_COMMAND ${SRS_GB28181_PATCH_COMMAND}
 
     CONFIGURE_COMMAND <SOURCE_DIR>/configure
         --prefix=${SRS_INSTALL_DIR}
@@ -52,6 +63,7 @@ ExternalProject_Add(
         --srt=off
         --rtc=on
         --h265=on
+        --gb28181=on
         --ffmpeg-fit=on
         --sanitizer=off
         --nasm=off

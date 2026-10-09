@@ -1,10 +1,12 @@
 // VideoDemuxerStream.cc — Stream handling for VideoDemuxer.
 // Split from VideoDemuxer.cc to reduce file size (DEBT-007).
 
+#include <algorithm>
 #include <thread>
 
 #include "media/VideoDemuxer.h"
 #include "util/Log.h"
+#include "util/RtspUrlUtil.h"
 #include "util/TimeUtil.h"
 
 static constexpr const char* kTag = "[DEMUX] ";
@@ -33,41 +35,48 @@ namespace media {
     }
 
     // find stream...
-    util::ErrorEnum VideoDemuxer::FindStream(bool bRepeat) {
-        // Looping playback requires VoD file
-        if (bRepeat && strategy_ && strategy_->SupportsRepeat()) {
-            return util::ErrorEnum::Success;
-        }
-
-        if (!opened_) {
-            LOG_WARN("{}FindStream {} Stream Not Opened", kTag, filename_);
+    util::ErrorEnum VideoDemuxer::FindStream(bool /*bRepeat*/) {
+        if (StopRequested()) {
+            CloseStream();
             return util::ErrorEnum::FileNotOpened;
         }
+        if (!opened_ || !fmt_ctx_) {
+            LOG_WARN("{}FindStream {} Stream Not Opened", kTag, util::RedactRtspUrl(filename_));
+            return util::ErrorEnum::FileNotOpened;
+        }
+        // A seek retains valid metadata. A fresh open must be probed even
+        // when its caller still carries a pending-repeat flag.
+        if (ready_)
+            return util::ErrorEnum::Success;
         int ret = 0;
-        if ((ret = avformat_find_stream_info(fmt_ctx_, nullptr)) != 0) {
-            SafeCloseContext();
-            LOG_WARN("{}FindStream {} failed.[{}]", kTag, filename_, GetAvErr(ret));
+        if ((ret = avformat_find_stream_info(fmt_ctx_, nullptr)) < 0 || StopRequested()) {
+            CloseStream();
+            LOG_WARN("{}FindStream {} failed.[{}]", kTag, util::RedactRtspUrl(filename_), GetAvErr(ret));
             return util::ErrorEnum::DemuxFindStreamFail;
         }
 
         AVCodec* codec    = nullptr;
         video_stream_idx_ = av_find_best_stream(fmt_ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, &codec, 0);
         if (video_stream_idx_ < 0 || !codec) {
-            SafeCloseContext();
-            LOG_WARN("{}FindStream {} stream or codec error.[{}]", kTag, filename_, GetAvErr(ret));
+            const int stream_error = video_stream_idx_ < 0 ? video_stream_idx_ : AVERROR_DECODER_NOT_FOUND;
+            CloseStream();
+            LOG_WARN("{}FindStream {} stream or codec error.[{}]", kTag, util::RedactRtspUrl(filename_),
+                     GetAvErr(stream_error));
             return util::ErrorEnum::DemuxFindVideoStreamFail;
         }
 
         std::string codec_name = codec->name;
+        VideoCodecType next_codec;
         if (codec_name == "h264" || codec_name == "h264_bm") {
-            enc_type_ = VideoCodecType::kH264;
+            next_codec = VideoCodecType::kH264;
         } else if (codec_name == "hevc" || codec_name == "hevc_bm") {
-            enc_type_ = VideoCodecType::kH265;
+            next_codec = VideoCodecType::kH265;
         } else if (codec_name == "mjpeg" || codec_name == "mjpg") {
-            enc_type_ = VideoCodecType::kMjpeg;  // USB camera V4L2 MJPEG (consistent with old eb6daaa6)
+            next_codec = VideoCodecType::kMjpeg;  // USB camera V4L2 MJPEG
         } else {
-            SafeCloseContext();
-            LOG_WARN("{}FindStream {} codec is not support. [{}]", kTag, filename_, codec_name);
+            CloseStream();
+            LOG_WARN("{}FindStream {} codec is not support. [{}]", kTag, util::RedactRtspUrl(filename_),
+                     codec_name);
             return util::ErrorEnum::VideoFormatNotSupport;
         }
 
@@ -76,15 +85,21 @@ namespace media {
 
         // Cache extradata so new RTMP viewers can get SPS/PPS
         // without waiting for in-band parameters in the stream.
-        if (codecpar->extradata && codecpar->extradata_size > 0) {
-            extradata_.assign(codecpar->extradata, codecpar->extradata + codecpar->extradata_size);
-        } else {
-            extradata_.clear();
+        {
+            // Preview startup can read headers while this worker reconnects.
+            // Publish/copy snapshots rather than returning a mutable reference.
+            std::lock_guard<std::mutex> lock(metadata_mtx_);
+            enc_type_ = next_codec;
+            if (codecpar->extradata && codecpar->extradata_size > 0) {
+                extradata_.assign(codecpar->extradata, codecpar->extradata + codecpar->extradata_size);
+            } else {
+                extradata_.clear();
+            }
         }
 
-        AVRational avgFpsRat   = stream->avg_frame_rate;
-        AVRational codecFpsRat      = av_guess_frame_rate(fmt_ctx_, stream, nullptr);
-        AVRational streamFpsRat     = stream->r_frame_rate;
+        AVRational avgFpsRat    = stream->avg_frame_rate;
+        AVRational codecFpsRat  = av_guess_frame_rate(fmt_ctx_, stream, nullptr);
+        AVRational streamFpsRat = stream->r_frame_rate;
 
         width_.store(codecpar->width, std::memory_order_relaxed);
         height_.store(codecpar->height, std::memory_order_relaxed);
@@ -105,7 +120,8 @@ namespace media {
             }
 
             if (!InitBsfContext()) {
-                LOG_WARN("{}FindStream {} init bsfc Failed", kTag, filename_);
+                LOG_WARN("{}FindStream {} init bsfc Failed", kTag, util::RedactRtspUrl(filename_));
+                CloseStream();
                 return util::ErrorEnum::DemuxInitBsfcFail;
             }
             // mp4 forced frame rate
@@ -117,9 +133,9 @@ namespace media {
         LOG_INFO(
             "{}{} videoStreamIdx:{} codec:{} {}x{} fps_:{} avg[num:{} den:{}], codec[num:{} den:{}], "
             "stream[num:{}, den:{}]",
-            kTag, filename_, video_stream_idx_, codec->name, codecpar->width, codecpar->height, fps_,
-            avgFpsRat.num, avgFpsRat.den, codecFpsRat.num, codecFpsRat.den, streamFpsRat.num,
-            streamFpsRat.den);
+            kTag, util::RedactRtspUrl(filename_), video_stream_idx_, codec->name, codecpar->width,
+            codecpar->height, fps_, avgFpsRat.num, avgFpsRat.den, codecFpsRat.num, codecFpsRat.den,
+            streamFpsRat.num, streamFpsRat.den);
 
         ready_            = true;
         packet_index_     = 0;
@@ -137,7 +153,18 @@ namespace media {
             auto now      = std::chrono::steady_clock::now();
             auto diffTime = now - open_time_point_;
             if (diffTime < expectTime) {
-                cond_.wait_for(lockControl, expectTime - diffTime);
+                // Bound the process-wide cancellation observation latency;
+                // per-channel RequestStop additionally wakes this wait.
+                while (!StopRequested() && std::chrono::steady_clock::now() - open_time_point_ < expectTime) {
+                    const auto remaining = expectTime - (std::chrono::steady_clock::now() - open_time_point_);
+                    if (remaining <= std::chrono::steady_clock::duration::zero())
+                        break;
+                    cond_.wait_for(
+                        lockControl,
+                        std::min(remaining, std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                                                std::chrono::milliseconds(50))),
+                        [this]() { return StopRequested(); });
+                }
             }
         }
     }
@@ -145,6 +172,8 @@ namespace media {
     int VideoDemuxer::AvReadFrame(AVPacket* packet) {
         int ret = 0;
         do {
+            if (StopRequested())
+                return AVERROR_EXIT;
             memset(packet, 0, sizeof(AVPacket));  // Reset structure (prevent dangling pointers)
             av_init_packet(packet);
             ret = av_read_frame(fmt_ctx_, packet);
@@ -190,7 +219,8 @@ namespace media {
                 LOG_INFO(
                     "{}{} {}x{} fps_: {} -> {}({}) avrageDur:{} num:{} den:{} fpsReceive:[{}] "
                     "ptsCount:{}, duration:{}, packet.pts:{}, startPts:{}",
-                    kTag, filename_, fmt_ctx_->streams[video_stream_idx_]->codecpar->width,
+                    kTag, util::RedactRtspUrl(filename_),
+                    fmt_ctx_->streams[video_stream_idx_]->codecpar->width,
                     fmt_ctx_->streams[video_stream_idx_]->codecpar->height, c_fps, fpsNewf, fpsNewf,
                     avrageDur, timeBase.num, timeBase.den, fpsReceive, ptsCount,
                     std::chrono::duration_cast<std::chrono::microseconds>(now - start_time_point_).count(),
@@ -261,19 +291,21 @@ namespace media {
     }
 
     ReadFrameStatus VideoDemuxer::Demux(VideoPacketPtr pkt) {
-        if (!ready_) {
+        if (StopRequested() || !ready_ || !fmt_ctx_) {
             return ReadFrameStatus::StreamNotOpen;
         }
         if (end_) {
             return ReadFrameStatus::StreamEnd;
         }
         LocalFileFpsCtrl();
+        if (StopRequested())
+            return ReadFrameStatus::StreamNotOpen;
 
-        AVPacket packet;
+        AVPacket packet{};
         int ret = AvReadFrame(&packet);
         //    m_packetIndex++;
         if (0 != ret) {
-            LOG_INFO("{}{} get frame error: {} Maybe It's Finished", kTag, filename_,
+            LOG_INFO("{}{} get frame error: {} Maybe It's Finished", kTag, util::RedactRtspUrl(filename_),
                      GetAvErr(ret));  // Reached end_ of playback
             end_            = true;
             pkt->stream_idx = stream_opened_cnt_;
@@ -282,7 +314,7 @@ namespace media {
         }
 
         if (packet.size <= 4) {
-            LOG_INFO("{}{} empty frame.", kTag, filename_);
+            LOG_INFO("{}{} empty frame.", kTag, util::RedactRtspUrl(filename_));
             av_packet_unref(&packet);
             return ReadFrameStatus::EmptyFrame;
         }
@@ -293,7 +325,7 @@ namespace media {
                 av_packet_unref(&packet);
                 return ReadFrameStatus::NotGetIFrame;
             }
-            LOG_INFO("{}{} detected key frame.", kTag, filename_);
+            LOG_INFO("{}{} detected key frame.", kTag, util::RedactRtspUrl(filename_));
         }
 
         // rtsp frame rate may be incorrect, calculate via pts_
@@ -313,7 +345,8 @@ namespace media {
             if (bsf_ctx_) {
                 ret = av_bsf_send_packet(bsf_ctx_, &packet);
                 if (ret < 0) {
-                    LOG_WARN("{}{} av_bsf_send_packet failed: {}", kTag, filename_, GetAvErr(ret));
+                    LOG_WARN("{}{} av_bsf_send_packet failed: {}", kTag, util::RedactRtspUrl(filename_),
+                             GetAvErr(ret));
                     av_packet_unref(&packet);
                     return ReadFrameStatus::EmptyFrame;
                 }
@@ -325,7 +358,8 @@ namespace media {
 
                 ret = av_bsf_receive_packet(bsf_ctx_, &filtered_pkt);
                 if (ret < 0) {
-                    LOG_WARN("{}{} av_bsf_receive_packet failed: {}", kTag, filename_, GetAvErr(ret));
+                    LOG_WARN("{}{} av_bsf_receive_packet failed: {}", kTag, util::RedactRtspUrl(filename_),
+                             GetAvErr(ret));
                     av_packet_unref(&packet);
                     return ReadFrameStatus::EmptyFrame;
                 }
@@ -335,15 +369,15 @@ namespace media {
                     LOG_INFO(
                         "{}{} BSF pkt#{} inSize={} outSize={} bytes:{:02X} {:02X} {:02X} "
                         "{:02X} {:02X}",
-                        kTag, filename_, abs_packet_index_, packet.size, filtered_pkt.size,
-                        filtered_pkt.data[0], filtered_pkt.data[1], filtered_pkt.data[2],
+                        kTag, util::RedactRtspUrl(filename_), abs_packet_index_, packet.size,
+                        filtered_pkt.size, filtered_pkt.data[0], filtered_pkt.data[1], filtered_pkt.data[2],
                         filtered_pkt.data[3], filtered_pkt.data[4]);
                 }
 
                 pkt->data = std::vector<uint8_t>(filtered_pkt.data, filtered_pkt.data + filtered_pkt.size);
                 av_packet_unref(&filtered_pkt);
             } else {
-                LOG_WARN("{}{} bsf_ctx_ is NULL, skipping BSF", kTag, filename_);
+                LOG_WARN("{}{} bsf_ctx_ is NULL, skipping BSF", kTag, util::RedactRtspUrl(filename_));
                 pkt->data = std::vector<uint8_t>(packet.data, packet.data + packet.size);
             }
         } else {
@@ -377,7 +411,7 @@ namespace media {
         if (fmt_ctx_) {
             avformat_close_input(&fmt_ctx_);
             fmt_ctx_ = nullptr;
-            LOG_INFO("{}Stream {} fmt_ctx_ Closed.", kTag, filename_);
+            LOG_INFO("{}Stream {} fmt_ctx_ Closed.", kTag, util::RedactRtspUrl(filename_));
         }
     }
 
@@ -396,32 +430,33 @@ namespace media {
 
         const AVBitStreamFilter* filter = av_bsf_get_by_name(bsf_name);
         if (!filter) {
-            LOG_WARN("{}{} BSF '{}' not found", kTag, filename_, bsf_name);
+            LOG_WARN("{}{} BSF '{}' not found", kTag, util::RedactRtspUrl(filename_), bsf_name);
             return false;
         }
 
         int ret = av_bsf_alloc(filter, &bsf_ctx_);
         if (ret < 0) {
-            LOG_WARN("{}{} av_bsf_alloc failed: {}", kTag, filename_, GetAvErr(ret));
+            LOG_WARN("{}{} av_bsf_alloc failed: {}", kTag, util::RedactRtspUrl(filename_), GetAvErr(ret));
             return false;
         }
 
         // Copy codec parameters to BSF context input
         ret = avcodec_parameters_copy(bsf_ctx_->par_in, fmt_ctx_->streams[video_stream_idx_]->codecpar);
         if (ret < 0) {
-            LOG_WARN("{}{} avcodec_parameters_copy failed: {}", kTag, filename_, GetAvErr(ret));
+            LOG_WARN("{}{} avcodec_parameters_copy failed: {}", kTag, util::RedactRtspUrl(filename_),
+                     GetAvErr(ret));
             av_bsf_free(&bsf_ctx_);
             return false;
         }
 
         ret = av_bsf_init(bsf_ctx_);
         if (ret < 0) {
-            LOG_WARN("{}{} av_bsf_init failed: {}", kTag, filename_, GetAvErr(ret));
+            LOG_WARN("{}{} av_bsf_init failed: {}", kTag, util::RedactRtspUrl(filename_), GetAvErr(ret));
             av_bsf_free(&bsf_ctx_);
             return false;
         }
 
-        LOG_INFO("{}{} BSF '{}' initialized successfully", kTag, filename_, bsf_name);
+        LOG_INFO("{}{} BSF '{}' initialized successfully", kTag, util::RedactRtspUrl(filename_), bsf_name);
         return true;
     }
 

@@ -37,7 +37,10 @@ namespace qwen3_5 {
         int forward_first(const ArrayInt& position_ids);
         int forward_next(const ArrayInt& position_ids);
         bool check_stop(const std::string& text);
-        void clear_history();
+        void clear_history(bool force = false);
+        void SetTraceNetworks(bool enabled) {
+            trace_networks_ = enabled;
+        }
 
         void* get_bm_handle() const {
             return static_cast<void*>(bm_handle_);
@@ -84,6 +87,7 @@ namespace qwen3_5 {
             return (layer_idx + 1) % FA_INTERVAL == 0;
         }
 
+        bool trace_networks_ = false;
         std::mt19937 sgen_;
         bm_handle_t bm_handle_ = nullptr;
         void* p_bmrt_          = nullptr;

@@ -280,10 +280,11 @@
 <script setup>
 import VisualQuestionEditor from '@/components/VisualQuestionEditor.vue'
 import { matchesParamDependency } from '@/utils/taskParamOwnership'
-import { ref, onMounted, onBeforeUnmount, getCurrentInstance, watch, computed, toRef } from 'vue'
+import { ref, onMounted, onBeforeUnmount, getCurrentInstance, watch, computed, toRef, inject } from 'vue'
 import ConditionView from './ConditionView.vue'
 import { v4 } from 'uuid'
 import EventBus from '@/components/eventBus.js'
+import { flowEditorKey } from './flowEditorContext.js'
 import TreeSelectMultiple from './TreeSelectMultiple.vue'
 import TreeTransfer from 'tree-transfer-vue3'
 import _ from 'lodash'
@@ -332,6 +333,7 @@ const props = defineProps({
   }
 })
 const emit = defineEmits(['config-change'])
+const editor = inject(flowEditorKey, null)
 
 const isAreaAlarmAction = computed(
   () =>
@@ -1036,7 +1038,7 @@ const emitAtomicUpdate = () => {
   const atomicName =
     selectedAtomic.value?.atomicName || selectedAtomic.value?.modelName || ''
   if (position && (atomicCode || resultFilter.length)) {
-    EventBus.$emit('flow:atomic:update', {
+    editor?.updateAtomic({
       position,
       atomicCode,
       atomicName,

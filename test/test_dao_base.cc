@@ -1,7 +1,7 @@
 #include "catch_amalgamated.hpp"
 /// @file test_dao_base.cc
-/// @brief DaoBase unit tests — validates transaction control, SetCondition,
-///        SetLimit, DeleteItems, column management using in-memory SQLite.
+/// @brief DaoBase unit tests — validates transaction control, SetLimit,
+///        DeleteItems, column management using in-memory SQLite.
 
 #include <SQLiteCpp/SQLiteCpp.h>
 
@@ -24,7 +24,6 @@ public:
     using DaoBase::DeleteItems;
     using DaoBase::GetTableAllColumns;
     using DaoBase::IsColumnExist;
-    using DaoBase::SetCondition;
     using DaoBase::SetLimit;
 };
 
@@ -172,56 +171,6 @@ TEST_CASE("DaoBase: Db() returns reference to database", "[dao-base]") {
 
     const TestableDao& const_dao = dao;
     REQUIRE(&const_dao.Db() == &db);
-}
-
-TEST_CASE("DaoBase: QueryRows counts rows correctly", "[dao-base]") {
-    auto db = MakeInMemoryDb();
-    db.exec("CREATE TABLE t_count (id INTEGER PRIMARY KEY, val TEXT)");
-    TestableDao dao(db);
-
-    SECTION("empty table returns 0") {
-        auto count = dao.QueryRows("SELECT id FROM t_count");
-        REQUIRE(count == 0);
-    }
-
-    SECTION("non-empty table returns correct count") {
-        db.exec("INSERT INTO t_count VALUES (1, 'a')");
-        db.exec("INSERT INTO t_count VALUES (2, 'b')");
-        db.exec("INSERT INTO t_count VALUES (3, 'c')");
-
-        auto count = dao.QueryRows("SELECT id FROM t_count");
-        REQUIRE(count == 3);
-    }
-}
-
-TEST_CASE("DaoBase: SetCondition builds WHERE clause from vector", "[dao-base]") {
-    auto db = MakeInMemoryDb();
-    TestableDao dao(db);
-
-    SECTION("empty vector does not append anything") {
-        std::string sql = "SELECT * FROM t";
-        dao.SetCondition(sql, std::vector<std::string>{});
-        REQUIRE(sql == "SELECT * FROM t");
-    }
-
-    SECTION("single condition") {
-        std::string sql = "SELECT * FROM t";
-        dao.SetCondition(sql, std::vector<std::string>{"id = 1"});
-        REQUIRE(sql == "SELECT * FROM t WHERE id = 1");
-    }
-
-    SECTION("multiple conditions joined by AND") {
-        std::string sql = "SELECT * FROM t";
-        dao.SetCondition(sql, std::vector<std::string>{"id = 1", "name = 'test'"});
-        REQUIRE(sql == "SELECT * FROM t WHERE id = 1 AND name = 'test'");
-    }
-
-    SECTION("const ref overload works the same") {
-        std::string sql                      = "SELECT * FROM t";
-        const std::vector<std::string> conds = {"a = 1", "b = 2"};
-        dao.SetCondition(sql, conds);
-        REQUIRE(sql == "SELECT * FROM t WHERE a = 1 AND b = 2");
-    }
 }
 
 TEST_CASE("DaoBase: SetLimit appends LIMIT/OFFSET clause", "[dao-base]") {

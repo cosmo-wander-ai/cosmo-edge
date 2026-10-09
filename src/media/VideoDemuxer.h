@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
@@ -48,6 +49,16 @@ namespace media {
         void SetFile(const std::string&);
         void SetForceFps(float fps);
         void CloseStream(bool repeat = false);
+        // RequestStop is safe from another thread. Reset only before starting
+        // a new worker, after the previous one has joined. Close/Open/Demux
+        // themselves remain serialized by the owning channel lifecycle.
+        void RequestStop();
+        void ResetCancellation();
+        bool StopRequested() const;
+        // Configure on the owning thread before OpenStream. The optional running
+        // flag must outlive this demuxer; neither setting changes during I/O.
+        void SetIoDeadline(std::chrono::steady_clock::time_point deadline,
+                           const std::atomic<bool>* running = nullptr);
 
         int GetWidth() const {
             return width_.load(std::memory_order_relaxed);
@@ -59,15 +70,17 @@ namespace media {
             return fps_.load(std::memory_order_relaxed);
         }
         VideoCodecType GetEncodeType() const {
+            std::lock_guard<std::mutex> lock(metadata_mtx_);
             return enc_type_;
         }
 
-        const std::vector<uint8_t>& GetCodecExtradata() const {
+        std::vector<uint8_t> GetCodecExtradata() const {
+            std::lock_guard<std::mutex> lock(metadata_mtx_);
             return extradata_;
         }
 
         bool IsLiveStream() const {
-            return strategy_ && strategy_->IsLive();
+            return is_live_.load(std::memory_order_relaxed);
         }
 
         // Open stream. Can be used to verify online status
@@ -85,6 +98,7 @@ namespace media {
         // Calculate real frame index
         void CalcFrameIndex(AVPacket* packet);
         void SafeCloseContext();
+        static int InterruptIo(void* opaque);
         // Initialize BSF context for the given codec type
         bool InitBsfContext();
 
@@ -94,6 +108,8 @@ namespace media {
 
     private:
         std::string filename_;
+        std::string opened_filename_;
+        mutable std::mutex metadata_mtx_;
         VideoCodecType enc_type_{VideoCodecType::kH264};
         AVFormatContext* fmt_ctx_{nullptr};
 
@@ -124,12 +140,16 @@ namespace media {
         int64_t start_pts_{0};                                    // For calculating frame rate
 
         std::unique_ptr<IDemuxStrategy> strategy_;
-        std::vector<uint8_t> extradata_;  // Cached codec extradata (avcC/hevcC) from FindStream
+        std::atomic<bool> is_live_{false};  // Read by status queries during reconnect.
+        std::vector<uint8_t> extradata_;    // Cached codec extradata (avcC/hevcC) from FindStream
         bool opened_{false};
         bool ready_{false};
         bool end_{false};
 
         bool key_frame_detected_;
+        std::atomic<bool> stop_requested_{false};
+        std::chrono::steady_clock::time_point io_deadline_{std::chrono::steady_clock::time_point::max()};
+        const std::atomic<bool>* io_running_{nullptr};
     };
 
 }  // namespace media

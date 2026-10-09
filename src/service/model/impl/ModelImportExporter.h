@@ -30,7 +30,7 @@ public:
                                           const std::string& tokenizerFilePath,
                                           const std::string& characterTableFilePath,
                                           const std::string& normalizationMode,
-                                          const std::string& colorChannel);
+                                          const std::string& colorChannel, bool reservedCode = false);
 
     cosmo::util::ErrorEnum ImportModel(const std::string& archivePath);
 
@@ -48,7 +48,7 @@ private:
         const std::string& modelCode, const std::string& modelName, const std::string& modelType,
         const std::vector<cosmo::Model::BmodelFileInfo>& bmodelFiles, const std::string& vocabFilePath,
         const std::string& tokenizerFilePath, const std::string& characterTableFilePath,
-        std::string& resolvedModelCode, std::vector<std::string>& bmodelPaths);
+        std::string& resolvedModelCode, std::vector<std::string>& bmodelPaths, bool reservedCode = false);
 
     cosmo::util::ErrorEnum CollectBmodelInfo(const std::string& modelType,
                                              const std::vector<std::string>& bmodelPaths,

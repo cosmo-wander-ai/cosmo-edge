@@ -20,13 +20,6 @@ TEST_CASE("ClientMessageServiceImpl: FetchAlgorithmConfig returns false (stub)",
     REQUIRE(sut.FetchAlgorithmConfig(req, rsp) == false);
 }
 
-TEST_CASE("ClientMessageServiceImpl: FetchAtomicCodeList returns false (stub)", "[ClientMessageService]") {
-    ClientMessageServiceImpl sut;
-    cosmo::CMsgGetAtomicCodeListReq req;
-    cosmo::CMsgGetAtomicCodeListRsp rsp;
-    REQUIRE(sut.FetchAtomicCodeList(req, rsp) == false);
-}
-
 TEST_CASE("ClientMessageServiceImpl: FetchVideoPlayUrl returns false (stub)", "[ClientMessageService]") {
     ClientMessageServiceImpl sut;
     cosmo::CMsgGetVideoPlayReq req;

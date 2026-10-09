@@ -199,6 +199,18 @@ class WorkflowError(ValueError):
     """Raised for invalid contracts or unsafe workflow paths."""
 
 
+def _runs_root(project_root: Path) -> Path:
+    configured = os.environ.get("COSMO_AGENT_RUNS_ROOT")
+    if configured is None:
+        return (project_root / "output" / "agent-runs").resolve()
+    if not configured.strip():
+        raise WorkflowError("COSMO_AGENT_RUNS_ROOT must be an absolute directory")
+    runs_root = Path(configured).expanduser()
+    if not runs_root.is_absolute():
+        raise WorkflowError("COSMO_AGENT_RUNS_ROOT must be an absolute directory")
+    return runs_root.resolve()
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -273,6 +285,12 @@ def _is_relative_to(path: Path, parent: Path) -> bool:
         return False
 
 
+def _display_path(path: Path, project_root: Path = PROJECT_ROOT) -> str:
+    if _is_relative_to(path, project_root):
+        return path.relative_to(project_root).as_posix()
+    return str(path)
+
+
 def resolve_contract_context(
     contract_arg: str | os.PathLike[str], project_root: Path = PROJECT_ROOT
 ) -> tuple[Path, Path, dict[str, Any]]:
@@ -284,13 +302,13 @@ def resolve_contract_context(
         contract_path = candidate.resolve(strict=True)
     except FileNotFoundError as error:
         raise WorkflowError(f"contract does not exist: {candidate}") from error
-    runs_root = (root / "output" / "agent-runs").resolve()
+    runs_root = _runs_root(root)
     if not _is_relative_to(contract_path, runs_root):
-        raise WorkflowError("contract must stay under output/agent-runs/<run-id>/")
+        raise WorkflowError(f"contract must stay under {runs_root}/<run-id>/")
     run_dir = contract_path.parent
     relative = contract_path.relative_to(runs_root)
     if len(relative.parts) != 2 or relative.parts[1] != "task-contract.json":
-        raise WorkflowError("contract path must be output/agent-runs/<run-id>/task-contract.json")
+        raise WorkflowError(f"contract path must be {runs_root}/<run-id>/task-contract.json")
     data = validate_contract(load_json(contract_path))
     if data["runId"] != run_dir.name:
         raise WorkflowError("runId must match the contract directory name")
@@ -1886,7 +1904,7 @@ def create_task_run(
         sources.append(source)
 
     root = project_root.resolve()
-    runs_root = root / "output" / "agent-runs"
+    runs_root = _runs_root(root)
     runs_root.mkdir(parents=True, exist_ok=True, mode=0o700)
     run_dir = runs_root / selected_run_id
     try:
@@ -1950,7 +1968,7 @@ def create_task_run(
         "task": task,
         "userObjective": objective,
         "expectedDeliverables": requested_deliverables,
-        "allowedChanges": [f"output/agent-runs/{selected_run_id}/"],
+        "allowedChanges": [_display_path(run_dir, root) + "/"],
         "requiredCapabilities": [],
         "acceptance": {},
         "authority": authority,
@@ -2097,9 +2115,9 @@ def start_main(arguments: list[str]) -> int:
         run_id=options.run_id,
     )
     result = {
-        "runDirectory": run_dir.relative_to(PROJECT_ROOT).as_posix(),
-        "contract": contract_path.relative_to(PROJECT_ROOT).as_posix(),
-        "routeAssessment": (run_dir / "route-assessment.json").relative_to(PROJECT_ROOT).as_posix(),
+        "runDirectory": _display_path(run_dir),
+        "contract": _display_path(contract_path),
+        "routeAssessment": _display_path(run_dir / "route-assessment.json"),
         "routeVerdict": assessment["routeVerdict"],
         "needsInput": assessment["needsInput"],
         "authorityGrants": sorted(_authority_grants(contract)),

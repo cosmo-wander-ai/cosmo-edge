@@ -502,49 +502,6 @@ const setupAutoAdvance = (step) => {
       }, 300)
       autoAdvanceCleanup = () => clearInterval(checkInterval)
     }
-
-    if (step.advanceOn === 'select') {
-      const getSelectText = (selectEl) => {
-        if (!selectEl) return ''
-        const inner = selectEl.querySelector('.el-input__inner')
-        if (inner?.value) return inner.value.trim()
-        const selected = selectEl.querySelector('.el-select__selected-item')
-        if (selected?.textContent) return selected.textContent.trim()
-        const input = selectEl.querySelector('input')
-        if (input?.value) return input.value.trim()
-        const wrapper = selectEl.querySelector('.el-select__wrapper') ||
-                       selectEl.querySelector('.el-input')
-        if (wrapper?.innerText) return wrapper.innerText.trim()
-        return selectEl.innerText?.trim() || ''
-      }
-
-      const monitorEl = step.advanceTarget
-        ? document.querySelector(step.advanceTarget)
-        : el
-      if (!monitorEl) {
-        addLog(`  advanceTarget ${step.advanceTarget} not found, polling`, 'error')
-        setTimeout(waitAndAttach, 500)
-        return
-      }
-      const initialText = getSelectText(monitorEl)
-      addLog(`  Watching select change: initial="${initialText}"`)
-      const checkInterval = setInterval(() => {
-        const currentEl = step.advanceTarget
-          ? document.querySelector(step.advanceTarget)
-          : document.querySelector(step.selector)
-        if (!currentEl) return
-        const currentText = getSelectText(currentEl)
-        const matched = step.advanceValue
-          ? currentText.includes(step.advanceValue)
-          : currentText !== initialText && currentText !== ''
-        if (matched) {
-          clearInterval(checkInterval)
-          addLog(`Select value changed to "${currentText}", auto-advancing`, 'success')
-          setTimeout(() => nextStep(), 600)
-        }
-      }, 300)
-      autoAdvanceCleanup = () => clearInterval(checkInterval)
-    }
   }
   waitAndAttach()
 }

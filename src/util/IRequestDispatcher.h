@@ -20,6 +20,9 @@ struct RequestDispatchContext {
     std::string uri;
     std::string credential;
     std::string principal;
+    std::string http_method;
+    std::string upload_id;
+    std::string upload_offset;
     // Server-generated provenance for the single file parsed from this HTTP
     // multipart request. These fields are never populated from JSON/form
     // fields and remain empty for non-multipart and MQTT requests.

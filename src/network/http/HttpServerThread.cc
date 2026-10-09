@@ -102,6 +102,9 @@ void MsgHanderThread::ProcessHttpReqTask(HttpReqTask& task) {
     context.uri                 = uri;
     context.credential          = task.mtk;
     context.principal           = task.principal;
+    context.http_method         = task.http_method;
+    context.upload_id           = task.upload_id;
+    context.upload_offset       = task.upload_offset;
     context.multipart_file_path = task.multipart_file_path;
     context.multipart_file_name = task.multipart_file_name;
     context.multipart_file_size = task.multipart_file_size;

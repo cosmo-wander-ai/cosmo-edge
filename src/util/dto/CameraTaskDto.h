@@ -10,7 +10,9 @@ struct CameraTaskDto {
     std::string algorithmName;  // Algorithm code
     std::string scheduleId;     // Schedule template
     std::string scheduleName;   // Schedule template
-    bool enable{false};         // Enable switch
+    bool ready{false};
+    std::string runtimeState{"unknown"};
+    bool enable{false};  // Enable switch
 };
 
 }  // namespace cosmo::service::camera

@@ -88,3 +88,33 @@ TEST_CASE("ScheduleServiceImpl: 时间模板 CRUD", "[schedule-service]") {
         REQUIRE(sut.InRunTime(defaultId) == true);
     }
 }
+
+TEST_CASE("ScheduleServiceImpl managed IDs survive restart and report failed persistence",
+          "[schedule-service][management]") {
+    auto root = std::filesystem::temp_directory_path() /
+                ("cosmo-managed-schedule-" +
+                 std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directories(root);
+    ScopedDirectoryRemoval cleanup(root);
+    cosmo::test::ScopedCurrentPath current(root);
+    cosmo::test::ScopedPathOverride paths(root.string(), root.string());
+    MsgScheduleTemplate schedule;
+    schedule.scheduleId   = "managed-schedule";
+    schedule.scheduleName = "Managed";
+    {
+        ScheduleServiceImpl service;
+        REQUIRE(service.PutManaged(schedule) == util::ErrorEnum::Success);
+        REQUIRE(service.PutManaged(schedule) == util::ErrorEnum::Success);
+        size_t count = 0;
+        service.Query("", 1, 100, count);
+        REQUIRE(count == 4);
+    }
+    ScheduleServiceImpl service;
+    REQUIRE(service.Exist(schedule.scheduleId));
+    auto file = std::filesystem::path(cosmo::path::GetCfgPath()) / "scheduleTemplate.json";
+    std::filesystem::remove(file);
+    std::filesystem::create_directory(file);
+    schedule.scheduleId = "must-not-appear";
+    REQUIRE(service.PutManaged(schedule) == util::ErrorEnum::SysErr);
+    REQUIRE_FALSE(service.Exist(schedule.scheduleId));
+}

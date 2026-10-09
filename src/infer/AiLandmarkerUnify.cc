@@ -49,6 +49,7 @@ util::ErrorEnum AiLandmarkerUnify::Marker(VideoFramePtr image, std::vector<AiDet
         auto ret = Marker(images, ioPuts);
         if (util::ErrorEnum::Success != ret) {
             LOG_INFO("{}", "Marker Fail");
+            return ret;
         }
         ioEl = ioPuts[0];
     }
@@ -192,6 +193,7 @@ util::ErrorEnum AiLandmarkerUnify::Marker(const std::vector<VideoFramePtr>& imag
                 auto ret = Forward(inputImages, inputRects, outputs);
                 if (util::ErrorEnum::Success != ret) {
                     LOG_ERRO("Forward Failed. Ret:{}", ret);
+                    return ret;
                 }
                 DispatchLandmarkResults(outputs, indexes, ioRst);
                 inputImages.clear();

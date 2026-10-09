@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "ffmpegVersion": "4.4.6",
+  "source": {
+    "url": "https://ffmpeg.org/releases/ffmpeg-4.4.6.tar.xz",
+    "sha256": "2290461f467c08ab801731ed412d8e724a5511d6c33173654bd9c1d2e25d0617"
+  },
+  "patch": {
+    "path": "cmake/patch_ffmpeg_flv_hevc.cmake",
+    "sha256": "cb474cb8800943b9e23569f9aae29215547278467dba8d047cd5573d949b3ed0",
+    "feature": "Legacy FLV HEVC CodecID 12 demuxing; not Enhanced RTMP hvc1"
+  },
+  "integration": "All FFmpeg libraries are prebuilt and selected by CPU architecture. Only libavformat is replaced; existing headers and codec libraries are retained.",
+  "reproduction": {
+    "scope": "Dependency maintenance only; not invoked by the project build",
+    "patchCommand": "cmake -DFFMPEG_SOURCE_DIR=<source> -P cmake/patch_ffmpeg_flv_hevc.cmake",
+    "configureCommand": "<source>/configure --prefix=<install> <commonConfigureArguments> <architectureConfigureArguments>",
+    "commonConfigureArguments": [
+      "--disable-static",
+      "--enable-shared",
+      "--enable-pic",
+      "--enable-small",
+      "--disable-stripping",
+      "--disable-runtime-cpudetect",
+      "--disable-programs",
+      "--disable-doc",
+      "--disable-debug",
+      "--disable-large-tests",
+      "--target-os=linux"
+    ],
+    "buildCommand": "make -j4 libavformat/libavformat.so.58",
+    "install": "Copy libavformat/libavformat.so.58 as libavformat.so.58.76.100; retain the existing libavformat.so and libavformat.so.58 symlinks. Compiler and system dependencies must also match for byte-for-byte reproduction."
+  },
+  "artifacts": [
+    {
+      "architecture": "aarch64",
+      "path": "prebuild/ffmpeg/aarch64/lib/libavformat.so.58.76.100",
+      "sha256": "e044381b9666dc464dd50b392ec8f229d27ba1ce2acd24810141a024adb14979",
+      "sizeBytes": 2341664,
+      "soname": "libavformat.so.58",
+      "compiler": "GCC 11.4.0 (Ubuntu 11.4.0-1ubuntu1~22.04.3)",
+      "architectureConfigureArguments": [
+        "--arch=aarch64",
+        "--enable-cross-compile",
+        "--cross-prefix=aarch64-linux-gnu-"
+      ],
+      "neededLibraries": [
+        "libavcodec.so.58",
+        "libavutil.so.56",
+        "libm.so.6",
+        "libc.so.6",
+        "ld-linux-aarch64.so.1"
+      ],
+      "maximumRequiredGlibcVersion": "2.35"
+    },
+    {
+      "architecture": "x86_64",
+      "path": "prebuild/ffmpeg/x86_64/lib/libavformat.so.58.76.100",
+      "sha256": "10668393b985407cd1b959cf1226a8987ef65537c840f399c88f2c42d6c108d7",
+      "sizeBytes": 2265680,
+      "soname": "libavformat.so.58",
+      "compiler": "GCC 12.2.0 (Debian 12.2.0-14+deb12u1)",
+      "architectureConfigureArguments": [
+        "--arch=x86_64",
+        "--disable-x86asm"
+      ],
+      "neededLibraries": [
+        "libavcodec.so.58",
+        "libavutil.so.56",
+        "libm.so.6",
+        "libc.so.6",
+        "libbz2.so.1.0",
+        "libz.so.1"
+      ],
+      "maximumRequiredGlibcVersion": "2.35"
+    }
+  ]
+}

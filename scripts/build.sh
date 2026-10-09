@@ -24,13 +24,20 @@ CHIP_MODEL=""
 RESOURCE_DIR=""
 DEV_MODE=OFF
 BUILD_TESTS_FLAG=OFF
-while getopts "c:m:tT" opt; do
+BUILD_VLM_EVAL_FLAG=OFF
+BUILD_JOBS="${COSMO_BUILD_JOBS:-$(nproc)}"
+if [[ ! "${BUILD_JOBS}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "ERROR: COSMO_BUILD_JOBS must be a positive integer" >&2
+    exit 1
+fi
+while getopts "c:m:tTE" opt; do
     case $opt in
         c) CHIP_MODEL="${OPTARG,,}" ;;
         m) RESOURCE_DIR="$OPTARG" ;;
         t) DEV_MODE=ON ;;
         T) BUILD_TESTS_FLAG=ON ;;
-        *) echo "Usage: $0 [-c <bm1688|cv186x> | -m <resource_repo_path>] [-t] [-T]"; exit 1 ;;
+        E) BUILD_VLM_EVAL_FLAG=ON ;;
+        *) echo "Usage: $0 [-c <bm1688|cv186x> | -m <resource_repo_path>] [-t] [-T] [-E]"; exit 1 ;;
     esac
 done
 
@@ -102,6 +109,7 @@ echo "Configuring protected build..."
 cmake   -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
         -DBUILD_TESTS="${BUILD_TESTS_FLAG}" \
+        -DBUILD_VLM_EVAL="${BUILD_VLM_EVAL_FLAG}" \
         -DCOSMO_DEV_MODE="${DEV_MODE}" \
         -DCOSMO_TARGET_CHIP="${CHIP_MODEL:-unspecified}" \
         -DCOSMO_MODEL_GUARD_SDK_ROOT="${COSMO_GUARD_SDK_DIR}" \
@@ -118,7 +126,7 @@ if [ "${BUILD_TESTS_FLAG}" = "ON" ]; then
     echo "Also building cosmo-tests in this pass..."
     build_targets+=(--target cosmo-tests)
 fi
-cmake --build . "${build_targets[@]}" -j"$(nproc)"
+cmake --build . "${build_targets[@]}" -j"${BUILD_JOBS}"
 
 echo "Auditing installed AArch64 ELF paths..."
 unsafe_elf_path=0

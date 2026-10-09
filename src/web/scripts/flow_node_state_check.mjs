@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
-import { h, onMounted } from 'vue'
+import { h, ref, reactive, provide, inject, getCurrentInstance } from 'vue'
 import lodash from 'lodash'
 import { mountComponent } from './helpers/mount_behavior_component.mjs'
-import { createNodeState, updateAtomicList, updateNodeConfig } from '../src/views/gam/countManagement/arrangeDetail/flow/nodeState.js'
+import { collectFlowData, collectMetaDataParams, createNodeState, updateAtomicList, updateNodeConfig } from '../src/views/gam/countManagement/arrangeDetail/flow/nodeState.js'
 
 const plain = value => JSON.parse(JSON.stringify(value))
 const empty = { default: { render: () => null } }
@@ -35,121 +35,291 @@ assert.deepEqual(appendedAtomics.at(-1), { position: 'added', atomicCode: '', at
 assert.deepEqual(appendedAtomics.slice(0, 3), originalAtomics, 'new atomic entries append after existing ones')
 assert.equal(updateAtomicList(originalAtomics, {}), originalAtomics, 'a missing position is a no-op')
 
-for (const linkage of [false, true]) {
-  const prefix = '@/views/gam/countManagement/arrangeDetail/flow/'
-  const graph = { nodes: [], edges: [], pendingNodes: null, pendingEdges: null }
-  const listeners = new Map()
-  const bus = {
-    $on(name, fn) { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name).add(fn) },
-    $off(name, fn) { listeners.get(name)?.delete(fn) },
-    $emit(name, value) { for (const fn of listeners.get(name) || []) fn(value) }
+const extendedConfig = {
+  ...plain(config), extension: { retained: true },
+  webConfig: {
+    ...plain(config.webConfig),
+    atomic: { atomicCode: 'model', atomicNameI18nKey: 'resource.model.name', labelList: [], extension: true },
+    metaDataParams: [{ key: 'threshold', nameI18nKey: 'resource.threshold', extension: true }]
   }
-  const action = { id: 'action-1', actionName: 'Action', inputParamConfig: JSON.stringify([{ key: 'message', name: 'Message', type: 'text', level: '1', defaultValue: 'default' }, { key: 'visual.catalog', type: 'visualQuestions', level: '2', defaultValue: '' }]) }
+}
+const extendedNode = { id: 'extended', type: 'customForm', data: createNodeState({ ...imported, configObject: extendedConfig }) }
+const collected = collectFlowData([{ id: 'stage', type: 'stageGroup' }, extendedNode], [{ source: 'parent', target: 'extended' }])
+assert.equal(collected.items.length, 1, 'stage decorations are not serialized')
+assert.equal(collected.items[0].configObject, extendedNode.data.configObject, 'collection uses the canonical config without another editable copy')
+assert.deepEqual(collected.items[0].configObject, extendedConfig)
+assert.equal(collected.items[0].preFlowActionId, 'parent')
+assert.deepEqual(collected.atomicCollected, [{ ...extendedConfig.webConfig.atomic, position: 'extended', atomicName: '' }])
+assert.deepEqual(collectMetaDataParams([extendedNode]), extendedConfig.webConfig.metaDataParams)
+
+// Render real node, edge, picker and detail-panel SFCs. Only the Vue Flow
+// renderer/geometry and Element Plus controls are substituted by the harness.
+for (const linkage of [false, true]) {
+  const graphs = []
+  const flowKey = Symbol('testFlow')
+  const documentListeners = new Set()
+  let confirmation = 'confirm'
+  let finishConfirmation
+  const action = { id: 'action-1', actionName: 'Canonical action', actionType: 1, inputParamConfig: JSON.stringify([{ key: 'message', name: 'Message', type: 'text', level: '1', defaultValue: 'default' }, { key: 'visual.catalog', type: 'visualQuestions', level: '2', defaultValue: '' }]) }
   const workflow = [
-    { ...plain(imported), actionName: 'Action', remark: '', preFlowActionId: '-1' },
-    { ...plain(imported), flowActionId: 'node-2', actionName: 'Action', remark: '', preFlowActionId: 'node-1' }
+    { ...plain(imported), actionName: 'Saved action', actionNameI18nKey: 'actions.first', remark: '', preFlowActionId: '-1' },
+    { ...plain(imported), flowActionId: 'node-2', actionName: 'Saved action', remark: '', preFlowActionId: 'node-1' }
   ]
+  const props = linkage
+    ? { width: 1000, height: 700, actionList: [action], strategyId: 'strategy-1', workFlow: JSON.stringify(workflow) }
+    : { width: 1000, height: 700, actionList: [action], algorithmData: { algorithmCode: 'scene-1', algorithmProcessdata: JSON.stringify(workflow), atomicList: '[]' } }
+  const canvasProps = reactive([plain(props), plain(props)])
+  const visible = ref([true, true])
+  const canvases = []
   let id = 0
   const mocks = {
     '@vue-flow/core': {
       VueFlow: {
-        props: ['nodes', 'edges'], emits: ['update:nodes', 'update:edges'],
-        setup(props, { attrs, emit }) {
-          graph.publishNodes = nodes => emit('update:nodes', nodes)
-          graph.publishEdges = edges => emit('update:edges', edges)
-          onMounted(() => {
-            if (graph.pendingNodes) graph.publishNodes(graph.pendingNodes)
-            if (graph.pendingEdges) graph.publishEdges(graph.pendingEdges)
-          })
+        props: ['nodes', 'edges', 'nodeTypes', 'edgeTypes'], emits: ['update:nodes', 'update:edges'],
+        setup(props, { attrs }) {
+          const graph = inject(flowKey)
+          graph.owner = getCurrentInstance().parent
+          const editorKey = Object.getOwnPropertySymbols(graph.owner.provides).find(key => key.description === 'flowEditor')
+          graph.editor = inject(editorKey)
           return () => {
             graph.nodes = props.nodes
             graph.edges = props.edges
-            return h('flow-fixture', { ...attrs, nodes: props.nodes, edges: props.edges })
+            return h('flow-fixture', { ...attrs, graph }, [
+              ...props.nodes.map(node => h('node-fixture', { id: node.id, key: node.id }, [
+                h(props.nodeTypes[node.type], { id: node.id, data: node.data })
+              ])),
+              ...props.edges.map(edge => h('edge-fixture', { id: edge.id, key: edge.id }, [
+                h(props.edgeTypes[edge.type], { id: edge.id, sourceX: 0, sourceY: 0, targetX: 100, targetY: 0, sourcePosition: 'right', targetPosition: 'left' })
+              ]))
+            ])
           }
         }
       },
-      useVueFlow: () => ({
-        setNodes(value) {
-          graph.pendingNodes = typeof value === 'function' ? value(graph.nodes) : value
-          graph.publishNodes?.(graph.pendingNodes)
-        },
-        setEdges(value) {
-          graph.pendingEdges = typeof value === 'function' ? value(graph.edges) : value
-          graph.publishEdges?.(graph.pendingEdges)
-        },
-        addNodes() {}, onPaneReady() {}, getEdges: { get value() { return graph.edges } }
-      })
+      useVueFlow: () => {
+        const graph = { nodes: [], edges: [] }
+        graphs.push(graph)
+        provide(flowKey, graph)
+        return { onPaneReady() {} }
+      },
+      Handle: empty.default, Position: { Left: 'left', Right: 'right' },
+      BaseEdge: empty.default,
+      EdgeLabelRenderer: { setup: (_, { slots }) => () => slots.default?.() },
+      getBezierPath: () => ['', 50, 0], getSmoothStepPath: () => ['', 50, 0]
+    },
+    'element-plus': {
+      ElMessage: () => {},
+      ElMessageBox: { confirm: () => confirmation === 'pending'
+        ? new Promise(resolve => { finishConfirmation = resolve })
+        : confirmation === 'cancel' ? Promise.reject('cancel') : Promise.resolve() }
     },
     '@vue-flow/background': { Background: empty.default },
     '@vue-flow/controls': { Controls: empty.default },
-    '@vue-flow/minimap': { MiniMap: empty.default },
-    '@vue-flow/core/dist/style.css': {}, '@vue-flow/minimap/dist/style.css': {}, '@vue-flow/controls/dist/style.css': {},
+    '@vue-flow/core/dist/style.css': {}, '@vue-flow/controls/dist/style.css': {},
     dagre: { default: {} }, lodash: { default: lodash },
     uuid: { v4: () => `id-${++id}` },
-    '@/components/eventBus.js': { default: bus },
+    '@/components/eventBus.js': { default: {
+      $on(name) { assert.ok(!/^(flow|edgeMenu):/.test(name), 'graph listeners must be canvas-scoped') },
+      $off() {},
+      $emit(name) { assert.ok(!/^(flow|edgeMenu):/.test(name), 'graph operations must be canvas-scoped') }
+    } },
     '@element-plus/icons-vue': Object.fromEntries(['QuestionFilled', 'ArrowDown', 'ArrowRight', 'CirclePlus', 'CircleClose'].map(name => [name, empty.default])),
     './ConditionView.vue': empty, './TreeSelectMultiple.vue': empty, 'tree-transfer-vue3': { default: empty.default }
   }
-  for (const name of ['ActionView.vue', 'CustomFormNode.vue', 'StartNode.vue', 'EndNode.vue', 'ActionEdge.vue', 'StageGroupNode.vue']) {
-    mocks[`./${name}`] = empty
-    mocks[`${prefix}${name}`] = empty
-  }
   const entry = linkage ? 'views/box/strategyManagement/components/ArrangeFlow.vue' : 'views/gam/countManagement/arrangeDetail/flow/ArrangeFlow.vue'
-  const props = linkage
-    ? { width: 1000, height: 700, actionList: [action], strategyId: 'strategy-1', workFlow: JSON.stringify(workflow) }
-    : { width: 1000, height: 700, actionList: [action], algorithmData: { algorithmCode: 'scene-1', algorithmProcessdata: JSON.stringify(workflow), atomicList: '[]' } }
   const editor = await mountComponent(entry, {
-    props, mocks,
+    mocks,
+    wrap: component => ({
+      setup: () => () => h('editors', canvasProps.map((props, index) => visible.value[index]
+        ? h(component, { ...props, key: index, ref: value => { canvases[index] = value } }) : null))
+    }),
     globals: {
       requestAnimationFrame() {},
-      document: { addEventListener() {}, removeEventListener() {} },
+      document: {
+        addEventListener(name, callback) { documentListeners.add(callback) },
+        removeEventListener(name, callback) { documentListeners.delete(callback) }
+      },
       localStorage: { setItem() { assert.fail('collecting a node must not persist a localStorage snapshot') } }
     }
   })
-  const savedItems = () => {
-    const payload = editor.instance.saveFlowData()
+  const savedItems = (index = 0) => {
+    const payload = canvases[index].saveFlowData()
     return JSON.parse(linkage ? payload.workFlow : payload.algorithmProcessdata)
   }
+  const graphRoot = (index = 0) => editor.all(node => node.type === 'flow-fixture' && node.props.graph === graphs[index])[0]
+  const cardRoot = (id, index = 0) => editor.all(node => node.type === 'node-fixture' && node.props.id === id, graphRoot(index))[0]
+  const click = node => { assert.ok(node, 'expected rendered control'); node.props.onClick({ stopPropagation() {} }) }
+  const hasClass = (node, name) => typeof node.props.class === 'string' && node.props.class.split(' ').includes(name)
+  const nodeControl = (id, name, index = 0) => editor.all(node => hasClass(node, name), cardRoot(id, index))[0]
+  const edgeControl = (edgeId, name, index = 0) => {
+    const root = editor.all(node => node.type === 'edge-fixture' && node.props.id === edgeId, graphRoot(index))[0]
+    return editor.all(node => hasClass(node, name), root)[0]
+  }
+  const openNode = (id, index = 0) => click(nodeControl(id, 'node-card', index))
+  const input = () => editor.all(node => node.type === 'el-input')[0]
+  const dialogRoots = () => [...editor.teleportTargets.values()].flatMap(root => editor.all(node => node.type === 'el-dialog' && node.props.modelValue, root))
+  const chooseAction = () => click(editor.all(node => hasClass(node, 'item-action'), dialogRoots()[0])[0])
+  const reload = (items, index = 0) => {
+    if (linkage) {
+      canvasProps[index].strategyId += '-next'
+      canvasProps[index].workFlow = JSON.stringify(items)
+    } else {
+      canvasProps[index].algorithmData = { ...canvasProps[index].algorithmData, algorithmProcessdata: JSON.stringify(items) }
+    }
+  }
+  const findComponent = (vnode, name) => {
+    if (vnode?.component?.type.__name === name) return vnode.component
+    if (vnode?.component) return findComponent(vnode.component.subTree, name)
+    return Array.isArray(vnode?.children) ? vnode.children.map(child => findComponent(child, name)).find(Boolean) : undefined
+  }
   try {
+    assert.equal(graphs.length, 2, 'each canvas owns a flow instance')
     assert.deepEqual(savedItems().map(item => item.configObject), [config, config], 'untouched node JSON round-trips')
-    for (const node of graph.nodes.filter(node => node.type === 'customForm')) {
+    assert.equal(savedItems()[0].actionName, linkage ? 'Saved action' : 'Canonical action', 'page-specific action names are preserved')
+    for (const node of graphs[0].nodes.filter(node => node.type === 'customForm')) {
       assert.ok(Object.hasOwn(node.data, 'configObject'))
       assert.ok(!Object.hasOwn(node.data.flowData, 'configObject'))
       assert.ok(!Object.hasOwn(node.data.actionDetail, 'configObject'))
     }
-    bus.$emit('flow:openDetailPanel', 'node-1')
+    const secondBefore = savedItems(1)
+    openNode('node-1')
     await editor.settle()
-    const input = () => editor.all(node => node.type === 'el-input')[0]
-    assert.equal(input().props.modelValue, 'saved', 'panel reads the canonical node config')
+    assert.equal(input().props.modelValue, 'saved', 'real node opens its own panel')
     input().props.activate('edited-before-debounce')
     let saved = savedItems()
-    assert.equal(saved[0].configObject.params[0].value, 'edited-before-debounce', 'immediate save flushes the current panel')
-    assert.equal(saved[1].configObject.params[0].value, 'saved', 'sibling node keeps its own config')
-    assert.deepEqual(saved[0].extension, { retained: true }, 'flow extension fields survive edits')
-    bus.$emit('flow:openDetailPanel', 'node-2')
+    assert.equal(saved[0].configObject.params[0].value, 'edited-before-debounce', 'immediate save flushes the panel')
+    assert.equal(saved[1].configObject.params[0].value, 'saved', 'sibling config is detached')
+    assert.deepEqual(saved[0].extension, { retained: true })
+    assert.equal(saved[0].actionNameI18nKey, 'actions.first')
+    openNode('node-2')
     await editor.settle()
-    assert.equal(input().props.modelValue, 'saved')
     input().props.activate('second-edit')
-    bus.$emit('flow:openDetailPanel', 'node-1')
+    openNode('node-1')
     await editor.settle()
-    assert.equal(input().props.modelValue, 'edited-before-debounce', 'reopened panel reflects its current node')
-    saved = savedItems()
-    assert.equal(saved[1].configObject.params[0].value, 'second-edit', 'switching nodes collects the outgoing panel')
+    assert.equal(input().props.modelValue, 'edited-before-debounce')
+    assert.equal(savedItems()[1].configObject.params[0].value, 'second-edit', 'switching nodes collects the outgoing panel')
+
     if (!linkage) {
       editor.all(n => n.type === 'el-input' && n.props.modelValue === 'original question')[0].props.activate('latest question')
-      const metadata = plain(editor.instance.saveMetaDataParams())
+      const metadata = plain(canvases[0].saveMetaDataParams())
       assert.equal(JSON.parse(metadata.find(p => p.position === 'node-1').value).questions[0].instructions, 'latest question', 'metadata save flushes current question edits before debounce')
     }
-    bus.$emit('flow:removeNodes', ['node-1'])
+
+    graphs[0].editor.updateAtomic({ position: 'node-1', atomicCode: 'model-1' })
+    graphs[0].editor.updateAtomic({ position: 'node-2', atomicCode: 'model-2' })
     await editor.settle()
-    assert.equal(editor.all(node => node.type === 'el-input').length, 0, 'removing the selected node clears its derived panel')
-    assert.equal(savedItems().some(item => item.flowActionId === 'node-1'), false)
-    editor.instance.clearFlow()
+    assert.deepEqual(plain(findComponent(graphs[0].owner.subTree, 'NodeDetailPanel').props.atomicList).map(item => item.position), ['node-1', 'node-2'])
+    confirmation = 'cancel'
+    click(nodeControl('node-1', 'node-delete'))
+    await editor.settle()
+    assert.equal(savedItems().length, 2, 'cancel does not change the graph or panel')
+    assert.equal(input().props.modelValue, 'edited-before-debounce')
+    confirmation = 'confirm'
+    click(nodeControl('node-1', 'node-delete'))
+    await editor.settle()
+    assert.equal(editor.all(node => node.type === 'el-input').length, 0, 'deleting the current node closes its panel')
+    assert.deepEqual(savedItems().map(item => [item.flowActionId, item.preFlowActionId]), [['node-2', '-1']])
+    openNode('node-2')
+    await editor.settle()
+    assert.deepEqual(plain(findComponent(graphs[0].owner.subTree, 'NodeDetailPanel').props.atomicList).map(item => item.position), ['node-2'], 'deleted node atomics are removed')
+    click(editor.all(node => hasClass(node, 'panel-close'))[0])
+    await editor.settle()
+
+    // Menus, dialogs and graph mutations stay within the initiating canvas.
+    let insertEdge = graphs[0].edges.find(edge => edge.source === '-1').id
+    const otherEdge = graphs[1].edges[0].id
+    click(edgeControl(insertEdge, 'edge-action-button'))
+    click(edgeControl(otherEdge, 'edge-action-button', 1))
+    await editor.settle()
+    assert.equal(editor.all(node => hasClass(node, 'edge-menu')).length, 2, 'different canvases can keep independent menus')
+    click(edgeControl(insertEdge, 'menu-item'))
+    await editor.settle()
+    assert.equal(dialogRoots().length, 1)
+    chooseAction()
+    await editor.settle()
+    const inserted = savedItems().find(item => item.flowActionId !== 'node-2')
+    assert.equal(inserted.preFlowActionId, '-1')
+    assert.equal(savedItems().find(item => item.flowActionId === 'node-2').preFlowActionId, inserted.flowActionId)
+    assert.deepEqual(savedItems(1), secondBefore, 'insertion leaves the other canvas unchanged')
+
+    // Existing saved branches remain editable through the visible edge menu.
+    const branchNode = 'saved-branch'
+    reload([...savedItems(), {
+      ...plain(imported), flowActionId: branchNode, actionName: 'Saved branch',
+      remark: '', preFlowActionId: '-1'
+    }])
+    await editor.settle()
+    assert.equal(graphs[0].edges.filter(edge => edge.source === '-1').length, 2)
+    assert.equal(graphs[0].nodes.filter(node => node.type === 'end').length, 2)
+    assert.deepEqual(savedItems().find(item => item.flowActionId === branchNode).configObject, config)
+    const branchEndEdge = graphs[0].edges.find(edge => edge.source === branchNode).id
+    click(edgeControl(branchEndEdge, 'edge-action-button'))
+    await editor.settle()
+    click(edgeControl(branchEndEdge, 'menu-item'))
+    await editor.settle()
+    assert.equal(dialogRoots().length, 1)
+    chooseAction()
+    await editor.settle()
+    const branchInserted = savedItems().find(item => item.preFlowActionId === branchNode)
+    assert.ok(branchInserted, 'a node can be inserted into a saved branch')
+    assert.equal(graphs[0].edges.filter(edge => edge.source === '-1').length, 2)
+    assert.equal(graphs[0].nodes.filter(node => node.type === 'end').length, 2)
+    assert.deepEqual(savedItems(1), secondBefore, 'editing a loaded branch leaves the other canvas unchanged')
+    openNode(branchNode)
+    await editor.settle()
+    input().props.activate('edited-saved-branch')
+    const savedBranches = savedItems()
+    assert.equal(savedBranches.find(item => item.flowActionId === branchNode).configObject.params[0].value, 'edited-saved-branch')
+    assert.deepEqual(savedBranches.find(item => item.flowActionId === branchNode).extension, { retained: true })
+    reload(savedBranches)
+    await editor.settle()
+    assert.deepEqual(savedItems(), savedBranches, 'saved branches, inserted nodes and extension fields round-trip')
+    assert.equal(graphs[0].nodes.filter(node => node.type === 'end').length, 2)
+    openNode(branchInserted.flowActionId)
+    await editor.settle()
+    const branchEdge = graphs[0].edges.find(edge => edge.target === branchNode).id
+    click(edgeControl(branchEdge, 'edge-action-button'))
+    await editor.settle()
+    const branchRoot = editor.all(node => node.type === 'edge-fixture' && node.props.id === branchEdge, graphRoot())[0]
+    click(editor.all(node => hasClass(node, 'menu-item'), branchRoot)[1])
+    await editor.settle()
+    assert.equal(savedItems().some(item => item.flowActionId === branchNode), false)
+    assert.equal(savedItems().some(item => item.flowActionId === branchInserted.flowActionId), false)
+    assert.equal(graphs[0].nodes.filter(node => node.type === 'end').length, 1)
+    assert.equal(editor.all(node => node.type === 'el-input').length, 0, 'following-flow deletion closes the affected panel')
+
+    const reopened = savedItems()
+    canvases[0].clearFlow()
     await editor.settle()
     assert.equal(savedItems().length, 0)
-    assert.equal(editor.all(node => node.type === 'el-input').length, 0, 'clearing the flow also clears its panel')
+    assert.equal(graphs[0].edges.length, 0)
+    reload(reopened)
+    await editor.settle()
+    assert.deepEqual(savedItems(), reopened, 'save/clear/reload round-trips')
+    openNode('node-2')
+    await editor.settle()
+    input().props.activate('must-not-leak-to-next-strategy')
+    reload(workflow)
+    await editor.settle()
+    assert.equal(editor.all(node => node.type === 'el-input').length, 0, 'strategy/template replacement closes the old panel')
+    assert.equal(savedItems()[1].configObject.params[0].value, 'saved')
+    assert.deepEqual(savedItems(1), secondBefore, 'configuration, atomic updates and removal are isolated')
+
+    canvasProps[1].actionList = null
+    await editor.settle()
+    assert.deepEqual(savedItems(1), secondBefore, 'an unavailable action catalog keeps saved node names')
+
+    confirmation = 'pending'
+    click(nodeControl('node-1', 'node-delete'))
+    const saveAfterUnmount = canvases[0].saveFlowData
+    const beforeUnmount = saveAfterUnmount()
+    visible.value[0] = false
+    await editor.settle()
+    finishConfirmation()
+    await editor.settle()
+    assert.deepEqual(saveAfterUnmount(), beforeUnmount, 'a late confirmation cannot mutate an unmounted canvas')
+    assert.deepEqual(savedItems(1), secondBefore)
   } finally { editor.unmount() }
-  assert.ok([...listeners.values()].every(set => set.size === 0), 'graph listeners are removed on unmount')
+  assert.equal(documentListeners.size, 0, 'edge/document listeners are removed on unmount')
 }
 
 // Preserve saved selections and ensure grouping nodes do not disable their

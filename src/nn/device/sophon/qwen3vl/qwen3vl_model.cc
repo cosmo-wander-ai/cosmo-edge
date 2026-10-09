@@ -205,8 +205,8 @@ namespace qwen3vl {
                                    "copy device memory");
     }
 
-    void Qwen3VLModel::clear_history() {
-        if (!support_history)
+    void Qwen3VLModel::clear_history(bool force) {
+        if (!support_history && !force)
             return;
         for (int i = 0; i < NUM_LAYERS; i++) {
             empty(bm_handle_, past_key_[i]);

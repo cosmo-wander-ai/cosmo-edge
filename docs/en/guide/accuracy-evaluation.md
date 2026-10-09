@@ -79,7 +79,7 @@ values and rename `suite.draft.yml` to `suite.yml`.
 export COSMO_ACCURACY_TOKEN='<short-lived-token>'
 node src/accuracy-cli.js doctor \
   --profile full \
-  --concurrency 1 \
+  --concurrency 4 \
   --suite /private/suite/suite.yml \
   --data-root /private/dataset \
   --target-chip bm1688 \
@@ -107,7 +107,7 @@ the first write.
 ```bash
 node src/accuracy-cli.js run \
   --profile full \
-  --concurrency 2 \
+  --concurrency 4 \
   --suite /private/suite/suite.yml \
   --data-root /private/dataset \
   --target-chip bm1688 \
@@ -124,12 +124,15 @@ The execution rules are deliberately small:
 - calculate rates from valid PASS/FAIL measurements while reporting infrastructure ERROR separately;
 - return `0` for a complete measurement even when cases FAIL;
 - return `2` when a trial cannot complete or strict per-trial cleanup fails;
-- run CV with `--concurrency 1|2|4`;
+- run CV with a default concurrency of 4; override it with `--concurrency 1|2|4`;
 - run VLM one case at a time after all CV cases finish.
 
 `--profile full` runs the complete selection. `--profile quick` selects representative cases tagged
 `quick`; `--case`, `--task`, and `--tag` provide direct filters. Filtering and concurrency do not
 downgrade or disqualify a result because the tool has no eligibility or baseline concept.
+
+Early-stop polling uses `defaults.earlyStopPollIntervalSec`, which defaults to 1 second.
+An explicit value in the suite takes precedence.
 
 ## How one sample is measured
 

@@ -17,6 +17,7 @@
 #include "util/Exception.h"
 #include "util/FormatString.h"
 #include "util/Log.h"
+#include "util/ProcessShutdown.h"
 #include "util/TimingConstants.h"
 #include "util/dto/CameraMsgTypes.h"
 
@@ -56,6 +57,10 @@ namespace {
                              cosmo::util::ErrorEnum& last_state) {
         const auto deadline = std::chrono::steady_clock::now() + timeout;
         do {
+            if (util::ProcessShutdown::Requested()) {
+                last_state = cosmo::util::ErrorEnum::LiveStreamStopped;
+                return false;
+            }
             last_state = channel->GetUrlStatus();
             if (last_state == cosmo::util::ErrorEnum::Success) {
                 return true;
@@ -74,6 +79,8 @@ namespace {
             : camera_service_(camera_service), channel_id_(std::move(channel_id)) {}
 
         cosmo::util::ErrorEnum Acquire() {
+            if (util::ProcessShutdown::Requested())
+                return cosmo::util::ErrorEnum::LiveStreamStopped;
             const auto result = camera_service_.AcquirePreviewChannel(channel_id_);
             acquired_         = result == cosmo::util::ErrorEnum::Success;
             return result;
@@ -229,7 +236,7 @@ cosmo::util::ErrorEnum LiveStreamServiceImpl::ViewerCreate(const std::string& ch
                                                            const std::string& algCode,
                                                            LiveStream::LiveStreamInfo& streamInfo) {
     std::shared_lock<std::shared_mutex> lifecycle_lock(lifecycle_mtx_);
-    if (stopping_.load(std::memory_order_acquire)) {
+    if (stopping_.load(std::memory_order_acquire) || util::ProcessShutdown::Requested()) {
         return cosmo::util::ErrorEnum::SysErr;
     }
     const auto request_started_at = std::chrono::steady_clock::now();
@@ -266,6 +273,8 @@ cosmo::util::ErrorEnum LiveStreamServiceImpl::ViewerCreate(const std::string& ch
                  cosmo::util::ErrorEnumName(channel_state));
         return cosmo::util::ErrorEnum::DemuxNoData;
     }
+    if (util::ProcessShutdown::Requested())
+        return cosmo::util::ErrorEnum::LiveStreamStopped;
 
     cosmo::MsgCameraAttr attr;
     if (!channel_inst->GetAttr(attr)) {
@@ -378,6 +387,10 @@ cosmo::util::ErrorEnum LiveStreamServiceImpl::ViewerCreate(const std::string& ch
     };
 
     cosmo::StreamViewerPtr viewer;
+    if (util::ProcessShutdown::Requested()) {
+        finish_failure(cosmo::util::ErrorEnum::LiveStreamStopped, "shutdown", nullptr);
+        return cosmo::util::ErrorEnum::LiveStreamStopped;
+    }
     try {
         viewer = std::make_shared<cosmo::StreamViewer>(channel_inst, channelId, algCode);
     } catch (const cosmo::util::ErrorMessage& e) {
@@ -395,7 +408,7 @@ cosmo::util::ErrorEnum LiveStreamServiceImpl::ViewerCreate(const std::string& ch
     {
         std::unique_lock<std::shared_mutex> lock(mtx_);
         gate->viewer = viewer;
-        if (gate->cancelled) {
+        if (gate->cancelled || util::ProcessShutdown::Requested()) {
             lock.unlock();
             finish_failure(cosmo::util::ErrorEnum::LiveStreamStopped, "cancelled", viewer);
             return cosmo::util::ErrorEnum::LiveStreamStopped;
@@ -405,7 +418,7 @@ cosmo::util::ErrorEnum LiveStreamServiceImpl::ViewerCreate(const std::string& ch
     if (!viewer->WaitReady(ready_timeout)) {
         {
             std::shared_lock<std::shared_mutex> lock(mtx_);
-            if (gate->cancelled) {
+            if (gate->cancelled || util::ProcessShutdown::Requested()) {
                 lock.unlock();
                 finish_failure(cosmo::util::ErrorEnum::LiveStreamStopped, "cancelled", viewer);
                 return cosmo::util::ErrorEnum::LiveStreamStopped;
@@ -424,7 +437,7 @@ cosmo::util::ErrorEnum LiveStreamServiceImpl::ViewerCreate(const std::string& ch
 
     {
         std::unique_lock<std::shared_mutex> lock(mtx_);
-        if (gate->cancelled) {
+        if (gate->cancelled || util::ProcessShutdown::Requested()) {
             lock.unlock();
             finish_failure(cosmo::util::ErrorEnum::LiveStreamStopped, "cancelled-after-ready", viewer);
             return cosmo::util::ErrorEnum::LiveStreamStopped;

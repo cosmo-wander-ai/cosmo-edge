@@ -117,6 +117,7 @@
 import { ref, reactive, watch, onMounted, getCurrentInstance } from 'vue'
 import { ElLoading } from 'element-plus'
 import { t, localeColon, currentLocale } from '@/i18n'
+import { isValidOptionalDnsAddress } from '@/utils/networkValidation'
 
 const { proxy } = getCurrentInstance()
 
@@ -167,65 +168,18 @@ const rules = {
   ]
 }
 
+// 校验 DNS 表单中的可选 IPv4 地址；DNS1 和 DNS2 共用该规则，空值保持允许。
+const validateDnsAddress = (rule, value, callback) => {
+  if (isValidOptionalDnsAddress(value)) {
+    callback()
+    return
+  }
+  callback(new Error(t('systemManage.dnsFormatError')))
+}
+
 const dnsRules = {
-  dns1: [
-    {
-      validator: (rule, value, callback) => {
-        if (!value) {
-          callback()
-          return
-        }
-        const parts = value.split('.')
-        if (parts.length !== 4) {
-          callback(new Error(t('systemManage.ipError')))
-          return
-        }
-        const firstPart = parseInt(parts[0], 10)
-        if (isNaN(firstPart) || firstPart < 1 || firstPart > 223) {
-          callback(new Error(t('systemManage.dnsRangeError')))
-          return
-        }
-        for (let i = 1; i < 4; i++) {
-          const part = parseInt(parts[i], 10)
-          if (isNaN(part) || part < 0 || part > 255) {
-            callback(new Error(t('systemManage.ipError')))
-            return
-          }
-        }
-        callback()
-      },
-      trigger: 'blur'
-    }
-  ],
-  dns2: [
-    {
-      validator: (rule, value, callback) => {
-        if (!value) {
-          callback()
-          return
-        }
-        const parts = value.split('.')
-        if (parts.length !== 4) {
-          callback(new Error(t('systemManage.ipError')))
-          return
-        }
-        const firstPart = parseInt(parts[0], 10)
-        if (isNaN(firstPart) || firstPart < 1 || firstPart > 223) {
-          callback(new Error(t('systemManage.dnsRangeError')))
-          return
-        }
-        for (let i = 1; i < 4; i++) {
-          const part = parseInt(parts[i], 10)
-          if (isNaN(part) || part < 0 || part > 255) {
-            callback(new Error(t('systemManage.ipError')))
-            return
-          }
-        }
-        callback()
-      },
-      trigger: 'blur'
-    }
-  ]
+  dns1: [{ validator: validateDnsAddress, trigger: 'blur' }],
+  dns2: [{ validator: validateDnsAddress, trigger: 'blur' }]
 }
 
 const detectForm = reactive({

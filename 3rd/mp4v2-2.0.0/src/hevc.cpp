@@ -1649,6 +1649,28 @@ int mov_assm_hvcc_data(HEVCDecoderConfigurationRecord *hvcc, HVCCData *hvcc_data
     (void)j;
 
     /*
+     * We need at least one of each: VPS, SPS and PPS.
+     */
+    for (i = 0; i < hvcc->numOfArrays; i++)//cwm hvcc->array[i].numNalus = 3
+        switch (hvcc->array[i].NAL_unit_type) {
+        case NAL_VPS:
+            vps_count += hvcc->array[i].numNalus;//cwm 1
+            break;
+        case NAL_SPS:
+            sps_count += hvcc->array[i].numNalus;//cwm 1
+            break;
+        case NAL_PPS:
+            pps_count += hvcc->array[i].numNalus;//cwm 1
+            break;
+        default:
+            break;
+        }
+    if (!vps_count || vps_count > MAX_VPS_COUNT ||
+        !sps_count || sps_count > MAX_SPS_COUNT ||
+        !pps_count || pps_count > MAX_PPS_COUNT)
+        return AVERROR_INVALIDDATA;
+
+    /*
      * We only support writing HEVCDecoderConfigurationRecord version 1.
      */
     hvcc->configurationVersion = 1;
@@ -1673,27 +1695,6 @@ int mov_assm_hvcc_data(HEVCDecoderConfigurationRecord *hvcc, HVCCData *hvcc_data
      */
     hvcc->avgFrameRate      = 0;
     hvcc->constantFrameRate = 0;
-    /*
-     * We need at least one of each: VPS, SPS and PPS.
-     */
-    for (i = 0; i < hvcc->numOfArrays; i++)//cwm hvcc->array[i].numNalus = 3
-        switch (hvcc->array[i].NAL_unit_type) {
-        case NAL_VPS:
-            vps_count += hvcc->array[i].numNalus;//cwm 1
-            break;
-        case NAL_SPS:
-            sps_count += hvcc->array[i].numNalus;//cwm 1
-            break;
-        case NAL_PPS:
-            pps_count += hvcc->array[i].numNalus;//cwm 1
-            break;
-        default:
-            break;
-        }
-    if (!vps_count || vps_count > MAX_VPS_COUNT ||
-        !sps_count || sps_count > MAX_SPS_COUNT ||
-        !pps_count || pps_count > MAX_PPS_COUNT)
-        return AVERROR_INVALIDDATA;
  		
 #if 1 //cwm 934
     /* unsigned int(8) configurationVersion = 1; */ 
