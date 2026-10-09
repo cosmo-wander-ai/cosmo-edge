@@ -13,4 +13,5 @@
 #include "nn/node/sum_node.h"
 #include "nn/node/yolo_decode_node.h"
 #include "nn/node/yolo_e2e_decode_node.h"
+#include "nn/node/yolo_obb_decode_node.h"
 #include "nn/node/yolov8_decode_node.h"

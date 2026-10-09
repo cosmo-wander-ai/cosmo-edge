@@ -100,6 +100,11 @@ public:
     virtual Status ParseTextOutput(std::vector<std::vector<std::string>>& outputs);
     virtual Status ParseOcrOutput(std::vector<std::vector<char>>& outputs);
 
+    // Prepare structured prompts with the loaded model's tokenizer; no image inference.
+    virtual Status PrepareText(const std::string&, std::string&) {
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "This model has no structured prompt preparation");
+    }
+
     // Threshold and label management
     Status SetThreshold(int id, float threshold);
     Status SetThreshold(const std::string& label, float threshold);

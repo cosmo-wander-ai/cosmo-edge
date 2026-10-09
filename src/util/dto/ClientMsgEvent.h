@@ -2,10 +2,12 @@
 
 #pragma once
 
-#include <nlohmann/json_fwd.hpp>
+#include <nlohmann/json.hpp>
+#include <optional>
 #include <string>
 
 #include "util/AiTypes.h"
+#include "util/DetectionGeometry.h"
 #include "util/MsgBaseTypes.h"
 #include "util/dto/FilterTypes.h"
 #include "util/dto/OverviewTypes.h"
@@ -83,6 +85,7 @@ struct CMsgOnEventsTarget {
     float confidence{0.0F};
     std::string trackId;
     MsgRectReal box;
+    std::optional<util::Quad> oriented_corners;
 
     friend void to_json(nlohmann::json& j, const CMsgOnEventsTarget& v);
     friend void from_json(const nlohmann::json& j, CMsgOnEventsTarget& v);
@@ -202,6 +205,7 @@ struct CMsgOnEventsProperty {
                           // frame people counting result)
     bool bHaveTarget{false};
     CMsgOnEventsPropertyTarget target;  // Target info
+    std::vector<nlohmann::json> visualJudgments;
 };
 
 // Conditional: CCM/CEC/CE by type, CC(bHaveTarget, target)

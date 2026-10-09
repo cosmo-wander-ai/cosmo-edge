@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <nlohmann/json.hpp>
 #include <system_error>
 
 #include "util/dto/EventMsgTypes.h"
@@ -9,6 +10,22 @@
 
 namespace cosmo {
 namespace Event {
+    struct MsgLayaReviewPageRecv : public MsgRecvHead {
+        std::string eventId;
+        std::string requestId;
+        // Empty preserves the original helmet-review response; typed-v1 uses
+        // the main alarm database and per-question numerical audit schema.
+        std::string format;
+        int pageNum{1};
+        int pageSize{20};
+    };
+    struct MsgLayaReviewPageSend : public MsgSendHead {
+        nlohmann::json resData;
+    };
+    void from_json(const nlohmann::json&, MsgLayaReviewPageRecv&);
+    void to_json(nlohmann::json&, const MsgLayaReviewPageRecv&);
+    void from_json(const nlohmann::json&, MsgLayaReviewPageSend&);
+    void to_json(nlohmann::json&, const MsgLayaReviewPageSend&);
     struct MsgPageRecv : public MsgRecvHead, public MsgConditionEvent {};
 
     void to_json(nlohmann::json& j, const MsgPageRecv& v);

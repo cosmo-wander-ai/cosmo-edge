@@ -110,7 +110,7 @@ bool AiOcr::HandleTarget(const VideoFramePtr& frame, AiDetectRstEl& target, Data
         unit.trackId      = target.trackId;
         unit.strTrackId   = target.trackIdInfo;
         unit.box          = target.box;
-        unit.boxs.push_back(unit.box);
+        unit.boxs.push_back(MakeAlarmBox(target));
         unit.haveRelated = target.relatedEl.bActive;
         unit.relatedBox  = target.relatedEl.box;
         unit.confidence  = unit.haveRelated ? target.relatedEl.classifyRst : target.classifyRst;

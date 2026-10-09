@@ -96,6 +96,9 @@ public:
     [[nodiscard]] TaskEventsResult Query(const QueryTaskEventCondition& condition, int order = 0) const;
     // Insert task event record
     bool Insert(const TaskEventData& data);
+    // Atomically persist a real alarm and all contributing numerical decisions.
+    // Missing audit IDs roll back the alarm instead of leaving a false association.
+    bool Insert(const TaskEventData& data, const std::vector<std::string>& visualAuditIds);
     // Remove oldest task events
     void RemoveItems(const std::vector<std::string>& list);
 

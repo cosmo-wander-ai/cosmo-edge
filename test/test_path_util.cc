@@ -330,7 +330,6 @@ TEST_CASE("PathUtil: task overview path rejects traversal without side effects",
     REQUIRE(GetTaskOverviewDataPath("linked-task", false).empty());
 }
 
-
 TEST_CASE("PathUtil edge: IsSafePathComponent platform separators and length", "[path-util][edge]") {
     SECTION("Forward and backslash rejected") {
         REQUIRE_FALSE(IsSafePathComponent("a/b"));
@@ -370,4 +369,3 @@ TEST_CASE("PathUtil edge: unicode path component", "[path-util][edge]") {
         REQUIRE(IsSafePathComponent("task-01_中文"));
     }
 }
-

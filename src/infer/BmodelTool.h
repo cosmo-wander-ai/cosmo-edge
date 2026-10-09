@@ -29,6 +29,9 @@ struct BmodelInfo {
     std::vector<BmodelNetworkInfo> networks;
     bool valid{false};
     std::string error_msg;
+    // Raw "names" entry from ONNX model metadata when present, e.g.
+    // "{0: 'z', 1: 't'}" (Ultralytics export convention). Empty otherwise.
+    std::string class_names_raw;
 };
 
 class BmodelTool {

@@ -454,6 +454,10 @@ export default {
   },
 
 
+  boxQueryLayaReview(data) {
+    return request({ url: '/gtw/cwai/event/LayaReviewPage', method: 'post', data })
+  },
+
   // 告警记录
   boxQueryEvent(data) {
     return request({

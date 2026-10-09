@@ -6,15 +6,19 @@
 // FillEventProperty()   — property type dispatch
 // DispatchAlarmEvent()  — WebSocket/HTTP/linkage push
 
+#include <algorithm>
 #include <filesystem>
 #include <unordered_set>
 
 #include "flow/alarm/AlarmBatch.h"
+#include "flow/alarm/AlarmVisualState.h"
 #include "flow/alarm/TaskAlarm.h"
 #include "flow/alarm/TaskAlarmInternalTypes.h"
+#include "service/ai/IVisualDecisionService.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/event/IAlarmRecordService.h"
 #include "service/event/IEventNotifier.h"
+#include "service/event/LayaReviewStore.h"
 #include "service/infra/ILinkageService.h"
 #include "service/system/IConfigReadService.h"
 #include "util/JsonStructUtil.h"
@@ -48,13 +52,19 @@ bool TaskAlarm::ShouldFilterAreaAlarm(const chrono::steady_clock::time_point& no
 // Target-level filtering remains independent inside a batch.
 bool TaskAlarm::ShouldFilterTargetAlarm(const AlgDataPtr& algData, const DataAlarmUnit& alarmUnit,
                                         const chrono::steady_clock::time_point& now, AlarmIdData& idData,
-                                        MsgRecAlarm& recAlarmData) {
+                                        MsgRecAlarm& recAlarmData, TaskAlarmSuppression* stagedSuppression) {
+    if (!service::VisualRunsActive(alarm::VisualRuns(alarmUnit)))
+        return true;
+    auto recordFilter = [&] {
+        if (!stagedSuppression)
+            m_overviewRecInst.OverviewRecordFrame(recAlarmData);
+    };
     // Per-target alarm count limit (only for tracked targets)
     if ((alarmUnit.trackId >= 0) && (m_param.targetAlarmCount > 0) &&
         (idData.alarmCount >= m_param.targetAlarmCount)) {
         idData.alarmCount += 1;
         recAlarmData.filterTargetAlarmCount = true;
-        m_overviewRecInst.OverviewRecordFrame(recAlarmData);
+        recordFilter();
         return true;
     }
 
@@ -63,26 +73,33 @@ bool TaskAlarm::ShouldFilterTargetAlarm(const AlgDataPtr& algData, const DataAla
         if ((alarmUnit.trackId >= 0) && (m_param.targetAlarmInterval > 0) &&
             (now - idData.lastAlarmTime < chrono::milliseconds(m_param.targetAlarmInterval * 1000))) {
             recAlarmData.filterTargetAlarmInterval = true;
-            m_overviewRecInst.OverviewRecordFrame(recAlarmData);
+            recordFilter();
             return true;
         }
     }
 
     // Position-based suppression
-    if (!CheckReportAlarm(alarmUnit.box, m_param.restrainSwitch, m_param.overlapRate,
-                          m_param.restrainTime * 3600)) {
+    auto& suppression = stagedSuppression ? *stagedSuppression : *this;
+    if (!suppression.CheckReportAlarm(alarmUnit.box, m_param.restrainSwitch, m_param.overlapRate,
+                                      m_param.restrainTime * 3600)) {
         recAlarmData.filterPosition = true;
-        m_overviewRecInst.OverviewRecordFrame(recAlarmData);
+        recordFilter();
         return true;
     }
 
+    // Observation never returns or mutates an alarm decision.
+    if (!IsTypedAlarmProvider() && !alarmUnit.bLlmPrejudged &&
+        alarmUnit.reportType == OnEventsReportType::Trigger) {
+        ObserveLayaShadow(alarmUnit, algData->chanDataDec.frame);
+    }
+
     // LLM review (trigger-type events only)
-    if (m_param.enableLlmReview && !alarmUnit.bLlmPrejudged &&
+    if (!IsTypedAlarmProvider() && m_param.enableLlmReview && !alarmUnit.bLlmPrejudged &&
         alarmUnit.reportType == OnEventsReportType::Trigger) {
         if (!LlmReviewAlarm(alarmUnit, algData->chanDataDec.frame)) {
             LOG_INFO("{}[{}] trackId:{} Alarm Filter By LLM Review", kTag, task_id, alarmUnit.trackId);
             recAlarmData.filterLlmReview = true;
-            m_overviewRecInst.OverviewRecordFrame(recAlarmData);
+            recordFilter();
             return true;
         }
     }
@@ -351,61 +368,111 @@ bool TaskAlarm::FillAlarmData(AlgDataPtr algData) {
             continue;
         }
 
-        const auto now               = chrono::steady_clock::now();
-        const auto& first            = alarmData->alarms[batch.front()];
+        const auto now           = chrono::steady_clock::now();
+        const auto& first        = alarmData->alarms[batch.front()];
+        const auto visualRuns    = alarm::VisualRuns(first);
+        const bool hasVisualRuns = !visualRuns.empty();
+        if (!service::VisualRunsActive(visualRuns))
+            continue;
         auto& areaData               = m_mapAreaIdStatus[first.areaId];
         auto areaRecAlarmData        = makeRecAlarmData(first);
         areaRecAlarmData.targetCount = 0;
         for (const auto index : batch) {
             areaRecAlarmData.targetCount += alarmData->alarms[index].boxs.size();
         }
-        if (ShouldFilterAreaAlarm(now, areaData, areaRecAlarmData)) {
+        bool areaFiltered = false;
+        auto filterArea   = [&] { areaFiltered = ShouldFilterAreaAlarm(now, areaData, areaRecAlarmData); };
+        if (hasVisualRuns) {
+            if (!service::CommitVisualRuns(visualRuns, filterArea))
+                continue;
+        } else
+            filterArea();
+        if (areaFiltered) {
             continue;
         }
+
+        // A visual result can become stale during media preparation. Stage all
+        // suppression/count changes, and commit them with the actual event.
+        TaskAlarmSuppression stagedSuppression = *this;
+        std::map<unsigned, AlarmIdData> stagedTargets;
+        std::vector<MsgRecAlarm> stagedFilters;
+        auto targetState = [&](int trackId) -> AlarmIdData& {
+            if (!hasVisualRuns)
+                return m_mapAlarmIdStatus[trackId];
+            return stagedTargets.try_emplace(trackId, m_mapAlarmIdStatus[trackId]).first->second;
+        };
+        auto commitStaged = [&] {
+            if (!hasVisualRuns)
+                return;
+            static_cast<TaskAlarmSuppression&>(*this) = stagedSuppression;
+            for (const auto& [id, state] : stagedTargets)
+                m_mapAlarmIdStatus[id] = state;
+            for (auto& filtered : stagedFilters)
+                m_overviewRecInst.OverviewRecordFrame(filtered);
+        };
 
         alarm::AlarmBatchIndices acceptedIndices;
         acceptedIndices.reserve(batch.size());
         for (const auto index : batch) {
             const auto& alarmUnit = alarmData->alarms[index];
             auto recAlarmData     = makeRecAlarmData(alarmUnit);
-            auto& idData          = m_mapAlarmIdStatus[alarmUnit.trackId];
-            if (!ShouldFilterTargetAlarm(algData, alarmUnit, now, idData, recAlarmData)) {
+            auto& idData          = targetState(alarmUnit.trackId);
+            if (!ShouldFilterTargetAlarm(algData, alarmUnit, now, idData, recAlarmData,
+                                         hasVisualRuns ? &stagedSuppression : nullptr)) {
                 acceptedIndices.push_back(index);
-            }
+            } else if (hasVisualRuns)
+                stagedFilters.push_back(recAlarmData);
         }
         if (acceptedIndices.empty()) {
+            if (hasVisualRuns)
+                service::CommitVisualRuns(visualRuns, commitStaged);
             continue;
         }
 
         auto alarmUnit = alarm::MergeAlarmBatch(alarmData->alarms, acceptedIndices);
 
-        // Every accepted tracked target keeps its own count/interval state.
-        std::unordered_set<int> updatedTrackIds;
-        for (const auto index : acceptedIndices) {
-            const int trackId = alarmData->alarms[index].trackId;
-            if (trackId < 0 || !updatedTrackIds.insert(trackId).second) {
-                continue;
-            }
-            auto& memberIdData = m_mapAlarmIdStatus[trackId];
-            memberIdData.alarmCount += 1;
-            memberIdData.lastAlarmTime = now;
+        const auto originalTargetCount = alarmUnit.targets.size();
+        auto eventData                 = BuildBaseEventData(algData, alarmUnit);
+        if (!ReviewVisualAlarmEvent(eventData, alarmUnit, algData->chanDataDec.frame)) {
+            auto filtered = [&] {
+                commitStaged();
+                auto record            = makeRecAlarmData(alarmUnit);
+                record.filterLlmReview = true;
+                m_overviewRecInst.OverviewRecordFrame(record);
+                for (const auto& lease : alarmUnit.visualAuditLeases)
+                    if (lease)
+                        lease->Seal("filtered");
+            };
+            if (!service::CommitVisualRuns(alarm::VisualRuns(alarmUnit), filtered))
+                for (const auto& lease : alarmUnit.visualAuditLeases)
+                    if (lease)
+                        lease->Seal("cancelled");
+            continue;
         }
-        areaData.lastAlarmTime = now;
-        areaData.haveReport    = true;
+        const bool layaEnabled = !IsTypedAlarmProvider() && GetAlgId() == "15" && !alarmUnit.bLlmPrejudged &&
+                                 alarmUnit.reportType == OnEventsReportType::Trigger &&
+                                 m_param.layaReviewMode != "disabled";
+        if (layaEnabled && m_param.layaReviewMode == "review" &&
+            !ReviewLayaEvent(eventData, alarmUnit, algData->chanDataDec.frame, true)) {
+            LayaReviewStore::Instance().Publication(eventData.messageId, "filtered");
+            continue;
+        }
 
+        // A retained target can replace the original representative after review.
+        eventData.recordId               = alarmUnit.strTrackId;
+        const bool visualTargetsFiltered = alarmUnit.targets.size() < originalTargetCount;
         // Build event
-        auto eventData    = BuildBaseEventData(algData, alarmUnit);
         eventData.targets = alarmUnit.targets;
         AttachAlarmMedia(eventData, algData, alarmUnit);
-        auto& idData = m_mapAlarmIdStatus[alarmUnit.trackId];
+        auto& idData = targetState(alarmUnit.trackId);
         FillEventProperty(eventData, algData, alarmUnit, idData);
+        if (!alarmUnit.visualJudgments.empty()) {
+            eventData.bHaveProperty            = true;
+            eventData.property.visualJudgments = alarmUnit.visualJudgments;
+        }
 
         LOG_INFO("{}[{}] Alarm Push {}/{} trackId:{} Area:{} Type:{}", kTag, task_id, eventData.messageId,
                  eventData.recordId, idData.trackId, alarmUnit.areaId, m_propertyType);
-        action_status = util::ErrorEnum::Success;
-        m_alarmCount += 1;
-        m_lastAlarmTime = now;
-
         // Record and update pass-flow totals
         auto recAlarmData = makeRecAlarmData(alarmUnit);
         if (OnEventsPropertyType::People == m_propertyType) {
@@ -417,25 +484,91 @@ bool TaskAlarm::FillAlarmData(AlgDataPtr algData) {
         }
 
         recAlarmData.alarm = true;
-        m_overviewRecInst.OverviewRecordFrame(recAlarmData);
-        EventRecord(eventData);
-
-        // Adjust time format for dispatch
-        if (OnEventsPropertyType::People == eventData.property.type) {
-            eventData.property.people.time = alarmUnit.passFlowData.timeSec;
-        } else if (OnEventsPropertyType::Car == eventData.property.type) {
-            eventData.property.car.time = alarmUnit.passFlowData.timeSec;
+        auto dispatch      = [&] {
+            if (OnEventsPropertyType::People == eventData.property.type)
+                eventData.property.people.time = alarmUnit.passFlowData.timeSec;
+            else if (OnEventsPropertyType::Car == eventData.property.type)
+                eventData.property.car.time = alarmUnit.passFlowData.timeSec;
+            eventData.category = GetAlgCategory();
+            DispatchAlarmEvent(eventData);
+        };
+        bool eventStored = false;
+        auto commitState = [&] {
+            std::unordered_set<int> updatedTrackIds;
+            for (const auto index : acceptedIndices) {
+                const auto& original = alarmData->alarms[index];
+                const int trackId    = original.trackId;
+                if (visualTargetsFiltered &&
+                    std::none_of(alarmUnit.targets.begin(), alarmUnit.targets.end(),
+                                 [&](const auto& target) { return target.trackId == original.strTrackId; }))
+                    continue;
+                if (trackId < 0 || !updatedTrackIds.insert(trackId).second)
+                    continue;
+                auto& state = targetState(trackId);
+                state.alarmCount += 1;
+                state.lastAlarmTime = now;
+            }
+            commitStaged();
+            areaData.lastAlarmTime = now;
+            areaData.haveReport    = true;
+            action_status          = util::ErrorEnum::Success;
+            ++m_alarmCount;
+            m_lastAlarmTime = now;
+            m_overviewRecInst.OverviewRecordFrame(recAlarmData);
+        };
+        auto recordEvent = [&] {
+            // Successful persistence and dispatch must carry the same audit
+            // property. A failed write never publishes the provisional status.
+            for (auto& record : eventData.property.visualJudgments)
+                if (record.contains("audit"))
+                    record["audit"]["alarm_record"] = "stored";
+            const bool stored = EventRecord(eventData);
+            if (!stored)
+                for (auto& record : eventData.property.visualJudgments)
+                    if (record.contains("audit"))
+                        record["audit"]["alarm_record"] = "failed";
+            return stored;
+        };
+        auto publish = [&] {
+            commitState();
+            eventStored = recordEvent();
+            // Decision metadata is part of the actual alarm property JSON and
+            // follows the alarm's existing retention, export and dispatch path.
+            dispatch();
+        };
+        // Prepare media before taking the fence; no slow inference/cropping runs
+        // inside it. An edit/stop cannot commit an event from the previous run.
+        if (hasVisualRuns) {
+            if (!service::CommitVisualRuns(alarm::VisualRuns(alarmUnit), publish)) {
+                for (const auto& lease : alarmUnit.visualAuditLeases)
+                    if (lease)
+                        lease->Seal("cancelled");
+                continue;
+            }
+        } else {
+            commitState();
+            eventStored = recordEvent();
         }
-        eventData.category = GetAlgCategory();
+        if (!eventStored)
+            for (const auto& lease : alarmUnit.visualAuditLeases)
+                if (lease)
+                    lease->Seal("alarm_store_failed");
+        if (layaEnabled && m_param.layaReviewMode == "review")
+            LayaReviewStore::Instance().Publication(eventData.messageId,
+                                                    eventStored ? "published" : "alarm_store_failed");
 
-        DispatchAlarmEvent(eventData);
+        if (!hasVisualRuns)
+            dispatch();
+        if (layaEnabled && m_param.layaReviewMode == "observe") {
+            ReviewLayaEvent(eventData, alarmUnit, algData->chanDataDec.frame, false, eventStored);
+        }
     }
     return true;
 }
 
-void TaskAlarm::EventRecord(CMsgOnEventsReq& eventData) {
+bool TaskAlarm::EventRecord(CMsgOnEventsReq& eventData) {
     if ((OnEventsPropertyType::CountNumber == m_propertyType)) {
-        return;
+        return false;
     }
     AlarmRecordUnit alarmRecordUnit;
     alarmRecordUnit.id             = eventData.messageId;
@@ -471,19 +604,19 @@ void TaskAlarm::EventRecord(CMsgOnEventsReq& eventData) {
             int leaveNum  = eventData.property.people.leaveOrgNum;
             service::ServiceRegistry::Instance().Get<service::IAlarmRecordService>().InsertPassFlow(
                 eventData.videoChannelId, eventData.algorithmId, hour, enterNum, leaveNum);
-            return;
+            return false;
         } else if (OnEventsPropertyType::Car == eventData.property.type) {
             uint64_t hour = atol(eventData.property.car.time.c_str());
             int enterNum  = eventData.property.car.enterOrgNum;
             int leaveNum  = eventData.property.car.leaveOrgNum;
             service::ServiceRegistry::Instance().Get<service::IAlarmRecordService>().InsertPassFlow(
                 eventData.videoChannelId, eventData.algorithmId, hour, enterNum, leaveNum);
-            return;
+            return false;
         }
         (void)util::EncodeJson(eventData.property, alarmRecordUnit.property);
     }
     (void)util::EncodeJson(eventData.targets, alarmRecordUnit.targets);
-    service::ServiceRegistry::Instance().Get<service::IAlarmRecordService>().Insert(alarmRecordUnit);
+    return service::ServiceRegistry::Instance().Get<service::IAlarmRecordService>().Insert(alarmRecordUnit);
 }
 
 }  // namespace cosmo

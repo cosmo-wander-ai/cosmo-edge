@@ -2,6 +2,7 @@
 // Split from Qwen3VLWorker.cc to reduce file size (DEBT-007).
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <map>
 #include <set>
@@ -10,6 +11,7 @@
 #include "flow/common/AlgDataUnit.h"
 #include "flow/common/FlowTaskUtil.h"
 #include "flow/common/LlmYesNoJudge.h"
+#include "flow/common/VisualRoi.h"
 #include "flow/qwen3vl/OpenAiVlmClient.h"
 #include "flow/qwen3vl/Qwen3VLWorker.h"
 #include "media/VideoFrame.h"
@@ -18,6 +20,7 @@
 #include "service/media/IVideoFrameCodec.h"
 #include "service/media/IVideoFrameOSD.h"
 #include "service/media/IVideoFrameTransform.h"
+#include "util/GeometricCalculation.h"
 #include "util/Log.h"
 #include "util/TimeUtil.h"
 #include "util/UuidUtil.h"
@@ -26,7 +29,6 @@ static constexpr const char* kTag = "QWEN3VL ";
 namespace cosmo {
 
 namespace {
-    using media::PixelFormat;
 
     bool ParseJudgeYesNoTrue(const std::string& text) {
         const auto r = ParseJudgeYesNo(text);
@@ -46,126 +48,6 @@ namespace {
         return ss.str();
     }
 
-    struct CropResult {
-        VideoFramePtr frame;
-        util::Box roi;
-        bool is_det_box{false};
-        std::string area_id;
-    };
-
-    bool IsPackedRgbFrame(const VideoFramePtr& frame) {
-        if (!frame) {
-            return false;
-        }
-        auto pf = frame->GetPixelFormat();
-        return pf == PixelFormat::PIXEL_BGR8 || pf == PixelFormat::PIXEL_RGB8;
-    }
-
-    VideoFramePtr ToBgrForVlm(const VideoFramePtr& frame) {
-        if (!VideoFrameValid(frame)) {
-            return nullptr;
-        }
-        auto pf = frame->GetPixelFormat();
-        if (pf == PixelFormat::PIXEL_BGR8) {
-            return frame;
-        }
-        if (pf == PixelFormat::PIXEL_RGB8) {
-            return frame;
-        }
-        if (pf == PixelFormat::PIXEL_I420) {
-            return service::ServiceRegistry::Instance().Get<service::IVideoFrameTransform>().I4202BGR(frame);
-        }
-        LOG_WARN("{}Qwen3VL unsupported frame pixel format for VLM:{}", kTag, static_cast<int>(pf));
-        return nullptr;
-    }
-
-    std::vector<CropResult> CropFramesForTask(const VideoFramePtr& srcFrame, const AlgData& data,
-                                              const std::vector<MsgTaskArea>& taskAreas,
-                                              bool has_upstream_target_source) {
-        std::vector<CropResult> results;
-        int img_w = static_cast<int>(srcFrame->GetWidth());
-        int img_h = static_cast<int>(srcFrame->GetHeight());
-        if (img_w <= 0 || img_h <= 0) {
-            return results;
-        }
-
-        bool has_targets = data.chanDataDetect.detRet && !data.chanDataDetect.detRet->targets.empty();
-        if (has_targets) {
-            for (const auto& target : data.chanDataDetect.detRet->targets) {
-                const auto& box = target.box;
-                if (box.width <= 0 || box.height <= 0)
-                    continue;
-                const int64_t expand_w = static_cast<int64_t>(box.width) / 5;
-                const int64_t expand_h = static_cast<int64_t>(box.height) / 5;
-                const int64_t roi_x    = std::max<int64_t>(0, static_cast<int64_t>(box.x) - expand_w);
-                const int64_t roi_y    = std::max<int64_t>(0, static_cast<int64_t>(box.y) - expand_h);
-                if (roi_x >= img_w || roi_y >= img_h) {
-                    continue;
-                }
-
-                const int64_t expanded_width  = static_cast<int64_t>(box.width) + 2 * expand_w;
-                const int64_t expanded_height = static_cast<int64_t>(box.height) + 2 * expand_h;
-                const int64_t roi_width =
-                    std::min<int64_t>(static_cast<int64_t>(img_w) - roi_x, expanded_width);
-                const int64_t roi_height =
-                    std::min<int64_t>(static_cast<int64_t>(img_h) - roi_y, expanded_height);
-                if (roi_width <= 0 || roi_height <= 0) {
-                    continue;
-                }
-
-                util::Box roi{static_cast<int>(roi_x), static_cast<int>(roi_y), static_cast<int>(roi_width),
-                              static_cast<int>(roi_height)};
-                auto cropped = service::ServiceRegistry::Instance().Get<service::IVideoFrameTransform>().Crop(
-                    srcFrame, roi);
-                if (VideoFrameValid(cropped)) {
-                    CropResult cr;
-                    cr.frame      = cropped;
-                    cr.roi        = box;
-                    cr.is_det_box = true;
-                    results.push_back(std::move(cr));
-                }
-            }
-            if (!results.empty())
-                return results;
-        }
-
-        if (has_upstream_target_source) {
-            return results;
-        }
-
-        if (!taskAreas.empty()) {
-            for (const auto& area : taskAreas) {
-                double pb_w = area.pointBox.width;
-                double pb_h = area.pointBox.height;
-                if (pb_w <= 0.0 || pb_h <= 0.0)
-                    continue;
-                util::Box roi;
-                roi.x      = static_cast<int>(area.pointBox.x * img_w);
-                roi.y      = static_cast<int>(area.pointBox.y * img_h);
-                roi.width  = static_cast<int>(pb_w * img_w);
-                roi.height = static_cast<int>(pb_h * img_h);
-                roi.x      = std::max(0, roi.x);
-                roi.y      = std::max(0, roi.y);
-                roi.width  = std::min(img_w - roi.x, roi.width);
-                roi.height = std::min(img_h - roi.y, roi.height);
-                if (roi.width <= 0 || roi.height <= 0)
-                    continue;
-                auto cropped = service::ServiceRegistry::Instance().Get<service::IVideoFrameTransform>().Crop(
-                    srcFrame, roi);
-                if (VideoFrameValid(cropped)) {
-                    CropResult cr;
-                    cr.frame      = cropped;
-                    cr.roi        = roi;
-                    cr.is_det_box = false;
-                    cr.area_id    = area.areaId;
-                    results.push_back(std::move(cr));
-                }
-            }
-        }
-
-        return results;
-    }
-
 }  // namespace
 
 // Must match the definition in Qwen3VLWorker.cc
@@ -174,8 +56,10 @@ struct Qwen3VLWorker::InferEntry {
     std::string prompt;
     AlgDataPtr data;
     std::string resolved_task_id;
-    CropResult crop_info;
+    VisualRoiInput crop_info;
     bool is_full_frame{false};
+    Qwen3VLWorkerParamEl parameters;
+    std::optional<service::VisualDecisionResult> visual_result;
 };
 
 void Qwen3VLWorker::CollectInferEntries(std::vector<AlgDataPtr>& alg_datas,
@@ -185,7 +69,6 @@ void Qwen3VLWorker::CollectInferEntries(std::vector<AlgDataPtr>& alg_datas,
             continue;
         }
 
-        auto inFrame    = data->chanDataDec.frame;
         std::string tid = data->taskId;
 
         // Resolve taskId from channel list when empty
@@ -203,116 +86,27 @@ void Qwen3VLWorker::CollectInferEntries(std::vector<AlgDataPtr>& alg_datas,
         std::string kw     = task_params.prompt.empty() ? std::string("目标") : task_params.prompt;
         std::string prompt = BuildJudgePrompt(kw, task_params.advanced_mode);
 
-        // 1) Copy source frame. CPU/x86 may keep packed BGR/RGB; Sophon usually keeps I420.
-        auto workFrame =
-            service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().CopyJpegSrcFrame(inFrame);
-        if (!VideoFrameValid(workFrame)) {
-            LOG_WARN("{}[{} {}] CopyJpegSrcFrame failed, skip taskId:{}", kTag, alg_code_, uuid, tid);
-            continue;
-        }
-        workFrame->SetFrameIndex(inFrame->GetFrameIndex());
-        workFrame->SetTimestamp(inFrame->GetTimestamp());
-        workFrame->SetStreamIndex(inFrame->GetStreamIndex());
-
-        // Get detection areas
-        std::vector<MsgTaskArea> taskAreas;
+        std::vector<MsgTaskArea> areas;
         {
-            std::shared_lock<std::shared_mutex> areaLock(mtx);
-            auto it = task_areas_.find(tid);
-            if (it != task_areas_.end()) {
-                taskAreas = it->second.areas;
-            } else if (task_areas_.size() == 1) {
-                taskAreas = task_areas_.begin()->second.areas;
-            }
+            std::shared_lock<std::shared_mutex> lock(mtx);
+            const auto it = task_areas_.find(tid);
+            if (it != task_areas_.end())
+                areas = it->second.areas;
         }
-
-        // Crop: iterate all detection boxes/areas
-        auto taskContext = GetTaskContext(tid);
-        bool has_upstream_target_source =
-            taskContext &&
-            FlowHasUpstreamTargetSource(taskContext->action_alg, taskContext->action_node.flowActionId);
-        auto cropResults = CropFramesForTask(workFrame, *data, taskAreas, has_upstream_target_source);
-
-        // Helper lambda: normalize one frame to VLM-compatible BGR/RGB and add it to inference queue.
-        auto addEntry = [&](VideoFramePtr frame, const CropResult& cr, bool fullFrame) {
-            // Inherit frame metadata
-            frame->SetFrameIndex(inFrame->GetFrameIndex());
-            frame->SetTimestamp(inFrame->GetTimestamp());
-            frame->SetStreamIndex(inFrame->GetStreamIndex());
-
-            // Optional scaling
-            auto w                  = static_cast<int>(frame->GetWidth());
-            auto h                  = static_cast<int>(frame->GetHeight());
-            const int max_side      = 960;
-            VideoFramePtr vlm_frame = frame;
-            if ((w > max_side || h > max_side) && frame->GetPixelFormat() == PixelFormat::PIXEL_I420) {
-                double scale = std::min(static_cast<double>(max_side) / std::max(1, w),
-                                        static_cast<double>(max_side) / std::max(1, h));
-                int dst_w    = std::max(32, static_cast<int>(w * scale));
-                int dst_h    = std::max(32, static_cast<int>(h * scale));
-                auto resized =
-                    service::ServiceRegistry::Instance().Get<service::IVideoFrameTransform>().Resize(
-                        frame, dst_h, dst_w);
-                if (VideoFrameValid(resized)) {
-                    resized->SetFrameIndex(inFrame->GetFrameIndex());
-                    resized->SetTimestamp(inFrame->GetTimestamp());
-                    resized->SetStreamIndex(inFrame->GetStreamIndex());
-                    vlm_frame = resized;
-                }
-            } else if ((w > max_side || h > max_side) && IsPackedRgbFrame(frame)) {
-                LOG_INFO("{}[{} {}] Skip packed RGB resize for taskId:{}, fmt:{}, size:{}x{}", kTag,
-                         alg_code_, uuid, tid, static_cast<int>(frame->GetPixelFormat()), w, h);
-            }
-            auto bgr = ToBgrForVlm(vlm_frame);
-            if (!VideoFrameValid(bgr)) {
-                LOG_WARN("{}[{} {}] ToBgrForVlm failed, skip taskId:{}", kTag, alg_code_, uuid, tid);
-                return;
-            }
-            bgr->SetFrameIndex(inFrame->GetFrameIndex());
-            bgr->SetTimestamp(inFrame->GetTimestamp());
-            bgr->SetStreamIndex(inFrame->GetStreamIndex());
-            auto& transform    = service::ServiceRegistry::Instance().Get<service::IVideoFrameTransform>();
-            bool has_host_data = transform.EnsureHostData(bgr) && bgr->GetHostData();
-            if (!has_host_data && !bgr->GetData()) {
-                LOG_WARN("{}[{} {}] EnsureHostData failed, skip taskId:{}", kTag, alg_code_, uuid, tid);
-                return;
-            }
-
+        auto context = GetTaskContext(tid);
+        const bool upstream =
+            context && FlowHasUpstreamTargetSource(context->action_alg, context->action_node.flowActionId);
+        for (auto& input :
+             PrepareVisualRois(*data, areas, upstream, task_params.visual_judgment != nullptr)) {
             InferEntry entry;
-            entry.bgr_frame        = bgr;
+            entry.bgr_frame        = input.frame;
             entry.prompt           = prompt;
             entry.data             = data;
             entry.resolved_task_id = tid;
-            entry.crop_info        = cr;
-            entry.is_full_frame    = fullFrame;
+            entry.is_full_frame    = input.is_full_frame;
+            entry.crop_info        = std::move(input);
+            entry.parameters       = task_params;
             entries.push_back(std::move(entry));
-        };
-
-        if (cropResults.empty()) {
-            if (has_upstream_target_source) {
-                LOG_INFO("{}[{} {}] Task:{} skip full frame (upstream target source has no targets)", kTag,
-                         alg_code_, uuid, tid);
-                continue;
-            }
-            // Full frame mode
-            LOG_INFO("{}[{} {}] Task:{} using full frame (no valid box/area returned)", kTag, alg_code_, uuid,
-                     tid);
-            CropResult fullCr;
-            fullCr.roi.x      = 0;
-            fullCr.roi.y      = 0;
-            fullCr.roi.width  = static_cast<int>(workFrame->GetWidth());
-            fullCr.roi.height = static_cast<int>(workFrame->GetHeight());
-            fullCr.is_det_box = false;
-            addEntry(workFrame, fullCr, true);
-        } else {
-            // Iterate each crop result
-            for (size_t ci = 0; ci < cropResults.size(); ++ci) {
-                auto& cr = cropResults[ci];
-                LOG_INFO("{}[{} {}] Task:{} crop[{}/{}] roi:[{},{},{},{}] isDetBox:{}", kTag, alg_code_, uuid,
-                         tid, ci, cropResults.size(), cr.roi.x, cr.roi.y, cr.roi.width, cr.roi.height,
-                         cr.is_det_box);
-                addEntry(cr.frame, cr, false);
-            }
         }
     }
 }
@@ -323,12 +117,32 @@ bool Qwen3VLWorker::RunBatchInference(std::vector<InferEntry>& entries, std::vec
 
     std::map<std::string, std::vector<size_t>> groups;
     for (size_t i = 0; i < entries.size(); ++i) {
+        auto& entry = entries[i];
+        if (entry.parameters.visual_judgment) {
+            const auto source  = entry.data->chanDataDec.frame;
+            const auto frameId = std::to_string(source->GetStreamIndex()) + ":" +
+                                 std::to_string(source->GetFrameIndex()) + ":" +
+                                 std::to_string(source->GetTimestamp());
+            entry.visual_result = entry.parameters.visual_judgment->Decide(
+                frameId, entry.crop_info.roi_id, entry.crop_info.area_id, [frame = entry.bgr_frame] {
+                    service::VisualDecisionImage image;
+                    if (!VideoFrameValid(frame))
+                        return image;
+                    image.width  = static_cast<int>(frame->GetWidth());
+                    image.height = static_cast<int>(frame->GetHeight());
+                    image.jpeg =
+                        service::ServiceRegistry::Instance().Get<service::IVideoFrameCodec>().EncodeJpeg(
+                            frame);
+                    return image;
+                });
+            continue;
+        }
         groups[entries[i].resolved_task_id].push_back(i);
     }
 
     bool ok = true;
     for (const auto& [taskId, indexes] : groups) {
-        auto task_params             = GetTaskParams(taskId);
+        auto task_params             = entries[indexes.front()].parameters;
         task_params.generation_style = Qwen3VLGenerationStyle::RIGOROUS;
         ApplyGenerationStyle(task_params);
 
@@ -399,12 +213,15 @@ void Qwen3VLWorker::ProcessInferResults(std::vector<InferEntry>& entries,
     }
 
     for (size_t i = 0; i < entries.size() && i < results.size(); i++) {
-        auto& entry   = entries[i];
-        auto& result  = results[i];
-        bool is_valid = ParseJudgeYesNoTrue(result.text);
+        auto& entry       = entries[i];
+        auto& result      = results[i];
+        const auto visual = entry.parameters.visual_judgment;
+        bool is_valid =
+            visual ? visual->Run()->Active() && (!entry.visual_result || entry.visual_result->Retain())
+                   : ParseJudgeYesNoTrue(result.text);
 
         std::string tid  = entry.resolved_task_id;
-        auto task_params = GetTaskParams(tid);
+        auto task_params = entry.parameters;
         std::string kw   = task_params.prompt.empty() ? std::string("目标") : task_params.prompt;
 
         LOG_INFO("{}[{} {}] Qwen3VL judge taskId:{} crop_roi:[{},{},{},{}] isDetBox:{} is_valid:{} text:{}",
@@ -423,6 +240,13 @@ void Qwen3VLWorker::ProcessInferResults(std::vector<InferEntry>& entries,
             unit.reportType    = OnEventsReportType::Trigger;
             unit.bLlmPrejudged = true;
             unit.ocrString     = kw;
+            if (visual && entry.visual_result) {
+                unit.visualRun = visual->Run();
+                if (entry.visual_result->audit.lease)
+                    unit.visualAuditLeases.push_back(entry.visual_result->audit.lease);
+                unit.visualJudgments.push_back(
+                    VisualRoiRecord(entry.crop_info, *entry.visual_result, unit.flowActionId));
+            }
 
             // Set detection box for alarm overlay
             if (entry.is_full_frame) {
@@ -438,7 +262,7 @@ void Qwen3VLWorker::ProcessInferResults(std::vector<InferEntry>& entries,
             }
             CMsgOnEventsTarget target;
             target.label      = kw;
-            target.confidence = 1.0F;
+            target.confidence = visual ? 0.0F : 1.0F;
             target.trackId    = unit.strTrackId;
             target.box.x      = unit.box.x;
             target.box.y      = unit.box.y;
@@ -446,7 +270,15 @@ void Qwen3VLWorker::ProcessInferResults(std::vector<InferEntry>& entries,
             target.box.height = unit.box.height;
             unit.targets.push_back(std::move(target));
 
-            data->taskDataAlarm.alarmData->alarms.push_back(std::move(unit));
+            auto commit = [&] { data->taskDataAlarm.alarmData->alarms.push_back(std::move(unit)); };
+            if (visual) {
+                if (!visual->Run()->CommitIfCurrent(commit) && entry.visual_result &&
+                    entry.visual_result->audit.lease)
+                    entry.visual_result->audit.lease->Seal("cancelled");
+            } else
+                commit();
+        } else if (visual && entry.visual_result && entry.visual_result->audit.lease) {
+            entry.visual_result->audit.lease->Seal(visual->Run()->Active() ? "filtered" : "cancelled");
         }
     }
 
@@ -456,25 +288,43 @@ void Qwen3VLWorker::ProcessInferResults(std::vector<InferEntry>& entries,
         if (dispatched.count(e.data))
             continue;
         dispatched.insert(e.data);
-        distributor->DistributorData(e.data->channelId, e.data,
-                                     [](AlgDataPtr frame, const std::string& outTaskId) {
-                                         auto outData = AlgDataCopy(frame);
-                                         if (!outData)
-                                             return frame;
-                                         outData->taskId = std::move(outTaskId);
-                                         return outData;
-                                     });
+        auto dispatch = [&] {
+            distributor->DistributorData(e.data->channelId, e.data,
+                                         [&e](AlgDataPtr frame, const std::string& outTaskId) -> AlgDataPtr {
+                                             if (outTaskId != e.resolved_task_id)
+                                                 return nullptr;
+                                             auto outData = AlgDataCopy(frame);
+                                             if (!outData)
+                                                 return frame;
+                                             outData->taskId = std::move(outTaskId);
+                                             return outData;
+                                         });
+        };
+        if (e.parameters.visual_judgment)
+            e.parameters.visual_judgment->Run()->CommitIfCurrent(dispatch);
+        else
+            dispatch();
     }
 }
 
 void Qwen3VLWorker::HandFrameBatch(std::vector<AlgDataPtr> alg_datas) {
-    bool needs_local_model = true;
-    {
-        std::shared_lock<std::shared_mutex> lock(mtx);
-        needs_local_model = params_.param.empty() || std::any_of(params_.param.begin(), params_.param.end(),
-                                                                 [](const Qwen3VLWorkerParamEl& p) {
-                                                                     return !p.open_ai_config.Enabled();
-                                                                 });
+    std::vector<InferEntry> entries;
+    CollectInferEntries(alg_datas, entries);
+    if (entries.empty())
+        return;
+
+    // A shared worker also retains configuration for stopped tasks. Only the
+    // frames in this batch determine whether the local VLM must be loaded.
+    const bool needs_local_model = std::any_of(entries.begin(), entries.end(), [](const InferEntry& e) {
+        return !e.parameters.open_ai_config.Enabled() && e.parameters.open_ai_config.provider != "laya_v";
+    });
+
+    if (needs_local_model && !local_worker_registered_) {
+        service::ServiceRegistry::Instance().Get<service::ILlmInferService>().NotifyWorkerStart();
+        local_worker_registered_ = true;
+    } else if (!needs_local_model && local_worker_registered_) {
+        service::ServiceRegistry::Instance().Get<service::ILlmInferService>().NotifyWorkerStop();
+        local_worker_registered_ = false;
     }
 
     if (needs_local_model &&
@@ -484,14 +334,6 @@ void Qwen3VLWorker::HandFrameBatch(std::vector<AlgDataPtr> alg_datas) {
             LOG_WARN("{}[{} {}] Qwen3VL shared instance not initialized", kTag, alg_code_, uuid);
             return;
         }
-    }
-
-    // InferEntry is defined here for use by the three extracted methods
-    std::vector<InferEntry> entries;
-    CollectInferEntries(alg_datas, entries);
-
-    if (entries.empty()) {
-        return;
     }
 
     std::vector<Qwen3VLResult> results;

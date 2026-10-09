@@ -20,10 +20,11 @@
     "linkage-form:check": "node scripts/linkage_form_compatibility_check.mjs",
     "task-param-ownership:check": "node scripts/task_param_ownership_check.mjs",
     "graph-edges:check": "node scripts/graph_edges_check.mjs",
+    "target-geometry:check": "node scripts/target_geometry_check.mjs",
     "onvif-access:check": "node --experimental-vm-modules --test scripts/onvif_access_check.mjs scripts/onvif_dialog_check.mjs",
     "gb28181-access:check": "node --experimental-vm-modules --test scripts/gb28181_dialog_check.mjs",
     "network-validation:check": "node scripts/network_validation_check.mjs",
-    "prebuild": "npm run api-contract:check && npm run request-behavior:check && npm run network-validation:check && npm run upgrade-package:check && npm run route-query:check && npm run device-info:check && npm run mqtt-port-validation:check && npm run linkage-flow:check && npm run linkage-form:check && npm run task-param-ownership:check && npm run component-behavior:check && npm run graph-edges:check && npm run onvif-access:check && npm run gb28181-access:check && npm run i18n:check",
+    "prebuild": "npm run api-contract:check && npm run request-behavior:check && npm run network-validation:check && npm run upgrade-package:check && npm run route-query:check && npm run device-info:check && npm run mqtt-port-validation:check && npm run linkage-flow:check && npm run linkage-form:check && npm run task-param-ownership:check && npm run component-behavior:check && npm run visual-review:check && npm run visual-questions:check && npm run graph-edges:check && npm run target-geometry:check && npm run onvif-access:check && npm run gb28181-access:check && npm run i18n:check",
     "build": "vite build",
     "preview": "vite preview",
     "resource-i18n:check": "node scripts/resource_i18n_sync.mjs --check",
@@ -34,7 +35,9 @@
     "task-card-layout:build": "node scripts/task_card_layout_fixture.mjs",
     "component-behavior:check": "node --experimental-vm-modules scripts/component_behavior_check.mjs && node --experimental-vm-modules scripts/model_config_behavior_check.mjs && node --experimental-vm-modules scripts/flow_node_state_check.mjs",
     "component-behavior:variants": "node scripts/component_behavior_variants.mjs",
-    "task-card-layout:variants": "node scripts/task_card_layout_variants.mjs"
+    "task-card-layout:variants": "node scripts/task_card_layout_variants.mjs",
+    "visual-questions:check": "node --experimental-vm-modules scripts/visual_questions_behavior_check.mjs",
+    "visual-review:check": "node --experimental-vm-modules scripts/visual_review_behavior_check.mjs"
   },
   "dependencies": {
     "@vue-flow/background": "^1.3.2",

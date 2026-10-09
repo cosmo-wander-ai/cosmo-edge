@@ -110,12 +110,9 @@ MsgPTaskDetectPicSend MessageHandler::Handle(MsgPTaskDetectPicRecv&& data, std::
     if (data.taskId.empty()) {
         data.taskId = data.algorithmCode;
     }
-    if (!IsTaskConfigEmpty(data.taskConfig))  // Set parameter if not empty
-    {
-        service::ServiceRegistry::Instance().Get<service::IPicTaskQuery>().SetTaskParam(data.taskId,
-                                                                                        data.taskConfig);
-    }
-
+    // DetectPic applies request configuration and executes under one task lock.
+    // A separate SetTaskParam call here would allow another request to replace
+    // the regions between configuration and inference.
     errc = service::ServiceRegistry::Instance().Get<service::IPicTaskDetect>().DetectPic(data.taskId, data,
                                                                                          retData);
     return retData;

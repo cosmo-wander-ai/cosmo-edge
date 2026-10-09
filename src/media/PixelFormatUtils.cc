@@ -215,7 +215,7 @@ namespace media {
         int64_t left                 = std::max<int64_t>(0, requested_roi.x);
         int64_t top                  = std::max<int64_t>(0, requested_roi.y);
         int64_t right  = std::min<int64_t>(source_width_i64, static_cast<int64_t>(requested_roi.x) +
-                                                                static_cast<int64_t>(requested_roi.width));
+                                                                 static_cast<int64_t>(requested_roi.width));
         int64_t bottom = std::min<int64_t>(source_height_i64, static_cast<int64_t>(requested_roi.y) +
                                                                   static_cast<int64_t>(requested_roi.height));
         if (left >= right || top >= bottom) {

@@ -9,6 +9,31 @@
 
 // Auto-generated JSON serialization
 namespace cosmo::Event {
+void from_json(const nlohmann::json& j, MsgLayaReviewPageRecv& v) {
+    from_json(j, static_cast<MsgRecvHead&>(v));
+    JSON_OPT(j, v, eventId);
+    JSON_OPT(j, v, requestId);
+    JSON_OPT(j, v, format);
+    JSON_OPT(j, v, pageNum);
+    JSON_OPT(j, v, pageSize);
+}
+void to_json(nlohmann::json& j, const MsgLayaReviewPageRecv& v) {
+    to_json(j, static_cast<const MsgRecvHead&>(v));
+    j["eventId"]   = v.eventId;
+    j["requestId"] = v.requestId;
+    j["format"]    = v.format;
+    j["pageNum"]   = v.pageNum;
+    j["pageSize"]  = v.pageSize;
+}
+void to_json(nlohmann::json& j, const MsgLayaReviewPageSend& v) {
+    to_json(j, static_cast<const MsgSendHead&>(v));
+    j["resData"] = v.resData;
+}
+void from_json(const nlohmann::json& j, MsgLayaReviewPageSend& v) {
+    from_json(j, static_cast<MsgSendHead&>(v));
+    JSON_OPT(j, v, resData);
+}
+
 void to_json(nlohmann::json& j, const MsgPageRecv& v) {
     to_json(j, static_cast<const MsgRecvHead&>(v));
     to_json(j, static_cast<const MsgConditionEvent&>(v));

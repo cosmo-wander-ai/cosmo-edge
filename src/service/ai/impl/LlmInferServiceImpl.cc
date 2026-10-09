@@ -2,6 +2,9 @@
 
 #include "service/ai/impl/LlmInferServiceImpl.h"
 
+#include <fstream>
+
+#include "service/ai/impl/VisualDecisionProtocol.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/model/IModelPathMapping.h"
 #include "service/system/IAppInfoService.h"
@@ -22,8 +25,11 @@ bool LlmInferServiceImpl::EnsureInit(const std::string& atomic_code) {
     std::lock_guard<std::mutex> lk(lifecycle_mtx_);
 
     // Already initialized
-    if (inst_)
-        return true;
+    if (inst_) {
+        if (atomic_code_ != atomic_code)
+            LOG_WARN("{}Bound model {} conflicts with loaded model {}", kTag, atomic_code, atomic_code_);
+        return atomic_code_ == atomic_code;
+    }
 
     // Permanent failure until Reset()
     if (init_failed_)
@@ -57,6 +63,21 @@ bool LlmInferServiceImpl::EnsureInit(const std::string& atomic_code) {
         return false;
     }
 
+    native_identity_.clear();
+    try {
+        std::ifstream config(cfg_path);
+        const auto info = nlohmann::json::parse(config);
+        if (info.value("model_type", "") == "laya_v") {
+            std::ifstream manifest(model_dir + "/native-assets.json", std::ios::binary);
+            if (!manifest)
+                return false;
+            const std::string bytes((std::istreambuf_iterator<char>(manifest)), {});
+            native_identity_ = visual::Sha256(reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size());
+        }
+    } catch (const std::exception& e) {
+        LOG_WARN("{}Cannot read model identity: {}", kTag, e.what());
+        return false;
+    }
     inst_        = inst;
     atomic_code_ = atomic_code;
     LOG_INFO("{}EnsureInit: Qwen3VL shared instance created. AtomicCode:{}", kTag, atomic_code);
@@ -106,6 +127,32 @@ cosmo::util::ErrorEnum LlmInferServiceImpl::GetMaxBatchSize(size_t& value) const
     return raw->GetMaxBatchSize(&value);
 }
 
+bool LlmInferServiceImpl::PrepareText(const std::string& atomicCode, const std::string& input,
+                                      std::string& output, std::string& modelIdentity) {
+    if (!EnsureInit(atomicCode))
+        return false;
+    std::lock_guard<std::mutex> infer(infer_mtx_);
+    std::lock_guard<std::mutex> lifecycle(lifecycle_mtx_);
+    if (!inst_ || atomic_code_ != atomicCode || native_identity_.empty())
+        return false;
+    if (inst_->PrepareText(input, output) != cosmo::util::ErrorEnum::Success)
+        return false;
+    modelIdentity = native_identity_;
+    return true;
+}
+
+cosmo::util::ErrorEnum LlmInferServiceImpl::GenerateBound(const std::string& atomicCode,
+                                                          const std::string& modelIdentity,
+                                                          const std::vector<VideoFramePtr>& images,
+                                                          const std::vector<std::string>& prompts,
+                                                          std::vector<cosmo::Qwen3VLResult>& results) {
+    std::lock_guard<std::mutex> infer(infer_mtx_);
+    std::lock_guard<std::mutex> lifecycle(lifecycle_mtx_);
+    if (!inst_ || atomic_code_ != atomicCode || native_identity_ != modelIdentity || modelIdentity.empty())
+        return cosmo::util::ErrorEnum::NotInit;
+    return inst_->Generate(images, prompts, {}, results);
+}
+
 void LlmInferServiceImpl::Reset() {
     // Lock ordering: infer_mtx_ first, then lifecycle_mtx_.
     // Acquiring infer_mtx_ guarantees that any in-flight Generate() call has
@@ -120,28 +167,33 @@ void LlmInferServiceImpl::Reset() {
     }
     init_failed_ = false;
     atomic_code_.clear();
+    native_identity_.clear();
     LOG_INFO("{}Reset: done, ready for re-initialization", kTag);
 }
 
 void LlmInferServiceImpl::NotifyWorkerStart() {
-    int count = active_worker_count_.fetch_add(1) + 1;
-    LOG_INFO("{}NotifyWorkerStart: active video workers: {}", kTag, count);
+    std::lock_guard<std::mutex> lk(lifecycle_mtx_);
+    const auto count = active_worker_count_.fetch_add(1) + 1;
+    LOG_INFO("{}NotifyWorkerStart: active model users: {}", kTag, count);
 }
 
 void LlmInferServiceImpl::NotifyWorkerStop() {
-    int current = active_worker_count_.load();
-    while (current > 0 && !active_worker_count_.compare_exchange_weak(current, current - 1)) {
-    }
-    if (current <= 0) {
-        LOG_ERRO("{}NotifyWorkerStop called with no active video workers. count: {}", kTag, current);
-        active_worker_count_.store(0);
+    // Release and a concurrent acquire/init share the lifecycle lock. Avoid
+    // resetting a model just acquired by another task after the count hit zero.
+    std::lock_guard<std::mutex> infer(infer_mtx_);
+    std::lock_guard<std::mutex> lifecycle(lifecycle_mtx_);
+    const auto count = active_worker_count_.load();
+    if (count <= 0) {
+        LOG_ERRO("{}Unbalanced model release", kTag);
         return;
     }
-    int remaining = current - 1;
-    LOG_INFO("{}NotifyWorkerStop: active video workers remaining: {}", kTag, remaining);
-    if (remaining <= 0) {
-        LOG_INFO("{}All Qwen3VL video workers stopped, releasing shared model to free VRAM", kTag);
-        Reset();
+    active_worker_count_.store(count - 1);
+    if (count == 1) {
+        inst_.reset();
+        atomic_code_.clear();
+        native_identity_.clear();
+        init_failed_ = false;
+        LOG_INFO("{}Last model user stopped; released local VLM", kTag);
     }
 }
 

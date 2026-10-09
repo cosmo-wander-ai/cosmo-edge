@@ -6,7 +6,8 @@ import { collectFlowData, collectMetaDataParams, createNodeState, updateAtomicLi
 
 const plain = value => JSON.parse(JSON.stringify(value))
 const empty = { default: { render: () => null } }
-const config = { params: [{ key: 'message', value: 'saved' }], webConfig: { labelList: [], labelFilterList: [], metaDataParams: [], atomic: {} } }
+const catalog = JSON.stringify({ questions: [{ id: 'q', version: 1, type: 'noul', instructions: 'original question' }], default: ['q'] })
+const config = { params: [{ key: 'message', value: 'saved' }], webConfig: { labelList: [], labelFilterList: [], metaDataParams: [{ key: 'visual.catalog', type: 'visualQuestions', level: '2', value: catalog }], atomic: {} } }
 const imported = { actionId: 'action-1', flowActionId: 'node-1', configObject: config, extension: { retained: true } }
 const state = createNodeState(imported, { actionId: 'action-1', configObject: { stale: true } })
 assert.ok(!Object.hasOwn(state.flowData, 'configObject'))
@@ -59,7 +60,7 @@ for (const linkage of [false, true]) {
   const documentListeners = new Set()
   let confirmation = 'confirm'
   let finishConfirmation
-  const action = { id: 'action-1', actionName: 'Canonical action', actionType: 1, inputParamConfig: JSON.stringify([{ key: 'message', name: 'Message', type: 'text', level: '1', defaultValue: 'default' }]) }
+  const action = { id: 'action-1', actionName: 'Canonical action', actionType: 1, inputParamConfig: JSON.stringify([{ key: 'message', name: 'Message', type: 'text', level: '1', defaultValue: 'default' }, { key: 'visual.catalog', type: 'visualQuestions', level: '2', defaultValue: '' }]) }
   const workflow = [
     { ...plain(imported), actionName: 'Saved action', actionNameI18nKey: 'actions.first', remark: '', preFlowActionId: '-1' },
     { ...plain(imported), flowActionId: 'node-2', actionName: 'Saved action', remark: '', preFlowActionId: 'node-1' }
@@ -196,6 +197,12 @@ for (const linkage of [false, true]) {
     await editor.settle()
     assert.equal(input().props.modelValue, 'edited-before-debounce')
     assert.equal(savedItems()[1].configObject.params[0].value, 'second-edit', 'switching nodes collects the outgoing panel')
+
+    if (!linkage) {
+      editor.all(n => n.type === 'el-input' && n.props.modelValue === 'original question')[0].props.activate('latest question')
+      const metadata = plain(canvases[0].saveMetaDataParams())
+      assert.equal(JSON.parse(metadata.find(p => p.position === 'node-1').value).questions[0].instructions, 'latest question', 'metadata save flushes current question edits before debounce')
+    }
 
     graphs[0].editor.updateAtomic({ position: 'node-1', atomicCode: 'model-1' })
     graphs[0].editor.updateAtomic({ position: 'node-2', atomicCode: 'model-2' })

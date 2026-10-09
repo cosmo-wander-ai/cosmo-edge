@@ -87,9 +87,9 @@ void PosSaveSensitivity::CalcSensitity(AlgDataPtr algData) {
                              algData->chanDataDec.frame->GetFrameIndex(), dec_frame_->GetFrameIndex(),
                              idData.target.box.x, idData.target.box.y, idData.target.box.width,
                              idData.target.box.height);
-                    idData.frame                            = dec_frame_;
-                    idData.target_confidence_info.targetPos = idData.target.targetPos;
-                    idData.target_confidence_info.box       = idData.target.box;
+                    idData.frame               = dec_frame_;
+                    idData.frame_target        = idData.target;
+                    idData.frame_group_targets = idData.group_targets;
                 }
             }
         }
@@ -125,7 +125,9 @@ void PosSaveSensitivity::FillAlarmData(AlgDataPtr algData, DataAlarmUnit& alarmU
 }
 
 void PosSaveSensitivity::FillAlarmDataTrackId(DataAlarmUnit& alarmUnit, TrackIdData& idData) {
-    alarmUnit.targets.push_back(MakeOnEventsTarget(idData.target));
+    const auto& target        = idData.frame ? idData.frame_target : idData.target;
+    const auto& group_targets = idData.frame ? idData.frame_group_targets : idData.group_targets;
+    alarmUnit.targets.push_back(MakeOnEventsTarget(target));
     // alarmTarget.box = // Max Confidence Box and Pic
     for (auto& trackData : idData.history) {
         DataAlarmTargetConfidence targetConf;
@@ -133,22 +135,27 @@ void PosSaveSensitivity::FillAlarmDataTrackId(DataAlarmUnit& alarmUnit, TrackIdD
         targetConf.targetPos = trackData.target_confidence_info.targetPos;
         alarmUnit.targetHistory.push_back(targetConf);
     }
-    alarmUnit.box = idData.target_confidence_info.box;
+    alarmUnit.box = target.box;
     if (alarmUnit.friends.empty()) {
-        alarmUnit.boxs.push_back(alarmUnit.box);
+        alarmUnit.boxs.push_back(MakeAlarmBox(target));
     } else {
-        alarmUnit.boxs = alarmUnit.friends;
+        alarmUnit.boxs.assign(alarmUnit.friends.begin(), alarmUnit.friends.end());
     }
 
-    for (auto& assoTarget : idData.group_targets) {
-        alarmUnit.boxs.push_back(assoTarget.box);
+    for (const auto& assoTarget : group_targets) {
+        alarmUnit.boxs.push_back(MakeAlarmBox(assoTarget));
     }
     alarmUnit.trackId    = idData.track_id;
     alarmUnit.strTrackId = idData.track_id_uuid;
-    alarmUnit.matchInfo  = idData.target.matchInfo;
+    alarmUnit.matchInfo  = target.matchInfo;
 }
 
 void PosSaveSensitivity::HandTrackAlarm(AlgDataPtr algData, TrackIdData& idData, const std::string& tag) {
+    // FillAlarmData accepts only one saved-frame alarm. Do not replace that
+    // accepted alarm's image when another track becomes eligible in this pass.
+    if (algData->taskDataAlarm.alarmData && !algData->taskDataAlarm.alarmData->alarms.empty()) {
+        return;
+    }
     // Do not alarm if behavior has appeared
     if (idData.is_behavior_detected) {
         return;

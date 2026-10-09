@@ -276,6 +276,7 @@ void PosSaveSensitivity::TrackData2RecData(TrackIdData& idData, MsgRecPosSaveSen
     recTarget.aiBox.y          = idData.target.box.y;
     recTarget.aiBox.width      = idData.target.box.width;
     recTarget.aiBox.height     = idData.target.box.height;
+    recTarget.oriented_corners = idData.target.oriented_corners;
     if ((width_ > 0) && (height_ > 0)) {
         recTarget.box.x      = static_cast<double>(recTarget.aiBox.x) / width_;
         recTarget.box.y      = static_cast<double>(recTarget.aiBox.y) / height_;

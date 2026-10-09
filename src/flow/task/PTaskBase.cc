@@ -40,6 +40,7 @@ PTaskElementPtr PTaskBase::TaskCreate(const std::string& taskId, ActionAlgPtr ac
     task->taskId     = taskId;
     task->action_alg = actionAlg;
 
+    bool hasUpstreamTargets = false;
     for (auto actionNode : actionAlg->workFlow) {
         for (auto& actionKeyParam : actionNode.configObject.params) {
             auto keys = util::Split(actionKeyParam.key.ToRefString(), ".");
@@ -69,7 +70,7 @@ PTaskElementPtr PTaskBase::TaskCreate(const std::string& taskId, ActionAlgPtr ac
         } else if (0 == PDASam_Code.compare(actionNode.actionId)) {
             ta.actionInst = std::make_shared<PSamDetector>(actionNode, taskId);
         } else if (0 == PDAQwen3VL_Code.compare(actionNode.actionId)) {
-            ta.actionInst = std::make_shared<PQwen3VLWorker>(actionNode, taskId);
+            ta.actionInst = std::make_shared<PQwen3VLWorker>(actionNode, taskId, hasUpstreamTargets);
         } else if (0 == PALogicalJudgment_Code.compare(actionNode.actionId)) {
             // Logical judgment instance
             auto detectorInst = m_logicJudgmentMng.GetInst(taskId, actionNode);
@@ -82,6 +83,10 @@ PTaskElementPtr PTaskBase::TaskCreate(const std::string& taskId, ActionAlgPtr ac
         }
         LOG_INFO("[{} Create {}] Action Add: {} ", taskId, actionAlg->algorithmName, ta.action.actionId);
         task->actions.push_back(ta);
+        if (actionNode.actionId == PADetect_Code || actionNode.actionId == PDADino_Code ||
+            actionNode.actionId == PDASam_Code || actionNode.actionId == PAClassify_Code ||
+            actionNode.actionId == PALandmark_Code)
+            hasUpstreamTargets = true;
     }
 
     LOG_INFO("[{} Create {}] Ok", taskId, actionAlg->algorithmName);
@@ -191,7 +196,19 @@ bool PTaskBase::ModifyTaskParam(PTaskElementPtr task, MsgTaskConfig& taskConfig)
         LOG_INFO("[{} {}] ModifyParam For {}/{} params.size:{} areas.size:{} shieldedAreas.size:{}",
                  task->taskId, task->GetAlgName(), taNode.action.actionId, taNode.action.actionName,
                  taskConfig.params.size(), taskConfig.areas.size(), taskConfig.shieldedAreas.size());
-        taNode.actionInst->ModifyParam(task->taskId, taskConfig.params);
+        if (taNode.action.actionId == PDAQwen3VL_Code) {
+            // SetTaskParam is a full override replacement. Removed task keys
+            // revert to template defaults instead of retaining stale questions.
+            auto merged = taNode.action.configObject.params;
+            for (const auto& param : taskConfig.params) {
+                merged.erase(std::remove_if(merged.begin(), merged.end(),
+                                            [&](const auto& old) { return old.key == param.key; }),
+                             merged.end());
+                merged.push_back(param);
+            }
+            taNode.actionInst->SetParam(task->taskId, merged);
+        } else
+            taNode.actionInst->ModifyParam(task->taskId, taskConfig.params);
         taNode.actionInst->SetArea(task->taskId, taskConfig.areas, taskConfig.shieldedAreas);
     }
 

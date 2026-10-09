@@ -11,12 +11,20 @@
 
 namespace cosmo {
 
+struct VisualDecisionAudit {
+    std::shared_ptr<service::VisualDecisionRun> run;
+    std::vector<nlohmann::json> records;
+    std::vector<std::shared_ptr<service::VisualAuditLease>> leases;
+};
+
 // Note: AlgDataCopy
 struct AlgData {
     AlgDataType dataType{AlgDataType::Invalid};
 
     std::string channelId;  // Channel data
     std::string taskId;
+    std::string visualFrameId;
+    std::vector<VisualDecisionAudit> visualDecisions;
     bool bHaveTrack{false};
     bool bHaveRelated{false};  // Has human-face association process
     bool bHaveClassify{false};

@@ -288,6 +288,17 @@ TEST_CASE("MsgDynamicElement: normalizes legacy channel ownership across metadat
         return element;
     };
 
+    SECTION("visual catalogs stay editable at root and one dependency level") {
+        auto root           = makeElement("visual.catalog", "visualQuestions");
+        auto parent         = makeElement("enabled", "switch");
+        auto child          = makeElement("param.visual.catalog", "visualQuestions");
+        child.dependsOn.key = "enabled";
+        std::vector<cosmo::MsgDynamicElement> elements{root, parent, child};
+        cosmo::MsgDynamicElement::NormalizeLegacyChannelOwnership(elements);
+        CHECK(elements[0].IsChannelEditable());
+        CHECK(elements[2].IsChannelEditable());
+    }
+
     SECTION("orphaned and scene-managed dependencies are scene managed") {
         auto orphan          = makeElement("orphan");
         orphan.dependsOn.key = "missing";

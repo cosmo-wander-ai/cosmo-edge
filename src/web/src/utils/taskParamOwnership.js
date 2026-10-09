@@ -7,6 +7,7 @@ const ROOT_CHANNEL_PARAM_TYPES = new Set([
   'radio',
   'slider',
   'textarea',
+  'visualQuestions',
   'number',
   'text',
   'confidenceConfig',
@@ -22,6 +23,7 @@ const CHILD_CHANNEL_PARAM_TYPES = new Set([
   'radio',
   'slider',
   'textarea',
+  'visualQuestions',
   'text',
   'confidenceConfig',
   'distanceRate',
@@ -248,6 +250,11 @@ export const mergeTaskParamSchemasByKey = (
   )
   const mergeDescriptor = (incomingParam) => {
     const current = existingByKey.get(String(incomingParam?.key ?? ''))
+    // Catalog values are edited in the flow node. Keep metadata visibility and
+    // labels, but carry its latest questions into the channel defaults.
+    if (current?.type === 'visualQuestions' && incomingParam.type === 'visualQuestions') {
+      return { ...current, value: incomingParam.value, defaultValue: incomingParam.value }
+    }
     return current ? { ...current } : { ...incomingParam }
   }
 
@@ -532,6 +539,19 @@ const dependencyValuesMatch = (expected, actual) => {
   return expected == actual
 }
 
+// Laya uses the same repository-backed local model selector. Keep this
+// compatibility with saved scene schemas that predate the Laya provider option.
+export const matchesParamDependency = (param, actual) => {
+  const dependency = param?.dependsOn
+  if (
+    actual === 'laya_v' &&
+    dependency?.value === 'local_model' &&
+    ['llmProvider', 'vlmProvider'].includes(dependency?.key) &&
+    ['modelSelect_qwen3vl', 'modelSelect_qwen3_5', 'modelSelect_laya_v'].includes(param?.type)
+  ) return true
+  return dependencyValuesMatch(dependency?.value, actual)
+}
+
 // Filter a flat, already ownership-filtered edge parameter list down to the
 // controls that DynamicForm currently displays. Missing parents and the one
 // deterministic cycle break are lifted to roots by the editor; ownership
@@ -568,7 +588,7 @@ const resolveActiveTaskParamFlags = (params) => {
     list.forEach((child, childIndex) => {
       if (cycleBreakIndexes.has(childIndex)) return
       if (getParamDependencyKey(child) !== parentKey) return
-      if (dependencyValuesMatch(child?.dependsOn?.value, parentValue)) {
+      if (matchesParamDependency(child, parentValue)) {
         active[childIndex] = true
       }
     })

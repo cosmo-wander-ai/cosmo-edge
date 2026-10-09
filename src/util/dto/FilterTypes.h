@@ -93,12 +93,13 @@ struct MsgRecSensitity {
 };
 
 struct MsgRecPosSaveSensitityTarget {
-    int trackId{-1};               // Track ID, -1 means no tracking
-    bool behaviorDetected{false};  // Whether behavior was detected
-    uint64_t duration{0};          // Target appearance duration in milliseconds
-    std::vector<bool> rsts;        // Historical results
-    MsgRect box;                   // Target position
-    MsgRectReal aiBox;             // Target position
+    int trackId{-1};                             // Track ID, -1 means no tracking
+    bool behaviorDetected{false};                // Whether behavior was detected
+    uint64_t duration{0};                        // Target appearance duration in milliseconds
+    std::vector<bool> rsts;                      // Historical results
+    MsgRect box;                                 // Target position
+    MsgRectReal aiBox;                           // Target position
+    std::optional<util::Quad> oriented_corners;  // Source-image pixels, matching aiBox
     friend void to_json(nlohmann::json& j, const MsgRecPosSaveSensitityTarget& v);
     friend void from_json(const nlohmann::json& j, MsgRecPosSaveSensitityTarget& v);
 };

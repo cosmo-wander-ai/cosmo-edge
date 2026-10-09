@@ -166,7 +166,6 @@ TEST_CASE("StringUtil: ToString", "[string-util]") {
     }
 }
 
-
 TEST_CASE("StringUtil edge: Split consecutive and leading delimiters", "[string-util][edge]") {
     SECTION("Consecutive delimiters yield empty segments") {
         auto parts = Split("a,,b", ",");

@@ -38,9 +38,10 @@ Status DefaultTracker::Update(const std::vector<TrackingBox>& bboxes, std::vecto
                 continue;
             }
 
-            EigenKalmanTracker trk = EigenKalmanTracker(high_conf_boxes.at(i).box, config, next_id_++);
-            trk.class_id           = high_conf_boxes.at(i).class_id;
-            trk.confidence         = high_conf_boxes.at(i).confidence;
+            EigenKalmanTracker trk     = EigenKalmanTracker(high_conf_boxes.at(i).box, config, next_id_++);
+            trk.class_id               = high_conf_boxes.at(i).class_id;
+            trk.confidence             = high_conf_boxes.at(i).confidence;
+            trk.source_detection_index = high_conf_boxes.at(i).source_detection_index;
             trackers.push_back(trk);
         }
         return COSMO_NN_OK;
@@ -133,6 +134,7 @@ Status DefaultTracker::Update(const std::vector<TrackingBox>& bboxes, std::vecto
             trackers.at(i).status   = TrackingStatus::kTracking;
             trackers.at(i).class_id = high_conf_boxes.at(assignm).class_id;
             trackers.at(i).Update(high_conf_boxes.at(assignm).box, high_conf_boxes.at(assignm).confidence);
+            trackers.at(i).source_detection_index = high_conf_boxes.at(assignm).source_detection_index;
 
             matchedPairs.push_back(std::pair<int, int>(i, assignm));
         } else {
@@ -146,9 +148,10 @@ Status DefaultTracker::Update(const std::vector<TrackingBox>& bboxes, std::vecto
             continue;
         }
 
-        EigenKalmanTracker trk = EigenKalmanTracker(high_conf_boxes.at(umd).box, config, next_id_++);
-        trk.class_id           = high_conf_boxes.at(umd).class_id;
-        trk.confidence         = high_conf_boxes.at(umd).confidence;
+        EigenKalmanTracker trk     = EigenKalmanTracker(high_conf_boxes.at(umd).box, config, next_id_++);
+        trk.class_id               = high_conf_boxes.at(umd).class_id;
+        trk.confidence             = high_conf_boxes.at(umd).confidence;
+        trk.source_detection_index = high_conf_boxes.at(umd).source_detection_index;
         trackers.push_back(trk);
     }
 
@@ -221,6 +224,8 @@ Status DefaultTracker::Update(const std::vector<TrackingBox>& bboxes, std::vecto
             trackers.at(utrack.at(i).trackers_index).confidence = low_conf_boxes.at(assignm).confidence;
             trackers.at(utrack.at(i).trackers_index)
                 .Update(low_conf_boxes.at(assignm).box, low_conf_boxes.at(assignm).confidence);
+            trackers.at(utrack.at(i).trackers_index).source_detection_index =
+                low_conf_boxes.at(assignm).source_detection_index;
 
             matchedPairs.push_back(std::pair<int, int>(i, assignm));
         } else {
@@ -246,6 +251,7 @@ Status DefaultTracker::Update(const std::vector<TrackingBox>& bboxes, std::vecto
                 res.confidence   = it->confidence;
                 res.status       = it->status;
                 res.motion_state = it->motion_state;
+                res.source_detection_index = it->source_detection_index;
 
                 output.push_back(res);
             }

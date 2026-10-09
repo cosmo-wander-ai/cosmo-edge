@@ -7,9 +7,10 @@ namespace cosmo::nn {
 /**
  * @brief Decode node for end-to-end YOLO models (e.g., YOLO26).
  *
- * End-to-end models have NMS built into the network, so no NMS is needed here.
- * Input:  [batch, box_num, 6]  with (x1, y1, x2, y2, score, class_id) in xyxy format.
- * Output: [batch, top_k, 6]   with (cx, cy, w, h, score, class_id) in xywh-center format,
+ * Input may be an already-decoded [batch, box_num, 6] tensor with
+ * (x1, y1, x2, y2, score, class_id), or, with raw_output=true, a raw head
+ * [batch, 4 + classes, N] containing pixel center xywh and class probabilities. The raw path performs
+ * class-aware NMS. Output: [batch, top_k, 6]   with (cx, cy, w, h, score, class_id) in xywh-center format,
  *         compatible with the framework's PickDetectionObjects / AdjustSize.
  */
 class YoloE2EDecodeNode : public Node {
@@ -25,11 +26,12 @@ public:
     virtual size_t GetTopCount() override;
 
 private:
-    void ResetTopBlob(std::shared_ptr<Blob> top);
-
-    float base_conf;
-    int top_k;
-    int top_col = 6;
+    float base_conf      = 0.25f;
+    float nms_threshold_ = 0.7f;
+    int top_k            = 300;
+    bool raw_output_     = false;
+    bool valid_params_   = false;
+    int top_col          = 6;
 
     // Net input dimensions for denormalizing coordinates
     int input_width_  = 0;

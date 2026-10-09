@@ -48,6 +48,7 @@ public:
     Status ParseDinoOutput(std::vector<std::vector<ObjectInfoV1>>& outputs, float text_threshold,
                            float box_threshold);
 
+    Status PrepareText(const std::string& input, std::string& output);
     int GetMaxBatchSize() const;
 
     Status SetThreshold(int id, float threshold);

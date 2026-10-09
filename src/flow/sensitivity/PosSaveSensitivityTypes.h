@@ -32,11 +32,12 @@ struct cosmo::PosSaveSensitivity::TrackIdData {
     bool logic_count_can_be_alarm{false};  // Logic count needs to reach standard for alarm
     size_t logic_count{0};
     VideoFramePtr frame{nullptr};  // Original decoded data frame
-    size_t first_timestamp{0};     // Timestamp when appeared
-    size_t last_timestamp{0};      // Timestamp before disappearance
-    bool is_history_full{false};   // Calculate sensitivity only after history queue has been popped
+    AiDetectRstEl frame_target;    // Detection from exactly the retained frame
+    std::vector<AiDetectRstEl> frame_group_targets;
+    size_t first_timestamp{0};    // Timestamp when appeared
+    size_t last_timestamp{0};     // Timestamp before disappearance
+    bool is_history_full{false};  // Calculate sensitivity only after history queue has been popped
     AiDetectRstEl target;
-    DataAlarmTargetConfidence target_confidence_info;
     std::vector<AiDetectRstEl> group_targets;
     std::deque<TrackIdDataEl> history;
 };

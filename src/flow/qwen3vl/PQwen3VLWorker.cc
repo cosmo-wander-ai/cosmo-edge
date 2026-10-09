@@ -2,6 +2,9 @@
 
 #include "flow/qwen3vl/PQwen3VLWorker.h"
 
+#include <algorithm>
+
+#include "flow/common/VisualRoi.h"
 #include "flow/qwen3vl/OpenAiVlmClient.h"
 #include "service/ai/ILlmInferService.h"
 #include "service/detail/ServiceRegistry.h"
@@ -10,17 +13,20 @@
 #include "service/media/IVideoFrameTransform.h"
 #include "util/Log.h"
 #include "util/SafeParse.h"
+#include "util/StringUtil.h"
+#include "util/UuidUtil.h"
 
 namespace cosmo {
 
-PQwen3VLWorker::PQwen3VLWorker(ActionNode& action, const std::string& task_id)
-    : PActionBase(action, task_id), prompt_(""), gen_param_({}) {
+PQwen3VLWorker::PQwen3VLWorker(ActionNode& action, const std::string& task_id, bool has_upstream_targets)
+    : PActionBase(action, task_id), prompt_(""), gen_param_({}), has_upstream_targets_(has_upstream_targets) {
     advanced_mode_    = false;
     generation_style_ = Qwen3VLGenerationStyle::STANDARD;
     for (auto& param : action.configObject.params) {
         AnalysisKey(param);
     }
     ApplyGenerationStyle();
+    RebuildVisualJudgment();
     LOG_INFO("[{} {}] PQwen3VLWorker Init Prompt:{}", GetTaskId(), GetFlowActionId(), prompt_);
 }
 
@@ -30,6 +36,13 @@ PQwen3VLWorker::~PQwen3VLWorker() {
 }
 
 bool PQwen3VLWorker::ActionInit() {
+    std::lock_guard<std::shared_mutex> lock(mtx_);
+    stopped_ = false;
+    if (open_ai_config_.provider == "laya_v") {
+        if (!visual_judgment_ || !visual_judgment_->Run()->Active())
+            RebuildVisualJudgment();
+        return true;
+    }
     if (open_ai_config_.Enabled()) {
         LOG_INFO("[{} {}] PQwen3VLWorker using OpenAI VLM provider", GetTaskId(), GetFlowActionId());
         return true;
@@ -42,13 +55,19 @@ bool PQwen3VLWorker::ActionInit() {
     }
     // Participate in the reference-counted lifecycle so that the shared model is
     // only released when ALL users (video workers + single-image workers) are done.
-    service::ServiceRegistry::Instance().Get<service::ILlmInferService>().NotifyWorkerStart();
-    worker_registered_ = true;
+    if (!worker_registered_) {
+        service::ServiceRegistry::Instance().Get<service::ILlmInferService>().NotifyWorkerStart();
+        worker_registered_ = true;
+    }
     LOG_INFO("[{} {}] Init Qwen3VL Shared Sdk Success", GetTaskId(), GetFlowActionId());
     return true;
 }
 
 void PQwen3VLWorker::ActionDestroy() {
+    std::lock_guard<std::shared_mutex> lock(mtx_);
+    stopped_ = true;
+    if (visual_judgment_)
+        visual_judgment_->Invalidate();
     // Decrement the active worker count only if we successfully registered.
     // Without this guard, a failed ActionInit() (which never called
     // NotifyWorkerStart) followed by destruction would drive the count negative.
@@ -69,6 +88,12 @@ bool PQwen3VLWorker::ValidKey(MsgDynamicKeyValue& param) {
 }
 
 bool PQwen3VLWorker::AnalysisKey(MsgDynamicKeyValue& param) {
+    if (param.key.ToRefString().rfind("visual.", 0) == 0) {
+        UpdateVisualParameters(visual_parameters_, {param});
+        return true;
+    }
+    auto parts = util::Split(param.key.ToRefString(), ".");
+    param.keys.assign(parts.begin(), parts.end());
     if (!ValidKey(param))
         return false;
 
@@ -103,7 +128,8 @@ bool PQwen3VLWorker::AnalysisKey(MsgDynamicKeyValue& param) {
     } else if (param.keys[0] == "temperature") {
         gen_param_.temperature = util::ParseFloat(param.value);
         return true;
-    } else if (param.keys[0] == "vlmProvider" || param.keys[0] == "provider") {
+    } else if (param.keys[0] == "vlmProvider" || param.keys[0] == "provider" ||
+               (param.keys.size() >= 2 && param.keys[0] == "openai" && param.keys[1] == "provider")) {
         open_ai_config_.provider = param.value;
         return true;
     } else if (param.keys[0] == "base_url" ||
@@ -167,17 +193,23 @@ void PQwen3VLWorker::ApplyGenerationStyle() {
     }
 }
 
-bool PQwen3VLWorker::ModifyParam(const std::string& /*task_id*/, std::vector<MsgDynamicKeyValue>& params) {
+bool PQwen3VLWorker::ModifyParam(const std::string& task_id, std::vector<MsgDynamicKeyValue>& params) {
+    if (task_id != GetTaskId())
+        return false;
     std::lock_guard<std::shared_mutex> lock(mtx_);
     for (auto& param : params) {
         AnalysisKey(param);
     }
     ApplyGenerationStyle();
+    RebuildVisualJudgment();
     return true;
 }
 
-bool PQwen3VLWorker::SetParam(const std::string& /*task_id*/, std::vector<MsgDynamicKeyValue>& params) {
+bool PQwen3VLWorker::SetParam(const std::string& task_id, std::vector<MsgDynamicKeyValue>& params) {
     std::lock_guard<std::shared_mutex> lock(mtx_);
+    if (task_id != GetTaskId())
+        return false;
+    visual_parameters_.clear();
     // Reset to default parameters
     prompt_           = "";
     advanced_mode_    = false;
@@ -189,6 +221,30 @@ bool PQwen3VLWorker::SetParam(const std::string& /*task_id*/, std::vector<MsgDyn
         AnalysisKey(param);
     }
     ApplyGenerationStyle();
+    RebuildVisualJudgment();
+    return true;
+}
+
+void PQwen3VLWorker::RebuildVisualJudgment() {
+    if (visual_judgment_)
+        visual_judgment_->Invalidate();
+    visual_judgment_.reset();
+    if (worker_registered_ && (open_ai_config_.provider == "laya_v" || open_ai_config_.Enabled())) {
+        service::ServiceRegistry::Instance().Get<service::ILlmInferService>().NotifyWorkerStop();
+        worker_registered_ = false;
+    }
+    if (!stopped_ && open_ai_config_.provider == "laya_v")
+        visual_judgment_ = std::make_shared<VisualJudgment>(
+            GetTaskId(), prompt_, advanced_mode_, visual_parameters_, areas_, std::nullopt, GetAtomicCode());
+}
+
+bool PQwen3VLWorker::SetArea(const std::string& task_id, std::vector<MsgTaskArea>& areas,
+                             std::vector<MsgTaskArea>& /*shielded_areas*/) {
+    if (task_id != GetTaskId())
+        return false;
+    std::lock_guard<std::shared_mutex> lock(mtx_);
+    areas_ = areas;
+    RebuildVisualJudgment();
     return true;
 }
 
@@ -198,9 +254,107 @@ util::ErrorEnum PQwen3VLWorker::HandPic(AlgDataPtr alg_data) {
     }
 
     OpenAiVlmConfig open_ai_config;
+    std::shared_ptr<VisualJudgment> visual;
+    std::vector<MsgTaskArea> areas;
+    std::string prompt;
+    Qwen3VLGenerationParam gen_param;
     {
         std::shared_lock<std::shared_mutex> lock(mtx_);
+        if (stopped_)
+            return util::ErrorEnum::ActionStop;
         open_ai_config = open_ai_config_;
+        visual         = visual_judgment_;
+        areas          = areas_;
+        gen_param      = gen_param_;
+        prompt         = advanced_mode_
+                             ? prompt_ + "，回答是或者否,不要换行，不要其他内容。"
+                             : "判断图片中是否存在【" + prompt_ + "】目标，回答是或者否,不要换行，不要其他内容。";
+    }
+    if (open_ai_config.provider == "laya_v") {
+        if (!visual || !visual->Run()->Active())
+            return util::ErrorEnum::ActionStop;
+        if (alg_data->visualFrameId.empty())
+            alg_data->visualFrameId = util::GenerateUUID();
+        VisualDecisionAudit audit{visual->Run(), {}};
+        std::vector<AiDetectRstEl> retained;
+        bool qualifiedFilter = false;
+        for (const auto& roi : PrepareVisualRois(*alg_data, areas, has_upstream_targets_, true)) {
+            auto result =
+                visual->Decide(alg_data->visualFrameId, roi.roi_id, roi.area_id, [frame = roi.frame] {
+                    service::VisualDecisionImage image;
+                    if (!VideoFrameValid(frame))
+                        return image;
+                    image.width  = static_cast<int>(frame->GetWidth());
+                    image.height = static_cast<int>(frame->GetHeight());
+                    image.jpeg =
+                        service::ServiceRegistry::Instance().Get<service::IVideoFrameCodec>().EncodeJpeg(
+                            frame);
+                    return image;
+                });
+            audit.records.push_back(VisualRoiRecord(roi, result, GetFlowActionId()));
+            const auto decision = result.response.value("decision", nlohmann::json::object());
+            if (decision.value("mode", "review") == "filter" && decision.value("business_qualified", false)) {
+                qualifiedFilter = true;
+            }
+            if (result.Retain()) {
+                AiDetectRstEl target;
+                bool originalFound = false;
+                if (alg_data->chanDataDetect.detRet && !roi.source_target_id.empty()) {
+                    const auto& targets = alg_data->chanDataDetect.detRet->targets;
+                    const auto original = std::find_if(targets.begin(), targets.end(), [&](const auto& item) {
+                        return item.targetId == roi.source_target_id;
+                    });
+                    if (original != targets.end()) {
+                        target        = *original;
+                        originalFound = true;
+                    }
+                }
+                if (!originalFound) {
+                    target.box          = roi.roi;
+                    target.bLogicResult = true;
+                    target.targetId     = roi.source_target_id;
+                    target.trackIdInfo  = roi.source_track_id;
+                    target.trackId      = roi.source_track_index;
+                    target.classifyRst.push_back({decision.value("verdict", "unknown"), "", 1.0f});
+                }
+                target.bLogicResult = true;
+                target.areaSign.areas.clear();
+                if (!roi.area_id.empty()) {
+                    TargetAreaUnit area;
+                    area.area_id          = roi.area_id;
+                    const auto configured = std::find_if(areas.begin(), areas.end(), [&](const auto& value) {
+                        return value.areaId == roi.area_id;
+                    });
+                    if (configured != areas.end())
+                        area.area_name = configured->name;
+                    target.areaSign.areas.push_back(std::move(area));
+                }
+                // The public picture response groups targets by areaSign. Keep
+                // only accepted region memberships when several ROIs share a target.
+                auto previous = std::find_if(retained.begin(), retained.end(), [&](const auto& item) {
+                    return !target.targetId.empty() && item.targetId == target.targetId;
+                });
+                if (previous == retained.end())
+                    retained.push_back(std::move(target));
+                else
+                    previous->areaSign.areas.insert(previous->areaSign.areas.end(),
+                                                    target.areaSign.areas.begin(),
+                                                    target.areaSign.areas.end());
+            }
+            if (result.audit.lease)
+                audit.leases.push_back(result.audit.lease);
+        }
+        if (visual->Run()->CommitIfCurrent([&] {
+                if (qualifiedFilter) {
+                    alg_data->chanDataDetect.detRet          = std::make_shared<DataDetTrackClassify>();
+                    alg_data->chanDataDetect.detRet->targets = std::move(retained);
+                }
+                alg_data->visualDecisions.push_back(std::move(audit));
+            }))
+            return util::ErrorEnum::Success;
+        for (const auto& lease : audit.leases)
+            lease->Seal("cancelled");
+        return util::ErrorEnum::ActionStop;
     }
 
     if (!open_ai_config.Enabled() &&
@@ -221,19 +375,6 @@ util::ErrorEnum PQwen3VLWorker::HandPic(AlgDataPtr alg_data) {
 
     std::vector<VideoFramePtr> images;
     images.push_back(frame);
-
-    std::string prompt;
-    Qwen3VLGenerationParam gen_param;
-
-    {
-        std::shared_lock<std::shared_mutex> lock(mtx_);
-        gen_param = gen_param_;
-        if (advanced_mode_) {
-            prompt = prompt_ + "，回答是或者否,不要换行，不要其他内容。";
-        } else {
-            prompt = "判断图片中是否存在【" + prompt_ + "】目标，回答是或者否,不要换行，不要其他内容。";
-        }
-    }
 
     std::vector<std::string> prompts = {prompt};
     std::vector<Qwen3VLResult> qwen_results;

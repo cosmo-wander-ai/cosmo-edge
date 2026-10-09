@@ -27,7 +27,7 @@ DataAlarmUnit AreaAlarm::BuildAlarmUnit(const TrackIdData& idData, const MsgTask
     unit.trackId      = idData.track_id;
     unit.strTrackId   = idData.det_el.trackIdInfo;
     unit.box          = idData.det_el.box;
-    unit.boxs.push_back(idData.det_el.box);
+    unit.boxs.push_back(MakeAlarmBox(idData.det_el));
     unit.haveRelated = idData.det_el.relatedEl.bActive;
     unit.relatedBox  = idData.det_el.relatedEl.box;
     unit.feature     = idData.det_el.feature;
@@ -178,7 +178,7 @@ void AreaAlarm::AreaTargetAlarmHandLine(AlgDataPtr algData, TrackIdData& idData)
             alarmUnit.trackId      = idData.track_id;
             alarmUnit.strTrackId   = idData.det_el.trackIdInfo;
             alarmUnit.box          = idData.det_el.box;
-            alarmUnit.boxs.push_back(idData.det_el.box);
+            alarmUnit.boxs.push_back(MakeAlarmBox(idData.det_el));
             alarmUnit.targets.push_back(MakeOnEventsTarget(idData.det_el));
             alarmUnit.targetHistory = idData.det_els;
             if (CheckBreakAllArea(idData.pos_break_line_areas, task_area_.areas, alarmUnit.areaId,
@@ -196,7 +196,7 @@ void AreaAlarm::AreaTargetAlarmHandLine(AlgDataPtr algData, TrackIdData& idData)
             alarmUnit.trackId      = idData.track_id;
             alarmUnit.strTrackId   = idData.det_el.trackIdInfo;
             alarmUnit.box          = idData.det_el.box;
-            alarmUnit.boxs.push_back(idData.det_el.box);
+            alarmUnit.boxs.push_back(MakeAlarmBox(idData.det_el));
             alarmUnit.targets.push_back(MakeOnEventsTarget(idData.det_el));
             alarmUnit.targetHistory = idData.det_els;
             idData.neg_break_line_areas.push_back(line.area_id);
@@ -282,7 +282,7 @@ void AreaAlarm::HandFriendTargetAlarm(AlgDataPtr algData, DataDetTrackClassifyPt
             alarmUnit.targets.push_back(MakeOnEventsTarget(target.genTarget));
             for (auto& friendTarget : target.srcTargets) {
                 alarmUnit.friends.push_back(friendTarget.box);
-                alarmUnit.boxs.push_back(friendTarget.box);
+                alarmUnit.boxs.push_back(MakeAlarmBox(friendTarget));
                 alarmUnit.targets.push_back(MakeOnEventsTarget(friendTarget));
             }
 

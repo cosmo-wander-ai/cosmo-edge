@@ -59,6 +59,7 @@ struct MsgDetectEventUnit {
 struct MsgDetectSend : public MsgSendHead {
     struct Data {
         std::vector<MsgDetectEventUnit> result;
+        std::vector<nlohmann::json> visualJudgments;
         friend void to_json(nlohmann::json& j, const Data& v);
         friend void from_json(const nlohmann::json& j, Data& v);
     } data;

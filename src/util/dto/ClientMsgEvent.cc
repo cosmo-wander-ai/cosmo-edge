@@ -4,6 +4,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include "util/DetectionGeometryJson.h"
 #include "util/JsonFieldOpt.h"
 #include "util/LimitedTypeJson.h"
 
@@ -95,6 +96,8 @@ void to_json(nlohmann::json& j, const CMsgOnEventsProperty& p) {
     }
     if (p.bHaveTarget)
         j["target"] = p.target;
+    if (!p.visualJudgments.empty())
+        j["visualJudgments"] = p.visualJudgments;
 }
 
 void from_json(const nlohmann::json& j, CMsgOnEventsProperty& p) {
@@ -110,6 +113,7 @@ void from_json(const nlohmann::json& j, CMsgOnEventsProperty& p) {
     JSON_OPT(j, p, persons);
     JSON_OPT(j, p, countNumber);
     JSON_OPT(j, p, workClothesRecognition);
+    JSON_OPT(j, p, visualJudgments);
     if (auto it = j.find("target"); it != j.end() && !it->is_null()) {
         p.bHaveTarget = true;
         it->get_to(p.target);
@@ -120,6 +124,7 @@ void to_json(nlohmann::json& j, const CMsgOnEventsTarget& v) {
     j["label"]      = v.label;
     j["confidence"] = v.confidence;
     j["box"]        = v.box;
+    util::WriteOrientedCorners(j, v.oriented_corners);
     if (!v.trackId.empty())
         j["trackId"] = v.trackId;
 }
@@ -129,6 +134,7 @@ void from_json(const nlohmann::json& j, CMsgOnEventsTarget& v) {
     JSON_OPT(j, v, confidence);
     JSON_OPT(j, v, trackId);
     JSON_OPT(j, v, box);
+    v.oriented_corners = util::ReadOrientedCorners(j);
 }
 
 void to_json(nlohmann::json& j, const CMsgOnEventsReq& r) {

@@ -139,6 +139,9 @@ cosmo::util::ErrorEnum AlgorithmServiceImpl::Add(const std::string& filePath) {
         return cosmo::util::ErrorEnum::UnZipFileFailed;
     }
     auto algs = detail::AlgorithmPacketLoader::LoadFromZipDirectory(unzip_file);
+    if (algs.empty()) {
+        return cosmo::util::ErrorEnum::FileAnalysisFailed;
+    }
     for (auto& alg : algs) {
         auto temp = cosmo::util::FileMove(alg.filePath, cosmo::path::GetAlgorithmPath());
         if (!temp) {

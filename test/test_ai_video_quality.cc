@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <memory>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
 

@@ -409,6 +409,19 @@ BmodelInfo BmodelTool::GetBmodelInfo(const std::string& bmodelPath) {
             network.outputs.push_back(nodeInfo);
         }
 
+        // Read class names from ONNX metadata when present (Ultralytics
+        // exports store them under the "names" key, e.g. "{0: 'z', 1: 't'}").
+        try {
+            Ort::ModelMetadata metadata = session.GetModelMetadata();
+            auto namesPtr               = metadata.LookupCustomMetadataMapAllocated("names", allocator);
+            if (namesPtr) {
+                info.class_names_raw = namesPtr.get();
+                LOG_INFO("[BmodelTool] ONNX metadata names: {}", info.class_names_raw);
+            }
+        } catch (const std::exception& e) {
+            LOG_WARN("[BmodelTool] Failed to read ONNX metadata names: {}", e.what());
+        }
+
         info.networks.push_back(network);
         info.valid = true;
         LOG_INFO("[BmodelTool] Successfully got ONNX model info: {} inputs, {} outputs",

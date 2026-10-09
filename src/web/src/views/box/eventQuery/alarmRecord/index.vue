@@ -1,10 +1,12 @@
 <template>
   <div class="alarm-record">
+    <LayaReviewDialog v-model="layaVisible" :event-id="layaEventId" />
     <TopBar ref="topBarRef" :dataSouce="topBarData" :formData="formData" :labelWidth="60" :defaultExpand="true" @search="searchList" />
 
     <div class="table-container">
       <div class="table-header">
         <div class="table-tools">
+          <el-button size="small" @click="layaEventId = ''; layaVisible = true">{{ t('visualReview.title') }}</el-button>
           <el-button type="primary" size="small" @click="handleExport" :disabled="tableData.length === 0">{{ t('event.dataExport') }}</el-button>
         </div>
       </div>
@@ -45,6 +47,7 @@
         <el-table-column :label="t('field.actions')" fixed="right" :width="currentLocale === 'en-US' ? '230' : '150'">
           <template #default="{ row }">
             <div class="operation-btns">
+              <el-button link @click="layaEventId = row.id; layaVisible = true">{{ t('visualReview.review') }}</el-button>
               <el-button link @click="handleDetail(row)">{{ t('action.details') }}</el-button>
               <el-button link v-if="runMode != 1 && checkRuku(row)" @click="handleRuku(row)">{{ t('event.captureImageStorage') }}</el-button>
               <el-button v-if="row.video" link @click="onCheckVideo(row, 1)">{{ t('event.videoPlayback') }}</el-button>
@@ -85,6 +88,7 @@
                 </div>
               </div>
               <div class="grid-actions">
+                <el-button link class="primary-text" @click="layaEventId = item.id; layaVisible = true">{{ t('visualReview.review') }}</el-button>
                 <el-button link class="primary-text" @click="handleDetail(item)">{{ t('action.details') }}</el-button>
                 <el-button link class="primary-text" v-if="checkRuku(item)" @click="handleRuku(item)">{{ t('event.captureImageStorage') }}</el-button>
                 <el-button link class="primary-text" v-if="item.video" @click="onCheckVideo(item, 1)">{{ t('event.videoPlayback') }}</el-button>
@@ -112,6 +116,7 @@
 
 <script setup>
 import { ref, reactive, watch, onMounted, getCurrentInstance } from 'vue'
+import LayaReviewDialog from '../components/LayaReviewDialog.vue'
 import TopBar from '@/components/TopBar.vue'
 import moment from 'moment'
 import detailDialog from '../components/detailDialog.vue'
@@ -131,6 +136,8 @@ const multipleSelections = ref([])
 const detailDialogVisible = ref(false)
 const detailData = ref({})
 const videoDialogVisiable = ref(false)
+const layaVisible = ref(false)
+const layaEventId = ref('')
 const currentEvent = ref(null)
 const downloadName = ref('')
 const rukuDialogVisible = ref(false)

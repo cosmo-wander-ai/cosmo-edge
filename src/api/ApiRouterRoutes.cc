@@ -142,6 +142,7 @@ void ApiRouter::RegisterScheduleRoutes() {
 void ApiRouter::RegisterEventRoutes() {
     // ── Event ──────────────────────────────────────────────────────────
     ROUTE("/gtw/cwai/Event/", kAuth, event_handler_, Event, Page);
+    ROUTE("/gtw/cwai/Event/", kAuth, event_handler_, Event, LayaReviewPage);
     ROUTE("/gtw/cwai/Event/", kAuth, event_handler_, Event, ExportAlarm);
     ROUTE("/gtw/cwai/Event/", kAuth, event_handler_, Event, QueryPassengerFlowNumber);
 }

@@ -145,8 +145,7 @@ void Sensitivity::CalcAreaTargetSensitity(AlgDataPtr algData) {
                 alarmUnit.areaId       = area;
                 alarmUnit.areaName     = it->second.name;
                 for (auto& target : it->second.history.back().targets) {
-                    util::Box box = target.box;
-                    alarmUnit.boxs.push_back(box);
+                    alarmUnit.boxs.push_back(MakeAlarmBox(target));
                     alarmUnit.box       = target.box;
                     alarmUnit.matchInfo = target.matchInfo;
                     alarmUnit.targets.push_back(MakeOnEventsTarget(target));

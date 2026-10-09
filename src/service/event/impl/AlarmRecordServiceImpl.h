@@ -1,9 +1,8 @@
 // Alarm record service — manages task event, face event, and
 // passenger flow records in the local SQLite database.
 //
-// Concurrency: holds only DAO handles (no mutable service state); cross-thread
-// access is serialized by the shared SQLite connection (IDbService) + busy-timeout,
-// so no service-level lock is required.
+// Alarm inserts use a serialized write connection so shared-connection readers
+// cannot leave them on a stale WAL snapshot after an audit writer commits.
 
 #pragma once
 
@@ -46,6 +45,8 @@ private:
 
     cosmo::db::FaceTaskEventData AlarmDataToFaceEventData(cosmo::AlarmRecordUnit& unit);
 
+    std::shared_ptr<SQLite::Database> event_write_database_;
+    std::shared_ptr<cosmo::db::TaskEventDao> db_event_writer_;
     std::shared_ptr<cosmo::db::TaskEventDao> db_event_{nullptr};
     std::shared_ptr<cosmo::db::PassengerFlowDao> db_pass_flow_event_{nullptr};
     std::shared_ptr<cosmo::db::FaceTaskEventDao> db_face_event_{nullptr};

@@ -2,6 +2,8 @@
 
 #include "service/infra/impl/StorageSpace.h"
 
+#include <SQLiteCpp/Exception.h>
+
 #include <algorithm>
 #include <filesystem>
 
@@ -26,7 +28,8 @@ namespace {
     constexpr size_t kIdleCleanupIntervalCycles = 100;               // Run every ~10 minutes
 }  // namespace
 
-StorageSpace::StorageSpace(const std::string& record_base_path) : record_base_path_(record_base_path) {}
+StorageSpace::StorageSpace(const std::string& record_base_path, StorageSpaceParam config)
+    : record_base_path_(record_base_path), config_(config) {}
 
 void StorageSpace::ClearOldEventPath() {
     auto need_old_timestamp = removed_timestamp_ - kSecondsPerDay;
@@ -193,7 +196,15 @@ void StorageSpace::DoClean() {
     std::error_code err;
     auto space_info = fs::space(record_base_path_, err);
     if (space_info.available + kAvailableSpaceMargin < config_.storage_reserve_space) {
-        DelSpaceLmtStgy(config_.storage_reserve_space - space_info.available);
+        try {
+            DelSpaceLmtStgy(config_.storage_reserve_space - space_info.available);
+        } catch (const SQLite::Exception& error) {
+            // A concurrent writer can keep this cycle from deleting records.
+            // Leave their files intact and retry on the next scheduled cycle.
+            LOG_WARN("Storage cleanup deferred until next cycle: {}", error.what());
+            ++index_;
+            return;
+        }
     }
 
     // Run approximately every 10 minutes

@@ -27,8 +27,8 @@ public:
 
 private:
     std::vector<cosmo::nn::TrackingBox> DetEl2TrackEl(std::vector<AiDetectRstEl>& input);
-    std::vector<AiDetectRstEl> TrackEl2DetEl(std::vector<cosmo::nn::TrackingBox>& input);
-    void TrackDataSignDetId(std::vector<AiDetectRstEl>& track_out, const std::vector<AiDetectRstEl>& input);
+    std::vector<AiDetectRstEl> TrackEl2DetEl(const std::vector<cosmo::nn::TrackingBox>& input,
+                                             const std::vector<AiDetectRstEl>& detections);
 
     AITrackingStatus AITrackStatusChange(cosmo::nn::TrackingStatus status);
     AIMotionState AIMotionStatusChange(cosmo::nn::MotionState status);

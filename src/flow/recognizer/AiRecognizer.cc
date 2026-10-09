@@ -338,7 +338,7 @@ void AiRecognizer::HandFace(AlgDataPtr alg_data) {
             unit.trackId      = input->targets[index].trackId;
             unit.strTrackId   = input->targets[index].trackIdInfo;
             unit.box          = input->targets[index].box;
-            unit.boxs.push_back(unit.box);
+            unit.boxs.push_back(MakeAlarmBox(input->targets[index]));
             unit.haveRelated = input->targets[index].relatedEl.bActive;
             unit.relatedBox  = input->targets[index].relatedEl.box;
             unit.feature     = input->targets[index].feature;

@@ -109,14 +109,16 @@ void MsgDynamicElement::NormalizeLegacyChannelOwnership(std::vector<MsgDynamicEl
                    element.type == "radio" || element.type == "slider" || element.type == "textarea" ||
                    element.type == "number" || element.type == "text" || element.type == "confidenceConfig" ||
                    element.type == "distanceRate" || element.type == "commoditySet" ||
-                   element.type == "workClothesSet" || element.type == "faceSet";
+                   element.type == "workClothesSet" || element.type == "faceSet" ||
+                   element.type == "visualQuestions";
         }
         if (depth == 1) {
             return element.type == "select" || element.type == "switch" || element.type == "check" ||
                    element.type == "radio" || element.type == "slider" || element.type == "textarea" ||
                    element.type == "text" || element.type == "confidenceConfig" ||
                    element.type == "distanceRate" || element.type == "commoditySet" ||
-                   element.type == "workClothesSet" || element.type == "faceSet";
+                   element.type == "workClothesSet" || element.type == "faceSet" ||
+                   element.type == "visualQuestions";
         }
         return false;
     };

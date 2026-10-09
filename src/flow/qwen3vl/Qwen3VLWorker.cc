@@ -35,16 +35,20 @@ namespace {
 
     class QwenWorkerActivityGuard {
     public:
-        QwenWorkerActivityGuard() {
-            service::ServiceRegistry::Instance().Get<service::ILlmInferService>().NotifyWorkerStart();
-        }
+        explicit QwenWorkerActivityGuard(bool& registered) : registered_(registered) {}
 
         ~QwenWorkerActivityGuard() {
-            service::ServiceRegistry::Instance().Get<service::ILlmInferService>().NotifyWorkerStop();
+            if (registered_) {
+                service::ServiceRegistry::Instance().Get<service::ILlmInferService>().NotifyWorkerStop();
+                registered_ = false;
+            }
         }
 
         QwenWorkerActivityGuard(const QwenWorkerActivityGuard&)            = delete;
         QwenWorkerActivityGuard& operator=(const QwenWorkerActivityGuard&) = delete;
+
+    private:
+        bool& registered_;
     };
 }  // namespace
 
@@ -66,7 +70,7 @@ Qwen3VLWorker::~Qwen3VLWorker() {
 }
 
 Qwen3VLWorker::Qwen3VLWorker(ActionNode& action)
-    : AlgActionBase(AlgActionType::AlgActionQwen3VL, action, "", "", action.atomicCode + " Qwen3VLWorker"),
+    : AlgActionBase(AlgActionType::AlgActionQwen3VL, action, "", "", action.atomicCode + " VLM"),
       alg_code_(action.atomicCode) {
     action_status = util::ErrorEnum::ActionReady;
     uuid          = util::GenerateUUID();
@@ -81,12 +85,6 @@ Qwen3VLWorker::Qwen3VLWorker(ActionNode& action)
 
 bool Qwen3VLWorker::Qwen3VLSdkInit() {
     // Use global shared Qwen3VL instance
-    if (service::ServiceRegistry::Instance().Get<service::ILlmInferService>().IsInitialized()) {
-        action_status       = util::ErrorEnum::AI_INST_CREATED;
-        detector_inst_init_ = true;
-        return true;
-    }
-
     bool ok = service::ServiceRegistry::Instance().Get<service::ILlmInferService>().EnsureInit(alg_code_);
     if (!ok) {
         action_status = util::ErrorEnum::AI_INST_CREATEFAILED;
@@ -159,6 +157,14 @@ bool Qwen3VLWorker::RemoveTask(const std::string& channel_id, const std::string&
                     }
                     task_areas_.erase(task);
                     task_contexts_.erase(task);
+                    for (auto& param : params_.param)
+                        if (param.task_id == task && param.visual_judgment)
+                            param.visual_judgment->Invalidate();
+                    params_.param.erase(
+                        std::remove_if(params_.param.begin(), params_.param.end(),
+                                       [&task](const auto& param) { return param.task_id == task; }),
+                        params_.param.end());
+                    ++params_.param_modify_sign;
                     return true;
                 }
             }
@@ -231,9 +237,8 @@ Qwen3VLWorkerParamEl Qwen3VLWorker::GetTaskParams(const std::string& tid) {
                            [&tid](const auto& p) { return p.task_id == tid; });
     if (it != params_.param.end())
         return *it;
-    if (params_.param.size() == 1)
-        return params_.param[0];
     Qwen3VLWorkerParamEl emptyParam;
+    emptyParam.task_id = tid;
     return emptyParam;
 }
 
@@ -242,8 +247,6 @@ std::optional<Qwen3VLTaskContext> Qwen3VLWorker::GetTaskContext(const std::strin
     auto it = task_contexts_.find(tid);
     if (it != task_contexts_.end())
         return it->second;
-    if (task_contexts_.size() == 1)
-        return task_contexts_.begin()->second;
     return std::nullopt;
 }
 
@@ -265,6 +268,7 @@ bool Qwen3VLWorker::SetArea(const std::string& /*channel_id*/, const std::string
     taskArea.taskId        = tid;
     taskArea.areas         = areas;
     taskArea.shieldedAreas = shielded_areas;
+    RebuildVisualLocked(tid);
 
     double pbX = areas.empty() ? 0.0 : areas[0].pointBox.x;
     double pbY = areas.empty() ? 0.0 : areas[0].pointBox.y;
@@ -278,9 +282,45 @@ bool Qwen3VLWorker::SetArea(const std::string& /*channel_id*/, const std::string
 
 // CollectInferEntries, RunBatchInference, DistributeResults, HandFrameBatch — moved to Qwen3VLInference.cc
 
+void Qwen3VLWorker::RebuildVisualLocked(const std::string& tid) {
+    auto it = std::find_if(params_.param.begin(), params_.param.end(),
+                           [&](const auto& p) { return p.task_id == tid; });
+    if (it == params_.param.end())
+        return;
+    if (it->visual_judgment)
+        it->visual_judgment->Invalidate();
+    it->visual_judgment.reset();
+    if (it->open_ai_config.provider == "laya_v") {
+        const auto area     = task_areas_.find(tid);
+        it->visual_judgment = std::make_shared<VisualJudgment>(
+            tid, it->prompt, it->advanced_mode, it->visual_parameters,
+            area == task_areas_.end() ? std::vector<MsgTaskArea>{} : area->second.areas, std::nullopt,
+            alg_code_);
+    }
+}
+
+void Qwen3VLWorker::Stop() {
+    auto invalidate = [&] {
+        std::lock_guard<std::shared_mutex> lock(mtx);
+        for (auto& param : params_.param)
+            if (param.visual_judgment)
+                param.visual_judgment->Invalidate();
+    };
+    invalidate();
+    AlgActionBase::Stop();
+    // Covers a concurrent config edit while the processing thread was joining.
+    invalidate();
+}
+
+void Qwen3VLWorker::ResetStateOnRestart() {
+    std::lock_guard<std::shared_mutex> lock(mtx);
+    for (const auto& param : params_.param)
+        RebuildVisualLocked(param.task_id);
+}
+
 void Qwen3VLWorker::run() {
     LOG_INFO("{}[{} {}] Thread Start", kTag, alg_code_, uuid);
-    QwenWorkerActivityGuard workerActivity;
+    QwenWorkerActivityGuard workerActivity(local_worker_registered_);
     try {
         int index = 0;
         while (running) {

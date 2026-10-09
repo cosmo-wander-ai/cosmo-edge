@@ -135,7 +135,7 @@ void AreaAlarm::HandAreaTargetLimit(AlgDataPtr algData, DataDetTrackClassifyPtr 
                     if ((target.bFilter) && (target.filterType != AIFilterType::NoRelatedTarget)) {
                         continue;
                     }
-                    alarmUnit.boxs.push_back(target.box);
+                    alarmUnit.boxs.push_back(MakeAlarmBox(target));
                     alarmUnit.targets.push_back(MakeOnEventsTarget(target));
                 }
                 FillAlarmData(algData, alarmUnit);
@@ -182,7 +182,7 @@ void AreaAlarm::HandAreaTargetLimit(AlgDataPtr algData, DataDetTrackClassifyPtr 
                     if ((target.bFilter) && (target.filterType != AIFilterType::NoRelatedTarget)) {
                         continue;
                     }
-                    alarmUnit.boxs.push_back(target.box);
+                    alarmUnit.boxs.push_back(MakeAlarmBox(target));
                     alarmUnit.targets.push_back(MakeOnEventsTarget(target));
                     if (target.bestEl.bActive) {
                         alarmUnit.bestInfos.push_back(target.bestEl);

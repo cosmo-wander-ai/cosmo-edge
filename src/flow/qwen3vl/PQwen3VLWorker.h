@@ -8,13 +8,15 @@
 #include <vector>
 
 #include "flow/action/PActionBase.h"
+#include "flow/common/VisualJudgment.h"
 #include "flow/qwen3vl/Qwen3VLWorker.h"
 
 namespace cosmo {
 
 class PQwen3VLWorker : public PActionBase {
 public:
-    explicit PQwen3VLWorker(ActionNode& action, const std::string& task_id = "");
+    explicit PQwen3VLWorker(ActionNode& action, const std::string& task_id = "",
+                            bool has_upstream_targets = false);
     ~PQwen3VLWorker() override;
 
     bool ActionInit() override;
@@ -24,7 +26,11 @@ public:
     bool ModifyParam(const std::string& task_id, std::vector<MsgDynamicKeyValue>& params) override;
     bool SetParam(const std::string& task_id, std::vector<MsgDynamicKeyValue>& params) override;
 
+    bool SetArea(const std::string& task_id, std::vector<MsgTaskArea>& areas,
+                 std::vector<MsgTaskArea>& shielded_areas) override;
+
 private:
+    void RebuildVisualJudgment();
     bool ValidKey(MsgDynamicKeyValue& param);
     bool AnalysisKey(MsgDynamicKeyValue& param);
     void ApplyGenerationStyle();
@@ -38,6 +44,11 @@ private:
     Qwen3VLGenerationStyle generation_style_{Qwen3VLGenerationStyle::STANDARD};
     Qwen3VLGenerationParam gen_param_;
     OpenAiVlmConfig open_ai_config_;
+    VisualParameters visual_parameters_;
+    std::vector<MsgTaskArea> areas_;
+    std::shared_ptr<VisualJudgment> visual_judgment_;
+    bool stopped_{false};
+    bool has_upstream_targets_{false};
 };
 
 using PQwen3VLWorkerPtr = std::shared_ptr<PQwen3VLWorker>;

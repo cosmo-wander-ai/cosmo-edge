@@ -216,19 +216,23 @@ void TaskAlarm::HandPicture(CMsgOnEventsReq& msg, AlgDataPtr algData, DataAlarmU
     // them.
     const bool isVlmFullFrame =
         alarmUnit.bLlmPrejudged &&
-        (alarmUnit.boxs.size() == 1 && alarmUnit.boxs[0].x == 0 && alarmUnit.boxs[0].y == 0 &&
-         alarmUnit.boxs[0].width >= static_cast<int>(origImg->GetWidth()) &&
-         alarmUnit.boxs[0].height >= static_cast<int>(origImg->GetHeight()));
+        (alarmUnit.boxs.size() == 1 && alarmUnit.boxs[0].box.x == 0 && alarmUnit.boxs[0].box.y == 0 &&
+         alarmUnit.boxs[0].box.width >= static_cast<int>(origImg->GetWidth()) &&
+         alarmUnit.boxs[0].box.height >= static_cast<int>(origImg->GetHeight()));
     const bool skipVlmFullFrameDecor = isVlmFullFrame;
 
     const auto overviewCfg =
         service::ServiceRegistry::Instance().Get<service::IConfigReadService>().GetPictureQuality();
 
     if (!skipVlmFullFrameDecor && overviewCfg.targetBoxOverview) {
-        for (auto box : alarmUnit.boxs) {  // Overlay all targets
-            auto boxLines = GetBoxLines(box, origImg->GetWidth(), origImg->GetHeight());
+        for (const auto& overlay : alarmUnit.boxs) {  // Overlay all targets
+            const auto& box = overlay.box;
+            const auto lines =
+                overlay.oriented_corners
+                    ? GetQuadOsdLines(*overlay.oriented_corners, origImg->GetWidth(), origImg->GetHeight())
+                    : GetBoxLines(box, origImg->GetWidth(), origImg->GetHeight());
             service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().DrawLines(
-                origImg, boxLines, box_color, lineWidth);
+                origImg, lines, box_color, lineWidth);
 
             if (overviewCfg.targetSizeOverview) {
                 media::Color boxsize_color{0, 0, 0};

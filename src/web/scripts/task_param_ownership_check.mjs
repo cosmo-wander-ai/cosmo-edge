@@ -11,6 +11,7 @@ import {
   isChannelEditableParam,
   isChannelParamRenderableAtDepth,
   mergeTaskParamSchemasByKey,
+  matchesParamDependency,
   normalizeChannelEditorVisibility,
   normalizeChannelVisibilitySelection,
   normalizeParamOwnershipList,
@@ -858,3 +859,15 @@ assert.equal(
 )
 
 console.log('task parameter ownership checks passed')
+
+// Native Laya keeps the repository model binding visible and serializable.
+const nativeModelSelector = {
+  key: 'llmAtomicCode', type: 'modelSelect_qwen3vl',
+  dependsOn: { key: 'llmProvider', value: 'local_model' }
+}
+assert.equal(matchesParamDependency(nativeModelSelector, 'laya_v'), true)
+assert.equal(matchesParamDependency(nativeModelSelector, 'local_model'), true)
+assert.equal(matchesParamDependency(nativeModelSelector, 'openai_vlm'), false)
+assert.equal(matchesParamDependency({
+  ...nativeModelSelector, key: 'maxTokens', type: 'text'
+}, 'laya_v'), false)

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -27,7 +28,11 @@ struct PTaskAction {
 };
 
 struct PTaskElement {
-    bool is_started{false};
+    std::atomic<bool> is_started{false};
+    // Serialize one API request including config application and startup.
+    std::mutex requestMutex;
+    // Short snapshot lock; status reads must not wait for model inference.
+    std::mutex configMutex;
     int startFailedCount{0};
     std::shared_mutex mtx;           // Lock for task execution
     std::string taskId;              // Globally unique task ID

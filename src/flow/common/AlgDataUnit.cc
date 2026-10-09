@@ -33,15 +33,17 @@ AlgDataPtr AlgDataCopy(AlgDataPtr input) {
 
     AlgDataPtr algData = std::make_shared<AlgData>();
 
-    algData->dataType       = input->dataType;
-    algData->channelId      = input->channelId;
-    algData->taskId         = input->taskId;
-    algData->bHaveTrack     = input->bHaveTrack;
-    algData->bHaveRelated   = input->bHaveRelated;
-    algData->bHaveClassify  = input->bHaveClassify;
-    algData->bHaveLandmark  = input->bHaveLandmark;
-    algData->bHaveLogic     = input->bHaveLogic;
-    algData->firstTimePoint = input->firstTimePoint;
+    algData->dataType        = input->dataType;
+    algData->channelId       = input->channelId;
+    algData->taskId          = input->taskId;
+    algData->visualFrameId   = input->visualFrameId;
+    algData->visualDecisions = input->visualDecisions;
+    algData->bHaveTrack      = input->bHaveTrack;
+    algData->bHaveRelated    = input->bHaveRelated;
+    algData->bHaveClassify   = input->bHaveClassify;
+    algData->bHaveLandmark   = input->bHaveLandmark;
+    algData->bHaveLogic      = input->bHaveLogic;
+    algData->firstTimePoint  = input->firstTimePoint;
 
     algData->chanDataOrig = input->chanDataOrig;
     algData->chanDataDec  = input->chanDataDec;

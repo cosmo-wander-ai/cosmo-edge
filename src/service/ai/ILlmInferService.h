@@ -34,6 +34,17 @@ public:
                                             const cosmo::Qwen3VLGenerationParam& gen_param,
                                             std::vector<cosmo::Qwen3VLResult>& results) = 0;
 
+    // Structured visual backends use the same bound model and serialized instance.
+    virtual bool PrepareText(const std::string&, const std::string&, std::string&, std::string&) {
+        return false;
+    }
+    virtual cosmo::util::ErrorEnum GenerateBound(const std::string&, const std::string&,
+                                                 const std::vector<VideoFramePtr>&,
+                                                 const std::vector<std::string>&,
+                                                 std::vector<cosmo::Qwen3VLResult>&) {
+        return cosmo::util::ErrorEnum::Failed;
+    }
+
     /// Returns the maximum batch size supported by the loaded model.
     virtual cosmo::util::ErrorEnum GetMaxBatchSize(size_t& value) const = 0;
 

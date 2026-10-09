@@ -91,6 +91,18 @@
     },
     "parameters": {
       "type": "object",
+      "properties": {
+        "quantizeTable": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Sophon mixed-precision table file within the current private run."
+        },
+        "calibrationTable": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Sophon calibration table file within the current private run; required for INT8 conversion."
+        }
+      },
       "additionalProperties": true
     },
     "extensions": {

@@ -171,10 +171,16 @@ void to_json(nlohmann::json& j, const MsgDetectEventUnit& v) {
 
 void from_json(const nlohmann::json& j, MsgDetectSend::Data& v) {
     JSON_OPT(j, v, result);
+    v.visualJudgments.clear();
+    JSON_OPT(j, v, visualJudgments);
 }
 
 void to_json(nlohmann::json& j, const MsgDetectSend::Data& v) {
     j["result"] = v.result;
+    if (!v.visualJudgments.empty())
+        j["visualJudgments"] = v.visualJudgments;
+    else
+        j.erase("visualJudgments");
 }
 
 }  // namespace cosmo

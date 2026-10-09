@@ -16,6 +16,10 @@
 #include "media/OsdTextRenderer.h"
 #include "service/ai/impl/InferPoolServiceImpl.h"
 #include "service/ai/impl/LlmInferServiceImpl.h"
+#include "service/ai/impl/NativeVisualBackend.h"
+#include "service/ai/impl/VisualAuditServiceImpl.h"
+#include "service/ai/impl/VisualDecisionServiceImpl.h"
+#include "service/ai/impl/VisualQuestionServiceImpl.h"
 #include "service/algorithm/IAlgorithmCrud.h"
 #include "service/algorithm/IAlgorithmLayout.h"
 #include "service/algorithm/IAlgorithmQuery.h"
@@ -262,6 +266,19 @@ static void RegisterBusinessServices() {
 
     registry.Register<cosmo::service::IAlarmRecordService>(
         std::make_unique<cosmo::service::AlarmRecordServiceImpl>());
+
+    registry.Register<cosmo::service::IVisualAuditService>(
+        std::make_unique<cosmo::service::VisualAuditServiceImpl>(cosmo::path::GetDbPath() + "/ied.db"));
+    registry.Register<cosmo::service::IVisualDecisionService>(
+        std::make_unique<cosmo::service::VisualDecisionServiceImpl>(
+            cosmo::service::VisualDecisionOptions{}, cosmo::service::VisualDecisionServiceImpl::Transport{},
+            &registry.Get<cosmo::service::IVisualAuditService>(),
+            cosmo::service::NativeVisualInference(registry.Get<cosmo::service::ILlmInferService>())));
+    registry.Register<cosmo::service::IVisualQuestionService>(
+        std::make_unique<cosmo::service::VisualQuestionServiceImpl>(
+            cosmo::service::VisualQuestionCompilerOptions{},
+            cosmo::service::VisualQuestionServiceImpl::Executor{},
+            cosmo::service::NativeVisualCompiler(registry.Get<cosmo::service::ILlmInferService>())));
 
     registry.Register<cosmo::service::IAlarmPushService>(
         std::make_unique<cosmo::service::AlarmPushServiceImpl>());

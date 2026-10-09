@@ -200,6 +200,97 @@ class ModelConversionWorkflowTest(unittest.TestCase):
             self.assertNotIn("--tolerance", deploy)
             self.assertIsNone(parameters["tensorTolerance"])
 
+    def test_precision_tables_are_resolved_and_forwarded_in_both_runtimes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            contract = make_contract()
+            contract["parameters"].update({
+                "quantization": "INT8",
+                "quantizeTable": "inputs/precision.qtable",
+                "calibrationTable": "inputs/calibration.table",
+            })
+            run_dir, _ = prepare_run(Path(directory), contract)
+            (run_dir / "inputs/precision.qtable").write_text("# sensitive layers\n/index F32\n/head F16\n")
+            (run_dir / "inputs/calibration.table").write_text("# op threshold min max\n/features 1.5 -0.5 1.5\n")
+            parameters = conversion.conversion_parameters(contract, run_dir)
+            for kind in ("python-package", "container-image"):
+                with self.subTest(kind=kind):
+                    identity = {"kind": kind}
+                    arguments = conversion.build_deploy_arguments(
+                        parameters, mlir="candidate.mlir", model="candidate.bmodel",
+                        quantize_table=conversion._runtime_path(parameters["quantizeTable"], run_dir, identity),
+                        calibration_table=conversion._runtime_path(parameters["calibrationTable"], run_dir, identity),
+                    )
+                    prefix = "/workspace/run" if kind == "container-image" else str(run_dir.resolve())
+                    self.assertEqual(arguments[arguments.index("--quantize_table") + 1], prefix + "/inputs/precision.qtable")
+                    self.assertEqual(arguments[arguments.index("--calibration_table") + 1], prefix + "/inputs/calibration.table")
+            entries = conversion._conversion_inputs(parameters, run_dir)
+            self.assertEqual([entry["role"] for entry in entries], ["quantization-table", "calibration-table"])
+            self.assertEqual(entries[0]["sha256"], core.sha256_file(parameters["quantizeTable"]))
+
+    def test_int8_requires_a_nonempty_valid_calibration_table(self):
+        with tempfile.TemporaryDirectory() as directory:
+            contract = make_contract()
+            contract["parameters"]["quantization"] = "INT8"
+            run_dir, _ = prepare_run(Path(directory), contract)
+            with self.assertRaisesRegex(core.WorkflowError, "requires parameters.calibrationTable"):
+                conversion.conversion_parameters(contract, run_dir)
+            contract["parameters"]["calibrationTable"] = "inputs/calibration.table"
+            for text in ("", "# only comment\n", "layer 1\n", "layer NaN 0 1\n", "layer 0 0 1\n", "layer 1 2 0\n"):
+                with self.subTest(text=text):
+                    (run_dir / "inputs/calibration.table").write_text(text)
+                    with self.assertRaises(core.WorkflowError):
+                        conversion.conversion_parameters(contract, run_dir)
+
+    def test_precision_table_paths_cannot_escape_run_including_symlinks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            contract = make_contract()
+            run_dir, _ = prepare_run(root, contract)
+            outside = root / "outside.table"
+            outside.write_text("layer F32\n")
+            (run_dir / "inputs/link.table").symlink_to(outside)
+            for value in (str(outside), "../../../outside.table", "inputs/link.table", "inputs/absent.table"):
+                with self.subTest(value=value):
+                    contract["parameters"]["quantizeTable"] = value
+                    with self.assertRaises(core.WorkflowError):
+                        conversion.conversion_parameters(contract, run_dir)
+
+    def test_precision_table_changes_invalidate_verification_and_seal(self):
+        for key, original, changed in (
+            ("quantizeTable", "index F32\n", "index F16\n"),
+            ("calibrationTable", "features 1.5 -0.5 1.5\n", "features 2.0 -0.5 2.0\n"),
+        ):
+            with self.subTest(key=key), tempfile.TemporaryDirectory() as directory:
+                run_dir, contract_path, contract = self._make_verifiable_run(Path(directory), "PASS")
+                contract["parameters"][key] = "inputs/precision.table"
+                table = run_dir / "inputs/precision.table"
+                table.write_text(original)
+                parameters = conversion.conversion_parameters(contract, run_dir)
+                contract_path.write_text(json.dumps(contract))
+                route_path = run_dir / "route-assessment.json"
+                route = json.loads(route_path.read_text())
+                route["contractSha256"] = core.sha256_file(contract_path)
+                route_path.write_text(json.dumps(route))
+                for filename in ("environment-report.json", "execution-manifest.json"):
+                    path = run_dir / filename
+                    record = json.loads(path.read_text())
+                    record["contractSha256"] = core.sha256_file(contract_path)
+                    record["routeAssessmentSha256"] = core.sha256_file(route_path)
+                    if filename == "execution-manifest.json":
+                        record["conversionInputs"] = conversion._conversion_inputs(parameters, run_dir)
+                    path.write_text(json.dumps(record))
+                before = conversion.verify_conversion(contract_path, run_dir, contract)
+                self.assertEqual(before["developmentVerdict"], "COMPLETE")
+                table.write_text(changed)
+                after = conversion.verify_conversion(contract_path, run_dir, contract)
+                self.assertEqual(after["developmentVerdict"], "FAILED")
+                stage = next(stage for stage in after["stages"] if stage["id"] == "S2")
+                self.assertEqual(stage["status"], "FAIL")
+                self.assertIn("table inputs changed", stage["detail"])
+                seal, reason = conversion.issue_verification_seal(run_dir, before)
+                self.assertIsNone(seal)
+                self.assertIn("table inputs changed", reason)
+
     def test_python_toolchain_uses_selected_interpreter_not_entry_shebang(self):
         identity = make_toolchain_identity()
         command = conversion._tool_command(

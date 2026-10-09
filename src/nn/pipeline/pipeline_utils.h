@@ -12,7 +12,14 @@
 #include "nn/utils/op.h"
 
 namespace cosmo::nn {
+struct ObbResizeTransform;
 namespace pipeline_utils {
+
+    Status ValidateObbResizeConfig(Size input, DeviceType device);
+
+    // Match the selected Resize node, including integer rounding and crop offsets.
+    Status MakeObbResizeTransform(Size source, Size input, int gravity, DeviceType device,
+                                  ObbResizeTransform& transform);
 
     std::unique_ptr<Resize> MakeResizeOp(const std::vector<int>& dsize, int gravity = 0,
                                          const std::vector<int>& color = {114, 114, 114});
@@ -46,7 +53,11 @@ namespace pipeline_utils {
                                                int input_width = 0, int input_height = 0);
 
     std::unique_ptr<YoloPost> MakeYoloE2EPostOp(float conf_threshold, int top_k, int input_width = 0,
-                                                int input_height = 0);
+                                                int input_height = 0, float nms_threshold = 0.7f,
+                                                bool raw_output = false);
+
+    std::unique_ptr<YoloPost> MakeYoloObbPostOp(float conf_threshold, int top_k, int input_width = 0,
+                                                int input_height = 0, bool normalized_coordinates = false);
 
     std::unique_ptr<DinoEncoder> MakeDinoEncoderOp(int dst_width, int dst_height, bool is_bgr,
                                                    const std::vector<float>& mean,

@@ -22,7 +22,9 @@ public:
 
     /// Execute detection on a single image.
     /// @param taskId  Task identifier.
-    /// @param data    Detection request containing the image.
+    /// Nonempty taskConfig replaces task overrides atomically with this request.
+    /// An empty taskConfig keeps the saved configuration.
+    /// @param data    Detection request containing the image and optional task configuration.
     /// @param retData [out] Detection results.
     /// @return ErrorEnum::kSuccess on success.
     virtual cosmo::util::ErrorEnum DetectPic(const std::string& taskId, cosmo::MsgPTaskDetectPicRecv& data,

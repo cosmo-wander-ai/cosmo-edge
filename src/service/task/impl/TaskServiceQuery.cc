@@ -8,6 +8,7 @@
 #include "flow/task/TaskBase.h"
 #include "flow/task/TaskBaseParam.h"
 #include "service/detail/ServiceRegistry.h"
+#include "service/model/IModelQuery.h"
 #include "service/task/impl/TaskServiceImpl.h"
 #include "util/Log.h"
 #include "util/TimeUtil.h"
@@ -308,7 +309,7 @@ std::vector<std::pair<std::string, cosmo::util::DurationStatInfo>> TaskServiceIm
         {cosmo::AAIrCheck_Code, "IrCheck"},
         {cosmo::DADinoDetect_Code, "DinoDet"},
         {cosmo::DASam2Segment_Code, "Sam2Seg"},
-        {cosmo::DAQwen3VL_Code, "Qwen3VL"},
+        {cosmo::DAQwen3VL_Code, "VLM"},
         {cosmo::AAClassifyGroup_Code, "GroupClassify"},
         {cosmo::AAClassifyArea_Code, "AreaClassify"},
         {cosmo::AAClassifyAttr_Code, "AttrClassify"},
@@ -356,6 +357,13 @@ std::vector<std::pair<std::string, cosmo::util::DurationStatInfo>> TaskServiceIm
                 auto name_it = name_map.find(action.action.actionId);
                 std::string name =
                     (name_it != name_map.end()) ? std::string(name_it->second) : action.action.actionName;
+                if (action.action.actionId == cosmo::DAQwen3VL_Code && !action.action.atomicCode.empty()) {
+                    const auto model =
+                        ServiceRegistry::Instance().Get<IModelQuery>().GetModelInfo(action.action.atomicCode);
+                    if (!model.name.empty()) {
+                        name = model.name;
+                    }
+                }
                 result.emplace_back(name, dur);
             }
         }

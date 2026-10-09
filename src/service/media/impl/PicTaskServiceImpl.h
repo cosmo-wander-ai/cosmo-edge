@@ -51,6 +51,9 @@ public:
     size_t TaskCount() override;
 
 private:
+    cosmo::util::ErrorEnum DetectPicImpl(const std::string& taskId, cosmo::MsgPTaskDetectPicRecv& data,
+                                         cosmo::MsgPTaskDetectPicSend& retData, bool areaPatchOnly);
+    bool ApplyTaskConfig(const cosmo::PTaskElementPtr& task, cosmo::MsgTaskConfig param);
     std::string GetRealTask(const std::string& taskId);
     void DestroyTask(const cosmo::PTaskElementPtr& task) noexcept;
     void DeleteAllTasksImpl();

@@ -1,8 +1,11 @@
 // AiCommon.h — Common AI detection/tracking/classification data types.
 #pragma once
 
+#include <optional>
+
 #include "media/VideoFrame.h"
 #include "util/AiTypes.h"
+#include "util/DetectionGeometry.h"
 
 namespace cosmo {
 
@@ -25,6 +28,8 @@ struct AiDetectRelatedEl {
 // Detection / tracking / classification result
 struct AiDetectRstEl {
     util::Box box;
+    // Optional measured geometry in source-image pixels; box remains its AABB.
+    std::optional<util::Quad> oriented_corners;
     util::Box scaleBox;    // Box after padding/scaling
     std::string targetId;  // Target ID — globally unique, used for target association
     util::Point point;

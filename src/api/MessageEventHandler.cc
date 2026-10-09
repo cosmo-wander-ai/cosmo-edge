@@ -2,9 +2,16 @@
 
 #include "api/MessageEventHandler.h"
 
+#include <chrono>
+#include <fstream>
+
+#include "service/ai/IVisualDecisionService.h"
+#include "service/ai/IVisualQuestionService.h"
 #include "service/algorithm/IAlgorithmQuery.h"
+#include "service/detail/ServiceRegistry.h"
 #include "service/event/AlarmExport.h"
 #include "service/event/IAlarmRecordService.h"
+#include "service/event/LayaReviewStore.h"
 #include "service/network/INetworkConfig.h"
 #include "util/DateTimeFormat.h"
 #include "util/ErrorCode.h"
@@ -29,6 +36,50 @@ Event::MsgPageSend MessageEventHandler::Handle(Event::MsgPageRecv&& data,
         event.algorithmName = algorithm_query_.GetAlgorithmName(event.algorithmCode);
     }
     return retData;
+}
+
+Event::MsgLayaReviewPageSend MessageEventHandler::Handle(Event::MsgLayaReviewPageRecv&& data,
+                                                         std::error_condition& errc) const {
+    Event::MsgLayaReviewPageSend response;
+    if (!data.format.empty() && data.format != "typed-v1") {
+        errc = util::ErrorEnum::InvalidParam;
+        return response;
+    }
+    try {
+        if (data.format == "typed-v1") {
+            auto& registry   = service::ServiceRegistry::Instance();
+            auto& audit      = registry.Get<service::IVisualAuditService>();
+            response.resData = audit.Page(data.eventId, data.requestId, data.pageNum, data.pageSize);
+            response.resData["format"]              = "typed-v1";
+            response.resData["audit_runtime"]       = audit.Status();
+            response.resData["automatic_filtering"] = false;
+            if (registry.Has<service::IVisualDecisionService>()) {
+                response.resData["runtime"] = registry.Get<service::IVisualDecisionService>().Counters();
+                response.resData["automatic_filtering"] =
+                    response.resData["runtime"].value("automatic_filtering", false);
+            }
+            if (registry.Has<service::IVisualQuestionService>())
+                response.resData["question_runtime"] =
+                    registry.Get<service::IVisualQuestionService>().Counters();
+            return response;
+        }
+        response.resData = LayaReviewStore::Instance().Page(data.eventId, data.pageNum, data.pageSize);
+        response.resData["runtime"] = {{"state", "unavailable"}, {"automatic_filtering", false}};
+        try {
+            std::ifstream input("/run/cosmo-laya/status.json");
+            nlohmann::json runtime;
+            input >> runtime;
+            const double now =
+                std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
+            const double age = now - runtime.at("updated_at").get<double>();
+            if (age >= 0 && age < 3)
+                response.resData["runtime"] = runtime;
+        } catch (...) {
+        }
+    } catch (...) {
+        errc = util::ErrorEnum::FileOpenFailed;
+    }
+    return response;
 }
 
 // ── Export Alarm ────────────────────────────────────────────────────

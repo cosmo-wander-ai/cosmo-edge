@@ -4,6 +4,7 @@
 
 #include "catch_amalgamated.hpp"
 #include "flow/alarm/AlarmBatch.h"
+#include "service/ai/IVisualDecisionService.h"
 
 namespace {
 
@@ -100,4 +101,14 @@ TEST_CASE("alarm batch merge keeps only accepted target members", "[alarm][batch
     CHECK(merged.targets[0].trackId == "track-1");
     CHECK(merged.targets[1].trackId == "track-3");
     CHECK(merged.box == (cosmo::util::Box{10, 10, 250, 100}));
+}
+
+TEST_CASE("Visual alarm batches never combine configuration epochs", "[visual-flow][batch]") {
+    auto a      = MakeAlarm(1, "a", "flow", "area", {0, 0, 10, 10});
+    auto b      = MakeAlarm(2, "b", "flow", "area", {10, 0, 10, 10});
+    a.visualRun = std::make_shared<cosmo::service::VisualDecisionRun>("task", "old", "rev-1");
+    b.visualRun = std::make_shared<cosmo::service::VisualDecisionRun>("task", "new", "rev-2");
+    CHECK(cosmo::alarm::BuildAlarmBatches({a, b}, cosmo::OnEventsPropertyType::None, 1).size() == 2);
+    b.visualRun = a.visualRun;
+    CHECK(cosmo::alarm::BuildAlarmBatches({a, b}, cosmo::OnEventsPropertyType::None, 1).size() == 1);
 }

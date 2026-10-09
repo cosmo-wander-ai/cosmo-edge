@@ -2,13 +2,34 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 #include "nn/node/node_type_utils.h"
 #include "nn/utils/dims_vector_utils.h"
 #include "nn/utils/op.h"
+#include "nn/utils/yolo26_raw_postprocess.h"
 #include "util/Log.h"
 
 namespace cosmo::nn {
+namespace {
+
+    bool ValidFloatTensor(const std::shared_ptr<Blob>& blob) {
+        if (!blob || !blob->GetHandle().base || blob->GetBlobDesc().data_type != DATA_TYPE_FLOAT ||
+            !UsesHostMemory(blob->GetBlobDesc().device_type))
+            return false;
+        const auto& dims = blob->GetBlobDesc().dims;
+        if (dims.size() != 3)
+            return false;
+        size_t count = 1;
+        for (int dim : dims) {
+            if (dim <= 0 || count > static_cast<size_t>(std::numeric_limits<int>::max()) / dim)
+                return false;
+            count *= dim;
+        }
+        return true;
+    }
+
+}  // namespace
 
 YoloE2EDecodeNode::YoloE2EDecodeNode() : Node() {
     node_type     = NodeType::NODE_YOLO_E2E_DECODE;
@@ -19,17 +40,27 @@ YoloE2EDecodeNode::YoloE2EDecodeNode() : Node() {
 YoloE2EDecodeNode::~YoloE2EDecodeNode() {}
 
 void YoloE2EDecodeNode::LoadParam(Op* op) {
-    if (!op)
+    valid_params_ = false;
+    auto* post    = dynamic_cast<YoloPost*>(op);
+    if (!post)
         return;
 
-    auto* post    = dynamic_cast<YoloPost*>(op);
-    top_k         = post->top_k;
-    base_conf     = post->nms_detection_conf;
-    input_width_  = post->input_width;
-    input_height_ = post->input_height;
+    top_k          = post->top_k;
+    base_conf      = post->nms_detection_conf;
+    nms_threshold_ = post->nms_threshold;
+    raw_output_    = post->raw_output;
+    input_width_   = post->input_width;
+    input_height_  = post->input_height;
+    valid_params_ =
+        top_k > 0 && std::isfinite(base_conf) && base_conf >= 0.f && base_conf <= 1.f &&
+        (!raw_output_ || (std::isfinite(nms_threshold_) && nms_threshold_ >= 0.f && nms_threshold_ <= 1.f));
 }
 
 Status YoloE2EDecodeNode::InferTopShapes() {
+    if (!valid_params_ || max_batch <= 0 ||
+        static_cast<size_t>(top_k) >
+            static_cast<size_t>(std::numeric_limits<int>::max()) / top_col / max_batch)
+        return Status(COSMO_NN_ERR_PARAM, "Invalid YOLO E2E decoder parameters");
     top_blob_shapes     = {{max_batch, top_k, top_col}};
     top_blob_data_types = {DataType::DATA_TYPE_FLOAT};
     return COSMO_NN_OK;
@@ -44,35 +75,59 @@ size_t YoloE2EDecodeNode::GetTopCount() {
 
 Status YoloE2EDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
                                   std::vector<std::shared_ptr<Blob>>& top_blobs) {
-    timer.Start();
+    if (!valid_params_ || bottom_blobs.size() != 1 || top_blobs.size() != 1 ||
+        !ValidFloatTensor(bottom_blobs[0]) || !ValidFloatTensor(top_blobs[0]))
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "YOLO E2E expects nonempty 3D float32 tensors");
 
-    auto bottom_blob = bottom_blobs.at(0);
-    auto top_blob    = top_blobs.at(0);
-    ResetTopBlob(top_blob);
+    auto bottom_blob = bottom_blobs[0];
+    auto top_blob    = top_blobs[0];
     RETURN_ON_FAIL(CheckNodeInputOutput(bottom_blob, top_blob, true));
+    const auto& bottom_dim = bottom_blob->GetBlobDesc().dims;
+    const auto& top_dim    = top_blob->GetBlobDesc().dims;
+    const int batch        = bottom_dim[0];
+    if ((raw_output_ && bottom_dim[1] <= 4) || (!raw_output_ && bottom_dim[2] != 6))
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid YOLO E2E output layout for raw_output mode");
+    if (batch > max_batch || top_dim[0] < batch || top_dim[1] != top_k || top_dim[2] != top_col)
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "YOLO E2E output capacity is insufficient");
 
-    auto bottom_desc   = bottom_blob->GetBlobDesc();
-    auto bottom_handle = bottom_blob->GetHandle();
-    auto bottom_dim    = bottom_desc.dims;
+    timer.Start();
+    const int top_row       = top_dim[1];
+    const float* bottom_ptr = static_cast<const float*>(bottom_blob->GetHandle().base);
+    float* top_ptr          = static_cast<float*>(top_blob->GetHandle().base);
+    // Keep the declared batch capacity across partial-batch calls. The output
+    // parser uses the actual source-image count, and unused batches stay zero.
+    std::fill(top_ptr, top_ptr + DimsVectorUtils::Count(top_dim), 0.f);
 
-    int batch   = bottom_dim.at(0);
+    // Raw BCN outputs contain pixel center xywh and C-4 class probabilities.
+    // Select explicitly: [B, 6, 6] cannot identify the layout from shape alone.
+    if (raw_output_) {
+        const int channel_count   = bottom_dim.at(1);
+        const int candidate_count = bottom_dim.at(2);
+        for (int b = 0; b < batch; ++b) {
+            const float* src      = bottom_ptr + static_cast<size_t>(b) * channel_count * candidate_count;
+            float* dst            = top_ptr + static_cast<size_t>(b) * top_row * top_col;
+            const auto detections = DecodeYolo26RawHead(src, static_cast<size_t>(candidate_count),
+                                                        static_cast<size_t>(channel_count), base_conf,
+                                                        nms_threshold_, static_cast<size_t>(top_k));
+            for (size_t i = 0; i < detections.size(); ++i) {
+                dst[i * top_col + 0] = detections[i].cx;
+                dst[i * top_col + 1] = detections[i].cy;
+                dst[i * top_col + 2] = detections[i].width;
+                dst[i * top_col + 3] = detections[i].height;
+                dst[i * top_col + 4] = detections[i].confidence;
+                dst[i * top_col + 5] = static_cast<float>(detections[i].class_id);
+            }
+        }
+        timer.Stop();
+        return COSMO_NN_OK;
+    }
+
     int box_num = bottom_dim.at(1);
-    int box_col = bottom_dim.at(2);  // should be 6
-    if (batch > static_cast<int>(max_batch))
-        return Status(COSMO_NN_ERR_INVALID_INPUT, "batch size too large");
-
-    SetCurrentBatch(top_blob, batch);
-
-    auto top_dim    = top_blob->GetBlobDesc().dims;
-    auto top_handle = top_blob->GetHandle();
-    int top_row     = top_dim.at(1);
-
-    float* bottom_ptr = reinterpret_cast<float*>(bottom_handle.base);
-    float* top_ptr    = reinterpret_cast<float*>(top_handle.base);
+    int box_col = bottom_dim.at(2);  // should be 6 for decoded output
 
     for (int b = 0; b < batch; b++) {
-        float* src = bottom_ptr + b * box_num * box_col;
-        float* dst = top_ptr + b * top_row * top_col;
+        const float* src = bottom_ptr + b * box_num * box_col;
+        float* dst       = top_ptr + b * top_row * top_col;
 
         // Auto-detect normalized coordinates from raw (x1,y1,x2,y2)
         bool is_normalized = false;
@@ -137,19 +192,6 @@ Status YoloE2EDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blo
 
     timer.Stop();
     return COSMO_NN_OK;
-}
-
-void YoloE2EDecodeNode::ResetTopBlob(std::shared_ptr<Blob> top_blob) {
-    auto top_desc = top_blob->GetBlobDesc();
-    auto top_dim  = top_desc.dims;
-    top_dim.at(0) = max_batch;
-    top_desc.dims = top_dim;
-    top_blob->SetBlobDesc(top_desc);
-
-    int count   = DimsVectorUtils::Count(top_dim);
-    auto handle = top_blob->GetHandle();
-    float* data = static_cast<float*>(handle.base);
-    std::fill(data, data + count, 0);
 }
 
 }  // namespace cosmo::nn

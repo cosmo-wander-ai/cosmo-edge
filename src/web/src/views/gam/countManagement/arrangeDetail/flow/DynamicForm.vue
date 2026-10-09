@@ -94,6 +94,8 @@
             <el-switch v-model="item.value" active-value="1" inactive-value="0"></el-switch>
           </div>
 
+          <VisualQuestionEditor v-else-if="item.type === 'visualQuestions'" v-model="item.value" />
+
           <!-- 输入框 -->
           <div v-else-if="item.type=== 'text'">
             <el-input v-model="item.value" class="form-content" size="small"></el-input>
@@ -276,6 +278,8 @@
 </template>
 
 <script setup>
+import VisualQuestionEditor from '@/components/VisualQuestionEditor.vue'
+import { matchesParamDependency } from '@/utils/taskParamOwnership'
 import { ref, onMounted, onBeforeUnmount, getCurrentInstance, watch, computed, toRef, inject } from 'vue'
 import ConditionView from './ConditionView.vue'
 import { v4 } from 'uuid'
@@ -475,9 +479,8 @@ const formReady = ref(false)
 onMounted(() => {
   const params = JSON.parse(props.actionDetail.inputParamConfig)
   params.forEach((item, index) => {
-    const input = _.find(props.configObject?.params, {
-      key: item.key
-    })
+    const input = _.find(props.configObject?.params, { key: item.key }) ||
+      _.find(props.configObject?.webConfig?.metaDataParams, { key: item.key })
     if (input) {
       paramConfigs.value.push({
         ...item,
@@ -838,11 +841,11 @@ const getModelSelectList = (code, type) => {
     filePath: ''
   }
   if (arr.length > 1) {
-    params.modelType = arr[1]
+    params.modelType = arr.slice(1).join('_')
   }
 
-  // qwen3vl 组件同时查询 qwen3_5 模型
-  const needMergeQwen35 = (params.modelType === 'qwen3vl')
+  // Existing local VLM tasks can bind any supported native VLM model.
+  const needMergeLocalVlm = (params.modelType === 'qwen3vl')
 
   const fetchList = (mt) => {
     return $API.atomicModelList({ ...params, modelType: mt }).then((res) => {
@@ -851,15 +854,12 @@ const getModelSelectList = (code, type) => {
   }
 
   const promises = [fetchList(params.modelType)]
-  if (needMergeQwen35) {
-    promises.push(fetchList('qwen3_5'))
+  if (needMergeLocalVlm) {
+    promises.push(fetchList('qwen3_5'), fetchList('laya_v'))
   }
 
   Promise.all(promises).then((results) => {
-    let merged = results[0]
-    if (results.length > 1) {
-      merged = merged.concat(results[1])
-    }
+    const merged = results.flat()
     atomicModelList.value = merged
     console.log(atomicModelList.value, '-llllllll')
     const atomic = _.find(atomicModelList.value, {
@@ -945,7 +945,7 @@ const isDependsOnSatisfied = (obj, visited = new Set()) => {
   if (visited.has(obj.key)) return false
   visited.add(obj.key)
   const dependsOn = _.find(paramConfigs.value, { key: obj.dependsOn.key })
-  if (!dependsOn || obj.dependsOn.value != dependsOn.value) return false
+  if (!dependsOn || !matchesParamDependency(obj, dependsOn.value)) return false
   return isDependsOnSatisfied(dependsOn, visited)
 }
 
@@ -960,7 +960,7 @@ const showFormItem = (obj) => {
   ) {
     return false
   }
-  if (obj.level === '2') return false
+  if (obj.level === '2' && obj.type !== 'visualQuestions') return false
   if (hiddenParamKeys.includes(obj.key)) return false
   return isDependsOnSatisfied(obj)
 }
@@ -1281,7 +1281,7 @@ const submitForm = () => {
         const dependsOn = _.find(configObject.params, {
           key: item.dependsOn.key
         })
-        if (dependsOn && item.dependsOn.value === dependsOn.value) {
+        if (dependsOn && matchesParamDependency(item, dependsOn.value)) {
           configObject.params.push({ key: item.key, value: item.value })
         } else {
           targetLabelArr.value = []
@@ -1489,7 +1489,7 @@ const submitForm = () => {
         const dependsOn = _.find(configObject.params, {
           key: item.dependsOn.key
         })
-        if (dependsOn && item.dependsOn.value === dependsOn.value) {
+        if (dependsOn && matchesParamDependency(item, dependsOn.value)) {
           configObject.webConfig.metaDataParams.push({
             ...item,
             position: props.actionDetail.flowActionId

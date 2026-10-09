@@ -16,7 +16,7 @@ struct StorageSpaceParam {
 
 class StorageSpace {
 public:
-    explicit StorageSpace(const std::string& record_base_path);
+    explicit StorageSpace(const std::string& record_base_path, StorageSpaceParam config = {});
     ~StorageSpace() = default;
 
     void DoClean();

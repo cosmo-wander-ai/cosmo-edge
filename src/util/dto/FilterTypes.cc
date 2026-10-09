@@ -4,6 +4,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include "util/DetectionGeometryJson.h"
 #include "util/JsonFieldOpt.h"
 #include "util/LimitedTypeJson.h"
 
@@ -165,6 +166,7 @@ void from_json(const nlohmann::json& j, MsgRecPosSaveSensitityTarget& v) {
     JSON_OPT(j, v, rsts);
     JSON_OPT(j, v, box);
     JSON_OPT(j, v, aiBox);
+    v.oriented_corners = util::ReadOrientedCorners(j);
 }
 
 void to_json(nlohmann::json& j, const MsgRecPosSaveSensitityTarget& v) {
@@ -174,6 +176,7 @@ void to_json(nlohmann::json& j, const MsgRecPosSaveSensitityTarget& v) {
     j["rsts"]             = v.rsts;
     j["box"]              = v.box;
     j["aiBox"]            = v.aiBox;
+    util::WriteOrientedCorners(j, v.oriented_corners);
 }
 
 void from_json(const nlohmann::json& j, MsgRecPosSaveSensitity& v) {

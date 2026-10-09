@@ -24,6 +24,9 @@ public:
     /// Query alarm events with pagination.
     [[nodiscard]] Event::MsgPageSend Handle(Event::MsgPageRecv&& data, std::error_condition& errc) const;
 
+    [[nodiscard]] Event::MsgLayaReviewPageSend Handle(Event::MsgLayaReviewPageRecv&& data,
+                                                      std::error_condition& errc) const;
+
     /// Export alarm events to CSV file.
     [[nodiscard]] Event::MsgExportAlarmSend Handle(Event::MsgExportAlarmRecv&& data,
                                                    std::error_condition& errc) const;
