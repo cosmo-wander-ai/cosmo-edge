@@ -6,6 +6,69 @@ This project follows a release-note style inspired by Keep a Changelog.
 
 ## [Unreleased]
 
+These changes are on `main` after v1.1.0 and are not included in the published v1.1.0
+binaries. Validation remains specific to the recorded candidate, platform, and workload;
+the v1.1 benchmark results do not qualify later builds or newly added features.
+
+### Added
+
+- ONVIF camera discovery, manual registration, authentication, and stream selection, plus
+  GB28181 camera registration, catalog discovery, and channel playback with independently
+  configurable TCP/UDP signaling and video transport. Physical-camera compatibility and
+  target-device acceptance remain deployment-specific.
+  ([#181](https://github.com/cosmo-wander-ai/cosmo-edge/pull/181))
+- Management v1 APIs for versioned model, scene, channel, schedule, and task delivery, with
+  resumable uploads, content deduplication, operation recovery, explicit task activation,
+  and status readback. See the [Management API guide](docs/en/reference/management.md).
+  ([#182](https://github.com/cosmo-wander-ai/cosmo-edge/pull/182))
+- Native BM1688 Laya-V integration through the model repository and local VLM service, with
+  alarm review, image/video ROI questions, multiple questions per ROI, persisted results,
+  and model-name preview overlays. The same integration adds YOLO26 raw-output and OBB
+  decoding, geometry propagation, model templates, and conversion-toolchain admission.
+  Recorded device checks cover a fixed candidate and short workloads; they do not establish
+  business accuracy, long-run capacity, real-RTSP resilience, or standard OTA acceptance.
+  ([#219](https://github.com/cosmo-wander-ai/cosmo-edge/pull/219))
+- Video-sample event measurement with `cosmo-accuracy`, including reproducible suites,
+  real-device trial orchestration, reports, and comparisons. This measures sample/event
+  outcomes rather than frame-level Precision, Recall, or mAP.
+  ([#141](https://github.com/cosmo-wander-ai/cosmo-edge/pull/141))
+- Optional Sophon/RKLLM VLM evaluation tools with frozen input manifests, raw first outputs,
+  failure-preserving scoring, paired comparisons, and timing/memory reports. Independent
+  evaluation CLIs require the explicit `BUILD_VLM_EVAL` build option, which defaults to off.
+  ([#174](https://github.com/cosmo-wander-ai/cosmo-edge/pull/174))
+- Protected RK3576 preset-model loading through Model Guard, including multi-file RKNN
+  packages, caller-selected certificate storage, versioned SDK admission, and package
+  integrity checks. This extension does not change the v1.1.0 package scope or qualify
+  protected models on RV1126B.
+  ([#151](https://github.com/cosmo-wander-ai/cosmo-edge/pull/151))
+
+### Changed
+
+- Expanded RKNN device operations with reboot, factory reset, hardware watchdog support in
+  production builds, and network configuration through NetworkManager.
+- Clarified scene/channel ownership of visible task parameters and synchronized saved
+  parameters before task start and after restart; simplified flow-editor state handling.
+- Added documentation entry points for the independently maintained
+  [CosmoEdge training-assistance Skill](https://github.com/cosmo-wander-ai/cosmoedge-training-skill)
+  and [CosmoEdge Connect MCP project](https://github.com/cosmo-wander-ai/cosmoedge-connect).
+  Their versions, changelogs, installation, and validation scope remain separate from the
+  engine release; Connect is an Alpha source preview. See [Companion Projects](docs/en/guide/companion-projects.md).
+
+### Fixed
+
+- Corrected Sophon RGB normalization and YOLO NMS overlap calculations for center-format
+  boxes, and enabled Guard-backed Qwen vision loading and host-backed image inputs.
+- Preserved CPU fallback after failed Rockchip RGA operations, concealed recoverable
+  decoder errors, and improved GB28181 media cleanup and recovery.
+- Corrected recording-buffer reuse and MP4/H.265 sample handling, CPU resize borders,
+  and macOS Docker runtime/build compatibility.
+- Bounded system-log retention, reclaimed log space at boot, and integrated retention and
+  model-storage handling into package upgrades and recovery.
+- Isolated alarm/audit writes from shared SQLite reader snapshots, escaped quotes in alarm
+  CSV exports, and streamed model exports without buffering complete archives in memory.
+- Validated tensor inputs before allocation, tightened network/MQTT configuration checks,
+  and repaired task, graph, listener, and memory-pool lifecycle handling.
+
 ## [1.1.0] - 2026-08-24
 
 CosmoEdge 1.1 adds CV186X, RK3576, and RV1126B release-platform support, expands the BMRT/RKNN

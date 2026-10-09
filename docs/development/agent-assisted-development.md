@@ -21,6 +21,9 @@ Claude Code 或 Copilot。推荐在一台用于开发、并与生产环境隔离
 
 ## 你可以直接这样说
 
+从数据开始训练，或让 AI 助手查询已有设备的告警、按需取图和确认后启停检测，请先看
+[配套工程：训练 Skill 与 Connect](../guide/companion-projects.md)，选择任务入口并核对独立版本。
+
 需要从数据开始定制目标检测模型时，可以安装独立的
 [CosmoEdge 辅助训练 Skill](https://github.com/cosmo-wander-ai/cosmoedge-training-skill)。
 提供业务目标、整批数据源和可用机器后，AI 会检查条件、提出方案，再根据实际材料选择标注、
