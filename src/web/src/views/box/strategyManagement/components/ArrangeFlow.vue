@@ -1,8 +1,8 @@
 <template>
-  <div class="page">
+  <div class="page flow-theme">
     <main class="page-main" :style="{ width: `${width}px`, height: `${height}px` }">
       <VueFlow v-model:nodes="nodes" v-model:edges="edges" :node-types="nodeTypes" :edge-types="edgeTypes" @node-click="handleNodeClick" @pane-click="handlePaneClick" @move="handleViewportMove">
-        <Background pattern-color="#e5e7eb" gap="16" />
+        <Background pattern-color="var(--flow-grid)" gap="16" />
         <Controls :show-interactive="false" />
       </VueFlow>
       <NodeDetailPanel
@@ -18,7 +18,7 @@
     </main>
 
     <teleport to="body">
-      <el-dialog v-model="addDialogVisible" title="添加组件" width="710px" :close-on-click-modal="true" center :z-index="6000" class="ui-admin-dialog">
+      <el-dialog v-model="addDialogVisible" title="添加组件" width="710px" :close-on-click-modal="true" center :z-index="6000" class="ui-admin-dialog flow-theme">
         <div class="component-dialog">
           <ActionView :actionList="actionList" @onAction="addComponentFromAction" />
         </div>
@@ -612,19 +612,21 @@ watch(
 )
 </script>
 
+<style lang="scss" src="../../../gam/countManagement/arrangeDetail/flow/flow-palette.scss"></style>
+
 <style scoped>
 .page {
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
-  background-color: var(--bg-primary);
+  background-color: var(--flow-canvas);
 }
 
 .page-header {
   padding: 12px 20px;
   border-bottom: 1px solid var(--border-color);
-  background: #ffffff;
+  background: var(--bg-white);
 }
 
 .page-header h1 {
@@ -649,6 +651,54 @@ watch(
   width: 100%;
   height: 100%;
   overflow: hidden;
+}
+
+.page-main :deep(.vue-flow__controls) {
+  box-shadow: var(--shadow-sm);
+}
+
+.page-main :deep(.vue-flow__controls-button) {
+  color: var(--text-secondary);
+  background: var(--bg-white);
+  border-bottom-color: var(--border-light);
+}
+
+.page-main :deep(.vue-flow__controls-button:hover:not(:disabled)) {
+  color: var(--primary-color);
+  background: var(--bg-secondary);
+}
+
+.page-main :deep(.vue-flow__controls-button:disabled) {
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+}
+
+.page-main :deep(.vue-flow__controls-button svg) {
+  fill: currentColor;
+}
+
+.page-main :deep(.vue-flow__handle) {
+  background: var(--flow-edge);
+  border-color: var(--flow-handle-ring);
+}
+
+.page-main :deep(.vue-flow__handle:hover) {
+  background: var(--primary-color);
+}
+
+.page-main :deep(.vue-flow__edge-path) {
+  stroke: var(--flow-edge);
+}
+
+.page-main :deep(.vue-flow__edge.selected .vue-flow__edge-path),
+.page-main :deep(.vue-flow__edge:hover .vue-flow__edge-path) {
+  stroke: var(--primary-color);
+}
+
+.page-main :deep(.edge-menu) {
+  color: var(--text-primary);
+  background: var(--bg-white);
+  box-shadow: var(--shadow-md);
 }
 
 .component-dialog {

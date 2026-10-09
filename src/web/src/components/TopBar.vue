@@ -257,7 +257,7 @@ onMounted(() => {
 .topBar-wrap {
   flex-shrink: 0;
   position: relative;
-  background: #fff;
+  background: var(--theme-surface, #fff);
   padding: 0 20px 0 24px;
   border-radius: 2px;
   display: flex;
@@ -284,7 +284,7 @@ onMounted(() => {
         margin-right: 8px;
         font-size: 14px;
         text-align: right;
-        color: #303133;
+        color: var(--theme-text, #303133);
         flex-shrink: 0;
         max-width: 150px;
         overflow: hidden;

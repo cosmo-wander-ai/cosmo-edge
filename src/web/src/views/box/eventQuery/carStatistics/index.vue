@@ -34,7 +34,7 @@
       <!-- 列表视图 -->
       <el-table 
         :data="tableData" 
-        :header-cell-style="{ background: '#fafafa' }" 
+        :header-cell-style="{ background: 'var(--theme-surface-soft, #fafafa)' }"
         style="width: 100%"
         @selection-change="handleSelectionChange"
       >
@@ -109,7 +109,7 @@
         </el-table-column>
         <el-table-column :label="t('field.status')" width="90">
           <template #default="{ row }">
-            <span :style="{ color: row.reportStatus === 1 ? '#67C23A' : '#F56C6C' }">
+            <span :style="{ color: row.reportStatus === 1 ? 'var(--theme-success, #67C23A)' : 'var(--theme-danger, #F56C6C)' }">
               {{ row.reportStatus === 1 ? t('event.uploaded') : t('event.notUploaded') }}
             </span>
           </template>
@@ -543,7 +543,7 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .table-container {
-  background-color: #fff;
+  background-color: var(--theme-surface, #fff);
   padding: 0 15px;
   margin-top: 16px;
 

@@ -49,7 +49,7 @@
                 </el-tooltip>
               </span>
             </template>
-            <el-switch v-model="paramz[index].value" active-color="#13ce66" active-value="1" inactive-value="0"></el-switch>
+            <el-switch v-model="paramz[index].value" active-color="var(--theme-success, #13ce66)" active-value="1" inactive-value="0"></el-switch>
           </el-form-item>
 
           <!-- checkbox组 -->
@@ -317,7 +317,7 @@
                       </el-tooltip>
                     </span>
                   </template>
-                  <el-switch v-model="el.value" active-color="#13ce66" active-value="1" inactive-value="0"></el-switch>
+                  <el-switch v-model="el.value" active-color="var(--theme-success, #13ce66)" active-value="1" inactive-value="0"></el-switch>
                 </el-form-item>
                 <!-- checkbox组 -->
                 <el-form-item v-if="el.type == 'check' && el.isColumn == true && showForm(el.senior)">
@@ -853,7 +853,7 @@ defineExpose({ validateAndCollect, collect })
 .model-tit {
   font-size: 16px;
   line-height: 16px;
-  color: #000;
+  color: var(--theme-text, #000);
   font-weight: normal;
   margin: 5px 0;
 }

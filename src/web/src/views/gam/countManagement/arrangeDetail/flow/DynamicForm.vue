@@ -1537,7 +1537,7 @@ defineExpose({
 <style lang="scss" scoped>
 /* 滚动条滑块以外区域 */
 ::-webkit-scrollbar-track-piece {
-  background-color: #f2f5f9; /* 设置滑块以外区域的背景颜色 */
+  background-color: var(--bg-secondary); /* 设置滑块以外区域的背景颜色 */
 }
 
 .form-body {
@@ -1551,7 +1551,7 @@ defineExpose({
   padding: 12px;
   border: 1px solid var(--el-color-primary-light-9);
   border-radius: 8px;
-  background: #f8fbff;
+  background: var(--flow-info-bg);
 }
 
 .area-rule-overview__title {
@@ -1565,15 +1565,15 @@ defineExpose({
   padding: 10px 12px;
   border-left: 3px solid var(--primary-color);
   border-radius: 4px;
-  background: #ffffff;
-  color: #374151;
+  background: var(--bg-white);
+  color: var(--text-primary);
   font-size: 13px;
   line-height: 1.6;
 }
 
 .area-rule-summary.is-warning {
   border-left-color: var(--warning-color);
-  background: #fdf6ec;
+  background: var(--flow-warning-bg);
 }
 
 .area-rule-summary__label {
@@ -1620,14 +1620,14 @@ defineExpose({
 .plus-icon {
   font-size: 25px;
   margin-left: 10px;
-  color: #1890ff;
+  color: var(--primary-color);
   cursor: pointer;
 }
 
 .close-icon {
   font-size: 25px;
   margin-left: 5px;
-  color: red;
+  color: var(--danger-color);
   cursor: pointer;
 }
 

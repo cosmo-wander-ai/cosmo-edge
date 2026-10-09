@@ -201,7 +201,7 @@ onMounted(async () => {
 <style lang="scss" scoped>
 .custom-config {
   padding: 20px;
-  background: #fff;
+  background: var(--theme-surface, #fff);
   border-radius: 4px;
 
   .page-header {
@@ -228,7 +228,7 @@ onMounted(async () => {
   .logo-uploader {
     padding-top: 8px;
     :deep(.el-upload) {
-      border: 1px dashed #d9d9d9;
+      border: 1px dashed var(--theme-border, #d9d9d9);
       border-radius: 6px;
       cursor: pointer;
       position: relative;
@@ -242,7 +242,7 @@ onMounted(async () => {
 
   .logo-uploader-icon {
     font-size: 28px;
-    color: #8c939d;
+    color: var(--theme-text-muted, #8c939d);
     width: 100px;
     height: 100px;
     line-height: 100px;

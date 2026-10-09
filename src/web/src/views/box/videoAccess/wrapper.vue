@@ -50,7 +50,7 @@ const activeName = ref('first')
 
     &:hover {
       color: var(--primary-color, var(--primary-color));
-      background: rgba(88, 82, 223, 0.05);
+      background: var(--theme-accent-soft, rgba(88, 82, 223, 0.05));
     }
 
     &.is-active {

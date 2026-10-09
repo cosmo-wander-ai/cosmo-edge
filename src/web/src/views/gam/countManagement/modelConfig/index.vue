@@ -1,5 +1,5 @@
 <template>
-  <div class="page ui-admin-page">
+  <div class="page ui-admin-page flow-theme">
     <div class="header">
       <div class="title">
         <div class="title-row">
@@ -246,6 +246,8 @@ onMounted(() => {
   queryModelConfig()
 })
 </script>
+
+<style lang="scss" src="../arrangeDetail/flow/flow-palette.scss"></style>
 
 <style scoped lang="scss">
 .page {

@@ -208,10 +208,10 @@ onBeforeUnmount(() => {
   max-height: 350px;
   display: flex;
   flex-direction: column;
-  background: #ffffff;
+  background: var(--bg-white);
   border: 1px solid var(--border-color);
   border-radius: 12px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--flow-panel-shadow);
   z-index: 100;
   animation: panel-in 0.2s ease-out;
   overflow: visible;
@@ -255,10 +255,10 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-.panel-icon-wrapper.icon-blue   { background: #eff6ff; color: var(--primary-color); }
-.panel-icon-wrapper.icon-purple { background: var(--el-color-primary-light-9); color: var(--primary-dark); }
-.panel-icon-wrapper.icon-orange { background: #fff7ed; color: #ea580c; }
-.panel-icon-wrapper.icon-green  { background: #f0fdf4; color: var(--success-color); }
+.panel-icon-wrapper.icon-blue   { background: var(--flow-icon-blue-bg); color: var(--primary-color); }
+.panel-icon-wrapper.icon-purple { background: var(--flow-icon-purple-bg); color: var(--flow-icon-purple-text); }
+.panel-icon-wrapper.icon-orange { background: var(--flow-icon-orange-bg); color: var(--flow-icon-orange-text); }
+.panel-icon-wrapper.icon-green  { background: var(--flow-icon-green-bg); color: var(--flow-icon-green-text); }
 .panel-icon-wrapper.icon-gray   { background: var(--bg-secondary); color: var(--text-secondary); }
 
 .panel-icon-svg {
@@ -293,7 +293,7 @@ onBeforeUnmount(() => {
 
 .panel-close:hover {
   background: var(--bg-secondary);
-  color: #374151;
+  color: var(--flow-node-text);
 }
 
 /* ---- Body ---- */
@@ -314,7 +314,7 @@ onBeforeUnmount(() => {
 }
 
 .panel-body::-webkit-scrollbar-thumb {
-  background: #d1d5db;
+  background: var(--flow-scrollbar);
   border-radius: 3px;
 }
 

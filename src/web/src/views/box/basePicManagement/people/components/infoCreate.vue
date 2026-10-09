@@ -327,7 +327,7 @@ onMounted(() => {
 .pro {
   padding-left: 110px;
   font-size: 14px;
-  color: #09aaff;
+  color: var(--theme-accent, #09aaff);
   span {
     cursor: pointer;
   }
@@ -358,7 +358,7 @@ onMounted(() => {
   }
 }
 .avatar-uploader .el-upload {
-  border: 1px dashed #d9d9d9;
+  border: 1px dashed var(--theme-border, #d9d9d9);
   border-radius: 6px;
   cursor: pointer;
   position: relative;
@@ -369,13 +369,13 @@ onMounted(() => {
 }
 .avatar-uploader-icon {
   font-size: 28px;
-  color: #3598ff;
+  color: var(--theme-accent, #3598ff);
   width: 100px;
   height: 140px;
   line-height: 140px;
   text-align: center;
-  border: 1px solid #f2f6fc;
-  background-color: #f2f6fc;
+  border: 1px solid var(--theme-border-light, #f2f6fc);
+  background-color: var(--theme-surface-soft, #f2f6fc);
   border-radius: 4px;
 }
 .avatar {
@@ -386,7 +386,7 @@ onMounted(() => {
   object-fit: cover;
 }
 .upload-tip {
-  color: #cccccc;
+  color: var(--theme-text-muted, #cccccc);
   font-size: 12px;
   line-height: 12px;
   .pic_tip {

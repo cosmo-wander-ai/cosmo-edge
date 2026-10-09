@@ -22,7 +22,7 @@
               <div class="param-name">
                 {{ resolveParameterName(item) }}
                 <el-tooltip v-if="item.describe" :content="resolveParameterDescription(item)" placement="top" effect="dark">
-                  <i class="el-icon-question" style="margin-right: 5px;color: #909399;cursor: pointer;"></i>
+                  <i class="el-icon-question" style="margin-right: 5px;color: var(--text-muted);cursor: pointer;"></i>
                 </el-tooltip>{{ localeColon }}
               </div>
               <div class="param-value">
@@ -835,7 +835,7 @@ defineExpose({
     right: 0;
     width: 50px;
     height: 50px;
-    background: var(--danger-color);
+    background: var(--flow-danger-button-bg);
     clip-path: circle(40% at 98% 0);
     cursor: pointer;
 
@@ -927,7 +927,7 @@ defineExpose({
 .add-card-label {
   margin-top: 10px;
   font-size: 14px;
-  color: #111827;
+  color: var(--text-primary);
 }
 
 .down-btn {
@@ -954,7 +954,7 @@ defineExpose({
   right: 32px;
   z-index: 1000;
   padding: 6px 8px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--flow-mode-bg);
   box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
   border: 1px solid var(--border-color);
   border-radius: 9999px;
@@ -980,7 +980,7 @@ defineExpose({
 
 /* 激活态色彩更清晰 */
 :deep(.mode-switch .el-radio-button.is-active .el-radio-button__inner) {
-  background: var(--primary-color, var(--primary-color));
+  background: var(--primary-button-bg, var(--primary-color));
   color: #fff;
 }
 

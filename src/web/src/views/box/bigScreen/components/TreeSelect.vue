@@ -288,17 +288,17 @@ onMounted(() => {
 <style scoped lang="scss">
 .realtime-tree-select {
   :deep(.el-input__wrapper),
-  :deep(.el-select__wrapper) { background: #fff; }
-  :deep(.el-input__inner) { color: #20222d; }
-  :deep(.el-select__tags .el-tag) { color: #5852df; border-color: #e3e0f8; background: #f3f1ff; }
+  :deep(.el-select__wrapper) { background: var(--bg-white); }
+  :deep(.el-input__inner) { color: var(--text-primary); }
+  :deep(.el-select__tags .el-tag) { color: var(--primary-color); border-color: var(--theme-selected-border, #e3e0f8); background: var(--theme-selected-bg, #f3f1ff); }
 }
 .tree_label { line-height: 28px; }
 </style>
 
 <style lang="scss">
 .realtime-tree-popper {
-  border: 1px solid #dce1e8;
-  background: #fff;
+  border: 1px solid var(--border-color);
+  background: var(--bg-white);
   border-radius: 6px;
   box-shadow: 0 8px 24px #20222d1a;
 
@@ -315,12 +315,12 @@ onMounted(() => {
   .el-tree-node__content {
     height: 34px;
     padding-right: 12px;
-    color: #20222d;
+    color: var(--text-primary);
     border-radius: 4px;
-    &:hover { background: #f3f5f8; }
+    &:hover { background: var(--bg-primary); }
   }
-  .el-tree-node.is-current > .el-tree-node__content { color: #5852df; background: #f3f1ff; }
-  .el-tree-node__expand-icon { color: #657084; &.is-leaf { color: transparent; } }
-  .el-checkbox__label { color: #20222d; }
+  .el-tree-node.is-current > .el-tree-node__content { color: var(--primary-color); background: var(--theme-selected-bg, #f3f1ff); }
+  .el-tree-node__expand-icon { color: var(--text-secondary); &.is-leaf { color: transparent; } }
+  .el-checkbox__label { color: var(--text-primary); }
 }
 </style>

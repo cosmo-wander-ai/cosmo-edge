@@ -2,7 +2,7 @@
   <div class="flow-container">
     <div class="flow-wrap">
       <VueFlow :nodes="nodes" :edges="edges" :node-types="nodeTypes" :default-zoom="0.4">
-        <Background pattern-color="#e5e7eb" gap="16" />
+        <Background pattern-color="var(--flow-grid)" gap="16" />
         <Controls show-interactive />
       </VueFlow>
     </div>
@@ -154,10 +154,43 @@ const nodeTypes = {
   height: 400px;
   border: 0;
   border-radius: 0;
-  background: var(--bg-white);
+  background: var(--flow-canvas);
+
+  :deep(.vue-flow__edge-path) {
+    stroke: var(--flow-edge);
+  }
+
+  :deep(.vue-flow__edge.selected .vue-flow__edge-path),
+  :deep(.vue-flow__edge:hover .vue-flow__edge-path) {
+    stroke: var(--primary-color);
+  }
+
+  :deep(.vue-flow__controls) {
+    box-shadow: var(--shadow-sm);
+  }
+
+  :deep(.vue-flow__controls-button) {
+    background: var(--bg-white);
+    color: var(--text-secondary);
+    border-bottom-color: var(--border-light);
+  }
+
+  :deep(.vue-flow__controls-button:hover:not(:disabled)) {
+    background: var(--bg-secondary);
+    color: var(--primary-color);
+  }
+
+  :deep(.vue-flow__controls-button:disabled) {
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+  }
+
+  :deep(.vue-flow__controls-button svg) {
+    fill: currentColor;
+  }
 
   :deep(.box-node-container) {
-    background: var(--bg-white);
+    background: var(--flow-node);
     border-color: var(--border-color);
     border-radius: 8px;
     box-shadow: var(--shadow-sm);
@@ -175,7 +208,7 @@ const nodeTypes = {
   }
 
   :deep(.custom-table .el-table__header-wrapper th) {
-    background-color: #f8f9fb !important;
+    background-color: var(--flow-io-header-bg) !important;
     color: var(--text-primary);
   }
 

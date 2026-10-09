@@ -10,7 +10,7 @@
       <div v-if="menuVisible" class="edge-menu">
         <span class="menu-item" @click.stop="openAddDialog">{{ t('action.addComponent') }}</span>
         <span class="divider"></span>
-        <span class="menu-item" :class="{ 'is-disabled': isToEnd }" @click.stop="!isToEnd && deleteFollowing()">
+        <span class="menu-item menu-item-danger" :class="{ 'is-disabled': isToEnd }" @click.stop="!isToEnd && deleteFollowing()">
           {{ t('action.deleteFollowingFlow') }}
         </span>
       </div>
@@ -126,8 +126,8 @@ export default {
   font-weight: 500;
   line-height: 22px;
   border-radius: 50%;
-  border: 1.5px solid #d1d5db;
-  background-color: #ffffff;
+  border: 1.5px solid var(--flow-action-border);
+  background-color: var(--flow-node);
   color: var(--text-secondary);
   cursor: pointer;
   white-space: nowrap;
@@ -136,24 +136,25 @@ export default {
   justify-content: center;
   transition: all 0.2s;
 }
-.edge-action-button.is-disabled {
-  border-color: #cfd4dc;
-  background-color: var(--border-color);
-  color: var(--text-secondary);
+.edge-action-button.is-disabled,
+.edge-action-button:disabled {
+  border-color: var(--flow-action-disabled-border);
+  background-color: var(--flow-disabled-bg);
+  color: var(--flow-disabled-text);
   cursor: not-allowed;
 }
 
 .edge-menu .menu-item.is-disabled {
-  color: var(--text-secondary);
+  color: var(--flow-disabled-text);
   cursor: not-allowed;
   pointer-events: none;
 }
 
-.edge-action-button:hover {
+.edge-action-button:hover:not(.is-disabled):not(:disabled) {
   border-color: var(--primary-color);
   color: var(--primary-color);
   background-color: var(--el-color-primary-light-9);
-  box-shadow: 0 2px 8px rgba(88, 82, 223, 0.2);
+  box-shadow: 0 2px 8px var(--flow-selected-ring);
 }
 
 .edge-menu {
@@ -168,7 +169,7 @@ export default {
   border-radius: 18px;
   color: var(--text-primary);
   background: var(--bg-secondary);
-  box-shadow: 0 6px 18px rgba(88, 82, 223, 0.25);
+  box-shadow: var(--shadow-md);
   z-index: 4000;
 }
 
@@ -179,6 +180,18 @@ export default {
   font-size: 13px;
   writing-mode: horizontal-tb;
   white-space: nowrap;
+}
+
+.edge-menu .menu-item:not(.is-disabled):hover {
+  color: var(--primary-color);
+}
+
+.edge-menu .menu-item-danger:not(.is-disabled) {
+  color: var(--danger-color);
+}
+
+.edge-action-button:focus-visible {
+  outline-color: var(--primary-color);
 }
 
 .edge-menu .divider {

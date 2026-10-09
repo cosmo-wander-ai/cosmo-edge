@@ -257,7 +257,7 @@
     <el-dialog :title="t('glossary.deleteConfirmTitle')" v-model="deleteModelDialogVisible" width="500px" center @close="deleteModelDialogVisible = false" class="ui-admin-dialog">
       <div style="text-align: center; padding: 20px 0;">
         <p style="font-size: 16px; margin-bottom: 10px;">{{ t('glossary.deleteModelConfirm', { name: deleteModelInfo.modelName, code: deleteModelInfo.modelCode }) }}</p>
-        <p style="color: #f56c6c; font-size: 14px;">{{ t('glossary.deleteModelWarn') }}</p>
+        <p style="color: var(--theme-danger, #f56c6c); font-size: 14px;">{{ t('glossary.deleteModelWarn') }}</p>
       </div>
       <template #footer>
         <div class="dialog-footer">
@@ -1458,10 +1458,10 @@ onMounted(() => {
   gap: 10px;
 }
 .btn-primary-gradient {
-  background: var(--primary-color) !important;
+  background: var(--theme-accent-button, var(--primary-color)) !important;
   border: none !important;
   color: #fff !important;
-  &:hover { background: var(--primary-dark) !important; }
+  &:hover { background: var(--theme-accent-button-hover, var(--primary-dark)) !important; }
 }
 
 // ── 类型筛选 Tab ──
@@ -1475,14 +1475,14 @@ onMounted(() => {
   padding: 5px 16px;
   border-radius: 20px;
   border: 1px solid var(--border-color);
-  background: #fff;
+  background: var(--theme-surface, #fff);
   cursor: pointer;
   font-size: 13px;
-  color: #374151;
+  color: var(--theme-text, #374151);
   transition: all 0.2s;
   &:hover { border-color: var(--primary-color); color: var(--primary-color); }
   &.active {
-    background: var(--primary-color);
+    background: var(--theme-accent-button, var(--primary-color));
     color: #fff;
     border-color: var(--primary-color);
   }
@@ -1508,7 +1508,7 @@ onMounted(() => {
 }
 
 .model-card {
-  background: #fff;
+  background: var(--theme-surface, #fff);
   border-radius: 12px;
   padding: 20px;
   border: 1px solid var(--border-light);
@@ -1535,11 +1535,11 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   svg { width: 22px; height: 22px; }
-  &.icon-blue { background: rgba(59, 130, 246, 0.1); color: var(--primary-color); }
-  &.icon-green { background: rgba(34, 197, 94, 0.1); color: var(--success-color); }
-  &.icon-cyan { background: rgba(6, 182, 212, 0.1); color: #06b6d4; }
-  &.icon-purple { background: rgba(66, 153, 225, 0.1); color: var(--primary-light); }
-  &.icon-amber { background: rgba(245, 158, 11, 0.1); color: var(--warning-color); }
+  &.icon-blue { background: var(--theme-accent-soft, rgba(59, 130, 246, 0.1)); color: var(--primary-color); }
+  &.icon-green { background: var(--theme-success-soft, rgba(34, 197, 94, 0.1)); color: var(--success-color); }
+  &.icon-cyan { background: var(--theme-cyan-soft, rgba(6, 182, 212, 0.1)); color: var(--theme-cyan, #06b6d4); }
+  &.icon-purple { background: var(--theme-accent-soft, rgba(66, 153, 225, 0.1)); color: var(--primary-light); }
+  &.icon-amber { background: var(--theme-warning-soft, rgba(245, 158, 11, 0.1)); color: var(--warning-color); }
   &.icon-gradient { background: var(--bg-secondary); color: var(--primary-dark); }
 }
 
@@ -1578,9 +1578,9 @@ onMounted(() => {
   font-size: 12px;
   &.tag-detect { background: var(--el-color-primary-light-9); color: var(--primary-color); }
   &.tag-classify { background: var(--el-color-success-light-9); color: var(--success-color); }
-  &.tag-keypoints { background: #cffafe; color: #0891b2; }
+  &.tag-keypoints { background: var(--theme-cyan-soft, #cffafe); color: var(--theme-cyan, #0891b2); }
   &.tag-feature { background: var(--el-color-primary-light-9); color: var(--primary-dark); }
-  &.tag-ocr { background: var(--el-color-warning-light-9); color: #b45309; }
+  &.tag-ocr { background: var(--el-color-warning-light-9); color: var(--theme-warning, #b45309); }
   &.tag-foundation { background: var(--bg-secondary); color: var(--primary-dark); }
 }
 
@@ -1647,7 +1647,7 @@ onMounted(() => {
   display: flex;
   padding: 8px 0;
   font-size: 14px;
-  border-bottom: 1px solid #fafafa;
+  border-bottom: 1px solid var(--theme-border-light, #fafafa);
 }
 .detail-label {
   width: 90px;
@@ -1657,7 +1657,7 @@ onMounted(() => {
 .section-title {
   font-size: 14px;
   font-weight: 600;
-  color: #374151;
+  color: var(--theme-text, #374151);
   margin: 12px 0 8px;
 }
 .detail-collapse {
@@ -1665,7 +1665,7 @@ onMounted(() => {
   :deep(.el-collapse-item__header) {
     font-size: 14px;
     font-weight: 600;
-    color: #374151;
+    color: var(--theme-text, #374151);
   }
 }
 

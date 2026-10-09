@@ -297,7 +297,7 @@ const save = () => {
   }
   p {
     margin: 0 0;
-    color: #3598ff;
+    color: var(--theme-accent, #3598ff);
     font-size: 14px;
     letter-spacing: 2px;
     margin-top: 10px;
@@ -308,8 +308,8 @@ const save = () => {
   position: relative;
   width: 704px;
   height: 391px;
-  background: #fff;
-  border: 1px solid lightgray;
+  background: var(--theme-surface, #fff);
+  border: 1px solid var(--theme-border, lightgray);
   box-sizing: border-box;
 }
 
@@ -368,13 +368,13 @@ const save = () => {
       border-radius: 0;
       background: url(@/assets/big_screen_input_bg.png) center no-repeat;
       background-size: 100% 100%;
-      color: #94d0ff;
+      color: var(--theme-accent, #94d0ff);
       background-color: initial;
       border: none;
     }
     .el-input__suffix-inner,
     .el-input__inner::placeholder {
-      color: #94d0ff;
+      color: var(--theme-accent, #94d0ff);
     }
   }
 
@@ -388,7 +388,7 @@ const save = () => {
   :deep(.el-tree) {
     background: inherit;
     font-size: 14px;
-    color: #94d0ff;
+    color: var(--theme-accent, #94d0ff);
   }
 }
 

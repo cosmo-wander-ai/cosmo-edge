@@ -115,7 +115,7 @@
     <div class="stats-overview" v-if="chartList.length">
       <div class="stat-card enter-card">
         <div class="stat-icon-wrapper">
-          <svg viewBox="0 0 1024 1024" width="28" height="28" xmlns="http://www.w3.org/2000/svg"><path d="M512 85.333333c235.648 0 426.666667 191.018667 426.666667 426.666667s-191.018667 426.666667-426.666667 426.666667S85.333333 747.648 85.333333 512 276.352 85.333333 512 85.333333z m97.450667 453.674667H304.597333a36.650667 36.650667 0 1 0 0 73.301333h304.853334l-89.258667 89.258667a36.693333 36.693333 0 0 0 51.84 51.882667l150.357333-150.357334a36.565333 36.565333 0 0 0 0-51.84l-150.357333-150.357333a36.736333 36.736333 0 0 0-51.84 51.882667l89.258667 89.258666z" fill="#1890FF"/></svg>
+          <svg viewBox="0 0 1024 1024" width="28" height="28" xmlns="http://www.w3.org/2000/svg"><path d="M512 85.333333c235.648 0 426.666667 191.018667 426.666667 426.666667s-191.018667 426.666667-426.666667 426.666667S85.333333 747.648 85.333333 512 276.352 85.333333 512 85.333333z m97.450667 453.674667H304.597333a36.650667 36.650667 0 1 0 0 73.301333h304.853334l-89.258667 89.258667a36.693333 36.693333 0 0 0 51.84 51.882667l150.357333-150.357334a36.565333 36.565333 0 0 0 0-51.84l-150.357333-150.357333a36.736333 36.736333 0 0 0-51.84 51.882667l89.258667 89.258666z" fill="var(--theme-accent, #1890FF)"/></svg>
         </div>
         <div class="stat-info">
           <div class="stat-label">{{ t('event.totalEnterFlow') }}</div>
@@ -124,7 +124,7 @@
       </div>
       <div class="stat-card leave-card">
         <div class="stat-icon-wrapper">
-          <svg viewBox="0 0 1024 1024" width="28" height="28" xmlns="http://www.w3.org/2000/svg"><path d="M512 85.333333A426.666667 426.666667 0 1 0 938.666667 512 426.666667 426.666667 0 0 0 512 85.333333zM719.402667 480.64a36.650667 36.650667 0 1 1 0 73.301333H414.549333l89.258667 89.258667a36.693333 36.693333 0 1 1-51.84 51.882667l-150.357333-150.357334a36.565333 36.565333 0 0 1 0-51.84l150.357333-150.357333a36.736333 36.736333 0 1 1 51.84 51.882667l-89.258667 89.258666h304.853334z" fill="#FFB440"/></svg>
+          <svg viewBox="0 0 1024 1024" width="28" height="28" xmlns="http://www.w3.org/2000/svg"><path d="M512 85.333333A426.666667 426.666667 0 1 0 938.666667 512 426.666667 426.666667 0 0 0 512 85.333333zM719.402667 480.64a36.650667 36.650667 0 1 1 0 73.301333H414.549333l89.258667 89.258667a36.693333 36.693333 0 1 1-51.84 51.882667l-150.357333-150.357334a36.565333 36.565333 0 0 1 0-51.84l150.357333-150.357333a36.736333 36.736333 0 1 1 51.84 51.882667l-89.258667 89.258666h304.853334z" fill="var(--theme-warning, #FFB440)"/></svg>
         </div>
         <div class="stat-info">
           <div class="stat-label">{{ t('event.totalLeaveFlow') }}</div>
@@ -133,7 +133,7 @@
       </div>
       <div class="stat-card net-card">
         <div class="stat-icon-wrapper">
-          <svg viewBox="0 0 1024 1024" width="28" height="28" xmlns="http://www.w3.org/2000/svg"><path d="M512 85.333333c235.648 0 426.666667 191.018667 426.666667 426.666667s-191.018667 426.666667-426.666667 426.666667S85.333333 747.648 85.333333 512 276.352 85.333333 512 85.333333z m162.773333 362.496a36.650667 36.650667 0 0 0-51.84-51.882666L512 506.88l-110.933333-110.933333a36.650667 36.650667 0 0 0-51.84 51.84l136.832 136.832a36.565333 36.565333 0 0 0 51.84 0l136.874666-136.789334z" fill="#67C23A"/></svg>
+          <svg viewBox="0 0 1024 1024" width="28" height="28" xmlns="http://www.w3.org/2000/svg"><path d="M512 85.333333c235.648 0 426.666667 191.018667 426.666667 426.666667s-191.018667 426.666667-426.666667 426.666667S85.333333 747.648 85.333333 512 276.352 85.333333 512 85.333333z m162.773333 362.496a36.650667 36.650667 0 0 0-51.84-51.882666L512 506.88l-110.933333-110.933333a36.650667 36.650667 0 0 0-51.84 51.84l136.832 136.832a36.565333 36.565333 0 0 0 51.84 0l136.874666-136.789334z" fill="var(--theme-success, #67C23A)"/></svg>
         </div>
         <div class="stat-info">
           <div class="stat-label">{{ t('event.netInflowCount') }}</div>
@@ -154,7 +154,7 @@
         </div>
         
         <div class="table-section">
-          <el-table :data="chartList" height="400" stripe size="small" border class="data-table" :header-cell-style="{background:'#f0f4ff',color:'#333'}">
+          <el-table :data="chartList" height="400" stripe size="small" border class="data-table" :header-cell-style="{background:'var(--theme-accent-soft, #f0f4ff)',color:'var(--theme-text, #333)'}">
             <el-table-column prop="timeString" :label="t('event.tooltipTime')" min-width="140"></el-table-column>
             <el-table-column prop="enterNumber" :label="t('event.enterCount')" width="90" align="center"></el-table-column>
             <el-table-column prop="leaveNumber" :label="t('event.leaveCount')" width="90" align="center"></el-table-column>
@@ -179,6 +179,7 @@ import moment from 'moment'
 import * as echarts from 'echarts'
 import { t, localeColon, currentLocale } from '@/i18n'
 import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
+import { useAppearance } from '@/composables/useAppearance'
 
 const { proxy } = getCurrentInstance()
 
@@ -224,6 +225,45 @@ const pickerOptions = {
 const chart = ref(null)
 const chartRef = ref(null)
 const algorithmList = ref([])
+const { appearance } = useAppearance()
+let lightChartSplitLineColor
+
+// ECharts paints on canvas, so merge visual options when the resolved theme changes.
+// Preserve the current data, legend selection, labels and viewport without fetching again.
+const applyChartTheme = () => {
+  if (!chart.value || chart.value.isDisposed()) return
+  const dark = appearance.value.resolved === 'dark'
+  const styles = getComputedStyle(document.documentElement)
+  const color = (token, fallback) => dark ? styles.getPropertyValue(token).trim() || fallback : fallback
+  const text = color('--text-secondary', '#666')
+  const muted = color('--text-muted', '#999')
+  const border = color('--border-color', '#EBEEF5')
+  const enter = color('--primary-color', '#1890FF')
+  const leave = color('--warning-color', '#FFB440')
+  chart.value.setOption({
+    tooltip: {
+      backgroundColor: color('--bg-white', 'rgba(255, 255, 255, 0.95)'),
+      borderColor: color('--border-color', '#ebeef5'),
+      textStyle: { color: color('--text-primary', '#333') }
+    },
+    legend: { textStyle: { color: text } },
+    xAxis: {
+      axisLine: { lineStyle: { color: border } },
+      axisPointer: { lineStyle: { color: border } },
+      axisLabel: { color: muted }
+    },
+    yAxis: {
+      axisLabel: { color: muted },
+      splitLine: { lineStyle: { color: dark ? color('--border-light', '#333C49') : lightChartSplitLineColor } }
+    },
+    series: [
+      { label: { color: text }, itemStyle: { color: enter }, lineStyle: { color: enter } },
+      { label: { color: text }, itemStyle: { color: leave }, lineStyle: { color: leave } }
+    ]
+  })
+}
+
+watch(() => appearance.value.resolved, applyChartTheme, { flush: 'post' })
 
 // Watch timeGranularity
 watch(timeGranularity, (newVal) => {
@@ -483,11 +523,11 @@ const drawCharts = (timeData, inData, outData) => {
         if (!params) return ''
         const seriesName = params.seriesName === t('event.enter') ? t('event.enterCount') : t('event.leaveCount')
         return `
-          <div style="font-weight: bold; margin-bottom: 8px; font-size: 14px; border-bottom: 1px solid #ebeef5; padding-bottom: 8px;">${t('event.tooltipTime')}: ${params.name}</div>
+          <div style="font-weight: bold; margin-bottom: 8px; font-size: 14px; border-bottom: 1px solid var(--theme-border-light, #ebeef5); padding-bottom: 8px;">${t('event.tooltipTime')}: ${params.name}</div>
           <div style="display: flex; align-items: center; font-size: 13px;">
             ${params.marker}
-            <span style="flex: 1; margin-right: 24px; color: #666;">${seriesName}:</span>
-            <span style="font-weight: 600; font-size: 16px; color: ${params.color};">${params.value} <span style="font-size: 12px; font-weight: normal; color: #999;">${t('event.personUnit')}</span></span>
+            <span style="flex: 1; margin-right: 24px; color: var(--theme-text-secondary, #666);">${seriesName}:</span>
+            <span style="font-weight: 600; font-size: 16px; color: ${params.color};">${params.value} <span style="font-size: 12px; font-weight: normal; color: var(--theme-text-muted, #999);">${t('event.personUnit')}</span></span>
           </div>
         `
       }
@@ -578,6 +618,10 @@ const drawCharts = (timeData, inData, outData) => {
     ]
   }
   chart.value.setOption(option)
+  if (lightChartSplitLineColor === undefined) {
+    lightChartSplitLineColor = chart.value.getOption().yAxis?.[0]?.splitLine?.lineStyle?.color
+  }
+  applyChartTheme()
 }
 
 const showData = () => {
@@ -600,11 +644,11 @@ onMounted(() => {
 <style scoped lang="scss">
 .mv-wrap-top {
   margin-bottom: 20px;
-  background: white;
+  background: var(--theme-surface, white);
 }
 
 .mv-wrap-body {
-  background: white;
+  background: var(--theme-surface, white);
 }
 
 .tabs {
@@ -635,7 +679,7 @@ onMounted(() => {
 }
 
 .no-data {
-  color: #999;
+  color: var(--theme-text-muted, #999);
   text-align: center;
   height: 60px;
   line-height: 60px;
@@ -660,7 +704,7 @@ onMounted(() => {
   
   .stat-card {
     flex: 1;
-    background: #fff;
+    background: var(--theme-surface, #fff);
     border-radius: 8px;
     padding: 24px;
     display: flex;
@@ -684,15 +728,15 @@ onMounted(() => {
     }
     
     &.enter-card .stat-icon-wrapper {
-      background: rgba(24, 144, 255, 0.1);
+      background: var(--theme-accent-soft, rgba(24, 144, 255, 0.1));
     }
     
     &.leave-card .stat-icon-wrapper {
-      background: rgba(255, 180, 64, 0.1);
+      background: var(--theme-warning-soft, rgba(255, 180, 64, 0.1));
     }
     
     &.net-card .stat-icon-wrapper {
-      background: rgba(103, 194, 58, 0.1);
+      background: var(--theme-success-soft, rgba(103, 194, 58, 0.1));
     }
 
     .stat-info {
@@ -739,7 +783,7 @@ onMounted(() => {
     border: 1px solid var(--border-light);
     border-radius: 4px;
     padding: 16px;
-    background: #fff;
+    background: var(--theme-surface, #fff);
     
     .data-table {
       width: 100%;

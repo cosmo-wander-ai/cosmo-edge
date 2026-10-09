@@ -727,10 +727,10 @@ export default {
 }
 .toolbar-right { display: flex; align-items: center; gap: 8px; }
 .btn-primary-gradient {
-  background: var(--primary-color) !important;
+  background: var(--theme-accent-button, var(--primary-color)) !important;
   border: none !important;
   color: #fff !important;
-  &:hover { background: var(--primary-dark) !important; }
+  &:hover { background: var(--theme-accent-button-hover, var(--primary-dark)) !important; }
 }
 .task-grid {
   display: grid;
@@ -748,7 +748,7 @@ export default {
 @media (max-width: 768px) { .task-grid { grid-template-columns: minmax(0, 1fr); } }
 .task-card {
   position: relative;
-  background: #fff;
+  background: var(--theme-surface, #fff);
   border-radius: 12px;
   padding: 20px;
   border: 1px solid var(--border-light);
@@ -781,11 +781,11 @@ export default {
   width: 44px; height: 44px; border-radius: 10px;
   display: flex; align-items: center; justify-content: center;
   :deep(svg) { width: 22px; height: 22px; }
-  &.icon-blue { background: rgba(59,130,246,0.1); color: var(--primary-color); }
-  &.icon-purple { background: rgba(66,153,225,0.1); color: var(--primary-light); }
-  &.icon-cyan { background: rgba(6,182,212,0.1); color: #06b6d4; }
-  &.icon-green { background: rgba(34,197,94,0.1); color: var(--success-color); }
-  &.icon-orange { background: rgba(245,158,11,0.1); color: var(--warning-color); }
+  &.icon-blue { background: var(--theme-accent-soft, rgba(59,130,246,0.1)); color: var(--primary-color); }
+  &.icon-purple { background: var(--theme-accent-soft, rgba(66,153,225,0.1)); color: var(--primary-light); }
+  &.icon-cyan { background: var(--theme-cyan-soft, rgba(6,182,212,0.1)); color: var(--theme-cyan, #06b6d4); }
+  &.icon-green { background: var(--theme-success-soft, rgba(34,197,94,0.1)); color: var(--success-color); }
+  &.icon-orange { background: var(--theme-warning-soft, rgba(245,158,11,0.1)); color: var(--warning-color); }
 }
 .card-info { min-width: 0; margin-bottom: 10px; }
 .card-title {
@@ -803,7 +803,7 @@ export default {
   display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px;
   &.tag-blue { background: var(--el-color-primary-light-9); color: var(--primary-color); }
   &.tag-purple { background: var(--el-color-primary-light-9); color: var(--primary-dark); }
-  &.tag-cyan { background: #cffafe; color: #0891b2; }
+  &.tag-cyan { background: var(--theme-cyan-soft, #cffafe); color: var(--theme-cyan, #0891b2); }
   &.tag-green { background: var(--el-color-success-light-9); color: var(--success-color); }
   &.tag-orange { background: var(--el-color-warning-light-9); color: var(--warning-color); }
 }

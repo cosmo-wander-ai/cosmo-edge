@@ -488,7 +488,7 @@ onMounted(() => {
 .template-container {
   display: flex;
   height: 100%;
-  background: #fff;
+  background: var(--theme-surface, #fff);
   border-radius: 4px;
 }
 
@@ -512,7 +512,7 @@ onMounted(() => {
 
     .el-icon {
       font-size: 18px;
-      color: #599ef8;
+      color: var(--theme-accent, #599ef8);
       cursor: pointer;
     }
   }
@@ -550,7 +550,7 @@ onMounted(() => {
 
     .item-actions {
       .el-icon {
-        color: #599ef8;
+        color: var(--theme-accent, #599ef8);
         cursor: pointer;
         margin-left: 5px;
       }
@@ -603,7 +603,7 @@ onMounted(() => {
     line-height: 30px;
 
     &:hover {
-      color: #599ef8;
+      color: var(--theme-accent, #599ef8);
     }
   }
 }

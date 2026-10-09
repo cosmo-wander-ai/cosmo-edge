@@ -1,4 +1,10 @@
 export default {
+  appearance: {
+    switch: '切换主题',
+    light: '浅色',
+    dark: '深色',
+    system: '跟随系统'
+  },
   visualQuestions: {
     "decisionMode": "结果处理",
     "reviewOnly": "仅记录复核结果",

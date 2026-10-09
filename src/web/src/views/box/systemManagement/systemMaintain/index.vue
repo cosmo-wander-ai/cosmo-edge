@@ -459,7 +459,7 @@ onBeforeUnmount(() => {
 <style lang="scss" scoped>
 .system-maintain {
   padding: 20px;
-  background: #fff;
+  background: var(--theme-surface, #fff);
   border-radius: 4px;
 
   .upgrade-container {
@@ -491,7 +491,7 @@ onBeforeUnmount(() => {
 
   .tips {
     margin-bottom: 20px;
-    color: #f00;
+    color: var(--theme-danger, #f00);
     font-size: 14px;
 
     .tip-item {
@@ -500,7 +500,7 @@ onBeforeUnmount(() => {
   }
 
   .status-box {
-    border: 1px dashed #f00;
+    border: 1px dashed var(--theme-danger, #f00);
     padding: 15px;
     margin-bottom: 20px;
 
@@ -510,7 +510,7 @@ onBeforeUnmount(() => {
     }
 
     .status-content {
-      color: #f00;
+      color: var(--theme-danger, #f00);
       font-size: 14px;
       line-height: 1.8;
     }
@@ -521,7 +521,7 @@ onBeforeUnmount(() => {
 
     .tips {
       margin-top: 20px;
-      color: #666;
+      color: var(--theme-text-secondary, #666);
       font-size: 14px;
       line-height: 1.8;
     }

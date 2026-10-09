@@ -30,7 +30,7 @@ const props = defineProps({
   height: 96px;
   box-sizing: border-box;
   border-radius: 12px;
-  background: var(--primary-color);
+  background: var(--primary-button-bg, var(--primary-color));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -60,7 +60,7 @@ const props = defineProps({
   height: 18px;
   border-radius: 50%;
   border: 1px solid var(--danger-color);
-  background-color: #ffffff;
+  background-color: var(--flow-delete-bg);
   color: var(--danger-color);
   font-size: 12px;
   line-height: 1;
@@ -69,6 +69,6 @@ const props = defineProps({
 }
 
 .node-delete:hover {
-  background-color: #fef0f0;
+  background-color: var(--flow-delete-hover);
 }
 </style>

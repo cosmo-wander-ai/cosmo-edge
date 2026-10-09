@@ -93,7 +93,7 @@ const handleChange = (index, field, value) => {
 
 <style scoped lang="scss">
 .box-node-container {
-  background: #f7f8fa;
+  background: var(--bg-secondary);
   border-radius: 16px;
   width: 560px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
@@ -101,14 +101,14 @@ const handleChange = (index, field, value) => {
   display: flex;
   flex-direction: column;
    padding: 10px 14px 14px;
-  border: 1px solid #f0f2f5;
+  border: 1px solid var(--border-light);
   cursor: default;
 }
 
 .node-header {
   margin-bottom: 24px;
   text-align: center;
-  color: #1d2129;
+  color: var(--text-primary);
 }
 
 .node-title {
@@ -122,7 +122,7 @@ const handleChange = (index, field, value) => {
 }
 
 .config-section {
-  background: #fff;
+  background: var(--bg-white);
   border-radius: 12px;
   padding: 20px;
   display: flex;
@@ -134,7 +134,7 @@ const handleChange = (index, field, value) => {
 .config-title {
   font-size: 18px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--text-primary);
   margin-bottom: 4px;
 }
 
@@ -143,8 +143,8 @@ const handleChange = (index, field, value) => {
   overflow: hidden;
   
   :deep(.el-table__header-wrapper) th {
-    background-color: #f7f8fa !important;
-    color: #1d2129;
+    background-color: var(--flow-io-header-bg) !important;
+    color: var(--text-primary);
     font-weight: 600;
   }
 }
@@ -153,7 +153,7 @@ const handleChange = (index, field, value) => {
   width: 10px;
   height: 10px;
   background: var(--text-secondary);
-  border: 2px solid #fff;
+  border: 2px solid var(--flow-handle-ring);
   box-shadow: 0 0 0 2px rgba(144, 147, 153, 0.2);
 }
 </style>

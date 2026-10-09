@@ -2,7 +2,7 @@
   <div class="end-node">
     <Handle type="target" :position="Position.Left" />
     <div class="node-icon">
-      <svg viewBox="0 0 24 24" width="30" height="30" fill="#fff">
+      <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor">
         <rect x="4" y="4" width="16" height="16" rx="2" />
       </svg>
     </div>
@@ -32,14 +32,14 @@ const props = defineProps({
   height: 96px;
   box-sizing: border-box;
   border-radius: 12px;
-  background: var(--text-primary);
+  background: var(--flow-end-bg);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  color: #ffffff;
-  box-shadow: none;
+  color: var(--flow-end-text);
+  box-shadow: inset 0 0 0 1px var(--flow-end-outline);
 }
 
 .node-icon {
@@ -62,7 +62,7 @@ const props = defineProps({
   height: 18px;
   border-radius: 50%;
   border: 1px solid var(--danger-color);
-  background-color: #ffffff;
+  background-color: var(--flow-delete-bg);
   color: var(--danger-color);
   font-size: 12px;
   line-height: 1;
@@ -71,6 +71,6 @@ const props = defineProps({
 }
 
 .node-delete:hover {
-  background-color: #fef0f0;
+  background-color: var(--flow-delete-hover);
 }
 </style>

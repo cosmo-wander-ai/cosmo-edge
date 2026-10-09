@@ -144,7 +144,7 @@ const confirmRestart = () => {
 <style lang="scss" scoped>
 .system-config {
   padding: 20px;
-  background: #fff;
+  background: var(--theme-surface, #fff);
   border-radius: 4px;
 }
 

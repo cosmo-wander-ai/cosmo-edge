@@ -1,5 +1,5 @@
 <template>
-  <div class="page-container ui-admin-page">
+  <div class="page-container ui-admin-page flow-theme">
     <div class="toolbar">
       <div class="toolbar-left">
         <span class="page-title">{{ t('linkageStrategy.title') }}</span>
@@ -40,7 +40,7 @@
       <div class="flow-container" ref="containerRef">
         <ArrangeFlow ref="flowRef" :width="width" :height="height" :strategyId="currentStrategy.id" :workFlow="currentStrategy.workFlow" :actionList="actionList" :atomicCode="''" @onMetadata="onMetadata" />
       </div>
-      <el-dialog :title="strategyMode === 'edit' ? t('linkageStrategy.editStrategy') : t('linkageStrategy.addStrategy')" v-model="strategyDialogVisible" center width="420px" @close="onDialogClose" class="ui-admin-dialog">
+      <el-dialog :title="strategyMode === 'edit' ? t('linkageStrategy.editStrategy') : t('linkageStrategy.addStrategy')" v-model="strategyDialogVisible" center width="420px" @close="onDialogClose" class="ui-admin-dialog flow-theme">
         <el-form ref="strategyFormRef" :model="strategyForm" :rules="strategyRules" :label-width="currentLocale === 'en-US' ? '170px' : '120px'" label-position="right">
           <el-form-item :label="t('linkageStrategy.strategyName') + localeColon" prop="name">
             <el-input v-model="strategyForm.name" :placeholder="t('linkageStrategy.strategyNamePlaceholder')" />
@@ -355,7 +355,7 @@ const handleSave = () => {
           width: 18px;
           height: 18px;
           border-radius: 50%;
-          background: #eef2ff;
+          background: var(--theme-accent-soft, #eef2ff);
           color: var(--primary-color);
           font-size: 12px;
           display: flex;

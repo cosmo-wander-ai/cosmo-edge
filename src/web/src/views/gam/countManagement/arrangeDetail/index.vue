@@ -1,5 +1,5 @@
 <template>
-  <div class="main-body ui-admin-page">
+  <div class="main-body ui-admin-page flow-theme">
     <div class="top-tool">
       <div class="name-version">
         <span class="arrange-name" @click="showVersionClick">{{ displayAlgorithmName }}</span>
@@ -568,6 +568,8 @@ const goBack = () => {
 }
 </script>
 
+<style lang="scss" src="./flow/flow-palette.scss"></style>
+
 <style scoped lang="scss">
 .main-body {
   display: flex;
@@ -729,6 +731,6 @@ const goBack = () => {
 }
 
 .icon-red {
-  color: red;
+  color: var(--danger-color);
 }
 </style>

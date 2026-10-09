@@ -68,7 +68,7 @@
 
     <el-dialog :title="t('common.notice')" v-model="testDialogVisible" :show-close="false" :close-on-click-modal="false" :close-on-press-escape="false" width="30%" center class="ui-admin-dialog">
       <div style="text-align:center">
-        <el-icon class="is-loading" style="font-size:30px;color:#409EFF;margin:10px 0;display:block;width:100%">
+        <el-icon class="is-loading" style="font-size:30px;color:var(--theme-accent, #409EFF);margin:10px 0;display:block;width:100%">
           <Loading />
         </el-icon>
         <p>{{ t('systemManage.testingInProgress') }}</p>

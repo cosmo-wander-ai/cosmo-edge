@@ -80,7 +80,7 @@ onMounted(() => {
 .topBar-wrap {
   flex-shrink: 0;
   position: relative;
-  background: #fff;
+  background: var(--theme-surface, #fff);
   padding: 0 20px 20px 24px;
   margin: 12px 12px 0px 12px;
   // box-shadow: 3px 4px 15px 2px #cacaca;
@@ -136,7 +136,7 @@ onMounted(() => {
     .optionBtn {
       margin-left: 10px;
       line-height: 32px;
-      color: #1890ff;
+      color: var(--theme-accent, #1890ff);
       font-size: 14px;
       cursor: pointer;
 

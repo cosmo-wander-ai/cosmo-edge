@@ -121,6 +121,6 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .BatchApplicationClass {
-  color: #0000ff;
+  color: var(--theme-accent, #0000ff);
 }
 </style>

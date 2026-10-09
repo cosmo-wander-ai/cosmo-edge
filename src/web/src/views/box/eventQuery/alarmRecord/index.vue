@@ -12,7 +12,7 @@
       </div>
 
       <!-- 列表视图 -->
-      <el-table v-show="viewType === 'list'" :data="tableData" :header-cell-style="{background:'#fafafa'}" style="width: 100%" @selection-change="handleSelectionChange">
+      <el-table v-show="viewType === 'list'" :data="tableData" :header-cell-style="{background:'var(--theme-surface-soft, #fafafa)'}" style="width: 100%" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" />
         <el-table-column type="index" :index="getIndex" :label="t('field.no')" width="80" />
         <el-table-column :label="t('event.fullImage')" width="120">
@@ -39,7 +39,7 @@
         </el-table-column>
         <el-table-column :label="t('field.status')">
           <template #default="{ row }">
-            <span :style="{color: row.reportStatus === 1 ? '#67C23A' : '#F56C6C'}">
+            <span :style="{color: row.reportStatus === 1 ? 'var(--theme-success, #67C23A)' : 'var(--theme-danger, #F56C6C)'}">
               {{ reportStatusText(row.reportStatus) }}
             </span>
           </template>
@@ -82,7 +82,7 @@
                 </div>
                 <div class="info-item">
                   <span class="label">{{ t('field.status') }}{{ localeColon }}</span>
-                  <span :style="{color: item.reportStatus === 1 ? '#67C23A' : '#F56C6C'}">
+                  <span :style="{color: item.reportStatus === 1 ? 'var(--theme-success, #67C23A)' : 'var(--theme-danger, #F56C6C)'}">
                     {{ reportStatusText(item.reportStatus) }}
                   </span>
                 </div>
@@ -495,10 +495,10 @@ onMounted(() => {
 <style lang="scss" scoped>
 .alarm-record {
   height: 100%;
-  background-color: white;;
+  background-color: var(--theme-surface, white);;
 }
 .table-container {
-  background-color: #fff;
+  background-color: var(--theme-surface, #fff);
   padding: 0 15px;
   margin-top: 16px;
   height: calc(100% - 135px);
@@ -590,7 +590,7 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  background-color: #fff;
+  background-color: var(--theme-surface, #fff);
 }
 
 .operation-btns {

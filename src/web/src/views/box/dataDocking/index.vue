@@ -44,7 +44,7 @@
                     :disabled="!mqttFormData.switch" @input="(e) => handleMqttInput(e, 'port')" />
                 </el-form-item>
                 <el-form-item :label="t('field.status') + localeColon" v-if="mqttFormData.switch">
-                  <span v-if="mqttFormData.status" style="color:#0efe42;">{{ t('status.online') }}</span>
+                  <span v-if="mqttFormData.status" style="color:var(--theme-success, #0efe42);">{{ t('status.online') }}</span>
                   <span v-else>{{ t('status.offline') }}</span>
                 </el-form-item>
               </el-form>
@@ -69,7 +69,7 @@
               <el-input v-model.trim="netFormData.httpUrl" :placeholder="t('validate.enterField', { field: t('boxOther.serverAddress') })" size="small" />
             </el-form-item>
             <el-form-item :label="t('field.status') + localeColon">
-              <span v-if="netFormData.status" style="color:#0efe42;">{{ t('status.online') }}</span>
+              <span v-if="netFormData.status" style="color:var(--theme-success, #0efe42);">{{ t('status.online') }}</span>
               <span v-else>{{ t('status.offline') }}</span>
             </el-form-item>
           </el-form>
@@ -380,7 +380,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   padding: 10px 15px;
-  background-color: #fff;
+  background-color: var(--theme-surface, #fff);
   border-radius: 2px;
 }
 

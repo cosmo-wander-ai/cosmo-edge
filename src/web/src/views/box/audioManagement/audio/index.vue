@@ -309,7 +309,7 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .table-container {
-  background-color: #fff;
+  background-color: var(--theme-surface, #fff);
   padding: 0 15px;
   margin-top: 16px;
 
@@ -336,7 +336,7 @@ onMounted(() => {
 }
 
 .warning-icon {
-  color: #1890ff;
+  color: var(--theme-accent, #1890ff);
   margin-right: 5px;
 }
 

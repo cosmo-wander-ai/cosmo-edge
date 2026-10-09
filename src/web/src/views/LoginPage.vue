@@ -1,5 +1,6 @@
 <template>
   <div class="login-container">
+    <div class="login-appearance"><ThemeSwitcher /></div>
     <div class="login-background" aria-hidden="true"></div>
     
     <div class="login-card">
@@ -121,6 +122,7 @@ import { ref, computed, onMounted, getCurrentInstance } from 'vue'
 import { useRouter } from 'vue-router'
 import md5 from 'js-md5'
 import { t } from '@/i18n'
+import ThemeSwitcher from '@/components/ThemeSwitcher.vue'
 
 const router = useRouter()
 const { proxy } = getCurrentInstance()
@@ -247,6 +249,12 @@ const handleChangePassword = async () => {
 </script>
 
 <style lang="scss" scoped>
+.login-appearance {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  z-index: 2;
+}
 .login-container {
   min-height: 100vh;
   display: flex;
@@ -392,9 +400,9 @@ const handleChangePassword = async () => {
   min-height: 44px;
   margin-top: 26px;
   padding: 11px 16px;
-  background: var(--primary-color);
+  background: var(--primary-button-bg, var(--primary-color));
   color: white;
-  border: 1px solid var(--primary-color);
+  border: 1px solid var(--primary-button-bg, var(--primary-color));
   border-radius: 6px;
   font-size: 14px;
   line-height: 20px;

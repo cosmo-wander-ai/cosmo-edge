@@ -27,6 +27,29 @@
   --radius-lg: 8px;
   --radius-xl: 12px;
 
+  // Surface and control roles preserve the approved light palette exactly.
+  --bg-shell: #fff;
+  --bg-panel: #fff;
+  --bg-card: #fff;
+  --bg-subtle: #f8f9fb;
+  --bg-empty: #fafbfc;
+  --bg-hover: #f4f5f8;
+  --border-hover: #c5c9d4;
+  --tag-bg: #eef1f5;
+  --tag-text: #526074;
+  --table-header-bg: #f5f6f9;
+  --table-row-hover-bg: #f5f6fa;
+  --primary-soft-bg: #f0effa;
+  --primary-soft-border: #dfdef1;
+  --primary-button-bg: #5852df;
+  --primary-button-hover-bg: #8a86e9;
+  --primary-button-active-bg: #4741c5;
+  --primary-button-text: #fff;
+  --secondary-button-hover-bg: #f6f5fd;
+  --secondary-button-hover-border: #b6b2e9;
+  --disabled-bg: #f7f8fa;
+  --focus-ring: var(--el-color-primary-light-5);
+
   --el-color-primary: var(--primary-color);
   --el-color-primary-light-3: #8a86e9;
   --el-color-primary-light-5: #aca9ef;
@@ -95,10 +118,10 @@
 
 .el-table {
   --el-table-border-color: var(--border-light);
-  --el-table-header-bg-color: #f5f6f9;
-  --el-table-header-text-color: #4f596b;
+  --el-table-header-bg-color: var(--table-header-bg);
+  --el-table-header-text-color: var(--secondary-color);
   --el-table-text-color: var(--text-primary);
-  --el-table-row-hover-bg-color: #f5f6fa;
+  --el-table-row-hover-bg-color: var(--table-row-hover-bg);
   border-radius: var(--radius-sm);
   font-size: 13px;
 

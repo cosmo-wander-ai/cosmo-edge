@@ -1,0 +1,540 @@
+// Import last. The data attribute is the resolved theme; an explicit value wins
+// over Element Plus's optional .dark class. No media pixels are recolored.
+:root {
+  color-scheme: light;
+}
+
+html[data-theme='dark'],
+html.dark:not([data-theme]) {
+  color-scheme: dark;
+
+  --primary-color: #9b8cff;
+  --primary-light: #b5aaff;
+  --primary-dark: #8979eb;
+  --secondary-color: #abb4c3;
+  --accent-color: #b5aaff;
+  --primary-button-bg: #6859d8;
+  --primary-button-hover-bg: #7060db;
+  --primary-button-active-bg: #5849c1;
+  --primary-button-text: #fff;
+  --text-primary: #e8ebf1;
+  --text-secondary: #abb4c3;
+  --text-muted: #929daf;
+  --text-tertiary: #929daf;
+  --bg-primary: #14171d;
+  --bg-shell: #1b1f27;
+  --bg-panel: #20252e;
+  --bg-white: #20252e;
+  --bg-card: #282f3b;
+  --bg-secondary: #282f3b;
+  --bg-subtle: #252c37;
+  --bg-empty: #1b2028;
+  --bg-hover: #323b49;
+  --border-color: #404957;
+  --border-light: #333c49;
+  --border-hover: #626f83;
+  --tag-bg: #303846;
+  --tag-text: #c1cada;
+  --table-header-bg: #282f3b;
+  --table-row-hover-bg: #2c3441;
+  --primary-soft-bg: #302b4c;
+  --primary-soft-border: #575075;
+  --secondary-button-hover-bg: #302b4c;
+  --secondary-button-hover-border: #786cae;
+  --disabled-bg: #252b35;
+  --focus-ring: #b5aaff;
+  --success-color: #6bd5a3;
+  --warning-color: #edbd73;
+  --danger-color: #ff8995;
+  --info-color: #abb8cd;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.14);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.22);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 20px 48px rgba(0, 0, 0, 0.38);
+
+  // Dark-only aliases let legacy components retain their exact light literals
+  // as CSS fallbacks while sharing one consistent dark palette.
+  --theme-surface: var(--bg-panel);
+  --theme-surface-soft: var(--bg-card);
+  --theme-surface-hover: var(--bg-hover);
+  --theme-hover-bg: var(--bg-hover);
+  --theme-selected-bg: var(--primary-soft-bg);
+  --theme-selected-border: var(--primary-color);
+  --theme-stage-surround: #101319;
+  --theme-scrollbar: #536074;
+  --theme-text: var(--text-primary);
+  --theme-text-secondary: var(--text-secondary);
+  --theme-text-muted: var(--text-muted);
+  --theme-border: var(--border-color);
+  --theme-border-light: var(--border-light);
+  --theme-accent: var(--primary-color);
+  --theme-accent-soft: var(--el-color-primary-light-9);
+  --theme-accent-button: var(--primary-button-bg);
+  --theme-accent-button-hover: var(--primary-button-hover-bg);
+  --theme-accent-button-active: var(--primary-button-active-bg);
+  --theme-success: var(--success-color);
+  --theme-success-soft: var(--el-color-success-light-9);
+  --theme-success-button: #287451;
+  --theme-success-button-hover: #337c5a;
+  --theme-warning: var(--warning-color);
+  --theme-warning-soft: var(--el-color-warning-light-9);
+  --theme-warning-button: #8a601e;
+  --theme-warning-button-hover: #93691f;
+  --theme-danger: var(--danger-color);
+  --theme-danger-soft: var(--el-color-danger-light-9);
+  --theme-danger-button: #b64152;
+  --theme-danger-button-hover: #c04c5d;
+  --theme-info: var(--info-color);
+  --theme-info-soft: var(--el-color-info-light-9);
+  --theme-info-button: #515f74;
+  --theme-info-button-hover: #5c6a7e;
+  --theme-cyan: #67e8f9;
+  --theme-cyan-soft: #163b44;
+
+  --el-color-primary: var(--primary-color);
+  --el-color-primary-light-3: #766cbc;
+  --el-color-primary-light-5: #574f8e;
+  --el-color-primary-light-7: #3c365c;
+  --el-color-primary-light-8: #332f4d;
+  --el-color-primary-light-9: #2b293e;
+  --el-color-primary-dark-2: #b5aaff;
+  --el-color-success: var(--success-color);
+  --el-color-success-light-3: #477f66;
+  --el-color-success-light-5: #365b4c;
+  --el-color-success-light-7: #2c423b;
+  --el-color-success-light-8: #273731;
+  --el-color-success-light-9: #22312b;
+  --el-color-success-dark-2: #85e4b7;
+  --el-color-warning: var(--warning-color);
+  --el-color-warning-light-3: #9f824e;
+  --el-color-warning-light-5: #706042;
+  --el-color-warning-light-7: #4d4233;
+  --el-color-warning-light-8: #3f382e;
+  --el-color-warning-light-9: #342e26;
+  --el-color-warning-dark-2: #f5cc8e;
+  --el-color-danger: var(--danger-color);
+  --el-color-danger-light-3: #ad6470;
+  --el-color-danger-light-5: #7f4856;
+  --el-color-danger-light-7: #543842;
+  --el-color-danger-light-8: #433038;
+  --el-color-danger-light-9: #362b32;
+  --el-color-danger-dark-2: #ffa2ad;
+  --el-color-error: var(--danger-color);
+  --el-color-error-light-3: var(--el-color-danger-light-3);
+  --el-color-error-light-5: var(--el-color-danger-light-5);
+  --el-color-error-light-7: var(--el-color-danger-light-7);
+  --el-color-error-light-8: var(--el-color-danger-light-8);
+  --el-color-error-light-9: var(--el-color-danger-light-9);
+  --el-color-error-dark-2: var(--el-color-danger-dark-2);
+  --el-color-info: var(--info-color);
+  --el-color-info-light-3: #7d8aa0;
+  --el-color-info-light-5: #58667b;
+  --el-color-info-light-7: #3d4859;
+  --el-color-info-light-8: #343e4d;
+  --el-color-info-light-9: #2b3340;
+  --el-color-info-dark-2: #c3cede;
+
+  --el-bg-color: var(--bg-panel);
+  --el-bg-color-page: var(--bg-primary);
+  --el-bg-color-overlay: var(--bg-card);
+  --el-text-color-primary: var(--text-primary);
+  --el-text-color-regular: var(--secondary-color);
+  --el-text-color-secondary: var(--text-secondary);
+  --el-text-color-placeholder: var(--text-muted);
+  --el-text-color-disabled: #818c9d;
+  --el-border-color: var(--border-color);
+  --el-border-color-light: var(--border-light);
+  --el-border-color-lighter: #303846;
+  --el-border-color-extra-light: #2b3340;
+  --el-border-color-dark: #536074;
+  --el-border-color-darker: #657186;
+  --el-border-color-hover: var(--border-hover);
+  --el-fill-color: #303744;
+  --el-fill-color-light: #292f3a;
+  --el-fill-color-lighter: #242a34;
+  --el-fill-color-extra-light: #212630;
+  --el-fill-color-dark: #37404e;
+  --el-fill-color-darker: #424c5c;
+  --el-fill-color-blank: var(--bg-panel);
+  --el-disabled-bg-color: var(--disabled-bg);
+  --el-disabled-text-color: #818c9d;
+  --el-disabled-border-color: #3a4351;
+  --el-mask-color: rgba(8, 11, 16, 0.78);
+  --el-mask-color-extra-light: rgba(8, 11, 16, 0.42);
+  --el-overlay-color: rgba(0, 0, 0, 0.75);
+  --el-overlay-color-light: rgba(0, 0, 0, 0.68);
+  --el-overlay-color-lighter: rgba(0, 0, 0, 0.56);
+  --el-box-shadow: var(--shadow-md);
+  --el-box-shadow-light: var(--shadow-sm);
+  --el-box-shadow-lighter: var(--shadow-sm);
+  --el-box-shadow-dark: var(--shadow-lg);
+
+  body {
+    color: var(--text-primary);
+    background: var(--bg-primary);
+  }
+
+  ::selection {
+    color: var(--text-primary);
+    background: #514577;
+  }
+
+  // Teleported Element Plus surfaces inherit from html, not the page wrapper.
+  .el-dialog,
+  .el-message-box,
+  .el-drawer,
+  .el-notification {
+    --el-dialog-bg-color: var(--bg-panel);
+    --el-messagebox-bg-color: var(--bg-panel);
+    --el-drawer-bg-color: var(--bg-panel);
+    --el-notification-bg-color: var(--bg-card);
+    color: var(--text-primary);
+    background: var(--bg-panel);
+    border-color: var(--border-color);
+  }
+
+  .el-dialog__title,
+  .el-message-box__title,
+  .el-notification__title,
+  .el-drawer__header {
+    color: var(--text-primary);
+  }
+
+  .el-dialog__body,
+  .el-message-box__content,
+  .el-notification__content {
+    color: var(--text-secondary);
+  }
+
+  .el-popper.is-light,
+  .el-popper.is-dark,
+  .el-popover.el-popper {
+    color: var(--text-primary);
+    background: var(--bg-card);
+    border-color: var(--border-color);
+    box-shadow: var(--shadow-md);
+
+    > .el-popper__arrow::before {
+      background: var(--bg-card);
+      border-color: var(--border-color);
+    }
+  }
+
+  .el-dropdown-menu,
+  .el-select-dropdown,
+  .el-cascader-panel,
+  .el-autocomplete-suggestion,
+  .el-picker-panel,
+  .el-time-panel {
+    color: var(--text-primary);
+    background: var(--bg-card);
+    border-color: var(--border-color);
+  }
+
+  .el-dropdown-menu__item,
+  .el-select-dropdown__item,
+  .el-cascader-node,
+  .el-autocomplete-suggestion__list li {
+    color: var(--text-secondary);
+
+    &:not(.is-disabled):not(.is-selected):hover,
+    &.is-hovering {
+      color: var(--text-primary);
+      background: var(--bg-hover);
+    }
+
+    &.is-disabled {
+      color: var(--el-disabled-text-color);
+      background: transparent;
+    }
+  }
+
+  .el-select-dropdown__item.is-selected,
+  .el-cascader-node.in-active-path,
+  .el-cascader-node.is-active {
+    color: var(--primary-color);
+    background: var(--el-color-primary-light-9);
+  }
+
+  .el-menu {
+    --el-menu-bg-color: var(--bg-shell);
+    --el-menu-text-color: var(--text-secondary);
+    --el-menu-hover-text-color: var(--text-primary);
+    --el-menu-active-color: var(--primary-color);
+    --el-menu-hover-bg-color: var(--bg-hover);
+    --el-menu-border-color: var(--border-color);
+  }
+
+  .el-menu--popup {
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-md);
+  }
+
+  .el-table {
+    --el-table-bg-color: var(--bg-panel);
+    --el-table-tr-bg-color: var(--bg-panel);
+    --el-table-expanded-cell-bg-color: var(--bg-panel);
+    --el-table-header-bg-color: var(--table-header-bg);
+    --el-table-header-text-color: var(--text-secondary);
+    --el-table-text-color: var(--text-primary);
+    --el-table-border-color: var(--border-light);
+    --el-table-row-hover-bg-color: var(--table-row-hover-bg);
+    --el-table-current-row-bg-color: var(--el-color-primary-light-9);
+    --el-table-fixed-left-column: inset 10px 0 10px -10px rgba(0, 0, 0, 0.35);
+    --el-table-fixed-right-column: inset -10px 0 10px -10px rgba(0, 0, 0, 0.35);
+
+    // Existing pages pass a light header color inline.
+    th.el-table__cell {
+      color: var(--el-table-header-text-color) !important;
+      background: var(--table-header-bg) !important;
+    }
+
+    .el-table__empty-text {
+      color: var(--text-secondary);
+    }
+  }
+
+  .el-button {
+    --el-button-text-color: var(--text-primary);
+    --el-button-bg-color: var(--bg-card);
+    --el-button-border-color: var(--border-color);
+    --el-button-hover-text-color: var(--primary-color);
+    --el-button-hover-bg-color: var(--primary-soft-bg);
+    --el-button-hover-border-color: var(--secondary-button-hover-border);
+    --el-button-active-text-color: var(--primary-color);
+    --el-button-active-bg-color: var(--el-color-primary-light-8);
+    --el-button-active-border-color: var(--primary-color);
+    --el-button-disabled-text-color: var(--el-disabled-text-color);
+    --el-button-disabled-bg-color: var(--disabled-bg);
+    --el-button-disabled-border-color: var(--el-disabled-border-color);
+  }
+
+  .el-button--primary:not(.is-plain):not(.is-text):not(.is-link):not(.ui-action):not(.ui-secondary-button) {
+    --el-button-text-color: var(--primary-button-text);
+    --el-button-bg-color: var(--primary-button-bg);
+    --el-button-border-color: var(--primary-button-bg);
+    --el-button-hover-text-color: var(--primary-button-text);
+    --el-button-hover-bg-color: var(--primary-button-hover-bg);
+    --el-button-hover-border-color: var(--primary-button-hover-bg);
+    --el-button-active-text-color: var(--primary-button-text);
+    --el-button-active-bg-color: var(--primary-button-active-bg);
+    --el-button-active-border-color: var(--primary-button-active-bg);
+  }
+
+  @each $name, $background, $hover in (
+    ('success', #287451, #337c5a),
+    ('warning', #8a601e, #93691f),
+    ('danger', #b64152, #c04c5d),
+    ('info', #515f74, #5c6a7e)
+  ) {
+    .el-button--#{$name}:not(.is-plain):not(.is-text):not(.is-link):not(.ui-action):not(.ui-secondary-button) {
+      --el-button-text-color: #fff;
+      --el-button-bg-color: #{$background};
+      --el-button-border-color: #{$background};
+      --el-button-hover-text-color: #fff;
+      --el-button-hover-bg-color: #{$hover};
+      --el-button-hover-border-color: #{$hover};
+      --el-button-active-text-color: #fff;
+      --el-button-active-bg-color: #{$background};
+      --el-button-active-border-color: #{$background};
+    }
+  }
+
+  .el-button.is-plain,
+  .el-button.is-text,
+  .el-button.is-link {
+    --el-button-text-color: var(--text-secondary);
+    --el-button-hover-text-color: var(--primary-light);
+    --el-button-active-text-color: var(--primary-color);
+  }
+
+  @each $name in ('primary', 'success', 'warning', 'danger', 'info') {
+    .el-button--#{$name}.is-plain,
+    .el-button--#{$name}.is-text,
+    .el-button--#{$name}.is-link {
+      --el-button-text-color: var(--el-color-#{$name});
+      --el-button-hover-text-color: var(--el-color-#{$name});
+      --el-button-active-text-color: var(--el-color-#{$name});
+    }
+
+    .el-button--#{$name}.is-plain {
+      --el-button-bg-color: var(--el-color-#{$name}-light-9);
+      --el-button-border-color: var(--el-color-#{$name}-light-5);
+      --el-button-hover-bg-color: var(--el-color-#{$name}-light-8);
+      --el-button-hover-border-color: var(--el-color-#{$name}-light-3);
+      --el-button-active-bg-color: var(--el-color-#{$name}-light-7);
+      --el-button-active-border-color: var(--el-color-#{$name});
+    }
+  }
+
+  .el-button.is-text:not(.is-disabled):not(.is-has-bg),
+  .el-button.is-link {
+    background: transparent;
+  }
+
+  .el-tag.el-tag--dark {
+    --el-tag-text-color: #14171d;
+  }
+
+  .el-input,
+  .el-select,
+  .el-textarea,
+  .el-input-number {
+    --el-input-bg-color: var(--bg-panel);
+    --el-input-text-color: var(--text-primary);
+    --el-input-border-color: var(--border-color);
+    --el-input-hover-border-color: var(--border-hover);
+    --el-input-focus-border-color: var(--primary-color);
+    --el-input-placeholder-color: var(--text-muted);
+    --el-select-input-focus-border-color: var(--primary-color);
+    --el-select-border-color-hover: var(--border-hover);
+    --el-select-disabled-color: var(--el-disabled-text-color);
+  }
+
+  .el-input.is-disabled .el-input__inner,
+  .el-textarea.is-disabled .el-textarea__inner {
+    color: var(--el-disabled-text-color);
+    -webkit-text-fill-color: var(--el-disabled-text-color);
+  }
+
+  .el-checkbox,
+  .el-radio {
+    --el-checkbox-checked-bg-color: var(--primary-button-bg);
+    --el-checkbox-checked-input-border-color: var(--primary-button-bg);
+    --el-checkbox-checked-icon-color: #fff;
+    --el-radio-input-bg-color: var(--bg-panel);
+    --el-radio-input-border-color: var(--border-color);
+    --el-radio-input-border-color-hover: var(--primary-color);
+  }
+
+  .el-checkbox__input.is-indeterminate .el-checkbox__inner,
+  .el-radio__input.is-checked .el-radio__inner {
+    border-color: var(--primary-button-bg);
+    background: var(--primary-button-bg);
+  }
+
+  .el-switch {
+    --el-switch-on-color: var(--primary-button-bg);
+    --el-switch-off-color: #485363;
+  }
+
+  .el-radio-button {
+    --el-radio-button-checked-bg-color: var(--primary-button-bg);
+    --el-radio-button-checked-border-color: var(--primary-button-bg);
+    --el-radio-button-checked-text-color: #fff;
+  }
+
+  .el-pagination {
+    --el-pagination-button-bg-color: var(--bg-card);
+    --el-pagination-button-disabled-bg-color: var(--disabled-bg);
+    --el-pagination-button-color: var(--text-secondary);
+    --el-pagination-button-disabled-color: var(--el-disabled-text-color);
+  }
+
+  .el-picker-panel {
+    --el-datepicker-text-color: var(--text-primary);
+    --el-datepicker-off-text-color: var(--text-muted);
+    --el-datepicker-header-text-color: var(--text-primary);
+    --el-datepicker-icon-color: var(--text-secondary);
+    --el-datepicker-border-color: var(--border-color);
+    --el-datepicker-inner-border-color: var(--border-light);
+    --el-datepicker-inrange-bg-color: var(--el-color-primary-light-9);
+    --el-datepicker-inrange-hover-bg-color: var(--el-color-primary-light-8);
+    --el-datepicker-active-color: var(--primary-button-bg);
+    --el-datepicker-hover-text-color: var(--primary-color);
+  }
+
+  .el-picker-panel__sidebar,
+  .el-picker-panel__footer {
+    background: var(--bg-card);
+    border-color: var(--border-light);
+  }
+
+  .el-picker-panel__shortcut,
+  .el-date-picker__header-label,
+  .el-time-spinner__item,
+  .el-time-range-picker__header {
+    color: var(--text-secondary);
+  }
+
+  .el-date-table td.disabled .el-date-table-cell,
+  .el-month-table td.disabled .cell,
+  .el-year-table td.disabled .cell,
+  .el-time-spinner__item.is-disabled {
+    color: var(--el-disabled-text-color);
+    background: var(--disabled-bg);
+  }
+
+  .el-time-spinner__item.active:not(.is-disabled) {
+    color: var(--text-primary);
+  }
+
+  .el-empty {
+    --el-empty-fill-color-0: #384253;
+    --el-empty-fill-color-1: #3a4455;
+    --el-empty-fill-color-2: #313b4a;
+    --el-empty-fill-color-3: #303a48;
+    --el-empty-fill-color-4: #29323f;
+    --el-empty-fill-color-5: #343e4d;
+    --el-empty-fill-color-6: #2d3643;
+    --el-empty-fill-color-7: #262e3b;
+    --el-empty-fill-color-8: #222a35;
+    --el-empty-fill-color-9: #202730;
+  }
+
+  .el-loading-mask {
+    background-color: var(--el-mask-color);
+  }
+
+  .el-loading-spinner .path {
+    stroke: var(--primary-color);
+  }
+
+  .el-loading-spinner .el-loading-text {
+    color: var(--text-primary);
+  }
+
+  .el-skeleton {
+    --el-skeleton-color: #2b3340;
+    --el-skeleton-to-color: #364050;
+  }
+
+  .el-scrollbar {
+    --el-scrollbar-bg-color: #8591a5;
+    --el-scrollbar-hover-bg-color: #a2adbf;
+    --el-scrollbar-opacity: 0.55;
+    --el-scrollbar-hover-opacity: 0.8;
+  }
+
+  * {
+    scrollbar-color: #536074 transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: #536074;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: #718098;
+  }
+
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  .el-button:focus-visible,
+  .el-dropdown:focus-visible,
+  .el-menu-item:focus-visible,
+  .el-tree-node__content:focus-visible,
+  .el-pagination button:focus-visible,
+  .el-pager li:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .el-input__wrapper.is-focus,
+  .el-select__wrapper.is-focused {
+    box-shadow: 0 0 0 1px var(--primary-color) inset;
+  }
+}

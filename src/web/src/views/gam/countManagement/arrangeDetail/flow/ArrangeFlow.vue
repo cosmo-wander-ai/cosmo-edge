@@ -11,7 +11,7 @@
         @pane-click="handlePaneClick"
         @move="handleViewportMove"
       >
-        <Background pattern-color="#e5e7eb" gap="16" />
+        <Background pattern-color="var(--flow-grid)" gap="16" />
         <Controls  :show-interactive="false" />
       </VueFlow>
 
@@ -29,7 +29,7 @@
     </main>
 
     <teleport to="body">
-      <el-dialog v-model="addDialogVisible" :title="t('action.addComponent')" width="710px" :close-on-click-modal="true" center :z-index="6000" class="ui-admin-dialog">
+      <el-dialog v-model="addDialogVisible" :title="t('action.addComponent')" width="710px" :close-on-click-modal="true" center :z-index="6000" class="ui-admin-dialog flow-theme">
         <div class="component-dialog">
           <ActionView :actionList="actionList" @onAction="addComponentFromAction" />
         </div>
@@ -581,8 +581,8 @@ const getActionStage = (actionId = '') => {
       title: t('glossary.inputProcessing'),
       titleKey: 'glossary.inputProcessing',
       fill: 'transparent',
-      stroke: '#f97316',
-      color: '#9a3412'
+      stroke: 'var(--flow-stage-input-line)',
+      color: 'var(--flow-stage-input)'
     }
   }
   // 模型推理 (AA/DA/PA/PDA 前缀 + BA_00009混合目标关联)
@@ -592,8 +592,8 @@ const getActionStage = (actionId = '') => {
       title: t('glossary.modelInference'),
       titleKey: 'glossary.modelInference',
       fill: 'transparent',
-      stroke: '#3b82f6',
-      color: '#1d4ed8'
+      stroke: 'var(--flow-stage-model-line)',
+      color: 'var(--flow-stage-model)'
     }
   }
   // 告警输出 (事件上报/抓拍/特征上报)
@@ -603,8 +603,8 @@ const getActionStage = (actionId = '') => {
       title: t('glossary.alertOutput'),
       titleKey: 'glossary.alertOutput',
       fill: 'transparent',
-      stroke: '#22c55e',
-      color: '#15803d'
+      stroke: 'var(--flow-stage-output-line)',
+      color: 'var(--flow-stage-output)'
     }
   }
   // 规则判断 (默认 — 筛选/灵敏度/判断类)
@@ -613,8 +613,8 @@ const getActionStage = (actionId = '') => {
     title: t('glossary.ruleJudgment'),
     titleKey: 'glossary.ruleJudgment',
     fill: 'transparent',
-    stroke: '#f97316',
-    color: '#ea580c'
+    stroke: 'var(--flow-stage-rule-line)',
+    color: 'var(--flow-stage-rule)'
   }
 }
 
@@ -979,13 +979,13 @@ watch(
   height: 100%;
   display: flex;
   flex-direction: column;
-  background-color: var(--bg-white);
+  background-color: var(--flow-canvas);
 }
 
 .page-header {
   padding: 12px 20px;
   border-bottom: 1px solid var(--border-color);
-  background: #ffffff;
+  background: var(--bg-white);
 }
 
 .page-header h1 {
@@ -1023,6 +1023,20 @@ watch(
   color: var(--secondary-color);
   background: var(--bg-white);
   border-bottom-color: var(--border-light);
+}
+
+.page-main :deep(.vue-flow__controls-button:hover:not(:disabled)) {
+  color: var(--primary-color);
+  background: var(--bg-secondary);
+}
+
+.page-main :deep(.vue-flow__controls-button svg) {
+  fill: currentColor;
+}
+
+.page-main :deep(.vue-flow__controls-button:disabled) {
+  color: var(--text-muted);
+  background: var(--bg-secondary);
 }
 
 .page-main :deep(.edge-menu) {
@@ -1121,8 +1135,8 @@ watch(
 .vue-flow__handle {
   width: 8px;
   height: 8px;
-  background: #b1b1b7;
-  border: 2px solid #fff;
+  background: var(--flow-edge, #b1b1b7);
+  border: 2px solid var(--flow-handle-ring, #fff);
   border-radius: 50%;
 }
 
@@ -1132,7 +1146,7 @@ watch(
 
 /* 连线基本样式 */
 .vue-flow__edge-path {
-  stroke: #b1b1b7;
+  stroke: var(--flow-edge, #b1b1b7);
   stroke-width: 1.5;
 }
 

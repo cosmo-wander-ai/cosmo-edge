@@ -325,13 +325,13 @@ const setRowIndex = ({ row, rowIndex }) => {
 
 const hightlight = ({ rowIndex }) => {
   if (activeIndex.value == rowIndex) {
-    return { 'background-color': 'rgba(24,144,255,.2)' }
+    return { 'background-color': 'var(--theme-accent-soft, rgba(24,144,255,.2))' }
   }
 }
 
 const shieldHightlight = ({ rowIndex }) => {
   if (shieldActiveIndex.value == rowIndex) {
-    return { 'background-color': 'rgba(24,144,255,.2)' }
+    return { 'background-color': 'var(--theme-accent-soft, rgba(24,144,255,.2))' }
   }
 }
 

@@ -432,7 +432,7 @@ onMounted(() => {
 <style lang="scss" scoped>
 .net-config {
   padding: 20px;
-  background: #fff;
+  background: var(--theme-surface, #fff);
   border-radius: 4px;
 
   .network-container {
@@ -446,7 +446,7 @@ onMounted(() => {
   }
 
   .network-card {
-    background: #fff;
+    background: var(--theme-surface, #fff);
     border-radius: 4px;
     padding: 20px;
     width: 400px;

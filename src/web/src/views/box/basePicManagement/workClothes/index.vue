@@ -418,7 +418,7 @@ onMounted(() => {
 .template-container {
   display: flex;
   height: 100%;
-  background: #fff;
+  background: var(--theme-surface, #fff);
   border-radius: 8px;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
   overflow: hidden;
@@ -437,7 +437,7 @@ onMounted(() => {
     justify-content: space-between;
     align-items: center;
     border-bottom: 1px solid var(--border-color);
-    background: #fff;
+    background: var(--theme-surface, #fff);
 
     .title {
       font-size: 16px;
@@ -517,7 +517,7 @@ onMounted(() => {
         font-size: 26px;
 
         &:hover {
-          background: rgba(88, 82, 223, 0.1);
+          background: var(--theme-accent-soft, rgba(88, 82, 223, 0.1));
           transform: scale(1.1);
         }
       }
@@ -531,7 +531,7 @@ onMounted(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--theme-surface, #fff);
 }
 
 .search-result-body {
@@ -574,7 +574,7 @@ onMounted(() => {
     .template-num {
       font-size: 14px;
       color: var(--text-secondary);
-      background: #f0f2f5;
+      background: var(--theme-surface-soft, #f0f2f5);
       padding: 4px 12px;
       border-radius: 12px;
       align-self: flex-start;
@@ -621,7 +621,7 @@ onMounted(() => {
     transition: border-color 0.15s;
 
     &:hover {
-      border-color: #c5c9d4;
+      border-color: var(--theme-border, #c5c9d4);
     }
 
     &-selected {
@@ -644,7 +644,7 @@ onMounted(() => {
         height: 18px;
         border-radius: 4px;
         border: 1px solid var(--primary-color);
-        background-color: #fff;
+        background-color: var(--theme-surface, #fff);
       }
 
       :deep(.is-checked .el-checkbox__inner) {
@@ -678,7 +678,7 @@ onMounted(() => {
         position: static;
         padding: 12px;
         color: var(--text-primary);
-        background: #fff;
+        background: var(--theme-surface, #fff);
         border-top: 1px solid var(--border-light);
 
         .info-item {
@@ -711,7 +711,7 @@ onMounted(() => {
         opacity: 1;
         margin-top: auto;
         padding: 8px 12px;
-        background: #fff;
+        background: var(--theme-surface, #fff);
         border-top: 1px solid var(--border-light);
 
         .operation-tools {
@@ -756,7 +756,7 @@ onMounted(() => {
   align-items: center;
   background: var(--bg-secondary);
   border-radius: 8px;
-  border: 2px dashed #dee2e6;
+  border: 2px dashed var(--theme-border, #dee2e6);
 }
 
 .operation-tools {

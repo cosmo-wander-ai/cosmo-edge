@@ -10,6 +10,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { SwitchButton, Menu, House, View, Document, VideoCamera, Connection, Cpu, Picture, Headset, Iphone, Link, Setting, DataBoard, Monitor, Box } from '@element-plus/icons-vue'
 import EventBus from '@/components/eventBus.js'
 import OnboardingGuide from '@/components/OnboardingGuide.vue'
+import ThemeSwitcher from '@/components/ThemeSwitcher.vue'
 import menuData from './menu.js'
 import md5 from 'js-md5'
 import { currentLocale, localeOptions, setLocale, t, tShort } from '@/i18n'
@@ -421,6 +422,7 @@ const handleReboot = () => {
           <!-- <h2 class="page-title">边缘智能中枢</h2> -->
         </div>
         <div class="header-right">
+          <ThemeSwitcher />
           <button class="header-btn" @click="handleReboot">
               <el-icon><SwitchButton /></el-icon>
           </button>
@@ -508,8 +510,8 @@ const handleReboot = () => {
 .sidebar {
   width: 200px;
   flex-shrink: 0;
-  background: var(--bg-white);
-  color: #4f596b;
+  background: var(--bg-shell, var(--bg-white));
+  color: var(--secondary-color);
   border-right: 1px solid var(--border-color);
   transition: width .2s ease;
   display: flex;
@@ -617,7 +619,7 @@ const handleReboot = () => {
 }
 
 .menu-container::-webkit-scrollbar-thumb {
-  background: #d3d9e2;
+  background: var(--theme-scrollbar, #d3d9e2);
   border-radius: 2px;
 }
 
@@ -654,7 +656,7 @@ const handleReboot = () => {
 }
 
 .menu-item.is-active {
-  background: #eeedf9;
+  background: var(--theme-selected-bg, #eeedf9);
   box-shadow: inset 2px 0 var(--primary-color);
   color: var(--primary-color);
 }
@@ -675,7 +677,7 @@ const handleReboot = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #657084;
+  color: var(--text-secondary);
 }
 
 .menu-title {
@@ -685,7 +687,7 @@ const handleReboot = () => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: #4f596b;
+  color: var(--secondary-color);
 }
 
 .menu-arrow {
@@ -720,7 +722,7 @@ const handleReboot = () => {
 }
 
 .submenu-item.is-active {
-  background: #eeedf9;
+  background: var(--theme-selected-bg, #eeedf9);
 }
 
 .submenu-item.is-active .submenu-title {
@@ -730,7 +732,7 @@ const handleReboot = () => {
 
 .submenu-title {
   font-size: 12px;
-  color: #4f596b;
+  color: var(--secondary-color);
 }
 
 .submenu-enter-active, .submenu-leave-active {
@@ -753,7 +755,7 @@ const handleReboot = () => {
 .main-header {
   height: 64px;
   flex-shrink: 0;
-  background: var(--bg-white);
+  background: var(--bg-shell, var(--bg-white));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -785,7 +787,7 @@ const handleReboot = () => {
   height: 32px;
   border: 0;
   background: none;
-  color: #4f596b;
+  color: var(--secondary-color);
   border-radius: 5px;
   cursor: pointer;
   display: flex;
@@ -825,8 +827,8 @@ const handleReboot = () => {
 .avatar {
   width: 28px;
   height: 28px;
-  background: #eeedf9;
-  border: 1px solid #dedaf6;
+  background: var(--theme-selected-bg, #eeedf9);
+  border: 1px solid var(--theme-selected-border, #dedaf6);
   color: var(--primary-color);
   border-radius: 50%;
   display: flex;

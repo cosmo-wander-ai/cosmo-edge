@@ -63,6 +63,7 @@
       </div>
       <div class="time">{{ currentTime }}</div>
       <div class="right-tools">
+        <ThemeSwitcher />
         <button type="button" class="header-btn" @click="handleSettingClick"><el-icon><Setting /></el-icon>{{ t('action.settings') }}</button>
         <button type="button" class="header-btn" @click="toggleFullScreen"><el-icon><FullScreen /></el-icon>{{ isFullScreen ? t('event.exitFullscreen') : t('event.fullscreen') }}</button>
         <button type="button" class="header-btn" @click="exitFullScreen"><el-icon><Back /></el-icon>{{ t('action.goBack') }}</button>
@@ -213,19 +214,19 @@
         <el-form :model="settingForm" :rules="settingRules" ref="settingFormRef" label-position="right" label-width="180px">
           <el-form-item>
             <template #label>
-              <span style="color: #20222d; font-weight: 500;">{{ t('event.alarmPopup') }}</span>
+              <span style="color: var(--text-primary); font-weight: 500;">{{ t('event.alarmPopup') }}</span>
             </template>
             <el-switch size="small" v-model="settingForm.popUpSwitch" :active-value="1" :inactive-value="0"></el-switch>
           </el-form-item>
           <el-form-item>
             <template #label>
-              <span style="color: #20222d; font-weight: 500;">{{ t('event.alarmSound') }}</span>
+              <span style="color: var(--text-primary); font-weight: 500;">{{ t('event.alarmSound') }}</span>
             </template>
             <el-switch size="small" v-model="settingForm.audioPlay" :active-value="1" :inactive-value="0"></el-switch>
           </el-form-item>
           <el-form-item :label="t('event.popupDurationSeconds')" prop="popUpDuration">
             <template #label>
-              <span style="color: #20222d; font-weight: 500; display:inline-block;">
+              <span style="color: var(--text-primary); font-weight: 500; display:inline-block;">
                 {{ t('event.popupDurationSeconds') }}
                 <el-tooltip effect="dark" :content="t('event.popupDurationTip')" placement="top">
                   <i class='el-icon-question' />
@@ -254,6 +255,7 @@ import { ref, watch, onMounted, onBeforeUnmount, getCurrentInstance } from 'vue'
 import beepOgg from '@/assets/beep.ogg'
 import { Search, Setting, FullScreen, Back, Refresh, ArrowLeft, ArrowRight, VideoCamera, Bell } from '@element-plus/icons-vue'
 import flv from '../components/flvVideo.vue'
+import ThemeSwitcher from '@/components/ThemeSwitcher.vue'
 import DetailDialog from '../components/detailDialog.vue'
 import CaptureDialog from '../components/captureDialog.vue'
 import moment from 'moment'
@@ -987,10 +989,10 @@ onBeforeUnmount(() => {
 
 <style lang="scss" scoped>
 .main-body {
-  --screen-text: #20222d;
-  --screen-muted: #657084;
-  --screen-border: #dce1e8;
-  --screen-accent: #5852df;
+  --screen-text: var(--text-primary);
+  --screen-muted: var(--text-secondary);
+  --screen-border: var(--border-color);
+  --screen-accent: var(--primary-color);
   --screen-stage: #171c24;
   position: relative;
   display: flex;
@@ -999,7 +1001,7 @@ onBeforeUnmount(() => {
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
-  background: #f3f5f8;
+  background: var(--bg-primary);
   color: var(--screen-text);
 }
 
@@ -1023,7 +1025,7 @@ button:focus-visible {
   gap: 6px 20px;
   padding: 6px 16px;
   border-bottom: 1px solid var(--screen-border);
-  background: #fff;
+  background: var(--bg-white);
 
   .title {
     min-width: 0;
@@ -1049,7 +1051,7 @@ button:focus-visible {
   padding: 3px;
   border: 1px solid var(--screen-border);
   border-radius: 6px;
-  background: #f3f5f8;
+  background: var(--bg-primary);
 }
 
 .screen-btn {
@@ -1064,7 +1066,7 @@ button:focus-visible {
 
   &.is-active {
     color: var(--screen-accent);
-    background: #fff;
+    background: var(--bg-white);
     box-shadow: 0 1px 3px #20222d14;
     font-weight: 600;
   }
@@ -1095,7 +1097,7 @@ button:focus-visible {
   font-size: 13px;
 
   .el-icon { font-size: 16px; }
-  &:hover { color: var(--screen-text); background: #f3f5f8; }
+  &:hover { color: var(--screen-text); background: var(--bg-primary); }
 }
 
 .content,
@@ -1113,7 +1115,7 @@ button:focus-visible {
   width: 40px;
   min-width: 0;
   min-height: 0;
-  background: #fff;
+  background: var(--bg-white);
   overflow: hidden;
   box-sizing: border-box;
 }
@@ -1143,7 +1145,7 @@ button:focus-visible {
   vertical-align: middle;
 
   .el-icon { font-size: 17px; }
-  &:hover { background: #f3f5f8; color: var(--screen-accent); }
+  &:hover { background: var(--bg-primary); color: var(--screen-accent); }
 }
 
 .select-area-tools,
@@ -1179,7 +1181,7 @@ button:focus-visible {
   padding: 0 10px 10px;
 
   :deep(.el-input) { flex: 0 0 auto; margin-bottom: 10px; }
-  :deep(.el-input__wrapper) { background: #fff; }
+  :deep(.el-input__wrapper) { background: var(--bg-white); }
   :deep(.el-input__inner) { height: 30px; color: var(--screen-text); }
 
   .tree-body {
@@ -1197,11 +1199,11 @@ button:focus-visible {
   :deep(.el-tree-node__content) {
     height: 34px;
     border-radius: 5px;
-    &:hover { background: #f3f5f8; }
+    &:hover { background: var(--bg-primary); }
   }
 
   :deep(.el-tree-node.is-current > .el-tree-node__content) {
-    background: #efedff;
+    background: var(--theme-selected-bg, #efedff);
     color: var(--screen-accent);
   }
 }
@@ -1220,7 +1222,7 @@ button:focus-visible {
   min-width: 0;
   min-height: 0;
   padding: 6px;
-  background: #e9edf2;
+  background: var(--theme-stage-surround, #e9edf2);
   box-sizing: border-box;
 }
 
@@ -1312,10 +1314,10 @@ button:focus-visible {
   padding: 10px;
   border: 1px solid var(--screen-border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--bg-white);
   cursor: pointer;
 
-  &:hover { border-color: #aaa6e8; background: #fcfcff; }
+  &:hover { border-color: var(--theme-selected-border, #aaa6e8); background: var(--theme-hover-bg, #fcfcff); }
   &:last-child { margin-bottom: 0; }
 }
 
@@ -1324,7 +1326,7 @@ button:focus-visible {
   width: 100%;
   height: 142px;
   margin-bottom: 10px;
-  background: #f3f5f8;
+  background: var(--bg-primary);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -1361,7 +1363,7 @@ button:focus-visible {
   width: min(900px, calc(100vw - 48px));
   max-height: calc(100dvh - 48px);
   overflow: auto;
-  background: #fff;
+  background: var(--bg-white);
   color: var(--screen-text);
   border: 1px solid var(--screen-border);
   border-top: 3px solid #d95545;
@@ -1371,14 +1373,14 @@ button:focus-visible {
   .alert-top-title { padding: 18px 24px; border-bottom: 1px solid var(--screen-border); font-size: 22px; font-weight: 650; }
   .alert-body { display: flex; gap: 24px; padding: 24px; }
   .alert-left { flex: 1.5; min-width: 0; }
-  .warn-one-body { width: 100%; height: 340px; background: #f3f5f8; border-radius: 6px; overflow: hidden; }
+  .warn-one-body { width: 100%; height: 340px; background: var(--bg-primary); border-radius: 6px; overflow: hidden; }
   .warn-one-body :deep(.el-image) { width: 100%; height: 100%; }
   .warn-two-body { display: flex; flex-direction: column; gap: 16px; }
   .event-image-container { display: flex; gap: 12px; }
   .event-image-item { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 8px; text-align: center; }
-  .event-image-item :deep(.el-image) { width: 100%; height: 230px; background: #f3f5f8; border-radius: 6px; }
+  .event-image-item :deep(.el-image) { width: 100%; height: 230px; background: var(--bg-primary); border-radius: 6px; }
   .image-label { color: var(--screen-muted); font-size: 13px; }
-  .match-info { display: flex; justify-content: center; gap: 14px; padding: 12px; background: #f3f5f8; border-radius: 6px; font-size: 17px; }
+  .match-info { display: flex; justify-content: center; gap: 14px; padding: 12px; background: var(--bg-primary); border-radius: 6px; font-size: 17px; }
   .match-score { color: var(--screen-accent); font-weight: 600; }
   .alert-right { display: flex; flex: 1; min-width: 0; flex-direction: column; justify-content: center; gap: 28px; }
   .info-label { margin-bottom: 8px; color: var(--screen-muted); font-size: 13px; }
@@ -1392,7 +1394,7 @@ button:focus-visible {
 
 :deep(.el-dialog) {
   max-width: calc(100vw - 32px);
-  background: #fff;
+  background: var(--bg-white);
   border: 1px solid var(--screen-border);
   border-radius: 10px;
   box-shadow: 0 20px 64px #151c3633;

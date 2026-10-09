@@ -275,17 +275,17 @@ onBeforeUnmount(() => {
   }
 
   &.good {
-    background: #edf6f0;
+    background: var(--theme-success-soft, #edf6f0);
     color: var(--success-color);
   }
 
   &.warning {
-    background: #fbf4e6;
+    background: var(--theme-warning-soft, #fbf4e6);
     color: var(--warning-color);
   }
 
   &.danger {
-    background: #fbebee;
+    background: var(--theme-danger-soft, #fbebee);
     color: var(--danger-color);
   }
 }

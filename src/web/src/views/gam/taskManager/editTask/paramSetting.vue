@@ -95,11 +95,11 @@ const handleKeyDown = (e) => {
 }
 
 .mv-table-card-wrap {
-  background: #fff;
+  background: var(--theme-surface, #fff);
   height: 100%;
 }
 .rightlable {
-  color: #ccc;
+  color: var(--theme-text-muted, #ccc);
   font-style: normal;
   margin-left: 20px;
 }

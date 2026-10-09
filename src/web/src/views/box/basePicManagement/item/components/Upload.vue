@@ -112,7 +112,7 @@ watch(() => props.fileList, (n) => {
       // Media overlays keep their own contrast and centering. The generic
       // table action style deliberately does not apply to these controls.
       .upload-btn {
-        background: #fff;
+        background: var(--theme-surface, #fff);
         border: 1px solid var(--border-color);
         color: var(--secondary-color);
         box-shadow: none;
@@ -138,8 +138,8 @@ watch(() => props.fileList, (n) => {
     align-items: center;
     justify-content: center;
     font-size: 40px;
-    color: #c0ccda;
-    border: 1px dashed #c0ccda;
+    color: var(--theme-text-muted, #c0ccda);
+    border: 1px dashed var(--theme-border-light, #c0ccda);
     &:hover {
       border: 1px dashed var(--primary-color);
     }

@@ -12,7 +12,7 @@
       </div>
 
       <!-- 列表视图 -->
-      <el-table :data="tableData" :header-cell-style="{ background: '#fafafa' }" style="width: 100%" :height="tableHeight"
+      <el-table :data="tableData" :header-cell-style="{ background: 'var(--theme-surface-soft, #fafafa)' }" style="width: 100%" :height="tableHeight"
         @selection-change="handleSelectionChange">
         <el-table-column type="selection" min-width="55"></el-table-column>
         <el-table-column type="index" :index="getIndex" :label="t('field.no')" width="80"></el-table-column>
@@ -91,7 +91,7 @@
         </el-table-column>
         <el-table-column :label="t('field.status')" min-width="90">
           <template #default="scope">
-            <span :style="{ color: scope.row.reportStatus === 1 ? '#67C23A' : '#F56C6C' }">
+            <span :style="{ color: scope.row.reportStatus === 1 ? 'var(--theme-success, #67C23A)' : 'var(--theme-danger, #F56C6C)' }">
               {{ scope.row.reportStatus === 1 ? t('event.uploaded') : t('event.notUploaded') }}
             </span>
           </template>
@@ -583,7 +583,7 @@ onBeforeUnmount(() => {
 
 <style lang="scss" scoped>
 .table-container {
-  background-color: #fff;
+  background-color: var(--theme-surface, #fff);
   padding: 0 15px;
   margin-top: 16px;
 
@@ -616,7 +616,7 @@ onBeforeUnmount(() => {
       top: 10px;
       left: 10px;
       z-index: 1;
-      background-color: rgba(255, 255, 255, 0.8);
+      background-color: var(--theme-surface, rgba(255, 255, 255, 0.8));
       padding: 1px 3px;
     }
 
@@ -672,7 +672,7 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  background-color: #fff;
+  background-color: var(--theme-surface, #fff);
 }
 
 .operation-tools {

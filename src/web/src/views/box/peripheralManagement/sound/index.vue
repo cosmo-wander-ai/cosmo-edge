@@ -489,7 +489,7 @@ onMounted(() => {
 .btnIconfont {
   padding: 0 30px;
   button {
-    background-color: #3598ff;
+    background-color: var(--theme-accent-button, #3598ff);
     border-radius: 6px;
     color: #fff;
     font-size: 14px;
@@ -499,7 +499,7 @@ onMounted(() => {
     }
   }
   button:nth-last-child(1) {
-    background: var(--danger-color);
+    background: var(--theme-danger-button, var(--danger-color));
   }
 }
 
@@ -523,7 +523,7 @@ onMounted(() => {
 }
 
 .warning-icon {
-  color: #1890ff;
+  color: var(--theme-accent, #1890ff);
   margin-right: 5px;
 }
 
@@ -540,7 +540,7 @@ onMounted(() => {
 }
 
 .table-container {
-  background-color: #fff;
+  background-color: var(--theme-surface, #fff);
   padding: 0 15px;
   margin-top: 16px;
 

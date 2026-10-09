@@ -705,7 +705,7 @@ const onPreviewImageLoad = () => {
   position: relative;
   width: 100%;
   height: 240px;
-  background: #f8f9fb;
+  background: var(--theme-surface-soft, #f8f9fb);
   overflow: hidden;
 }
 
@@ -811,7 +811,7 @@ const onPreviewImageLoad = () => {
 
 .preview-image-wrap {
   text-align: center;
-  background: #f8f9fb;
+  background: var(--theme-surface-soft, #f8f9fb);
   border-radius: var(--radius-sm, 4px);
   padding: 8px;
   display: flex;

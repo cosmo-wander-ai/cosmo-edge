@@ -130,7 +130,7 @@ const handleDelete = () => {
 
 <style scoped>
 .action-node {
-  background: #ffffff;
+  background: var(--flow-node);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   width: 96px;
@@ -145,13 +145,13 @@ const handleDelete = () => {
 }
 
 .action-node:hover {
-  border-color: #90cdf4;
+  border-color: var(--flow-node-hover-border);
 }
 
 /* 选中态：indigo 发光边框 */
 .action-node.selected {
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(88, 82, 223, 0.2);
+  box-shadow: 0 0 0 3px var(--flow-selected-ring);
 }
 
 .node-card {
@@ -175,10 +175,10 @@ const handleDelete = () => {
   justify-content: center;
 }
 
-.node-icon-wrapper.icon-blue   { background: #eff6ff; color: var(--primary-color); }
-.node-icon-wrapper.icon-purple { background: var(--el-color-primary-light-9); color: var(--primary-dark); }
-.node-icon-wrapper.icon-orange { background: #fff7ed; color: #ea580c; }
-.node-icon-wrapper.icon-green  { background: #f0fdf4; color: var(--success-color); }
+.node-icon-wrapper.icon-blue   { background: var(--flow-icon-blue-bg); color: var(--primary-color); }
+.node-icon-wrapper.icon-purple { background: var(--flow-icon-purple-bg); color: var(--flow-icon-purple-text); }
+.node-icon-wrapper.icon-orange { background: var(--flow-icon-orange-bg); color: var(--flow-icon-orange-text); }
+.node-icon-wrapper.icon-green  { background: var(--flow-icon-green-bg); color: var(--flow-icon-green-text); }
 .node-icon-wrapper.icon-gray   { background: var(--bg-secondary); color: var(--text-secondary); }
 
 .node-icon-svg {
@@ -189,7 +189,7 @@ const handleDelete = () => {
 .node-name {
   font-size: 10px;
   font-weight: 500;
-  color: #374151;
+  color: var(--flow-node-text);
   text-align: center;
   line-height: 1.25;
   word-break: normal;
@@ -209,7 +209,7 @@ const handleDelete = () => {
   height: 18px;
   border-radius: 50%;
   border: 1px solid var(--danger-color);
-  background-color: #ffffff;
+  background-color: var(--flow-delete-bg);
   color: var(--danger-color);
   font-size: 12px;
   line-height: 1;
@@ -219,6 +219,6 @@ const handleDelete = () => {
 }
 
 .node-delete:hover {
-  background-color: #fef0f0;
+  background-color: var(--flow-delete-hover);
 }
 </style>

@@ -43,28 +43,28 @@
                 <div class="analytical">
                   <div class="task_text">{{ resolveResourceAlgorithmName(item) }}</div>
                 </div>
-                <el-switch class="task-switch" v-model="item.enableStatus" active-color="#216e53" :active-value="1" :inactive-value="0" @change="taskEnableChange(item, scope.row.videoChannelId)"></el-switch>
+                <el-switch class="task-switch" v-model="item.enableStatus" active-color="var(--theme-success, #216e53)" :active-value="1" :inactive-value="0" @change="taskEnableChange(item, scope.row.videoChannelId)"></el-switch>
                 <div class="rtspa" v-if="item.status == 1">
                   <div class="rtspa_one">
-                    <i style="width: 6px; height: 6px; border-radius: 50%; background-color: #32dda1;display: block; "></i>
+                    <i style="width: 6px; height: 6px; border-radius: 50%; background-color: var(--theme-success, #32dda1);display: block; "></i>
                   </div>
                   <div class="Task_status">{{ t('status.inProgress') }}</div>
                 </div>
                 <div class="run-status" v-if="item.status == 0">
                   <div class="rtspa_one">
-                    <i style=" width: 6px;height: 6px;border-radius: 50%;background-color: #f52828; display: block;"></i>
+                    <i style=" width: 6px;height: 6px;border-radius: 50%;background-color: var(--theme-danger, #f52828); display: block;"></i>
                   </div>
                   <div class="Task_status">{{ t('status.stopped') }}</div>
                 </div>
                 <div class="rtspa" v-if="item.status == -1">
                   <div class="rtspa_one">
-                    <i style=" width: 6px;height: 6px;border-radius: 50%;background-color: #ebb563; display: block;"></i>
+                    <i style=" width: 6px;height: 6px;border-radius: 50%;background-color: var(--theme-warning, #ebb563); display: block;"></i>
                   </div>
                   <div class="Task_status">{{ t('status.paused') }}</div>
                 </div>
                 <div class="rtspa" v-if="item.status == 2">
                   <div class="rtspa_one">
-                    <i style=" width: 6px; height: 6px; border-radius: 50%;background-color: #fca60b; display: block;"></i>
+                    <i style=" width: 6px; height: 6px; border-radius: 50%;background-color: var(--theme-warning, #fca60b); display: block;"></i>
                   </div>
                   <div class="Task_status">{{ t('status.abnormal') }}</div>
                 </div>
@@ -93,17 +93,17 @@
         <el-table-column :label="t('field.channelStatus')" :width="currentLocale === 'en-US' ? '150px' : '110px'" fixed="right" show-overflow-tooltip>
           <template #default="scope">
             <template v-if="scope.row.channelStatus == 3">
-              <span v-if="scope.row.channelType !== 3" style="color:green;">{{ t('status.online') }}</span>
+              <span v-if="scope.row.channelType !== 3" style="color:var(--theme-success, green);">{{ t('status.online') }}</span>
               <br />
-              <span style="color:red;">({{ t('status.unsupportedResolution') }})</span>
+              <span style="color:var(--theme-danger, red);">({{ t('status.unsupportedResolution') }})</span>
             </template>
             <template v-else-if="scope.row.channelStatus == 2">
-              <span v-if="scope.row.channelType !== 3" style="color:green;">{{ t('status.online') }}</span>
+              <span v-if="scope.row.channelType !== 3" style="color:var(--theme-success, green);">{{ t('status.online') }}</span>
               <br />
-              <span style="color:red;">({{ t('status.validationError') }})</span>
+              <span style="color:var(--theme-danger, red);">({{ t('status.validationError') }})</span>
             </template>
             <template v-else-if="scope.row.channelStatus == 1">
-              <span style="color:green;">{{ t('status.online') }}</span>
+              <span style="color:var(--theme-success, green);">{{ t('status.online') }}</span>
             </template>
             <template v-else>
               <span v-if="scope.row.channelType !== 3">{{ t('status.offline') }}</span>
@@ -805,7 +805,7 @@ const selectRow = ref([])
 
 const rowClass = ({ rowIndex }) => {
   if (selectRow.value.includes(rowIndex)) {
-    return { 'background-color': 'rgba(185, 221, 249, 0.75)' }
+    return { 'background-color': 'var(--theme-accent-soft, rgba(185, 221, 249, 0.75))' }
   }
 }
 
@@ -866,7 +866,7 @@ const setDefaultImage = (e) => {
   padding: 0 0 12px;
 
   :deep(.el-button.is-disabled) {
-    background-color: #eef1f5 !important;
+    background-color: var(--theme-surface-soft, #eef1f5) !important;
     border-color: var(--border-color) !important;
     color: var(--text-secondary) !important;
     cursor: not-allowed;
@@ -880,17 +880,17 @@ const setDefaultImage = (e) => {
 }
 
 .mv-table-wrap .stop-button {
-  background: #34b7b2;
-  border-color: #34b7b2;
+  background: var(--theme-success, #34b7b2);
+  border-color: var(--theme-success, #34b7b2);
 }
 
 .mv-table-wrap .delet-button {
-  background: #ef5858;
-  border-color: #ef5858;
+  background: var(--theme-danger, #ef5858);
+  border-color: var(--theme-danger, #ef5858);
 }
 
 .mv-table-wrap {
-  background: white;
+  background: var(--theme-surface, white);
   border-radius: 8px;
 }
 
@@ -948,7 +948,7 @@ const setDefaultImage = (e) => {
   // background: url(../../../../assets/diagnose_warning.png) no-repeat center;
   background-size: 100% 100%;
   margin-right: 10px;
-  color: red;
+  color: var(--theme-danger, red);
   font-size: 16px;
   cursor: pointer;
 }
@@ -957,7 +957,7 @@ const setDefaultImage = (e) => {
   display: flex;
   margin: 12px 12px 0px 12px;
   padding: 12px;
-  background-color: #fff;
+  background-color: var(--theme-surface, #fff);
 }
 
 /*算法授权不足*/

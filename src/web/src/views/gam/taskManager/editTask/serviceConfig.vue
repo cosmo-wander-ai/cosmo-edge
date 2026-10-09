@@ -16,7 +16,7 @@
                   <span v-if="!data.algorithmCode" class="custom-treeText">{{ resolveAlgorithmCategoryName(data) }}</span>
                   <span v-else class="custom-treeText">{{ resolveAlgorithmName(data) }}</span>
                   <span v-if="data.algorithmCode">
-                    <el-icon v-if="data.isSave == true" class="el-menu-icon" color="#67C23A">
+                    <el-icon v-if="data.isSave == true" class="el-menu-icon" color="var(--theme-success, #67C23A)">
                       <CircleCheckFilled />
                     </el-icon>
                   </span>
@@ -1135,7 +1135,7 @@ onMounted(() => {
   margin-top: 12px;
   padding-right: 12px;
   height: 56px;
-  background: #ffffff;
+  background: var(--theme-surface, #ffffff);
 }
 
 .serve-types {
@@ -1196,7 +1196,7 @@ onMounted(() => {
 }
 
 .green-circle {
-  background-color: #5cb5b1;
+  background-color: var(--theme-success, #5cb5b1);
 }
 
 :deep(.hint) {
@@ -1228,7 +1228,7 @@ onMounted(() => {
 :deep(.el-tree--highlight-current
     .el-tree-node.is-current
     > .el-tree-node__content) {
-  background-color: rgba(135, 206, 235, 0.2);
+  background-color: var(--theme-accent-soft, rgba(135, 206, 235, 0.2));
 }
 
 .LargeModelAlgorithmConfiguration {

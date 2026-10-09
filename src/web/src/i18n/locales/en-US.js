@@ -1,4 +1,10 @@
 export default {
+  appearance: {
+    switch: 'Appearance',
+    light: 'Light',
+    dark: 'Dark',
+    system: 'System'
+  },
   visualQuestions: {
     "decisionMode": "Result handling",
     "reviewOnly": "Record reviews only",
