@@ -9,8 +9,8 @@
       <span style="font-size: 12px; color: #1890FF; margin-left: 125px;">{{ t('basePic.photoSizeTip') }}</span>
 
       <div class="obsBtoon">
-        <el-button @click="submitForm('ruleForm')" type="primary" size="small">{{ t('action.save') }}</el-button>
         <el-button @click="handleClose" size="small">{{ t('action.cancel') }}</el-button>
+        <el-button @click="submitForm('ruleForm')" type="primary" size="small">{{ t('action.save') }}</el-button>
       </div>
     </div>
   </el-dialog>

@@ -152,8 +152,40 @@ const nodeTypes = {
 .flow-wrap {
   width: 100%;
   height: 400px;
-  border: 1px solid var(--el-border-color, var(--border-color));
-  border-radius: 6px;
-  background: #fff;
+  border: 0;
+  border-radius: 0;
+  background: var(--bg-white);
+
+  :deep(.box-node-container) {
+    background: var(--bg-white);
+    border-color: var(--border-color);
+    border-radius: 8px;
+    box-shadow: var(--shadow-sm);
+  }
+
+  :deep(.node-header),
+  :deep(.config-title) {
+    color: var(--text-primary);
+  }
+
+  :deep(.config-section) {
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  :deep(.custom-table .el-table__header-wrapper th) {
+    background-color: #f8f9fb !important;
+    color: var(--text-primary);
+  }
+
+  :deep(.el-input.is-disabled .el-input__inner) {
+    color: var(--secondary-color);
+    -webkit-text-fill-color: var(--secondary-color);
+  }
+
+  :deep(.el-select__wrapper.is-disabled .el-select__selected-item) {
+    color: var(--secondary-color);
+  }
 }
 </style>

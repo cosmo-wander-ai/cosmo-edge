@@ -1,5 +1,5 @@
 <template>
-  <el-dialog v-if="dialogVisible" class="dialogtype ui-admin-dialog" :title="t('basePic.captureAddTitle')" v-model="dialogVisible" @close="handleClose" width="1046px" center>
+  <el-dialog v-if="dialogVisible" class="dialogtype ui-admin-dialog ui-scroll-dialog" :title="t('basePic.captureAddTitle')" v-model="dialogVisible" @close="handleClose" width="1046px" center>
     <div class="container">
       <div class="wrap-left">
         <div class="cardleft">
@@ -65,10 +65,12 @@
         </div>
       </div>
     </div>
-    <div class="footer-btn">
-      <el-button type="primary" @click="save" size="small">{{ t('action.save') }}</el-button>
-      <el-button @click="handleClose" size="small">{{ t('action.cancel') }}</el-button>
-    </div>
+    <template #footer>
+      <div class="dialog-footer footer-btn">
+        <el-button @click="handleClose" size="small">{{ t('action.cancel') }}</el-button>
+        <el-button type="primary" @click="save" size="small">{{ t('action.save') }}</el-button>
+      </div>
+    </template>
   </el-dialog>
 </template>
 
@@ -308,7 +310,7 @@ const setBlockListDefault = () => {
 
 <style lang="scss" scoped>
 .container {
-  margin-bottom: 50px;
+  margin-bottom: 16px;
   display: flex;
 }
 .footer-btn {
@@ -333,12 +335,17 @@ const setBlockListDefault = () => {
     flex-wrap: wrap;
     .picture {
       position: relative;
-      width: 84px;
-      height: 100px;
+      width: 120px;
+      height: 90px;
+      max-width: 100%;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      background: var(--bg-primary);
       margin: 0 10px 16px 0;
       img {
         width: 100%;
         height: 100%;
+        object-fit: contain;
       }
       .close {
         position: absolute;

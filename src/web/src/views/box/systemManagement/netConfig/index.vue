@@ -9,7 +9,7 @@
                 <div class="title">
                   <span class="title-label">{{ t('systemManage.nameLabel') }}</span>
                   <span class="title-content">{{ item.ethName }}</span>
-                  <el-button type="primary" size="small" @click="handleEdit(item,index)">{{ item.isEdit ? t('action.save') : t('action.edit') }}</el-button>
+                  <el-button type="primary" size="small" :class="item.isEdit ? 'network-save' : 'network-edit ui-action ui-action-edit'" @click="handleEdit(item,index)">{{ item.isEdit ? t('action.save') : t('action.edit') }}</el-button>
                 </div>
               </div>
               <div class="card-content">
@@ -450,7 +450,10 @@ onMounted(() => {
     border-radius: 4px;
     padding: 20px;
     width: 400px;
-    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+    max-width: 100%;
+    min-width: 0;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
 
     .card-header {
       display: flex;
@@ -461,7 +464,15 @@ onMounted(() => {
       .title {
         display: flex;
         align-items: center;
-        font-size: 16px;
+        width: 100%;
+        min-width: 0;
+        gap: 8px;
+        font-size: 15px;
+      }
+
+      .el-button {
+        flex-shrink: 0;
+        margin-left: auto;
       }
 
       span {
@@ -470,15 +481,20 @@ onMounted(() => {
       }
 
       .title-label {
-        width: 90px;
-        margin-right: 10px;
+        flex: 0 0 90px;
+        margin-right: 0;
         text-align: right;
       }
 
       .title-content {
-        width: 220px;
-        margin-right: 10px;
+        flex: 1;
+        min-width: 0;
+        margin-right: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
         text-align: left;
+        color: var(--text-primary);
       }
     }
 
@@ -490,15 +506,35 @@ onMounted(() => {
           color: var(--text-secondary);
         }
 
-        .el-input {
-          width: 220px;
+        .el-form-item__content {
+          min-width: 0;
+        }
+
+        .el-input,
+        .el-select {
+          width: 100%;
+          min-width: 0;
         }
       }
 
       .ip-input {
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
+        width: 100%;
+        min-width: 0;
+
+        .el-input {
+          flex: 1 1 140px;
+          width: auto;
+          min-width: 0;
+        }
+
+        .el-button {
+          flex: 0 0 auto;
+          margin-left: 0;
+        }
       }
     }
   }

@@ -610,7 +610,7 @@ const goBack = () => {
   display: inline-block;
   line-height: 32px;
   margin-right: 10px;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   font-size: 20px;
   /*设置字体大小*/
   font-weight: 400;
@@ -640,14 +640,14 @@ const goBack = () => {
   :deep(.el-tabs--border-card) {
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
-    box-shadow: var(--shadow-sm);
+    box-shadow: none;
     background: var(--bg-white);
     overflow: hidden;
   }
 
   :deep(.el-tabs--border-card > .el-tabs__header) {
-    background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-white);
+    border-bottom: 1px solid var(--border-light);
     margin: 0;
     padding: 8px 12px;
   }
@@ -666,9 +666,9 @@ const goBack = () => {
   }
 
   :deep(.el-tabs--border-card .el-tabs__item.is-active) {
-    background: var(--bg-secondary);
+    background: var(--el-color-primary-light-9);
     color: var(--primary-color);
-    box-shadow: 0 2px 8px rgba(88, 82, 223, 0.25);
+    box-shadow: inset 0 -2px 0 var(--primary-color);
   }
 
   :deep(.el-tabs__content) {
@@ -710,8 +710,9 @@ const goBack = () => {
   display: inline-block;
   padding: 5px 10px;
   border-radius: 5px;
-  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3),
-    -2px -2px 5px rgba(255, 255, 255, 0.5);
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  box-shadow: none;
 }
 
 .form-content {

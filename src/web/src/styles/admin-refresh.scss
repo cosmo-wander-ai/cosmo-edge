@@ -401,3 +401,22 @@
   .template-item .item-actions { width: 100%; justify-content: flex-end; }
   .template-item .item-actions .el-button { font-size: 12px; }
 }
+
+// Tall media dialogs keep their actions reachable at short viewport heights.
+.el-dialog.ui-admin-dialog.ui-scroll-dialog {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 48px);
+  margin: 24px auto;
+
+  > .el-dialog__header,
+  > .el-dialog__footer { flex-shrink: 0; }
+
+  > .el-dialog__body {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  > .el-dialog__footer .footer-btn { justify-content: flex-end; }
+}

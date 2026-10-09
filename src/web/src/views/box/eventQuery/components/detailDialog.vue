@@ -1,6 +1,6 @@
 <template>
   <div>
-    <el-dialog :model-value="show" :title="t('event.eventDetails')" width="800px" center @close="close" class="ui-admin-dialog">
+    <el-dialog :model-value="show" :title="t('event.eventDetails')" width="800px" center @close="close" class="ui-admin-dialog ui-scroll-dialog">
       <div v-if="show" class="content-body">
         <div class="info-item">
           <span class="info-item-title">{{ t('event.alarmType') }}{{ localeColon }}</span>
@@ -52,6 +52,7 @@
             <span class="info-item-title">{{ t('event.baseImage') }}{{ localeColon }}</span>
             <el-image 
               class="capture-img3" 
+              v-if="workClothesRecognitionData.baseImageUrl"
               :src="workClothesRecognitionData.baseImageUrl" 
               fit="contain" 
               :preview-src-list="[workClothesRecognitionData.baseImageUrl]"
@@ -66,17 +67,18 @@
                 </div>
               </template>
             </el-image>
+            <span v-else class="image-missing">{{ t('common.noData') }}</span>
           </div>
 
           <div class="info-item">
             <span class="info-item-title">{{ t('event.workClothesLibrary') }}{{ localeColon }}</span>
-            <span class="info-item-content">{{ workClothesRecognitionData.groupName }}</span>
+            <span class="info-item-content">{{ workClothesRecognitionData.groupName || t('common.noData') }}</span>
           </div>
 
           <div class="info-item">
             <span class="info-item-title">{{ t('event.similarity') }}{{ localeColon }}</span>
             <span class="info-item-content">
-              {{ formatSimilarity(workClothesRecognitionData.matchDegree) }}
+              {{ formatSimilarity(workClothesRecognitionData.matchDegree) || t('common.noData') }}
             </span>
           </div>
         </template>
@@ -87,6 +89,7 @@
             <span class="info-item-title">{{ t('event.baseImage') }}{{ localeColon }}</span>
             <el-image 
               class="capture-img3" 
+              v-if="machineMaterialData.baseImageUrl"
               :src="machineMaterialData.baseImageUrl" 
               fit="contain" 
               :preview-src-list="[machineMaterialData.baseImageUrl]"
@@ -101,17 +104,18 @@
                 </div>
               </template>
             </el-image>
+            <span v-else class="image-missing">{{ t('common.noData') }}</span>
           </div>
 
           <div class="info-item">
             <span class="info-item-title">{{ t('event.machineMaterialLibrary') }}{{ localeColon }}</span>
-            <span class="info-item-content">{{ machineMaterialData.groupName }}</span>
+            <span class="info-item-content">{{ machineMaterialData.groupName || t('common.noData') }}</span>
           </div>
 
           <div class="info-item">
             <span class="info-item-title">{{ t('event.similarity') }}{{ localeColon }}</span>
             <span class="info-item-content">
-              {{ formatSimilarity(machineMaterialData.matchDegree) }}
+              {{ formatSimilarity(machineMaterialData.matchDegree) || t('common.noData') }}
             </span>
           </div>
         </template>
@@ -209,6 +213,18 @@ watch(() => props.visible, (val) => {
   width: 77px;
   height: 32px;
   padding: 0px;
+}
+
+.image-missing {
+  width: 176px;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  border: 1px dashed var(--border-color);
+  border-radius: 6px;
 }
 
 .content-body {

@@ -979,7 +979,7 @@ watch(
   height: 100%;
   display: flex;
   flex-direction: column;
-  background-color: var(--bg-primary);
+  background-color: var(--bg-white);
 }
 
 .page-header {
@@ -1010,6 +1010,26 @@ watch(
   width: 100%;
   height: 100%;
   overflow: hidden;
+}
+
+.page-main :deep(.vue-flow__controls) {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.page-main :deep(.vue-flow__controls-button) {
+  color: var(--secondary-color);
+  background: var(--bg-white);
+  border-bottom-color: var(--border-light);
+}
+
+.page-main :deep(.edge-menu) {
+  color: var(--text-primary);
+  background: var(--bg-white);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
 }
 
 
@@ -1055,13 +1075,13 @@ watch(
 :deep(.el-dialog) {
   border-radius: var(--radius-sm);
   overflow: hidden;
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-md);
 }
 
 :deep(.el-dialog__header) {
   margin: 0;
   padding: 14px 16px;
-  background: var(--bg-secondary);
+  background: var(--bg-white);
 }
 
 :deep(.el-dialog__title) {

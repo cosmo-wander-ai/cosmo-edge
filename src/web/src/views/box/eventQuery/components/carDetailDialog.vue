@@ -1,6 +1,6 @@
 <template>
   <div>
-    <el-dialog :model-value="show" :title="t('action.details')" width="800px" center @close="close" class="ui-admin-dialog">
+    <el-dialog :model-value="show" :title="t('action.details')" width="800px" center @close="close" class="ui-admin-dialog ui-scroll-dialog">
       <div v-if="show" class="content-body">
         <div class="info-item">
           <span class="info-item-title">{{ t('event.eventType') }}{{ localeColon }}</span>

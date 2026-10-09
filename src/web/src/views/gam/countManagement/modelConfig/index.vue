@@ -280,6 +280,7 @@ onMounted(() => {
 }
 
 .model-name {
+  color: var(--text-primary);
   font-size: 18px;
   font-weight: 600;
 }
@@ -314,6 +315,14 @@ onMounted(() => {
 
 .card {
   margin-top: 12px;
+  border-color: var(--border-color);
+  box-shadow: none;
+
+  :deep(.el-card__header) {
+    background: var(--bg-white);
+    border-bottom-color: var(--border-light);
+    color: var(--text-primary);
+  }
 }
 
 :deep(.el-card__header) {

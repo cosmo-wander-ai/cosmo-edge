@@ -50,7 +50,7 @@
                   <el-checkbox :value="multipleSelections.includes(item.id)" @change="checked => handleGridSelect(checked, item)"></el-checkbox>
                 </div>
                 <div class="grid-content">
-                  <el-image :src="item.pictureUrl" fit="fill" class="grid-image" @click="proxy.$imgView([item.pictureUrl])"></el-image>
+                  <el-image :src="item.pictureUrl" fit="contain" class="grid-image" @click="proxy.$imgView([item.pictureUrl])"></el-image>
                   <div v-if="runMode != 1" class="grid-actions">
                     <div class="operation-tools">
                       <el-button link class="danger-text ui-action ui-action-delete" @click="handleDeleteWorkCloth([item.id])">{{ t('action.delete') }}</el-button>
@@ -669,7 +669,8 @@ onMounted(() => {
         flex: 0 0 220px;
         width: 100%;
         height: 220px;
-        object-fit: cover;
+        object-fit: contain;
+        background: var(--bg-primary);
         cursor: pointer;
       }
 

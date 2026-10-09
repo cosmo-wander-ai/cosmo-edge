@@ -20,8 +20,8 @@
             <el-input-number v-model="formData.fullPictureQuality" :min="1" :max="99" size="small" style="width: 120px" :controls="false" @change="handleQualityChange" />
           </el-form-item>
 
-          <el-form-item :label="t('systemManage.panoramaOverlay')">
-            <el-checkbox :value="isAllChecked" @change="handleCheckAll">{{ t('systemManage.selectAll') }}</el-checkbox>
+          <el-form-item class="overlay-options" :label="t('systemManage.panoramaOverlay')">
+            <el-checkbox class="select-all" :value="isAllChecked" @change="handleCheckAll">{{ t('systemManage.selectAll') }}</el-checkbox>
             <div class="checkbox-group">
               <el-checkbox v-model="formData.alarmNameOverlay" :true-value="1" :false-value="0">{{ t('systemManage.overlayAlarmType') }}</el-checkbox>
               <el-checkbox v-model="formData.areaOverlay" :true-value="1" :false-value="0">{{ t('systemManage.overlayAreaDetection') }}</el-checkbox>
@@ -203,11 +203,13 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .warning-set {
-  display: flex;  
-  flex-wrap: wrap;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 
   .warning-set-form {
-    width: 900px;
+    width: 100%;
+    max-width: 900px;
   }
 
   .section-title {
@@ -218,9 +220,28 @@ onMounted(() => {
     border-left: 4px solid var(--primary-color);
   }
 
+  .overlay-options :deep(.el-form-item__content) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px 24px;
+  }
+
+  .select-all {
+    flex-shrink: 0;
+    margin: 0;
+  }
+
   .checkbox-group {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
+    gap: 8px 24px;
+    min-width: 0;
+
+    .el-checkbox {
+      margin: 0;
+    }
   }
 
   .time-input {
@@ -230,8 +251,18 @@ onMounted(() => {
   }
 
   .form-footer {
-    margin-top: 20px;
-    text-align: center;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    width: 100%;
+    max-width: 900px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-light);
+
+    .el-button + .el-button {
+      margin-left: 0;
+    }
   }
 }
 </style>
