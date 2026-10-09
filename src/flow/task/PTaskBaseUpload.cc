@@ -253,78 +253,77 @@ void PTaskBase::DetTargetHandFullPicture(AlgDataPtr algData, MsgPTaskDetectPicRe
     }
 }
 
+namespace {
+    std::pair<util::ErrorEnum, VideoFramePtr> DecodePictureInput(MsgPictureInput& input) {
+        const int sources = int(!input.imageData.empty() || !input.uploadId.empty()) +
+                            int(!input.imageBase64.empty()) + int(!input.imageUrl.empty());
+        if (sources != 1 || (!input.uploadId.empty() && input.imageData.empty()))
+            return {util::ErrorEnum::InvalidParam, nullptr};
+        std::vector<uint8_t> bytes = std::move(input.imageData);
+        if (!input.imageBase64.empty())
+            bytes = util::DecBase64Vec(input.imageBase64);
+        if (!input.imageUrl.empty() &&
+            !service::ServiceRegistry::Instance().Get<service::IFileService>().DownloadFile(input.imageUrl,
+                                                                                            bytes))
+            return {util::ErrorEnum::ImageDownloadFailed, nullptr};
+        if (bytes.empty() || bytes.size() > media::kVideoFrameMaxSize)
+            return {util::ErrorEnum::ImageContentSizeInvalid, nullptr};
+        auto frame = service::ServiceRegistry::Instance().Get<service::IVideoFrameCodec>().DecodeJpeg(bytes);
+        frame      = NormalizePicInputForInference(frame);
+        if (!VideoFrameValid(frame))
+            return {util::ErrorEnum::ImageDecodeFailed, nullptr};
+        return {util::ErrorEnum::Success, frame};
+    }
+}  // namespace
+
 util::ErrorEnum PTaskBase::TaskDetectPic(PTaskElementPtr task, MsgPTaskDetectPicRecv& inData,
                                          MsgPTaskDetectPicSend& retData) {
-    // Orchestration config is empty
-    if (!task) {
-        LOG_ERRO("{}", "Task Is Empty");
+    if (!task)
         return util::ErrorEnum::NotCreated;
+    const bool paired      = std::any_of(task->actions.begin(), task->actions.end(),
+                                         [](const auto& e) { return e.action.actionId == PAPairMatch_Code; });
+    retData.resData.status = "failed";
+    if (paired && !inData.referenceImage.HasInput()) {
+        retData.resData.errorSide = "B";
+        return util::ErrorEnum::PicturePairInputRequired;
     }
-
-    AlgDataPtr algData                                  = std::make_shared<AlgData>();
-    std::pair<util::ErrorEnum, VideoFramePtr> imageData = {util::ErrorEnum::Success, nullptr};
-    if (!inData.imageData.empty() || !inData.imageBase64.empty()) {
-        auto vecPicBin = inData.imageData.empty() ? std::move(util::DecBase64Vec(inData.imageBase64))
-                                                  : std::move(inData.imageData);
-        if (vecPicBin.empty()) {
-            imageData = {util::ErrorEnum::ImageContentDecryptionFailed, nullptr};
-        } else {
-            auto frame =
-                service::ServiceRegistry::Instance().Get<service::IVideoFrameCodec>().DecodeJpeg(vecPicBin);
-            if (!VideoFrameValid(frame)) {
-                imageData = {util::ErrorEnum::ImageDecodeFailed, nullptr};
-            } else {
-                auto inferFrame = NormalizePicInputForInference(frame);
-                if (!inferFrame) {
-                    imageData = {util::ErrorEnum::ImageDecodeFailed, nullptr};
-                } else {
-                    imageData = {util::ErrorEnum::Success, inferFrame};
-                }
-            }
+    if (!paired && inData.referenceImage.HasInput())
+        return util::ErrorEnum::PicturePairUnexpectedReference;
+    MsgPictureInput primary{inData.imageBase64, inData.imageUrl, inData.uploadId,
+                            std::move(inData.imageData)};
+    if (paired && !primary.HasInput()) {
+        retData.resData.errorSide = "A";
+        return util::ErrorEnum::PicturePairInputRequired;
+    }
+    auto [status, frame] = DecodePictureInput(primary);
+    if (status != util::ErrorEnum::Success) {
+        if (paired)
+            retData.resData.errorSide = "A";
+        return status;
+    }
+    auto input               = std::make_shared<AlgData>();
+    input->chanDataDec.frame = frame;
+    AlgDataPtr peer;
+    if (paired) {
+        auto [peerStatus, peerFrame] = DecodePictureInput(inData.referenceImage);
+        if (peerStatus != util::ErrorEnum::Success) {
+            retData.resData.errorSide = "B";
+            return peerStatus;
         }
-    } else {
-        std::vector<u_char> data;
-        if (!service::ServiceRegistry::Instance().Get<service::IFileService>().DownloadFile(inData.imageUrl,
-                                                                                            data)) {
-            LOG_WARN("Download {} Failed", inData.imageUrl);
-            imageData = {util::ErrorEnum::ImageDownloadFailed, nullptr};
-        } else {
-            if ((data.size() < 100) || (data.size() > media::kVideoFrameMaxSize)) {
-                LOG_WARN(" Download File {} Size ({}) is out of range", inData.imageUrl, data.size());
-                imageData = {util::ErrorEnum::ImageContentSizeInvalid, nullptr};
-            } else {
-                auto frame =
-                    service::ServiceRegistry::Instance().Get<service::IVideoFrameCodec>().DecodeJpeg(data);
-                if (!VideoFrameValid(frame)) {
-                    imageData = {util::ErrorEnum::ImageDecodeFailed, nullptr};
-                } else {
-                    auto inferFrame = NormalizePicInputForInference(frame);
-                    if (!inferFrame) {
-                        imageData = {util::ErrorEnum::ImageDecodeFailed, nullptr};
-                    } else {
-                        imageData = {util::ErrorEnum::Success, inferFrame};
-                    }
-                }
-            }
-        }
+        peer                    = std::make_shared<AlgData>();
+        peer->chanDataDec.frame = peerFrame;
     }
-    if (imageData.first != util::ErrorEnum::Success) {
-        LOG_INFO("{}", "Pic Dec Failed");
-        return imageData.first;
-    }
-    algData->chanDataDec.frame = imageData.second;
-
-    if (!algData->chanDataDec.frame || (!algData->chanDataDec.frame->Active())) {
-        LOG_WARN("Picture decode failed for task {}", inData.taskId);
-        return util::ErrorEnum::ImageDecodeFailed;
-    }
-
-    AlgDataPtr rendered;
-    const auto result = ExecutePicture(task, algData, inData, retData, rendered);
-    if (result != util::ErrorEnum::Success)
-        return result;
+    AlgDataPtr rendered, referenceRendered;
+    status = ExecutePicture(task, input, inData, retData, rendered, peer, &referenceRendered);
+    if (status != util::ErrorEnum::Success)
+        return status;
     if (inData.needRetImg && rendered)
         DetTargetHandFullPicture(rendered, inData, retData);
+    if (inData.needRetImg && referenceRendered) {
+        MsgPTaskDetectPicSend referenceResponse;
+        DetTargetHandFullPicture(referenceRendered, inData, referenceResponse);
+        retData.resData.referencePicture = referenceResponse.resData.fullPicture;
+    }
     return util::ErrorEnum::Success;
 }
 

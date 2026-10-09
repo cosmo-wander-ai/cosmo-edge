@@ -344,10 +344,13 @@ const emit = defineEmits(['config-change', 'picture-match-param-change'])
 const isPictureLibraryMatch = computed(
   () => (props.actionDetail?.actionId || props.actionDetail?.id) === 'PB_00006'
 )
+const isPicturePairMatch = computed(() => (props.actionDetail?.actionId || props.actionDetail?.id) === 'PB_00007')
+const isPictureComparison = computed(() => isPictureLibraryMatch.value || isPicturePairMatch.value)
+const isPairThreshold = item => isPicturePairMatch.value && item.key === 'pair.threshold'
 const isPictureMatchLibrary = item => isPictureLibraryMatch.value &&
   (item.key === 'param.faceSet' || item.key === 'param.workClothesSet')
 const updatePictureMatchParam = (item, value) => {
-  if (!isPictureMatchLibrary(item) && !(isPictureLibraryMatch.value && item.key === 'param.limitScore')) return
+  if (!isPairThreshold(item) && !isPictureMatchLibrary(item) && !(isPictureLibraryMatch.value && item.key === 'param.limitScore')) return
   // Only explicit edits update scene defaults; hydration must not overwrite them.
   emit('picture-match-param-change', { ...item, value: String(value ?? ''), defaultValue: String(value ?? '') })
 }
@@ -497,14 +500,14 @@ onMounted(() => {
   const params = JSON.parse(props.actionDetail.inputParamConfig)
   params.forEach((item, index) => {
     // Nonempty scene defaults override node params during picture execution.
-    const sceneDefault = isPictureLibraryMatch.value &&
-      (isPictureMatchLibrary(item) || item.key === 'param.limitScore')
+    const sceneDefault = (isPairThreshold(item) || (isPictureLibraryMatch.value &&
+      (isPictureMatchLibrary(item) || item.key === 'param.limitScore')))
       ? props.sceneParams.find(param => param.key === item.key)?.defaultValue
       : undefined
-    const input = sceneDefault !== undefined && sceneDefault !== null && String(sceneDefault) !== ''
+    const input = sceneDefault !== undefined && sceneDefault !== null && (isPairThreshold(item) || String(sceneDefault) !== '')
       ? { value: sceneDefault }
       : _.find(props.configObject?.params, { key: item.key }) ||
-        (isPictureLibraryMatch.value && _.find(props.configObject?.webConfig?.metaDataParams, { key: item.key }))
+        (isPictureComparison.value && _.find(props.configObject?.webConfig?.metaDataParams, { key: item.key }))
     if (input) {
       paramConfigs.value.push({
         ...item,
@@ -989,7 +992,7 @@ const showFormItem = (obj) => {
   ) {
     return false
   }
-  if (obj.level === '2' && !(isPictureLibraryMatch.value && obj.key === 'param.limitScore')) return false
+  if (obj.level === '2' && !isPairThreshold(obj) && !(isPictureLibraryMatch.value && obj.key === 'param.limitScore')) return false
   if (hiddenParamKeys.includes(obj.key)) return false
   return isDependsOnSatisfied(obj)
 }
@@ -1564,9 +1567,9 @@ const submitForm = () => {
     }
     // Picture execution does not have a channel form to materialize defaults.
     configObject.webConfig.metaDataParams.forEach(item => {
-      const value = isPictureLibraryMatch.value ? (item.value ?? item.defaultValue) : (item.value || item.defaultValue)
-      if (isPictureLibraryMatch.value) item.defaultValue = value
-      if (value !== undefined && (value !== '' || isPictureMatchLibrary(item)) && !configObject.params.some(param => param.key === item.key)) {
+      const value = isPictureComparison.value ? (item.value ?? item.defaultValue) : (item.value || item.defaultValue)
+      if (isPictureComparison.value) item.defaultValue = value
+      if (value !== undefined && (value !== '' || isPictureMatchLibrary(item) || isPairThreshold(item)) && !configObject.params.some(param => param.key === item.key)) {
         configObject.params.push({ key: item.key, value: String(value) })
       }
     })

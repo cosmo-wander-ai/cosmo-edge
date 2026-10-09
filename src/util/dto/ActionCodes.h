@@ -126,6 +126,7 @@ inline constexpr std::string_view PALogicalJudgment_Name = "逻辑判断";
 inline constexpr std::string_view PAOcr_Code           = "PA_00011";
 inline constexpr std::string_view PAFilter_Code        = "PB_00002";
 inline constexpr std::string_view PAOutput_Code        = "PB_00004";
+inline constexpr std::string_view PAPairMatch_Code     = "PB_00007";
 inline constexpr std::string_view PAMatch_Code         = "PB_00006";
 inline constexpr std::string_view PAImageJudgment_Code = "PB_90003";
 inline constexpr std::string_view PABranch_Code        = "PB_90002";

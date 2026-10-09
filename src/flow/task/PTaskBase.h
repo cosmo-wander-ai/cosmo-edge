@@ -103,12 +103,17 @@ public:
     // Execute an already decoded frame. Shared by the HTTP path and deterministic workflow tests.
     util::ErrorEnum ExecutePicture(PTaskElementPtr task, AlgDataPtr input,
                                    const MsgPTaskDetectPicRecv& request, MsgPTaskDetectPicSend& response,
-                                   AlgDataPtr& rendered);
+                                   AlgDataPtr& rendered, AlgDataPtr reference = nullptr,
+                                   AlgDataPtr* referenceRendered = nullptr);
 
     // Apply task parameters to algorithm action instances
     bool ModifyTaskParam(PTaskElementPtr task, MsgTaskConfig& param);
 
 private:
+    util::ErrorEnum ExecutePictureImpl(PTaskElementPtr task, AlgDataPtr input,
+                                       const MsgPTaskDetectPicRecv& request, MsgPTaskDetectPicSend& response,
+                                       AlgDataPtr& rendered, AlgDataPtr reference,
+                                       AlgDataPtr* referenceRendered, bool referencePass);
     void UploadImage(std::vector<uint8_t>& data, const std::string& url, const std::string& sign);
     void DetTargetHandFullPicture(AlgDataPtr algData, MsgPTaskDetectPicRecv& data,
                                   MsgPTaskDetectPicSend& retData);

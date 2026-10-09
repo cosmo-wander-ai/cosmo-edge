@@ -313,6 +313,42 @@ mtk: <MTK>
 
 `uploadId`、`imageBase64` 和 `imageUrl` 只能选择一种。JSON 请求体默认上限为 1 MB，因此生产接入和高清图片应使用 `uploadId`。使用 `imageUrl` 时，URL 必须可从 CosmoEdge 设备访问，下载失败会返回业务错误。
 
+### 双图人脸 / 工服比对
+
+选择内置场景 `93000002`（双图人脸比对）或 `93000058`（双图工服比对）创建图片任务，再向同一个接口提供两个输入。主输入是图片 A，`referenceImage` 是图片 B；每一侧分别选择 `uploadId`、`imageBase64`、`imageUrl` 中的一种。两个上传 ID 必须属于当前认证用户，只消费一次。
+
+```json
+{
+  "taskId": "pair-example",
+  "algorithmCode": "93000002",
+  "uploadId": "<IMAGE_A_UPLOAD_ID>",
+  "referenceImage": { "uploadId": "<IMAGE_B_UPLOAD_ID>" },
+  "resultMode": "business",
+  "needRetImg": true,
+  "taskConfig": { "params": [{ "key": "pair.threshold", "value": "80" }] }
+}
+```
+
+两张图片使用相同的模型和参数，分别执行检测、筛选、关键点（人脸）及特征提取。每张图片必须恰有一个符合条件的目标。双图场景无需底库，不支持区域、分支、多目标配对或 `legacy` 结果模式。原有单图任务和底库比对接口保持兼容。
+
+成功时，`resData.comparison` 始终包含 `score`，取值为 0–100；低于阈值仍然返回实际分数。`pair.threshold` 留空表示只输出分数，返回 `decision: "score_only"`，不返回 `threshold`。省略参数则继续使用场景默认值；传入空字符串可以清除已保存的阈值。设置阈值时，分数大于等于阈值返回 `matched`，否则为 `not_matched`。
+
+```json
+{
+  "nodeId": "comparison-node",
+  "featureType": "face",
+  "decision": "matched",
+  "score": 87.25,
+  "threshold": 80
+}
+```
+
+图片 A 的目标和结果图片仍在 `targetList`、`fullPicture`；图片 B 使用 `referenceTargetList`、`referencePicture`。目标框是各自原图的像素坐标，可用于展示裁剪图。`needRetImg: false` 时不生成结果图片；`debug` 模式下节点记录的 `imageSide` 区分 A、B 和双方比对。
+
+未检测到有效目标、多目标、无效特征、无效分数配置和解码失败均属于执行错误：响应 `resCode` 为失败，`resMsg` 给出具体原因，`resData.errorSide` 指出 `A`、`B` 或 `both`，且不返回成功的 `comparison.score`。有效的 0 分是一次成功比对，不能等同于这些错误。
+
+分数是模型标定后的相似度，不是身份概率。工服场景复用人体外观特征模型，其分数表示人体外观相似程度，不能解释为“穿同款工服”的概率。
+
 ## 6. 解析编排结果
 
 图片接口默认使用 `resultMode: "business"`，顺着配置的模型、筛选、判断和输出节点执行，返回 `schemaVersion: 2`。图片任务没有检测区域：不配置区域，不接受非空 `taskConfig.areas` 或 `shieldedAreas`，新响应没有 `areaList`。

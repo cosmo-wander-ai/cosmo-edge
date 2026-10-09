@@ -2,6 +2,7 @@
 
 #include "infer/AiRecognizerInterface.h"
 
+#include "util/FeatureComparison.h"
 #include "util/Log.h"
 
 namespace cosmo {
@@ -58,6 +59,18 @@ float AiRecognizerInterface::CompareFeature(const AiFeature& feature1, const AiF
     reuse_obj_->ReturnInst(inst);
 
     return ret;
+}
+
+util::ErrorEnum AiRecognizerInterface::ComparePairFeatures(const AiFeature& left, const AiFeature& right,
+                                                           bool face, double& score) {
+    if (!reuse_obj_)
+        return util::ErrorEnum::NotInit;
+    auto inst = reuse_obj_->GetInst(alg_code_, cfg_path_, model_path_);
+    if (!inst)
+        return util::ErrorEnum::NotInit;
+    const auto levels = inst->GetScoreLevel();
+    reuse_obj_->ReturnInst(inst);
+    return util::ComparePictureFeatures(left.feature, right.feature, levels, face, score);
 }
 
 }  // namespace cosmo

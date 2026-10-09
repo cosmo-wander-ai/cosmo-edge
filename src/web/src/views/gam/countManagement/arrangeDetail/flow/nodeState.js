@@ -5,7 +5,7 @@ export const createEmptyNodeConfig = () => ({
   params: []
 })
 
-const pictureMatchKeys = new Set(['param.faceSet', 'param.workClothesSet', 'param.limitScore'])
+const pictureMatchKeys = new Set(['param.faceSet', 'param.workClothesSet', 'param.limitScore', 'pair.threshold'])
 
 // Deliberate node edits must also update scene defaults, which take precedence
 // over node parameters during image execution. Preserve ownership and labels.
@@ -20,6 +20,13 @@ export const updatePictureMatchDefaults = (params, changed) => {
   return source.map(param => param.key === changed.key ? { ...param, value, defaultValue: value } : param)
 }
 
+export const isPairPictureWorkflow = process => {
+  try {
+    const nodes = typeof process === 'string' ? JSON.parse(process) : process
+    return Array.isArray(nodes) && nodes.some(node => node.actionId === 'PB_00007')
+  } catch { return false }
+}
+
 // Read the actual graph, including old persisted metadata with both library fields.
 // Keep both bindings when separate match nodes genuinely use both library kinds.
 export const filterPictureLibraryParams = (params, process) => {
@@ -27,6 +34,7 @@ export const filterPictureLibraryParams = (params, process) => {
   try { if (typeof graph === 'string') graph = JSON.parse(graph) } catch { return params }
   if (!Array.isArray(graph)) return params
   const matches = graph.filter(node => node.actionId === 'PB_00006')
+  if (!matches.length && graph.some(node => node.actionId === 'PB_00007')) return params.filter(p => !['param.faceSet', 'param.workClothesSet', 'param.limitScore'].includes(p.key))
   if (!matches.length) return params
   const active = new Set(matches.map(node =>
     node.configObject?.params?.find(p => p.key === 'match.libraryType')?.value === 'body'

@@ -15,6 +15,9 @@ public:
     util::ErrorEnum Recognize(VideoFramePtr images, std::vector<AiDetectRstEl>& io_puts,
                               bool use_box = false);  // False use landmark, true use box.
 
+    util::ErrorEnum ComparePairFeatures(const AiFeature& left, const AiFeature& right, bool face,
+                                        double& score);
+
     float CompareFeature(const AiFeature& feature1, const AiFeature& feature2);
 
 private:

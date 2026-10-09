@@ -46,7 +46,8 @@ cosmo::util::ErrorEnum AlgorithmValidator::ParseAndValidatePacket(const std::str
         MsgAlgorithmMetaData pictureMetadata;
         if (DecodeAlgorithmMetadata(cfgInfo.algorithmMetadata, pictureMetadata)) {
             for (const auto& param : pictureMetadata.params) {
-                if (param.defaultValue.empty())
+                // An empty pair threshold explicitly requests scores without a decision.
+                if (param.defaultValue.empty() && param.key != "pair.threshold")
                     continue;
                 MsgDynamicKeyValue value;
                 value.key   = param.key;

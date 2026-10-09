@@ -12,6 +12,7 @@
 
 #include "api/MessageAlgorithmHandler.h"
 #include "api/MessageCameraHandler.h"
+#include "api/MessageHandler.h"
 #include "api/MessageImportFileHandler.h"
 #include "api/MessageModelHandler.h"
 #include "api/MessageSystemHandler.h"
@@ -28,6 +29,7 @@
 #include "mock/MockSystemOperationService.h"
 #include "mock/MockTaskService.h"
 #include "mock/MockTimeService.h"
+#include "service/media/IPicTaskDetect.h"
 #include "service/path/IUploadStagingService.h"
 #include "service/path/impl/UploadStagingServiceImpl.h"
 #include "support/ScopedServiceOverride.h"
@@ -39,6 +41,28 @@ namespace {
 
     namespace fs = std::filesystem;
     using trompeloeil::_;
+
+    class PictureConsumer : public service::IPicTaskDetect {
+    public:
+        MsgPTaskDetectPicRecv received;
+        int calls{0};
+        util::ErrorEnum DetectPic(const std::string&, MsgPTaskDetectPicRecv& data,
+                                  MsgPTaskDetectPicSend& output) override {
+            received = data;
+            ++calls;
+            output.resData.status = "completed";
+            return util::ErrorEnum::Success;
+        }
+        MsgPTaskCreateSend ProcessPTaskCreate(MsgPTaskCreateRecv&, std::error_condition&) override {
+            return {};
+        }
+        MsgPTaskCancleSend ProcessPTaskCancel(MsgPTaskCancleRecv&, std::error_condition&) override {
+            return {};
+        }
+        MsgDetectSend ProcessDetectGroup(MsgDetectRecv&, std::error_condition&) override {
+            return {};
+        }
+    };
 
     struct ModelConsumerMocks {
         test::MockModelService modelSvc;
@@ -440,6 +464,56 @@ TEST_CASE("Staged image batches are claimed atomically", "[upload-staging][api][
           util::ErrorEnum::Success);
     CHECK(staging.Cancel("owner", first.upload_id) == util::ErrorEnum::Success);
     CHECK(staging.Cancel("other", second.upload_id) == util::ErrorEnum::Success);
+}
+
+TEST_CASE("Dual-image HTTP requests consume both owner-bound uploads together",
+          "[picture][pair][upload-staging][api]") {
+    TempDirectory temp;
+    service::UploadStagingServiceImpl staging(MakeConfig(temp.Path() / "sessions"));
+    test::ScopedServiceOverride<service::IUploadStagingService> stagingRegistration(staging);
+    PictureConsumer consumer;
+    test::ScopedServiceOverride<service::IPicTaskDetect> detectionRegistration(consumer);
+    MessageHandler handler;
+    const auto bytes = util::DecBase64Vec(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=");
+    const std::string content(bytes.begin(), bytes.end());
+    const auto a = StageFile(staging, temp.Path(), "owner", service::UploadPurpose::kImage, "a.png", content);
+    const auto b = StageFile(staging, temp.Path(), "owner", service::UploadPurpose::kImage, "b.png", content);
+    MsgPTaskDetectPicRecv request;
+    request.algorithmCode           = "pair";
+    request.uploadId                = a.upload_id;
+    request.referenceImage.uploadId = b.upload_id;
+    std::error_condition error;
+    SECTION("both inputs reach a single detection call and cannot be replayed") {
+        handler.Handle(MsgPTaskDetectPicRecv(request), HttpContext("owner"), error);
+        REQUIRE(error == util::ErrorEnum::Success);
+        REQUIRE(consumer.calls == 1);
+        REQUIRE(consumer.received.imageData == bytes);
+        REQUIRE(consumer.received.referenceImage.imageData == bytes);
+        handler.Handle(std::move(request), HttpContext("owner"), error);
+        REQUIRE(error == util::ErrorEnum::NoSuchId);
+        REQUIRE(consumer.calls == 1);
+    }
+    SECTION("a conflicting B source rejects before either lease is consumed") {
+        request.referenceImage.imageBase64 = "conflicting";
+        handler.Handle(std::move(request), HttpContext("owner"), error);
+        REQUIRE(error == util::ErrorEnum::InvalidParam);
+        REQUIRE(consumer.calls == 0);
+        std::vector<std::vector<uint8_t>> images;
+        REQUIRE(detail::ConsumeStagedImages(HttpContext("owner"), {a.upload_id, b.upload_id}, images) ==
+                util::ErrorEnum::Success);
+    }
+    SECTION("a peer owned by somebody else leaves the primary upload available") {
+        const auto foreign =
+            StageFile(staging, temp.Path(), "other", service::UploadPurpose::kImage, "c.png", content);
+        request.referenceImage.uploadId = foreign.upload_id;
+        handler.Handle(std::move(request), HttpContext("owner"), error);
+        REQUIRE(error == util::ErrorEnum::AuthFailed);
+        REQUIRE(consumer.calls == 0);
+        std::vector<std::vector<uint8_t>> images;
+        REQUIRE(detail::ConsumeStagedImages(HttpContext("owner"), {a.upload_id, b.upload_id}, images) ==
+                util::ErrorEnum::Success);
+    }
 }
 
 TEST_CASE("File-consuming context handlers reject MQTT path requests", "[upload-staging][api][security]") {

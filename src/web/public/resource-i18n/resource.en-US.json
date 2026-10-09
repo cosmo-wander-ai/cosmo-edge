@@ -3644,5 +3644,15 @@
   "resource.param.picture.pa_00002.inputtype.option.image": "Whole image",
   "resource.param.picture.pda_00003.inputtype.name": "Judgment input",
   "resource.param.picture.pda_00003.inputtype.option.image": "Whole image",
-  "resource.param.picture.pda_00003.inputtype.option.targets": "Targets"
+  "resource.param.picture.pda_00003.inputtype.option.targets": "Targets",
+  "resource.param.picture.pb_00007.pair_featuretype.name": "Feature type",
+  "resource.param.picture.pb_00007.pair_featuretype.option.face": "Face",
+  "resource.param.picture.pb_00007.pair_featuretype.option.body": "Workwear",
+  "resource.param.picture.pb_00007.pair_threshold.name": "Threshold (0–100; empty for score only)",
+  "resource.action.pb_00007.actionname": "Two-image Feature Comparison",
+  "resource.action.pb_00007.remark": "Two-image Feature Comparison",
+  "resource.algorithm.93000002.algorithmname": "Two-image Face Comparison",
+  "resource.algorithm.93000002.remark": "Compare one target per image without a library. Returns similarity, not probability.",
+  "resource.algorithm.93000058.algorithmname": "Two-image Workwear Comparison",
+  "resource.algorithm.93000058.remark": "Compare one target per image without a library. Returns similarity, not probability."
 }

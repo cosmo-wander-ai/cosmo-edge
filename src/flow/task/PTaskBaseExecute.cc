@@ -1,8 +1,10 @@
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <map>
 #include <set>
 
+#include "flow/recognizer/PPicturePairMatch.h"
 #include "flow/task/PTaskBase.h"
 #include "util/StringUtil.h"
 #include "util/dto/ActionCodes.h"
@@ -22,7 +24,8 @@ namespace {
              {&defaults, &node.configObject.params, &scenario, &task.params, &request.params})
             for (const auto& param : *list) {
                 // Model identity belongs to the compiled plan, never a request override.
-                if (param.key == "atomicCode" && list != &node.configObject.params)
+                if ((param.key == "atomicCode" || param.key == "pair.featureType") &&
+                    list != &node.configObject.params)
                     continue;
                 merged[param.key.ToString()] = param;
             }
@@ -72,19 +75,51 @@ namespace {
 
 util::ErrorEnum PTaskBase::ExecutePicture(PTaskElementPtr task, AlgDataPtr input,
                                           const MsgPTaskDetectPicRecv& request,
-                                          MsgPTaskDetectPicSend& response, AlgDataPtr& rendered) {
+                                          MsgPTaskDetectPicSend& response, AlgDataPtr& rendered,
+                                          AlgDataPtr reference, AlgDataPtr* referenceRendered) {
+    const auto algorithmCode = response.resData.algorithmCode, timestamp = response.resData.timestamp;
+    response.resData               = {};
+    response.resData.algorithmCode = algorithmCode;
+    response.resData.timestamp     = timestamp;
+    response.resData.requestId     = request.requestId;
+    response.resData.schemaVersion = request.resultMode == "legacy" ? 1 : 2;
+    response.resData.status        = "failed";
+    rendered.reset();
+    if (referenceRendered)
+        referenceRendered->reset();
+    return ExecutePictureImpl(task, input, request, response, rendered, reference, referenceRendered, false);
+}
+
+util::ErrorEnum PTaskBase::ExecutePictureImpl(PTaskElementPtr task, AlgDataPtr input,
+                                              const MsgPTaskDetectPicRecv& request,
+                                              MsgPTaskDetectPicSend& response, AlgDataPtr& rendered,
+                                              AlgDataPtr reference, AlgDataPtr* referenceRendered,
+                                              bool referencePass) {
     if (!task || !input)
         return util::ErrorEnum::FlowDataInvalid;
     if (request.resultMode != "legacy" && request.resultMode != "business" && request.resultMode != "debug")
         return util::ErrorEnum::InvalidParam;
     if (!request.taskConfig.areas.empty() || !request.taskConfig.shieldedAreas.empty())
         return util::ErrorEnum::InvalidParam;
+    const bool paired = std::any_of(task->actions.begin(), task->actions.end(), [](const auto& entry) {
+        return entry.action.actionId == PAPairMatch_Code;
+    });
+    if (paired && request.resultMode == "legacy")
+        return util::ErrorEnum::InvalidParam;
+    if (paired && !referencePass && !reference)
+        return util::ErrorEnum::PicturePairInputRequired;
+    if (!paired && reference)
+        return util::ErrorEnum::PicturePairUnexpectedReference;
     const bool business  = request.resultMode != "legacy";
     auto& result         = response.resData;
     result.schemaVersion = business ? 2 : 1;
     result.requestId     = request.requestId.empty() ? util::GenerateUUID() : request.requestId;
     result.status        = "completed";
     result.errorNodeId.clear();
+    result.errorSide.clear();
+    result.comparison = {};
+    result.referencePicture.clear();
+    result.referenceTargetList.clear();
     result.outputs.clear();
     result.targetList.clear();
     result.areaList.clear();
@@ -102,12 +137,18 @@ util::ErrorEnum PTaskBase::ExecutePicture(PTaskElementPtr task, AlgDataPtr input
         const auto& node  = entry.action;
         const auto parent = frames.find(node.preFlowActionId);
         auto data         = AlgDataCopy(parent == frames.end() ? input : parent->second);
+        if (referencePass && node.actionId == PAPairMatch_Code) {
+            rendered = data;
+            return util::ErrorEnum::Success;
+        }
         const auto params = EffectiveParams(
             node, entry.modelParams, task->params, request.taskConfig,
             task->action_alg ? task->action_alg->pictureDefaults : std::vector<MsgDynamicKeyValue>{});
         MsgPTaskDetectPicSend::NodeResult trace;
-        trace.nodeId           = node.flowActionId;
-        trace.actionId         = node.actionId;
+        trace.nodeId   = node.flowActionId;
+        trace.actionId = node.actionId;
+        if (paired)
+            trace.imageSide = referencePass ? "B" : "A";
         trace.inputCount       = TargetCount(data);
         const auto start       = std::chrono::steady_clock::now();
         auto mutable_params    = params;
@@ -134,7 +175,82 @@ util::ErrorEnum PTaskBase::ExecutePicture(PTaskElementPtr task, AlgDataPtr input
                                              [](const auto& target) { return target.bFilter; }),
                               targets.end());
             }
-            status = entry.actionInst->HandPic(data);
+            if (paired && node.actionId == PARecognizer_Code) {
+                const auto count = TargetCount(data);
+                if (count != 1)
+                    status = count ? util::ErrorEnum::PicturePairMultipleTargets
+                                   : util::ErrorEnum::PicturePairNoTarget;
+            }
+            if (status == util::ErrorEnum::Success && node.actionId == PAPairMatch_Code) {
+                trace.imageSide = "both";
+                MsgPTaskDetectPicSend peerResponse;
+                AlgDataPtr peer;
+                status =
+                    ExecutePictureImpl(task, reference, request, peerResponse, peer, nullptr, nullptr, true);
+                for (const auto& peerTrace : peerResponse.resData.nodes)
+                    result.nodes.push_back(peerTrace);
+                if (status != util::ErrorEnum::Success) {
+                    result.errorSide   = "B";
+                    result.errorNodeId = peerResponse.resData.errorNodeId;
+                } else {
+                    auto match = std::dynamic_pointer_cast<PPicturePairMatch>(entry.actionInst);
+                    if (!match || TargetCount(data) != 1 || !peer || !peer->chanDataDetect.detRet) {
+                        status = util::ErrorEnum::PicturePairInvalidFeature;
+                    } else {
+                        auto& target = data->chanDataDetect.detRet->targets.front();
+                        // Reference debug data can include rejected detections. Select only the valid target.
+                        std::vector<AiDetectRstEl> valid;
+                        for (const auto& t : peer->chanDataDetect.detRet->targets)
+                            if (!t.bFilter)
+                                valid.push_back(t);
+                        peer->chanDataDetect.detRet->targets = std::move(valid);
+                        if (TargetCount(peer) != 1)
+                            status = util::ErrorEnum::PicturePairInvalidFeature;
+                        else {
+                            auto& other  = peer->chanDataDetect.detRet->targets.front();
+                            double score = 0;
+                            status       = match->Compare(target.feature, other.feature, score);
+                            if (status == util::ErrorEnum::Success) {
+                                auto& comparison       = result.comparison;
+                                comparison.nodeId      = node.flowActionId;
+                                comparison.featureType = Param(params, "pair.featureType", "face");
+                                comparison.hasScore    = true;
+                                comparison.score       = score;
+                                comparison.threshold   = match->Threshold().value_or(-1);
+                                comparison.decision =
+                                    !match->Threshold()
+                                        ? "score_only"
+                                        : (score >= *match->Threshold() ? "matched" : "not_matched");
+                                data->pictureDecision                   = comparison.decision;
+                                data->pictureDecisions[target.targetId] = comparison.decision;
+                                target.bLogicResult                     = comparison.decision == "matched";
+                                data->bHaveLogic                        = true;
+                                auto peerTarget                         = MakeTarget(other, *peer, true);
+                                peerTarget.targetId                     = "B:" + peerTarget.targetId;
+                                result.referenceTargetList.push_back(std::move(peerTarget));
+                                if (referenceRendered)
+                                    *referenceRendered = peer;
+                            }
+                        }
+                    }
+                    if (status != util::ErrorEnum::Success)
+                        result.errorSide = "both";
+                }
+            } else if (status == util::ErrorEnum::Success) {
+                status = entry.actionInst->HandPic(data);
+                if (paired && node.actionId == PARecognizer_Code && status == util::ErrorEnum::Success) {
+                    if (TargetCount(data) != 1)
+                        status = util::ErrorEnum::PicturePairInvalidFeature;
+                    else {
+                        const auto& feature = data->chanDataDetect.detRet->targets.front().feature.feature;
+                        if (feature.empty() ||
+                            !std::all_of(feature.begin(), feature.end(),
+                                         [](float v) { return std::isfinite(v); }) ||
+                            std::none_of(feature.begin(), feature.end(), [](float v) { return v != 0; }))
+                            status = util::ErrorEnum::PicturePairInvalidFeature;
+                    }
+                }
+            }
             if (data->chanDataDetect.detRet) {
                 auto& targets = data->chanDataDetect.detRet->targets;
                 for (size_t i = 0; i < targets.size(); ++i) {
@@ -153,9 +269,14 @@ util::ErrorEnum PTaskBase::ExecutePicture(PTaskElementPtr task, AlgDataPtr input
         trace.durationMs =
             std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
         if (status != util::ErrorEnum::Success) {
-            trace.status       = "failed";
-            result.status      = "failed";
-            result.errorNodeId = node.flowActionId;
+            trace.status  = "failed";
+            result.status = "failed";
+            if (result.errorNodeId.empty())
+                result.errorNodeId = node.flowActionId;
+            if (paired && result.errorSide.empty())
+                result.errorSide = referencePass ? "B" : "A";
+            result.comparison = {};
+            result.referenceTargetList.clear();
             result.outputs.clear();
             result.targetList.clear();
             result.nodes.push_back(trace);
@@ -170,7 +291,7 @@ util::ErrorEnum PTaskBase::ExecutePicture(PTaskElementPtr task, AlgDataPtr input
         MsgPTaskDetectPicSend::Output output;
         output.nodeId           = node.flowActionId;
         output.name             = Param(params, "output.name", task->GetAlgName());
-        const auto selection    = Param(params, "output.targets", "matched");
+        const auto selection    = paired ? "all" : Param(params, "output.targets", "matched");
         bool unknown            = false;
         bool onlyMissingSamples = true;
         if (data->pictureBranch && data->chanDataDetect.detRet) {

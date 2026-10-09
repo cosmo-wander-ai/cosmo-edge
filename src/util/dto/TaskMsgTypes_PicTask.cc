@@ -39,18 +39,29 @@ void from_json(const nlohmann::json& j, MsgPTaskCreateRecv& r) {
     JSON_OPT(j, r, taskConfig);
 }
 
+void to_json(nlohmann::json& j, const MsgPictureInput& v) {
+    j = {{"imageBase64", v.imageBase64}, {"imageUrl", v.imageUrl}, {"uploadId", v.uploadId}};
+}
+void from_json(const nlohmann::json& j, MsgPictureInput& v) {
+    JSON_OPT(j, v, imageBase64);
+    JSON_OPT(j, v, imageUrl);
+    JSON_OPT(j, v, uploadId);
+}
+
 void to_json(nlohmann::json& j, const MsgPTaskDetectPicRecv& r) {
     to_json(j, static_cast<const MsgRecvHead&>(r));
     j["algorithmCode"] = r.algorithmCode;
     j["taskId"]        = r.taskId;
     j["mvDebug"]       = r.mvDebug;
     j["imageBase64"]   = r.imageBase64;
-    j["imageUrl"]      = r.imageUrl;
-    j["uploadId"]      = r.uploadId;
-    j["taskConfig"]    = r.taskConfig;
-    j["needRetImg"]    = r.needRetImg;
-    j["resultMode"]    = r.resultMode;
-    j["requestId"]     = r.requestId;
+    if (r.referenceImage.HasInput())
+        j["referenceImage"] = r.referenceImage;
+    j["imageUrl"]   = r.imageUrl;
+    j["uploadId"]   = r.uploadId;
+    j["taskConfig"] = r.taskConfig;
+    j["needRetImg"] = r.needRetImg;
+    j["resultMode"] = r.resultMode;
+    j["requestId"]  = r.requestId;
 }
 
 void from_json(const nlohmann::json& j, MsgPTaskDetectPicRecv& r) {
@@ -59,6 +70,7 @@ void from_json(const nlohmann::json& j, MsgPTaskDetectPicRecv& r) {
     JSON_OPT(j, r, taskId);
     JSON_OPT(j, r, mvDebug);
     JSON_OPT(j, r, imageBase64);
+    JSON_OPT(j, r, referenceImage);
     JSON_OPT(j, r, imageUrl);
     JSON_OPT(j, r, uploadId);
     JSON_OPT(j, r, taskConfig);
@@ -178,6 +190,10 @@ void from_json(const nlohmann::json& j, MsgPTaskDetectPicSend::ResData& v) {
     JSON_OPT(j, v, requestId);
     JSON_OPT(j, v, status);
     JSON_OPT(j, v, errorNodeId);
+    JSON_OPT(j, v, errorSide);
+    JSON_OPT(j, v, comparison);
+    JSON_OPT(j, v, referencePicture);
+    JSON_OPT(j, v, referenceTargetList);
     JSON_OPT(j, v, outputs);
     JSON_OPT(j, v, nodes);
     JSON_OPT(j, v, targetList);
@@ -199,6 +215,13 @@ void to_json(nlohmann::json& j, const MsgPTaskDetectPicSend::ResData& v) {
         j["status"]        = v.status;
         j["outputs"]       = v.outputs;
         j["targetList"]    = v.targetList;
+        if (!v.errorSide.empty())
+            j["errorSide"] = v.errorSide;
+        if (!v.comparison.nodeId.empty()) {
+            j["comparison"]          = v.comparison;
+            j["referencePicture"]    = v.referencePicture;
+            j["referenceTargetList"] = v.referenceTargetList;
+        }
         if (!v.errorNodeId.empty())
             j["errorNodeId"] = v.errorNodeId;
         if (!v.nodes.empty())
@@ -225,6 +248,23 @@ void from_json(const nlohmann::json& j, MsgPTaskDetectPicSend::Output& v) {
     JSON_OPT(j, v, reason);
 }
 
+void to_json(nlohmann::json& j, const MsgPTaskDetectPicSend::Comparison& v) {
+    j = {{"nodeId", v.nodeId}, {"featureType", v.featureType}, {"decision", v.decision}};
+    if (v.hasScore)
+        j["score"] = v.score;
+    if (v.threshold >= 0)
+        j["threshold"] = v.threshold;
+}
+void from_json(const nlohmann::json& j, MsgPTaskDetectPicSend::Comparison& v) {
+    JSON_OPT(j, v, nodeId);
+    JSON_OPT(j, v, featureType);
+    JSON_OPT(j, v, decision);
+    v.hasScore = j.contains("score") && j["score"].is_number();
+    if (v.hasScore)
+        j.at("score").get_to(v.score);
+    JSON_OPT(j, v, threshold);
+}
+
 void to_json(nlohmann::json& j, const MsgPTaskDetectPicSend::NodeResult& v) {
     j["nodeId"]      = v.nodeId;
     j["actionId"]    = v.actionId;
@@ -232,6 +272,8 @@ void to_json(nlohmann::json& j, const MsgPTaskDetectPicSend::NodeResult& v) {
     j["inputCount"]  = v.inputCount;
     j["outputCount"] = v.outputCount;
     j["durationMs"]  = v.durationMs;
+    if (!v.imageSide.empty())
+        j["imageSide"] = v.imageSide;
 }
 
 void from_json(const nlohmann::json& j, MsgPTaskDetectPicSend::NodeResult& v) {
@@ -241,6 +283,7 @@ void from_json(const nlohmann::json& j, MsgPTaskDetectPicSend::NodeResult& v) {
     j.at("inputCount").get_to(v.inputCount);
     j.at("outputCount").get_to(v.outputCount);
     j.at("durationMs").get_to(v.durationMs);
+    JSON_OPT(j, v, imageSide);
 }
 
 }  // namespace cosmo

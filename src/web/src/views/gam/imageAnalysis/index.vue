@@ -20,6 +20,7 @@
           />
         </el-select>
         <el-upload
+          v-if="!pairMode"
           ref="uploadRef"
           action="#"
           :auto-upload="false"
@@ -35,13 +36,13 @@
           type="success"
           :icon="VideoPlay"
           :loading="analyzing"
-          :disabled="!selectedAlgorithm || uploadedFiles.length === 0"
+          :disabled="!selectedAlgorithm || loadingParameters || (pairMode ? !pairFiles.every(Boolean) : uploadedFiles.length === 0)"
           @click="startAnalysis"
         >
           {{ analyzing ? $t('imageAnalysis.analyzing') : $t('imageAnalysis.startAnalysis') }}
         </el-button>
         <el-button
-          v-if="uploadedFiles.length > 0"
+          v-if="pairMode ? pairFiles.some(Boolean) : uploadedFiles.length > 0"
           type="danger"
           plain
           :icon="Delete"
@@ -53,8 +54,8 @@
       </div>
       <div class="toolbar-right">
         <el-switch v-model="debugResults" :disabled="analyzing" :active-text="$t('imageAnalysis.debugResults')" />
-        <span class="file-count" v-if="uploadedFiles.length > 0">
-          {{ $t('imageAnalysis.selectedImages', { n: uploadedFiles.length }) }}
+        <span class="file-count" v-if="pairMode ? pairFiles.some(Boolean) : uploadedFiles.length > 0">
+          {{ $t('imageAnalysis.selectedImages', { n: pairMode ? pairFiles.filter(Boolean).length : uploadedFiles.length }) }}
         </span>
       </div>
     </div>
@@ -77,8 +78,10 @@
         </el-form>
       </el-collapse-item>
     </el-collapse>
+    <PairComparisonPanel v-if="pairMode" :files="pairFiles" :result="pairResult" :error="pairError"
+      :busy="analyzing" :debug="debugResults" @file-change="handlePairFileChange" />
     <!-- 内容区域 -->
-    <div class="content-section" v-if="uploadedFiles.length > 0 || results.length > 0">
+    <div class="content-section" v-else-if="uploadedFiles.length > 0 || results.length > 0">
       <!-- 图片预览 / 结果网格 -->
       <div class="image-grid">
         <div
@@ -261,8 +264,10 @@ import { Upload, VideoPlay, Delete } from '@element-plus/icons-vue'
 import { resolveResourceAlgorithmName, resolveI18nText, resolveI18nOptionLabel } from '@/utils/i18nResource'
 import { uploadFileInChunks, UploadPurpose } from '@/utils/chunkUpload'
 import LibrarySelect from '@/views/gam/countManagement/arrangeDetail/flow/LibrarySelect.vue'
-import { filterPictureLibraryParams } from '@/views/gam/countManagement/arrangeDetail/flow/nodeState'
+import { filterPictureLibraryParams, isPairPictureWorkflow } from '@/views/gam/countManagement/arrangeDetail/flow/nodeState'
 import LibraryMatchResults from './LibraryMatchResults.vue'
+import PairComparisonPanel from './PairComparisonPanel.vue'
+import { normalizeApiError } from '@/utils/apiError'
 
 const { proxy } = getCurrentInstance()
 const $API = proxy.$API
@@ -279,6 +284,11 @@ const taskId = ref(uuid())
 const debugResults = ref(false)
 const parameterFields = ref([])
 const parameterValues = ref({})
+const loadingParameters = ref(false)
+const pairMode = ref(false)
+const pairFiles = ref([null, null])
+const pairResult = ref(null)
+const pairError = ref(null)
 // Legacy scenes may label library bindings as text; their keys remain stable.
 const getLibraryType = field => {
   if (field?.key === 'param.faceSet' || field?.type === 'faceSet') return 'faceSet'
@@ -338,6 +348,11 @@ loadAlgorithms()
 
 // Handlers
 const handleAlgorithmChange = async (val) => {
+  loadingParameters.value = true
+  pairMode.value = false
+  pairResult.value = null
+  pairError.value = null
+  results.value = []
   if (taskCreated.value && selectedAlgorithmInfo.value) {
     // 切换前销毁旧的任务，释放显存
     const cancelParams = {
@@ -357,12 +372,14 @@ const handleAlgorithmChange = async (val) => {
     try {
       const detail = await $API.algorithmLayoutDetail({ id: alg.algorithmId })
       if (selectedAlgorithm.value !== val) return
+      pairMode.value = isPairPictureWorkflow(detail?.resData?.algorithmProcessdata)
       const raw = detail?.resData?.algorithmMetadata
       const metadata = typeof raw === 'string' ? JSON.parse(raw) : raw
       parameterFields.value = filterPictureLibraryParams(metadata?.params || [], detail?.resData?.algorithmProcessdata)
         .filter(field => field.key && field.key !== 'atomicCode')
       parameterValues.value = Object.fromEntries(parameterFields.value.map(field => [field.key, String(field.defaultValue ?? '')]))
     } catch (error) { console.error('Image parameter loading failed', error) }
+    finally { if (selectedAlgorithm.value === val) loadingParameters.value = false }
   }
 }
 
@@ -406,7 +423,7 @@ const handleFileChange = (file) => {
 }
 
 const releasePreviews = () => {
-  uploadedFiles.value.forEach(file => {
+  [...uploadedFiles.value, ...pairFiles.value.filter(Boolean)].forEach(file => {
     if (file.preview?.startsWith('blob:')) {
       URL.revokeObjectURL(file.preview)
     }
@@ -417,6 +434,9 @@ const clearAll = () => {
   releasePreviews()
   uploadedFiles.value = []
   results.value = []
+  pairFiles.value = [null, null]
+  pairResult.value = null
+  pairError.value = null
 }
 
 // 确保图片任务已创建并同步最新参数
@@ -455,7 +475,68 @@ const ensureTaskCreated = async () => {
   }
 }
 
+const handlePairFileChange = (file, index) => {
+  if (analyzing.value) return
+  const raw = file?.raw
+  if (!raw || !['image/jpeg', 'image/png', 'image/bmp'].includes(raw.type)) {
+    ElMessage.error(t('basePic.photoFormatError')); return
+  }
+  if (!Number.isSafeInteger(raw.size) || raw.size <= 0) {
+    ElMessage.error(t('api.error.UpLoadDataEmpty')); return
+  }
+  if (pairFiles.value[index]?.preview) URL.revokeObjectURL(pairFiles.value[index].preview)
+  pairFiles.value[index] = { name: file.name, raw, preview: URL.createObjectURL(raw) }
+  pairResult.value = null
+  pairError.value = null
+}
+
+const requestParameters = () => Object.entries(parameterValues.value)
+  .filter(([key, value]) => value !== '' || key === 'pair.threshold' || getLibraryType(parameterFields.value.find(field => field.key === key)))
+  .map(([key, value]) => ({ key, value }))
+
+const startPairAnalysis = async () => {
+  if (!pairFiles.value.every(Boolean)) { ElMessage.warning(t('imageAnalysis.pairNeedsTwo')); return }
+  stopped = false
+  analyzing.value = true
+  pairResult.value = null
+  pairError.value = null
+  const uploads = []
+  let side = 'A'
+  try {
+    if (!await ensureTaskCreated()) return
+    for (let index = 0; index < 2; index++) {
+      side = index ? 'B' : 'A'
+      uploads.push(await uploadFileInChunks(pairFiles.value[index].raw, {
+        purpose: UploadPurpose.IMAGE,
+        uploadChunk: formData => $API.uploadAtomicModelTemp(formData),
+        cancelUpload: data => $API.cancelAtomicModelUpload(data),
+        getCapabilities: () => $API.getUploadCapabilities()
+      }))
+      if (stopped) return
+    }
+    side = 'both'
+    const response = await $API.imageAnalysis({
+      algorithmCode: selectedAlgorithm.value, taskId: taskId.value, requestId: uuid(),
+      resultMode: debugResults.value ? 'debug' : 'business', taskConfig: { params: requestParameters() },
+      uploadId: uploads[0].uploadId, referenceImage: { uploadId: uploads[1].uploadId }, needRetImg: true
+    })
+    if (!stopped) pairResult.value = response?.resData || {}
+  } catch (error) {
+    const normalized = normalizeApiError(error)
+    if (!stopped) pairError.value = {
+      side: normalized.payload?.resData?.errorSide || side,
+      message: normalized.messageKey ? t(normalized.messageKey) : normalized.message || t('imageAnalysis.failed')
+    }
+  } finally {
+    for (const upload of uploads) await $API.cancelAtomicModelUpload({ uploadId: upload.uploadId }).catch(() => {})
+    await cleanupBackend()
+    analyzing.value = false
+  }
+}
+
 const startAnalysis = async () => {
+  if (analyzing.value || loadingParameters.value) return
+  if (pairMode.value) return startPairAnalysis()
   if (!selectedAlgorithm.value) {
     ElMessage.warning(t('imageAnalysis.selectAlgorithmFirst'))
     return
@@ -493,10 +574,7 @@ const startAnalysis = async () => {
         requestId: uuid(),
         resultMode: debugResults.value ? 'debug' : 'business',
         taskConfig: {
-          params: Object.entries(parameterValues.value)
-            // An explicit empty library binding must override scene defaults.
-            .filter(([key, value]) => value !== '' || getLibraryType(parameterFields.value.find(field => field.key === key)))
-            .map(([key, value]) => ({ key, value }))
+          params: requestParameters()
         },
         uploadId: stagedUpload.uploadId,
         needRetImg: true

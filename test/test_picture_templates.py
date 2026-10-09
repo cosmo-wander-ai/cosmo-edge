@@ -71,6 +71,24 @@ class PictureTemplatesTest(unittest.TestCase):
                             for lang in locales:
                                 self.assertEqual(locales[lang][key], public[lang][key])
 
+    def test_pair_templates_ship_scenes_with_no_library_or_region_parameters(self):
+        for platform in generator.PLATFORMS:
+            resource = ROOT / "data/resource" / ("aiboxresource_" + platform)
+            for code, kind in ((93000002, "face"), (93000058, "body")):
+                filename = f"{code}_pair.json"
+                document = json.loads((resource / "algorithm_template" / filename).read_text(encoding="utf-8"))
+                self.assertEqual((resource / "algorithm_template" / filename).read_bytes(), (resource / "algorithm" / filename).read_bytes())
+                self.assertEqual(document["algorithmUsage"], 2)
+                params = generator.decode(document["algorithmMetadata"], {})["params"]
+                self.assertEqual(next(p["defaultValue"] for p in params if p["key"] == "pair.threshold"), "")
+                self.assertFalse(any(p["key"] in {"param.faceSet", "param.workClothesSet", "param.limitScore"} for p in params))
+                graph = generator.decode(document["algorithmProcessdata"], [])
+                self.assertEqual(graph[-2]["actionId"], "PB_00007")
+                self.assertEqual(graph[-3]["actionId"], "PA_00005")
+                self.assertEqual(graph[-1]["actionId"], "PB_00004")
+                self.assertEqual(next(p["value"] for p in graph[-2]["configObject"]["params"] if p["key"] == "pair.featureType"), kind)
+                self.assertNotIn("PB_00006", [n["actionId"] for n in graph])
+
     def test_region_or_history_nodes_prevent_conversion(self):
         source = next(p for p in (ROOT / "data/resource/aiboxresource_bm1688/algorithm_template").glob("*.json")
                       if json.loads(p.read_text(encoding="utf-8")).get("algorithmUsage") == 1)

@@ -121,20 +121,30 @@ MsgPTaskDetectPicSend MessageHandler::Handle(MsgPTaskDetectPicRecv&& data, std::
 MsgPTaskDetectPicSend MessageHandler::Handle(MsgPTaskDetectPicRecv&& data,
                                              const RequestDispatchContext& context,
                                              std::error_condition& errc) {
-    if (data.uploadId.empty()) {
-        return Handle(std::move(data), errc);
-    }
-    if (!data.imageBase64.empty() || !data.imageUrl.empty()) {
+    const auto& peer   = data.referenceImage;
+    const bool stagedA = !data.uploadId.empty(), stagedB = !peer.uploadId.empty();
+    if ((stagedA && (!data.imageBase64.empty() || !data.imageUrl.empty())) ||
+        (stagedB && (!peer.imageBase64.empty() || !peer.imageUrl.empty()))) {
         errc = util::ErrorEnum::InvalidParam;
         return {};
     }
-
-    std::vector<std::vector<std::uint8_t>> images;
-    errc = detail::ConsumeStagedImages(context, {data.uploadId}, images);
-    if (errc != util::ErrorEnum::Success) {
-        return {};
+    if (stagedA || stagedB) {
+        std::vector<std::string> ids;
+        if (stagedA)
+            ids.push_back(data.uploadId);
+        if (stagedB)
+            ids.push_back(peer.uploadId);
+        std::vector<std::vector<std::uint8_t>> images;
+        // Consume both leases together under the authenticated owner; never consume just half a pair.
+        errc = detail::ConsumeStagedImages(context, ids, images);
+        if (errc != util::ErrorEnum::Success)
+            return {};
+        size_t index = 0;
+        if (stagedA)
+            data.imageData = std::move(images[index++]);
+        if (stagedB)
+            data.referenceImage.imageData = std::move(images[index]);
     }
-    data.imageData = std::move(images.front());
     return Handle(std::move(data), errc);
 }
 

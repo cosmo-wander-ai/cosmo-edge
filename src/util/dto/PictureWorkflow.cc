@@ -69,14 +69,17 @@ bool ValidatePictureParams(const std::vector<MsgDynamicKeyValue>& params) {
         const bool confidence = key.rfind("aiParam.", 0) == 0 && key.size() >= 11 &&
                                 key.compare(key.size() - 11, 11, ".confidence") == 0;
         const bool filter = key.rfind("filter.", 0) == 0;
-        if (confidence || filter || key == "param.limitScore") {
+        if (key == "pair.featureType" && value != "face" && value != "body")
+            return false;
+        if (confidence || filter || key == "param.limitScore" ||
+            (key == "pair.threshold" && !value.empty())) {
             char* end         = nullptr;
             const auto number = std::strtod(value.c_str(), &end);
             if (value.empty() || *end || !std::isfinite(number) || number < 0)
                 return false;
             if ((confidence || key.find(".confidence.") != std::string::npos) && number > 1)
                 return false;
-            if (key == "param.limitScore" && number > 100)
+            if ((key == "param.limitScore" || key == "pair.threshold") && number > 100)
                 return false;
             limits[key] = number;
         }
@@ -104,12 +107,45 @@ bool IsPictureModelAction(const std::string& id) {
 
 bool IsPictureAction(const std::string& id) {
     return IsPictureModelAction(id) || id == PAFilter_Code || id == PALogicalJudgment_Code ||
-           id == PAOutput_Code || id == PAMatch_Code || id == PAImageJudgment_Code || id == PABranch_Code;
+           id == PAOutput_Code || id == PAMatch_Code || id == PAPairMatch_Code ||
+           id == PAImageJudgment_Code || id == PABranch_Code;
 }
 
 bool ValidatePictureWorkflow(std::vector<ActionNode>& nodes, std::string& error) {
     if (!OrderWorkflow(nodes, error))
         return false;
+    const auto pairCount = std::count_if(nodes.begin(), nodes.end(),
+                                         [](const auto& n) { return n.actionId == PAPairMatch_Code; });
+    if (pairCount) {
+        // One shared, linear extraction plan is run independently for A and B.
+        // Deliberately reject ambiguous joins, branches and library nodes in this first version.
+        auto failPair = [&] {
+            error =
+                "Dual-image workflow requires one detector-to-feature chain, one pair comparison and one "
+                "terminal output";
+            return false;
+        };
+        if (pairCount != 1 || nodes.size() < 4 || nodes.front().actionId != PADetect_Code ||
+            nodes[nodes.size() - 2].actionId != PAPairMatch_Code || nodes.back().actionId != PAOutput_Code ||
+            nodes[nodes.size() - 3].actionId != PARecognizer_Code)
+            return failPair();
+        for (size_t i = 0; i < nodes.size(); ++i) {
+            if (nodes[i].preFlowActionId != (i ? nodes[i - 1].flowActionId : "-1"))
+                return failPair();
+            if (i && i < nodes.size() - 3 && nodes[i].actionId != PAFilter_Code &&
+                nodes[i].actionId != PAClassify_Code && nodes[i].actionId != PALandmark_Code)
+                return failPair();
+            for (const auto& p : nodes[i].configObject.params)
+                if (p.key == "inputType" && p.value == "image")
+                    return failPair();
+        }
+        std::string type;
+        for (const auto& p : nodes[nodes.size() - 2].configObject.params)
+            if (p.key == "pair.featureType")
+                type = p.value.ToString();
+        if (type != "face" && type != "body")
+            return failPair();
+    }
     struct Capabilities {
         bool targets{false};
         bool features{false};
@@ -154,7 +190,7 @@ bool ValidatePictureWorkflow(std::vector<ActionNode>& nodes, std::string& error)
              id == PAFilter_Code || id == PALogicalJudgment_Code) &&
             !caps.targets)
             return fail("requires upstream targets");
-        if (id == PAMatch_Code && !caps.features)
+        if ((id == PAMatch_Code || id == PAPairMatch_Code) && !caps.features)
             return fail("requires upstream feature extraction");
         if (id == PARecognizer_Code)
             caps.features = true;

@@ -3644,5 +3644,15 @@
   "resource.param.picture.pa_00002.inputtype.option.image": "整图",
   "resource.param.picture.pda_00003.inputtype.name": "判断输入",
   "resource.param.picture.pda_00003.inputtype.option.image": "整图",
-  "resource.param.picture.pda_00003.inputtype.option.targets": "目标"
+  "resource.param.picture.pda_00003.inputtype.option.targets": "目标",
+  "resource.param.picture.pb_00007.pair_featuretype.name": "特征类型",
+  "resource.param.picture.pb_00007.pair_featuretype.option.face": "人脸",
+  "resource.param.picture.pb_00007.pair_featuretype.option.body": "工服",
+  "resource.param.picture.pb_00007.pair_threshold.name": "比对阈值（0–100，留空仅返回分数）",
+  "resource.action.pb_00007.actionname": "双图特征比对",
+  "resource.action.pb_00007.remark": "双图特征比对",
+  "resource.algorithm.93000002.algorithmname": "双图人脸比对",
+  "resource.algorithm.93000002.remark": "比较两张图片中的单个目标，无需底库。输出相似度分数，非概率。",
+  "resource.algorithm.93000058.algorithmname": "双图工服比对",
+  "resource.algorithm.93000058.remark": "比较两张图片中的单个目标，无需底库。输出相似度分数，非概率。"
 }

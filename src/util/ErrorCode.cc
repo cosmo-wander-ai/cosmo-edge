@@ -78,6 +78,12 @@ std::string ErrorCategory::message(int code) const {
         CaseStr(DependServiceNotInit, "依赖的服务未启动");
         CaseStr(DependLibEmpty, "依赖的库为空");
         CaseStr(FaceLibraryNotConfigured, "没有设置人脸底库，请先选择人脸分组");
+        CaseStr(PicturePairInputRequired, "双图比对需要分别提供图片 A 和图片 B");
+        CaseStr(PicturePairUnexpectedReference, "该场景仅支持单张图片，请选择双图比对场景");
+        CaseStr(PicturePairNoTarget, "图片中没有符合条件的目标，请检查图片内容、尺寸和质量阈值");
+        CaseStr(PicturePairMultipleTargets, "图片中有多个符合条件的目标，请使用仅包含一个目标的图片");
+        CaseStr(PicturePairInvalidFeature, "图片特征无效或维度不一致，无法比对");
+        CaseStr(PicturePairInvalidCalibration, "特征模型的比对分数配置无效，无法比对");
         CaseStr(BodyLibraryNotConfigured, "没有设置工服底库，请先选择工服分组");
         CaseStr(PersonLibNotEmpty, "工服库删除失败，工服库绑定了工服照");
         CaseStr(NotSupport, "系统支持问题");
@@ -276,6 +282,12 @@ std::string ErrorEnumName(ErrorEnum code) {
         CaseName(DependServiceNotInit);
         CaseName(DependLibEmpty);
         CaseName(FaceLibraryNotConfigured);
+        CaseName(PicturePairInputRequired);
+        CaseName(PicturePairUnexpectedReference);
+        CaseName(PicturePairNoTarget);
+        CaseName(PicturePairMultipleTargets);
+        CaseName(PicturePairInvalidFeature);
+        CaseName(PicturePairInvalidCalibration);
         CaseName(BodyLibraryNotConfigured);
         CaseName(PersonLibNotEmpty);
         CaseName(NotSupport);

@@ -328,5 +328,16 @@
     "inputParamConfig": "[{\"key\":\"match.libraryType\",\"name\":\"比对库类型\",\"nameI18nKey\":\"resource.param.picture.pb_00006.match_librarytype.name\",\"type\":\"select\",\"defaultValue\":\"face\",\"level\":\"1\",\"regexpr\":\"\",\"options\":[{\"name\":\"人脸\",\"value\":\"face\",\"labelI18nKey\":\"resource.param.picture.pb_00006.match_librarytype.option.face\"},{\"name\":\"工服\",\"value\":\"body\",\"labelI18nKey\":\"resource.param.picture.pb_00006.match_librarytype.option.body\"}]},{\"key\":\"match.mode\",\"name\":\"判断方式\",\"nameI18nKey\":\"resource.param.picture.pb_00006.match_mode.name\",\"type\":\"select\",\"defaultValue\":\"matched\",\"level\":\"1\",\"regexpr\":\"\",\"options\":[{\"name\":\"命中\",\"value\":\"matched\",\"labelI18nKey\":\"resource.param.picture.pb_00006.match_mode.option.matched\"},{\"name\":\"未命中\",\"value\":\"unmatched\",\"labelI18nKey\":\"resource.param.picture.pb_00006.match_mode.option.unmatched\"}]},{\"key\":\"param.faceSet\",\"name\":\"人脸库\",\"nameI18nKey\":\"resource.param.picture.pb_00006.param_faceset.name\",\"type\":\"faceSet\",\"defaultValue\":\"\",\"level\":\"2\",\"regexpr\":\"\"},{\"key\":\"param.workClothesSet\",\"name\":\"工服库\",\"nameI18nKey\":\"resource.param.picture.pb_00006.param_workclothesset.name\",\"type\":\"workClothesSet\",\"defaultValue\":\"\",\"level\":\"2\",\"regexpr\":\"\"},{\"key\":\"param.limitScore\",\"name\":\"比对阈值（0–100）\",\"nameI18nKey\":\"resource.param.picture.pb_00006.param_limitscore.name\",\"type\":\"text\",\"defaultValue\":\"80\",\"level\":\"2\",\"regexpr\":\"\"}]",
     "actionNameI18nKey": "resource.action.pb_00006.actionname",
     "remarkI18nKey": "resource.action.pb_00006.remark"
+  },
+  {
+    "id": "PB_00007",
+    "actionUsage": 2,
+    "actionType": 2,
+    "businessCategory": "2",
+    "actionName": "双图特征比对",
+    "remark": "双图特征比对",
+    "inputParamConfig": "[{\"key\":\"pair.featureType\",\"name\":\"特征类型\",\"nameI18nKey\":\"resource.param.picture.pb_00007.pair_featuretype.name\",\"type\":\"select\",\"defaultValue\":\"face\",\"level\":\"1\",\"regexpr\":\"\",\"options\":[{\"name\":\"人脸\",\"value\":\"face\",\"labelI18nKey\":\"resource.param.picture.pb_00007.pair_featuretype.option.face\"},{\"name\":\"工服\",\"value\":\"body\",\"labelI18nKey\":\"resource.param.picture.pb_00007.pair_featuretype.option.body\"}]},{\"key\":\"pair.threshold\",\"name\":\"比对阈值（0–100，留空仅返回分数）\",\"nameI18nKey\":\"resource.param.picture.pb_00007.pair_threshold.name\",\"type\":\"text\",\"defaultValue\":\"\",\"level\":\"2\",\"regexpr\":\"\"}]",
+    "actionNameI18nKey": "resource.action.pb_00007.actionname",
+    "remarkI18nKey": "resource.action.pb_00007.remark"
   }
 ]

@@ -366,7 +366,8 @@ void AlgorithmPacketLoader::ActivateProcessdata(algorithm::AlgorithmPacketInfo& 
             MsgAlgorithmMetaData pictureMetadata;
             if (DecodeAlgorithmMetadata(packet.algorithmMetadata, pictureMetadata)) {
                 for (const auto& param : pictureMetadata.params) {
-                    if (param.defaultValue.empty())
+                    // An empty pair threshold explicitly requests scores without a decision.
+                    if (param.defaultValue.empty() && param.key != "pair.threshold")
                         continue;
                     MsgDynamicKeyValue value;
                     value.key   = param.key;

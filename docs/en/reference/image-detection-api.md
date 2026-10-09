@@ -313,6 +313,42 @@ or:
 
 Choose exactly one of `uploadId`, `imageBase64`, and `imageUrl`. JSON request bodies are limited to 1 MB by default, so production integrations and high-resolution images should use `uploadId`. With `imageUrl`, the URL must be reachable from the CosmoEdge device.
 
+### Two-image face / workwear comparison
+
+Create a picture task using built-in scene `93000002` (two-image face comparison) or `93000058` (two-image workwear comparison), then send two inputs to the same endpoint. The primary input is image A; `referenceImage` is image B. Each side accepts exactly one of `uploadId`, `imageBase64`, or `imageUrl`. Both upload IDs must belong to the authenticated user and are consumed once.
+
+```json
+{
+  "taskId": "pair-example",
+  "algorithmCode": "93000002",
+  "uploadId": "<IMAGE_A_UPLOAD_ID>",
+  "referenceImage": { "uploadId": "<IMAGE_B_UPLOAD_ID>" },
+  "resultMode": "business",
+  "needRetImg": true,
+  "taskConfig": { "params": [{ "key": "pair.threshold", "value": "80" }] }
+}
+```
+
+Both images use the same models and parameters for detection, filtering, landmarks (faces), and feature extraction. Each image must contain exactly one eligible target. Pair workflows need no library and do not support regions, branches, multi-target pairing, or `legacy` results. Existing single-image and library-comparison requests remain compatible.
+
+Successful responses always include `resData.comparison.score` on a 0–100 scale, even below the threshold. An empty `pair.threshold` requests scores only: `decision` is `score_only` and `threshold` is omitted. Omitting the parameter preserves scene defaults; an explicit empty string clears a stored threshold. When a threshold is configured, scores greater than or equal to it produce `matched`; lower scores produce `not_matched`.
+
+```json
+{
+  "nodeId": "comparison-node",
+  "featureType": "face",
+  "decision": "matched",
+  "score": 87.25,
+  "threshold": 80
+}
+```
+
+Image A uses `targetList` and `fullPicture`; image B uses `referenceTargetList` and `referencePicture`. Target boxes contain pixel coordinates in their respective original images, suitable for displaying crops. `needRetImg: false` skips result image generation. In `debug` mode, node traces include `imageSide` to distinguish A, B, and the comparison of both.
+
+No eligible target, multiple targets, invalid features, invalid score calibration, and decode failures are execution errors. The response has a failed `resCode`, a specific reason in `resMsg`, and `resData.errorSide` of `A`, `B`, or `both`; no successful `comparison.score` is returned. A valid score of zero is a successful comparison and is distinct from an error.
+
+Scores represent calibrated model similarity, not identity probability. The workwear scene reuses body appearance features; its score is not the probability of wearing the same uniform.
+
 ## 6. Parse Workflow Results
 
 The default `resultMode: "business"` executes the configured models, filters, rules and output nodes, returning `schemaVersion: 2`. Image tasks have no regions. Nonempty `taskConfig.areas` or `shieldedAreas` are rejected; the new response has no `areaList`.

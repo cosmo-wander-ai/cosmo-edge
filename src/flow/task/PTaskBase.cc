@@ -14,6 +14,7 @@
 #include "flow/ocr/POcr.h"
 #include "flow/qwen3vl/PQwen3VLWorker.h"
 #include "flow/recognizer/PPictureMatch.h"
+#include "flow/recognizer/PPicturePairMatch.h"
 #include "flow/recognizer/PRecognizer.h"
 #include "media/Color.h"
 #include "service/detail/ServiceRegistry.h"
@@ -61,7 +62,8 @@ PTaskElementPtr PTaskBase::TaskCreate(const std::string& taskId, ActionAlgPtr ac
         if (actionNode.actionId == PARecognizer_Code)
             featureModel = actionNode.atomicCode;
         featureModels[actionNode.flowActionId] = featureModel;
-        if (actionNode.actionId == PAMatch_Code && actionNode.atomicCode.empty())
+        if ((actionNode.actionId == PAMatch_Code && actionNode.atomicCode.empty()) ||
+            actionNode.actionId == PAPairMatch_Code)
             actionNode.atomicCode = featureModel;
         for (auto& param : actionNode.configObject.params) {
             auto keys = util::Split(param.key.ToRefString(), ".");
@@ -80,6 +82,8 @@ PTaskElementPtr PTaskBase::TaskCreate(const std::string& taskId, ActionAlgPtr ac
             ta.actionInst = std::make_shared<PRecognizer>(taskId, actionNode);
         else if (id == PAOcr_Code)
             ta.actionInst = std::make_shared<POcr>(taskId, actionNode);
+        else if (id == PAPairMatch_Code)
+            ta.actionInst = std::make_shared<PPicturePairMatch>(taskId, actionNode);
         else if (id == PAMatch_Code)
             ta.actionInst = std::make_shared<PPictureMatch>(taskId, actionNode);
         else if (id == PDADino_Code)

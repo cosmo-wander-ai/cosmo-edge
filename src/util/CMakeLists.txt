@@ -7,6 +7,7 @@ add_library(cosmo_util OBJECT
     ErrorCode.cc         ErrorCode.h
     Exception.cc         Exception.h
     Exec.cc              Exec.h
+    FeatureComparison.cc FeatureComparison.h
     FileUtil.cc          FileUtil.h
     FpsCalc.cc           FpsCalc.h
     FpsCtrl.cc           FpsCtrl.h

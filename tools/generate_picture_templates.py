@@ -19,10 +19,11 @@ REMOVE = {"BA_00001", "AA_00003", "BA_00003", "BA_10003"}
 PARAMS = {"atomicCode", "featureInput", "keywords", "advanced_mode", "generationStyle",
           "doSample", "topK", "topP", "temperature", "param.faceSet", "param.workClothesSet",
           "param.limitScore", "inputType", "match.libraryType", "match.mode", "output.name",
-          "output.targets", "preprocess_type"}
+          "output.targets", "preprocess_type", "pair.featureType", "pair.threshold"}
 NAMES = {"PA_00004": ("图片关键点", "Image Landmarks"), "PA_00011": ("图片文字识别", "Image OCR"),
          "PB_00002": ("图片目标筛选", "Image Target Filter"), "PB_90001": ("图片目标判断", "Image Target Rule"),
          "PB_90003": ("整图判断", "Image Rule"), "PB_90002": ("条件分支", "Conditional Branch"),
+         "PB_00007": ("双图特征比对", "Two-image Feature Comparison"),
          "PB_00004": ("图片结果输出", "Image Result Output"), "PB_00006": ("图片库比对", "Image Library Match")}
 
 
@@ -69,6 +70,9 @@ def catalog(actions, locales):
         "PB_00004": [field(locales, "PB_00004", "output.name", ("结果名称", "Output name")),
                      field(locales, "PB_00004", "output.targets", ("返回目标", "Targets"), "matched", "select",
                            [(("命中", "Matched"), "matched"), (("全部", "All"), "all")])],
+        "PB_00007": [field(locales, "PB_00007", "pair.featureType", ("特征类型", "Feature type"), "face", "select",
+                           [(("人脸", "Face"), "face"), (("工服", "Workwear"), "body")]),
+                     field(locales, "PB_00007", "pair.threshold", ("比对阈值（0–100，留空仅返回分数）", "Threshold (0–100; empty for score only)"), level="2")],
         "PB_00006": [field(locales, "PB_00006", "match.libraryType", ("比对库类型", "Library type"), "face", "select",
                            [(("人脸", "Face"), "face"), (("工服", "Workwear"), "body")]),
                      field(locales, "PB_00006", "match.mode", ("判断方式", "Match mode"), "matched", "select",
@@ -215,6 +219,41 @@ def convert(source, locales):
     return result, "single-image adaptation; tracking and sensitivity removed"
 
 
+def pair_template(source, locales, body=False):
+    result = copy.deepcopy(source)
+    code = 93000058 if body else 93000002
+    names = ("双图工服比对", "Two-image Workwear Comparison") if body else ("双图人脸比对", "Two-image Face Comparison")
+    remarks = ("比较两张图片中的单个目标，无需底库。输出相似度分数，非概率。", "Compare one target per image without a library. Returns similarity, not probability.")
+    metadata = decode(result["algorithmMetadata"], {})
+    metadata["params"] = [p for p in metadata["params"] if p["key"] not in {"param.faceSet", "param.workClothesSet", "param.limitScore"}]
+    threshold = field(locales, "PB_00007", "pair.threshold", ("比对阈值（0–100，留空仅返回分数）", "Threshold (0–100; empty for score only)"), level="2")
+    metadata["params"].append(threshold)
+    nodes = decode(result["algorithmProcessdata"], [])
+    for node in nodes:
+        config = node["configObject"]
+        config["params"] = [p for p in config.get("params", []) if p["key"] not in {"param.faceSet", "param.workClothesSet", "param.limitScore"}]
+        web = config.get("webConfig") or {}
+        web["metaDataParams"] = [p for p in web.get("metaDataParams", []) if p["key"] not in {"param.faceSet", "param.workClothesSet", "param.limitScore"}]
+        config["webConfig"] = web
+        if node["actionId"] == "PB_00006":
+            node.update(actionId="PB_00007", actionName=NAMES["PB_00007"][0], actionNameI18nKey="resource.action.pb_00007.actionname")
+            config["params"] = [dict(key="pair.featureType", value="body" if body else "face"), dict(key="pair.threshold", value="")]
+            config["webConfig"] = dict(metaDataParams=[copy.deepcopy(threshold)])
+        if node["actionId"] == "PB_00004":
+            config["params"] = [dict(key="output.targets", value="all")]
+    result.update(algorithmCode=code, algorithmId=str(code), id=str(code), gafAlgorithmId=str(code),
+                  algorithmName=names[0], gafAlgorithmName=names[0], confVersionId=f"default-{code}",
+                  algorithmUpdateTime=202610090001, algorithmProcessdata=compact(nodes), algorithmMetadata=compact(metadata),
+                  remark=remarks[0], sourcePictureAlgorithmCode=str(source["algorithmCode"]))
+    for prop, labels in (("algorithmName", names), ("remark", remarks)):
+        key = f"resource.algorithm.{code}.{prop.lower()}"
+        result[prop + "I18nKey"] = key
+        for lang, label in zip(("zh-CN", "en-US"), labels): locales[lang][key] = label
+    result["configVersionList"] = [dict(id=result["confVersionId"], name="默认", algorithmCode=str(code),
+        **{k: result[k] for k in ("algorithmMetadata", "algorithmProcessdata", "atomicList", "algorithmUpdateTime", "remark")})]
+    return result
+
+
 def generate(check=False):
     changed = []
     def save(path, value):
@@ -239,6 +278,10 @@ def generate(check=False):
                                picture=str(result["algorithmCode"]) if result else None, reason=reason))
             if result:
                 save(resource / "algorithm_template" / f"{result['algorithmCode']}_picture.json", result)
+                if result["algorithmCode"] in {92000002, 92000058}:
+                    pair = pair_template(result, locales, result["algorithmCode"] == 92000058)
+                    for folder in ("algorithm_template", "algorithm"):
+                        save(resource / folder / f"{pair['algorithmCode']}_pair.json", pair)
                 # Ship one usable scene per generated template in fresh installations.
                 save(resource / "algorithm" / f"{result['algorithmCode']}_picture.json", result)
         # Existing picture templates also have no region configuration.

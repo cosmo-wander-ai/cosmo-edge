@@ -611,3 +611,20 @@ TEST_CASE("AlgorithmServiceImpl: concurrent Query and Add are safe", "[Algorithm
 
     REQUIRE(opCount.load() > 0);
 }
+
+TEST_CASE("Picture packet defaults preserve an explicitly cleared pair threshold",
+          "[AlgorithmPacketLoader][picture][pair]") {
+    AlgorithmPacketDependencies mocks;
+    cosmo::service::algorithm::AlgorithmPacketInfo packet;
+    packet.algorithmUsage = 2;
+    packet.algorithmMetadata =
+        R"({"params":[{"key":"pair.threshold","defaultValue":""},{"key":"other.empty","defaultValue":""}]})";
+    packet.algorithmProcessdata =
+        R"([{"actionId":"PA_00001","flowActionId":"detect","preFlowActionId":"-1","configObject":{"params":[]}}])";
+    REQUIRE_CALL(mocks.actionSvc, UpdatePicActionAlg2(trompeloeil::_)).RETURN(true);
+    detail::AlgorithmPacketLoader::ActivateProcessdata(packet);
+    REQUIRE(packet.processdata);
+    REQUIRE(packet.processdata->pictureDefaults.size() == 1);
+    REQUIRE(packet.processdata->pictureDefaults.front().key == "pair.threshold");
+    REQUIRE(packet.processdata->pictureDefaults.front().value.empty());
+}
