@@ -41,7 +41,7 @@ def main():
     os.environ["HF_HUB_OFFLINE"] = "1"
     os.environ["TRANSFORMERS_OFFLINE"] = "1"
     sys.path[:0] = [str(a.source.resolve()), str(a.exporter.parent.resolve()),
-                    str(Path(__file__).resolve().parents[1] / "scripts/laya_runtime")]
+                    str(Path(__file__).resolve().parents[1] / "tools/laya_reference")]
     import numpy as np
     import torch
     import torch.nn as nn

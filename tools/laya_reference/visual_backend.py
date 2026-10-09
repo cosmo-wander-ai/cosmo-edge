@@ -1,22 +1,17 @@
-"""Resident visual encoder with bounded, versioned question replay.
+"""Offline reference runner for versioned question replay.
 
 Scores are predictions, not permission to filter alarms. Business policy and
 scene qualification live in Cosmo's decision service and are audited separately.
 """
 from collections import OrderedDict
 import hashlib
-import importlib.util
 import io
-import json
-from pathlib import Path
 import time
 
 import numpy as np
 from PIL import Image
 
-from bmrt_bridge import Bridge, frozen_file, sha256
 from dynamic_frontend import DynamicImageFrontend, dynamic_decision_feeds
-from question_compiler import QuestionCache
 from visual_protocol import validate_request, response_base, failed_item, failure_response
 
 
@@ -44,7 +39,7 @@ class QuestionResolver:
 
 
 class MultiQuestionRunner:
-    """Single serving thread; visual features never survive a request boundary."""
+    """Reference evaluation; visual features never survive a request boundary."""
     def __init__(self, models, table, heads, scorer, resolver, identity, manifest_sha256,
                  clock=time.monotonic):
         self.models, self.table, self.heads = models, table, heads
@@ -127,62 +122,3 @@ class MultiQuestionRunner:
                                     if k not in ("question_id", "question_version", "compiled_question_sha256")},
                 "timing_ms": {"preprocess": preprocess_ms, "tower": tower_time, "adapter": adapter_time,
                               "worker_total": (self.clock() - started) * 1000}}
-
-
-class Backend:
-    def __init__(self, manifest_path, expected_sha256, cache_directory):
-        if sha256(manifest_path) != expected_sha256:
-            raise ValueError("worker_manifest_identity_mismatch")
-        manifest = json.loads(Path(manifest_path).read_text())
-        base = Path(manifest_path).parent
-        if manifest.get("schema") != 2 or manifest.get("qualification") != "business-acceptance-pending":
-            raise ValueError("unsupported_dynamic_manifest")
-        required = {"visual_backend.py", "visual_protocol.py", "dynamic_frontend.py", "question_compiler.py",
-                    "image_frontend.py", "bmrt_bridge.py", "laya_shadow_worker.py", "managed_worker.py",
-                    "dynamic_worker.py", "compile_questions.py"}
-        if not required <= set(manifest["implementation"]):
-            raise ValueError("incomplete_implementation_manifest")
-        for name, spec in manifest["implementation"].items():
-            if frozen_file(base, spec) != Path(__file__).with_name(name).resolve():
-                raise ValueError("implementation_path_mismatch")
-        cpu_dir = base / manifest["cpu_directory"]
-        for name in ("token_embeddings.f16.npy", "cpu_heads.npz", "rl_agent_config.json"):
-            if sha256(cpu_dir / name) != manifest["cpu_files"][name]:
-                raise ValueError("cpu_asset_identity_mismatch")
-        table = np.load(cpu_dir / "token_embeddings.f16.npy", mmap_mode="r", allow_pickle=False)
-        if table.shape != (256000, 768) or table.dtype != np.float16:
-            raise ValueError("CPU embedding table profile mismatch")
-        with np.load(cpu_dir / "cpu_heads.npz", allow_pickle=False) as archive:
-            heads = {k: archive[k].copy() for k in archive.files}
-        config = json.loads((cpu_dir / "rl_agent_config.json").read_text())
-        # The compiler uses this exact local tokenizer; the resident worker only
-        # validates its identity, and never imports tokenizers or its large table.
-        frozen_file(base, manifest["tokenizer"])
-        bindings = {"tokenizer_sha256": manifest["tokenizer"]["sha256"],
-                    "model_config_sha256": manifest["cpu_files"]["rl_agent_config.json"]}
-        resolver = QuestionResolver(QuestionCache(cache_directory), bindings, config)
-        helper = frozen_file(base, manifest["cpu_helper"])
-        spec = importlib.util.spec_from_file_location("frozen_visual_cpu", helper)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        paths = {role: frozen_file(base, spec) for role, spec in manifest["models"].items()}
-        self.bridge = Bridge(frozen_file(base, manifest["library"]), manifest.get("device_id", 0))
-        try:
-            self.before = self.bridge.snapshot()
-            if self.before["heaps"][0]["available_mb"] < 1150:
-                raise RuntimeError("insufficient_model_memory_reserve")
-            models = {role: self.bridge.load(paths[role], manifest["models"][role])
-                      for role in ("tower", "adapter", "decision")}
-            self.after = self.bridge.snapshot()
-            self.identity = {role: manifest["models"][role]["sha256"] for role in models}
-            self.runner = MultiQuestionRunner(models, table, heads, module.score_and_act,
-                                              resolver, self.identity, expected_sha256)
-        except BaseException:
-            self.bridge.close()
-            raise
-
-    def infer(self, request, encoded):
-        return self.runner.infer(request, encoded)
-
-    def close(self):
-        self.bridge.close()

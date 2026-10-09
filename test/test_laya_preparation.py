@@ -7,7 +7,7 @@ import sys
 import tempfile
 import unittest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts/laya_runtime"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools/laya_reference"))
 from compile_questions import prepare_cached
 from question_compiler import QuestionCompiler, QuestionCache
 

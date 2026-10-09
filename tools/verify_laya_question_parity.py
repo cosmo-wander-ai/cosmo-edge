@@ -52,7 +52,7 @@ def main():
     if digest(common) != args.common_sha256:
         raise ValueError("upstream source identity mismatch")
     from transformers import PreTrainedTokenizerFast
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts/laya_runtime"))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools/laya_reference"))
     from question_compiler import FrozenTokenizer, QuestionCompiler, QuestionCache
     tokenizer_path = args.model / "tokenizer/tokenizer.json"
     tokenizer = FrozenTokenizer(tokenizer_path, digest(tokenizer_path))

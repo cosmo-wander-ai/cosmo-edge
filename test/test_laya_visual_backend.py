@@ -1,12 +1,7 @@
 """Typed protocol, per-ROI visual reuse, item isolation and configuration regressions."""
 import copy
 import io
-import json
-import multiprocessing
-import os
 from pathlib import Path
-import socket
-import struct
 import sys
 import tempfile
 import time
@@ -15,13 +10,11 @@ import unittest
 import numpy as np
 from PIL import Image
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts/laya_runtime"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools/laya_reference"))
 from compile_questions import compile_batch
 from question_compiler import QuestionCompiler, QuestionCache
 from visual_backend import MultiQuestionRunner, QuestionResolver
-from visual_protocol import (PROTOCOL, PROFILE, validate_request, parse_json, read_request,
-                             write_response, response_base, failure_response)
-from managed_worker import serve
+from visual_protocol import PROTOCOL, PROFILE, validate_request, parse_json
 
 CONFIG = {"head_max_len": 256, "temperature": [1., 1., 1.], "temperature_image": [1., 1., 1.]}
 MANIFEST = "c" * 64
@@ -74,22 +67,6 @@ class Graph:
 
 def score(hidden, markers, mask, heads):
     return np.asarray([[1., 2.]], np.float32), np.asarray([[0., 1.]], np.float32)
-
-
-class EchoBackend:
-    identity = {"test_only": True}
-    def __init__(self, *_):
-        pass
-    def infer(self, request, encoded):
-        return {**response_base(request), "received_bytes": len(encoded)}
-    def close(self):
-        pass
-
-
-def serve_test(root):
-    os.environ.pop("NOTIFY_SOCKET", None)
-    serve("unused", MANIFEST, Path(root) / "run", Path(root) / "logs", EchoBackend,
-          read_request, write_response, failure_response)
 
 
 class VisualBackendTests(unittest.TestCase):
@@ -196,40 +173,6 @@ class VisualBackendTests(unittest.TestCase):
         for payload in (b'{"a":1,"a":2}', b'{"x":NaN}', b'{"x":1e999}'):
             with self.assertRaises(ValueError):
                 parse_json(payload)
-
-    def test_real_socket_carries_region_and_item_protocol(self):
-        with tempfile.TemporaryDirectory(prefix="vdec-") as root:
-            process = multiprocessing.Process(target=serve_test, args=(root,))
-            process.start()
-            try:
-                deadline = time.monotonic() + 5
-                ready = Path(root) / "run/status.json"
-                while time.monotonic() < deadline:
-                    if ready.exists() and json.loads(ready.read_text())["state"] == "ready":
-                        break
-                    self.assertTrue(process.is_alive())
-                    time.sleep(.02)
-                else:
-                    self.fail("worker failed to become ready")
-                data = image("red")
-                req = request(self.packs, data)
-                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
-                    client.settimeout(2)
-                    client.connect(str(Path(root) / "run/worker.sock"))
-                    metadata = json.dumps(req).encode()
-                    client.sendall(struct.pack("!I", len(metadata)) + metadata + data)
-                    from laya_shadow_worker import read_exact
-                    size = struct.unpack("!I", read_exact(client, 4))[0]
-                    result = json.loads(read_exact(client, size))
-                self.assertEqual(result["roi_id"], req["roi_id"])
-                self.assertEqual(result["received_bytes"], len(data))
-                process.terminate()
-                process.join(3)
-                self.assertEqual(process.exitcode, 0)
-            finally:
-                if process.is_alive():
-                    process.kill()
-                    process.join()
 
 
 if __name__ == "__main__":

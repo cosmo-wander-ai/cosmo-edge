@@ -13,7 +13,7 @@ import unittest
 import numpy as np
 from PIL import Image
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts/laya_runtime"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools/laya_reference"))
 from question_compiler import QuestionCompiler, QuestionCache, fingerprint, normalize_question
 from dynamic_frontend import DynamicImageFrontend, dynamic_masks
 from image_frontend import additive_masks
