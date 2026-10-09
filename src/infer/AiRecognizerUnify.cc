@@ -59,6 +59,7 @@ util::ErrorEnum AiRecognizerUnify::Extract(VideoFramePtr image, std::vector<AiDe
         auto ret = Extract(images, io_puts, use_box);
         if (util::ErrorEnum::Success != ret) {
             LOG_INFO("{}", "Classify Fail");
+            return ret;
         }
         io_el = io_puts[0];
     }
@@ -222,6 +223,7 @@ util::ErrorEnum AiRecognizerUnify::Extract(const std::vector<VideoFramePtr>& ima
                 auto ret = Forward(input_images, input_datas, outputs, use_box);
                 if (util::ErrorEnum::Success != ret) {
                     LOG_ERRO("Forward Failed. Ret:{}", ret);
+                    return ret;
                 }
                 size_t out = 0;
                 for (auto output : outputs) {

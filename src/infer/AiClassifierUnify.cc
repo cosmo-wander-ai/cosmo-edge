@@ -49,6 +49,7 @@ util::ErrorEnum AiClassifierUnify::Classify(const VideoFramePtr& image, std::vec
         auto ret = Classify(images, io_puts, use_box);
         if (util::ErrorEnum::Success != ret) {
             LOG_INFO("{}", "Classify Fail");
+            return ret;
         }
         io_el = io_puts[0];
     }
@@ -258,6 +259,7 @@ util::ErrorEnum AiClassifierUnify::Classify(const std::vector<VideoFramePtr>& im
                 auto ret = Forward(input_images, input_datas, outputs, use_box, input_native_buffers);
                 if (util::ErrorEnum::Success != ret) {
                     LOG_ERRO("Forward Failed. Ret:{}", ret);
+                    return ret;
                 }
                 DispatchBatchResults(outputs, indexes, io_rst);
                 input_images.clear();
