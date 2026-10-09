@@ -48,7 +48,8 @@ namespace {
         const std::string alg_key       = ToLower(std::string(util::Trim(alg_code)));
         const std::string atomic_key    = ToLower(std::string(util::Trim(action.atomicCode)));
         const std::string atom_name_key = ToLower(std::string(util::Trim(action.atomAlgName)));
-        return (!alg_key.empty() && lower_key == alg_key) || (!atomic_key.empty() && lower_key == atomic_key) ||
+        return (!alg_key.empty() && lower_key == alg_key) ||
+               (!atomic_key.empty() && lower_key == atomic_key) ||
                (!atom_name_key.empty() && lower_key == atom_name_key);
     }
 
@@ -70,7 +71,7 @@ namespace {
 
         return action.initFps;
     }
-}
+}  // namespace
 
 AiDetectorPtr AiDetectMng::GetInst(const std::string& algCode, const std::string& channelId,
                                    const std::string& task, ActionNode& action) {

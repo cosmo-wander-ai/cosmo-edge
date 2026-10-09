@@ -2,13 +2,14 @@
 // and MvMQTTClientUtil.cc. Not part of the public API.
 #pragma once
 
+#include <MQTTClient.h>
+
 #include <atomic>
 #include <chrono>
 #include <map>
 #include <mutex>
 #include <string>
 
-#include <MQTTClient.h>
 #include "network/mqtt/MqttClient.h"
 #include "network/mqtt/MqttTypes.h"
 #include "util/Log.h"
