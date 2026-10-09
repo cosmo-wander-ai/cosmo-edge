@@ -1,5 +1,5 @@
 <template>
-  <div class="main-body">
+  <div class="main-body ui-admin-page">
     <div class="top-tool">
       <div class="name-version">
         <span class="arrange-name" @click="showVersionClick">{{ displayAlgorithmName }}</span>
@@ -610,7 +610,7 @@ const goBack = () => {
   display: inline-block;
   line-height: 32px;
   margin-right: 10px;
-  color: #606266;
+  color: var(--text-secondary);
   font-size: 20px;
   /*设置字体大小*/
   font-weight: 400;
@@ -661,18 +661,14 @@ const goBack = () => {
   }
 
   :deep(.el-tabs--border-card .el-tabs__item:hover) {
-    background: rgba(49, 130, 206, 0.08);
+    background: rgba(88, 82, 223, 0.08);
     color: var(--primary-color);
   }
 
   :deep(.el-tabs--border-card .el-tabs__item.is-active) {
-    background: linear-gradient(
-      135deg,
-      var(--primary-color) 0%,
-      var(--primary-light) 100%
-    );
-    color: #ffffff;
-    box-shadow: 0 2px 8px rgba(49, 130, 206, 0.25);
+    background: var(--bg-secondary);
+    color: var(--primary-color);
+    box-shadow: 0 2px 8px rgba(88, 82, 223, 0.25);
   }
 
   :deep(.el-tabs__content) {
@@ -686,7 +682,7 @@ const goBack = () => {
 .name-version {
   display: flex;
   align-items: center;
-  color: #909399;
+  color: var(--text-secondary);
 }
 
 .expand-version {
@@ -705,7 +701,7 @@ const goBack = () => {
     }
 
     50% {
-      text-shadow: 0 0 10px #409eff, 0 0 40px #409eff;
+      text-shadow: 0 0 10px var(--primary-color), 0 0 40px var(--primary-color);
     }
   }
 }
@@ -728,7 +724,7 @@ const goBack = () => {
 }
 
 .icon-blue {
-  color: #409eff;
+  color: var(--primary-color);
 }
 
 .icon-red {

@@ -1,5 +1,5 @@
 <template>
-  <div class="alarm-record">
+  <div class="alarm-record ui-admin-page">
     <TopBar 
       ref="topBarRef" 
       :dataSouce="topBarData" 
@@ -17,7 +17,7 @@
             size="small" 
             @click="handleBatchDelete"
             :disabled="multipleSelections.length === 0"
-          >
+           class="ui-secondary-button">
             批量删除
           </el-button> -->
           <el-button 
@@ -25,7 +25,7 @@
             size="small" 
             @click="handleExport"
             :disabled="tableData.length === 0"
-          >
+           class="ui-secondary-button">
             {{ t('event.dataExport') }}
           </el-button>
         </div>
@@ -114,12 +114,12 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column :label="t('field.actions')" fixed="right">
+        <el-table-column :label="t('field.actions')" fixed="right" min-width="220">
           <template #default="{ row }">
             <div class="operation-tools">
-              <el-button link class="primary-text" @click="handleDetail(row)">{{ t('action.details') }}</el-button>
-              <el-button link class="primary-text" v-if="row.video" @click="onCheckVideo(row, 1)">{{ t('event.videoPlayback') }}</el-button>
-              <el-button link class="danger-text" v-if="runMode != 1" @click="handleDelete(row)">{{ t('action.delete') }}</el-button>
+              <el-button link class="primary-text ui-action ui-action-view" @click="handleDetail(row)">{{ t('action.details') }}</el-button>
+              <el-button link class="primary-text ui-action ui-action-play" v-if="row.video" @click="onCheckVideo(row, 1)">{{ t('event.videoPlayback') }}</el-button>
+              <el-button link class="danger-text ui-action ui-action-delete" v-if="runMode != 1" @click="handleDelete(row)">{{ t('action.delete') }}</el-button>
             </div>
           </template>
         </el-table-column>
@@ -569,7 +569,7 @@ onMounted(() => {
   color: var(--el-color-primary) !important;
 
   &:hover {
-    color: #337ecc !important;
+    color: var(--primary-dark) !important;
   }
 }
 
@@ -577,7 +577,7 @@ onMounted(() => {
   color: var(--el-color-danger) !important;
 
   &:hover {
-    color: #f56c6c !important;
+    color: var(--danger-color) !important;
   }
 }
 </style>

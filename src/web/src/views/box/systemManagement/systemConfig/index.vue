@@ -1,5 +1,5 @@
 <template>
-  <div class="system-config">
+  <div class="system-config ui-admin-page">
     <el-tabs v-model="activeName">
       <el-tab-pane :label="t('systemManage.deviceInfo')" name="device">
         <device-info v-if="activeName === 'device'" />

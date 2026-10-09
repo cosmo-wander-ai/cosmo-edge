@@ -205,7 +205,7 @@ defineExpose({
 
 .card-header {
   padding: 16px 20px;
-  background: linear-gradient(135deg, var(--bg-secondary) 0%, #e2e8f0 100%);
+  background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -221,11 +221,7 @@ defineExpose({
     content: '';
     width: 4px;
     height: 18px;
-    background: linear-gradient(
-      135deg,
-      var(--primary-color) 0%,
-      var(--primary-light) 100%
-    );
+    background: var(--bg-secondary);
     border-radius: 2px;
     margin-right: 10px;
   }
@@ -267,7 +263,7 @@ defineExpose({
 
     &.is-focus {
       border-color: var(--primary-color);
-      box-shadow: 0 0 0 2px rgba(49, 130, 206, 0.1);
+      box-shadow: 0 0 0 2px rgba(88, 82, 223, 0.1);
     }
   }
 }
@@ -296,11 +292,7 @@ defineExpose({
     }
 
     &.is-checked .el-checkbox__inner {
-      background: linear-gradient(
-        135deg,
-        var(--primary-color) 0%,
-        var(--primary-light) 100%
-      );
+      background: var(--bg-secondary);
       border-color: var(--primary-color);
     }
   }
@@ -341,7 +333,7 @@ defineExpose({
 
       &.is-focus {
         border-color: var(--primary-color);
-        box-shadow: 0 0 0 2px rgba(49, 130, 206, 0.1);
+        box-shadow: 0 0 0 2px rgba(88, 82, 223, 0.1);
       }
     }
   }

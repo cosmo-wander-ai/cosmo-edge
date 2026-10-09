@@ -29,7 +29,7 @@
     </main>
 
     <teleport to="body">
-      <el-dialog v-model="addDialogVisible" :title="t('action.addComponent')" width="710px" :close-on-click-modal="true" center :z-index="6000">
+      <el-dialog v-model="addDialogVisible" :title="t('action.addComponent')" width="710px" :close-on-click-modal="true" center :z-index="6000" class="ui-admin-dialog">
         <div class="component-dialog">
           <ActionView :actionList="actionList" @onAction="addComponentFromAction" />
         </div>
@@ -979,12 +979,12 @@ watch(
   height: 100%;
   display: flex;
   flex-direction: column;
-  background-color: #f5f7fa;
+  background-color: var(--bg-primary);
 }
 
 .page-header {
   padding: 12px 20px;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: 1px solid var(--border-color);
   background: #ffffff;
 }
 
@@ -996,7 +996,7 @@ watch(
 .page-header p {
   margin: 4px 0 0;
   font-size: 13px;
-  color: #909399;
+  color: var(--text-secondary);
 }
 
 .page-main {
@@ -1048,11 +1048,7 @@ watch(
 
 .comp-btn:hover {
   border-color: var(--primary-color);
-  background: linear-gradient(
-    135deg,
-    var(--bg-primary) 0%,
-    var(--bg-white) 100%
-  );
+  background: var(--bg-secondary);
   color: var(--primary-color);
 }
 
@@ -1065,20 +1061,16 @@ watch(
 :deep(.el-dialog__header) {
   margin: 0;
   padding: 14px 16px;
-  background: linear-gradient(
-    135deg,
-    var(--primary-color) 0%,
-    var(--primary-light) 100%
-  );
+  background: var(--bg-secondary);
 }
 
 :deep(.el-dialog__title) {
-  color: #ffffff;
+  color: var(--text-primary);
   font-weight: 600;
 }
 
 :deep(.el-dialog__headerbtn .el-dialog__close) {
-  color: #ffffff;
+  color: var(--text-secondary);
 }
 
 :deep(.el-dialog__body) {
@@ -1115,7 +1107,7 @@ watch(
 }
 
 .vue-flow__handle:hover {
-  background: #3182ce;
+  background: var(--primary-color);
 }
 
 /* 连线基本样式 */
@@ -1126,6 +1118,6 @@ watch(
 
 .vue-flow__edge.selected .vue-flow__edge-path,
 .vue-flow__edge:hover .vue-flow__edge-path {
-  stroke: #3182ce;
+  stroke: var(--primary-color);
 }
 </style>

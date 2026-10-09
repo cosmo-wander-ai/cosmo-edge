@@ -212,10 +212,10 @@ onMounted(() => {
 
   .section-title {
     font-size: 14px;
-    color: #606266;
+    color: var(--text-secondary);
     margin: 20px 0;
     padding-left: 10px;
-    border-left: 4px solid #409eff;
+    border-left: 4px solid var(--primary-color);
   }
 
   .checkbox-group {

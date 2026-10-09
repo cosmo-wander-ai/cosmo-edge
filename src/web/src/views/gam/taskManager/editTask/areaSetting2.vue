@@ -2,9 +2,9 @@
   <div class="main-container">
     <div class="left-config">
       <div class="btn-tools">
-        <el-button @click="reloadImage" type="primary" size="small">{{ t('action.reloadImage') }}</el-button>
+        <el-button @click="reloadImage" type="primary" size="small" class="ui-secondary-button">{{ t('action.reloadImage') }}</el-button>
         <el-button v-if="retroDirectParamIndex !== -1" :disabled="isDrawingLine" @click="changeRetroDirection"
-          type="primary" size="small">{{ t('action.adjustArrowDirection') }}</el-button>
+          type="primary" size="small" class="ui-secondary-button">{{ t('action.adjustArrowDirection') }}</el-button>
       </div>
       <detection-canvas id="onboarding-detection-canvas" ref="canvasRef" :width="width" :height="height" :imageSrc="imgSrc" :allPoints="allPoints"
         :activeIndex="activeIndex" :shieldActiveIndex="shieldActiveIndex" :regionType="regionType"
@@ -21,10 +21,10 @@
           <el-button @click="drawLine" :type="isDrawingLine ? 'success' : 'primary'" size="small">{{ isDrawingLine ?
             t('action.finishDrawing') : t('action.draw') }}</el-button>
           <el-button v-if="regionType === 'cordon'" :disabled="!isDrawingLine && activeIndex === null"
-            @click="bidirectionalClick" type="primary" size="small">{{ t('action.toggleDirectionMode') }}</el-button>
+            @click="bidirectionalClick" type="primary" size="small" class="ui-secondary-button">{{ t('action.toggleDirectionMode') }}</el-button>
           <el-button @click="changeDirection" :disabled="!isDrawingLine && activeIndex === null" type="primary"
-            size="small">{{ t('action.switchDirection') }}</el-button>
-          <el-button @click="deleteDrawingLine" :disabled="!isDrawingLine" type="primary" size="small">{{ t('action.delete') }}</el-button>
+            size="small" class="ui-secondary-button">{{ t('action.switchDirection') }}</el-button>
+          <el-button @click="deleteDrawingLine" :disabled="!isDrawingLine" type="primary" size="small" class="ui-action ui-action-delete">{{ t('action.delete') }}</el-button>
         </div>
         <el-table :data="props.config?.taskAreaRows || []" style="width: 100%" :key="`detection-table-${tableKey}`"
           @row-click="chooseRow($event, 'detection')" :row-class-name="setRowIndex" :row-style="hightlight">
@@ -36,8 +36,8 @@
           <el-table-column :label="t('field.actions')" min-width="90">
             <template #default="scope">
               <div class="tool-btns">
-                <el-button link @click="handleEdit(scope.$index)">{{ t('action.edit') }}</el-button>
-                <el-button class="delete-btn" link @click="handleDelete(scope.$index)">{{ t('action.delete') }}</el-button>
+                <el-button link @click="handleEdit(scope.$index)" class="ui-action ui-action-edit">{{ t('action.edit') }}</el-button>
+                <el-button class="delete-btn ui-action ui-action-delete" link @click="handleDelete(scope.$index)">{{ t('action.delete') }}</el-button>
               </div>
             </template>
           </el-table-column>
@@ -48,7 +48,7 @@
       <div v-else-if="props.config?.taskAreaHeader && props.config.taskAreaHeader.length !== 0" class="area-content">
         <div class="area-top">
           <div>{{ t('glossary.detectionAreaList') }}</div>
-          <el-button id="onboarding-add-area" @click="addArea('detection')" type="primary" size="small">{{ t('glossary.addArea') }}</el-button>
+          <el-button id="onboarding-add-area" @click="addArea('detection')" type="primary" size="small" class="ui-secondary-button">{{ t('glossary.addArea') }}</el-button>
         </div>
         <el-table :data="props.config?.taskAreaRows || []" style="width: 100%"
           @row-click="chooseRow($event, 'detection')" :row-class-name="setRowIndex" :row-style="hightlight">
@@ -62,8 +62,8 @@
           <el-table-column :label="t('field.actions')" min-width="90">
             <template #default="scope">
               <div class="tool-btns">
-                <el-button link @click="handleEdit(scope.$index, 'detection')">{{ t('action.edit') }}</el-button>
-                <el-button class="delete-btn" link
+                <el-button link @click="handleEdit(scope.$index, 'detection')" class="ui-action ui-action-edit">{{ t('action.edit') }}</el-button>
+                <el-button class="delete-btn ui-action ui-action-delete" link
                   @click="handleDelete(scope.$index, 'detection')">{{ t('action.delete') }}</el-button>
               </div>
             </template>
@@ -75,7 +75,7 @@
       <div v-if="props.config?.shieldAreaHeader && props.config.shieldAreaHeader.length !== 0" class="area-content">
         <div class="area-top">
           <div>{{ t('glossary.shieldAreaList') }}</div>
-          <el-button @click="addArea('shield')" type="primary" size="small">{{ t('glossary.addArea') }}</el-button>
+          <el-button @click="addArea('shield')" type="primary" size="small" class="ui-secondary-button">{{ t('glossary.addArea') }}</el-button>
         </div>
         <el-table :data="props.config?.shieldAreaRows || []" style="width: 100%"
           @row-click="chooseRow($event, 'shield')" :row-class-name="setRowIndex" :row-style="shieldHightlight">
@@ -89,8 +89,8 @@
           <el-table-column :label="t('field.actions')" min-width="90">
             <template #default="scope">
               <div class="tool-btns">
-                <el-button link @click="handleEdit(scope.$index, 'shield')">{{ t('action.edit') }}</el-button>
-                <el-button class="delete-btn" link @click="handleDelete(scope.$index, 'shield')">{{ t('action.delete') }}</el-button>
+                <el-button link @click="handleEdit(scope.$index, 'shield')" class="ui-action ui-action-edit">{{ t('action.edit') }}</el-button>
+                <el-button class="delete-btn ui-action ui-action-delete" link @click="handleDelete(scope.$index, 'shield')">{{ t('action.delete') }}</el-button>
               </div>
             </template>
           </el-table-column>
@@ -98,7 +98,7 @@
       </div>
     </div>
 
-    <el-dialog id="onboarding-area-dialog" :title="dialogTitle" v-model="addDialogVisible" width="560px" center>
+    <el-dialog id="onboarding-area-dialog" :title="dialogTitle" v-model="addDialogVisible" width="560px" center class="ui-admin-dialog">
       <dynamicform v-model="addAreaDialogConfig" :labelWidth="'200px'" :algorithmCode="props.algorithmCode" ref="submitFormRef" @update:modelValue="handleFormUpdate"></dynamicform>
       <VisualRoiEditor v-if="addDialogVisible && addAreaType !== 'shield' && areaDialogMode !== 'add-line' && props.config?.visualQuestionEditing" ref="roiEditor" :params="roiParams" :questions="visualQuestions" />
       <template #footer>
@@ -108,7 +108,7 @@
         </span>
       </template>
     </el-dialog>
-    <el-dialog :title="t('common.notice')" v-model="sureDeleteClick" center width="402px">
+    <el-dialog :title="t('common.notice')" v-model="sureDeleteClick" center width="402px" class="ui-admin-dialog">
       <div style="text-align: center">{{ t('action.confirmDelete') }}</div>
       <template #footer>
         <span class="dialog-footer">
@@ -954,7 +954,7 @@ watch(() => addDialogVisible.value, (newVal) => {
     }
 
     .delete-btn {
-      color: #f56c6c;
+      color: var(--danger-color);
     }
   }
 }

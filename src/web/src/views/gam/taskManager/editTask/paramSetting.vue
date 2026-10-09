@@ -83,7 +83,7 @@ const handleKeyDown = (e) => {
   padding: 0px 0 0px 20px;
 }
 .param-body {
-  min-width: 640px;
+  min-width: 0;
   width: 100%;
   max-height: calc(100vh - 350px);
   overflow: auto;
@@ -106,7 +106,7 @@ const handleKeyDown = (e) => {
 .form-wrap {
   padding: 0 30px 0 10px;
   > p {
-    border-left: 3px solid #409eff;
+    border-left: 3px solid var(--primary-color);
     margin-left: 15px;
     padding-left: 10px;
     line-height: 14px;

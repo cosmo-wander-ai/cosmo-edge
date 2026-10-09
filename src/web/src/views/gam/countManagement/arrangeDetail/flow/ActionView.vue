@@ -170,7 +170,7 @@ const toggleGroup = (group) => {
 
 .item-action:focus-visible {
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.15);
+  box-shadow: 0 0 0 3px rgba(88, 82, 223, 0.15);
 }
 
 .collapse-enter-active,

@@ -1,5 +1,5 @@
 <template>
-  <el-dialog class="dialogtype" :title="title" v-model="dialogVisible" @close="handleClose" width="560px" center>
+  <el-dialog class="dialogtype ui-admin-dialog" :title="title" v-model="dialogVisible" @close="handleClose" width="560px" center>
     <!-- 人员新增 -->
     <div>
       <el-form class="form-wrap" :model="ruleFormData" :rules="rules" ref="ruleForm" :label-width="currentLocale === 'en-US' ? '160px' : '125px'">
@@ -27,7 +27,7 @@
         <el-button @click="submitForm('ruleForm')" type="primary" size="small">{{ t('action.save') }}</el-button>
       </div>
     </div>
-    <el-dialog :title="t('basePic.photoExample')" :append-to-body="true" v-model="dialogVisibleother" width="480px" center>
+    <el-dialog :title="t('basePic.photoExample')" :append-to-body="true" v-model="dialogVisibleother" width="480px" center class="ui-admin-dialog">
       <div class="pic-example-wrap">
         <el-alert :title="t('basePic.photoSizeTip')" type="warning" show-icon :closable="false"></el-alert>
         <div class="right-example-wrap">
@@ -338,7 +338,7 @@ onMounted(() => {
 .form-wrap {
   padding: 0 30px 0 10px;
   > p {
-    border-left: 3px solid #409eff;
+    border-left: 3px solid var(--primary-color);
     margin-left: 15px;
     padding-left: 10px;
     line-height: 14px;
@@ -365,7 +365,7 @@ onMounted(() => {
   overflow: hidden;
 }
 .avatar-uploader .el-upload:hover {
-  border-color: #409eff;
+  border-color: var(--primary-color);
 }
 .avatar-uploader-icon {
   font-size: 28px;
@@ -416,11 +416,11 @@ onMounted(() => {
         &:first-child {
           font-size: 16px;
           font-weight: bold;
-          color: #303133;
+          color: var(--text-primary);
         }
         &:last-child {
           font-size: 14px;
-          color: #909399;
+          color: var(--text-secondary);
         }
       }
     }
@@ -430,7 +430,7 @@ onMounted(() => {
     .error-title {
       font-size: 16px;
       font-weight: bold;
-      color: #303133;
+      color: var(--text-primary);
     }
     .error-pic {
       margin-top: 30px;
@@ -451,7 +451,7 @@ onMounted(() => {
         > label {
           margin-top: 10px;
           font-size: 14px;
-          color: #303133;
+          color: var(--text-primary);
         }
       }
     }

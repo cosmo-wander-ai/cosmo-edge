@@ -1,5 +1,5 @@
 <template>
-  <el-dialog v-if="dialogVisible" class="dialogtype" :title="t('basePic.captureAddTitle')" v-model="dialogVisible" @close="handleClose" width="1046px" center>
+  <el-dialog v-if="dialogVisible" class="dialogtype ui-admin-dialog" :title="t('basePic.captureAddTitle')" v-model="dialogVisible" @close="handleClose" width="1046px" center>
     <div class="container">
       <div class="wrap-left">
         <div class="cardleft">
@@ -50,7 +50,7 @@
         </div>
 
         <div style="float: right; margin-top: 15px">
-          <el-button @click="captureFn" type="primary" size="small">{{ t('basePic.capture') }}</el-button>
+          <el-button @click="captureFn" type="primary" size="small" class="ui-secondary-button">{{ t('basePic.capture') }}</el-button>
         </div>
       </div>
       <div class="wrap-right">

@@ -1,5 +1,5 @@
 <template>
-  <div class="net-config">
+  <div class="net-config ui-admin-page">
     <el-tabs v-model="activeName">
       <el-tab-pane :label="t('systemManage.networkPortSettings')" name="network">
         <div class="network-container" v-if="activeName === 'network'">
@@ -26,7 +26,7 @@
                   <el-form-item :label="t('systemManage.ipAddress')" prop="ipAddr">
                     <div class="ip-input">
                       <el-input v-model="item.ipAddr" :disabled="!item.isEdit || item.dhcp == 1"></el-input>
-                      <el-button type="primary" size="small" @click="handleTest(item.ipAddr, index)">{{ t('systemManage.ipConflictCheck') }}</el-button>
+                      <el-button type="primary" size="small" @click="handleTest(item.ipAddr, index)" class="ui-secondary-button">{{ t('systemManage.ipConflictCheck') }}</el-button>
                     </div>
                   </el-form-item>
                   <el-form-item :label="t('systemManage.subnetMask')" prop="netMask">
@@ -78,14 +78,14 @@
               <el-input v-model.number="detectForm.packetSize" type="number" :placeholder="t('systemManage.enterPacketSize')"></el-input>
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" @click="handleDetect">{{ t('systemManage.networkDetection') }}</el-button>
+              <el-button type="primary" @click="handleDetect" class="ui-secondary-button">{{ t('systemManage.networkDetection') }}</el-button>
             </el-form-item>
           </el-form>
         </div>
       </el-tab-pane>
     </el-tabs>
 
-    <el-dialog :title="t('systemManage.detectResult')" v-model="detectVisible" center width="400px">
+    <el-dialog :title="t('systemManage.detectResult')" v-model="detectVisible" center width="400px" class="ui-admin-dialog">
       <div class="detect-result">
         <div class="result-item">
           <span class="label">{{ t('systemManage.lostRate') }}</span>
@@ -101,7 +101,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog class="dialogtype nameinfo" v-if="dialogVisible" width="368px" :title="t('common.notice')" v-model="dialogVisible" center>
+    <el-dialog class="dialogtype nameinfo ui-admin-dialog" v-if="dialogVisible" width="368px" :title="t('common.notice')" v-model="dialogVisible" center>
       <div class="fd">
         <img v-if="imgState == 1" width="44px" :src="img1Url" />
         <img v-else-if="imgState == 2" width="44px" :src="img2Url" />
@@ -466,7 +466,7 @@ onMounted(() => {
 
       span {
         display: inline-block;
-        color: #606266;
+        color: var(--text-secondary);
       }
 
       .title-label {
@@ -487,7 +487,7 @@ onMounted(() => {
         margin-bottom: 18px;
 
         .el-form-item__label {
-          color: #606266;
+          color: var(--text-secondary);
         }
 
         .el-input {
@@ -542,7 +542,7 @@ onMounted(() => {
 
     .label {
       width: 80px;
-      color: #606266;
+      color: var(--text-secondary);
       text-align: right;
       margin-right: 10px;
     }

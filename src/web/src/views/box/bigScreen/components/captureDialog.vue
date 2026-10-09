@@ -210,53 +210,25 @@ const checkObj = (obj) => {
 </script>
 
 <style lang="scss" scoped>
-.mv-el-button {
-  width: 77px;
-  height: 32px;
-  padding: 0px;
+:deep(.el-dialog) {
+  max-width: calc(100vw - 32px);
+  background: #fff;
+  color: #20222d;
+  border: 1px solid #dce1e8;
+  border-radius: 10px;
 }
-
-.content-body {
-  display: flex;
-  flex-wrap: wrap;
-  padding: 0 20px;
-}
-
-.info-item {
-  width: 50%;
-  display: flex;
-  // align-items: baseline;
-  margin-bottom: 20px;
-}
-
-.info-item-title {
-  display: inline-block;
-  align-self: baseline;
-}
-
-.info-item-content {
-  display: inline-block;
-  align-self: baseline;
-  // white-space: nowrap;
-  // text-overflow: ellipsis;
-  // overflow: hidden;
-}
-
-.capture-img3 {
-  width: 176px;
-  height: 100px;
-  object-fit: cover;
-}
-
-.info-item-big {
-  width: 100%;
-  display: flex;
-  // align-items: baseline;
-  margin-bottom: 20px;
-
-  .capture-img3 {
-    width: 320px !important;
-    height: 180px !important;
-  }
-}
+:deep(.el-dialog__body) { max-height: calc(100dvh - 220px); overflow-y: auto; }
+:deep(.el-dialog__title) { color: #20222d; font-weight: 600; }
+.mv-el-button { min-width: 77px; height: 32px; }
+.content-body { display: flex; flex-wrap: wrap; gap: 20px 24px; padding: 0 8px; }
+.info-item { display: flex; flex-direction: column; gap: 8px; width: calc(50% - 12px); min-width: 0; }
+.info-item-title { color: #657084; font-size: 13px; line-height: 1.6; }
+.info-item-content { min-width: 0; color: #20222d; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.capture-img3 { width: 176px; height: 100px; max-width: 100%; border: 1px solid #e8ebf0; border-radius: 5px; background: #f3f5f8; }
+.info-item-big { display: flex; flex-direction: column; gap: 8px; width: 100%; min-width: 0; }
+.info-item-big .capture-img3 { width: 320px; height: 180px; }
+.video-bg { position: relative; width: 320px; max-width: 100%; height: 180px; background: #171c24; border-radius: 5px; overflow: hidden; }
+.video-bg .el-icon-video-play { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: block; font-size: 48px; color: #fff; cursor: pointer; }
+.wran-video :deep(.mini-video-play-download) { display: none; }
+@media (max-width: 640px) { .info-item { width: 100%; } }
 </style>

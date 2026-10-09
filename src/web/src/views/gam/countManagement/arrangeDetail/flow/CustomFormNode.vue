@@ -131,7 +131,7 @@ const handleDelete = () => {
 <style scoped>
 .action-node {
   background: #ffffff;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   width: 96px;
   min-height: 96px;
@@ -150,8 +150,8 @@ const handleDelete = () => {
 
 /* 选中态：indigo 发光边框 */
 .action-node.selected {
-  border-color: #3182ce;
-  box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.2);
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(88, 82, 223, 0.2);
 }
 
 .node-card {
@@ -175,11 +175,11 @@ const handleDelete = () => {
   justify-content: center;
 }
 
-.node-icon-wrapper.icon-blue   { background: #eff6ff; color: #3b82f6; }
-.node-icon-wrapper.icon-purple { background: #ebf8ff; color: #2b6cb0; }
+.node-icon-wrapper.icon-blue   { background: #eff6ff; color: var(--primary-color); }
+.node-icon-wrapper.icon-purple { background: var(--el-color-primary-light-9); color: var(--primary-dark); }
 .node-icon-wrapper.icon-orange { background: #fff7ed; color: #ea580c; }
-.node-icon-wrapper.icon-green  { background: #f0fdf4; color: #16a34a; }
-.node-icon-wrapper.icon-gray   { background: #f3f4f6; color: #6b7280; }
+.node-icon-wrapper.icon-green  { background: #f0fdf4; color: var(--success-color); }
+.node-icon-wrapper.icon-gray   { background: var(--bg-secondary); color: var(--text-secondary); }
 
 .node-icon-svg {
   width: 30px;
@@ -208,9 +208,9 @@ const handleDelete = () => {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  border: 1px solid #f56c6c;
+  border: 1px solid var(--danger-color);
   background-color: #ffffff;
-  color: #f56c6c;
+  color: var(--danger-color);
   font-size: 12px;
   line-height: 1;
   padding: 0;

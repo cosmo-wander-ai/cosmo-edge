@@ -1,5 +1,5 @@
 <template>
-  <el-dialog v-model="visible" :title="t('visualReview.title')" width="90%" destroy-on-close>
+  <el-dialog v-model="visible" :title="t('visualReview.title')" width="90%" destroy-on-close class="ui-admin-dialog">
     <el-radio-group v-model="format" class="review-format" :aria-label="t('visualReview.recordType')">
       <el-radio-button value="typed-v1">{{ t('visualReview.typed') }}</el-radio-button>
       <el-radio-button value="legacy">{{ t('visualReview.legacy') }}</el-radio-button>

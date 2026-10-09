@@ -1,5 +1,5 @@
 <template>
-  <div class="mv-wrap">
+  <div class="mv-wrap ui-admin-page">
     <div class="mv-wrap-top">
       <div class="mvtitle">
         <span class="mv-table-title">{{ t('event.queryConditions') }}</span>
@@ -41,7 +41,7 @@
             </el-form-item>
 
             <el-form-item class="search-btns">
-              <el-button type="primary" @click="getData" size="small">{{ t('action.search') }}</el-button>
+              <el-button type="primary" @click="getData" size="small" class="ui-secondary-button">{{ t('action.search') }}</el-button>
               <el-button @click="resetParams('hour')" size="small">{{ t('action.reset') }}</el-button>
             </el-form-item>
           </el-form>
@@ -71,7 +71,7 @@
             </el-form-item>
 
             <el-form-item class="search-btns">
-              <el-button type="primary" @click="getData" size="small">{{ t('action.search') }}</el-button>
+              <el-button type="primary" @click="getData" size="small" class="ui-secondary-button">{{ t('action.search') }}</el-button>
               <el-button @click="resetParams('day')" size="small">{{ t('action.reset') }}</el-button>
             </el-form-item>
 
@@ -102,7 +102,7 @@
             </el-form-item>
 
             <el-form-item class="search-btns">
-              <el-button type="primary" @click="getData" size="small">{{ t('action.search') }}</el-button>
+              <el-button type="primary" @click="getData" size="small" class="ui-secondary-button">{{ t('action.search') }}</el-button>
               <el-button @click="resetParams('month')" size="small">{{ t('action.reset') }}</el-button>
             </el-form-item>
 
@@ -145,7 +145,7 @@
     <div class="mv-wrap-body">
       <div class="mvtitle">
         <span class="mv-table-title">{{ t('event.flowTrendAndDetail') }}</span>
-        <el-button type="primary" size="small" :disabled="!chart" @click="showData" plain>{{ t('event.chartToggleLabel') }}</el-button>
+        <el-button type="primary" size="small" :disabled="!chart" @click="showData" plain class="ui-secondary-button">{{ t('event.chartToggleLabel') }}</el-button>
       </div>
 
       <div class="content-split" v-if="chartList.length">
@@ -619,7 +619,7 @@ onMounted(() => {
     vertical-align: middle;
     width: 12px;
     height: 1px;
-    background-color: #dcdfe6;
+    background-color: var(--border-color);
     margin: 0 10px;
   }
 
@@ -700,19 +700,19 @@ onMounted(() => {
       
       .stat-label {
         font-size: 14px;
-        color: #909399;
+        color: var(--text-secondary);
         margin-bottom: 8px;
       }
       
       .stat-value {
         font-size: 28px;
         font-weight: 600;
-        color: #303133;
+        color: var(--text-primary);
         line-height: 1;
         
         .stat-unit {
           font-size: 14px;
-          color: #909399;
+          color: var(--text-secondary);
           font-weight: normal;
           margin-left: 2px;
         }
@@ -729,14 +729,14 @@ onMounted(() => {
   .chart-section {
     flex: 1;
     min-width: 0;
-    border: 1px solid #ebeef5;
+    border: 1px solid var(--border-light);
     border-radius: 4px;
     padding: 16px;
   }
   
   .table-section {
     width: 400px;
-    border: 1px solid #ebeef5;
+    border: 1px solid var(--border-light);
     border-radius: 4px;
     padding: 16px;
     background: #fff;
@@ -746,12 +746,12 @@ onMounted(() => {
     }
     
     .positive-flow {
-      color: #F56C6C;
+      color: var(--danger-color);
       font-weight: bold;
     }
     
     .negative-flow {
-      color: #67C23A;
+      color: var(--success-color);
     }
   }
 }

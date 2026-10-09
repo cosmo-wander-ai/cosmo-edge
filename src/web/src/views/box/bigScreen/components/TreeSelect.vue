@@ -1,6 +1,6 @@
 <template>
-  <div>
-    <el-select ref="treeSelect" filterable popper-class="custom-select-popper" :filter-method="filterTree" style="width: 100%" v-model="valueLabel" size="small" collapse-tags :clearable="clearable" :placeholder="placeholder" :multiple="multiple" @clear="handleClear" @remove-tag="handleRemoveTag">
+  <div class="realtime-tree-select">
+    <el-select ref="treeSelect" filterable popper-class="realtime-tree-popper" :filter-method="filterTree" style="width: 100%" v-model="valueLabel" size="small" collapse-tags :clearable="clearable" :placeholder="placeholder" :multiple="multiple" @clear="handleClear" @remove-tag="handleRemoveTag">
       <el-option :value="valueLabel" :label="option.name" class="select-options">
         <el-tree id="tree-option" ref="treeSelectTree" :accordion="accordion" :data="treeData" :props="props" :node-key="props.value" :highlight-current="!multiple" :show-checkbox="multiple" :check-strictly="checkStrictly" :default-expand-all="expandAll" :expand-on-click-node="multiple" :filter-node-method="filterNode" @node-click="handleNodeClick" @check="handleNodeCheckbox">
           <template #default="{ node }">
@@ -286,217 +286,41 @@ onMounted(() => {
 </script>
  
 <style scoped lang="scss">
-.custom-select-popper {
+.realtime-tree-select {
+  :deep(.el-input__wrapper),
+  :deep(.el-select__wrapper) { background: #fff; }
+  :deep(.el-input__inner) { color: #20222d; }
+  :deep(.el-select__tags .el-tag) { color: #5852df; border-color: #e3e0f8; background: #f3f1ff; }
+}
+.tree_label { line-height: 28px; }
+</style>
+
+<style lang="scss">
+.realtime-tree-popper {
+  border: 1px solid #dce1e8;
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px #20222d1a;
+
   .el-select-dropdown__item {
     height: auto;
     max-height: 350px;
     padding: 0;
     overflow-y: auto;
-
-    &::-webkit-scrollbar-track {
-      background: rgba(19, 31, 58, 0.3);
-      border-radius: 3px;
-    }
-
-    &::-webkit-scrollbar {
-      -webkit-appearance: none;
-      width: 6px;
-      height: 6px;
-    }
-
-    &::-webkit-scrollbar-thumb {
-      cursor: pointer;
-      border-radius: 3px;
-      background: rgba(95, 200, 223, 0.4);
-      transition: all 0.2s ease;
-
-      &:hover {
-        background: rgba(95, 200, 223, 0.6);
-      }
-    }
-  }
-}
-
-ul li {
-  .el-tree {
-    .el-tree-node__content {
-      height: auto;
-      padding: 0 20px;
-      transition: all 0.2s;
-    }
-    .el-tree-node__label {
-      font-weight: normal;
-    }
-    .is-current > .el-tree-node__label {
-      color: #5fc8df;
-      font-weight: 600;
-    }
-  }
-}
-
-.tree_label {
-  line-height: 28px;
-
-  .label_index {
-    background: linear-gradient(135deg, #5fc8df 0%, #409eff 100%);
-    width: 22px;
-    height: 22px;
-    display: inline-flex;
-    border-radius: 4px;
-
-    .label_index_font {
-      color: #ffffff;
-      width: 100%;
-      text-align: center;
-    }
-  }
-}
-</style>
-
-<style lang="scss">
-.el-select {
-  .el-input__wrapper {
-    background: linear-gradient(180deg, rgba(19, 31, 58, 0.6) 0%, rgba(21, 35, 69, 0.8) 100%);
-    border: 1px solid rgba(95, 200, 223, 0.3);
-    box-shadow: none;
-    transition: all 0.3s;
-
-    &:hover {
-      border-color: rgba(95, 200, 223, 0.5);
-      background: linear-gradient(180deg, rgba(19, 31, 58, 0.7) 0%, rgba(21, 35, 69, 0.9) 100%);
-    }
-
-    &.is-focus {
-      border-color: #5fc8df;
-      box-shadow: 0 0 8px rgba(95, 200, 223, 0.3);
-    }
-  }
-
-  .el-input__inner {
-    color: #94d0ff;
-    
-    &::placeholder {
-      color: rgba(148, 208, 255, 0.5);
-    }
-  }
-
-  .el-select__caret {
-    color: #94d0ff;
-  }
-
-  .el-select__tags {
-    .el-tag {
-      background: rgba(95, 200, 223, 0.2);
-      border-color: rgba(95, 200, 223, 0.4);
-      color: #94d0ff;
-
-      .el-tag__close {
-        color: #94d0ff;
-        
-        &:hover {
-          background: rgba(95, 200, 223, 0.3);
-          color: #5fc8df;
-        }
-      }
-    }
-  }
-}
-
-.el-select .el-input .el-select__caret {
-  color: #94d0ff;
-}
-
-.el-icon-search:before {
-  color: #94d0ff;
-}
-
-.custom-select-popper {
-  border: 1px solid rgba(95, 200, 223, 0.4);
-  background: linear-gradient(180deg, rgba(19, 31, 58, 0.98) 0%, rgba(21, 35, 69, 0.98) 100%);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
-
-  .popper__arrow {
-    display: none;
-  }
-
-  .el-select-dropdown__item {
     background: transparent;
-    
-    &.hover {
-      background-color: transparent;
-    }
+    &.hover, &.is-hovering { background: transparent; }
   }
-
-  .el-scrollbar {
-    background: transparent;
-    border-radius: 3px;
-    padding: 8px;
-  }
-
-  .el-tree {
-    background: transparent;
-    padding: 4px 0;
-  }
-
+  .el-scrollbar { padding: 6px; }
+  .el-tree { padding: 4px 0; background: transparent; }
   .el-tree-node__content {
-    background: transparent;
-    color: #94d0ff;
     height: 34px;
-    transition: all 0.2s;
+    padding-right: 12px;
+    color: #20222d;
     border-radius: 4px;
-    margin: 2px 0;
-
-    &:hover {
-      background: rgba(95, 200, 223, 0.2);
-    }
+    &:hover { background: #f3f5f8; }
   }
-
-  .el-tree-node.is-current > .el-tree-node__content {
-    background: rgba(95, 200, 223, 0.3);
-    color: #5fc8df;
-    font-weight: 500;
-  }
-
-  .el-tree-node__expand-icon {
-    color: #94d0ff;
-    
-    &.is-leaf {
-      color: transparent;
-    }
-  }
-
-  .el-checkbox {
-    .el-checkbox__inner {
-      background: rgba(19, 31, 58, 0.8);
-      border: 1px solid rgba(95, 200, 223, 0.5);
-      width: 16px;
-      height: 16px;
-
-      &:hover {
-        border-color: #5fc8df;
-      }
-
-      &::after {
-        border-color: #fff;
-        border-width: 2px;
-      }
-    }
-
-    .el-checkbox__input.is-checked .el-checkbox__inner {
-      background: linear-gradient(135deg, #5fc8df 0%, #409eff 100%);
-      border-color: #5fc8df;
-    }
-
-    .el-checkbox__input.is-indeterminate .el-checkbox__inner {
-      background: linear-gradient(135deg, rgba(95, 200, 223, 0.6) 0%, rgba(64, 158, 255, 0.6) 100%);
-      border-color: #5fc8df;
-    }
-
-    .el-checkbox__label {
-      color: #94d0ff;
-      padding-left: 8px;
-    }
-  }
+  .el-tree-node.is-current > .el-tree-node__content { color: #5852df; background: #f3f1ff; }
+  .el-tree-node__expand-icon { color: #657084; &.is-leaf { color: transparent; } }
+  .el-checkbox__label { color: #20222d; }
 }
 </style>

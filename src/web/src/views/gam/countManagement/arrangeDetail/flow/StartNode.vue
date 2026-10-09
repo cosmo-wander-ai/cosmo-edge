@@ -30,7 +30,7 @@ const props = defineProps({
   height: 96px;
   box-sizing: border-box;
   border-radius: 12px;
-  background: #3182ce;
+  background: var(--primary-color);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -59,9 +59,9 @@ const props = defineProps({
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  border: 1px solid #f56c6c;
+  border: 1px solid var(--danger-color);
   background-color: #ffffff;
-  color: #f56c6c;
+  color: var(--danger-color);
   font-size: 12px;
   line-height: 1;
   padding: 0;

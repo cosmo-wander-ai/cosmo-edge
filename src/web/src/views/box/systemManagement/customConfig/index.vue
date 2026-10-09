@@ -1,5 +1,5 @@
 <template>
-  <div class="custom-config">
+  <div class="custom-config ui-admin-page">
     <div class="page-header">
       <div class="title">{{ t('systemManage.customSettings') }}</div>
       <div class="actions">
@@ -210,12 +210,12 @@ onMounted(async () => {
     align-items: center;
     margin-bottom: 20px;
     padding-bottom: 15px;
-    border-bottom: 1px solid #ebeef5;
+    border-bottom: 1px solid var(--border-light);
 
     .title {
       font-size: 16px;
       font-weight: 500;
-      color: #303133;
+      color: var(--text-primary);
     }
 
     .actions {
@@ -235,7 +235,7 @@ onMounted(async () => {
       overflow: hidden;
 
       &:hover {
-        border-color: #409eff;
+        border-color: var(--primary-color);
       }
     }
   }
@@ -256,7 +256,7 @@ onMounted(async () => {
   }
 
   .upload-tip {
-    color: #909399;
+    color: var(--text-secondary);
     font-size: 12px;
 
     .el-icon-info {

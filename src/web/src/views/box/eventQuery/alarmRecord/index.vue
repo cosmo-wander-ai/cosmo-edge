@@ -1,5 +1,5 @@
 <template>
-  <div class="alarm-record">
+  <div class="alarm-record ui-admin-page">
     <LayaReviewDialog v-model="layaVisible" :event-id="layaEventId" />
     <TopBar ref="topBarRef" :dataSouce="topBarData" :formData="formData" :labelWidth="60" :defaultExpand="true" @search="searchList" />
 
@@ -7,7 +7,7 @@
       <div class="table-header">
         <div class="table-tools">
           <el-button size="small" @click="layaEventId = ''; layaVisible = true">{{ t('visualReview.title') }}</el-button>
-          <el-button type="primary" size="small" @click="handleExport" :disabled="tableData.length === 0">{{ t('event.dataExport') }}</el-button>
+          <el-button type="primary" size="small" @click="handleExport" :disabled="tableData.length === 0" class="ui-secondary-button">{{ t('event.dataExport') }}</el-button>
         </div>
       </div>
 
@@ -44,14 +44,14 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column :label="t('field.actions')" fixed="right" :width="currentLocale === 'en-US' ? '230' : '150'">
+        <el-table-column :label="t('field.actions')" fixed="right" :width="currentLocale === 'en-US' ? '320' : '260'">
           <template #default="{ row }">
             <div class="operation-btns">
-              <el-button link @click="layaEventId = row.id; layaVisible = true">{{ t('visualReview.review') }}</el-button>
-              <el-button link @click="handleDetail(row)">{{ t('action.details') }}</el-button>
-              <el-button link v-if="runMode != 1 && checkRuku(row)" @click="handleRuku(row)">{{ t('event.captureImageStorage') }}</el-button>
-              <el-button v-if="row.video" link @click="onCheckVideo(row, 1)">{{ t('event.videoPlayback') }}</el-button>
-              <el-button v-if="runMode != 1" link style="color:red;" @click="handleDelete(row)">{{ t('action.delete') }}</el-button>
+              <el-button link class="ui-action ui-action-view" @click="layaEventId = row.id; layaVisible = true">{{ t('visualReview.review') }}</el-button>
+              <el-button link @click="handleDetail(row)" class="ui-action ui-action-view">{{ t('action.details') }}</el-button>
+              <el-button link class="ui-action ui-action-upload" v-if="runMode != 1 && checkRuku(row)" @click="handleRuku(row)">{{ t('event.captureImageStorage') }}</el-button>
+              <el-button v-if="row.video" link class="ui-action ui-action-play" @click="onCheckVideo(row, 1)">{{ t('event.videoPlayback') }}</el-button>
+              <el-button v-if="runMode != 1" link style="color:red;" @click="handleDelete(row)" class="ui-action ui-action-delete">{{ t('action.delete') }}</el-button>
             </div>
           </template>
         </el-table-column>
@@ -89,7 +89,7 @@
               </div>
               <div class="grid-actions">
                 <el-button link class="primary-text" @click="layaEventId = item.id; layaVisible = true">{{ t('visualReview.review') }}</el-button>
-                <el-button link class="primary-text" @click="handleDetail(item)">{{ t('action.details') }}</el-button>
+                <el-button link class="primary-text ui-action ui-action-view" @click="handleDetail(item)">{{ t('action.details') }}</el-button>
                 <el-button link class="primary-text" v-if="checkRuku(item)" @click="handleRuku(item)">{{ t('event.captureImageStorage') }}</el-button>
                 <el-button link class="primary-text" v-if="item.video" @click="onCheckVideo(item, 1)">{{ t('event.videoPlayback') }}</el-button>
                 <!-- <el-button v-if="runMode != 1" link class="danger-text" @click="handleDelete(item)">删除</el-button> -->
@@ -525,7 +525,7 @@ onMounted(() => {
 
     &-selected {
       :deep(.el-card__body) {
-        background-color: #f5f7fa;
+        background-color: var(--bg-primary);
       }
     }
 
@@ -560,7 +560,7 @@ onMounted(() => {
           margin-bottom: 8px;
 
           .label {
-            color: #606266;
+            color: var(--text-secondary);
             margin-right: 8px;
           }
         }
@@ -568,7 +568,7 @@ onMounted(() => {
 
       .grid-actions {
         padding: 12px 0 8px;
-        border-top: 1px solid #ebeef5;
+        border-top: 1px solid var(--border-light);
         display: flex;
         justify-content: flex-end;
         gap: 8px;
@@ -604,7 +604,7 @@ onMounted(() => {
   color: var(--el-color-primary) !important;
 
   &:hover {
-    color: #337ecc !important;
+    color: var(--primary-dark) !important;
   }
 }
 
@@ -612,7 +612,7 @@ onMounted(() => {
   color: var(--el-color-danger) !important;
 
   &:hover {
-    color: #f56c6c !important;
+    color: var(--danger-color) !important;
   }
 }
 </style>

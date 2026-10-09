@@ -1,31 +1,29 @@
 <template>
   <div ref="videoContainer" class="video-container" @mouseover="handleControls('over')" @mouseleave="handleControls('leave')">
-    <video v-if="isShowVideo" ref="video" class="video" muted>
-      Sorry, your browser doesn't support embedded videos.
-    </video>
-
-    <div v-if="isShowLoading" class="loading-spinner"></div>
-
-    <transition name="fade">
-      <div class="video-top-control">
-        <div class="camera-name">{{ t('event.currentSelected') }}{{ localeColon }}{{ cameraName }}</div>
-        <div>
-          <span>{{ t('event.algorithmOverlay') }}{{ localeColon }}</span>
-          <el-select v-model="algorithmId" popper-class="custom-select-popper2" class="overlay-select" size="small" id="onboarding-overlay-select" @change="overlayAlgorithmChange">
-            <el-option v-for="item in algorithmOverlayList" :label="resolveResourceAlgorithmName(item)" :value="item.algorithmId" :key="item.algorithmId"></el-option>
-          </el-select>
-        </div>
-        <div>
-          <img v-if="isFullScreen !== null" class="icon" src="@/assets/video_zoom_out.png" @click="handleExitFullScreen">
-          <img v-else class="icon" src="@/assets/video_zoom_in.png" @click="handleFullScreen">
-          <img class="icon" src="@/assets/video_close.png" @click="stopPreview">
-        </div>
+    <div class="video-stage">
+      <video v-if="isShowVideo" ref="video" class="video" muted>
+        Sorry, your browser doesn't support embedded videos.
+      </video>
+      <div v-if="isShowLoading" class="loading-spinner"></div>
+      <div v-if="isShowStopPreview" class="stop-preview">
+        <img src="@/assets/big_screen_no_camera.png" alt />
+        <span>{{ t('event.noVideoSignal') }}</span>
       </div>
-    </transition>
+    </div>
 
-    <div v-if="isShowStopPreview" class="stop-preview">
-      <img src="@/assets/big_screen_no_camera.png" alt />
-      <span>{{ t('event.noVideoSignal') }}</span>
+    <div class="video-top-control">
+      <div class="camera-name" :title="cameraName">{{ cameraName }}</div>
+      <div class="algorithm-control">
+        <span class="algorithm-label">{{ t('event.algorithmOverlay') }}{{ localeColon }}</span>
+        <el-select v-model="algorithmId" popper-class="custom-select-popper2 realtime-overlay-popper" class="overlay-select" size="small" id="onboarding-overlay-select" :aria-label="t('event.algorithmOverlay')" @change="overlayAlgorithmChange">
+          <el-option v-for="item in algorithmOverlayList" :label="resolveResourceAlgorithmName(item)" :value="item.algorithmId" :key="item.algorithmId"></el-option>
+        </el-select>
+      </div>
+      <div class="player-actions">
+        <button v-if="isFullScreen !== null" type="button" class="video-icon" :title="t('event.exitFullscreen')" :aria-label="t('event.exitFullscreen')" @click="handleExitFullScreen"><el-icon><ScaleToOriginal /></el-icon></button>
+        <button v-else type="button" class="video-icon" :title="t('event.fullscreen')" :aria-label="t('event.fullscreen')" @click="handleFullScreen"><el-icon><FullScreen /></el-icon></button>
+        <button type="button" class="video-icon" :title="t('action.close')" :aria-label="t('action.close')" @click="stopPreview"><el-icon><Close /></el-icon></button>
+      </div>
     </div>
   </div>
 </template>
@@ -33,6 +31,7 @@
 <script setup>
 import { ref, shallowRef, nextTick, watch, onBeforeUnmount, onMounted, getCurrentInstance } from 'vue'
 import flvjs from 'flv.js'
+import { FullScreen, ScaleToOriginal, Close } from '@element-plus/icons-vue'
 import { createWhepPlayer } from '@/utils/whepPlayer'
 import { t, localeColon } from '@/i18n'
 import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
@@ -998,237 +997,141 @@ onBeforeUnmount(() => {
 
 <style lang="scss" scoped>
 .video-container {
+  display: flex;
+  flex-direction: column;
+  container-type: inline-size;
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
   position: relative;
-  background: #212839;
-  border: 1px solid rgba(95, 200, 223, 0.2);
+  background: #171c24;
   box-sizing: border-box;
-
-  .video {
-    width: 100%;
-    height: 100%;
-    object-fit: fill;
-    background-color: #000;
-  }
-
-  .video-top-control {
-    position: absolute;
-    top: 0;
-    width: 100%;
-    height: 36px;
-    left: 0;
-    background: linear-gradient(180deg, rgba(19, 31, 58, 0.9) 0%, rgba(21, 35, 69, 0.7) 100%);
-    backdrop-filter: blur(4px);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 10px;
-    box-sizing: border-box;
-    color: #94d0ff;
-    font-size: 13px;
-    border-bottom: 1px solid rgba(95, 200, 223, 0.15);
-    z-index: 10;
-
-    .icon {
-      margin-left: 8px;
-      width: 20px;
-      height: 20px;
-      cursor: pointer;
-      transition: all 0.2s;
-      opacity: 0.85;
-
-      &:hover {
-        opacity: 1;
-        transform: scale(1.1);
-      }
-    }
-  }
 }
 
-.fade-enter-active {
-  transition: all 0.2s;
+.video-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: #11151c;
 }
-.fade-leave-active {
-  transition: all 0.8s;
+
+.video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #11151c;
 }
-.fade-enter-from,
-.fade-leave-to {
-  visibility: hidden;
-  opacity: 0;
+
+.video-top-control {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 3px 8px;
+  border-top: 1px solid #dce1e8;
+  background: #fff;
+  box-sizing: border-box;
+  color: #657084;
+  font-size: 12px;
+}
+
+.camera-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: #20222d;
+}
+
+.algorithm-control { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.algorithm-label { white-space: nowrap; }
+.overlay-select { width: 128px; min-width: 0; }
+.player-actions { display: flex; flex-shrink: 0; align-items: center; gap: 2px; }
+.video-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  color: #657084;
+  background: transparent;
+  cursor: pointer;
+  font-size: 16px;
+
+  &:hover { color: #20222d; background: #f3f5f8; }
+  &:focus-visible { outline: 2px solid #5852df; outline-offset: -2px; }
 }
 
 .stop-preview {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  inset: 0;
   display: flex;
   flex-flow: column;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
-  color: #94d0ff;
-  background: linear-gradient(180deg, #1a2540 0%, #212839 100%);
-
-  img {
-    margin-bottom: 20px;
-    width: 80px;
-    opacity: 0.6;
-  }
-
-  span {
-    font-size: 14px;
-    color: #6b7a99;
-  }
+  color: #a9b3c2;
+  background: #171c24;
+  img { margin-bottom: 16px; width: 56px; opacity: .6; }
+  span { font-size: 13px; }
 }
-
-$primary-background-color: #131f3a !default;
-$primary-background-transparency: 0.85 !default;
-$secondary-background-color: #5fc8df !default;
-$secondary-background-transparency: 0.6 !default;
 
 .loading-spinner {
   position: absolute;
   top: 50%;
   left: 50%;
-  margin: -30px 0 0 -30px;
-  opacity: 0.9;
-  text-align: left;
-  border: 4px solid rgba($primary-background-color, $primary-background-transparency);
+  width: 38px;
+  height: 38px;
+  margin: -19px 0 0 -19px;
+  border: 3px solid #ffffff26;
+  border-top-color: #a8a4ff;
+  border-radius: 50%;
   box-sizing: border-box;
-  background-clip: padding-box;
-  width: 60px;
-  height: 60px;
-  border-radius: 30px;
-  visibility: hidden;
-  animation: spinner-show 0s linear 0.2s forwards;
+  animation: spinner-spin 1s linear infinite;
 }
 
-.loading-spinner:before,
-.loading-spinner:after {
-  content: '';
-  position: absolute;
-  margin: -4px;
-  box-sizing: inherit;
-  width: inherit;
-  height: inherit;
-  border-radius: inherit;
-  opacity: 1;
-  border: inherit;
-  border-color: transparent;
-  border-top-color: $secondary-background-color;
-  animation: spinner-spin 1s cubic-bezier(0.6, 0.2, 0, 0.8) infinite, spinner-fade 1s linear infinite;
+@keyframes spinner-spin { to { transform: rotate(360deg); } }
+
+@container (max-width: 460px) {
+  .video-top-control { gap: 6px; }
+  .overlay-select { width: 110px; }
+  .algorithm-label { display: none; }
 }
 
-@keyframes spinner-show {
-  to {
-    visibility: visible;
-  }
+@container (max-width: 300px) {
+  .video-top-control { flex-wrap: wrap; }
+  .camera-name { flex-basis: calc(100% - 64px); }
+  .player-actions { order: 1; }
+  .algorithm-control { order: 2; width: 100%; }
+  .algorithm-label { display: inline; }
+  .overlay-select { flex: 1; min-width: 0; }
 }
 
-@keyframes spinner-spin {
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes spinner-fade {
-  0% {
-    border-top-color: rgba($secondary-background-color, 0.3);
-  }
-  20% {
-    border-top-color: rgba($secondary-background-color, 0.5);
-  }
-  35% {
-    border-top-color: $secondary-background-color;
-  }
-  60% {
-    border-top-color: rgba($secondary-background-color, 0.5);
-  }
-  100% {
-    border-top-color: rgba($secondary-background-color, 0.3);
-  }
-}
-
-.overlay-select {
-  width: 130px;
-  :deep(.el-input__inner) {
-    background: rgba(19, 31, 58, 0.6);
-    color: #94d0ff;
-    border: 1px solid rgba(95, 200, 223, 0.2);
-    font-size: 12px;
-    height: 28px;
-    line-height: 28px;
-    
-    &:hover {
-      border-color: rgba(95, 200, 223, 0.4);
-    }
-    
-    &:focus {
-      border-color: #5fc8df;
-    }
-  }
-
-  :deep(.el-select__caret) {
-    color: #94d0ff !important;
-  }
-}
-
-.camera-name {
-  max-width: 40%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 500;
-  color: #fff;
+@container (max-width: 240px) {
+  .algorithm-label { display: none; }
 }
 </style>
 
 <style lang="scss">
-.custom-select-popper2 {
-  border: 1px solid rgba(95, 200, 223, 0.4);
-  background: linear-gradient(180deg, rgba(19, 31, 58, 0.98) 0%, rgba(21, 35, 69, 0.98) 100%);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+.realtime-overlay-popper {
+  border: 1px solid #dce1e8;
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px #20222d1a;
 
-  .popper__arrow {
-    display: none;
-  }
-
-  .el-select-dropdown__item {
-    color: #94d0ff;
-    font-size: 13px;
-    padding: 0 16px;
-    height: 36px;
-    line-height: 36px;
-    background: transparent;
-    transition: all 0.2s;
-    
-    &.selected {
-      color: #5fc8df;
-      font-weight: 500;
-      background: rgba(95, 200, 223, 0.2);
-    }
-
-    &.hover,
-    &:hover {
-      background: rgba(95, 200, 223, 0.15) !important;
-      color: #5fc8df;
-    }
-  }
-
-  .el-scrollbar {
-    background: transparent;
-  }
-
-  .el-scrollbar__wrap {
-    margin-right: -17px !important;
-  }
-
-  .el-select-dropdown__list {
-    padding: 4px 0;
-  }
+  .el-select-dropdown__item { color: #20222d; font-size: 13px; }
+  .el-select-dropdown__item.is-selected,
+  .el-select-dropdown__item.selected { color: #5852df; font-weight: 600; }
+  .el-select-dropdown__item.is-hovering,
+  .el-select-dropdown__item.hover,
+  .el-select-dropdown__item:hover { background: #f3f5f8; }
 }
 </style>

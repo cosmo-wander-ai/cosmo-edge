@@ -137,12 +137,12 @@ onBeforeUnmount(() => {
 
     .el-form-item__content {
       font-size: 14px;
-      color: #303133;
+      color: var(--text-primary);
     }
   }
 }
 
 .status-success {
-  color: #67c23a;
+  color: var(--success-color);
 }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <div class="mv-wrap">
+  <div class="mv-wrap ui-admin-page">
     <el-tabs v-model="activeName" type="border-card" class="custom-tabs">
       <el-tab-pane :label="t('boxOther.videoChannel')" name="first">
         <camera-management v-if="activeName === 'first'" />
@@ -24,14 +24,14 @@ const activeName = ref('first')
 .custom-tabs {
   background: var(--bg-white, #ffffff);
   box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.05));
-  border: 1px solid var(--border-light, #f1f5f9);
+  border: 1px solid var(--border-light, var(--bg-secondary));
   overflow: hidden;
   height: 100%;
   display: flex;
   flex-direction: column;
 
   :deep(.el-tabs__header) {
-    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    background: var(--bg-secondary);
     margin: 0;
   }
 
@@ -40,7 +40,7 @@ const activeName = ref('first')
   }
 
   :deep(.el-tabs__item) {
-    color: var(--text-secondary, #64748b);
+    color: var(--text-secondary, var(--text-secondary));
     font-weight: 500;
     font-size: 0.95rem;
     padding: 16px 24px;
@@ -49,12 +49,12 @@ const activeName = ref('first')
     position: relative;
 
     &:hover {
-      color: var(--primary-color, #3182ce);
-      background: rgba(49, 130, 206, 0.05);
+      color: var(--primary-color, var(--primary-color));
+      background: rgba(88, 82, 223, 0.05);
     }
 
     &.is-active {
-      color: var(--primary-color, #3182ce);
+      color: var(--primary-color, var(--primary-color));
       font-weight: 600;
       background: var(--bg-white, #ffffff);
 
@@ -65,11 +65,7 @@ const activeName = ref('first')
         left: 0;
         right: 0;
         height: 3px;
-        background: linear-gradient(
-          135deg,
-          var(--primary-color, #3182ce) 0%,
-          var(--primary-light, #4299e1) 100%
-        );
+        background: var(--bg-secondary);
         border-radius: 3px 3px 0 0;
       }
     }

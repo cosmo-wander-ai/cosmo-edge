@@ -128,7 +128,7 @@ export default {
   border-radius: 50%;
   border: 1.5px solid #d1d5db;
   background-color: #ffffff;
-  color: #9ca3af;
+  color: var(--text-secondary);
   cursor: pointer;
   white-space: nowrap;
   display: flex;
@@ -138,22 +138,22 @@ export default {
 }
 .edge-action-button.is-disabled {
   border-color: #cfd4dc;
-  background-color: #e5e7eb;
-  color: #9ca3af;
+  background-color: var(--border-color);
+  color: var(--text-secondary);
   cursor: not-allowed;
 }
 
 .edge-menu .menu-item.is-disabled {
-  color: #9ca3af;
+  color: var(--text-secondary);
   cursor: not-allowed;
   pointer-events: none;
 }
 
 .edge-action-button:hover {
-  border-color: #3182ce;
-  color: #3182ce;
-  background-color: #ebf8ff;
-  box-shadow: 0 2px 8px rgba(49, 130, 206, 0.2);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background-color: var(--el-color-primary-light-9);
+  box-shadow: 0 2px 8px rgba(88, 82, 223, 0.2);
 }
 
 .edge-menu {
@@ -166,9 +166,9 @@ export default {
   gap: 14px;
   padding: 10px 16px;
   border-radius: 18px;
-  color: #fff;
-  background: linear-gradient(90deg, #5fc8df 0%, #3182ce 100%);
-  box-shadow: 0 6px 18px rgba(49, 130, 206, 0.25);
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  box-shadow: 0 6px 18px rgba(88, 82, 223, 0.25);
   z-index: 4000;
 }
 
@@ -184,6 +184,6 @@ export default {
 .edge-menu .divider {
   width: 1px;
   height: 16px;
-  background: rgba(255, 255, 255, 0.6);
+  background: var(--border-color);
 }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <div class="main-body">
+  <div class="main-body ui-admin-page">
     <!-- <div class="main-container-header">
       <div class="tips">{{ t('boxOther.runModeTip') }}</div>
       <span>{{ t('boxOther.runMode') }}</span>
@@ -74,7 +74,7 @@
             </el-form-item>
           </el-form>
           <div class="net-btn-tools">
-            <el-button type="primary" @click="resetClick" size="small">{{ t('boxOther.default') }}</el-button>
+            <el-button type="primary" @click="resetClick" size="small" class="ui-secondary-button">{{ t('boxOther.default') }}</el-button>
             <el-button type="primary" @click="submitFormNet" size="small">{{ t('action.save') }}</el-button>
           </div>
         </div>
@@ -394,7 +394,7 @@ onMounted(() => {
   span {
     display: inline-block;
     margin-right: 20px;
-    color: #409eff;
+    color: var(--primary-color);
   }
 }
 

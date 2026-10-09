@@ -28,7 +28,7 @@
           { required: true, message: t('systemManage.enterServerAddress'), trigger: 'blur' }
           ]">
               <el-input v-model="formData.ntp.server" class="form-content" size="small" :placeholder="t('systemManage.enterServerAddress')"></el-input>
-              <el-button type="primary" @click="handleTest(2)" size="small">{{ t('action.test') }}</el-button>
+              <el-button type="primary" @click="handleTest(2)" size="small" class="ui-secondary-button">{{ t('action.test') }}</el-button>
             </el-form-item>
 
             <el-form-item prop="ntp.port" :label="t('systemManage.ntpPort')" :rules="[
@@ -66,7 +66,7 @@
       </div>
     </div>
 
-    <el-dialog :title="t('common.notice')" v-model="testDialogVisible" :show-close="false" :close-on-click-modal="false" :close-on-press-escape="false" width="30%" center>
+    <el-dialog :title="t('common.notice')" v-model="testDialogVisible" :show-close="false" :close-on-click-modal="false" :close-on-press-escape="false" width="30%" center class="ui-admin-dialog">
       <div style="text-align:center">
         <el-icon class="is-loading" style="font-size:30px;color:#409EFF;margin:10px 0;display:block;width:100%">
           <Loading />
@@ -278,10 +278,10 @@ onBeforeUnmount(() => {
 
   .divider {
     font-size: 14px;
-    color: #606266;
+    color: var(--text-secondary);
     margin: 20px 0;
     padding-left: 10px;
-    border-left: 4px solid #409eff;
+    border-left: 4px solid var(--primary-color);
   }
 
   .interval-item {
@@ -291,7 +291,7 @@ onBeforeUnmount(() => {
 
       .el-icon-question {
         margin-left: 10px;
-        color: #909399;
+        color: var(--text-secondary);
         cursor: pointer;
       }
     }

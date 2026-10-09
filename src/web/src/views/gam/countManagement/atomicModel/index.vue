@@ -1,5 +1,5 @@
 <template>
-  <div class="model-repo-page">
+  <div class="model-repo-page ui-admin-page">
     <!-- 页面头部：搜索 + 操作按钮 -->
     <div class="repo-header">
       <div class="search-box">
@@ -55,8 +55,8 @@
         <div class="card-footer">
           <span class="alg-count">{{ t('glossary.linkedSceneTasks', { n: getModelAlgCount(model.modelCode) }) }}</span>
           <div class="card-actions">
-            <el-button link size="small" @click="detailClick(model)">{{ t('action.details') }}</el-button>
-            <el-button link size="small" @click="editConfigClick(model)">{{ t('action.configure') }}</el-button>
+            <el-button link size="small" @click="detailClick(model)" class="ui-action ui-action-view">{{ t('action.details') }}</el-button>
+            <el-button link size="small" @click="editConfigClick(model)" class="ui-action ui-action-settings">{{ t('action.configure') }}</el-button>
           </div>
         </div>
       </div>
@@ -76,7 +76,7 @@
     </div>
 
     <!-- 添加模型对话框 -->
-    <el-dialog :title="addModelDialogTitle" v-model="uploadAlgorithmicVisible" width="500px" center @close="uploadAlgorithmicClosed">
+    <el-dialog :title="addModelDialogTitle" v-model="uploadAlgorithmicVisible" width="500px" center @close="uploadAlgorithmicClosed" class="ui-admin-dialog">
       <el-form ref="addModelFormRef" :model="addModelForm" :rules="addModelRules" :label-width="currentLocale === 'en-US' ? '180px' : '120px'" size="small">
         <el-form-item :label="t('glossary.mainType')" prop="modelMainType">
           <el-select v-model="addModelForm.modelMainType" :placeholder="t('validate.selectMainType')" class="form-content" @change="handleModelMainTypeChange">
@@ -110,7 +110,7 @@
         <!-- 普通类型或 RKLLM 语言模型：单个主模型文件上传 -->
         <el-form-item v-if="addModelForm.modelType !== 'sam2'" :label="t('glossary.modelFile')" prop="modelFile">
           <el-upload ref="uploadModelFileRef" action="#" :file-list="addModelForm.modelFileList" :limit="1" :auto-upload="false" :accept="addModelPrimaryFileExtension" :on-change="handleModelFileChange" :on-remove="handleModelFileRemove">
-            <el-button size="small" type="primary">{{ t('action.browse') }}</el-button>
+            <el-button size="small" type="primary" class="ui-secondary-button">{{ t('action.browse') }}</el-button>
             <template #tip>
               <div class="upload-warn">{{ t('glossary.selectModelFileTip', { ext: addModelPrimaryFileExtension }) }}</div>
             </template>
@@ -118,7 +118,7 @@
         </el-form-item>
         <el-form-item v-if="isRkllm && addModelForm.modelType === 'qwen3_5'" label="vision.rknn" prop="visionFile">
           <el-upload ref="uploadVisionFileRef" action="#" :file-list="addModelForm.visionFileList" :limit="1" :auto-upload="false" accept=".rknn" :on-change="handleVisionFileChange" :on-remove="handleVisionFileRemove">
-            <el-button size="small" type="primary">{{ t('action.browse') }}</el-button>
+            <el-button size="small" type="primary" class="ui-secondary-button">{{ t('action.browse') }}</el-button>
             <template #tip>
               <div class="upload-warn">RKNN Qwen3.5 {{ t('glossary.selectModelFileTip', { ext: '.rknn' }) }}</div>
             </template>
@@ -127,7 +127,7 @@
         <!-- SAM2类型：两个模型文件上传 -->
         <el-form-item v-if="addModelForm.modelType === 'sam2'" label="Encoder" prop="encoderFile">
           <el-upload ref="uploadEncoderFileRef" action="#" :file-list="addModelForm.encoderFileList" :limit="1" :auto-upload="false" :accept="modelFileExtension" :on-change="handleEncoderFileChange" :on-remove="handleEncoderFileRemove">
-            <el-button size="small" type="primary">{{ t('action.browse') }}</el-button>
+            <el-button size="small" type="primary" class="ui-secondary-button">{{ t('action.browse') }}</el-button>
             <template #tip>
               <div class="upload-warn">{{ t('glossary.selectEncoderTip', { ext: modelFileExtension }) }}</div>
             </template>
@@ -135,7 +135,7 @@
         </el-form-item>
         <el-form-item v-if="addModelForm.modelType === 'sam2'" label="Decoder" prop="decoderFile">
           <el-upload ref="uploadDecoderFileRef" action="#" :file-list="addModelForm.decoderFileList" :limit="1" :auto-upload="false" :accept="modelFileExtension" :on-change="handleDecoderFileChange" :on-remove="handleDecoderFileRemove">
-            <el-button size="small" type="primary">{{ t('action.browse') }}</el-button>
+            <el-button size="small" type="primary" class="ui-secondary-button">{{ t('action.browse') }}</el-button>
             <template #tip>
               <div class="upload-warn">{{ t('glossary.selectDecoderTip', { ext: modelFileExtension }) }}</div>
             </template>
@@ -144,7 +144,7 @@
         <!-- dino 模型：vocab.txt -->
         <el-form-item v-if="addModelForm.modelType === 'dino'" label="vocab.txt" prop="vocabFile">
           <el-upload ref="uploadVocabFileRef" action="#" :file-list="addModelForm.vocabFileList" :limit="1" :auto-upload="false" accept=".txt" :on-change="handleVocabFileChange" :on-remove="handleVocabFileRemove">
-            <el-button size="small" type="primary">{{ t('action.browse') }}</el-button>
+            <el-button size="small" type="primary" class="ui-secondary-button">{{ t('action.browse') }}</el-button>
             <template #tip>
               <div class="upload-warn">{{ t('glossary.vocabTip') }}</div>
             </template>
@@ -152,7 +152,7 @@
         </el-form-item>
         <el-form-item v-if="addModelForm.modelType === 'ocr'" :label="t('glossary.characterTable')" prop="characterTableFile">
           <el-upload ref="uploadCharacterTableFileRef" action="#" :file-list="addModelForm.characterTableFileList" :limit="1" :auto-upload="false" accept=".txt" :on-change="handleCharacterTableFileChange" :on-remove="handleCharacterTableFileRemove">
-            <el-button size="small" type="primary">{{ t('action.browse') }}</el-button>
+            <el-button size="small" type="primary" class="ui-secondary-button">{{ t('action.browse') }}</el-button>
             <template #tip>
               <div class="upload-warn">{{ t('glossary.characterTableTip') }}</div>
             </template>
@@ -161,7 +161,7 @@
         <!-- qwen3vl/qwen3_5 模型：tokenizer.json -->
         <el-form-item v-if="addModelForm.modelType === 'qwen3vl' || addModelForm.modelType === 'qwen3_5'" label="tokenizer.json" prop="tokenizerFile">
           <el-upload ref="uploadTokenizerFileRef" action="#" :file-list="addModelForm.tokenizerFileList" :limit="1" :auto-upload="false" accept=".json" :on-change="handleTokenizerFileChange" :on-remove="handleTokenizerFileRemove">
-            <el-button size="small" type="primary">{{ t('action.browse') }}</el-button>
+            <el-button size="small" type="primary" class="ui-secondary-button">{{ t('action.browse') }}</el-button>
             <template #tip>
               <div class="upload-warn">{{ t('glossary.tokenizerTip') }}</div>
             </template>
@@ -176,7 +176,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog :title="t('glossary.modelDetail')" v-model="modelDetailDialogVisible" width="620px" @close="modelDetailDialogVisible = false">
+    <el-dialog :title="t('glossary.modelDetail')" v-model="modelDetailDialogVisible" width="620px" @close="modelDetailDialogVisible = false" class="ui-admin-dialog">
       <div class="detail-header">
         <div class="detail-icon" :class="getModelIconClass(detailModel)" v-html="getModelSvg(detailModel)"></div>
         <div class="detail-title-area">
@@ -227,13 +227,13 @@
 
       <template #footer>
         <el-button @click="editFromDetail">{{ t('action.editModel') }}</el-button>
-        <el-button v-if="detailModel.isExportable" type="danger" plain @click="deleteFromDetail">{{ t('action.delete') }}</el-button>
-        <el-button type="primary" @click="modelDetailDialogVisible = false">{{ t('action.close') }}</el-button>
+        <el-button v-if="detailModel.isExportable" type="danger" plain @click="deleteFromDetail" class="ui-action ui-action-delete">{{ t('action.delete') }}</el-button>
+        <el-button type="primary" @click="modelDetailDialogVisible = false" class="ui-secondary-button">{{ t('action.close') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 修改模型对话框 -->
-    <el-dialog :title="editModelDialogTitle" v-model="editModelDialogVisible" width="500px" center @close="editModelDialogVisible = false">
+    <el-dialog :title="editModelDialogTitle" v-model="editModelDialogVisible" width="500px" center @close="editModelDialogVisible = false" class="ui-admin-dialog">
       <el-form ref="editModelFormRef" :model="editModelForm" :rules="editModelRules" :label-width="currentLocale === 'en-US' ? '180px' : '120px'" size="small">
         <el-form-item label="model code" prop="modelCode">
           <el-input v-model="editModelForm.modelCode" class="form-content" disabled></el-input>
@@ -254,7 +254,7 @@
     </el-dialog>
 
     <!-- 删除模型确认对话框 -->
-    <el-dialog :title="t('glossary.deleteConfirmTitle')" v-model="deleteModelDialogVisible" width="500px" center @close="deleteModelDialogVisible = false">
+    <el-dialog :title="t('glossary.deleteConfirmTitle')" v-model="deleteModelDialogVisible" width="500px" center @close="deleteModelDialogVisible = false" class="ui-admin-dialog">
       <div style="text-align: center; padding: 20px 0;">
         <p style="font-size: 16px; margin-bottom: 10px;">{{ t('glossary.deleteModelConfirm', { name: deleteModelInfo.modelName, code: deleteModelInfo.modelCode }) }}</p>
         <p style="color: #f56c6c; font-size: 14px;">{{ t('glossary.deleteModelWarn') }}</p>
@@ -268,7 +268,7 @@
     </el-dialog>
 
     <!-- 导入模型对话框 -->
-    <el-dialog :title="t('action.importModel')" v-model="importModelDialogVisible" width="500px" center @close="importModelDialogClosed">
+    <el-dialog :title="t('action.importModel')" v-model="importModelDialogVisible" width="500px" center @close="importModelDialogClosed" class="ui-admin-dialog">
       <div>
         <div class="upload-div">{{ t('glossary.selectModelPackage') }}</div>
         <div style="display: flex; align-items: center; padding: 0 20px;">
@@ -1458,10 +1458,10 @@ onMounted(() => {
   gap: 10px;
 }
 .btn-primary-gradient {
-  background: linear-gradient(135deg, #3182ce, #4299e1) !important;
+  background: var(--primary-color) !important;
   border: none !important;
   color: #fff !important;
-  &:hover { background: linear-gradient(135deg, #2b6cb0, #2b6cb0) !important; }
+  &:hover { background: var(--primary-dark) !important; }
 }
 
 // ── 类型筛选 Tab ──
@@ -1474,17 +1474,17 @@ onMounted(() => {
 .type-tab {
   padding: 5px 16px;
   border-radius: 20px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-color);
   background: #fff;
   cursor: pointer;
   font-size: 13px;
   color: #374151;
   transition: all 0.2s;
-  &:hover { border-color: #3182ce; color: #3182ce; }
+  &:hover { border-color: var(--primary-color); color: var(--primary-color); }
   &.active {
-    background: #3182ce;
+    background: var(--primary-color);
     color: #fff;
-    border-color: #3182ce;
+    border-color: var(--primary-color);
   }
 }
 .tab-count {
@@ -1511,12 +1511,12 @@ onMounted(() => {
   background: #fff;
   border-radius: 12px;
   padding: 20px;
-  border: 1px solid #f0f0f0;
+  border: 1px solid var(--border-light);
   transition: all 0.25s ease;
   &:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-    border-color: rgba(49, 130, 206, 0.2);
+    border-color: rgba(88, 82, 223, 0.2);
   }
 }
 .card-top {
@@ -1535,20 +1535,20 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   svg { width: 22px; height: 22px; }
-  &.icon-blue { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
-  &.icon-green { background: rgba(34, 197, 94, 0.1); color: #22c55e; }
+  &.icon-blue { background: rgba(59, 130, 246, 0.1); color: var(--primary-color); }
+  &.icon-green { background: rgba(34, 197, 94, 0.1); color: var(--success-color); }
   &.icon-cyan { background: rgba(6, 182, 212, 0.1); color: #06b6d4; }
-  &.icon-purple { background: rgba(66, 153, 225, 0.1); color: #4299e1; }
-  &.icon-amber { background: rgba(245, 158, 11, 0.1); color: #d97706; }
-  &.icon-gradient { background: linear-gradient(135deg, rgba(124, 58, 237, 0.1), rgba(249, 115, 22, 0.1)); color: #2b6cb0; }
+  &.icon-purple { background: rgba(66, 153, 225, 0.1); color: var(--primary-light); }
+  &.icon-amber { background: rgba(245, 158, 11, 0.1); color: var(--warning-color); }
+  &.icon-gradient { background: var(--bg-secondary); color: var(--primary-dark); }
 }
 
 
 // ── 关联场景任务标签 ──
 .alg-count-badge {
   font-size: 12px;
-  color: #6b7280;
-  background: #f3f4f6;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
   padding: 2px 8px;
   border-radius: 10px;
 }
@@ -1558,7 +1558,7 @@ onMounted(() => {
 .card-title {
   font-size: 15px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-primary);
   margin-bottom: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1566,7 +1566,7 @@ onMounted(() => {
 }
 .card-meta {
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--text-secondary);
 }
 
 // ── 类型标签 ──
@@ -1576,12 +1576,12 @@ onMounted(() => {
   padding: 2px 10px;
   border-radius: 12px;
   font-size: 12px;
-  &.tag-detect { background: #dbeafe; color: #2563eb; }
-  &.tag-classify { background: #dcfce7; color: #16a34a; }
+  &.tag-detect { background: var(--el-color-primary-light-9); color: var(--primary-color); }
+  &.tag-classify { background: var(--el-color-success-light-9); color: var(--success-color); }
   &.tag-keypoints { background: #cffafe; color: #0891b2; }
-  &.tag-feature { background: #ebf8ff; color: #2b6cb0; }
-  &.tag-ocr { background: #fef3c7; color: #b45309; }
-  &.tag-foundation { background: linear-gradient(135deg, #ebf8ff, #fff7ed); color: #2b6cb0; }
+  &.tag-feature { background: var(--el-color-primary-light-9); color: var(--primary-dark); }
+  &.tag-ocr { background: var(--el-color-warning-light-9); color: #b45309; }
+  &.tag-foundation { background: var(--bg-secondary); color: var(--primary-dark); }
 }
 
 // ── 卡片底部 ──
@@ -1590,19 +1590,19 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding-top: 12px;
-  border-top: 1px solid #f5f5f5;
+  border-top: 1px solid var(--bg-primary);
 }
 .alg-count {
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--text-secondary);
 }
 .card-actions {
   display: flex;
   gap: 4px;
   .el-button {
     font-size: 13px;
-    color: #3182ce !important;
-    &:hover { color: #2b6cb0 !important; }
+    color: var(--primary-color) !important;
+    &:hover { color: var(--primary-dark) !important; }
   }
 }
 
@@ -1620,7 +1620,7 @@ onMounted(() => {
   gap: 16px;
   margin-bottom: 20px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-light);
 }
 .detail-icon {
   width: 52px;
@@ -1633,7 +1633,7 @@ onMounted(() => {
   svg { width: 26px; height: 26px; }
 }
 .detail-title-area {
-  h3 { margin: 0 0 6px; font-size: 18px; color: #1f2937; }
+  h3 { margin: 0 0 6px; font-size: 18px; color: var(--text-primary); }
 }
 .detail-badges {
   display: flex;
@@ -1652,7 +1652,7 @@ onMounted(() => {
 .detail-label {
   width: 90px;
   flex-shrink: 0;
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 .section-title {
   font-size: 14px;
@@ -1679,13 +1679,13 @@ onMounted(() => {
 }
 .task-dot {
   font-size: 10px;
-  &.running { color: #22c55e; }
-  &.stopped { color: #9ca3af; }
+  &.running { color: var(--success-color); }
+  &.stopped { color: var(--text-secondary); }
 }
 .task-name { flex: 1; }
 .task-status-text {
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--text-secondary);
 }
 
 // ── 弹窗通用 ──
@@ -1695,7 +1695,7 @@ onMounted(() => {
 }
 .upload-warn {
   margin-top: 5px;
-  color: #3182ce;
+  color: var(--primary-color);
   font-size: 12px;
 }
 .form-content {

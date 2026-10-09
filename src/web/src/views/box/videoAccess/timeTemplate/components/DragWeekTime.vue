@@ -39,7 +39,7 @@
 		</table>
 		<div v-show="canSelect" class="dwt-layer" :style="{ width: layer.width + 'px', height: layer.height + 'px', left: layer.left + 'px', top: layer.top + 'px' }"></div>
 		<!-- 时间调整弹窗 -->
-		<el-dialog :title="t('boxOther.timeRangeConfig')" v-model="timeConfig.show" width="400px" center append-to-body>
+		<el-dialog :title="t('boxOther.timeRangeConfig')" v-model="timeConfig.show" width="400px" center append-to-body class="ui-admin-dialog">
 			<el-form ref="timeConfigForm" :model="timeConfig.form" :rules="timeConfig.rules">
 				<el-form-item prop="value">
 					<el-time-picker
@@ -530,7 +530,7 @@ onBeforeUnmount(() => {
 	tbody td {
 		padding: 0;
 		&.unselect {
-			background: #f5f5f5;
+			background: var(--bg-primary);
 		}
 	}
 

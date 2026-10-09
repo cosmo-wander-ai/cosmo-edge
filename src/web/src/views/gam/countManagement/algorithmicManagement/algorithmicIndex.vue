@@ -1,5 +1,5 @@
 <template>
-  <div class="task-page">
+  <div class="task-page ui-admin-page">
     <TopBar ref="topBarRef" :dataSouce="topBarData" :formData="formData" :labelWidth="80" @search="searchList" />
     <!-- 工具栏 -->
     <div class="task-toolbar">
@@ -36,8 +36,8 @@
           <el-checkbox :model-value="isCardSelected(row)" @change="toggleCardSelect(row)" />
         </div>
         <!-- 删除按钮 (hover显示) -->
-        <el-button v-if="row.supplier != 'HJ'" class="card-delete-btn" link @click.stop="deleteClick(row)">
-          <el-icon><Delete /></el-icon>
+        <el-button v-if="row.supplier != 'HJ'" class="card-delete-btn ui-action danger-text" link @click.stop="deleteClick(row)">
+          <el-icon><Delete /></el-icon>{{ t('action.delete') }}
         </el-button>
         <!-- 图标 -->
         <div class="card-top">
@@ -64,8 +64,8 @@
             <span class="running-count" v-if="channelCountMap[row.algorithmId]">{{ t('common.runningChannels', { n: channelCountMap[row.algorithmId] }) }}</span>
           </div>
           <div class="card-actions">
-            <el-button link size="small" @click.stop="arrangeDetailClick(row)">{{ t('action.arrangeAlgorithm') }}</el-button>
-            <el-button link size="small" v-if="row.supplier != 'HJ'" @click.stop="editClick(row)">{{ t('action.edit') }}</el-button>
+            <el-button link size="small" @click.stop="arrangeDetailClick(row)" class="ui-action ui-action-flow">{{ t('action.arrangeAlgorithm') }}</el-button>
+            <el-button link size="small" v-if="row.supplier != 'HJ'" @click.stop="editClick(row)" class="ui-action ui-action-edit">{{ t('action.edit') }}</el-button>
           </div>
         </div>
       </div>
@@ -77,7 +77,7 @@
     </div>
 
     <!-- 删除确认 -->
-    <el-dialog :title="t('common.notice')" v-model="deleteDialogVisible" width="350px" center @close="batchDeleteFalg = false">
+    <el-dialog :title="t('common.notice')" v-model="deleteDialogVisible" width="350px" center @close="batchDeleteFalg = false" class="ui-admin-dialog">
       <div class="tips">{{ t('validate.deleteTaskWarning') }}</div>
       <template #footer>
         <span class="dialog-footer">
@@ -86,7 +86,7 @@
         </span>
       </template>
     </el-dialog>
-    <el-dialog :title="algorithmDialogTitle" v-model="addAlgorithmicVisible" width="500px" center @close="addAlgorithmiClosed">
+    <el-dialog :title="algorithmDialogTitle" v-model="addAlgorithmicVisible" width="500px" center @close="addAlgorithmiClosed" class="ui-admin-dialog">
       <div>
         <el-form ref="addAlgorithmicFormRef" :model="addAlgorithmicForm" :rules="addAlgorithmicRules" label-position="right" label-width="110px">
           <el-form-item :label="t('field.taskName') + localeColon" prop="algorithmName">
@@ -122,7 +122,7 @@
         </span>
       </template>
     </el-dialog>
-    <el-dialog :title="t('action.importTask')" v-model="uploadAlgorithmicVisible" width="400px" center :close-on-click-modal="!uploadAlgorithmicLoading" :close-on-press-escape="!uploadAlgorithmicLoading" :show-close="!uploadAlgorithmicLoading" @close="uploadAlgorithmicClosed">
+    <el-dialog :title="t('action.importTask')" v-model="uploadAlgorithmicVisible" width="400px" center :close-on-click-modal="!uploadAlgorithmicLoading" :close-on-press-escape="!uploadAlgorithmicLoading" :show-close="!uploadAlgorithmicLoading" @close="uploadAlgorithmicClosed" class="ui-admin-dialog">
       <div>
         <div class="upload-div">{{ t('validate.selectFile') }}{{ localeColon }}</div>
         <el-input v-model="uploadAlgorithmicName" class="upload-input" disabled :placeholder="t('validate.selectFile')" size="small"></el-input>
@@ -720,17 +720,17 @@ export default {
 .toolbar-left { display: flex; align-items: center; }
 .task-count {
   font-size: 13px;
-  color: #6b7280;
-  background: #f3f4f6;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
   padding: 4px 14px;
   border-radius: 12px;
 }
 .toolbar-right { display: flex; align-items: center; gap: 8px; }
 .btn-primary-gradient {
-  background: linear-gradient(135deg, #3182ce, #4299e1) !important;
+  background: var(--primary-color) !important;
   border: none !important;
   color: #fff !important;
-  &:hover { background: linear-gradient(135deg, #2b6cb0, #2b6cb0) !important; }
+  &:hover { background: var(--primary-dark) !important; }
 }
 .task-grid {
   display: grid;
@@ -751,7 +751,7 @@ export default {
   background: #fff;
   border-radius: 12px;
   padding: 20px;
-  border: 1px solid #f0f0f0;
+  border: 1px solid var(--border-light);
   transition: all 0.25s ease;
   min-height: 260px;
   min-width: 0;
@@ -761,68 +761,68 @@ export default {
   &:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-    border-color: rgba(49,130,206,0.2);
+    border-color: rgba(88, 82, 223,0.2);
     .card-delete-btn { opacity: 1; }
   }
   &.selected {
-    border-color: #3182ce;
-    box-shadow: 0 0 0 2px rgba(49,130,206,0.15);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(88, 82, 223,0.15);
   }
 }
 .card-select { position: absolute; top: 12px; left: 12px; z-index: 1; }
 .card-delete-btn {
   position: absolute; top: 12px; right: 12px;
   opacity: 0; transition: opacity 0.2s;
-  color: #ef4444 !important;
-  &:hover { color: #dc2626 !important; }
+  color: var(--danger-color) !important;
+  &:hover { color: var(--danger-color) !important; }
 }
 .card-top { margin-bottom: 12px; }
 .card-icon {
   width: 44px; height: 44px; border-radius: 10px;
   display: flex; align-items: center; justify-content: center;
   :deep(svg) { width: 22px; height: 22px; }
-  &.icon-blue { background: rgba(59,130,246,0.1); color: #3b82f6; }
-  &.icon-purple { background: rgba(66,153,225,0.1); color: #4299e1; }
+  &.icon-blue { background: rgba(59,130,246,0.1); color: var(--primary-color); }
+  &.icon-purple { background: rgba(66,153,225,0.1); color: var(--primary-light); }
   &.icon-cyan { background: rgba(6,182,212,0.1); color: #06b6d4; }
-  &.icon-green { background: rgba(34,197,94,0.1); color: #22c55e; }
-  &.icon-orange { background: rgba(245,158,11,0.1); color: #f59e0b; }
+  &.icon-green { background: rgba(34,197,94,0.1); color: var(--success-color); }
+  &.icon-orange { background: rgba(245,158,11,0.1); color: var(--warning-color); }
 }
 .card-info { min-width: 0; margin-bottom: 10px; }
 .card-title {
-  font-size: 15px; font-weight: 600; color: #1f2937;
+  font-size: 15px; font-weight: 600; color: var(--text-primary);
   margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.card-meta { font-size: 12px; color: #9ca3af; }
+.card-meta { font-size: 12px; color: var(--text-secondary); }
 .card-desc {
-  font-size: 12px; color: #9ca3af; margin-top: 4px;
+  font-size: 12px; color: var(--text-secondary); margin-top: 4px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   max-width: 100%;
 }
 .card-tags { margin-bottom: 12px; }
 .category-tag {
   display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px;
-  &.tag-blue { background: #dbeafe; color: #2563eb; }
-  &.tag-purple { background: #ebf8ff; color: #2b6cb0; }
+  &.tag-blue { background: var(--el-color-primary-light-9); color: var(--primary-color); }
+  &.tag-purple { background: var(--el-color-primary-light-9); color: var(--primary-dark); }
   &.tag-cyan { background: #cffafe; color: #0891b2; }
-  &.tag-green { background: #dcfce7; color: #16a34a; }
-  &.tag-orange { background: #fef3c7; color: #d97706; }
+  &.tag-green { background: var(--el-color-success-light-9); color: var(--success-color); }
+  &.tag-orange { background: var(--el-color-warning-light-9); color: var(--warning-color); }
 }
 .card-footer {
   display: flex; justify-content: space-between; align-items: center;
   min-width: 0; gap: 8px;
-  padding-top: 12px; border-top: 1px solid #f5f5f5;
+  padding-top: 12px; border-top: 1px solid var(--bg-primary);
   margin-top: auto;
   flex-shrink: 0;
 }
 .card-status { display: flex; align-items: center; gap: 10px; font-size: 12px; }
 .status-indicator {
-  &.status-ok { color: #22c55e; }
-  &.status-warn { color: #ef4444; cursor: help; }
+  &.status-ok { color: var(--success-color); }
+  &.status-warn { color: var(--danger-color); cursor: help; }
 }
-.running-count { color: #3182ce; font-weight: 500; }
+.running-count { color: var(--primary-color); font-weight: 500; }
 .card-actions {
   display: flex; flex-shrink: 0; gap: 4px;
-  .el-button { font-size: 13px; color: #3182ce !important; &:hover { color: #2b6cb0 !important; } }
+  .el-button { font-size: 13px; color: var(--primary-color) !important; &:hover { color: var(--primary-dark) !important; } }
 }
 .pagination-container { display: flex; justify-content: center; padding: 12px 24px 16px; flex-shrink: 0; }
 .tips { text-align: center; padding: 20px 0; }
@@ -830,7 +830,7 @@ export default {
 .input-width { width: calc(100% - 80px); }
 .upload-div { margin-left: 20px; margin-bottom: 10px; }
 .upload-input { width: calc(100% - 100px); margin-left: 20px; margin-right: 10px; }
-.upload-warn { margin-top: 5px; margin-left: 20px; color: #3182ce; font-size: 12px; }
+.upload-warn { margin-top: 5px; margin-left: 20px; color: var(--primary-color); font-size: 12px; }
 .upload-btn { display: inline-block; }
 :deep(.el-textarea__inner) { height: 100px; }
 </style>

@@ -1,13 +1,13 @@
 <template>
-  <div class="alarm-record">
+  <div class="alarm-record ui-admin-page">
     <TopBar ref="topBarRef" :dataSouce="topBarData" :formData="formData" :labelWidth="60" :defaultExpand="true" @search="searchList" />
     <div class="table-container" ref="tableContainerRef">
       <div class="table-header">
         <div class="table-tools">
           <!-- <el-button v-if="runMode != 1" type="primary" size="small" @click="handleBatchDelete"
-            :disabled="multipleSelections.length === 0">批量删除</el-button> -->
+            :disabled="multipleSelections.length === 0" class="ui-secondary-button">批量删除</el-button> -->
           <el-button type="primary" size="small" @click="handleExport"
-            :disabled="tableData.length === 0">{{ t('event.dataExport') }}</el-button>
+            :disabled="tableData.length === 0" class="ui-secondary-button">{{ t('event.dataExport') }}</el-button>
         </div>
       </div>
 
@@ -99,7 +99,7 @@
         <el-table-column :label="t('field.actions')" fixed="right" :width="currentLocale === 'en-US' ? '160' : '100'">
           <template #default="scope">
             <div class="operation-tools">
-              <el-button link class="primary-text" @click="handleDetail(scope.row)">{{ t('action.details') }}</el-button>
+              <el-button link class="primary-text ui-action ui-action-view" @click="handleDetail(scope.row)">{{ t('action.details') }}</el-button>
               <el-button link class="primary-text" v-if="scope.row.video" @click="onCheckVideo(scope.row, 1)">{{ t('event.videoPlayback') }}</el-button>
               <!-- <el-button link class="danger-text" v-if="runMode != 1" @click="handleDelete(scope.row)">删除</el-button> -->
             </div>
@@ -607,7 +607,7 @@ onBeforeUnmount(() => {
 
     &-selected {
       :deep(.el-card__body) {
-        background-color: #f5f7fa;
+        background-color: var(--bg-primary);
       }
     }
 
@@ -638,7 +638,7 @@ onBeforeUnmount(() => {
           margin-bottom: 8px;
 
           .label {
-            color: #606266;
+            color: var(--text-secondary);
             margin-right: 8px;
           }
         }
@@ -646,7 +646,7 @@ onBeforeUnmount(() => {
 
       .grid-actions {
         text-align: right;
-        border-top: 1px solid #ebeef5;
+        border-top: 1px solid var(--border-light);
       }
     }
   }
@@ -687,7 +687,7 @@ onBeforeUnmount(() => {
   color: var(--el-color-primary) !important;
 
   &:hover {
-    color: #337ecc !important;
+    color: var(--primary-dark) !important;
   }
 }
 
@@ -695,7 +695,7 @@ onBeforeUnmount(() => {
   color: var(--el-color-danger) !important;
 
   &:hover {
-    color: #f56c6c !important;
+    color: var(--danger-color) !important;
   }
 }
 </style>

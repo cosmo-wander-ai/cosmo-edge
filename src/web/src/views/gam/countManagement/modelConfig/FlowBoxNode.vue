@@ -152,7 +152,7 @@ const handleChange = (index, field, value) => {
 :deep(.vue-flow__handle) {
   width: 10px;
   height: 10px;
-  background: #909399;
+  background: var(--text-secondary);
   border: 2px solid #fff;
   box-shadow: 0 0 0 2px rgba(144, 147, 153, 0.2);
 }

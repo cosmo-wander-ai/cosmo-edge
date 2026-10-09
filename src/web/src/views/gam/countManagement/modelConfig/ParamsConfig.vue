@@ -626,7 +626,7 @@ watch(
 .title-span-tip {
   margin-left: 8px;
   font-size: 12px;
-  color: #909399;
+  color: var(--text-secondary);
 }
 
 .field-control {
@@ -652,7 +652,7 @@ watch(
 
 .tip {
   display: block;
-  color: #909399;
+  color: var(--text-secondary);
   font-size: 12px;
   margin-top: 4px;
 }
@@ -666,7 +666,7 @@ watch(
 }
 
 .labels-desc {
-  color: #909399;
+  color: var(--text-secondary);
   font-size: 12px;
   margin-bottom: 8px;
 }

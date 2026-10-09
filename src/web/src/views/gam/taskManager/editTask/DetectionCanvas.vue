@@ -662,10 +662,10 @@ defineExpose({ submit, drawLineOperation, drawingLinePoints, directionType, sele
   position: relative;
   width: 100%;
   height: 306px; /* 550 / 1.8 */
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   overflow: hidden;
-  background-color: #f8f9fa;
+  background-color: var(--bg-primary);
 }
 
 .canvas {

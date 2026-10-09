@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="ui-admin-page">
     <TopBar ref="topBarRef" :dataSouce="topBarData" :formData="formData" :labelWidth="60" @search="searchList" />
 
     <div class="table-container">
@@ -7,7 +7,7 @@
         <div>{{ t('boxOther.audioList') }}</div>
         <div class="table-tools">
           <el-button v-if="runMode  != 1" type="primary" size="small" @click="handleAdd">{{ t('action.add') }}</el-button>
-          <el-button v-if="runMode  != 1" type="primary" size="small" @click="handleBatchDelete" :disabled="multipleSelections.length === 0">{{ t('action.bulkDelete') }}</el-button>
+          <el-button v-if="runMode  != 1" type="primary" size="small" @click="handleBatchDelete" :disabled="multipleSelections.length === 0" class="ui-secondary-button">{{ t('action.bulkDelete') }}</el-button>
         </div>
       </div>
 
@@ -31,9 +31,9 @@
         <el-table-column width="240px" :label="t('field.actions')">
           <template #default="scope">
             <div class="operation-tools">
-              <el-button link class="span-right10 primary-text" @click="playAudio(scope.row)">{{ t('action.play') }}</el-button>
-              <el-button link class="span-right10 primary-text" @click="downloadAudio(scope.row)">{{ t('action.download') }}</el-button>
-              <el-button v-if="runMode != 1" link class="span-right10 danger-text" @click="deleteAudio(scope.row)" :disabled="scope.row.fileId == '1234567890'">{{ t('action.delete') }}</el-button>
+              <el-button link class="span-right10 primary-text ui-action ui-action-play" @click="playAudio(scope.row)">{{ t('action.play') }}</el-button>
+              <el-button link class="span-right10 primary-text ui-action ui-action-download" @click="downloadAudio(scope.row)">{{ t('action.download') }}</el-button>
+              <el-button v-if="runMode != 1" link class="span-right10 danger-text ui-action ui-action-delete" @click="deleteAudio(scope.row)" :disabled="scope.row.fileId == '1234567890'">{{ t('action.delete') }}</el-button>
             </div>
           </template>
         </el-table-column>
@@ -44,13 +44,13 @@
       </div>
     </div>
 
-    <el-dialog :title="t('boxOther.addAudio')" v-model="addDialogVisible" class="dialogtype" center width="500px" @close="closeAdd">
+    <el-dialog :title="t('boxOther.addAudio')" v-model="addDialogVisible" class="dialogtype ui-admin-dialog" center width="500px" @close="closeAdd">
       <div v-if="addDialogVisible">
         <el-form>
           <el-form-item :label="t('boxOther.audioFile') + localeColon">
             <el-upload ref="audioRef" class="form-upload" action="#" :auto-upload="false" :show-file-list="false" :on-change="handleChange" :accept="'.mp3,.wav'">
               <el-input :value="fileNameString" :placeholder="t('boxOther.selectFile')" size="small" readonly class="el-input"></el-input>
-              <el-button type="primary" size="small" class="preview-btn">{{ t('boxOther.browse') }}</el-button>
+              <el-button type="primary" size="small" class="preview-btn ui-secondary-button">{{ t('boxOther.browse') }}</el-button>
               <template #tip>
                 <div class="el-upload__tip">
                   <el-icon class="warning-icon"><WarningFilled /></el-icon>

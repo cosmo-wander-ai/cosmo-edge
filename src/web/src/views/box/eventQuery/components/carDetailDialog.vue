@@ -1,6 +1,6 @@
 <template>
   <div>
-    <el-dialog :model-value="show" :title="t('action.details')" width="800px" center @close="close">
+    <el-dialog :model-value="show" :title="t('action.details')" width="800px" center @close="close" class="ui-admin-dialog">
       <div v-if="show" class="content-body">
         <div class="info-item">
           <span class="info-item-title">{{ t('event.eventType') }}{{ localeColon }}</span>
@@ -108,7 +108,7 @@
 
       <template #footer>
         <span class="dialog-footer">
-          <el-button type="primary" @click="close" class="mv-el-button">{{ t('action.close') }}</el-button>
+          <el-button type="primary" @click="close" class="mv-el-button ui-secondary-button">{{ t('action.close') }}</el-button>
         </span>
       </template>
     </el-dialog>

@@ -1,5 +1,5 @@
 <template>
-  <div class="page">
+  <div class="page ui-admin-page">
     <div class="header">
       <div class="title">
         <div class="title-row">
@@ -271,7 +271,7 @@ onMounted(() => {
 .title-span-tip {
   margin-left: 8px;
   font-size: 12px;
-  color: #909399;
+  color: var(--text-secondary);
 }
 
 .title-row {
@@ -286,7 +286,7 @@ onMounted(() => {
 
 .model-code {
   margin-left: 8px;
-  color: #606266;
+  color: var(--text-secondary);
 }
 
 .tags {

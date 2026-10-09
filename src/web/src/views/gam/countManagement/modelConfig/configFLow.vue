@@ -152,7 +152,7 @@ const nodeTypes = {
 .flow-wrap {
   width: 100%;
   height: 400px;
-  border: 1px solid var(--el-border-color, #dcdfe6);
+  border: 1px solid var(--el-border-color, var(--border-color));
   border-radius: 6px;
   background: #fff;
 }

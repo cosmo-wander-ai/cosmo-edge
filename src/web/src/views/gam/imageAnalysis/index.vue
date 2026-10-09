@@ -1,5 +1,5 @@
 <template>
-  <div class="image-analysis-page">
+  <div class="image-analysis-page ui-admin-page">
     <!-- 顶部工具栏 -->
     <div class="toolbar-section">
       <div class="toolbar-left">
@@ -27,7 +27,7 @@
           accept="image/*"
           multiple
         >
-          <el-button type="primary" :icon="Upload">{{ $t('imageAnalysis.uploadImage') }}</el-button>
+          <el-button type="primary" :icon="Upload" class="ui-secondary-button">{{ $t('imageAnalysis.uploadImage') }}</el-button>
         </el-upload>
         <el-button
           type="success"
@@ -139,7 +139,7 @@
       :title="previewItem?.name || $t('imageAnalysis.imagePreview')"
       width="80%"
       top="5vh"
-      class="preview-dialog"
+      class="preview-dialog ui-admin-dialog"
       destroy-on-close
     >
       <div class="preview-body" v-if="previewItem">
@@ -692,7 +692,7 @@ const onPreviewImageLoad = () => {
 
   &:hover {
     border-color: var(--primary-color);
-    box-shadow: 0 4px 16px rgba(49, 130, 206, 0.15);
+    box-shadow: 0 4px 16px rgba(88, 82, 223, 0.15);
     transform: translateY(-2px);
   }
 
@@ -749,7 +749,7 @@ const onPreviewImageLoad = () => {
 .result-panel {
   padding: 10px 14px;
   border-top: 1px solid var(--border-color);
-  background: linear-gradient(135deg, rgba(49, 130, 206, 0.03) 0%, rgba(16, 185, 129, 0.03) 100%);
+  background: var(--bg-secondary);
 }
 
 .result-section {
@@ -760,7 +760,7 @@ const onPreviewImageLoad = () => {
     margin-bottom: 6px;
 
     &.empty-result {
-      color: var(--text-tertiary, #c0c4cc);
+      color: var(--text-tertiary, var(--text-muted));
       font-weight: 400;
       text-align: center;
       padding: 4px 0;
@@ -862,6 +862,6 @@ const onPreviewImageLoad = () => {
 }
 
 .feature-preview-empty {
-  color: var(--text-tertiary, #c0c4cc);
+  color: var(--text-tertiary, var(--text-muted));
 }
 </style>

@@ -54,7 +54,7 @@
     </div>
 
     <!-- 新增/编辑弹窗 -->
-    <el-dialog :title="dialogTitle" v-model="dialogVisible" width="500px" center>
+    <el-dialog :title="dialogTitle" v-model="dialogVisible" width="500px" center class="ui-admin-dialog">
       <el-form ref="formRef" :model="formData" :rules="rules" label-width="100px">
         <el-form-item :label="t('boxOther.templateName')" prop="scheduleName">
           <el-input v-model="formData.scheduleName" class="form-content300" :placeholder="t('boxOther.templateNameRequired')" size="small"></el-input>
@@ -69,7 +69,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog :title="t('common.notice')" v-model="centerDialogVisible" width="30%" :show-close="false" center>
+    <el-dialog :title="t('common.notice')" v-model="centerDialogVisible" width="30%" :show-close="false" center class="ui-admin-dialog">
       <template #header>
         <span class="dialog-footer">
           <span style="line-height: 40px;">{{ t('boxOther.copyTo') }}</span>
@@ -494,7 +494,7 @@ onMounted(() => {
 
 .template-list {
   width: 200px;
-  border-right: 1px solid #ebeef5;
+  border-right: 1px solid var(--border-light);
   display: flex;
   flex-direction: column;
 
@@ -503,7 +503,7 @@ onMounted(() => {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid #ebeef5;
+    border-bottom: 1px solid var(--border-light);
 
     .title {
       font-size: 16px;
@@ -534,11 +534,11 @@ onMounted(() => {
     align-items: center;
 
     &:hover {
-      background: #f5f7fa;
+      background: var(--bg-primary);
     }
 
     &.active {
-      background: #ecf5ff;
+      background: var(--el-color-primary-light-9);
     }
 
     .item-name {

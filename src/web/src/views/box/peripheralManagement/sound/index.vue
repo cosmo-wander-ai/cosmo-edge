@@ -1,5 +1,5 @@
 <template>
-  <div class="mv-wrap">
+  <div class="mv-wrap ui-admin-page">
     <TopBar ref="topBarRef" :dataSouce="topBarData" :formData="formData" :labelWidth="60" @search="searchList" />
 
     <div class="table-container">
@@ -7,7 +7,7 @@
         <div>{{ t('boxOther.soundList') }}</div>
         <div class="table-tools">
           <el-button type="primary" size="small" @click="handleAdd">{{ t('action.add') }}</el-button>
-          <el-button type="primary" size="small" @click="deleteSound(multipleSelection)" :disabled="multipleSelection.length === 0">{{ t('action.bulkDelete') }}</el-button>
+          <el-button type="primary" size="small" @click="deleteSound(multipleSelection)" :disabled="multipleSelection.length === 0" class="ui-secondary-button">{{ t('action.bulkDelete') }}</el-button>
         </div>
       </div>
 
@@ -30,8 +30,8 @@
           <template #default="scope">
             <div class="operation-tools">
               <el-button link class="span-right10 primary-text" @click="testSound(scope.row)">{{ t('action.test') }}</el-button>
-              <el-button link class="span-right10 primary-text" @click="editSound(scope.row)">{{ t('action.edit') }}</el-button>
-              <el-button link class="span-right10 danger-text" @click="deleteSound([scope.row.devId])">{{ t('action.delete') }}</el-button>
+              <el-button link class="span-right10 primary-text ui-action ui-action-edit" @click="editSound(scope.row)">{{ t('action.edit') }}</el-button>
+              <el-button link class="span-right10 danger-text ui-action ui-action-delete" @click="deleteSound([scope.row.devId])">{{ t('action.delete') }}</el-button>
             </div>
           </template>
         </el-table-column>
@@ -44,7 +44,7 @@
     </div>
 
     <!-- 添加/编辑音柱 -->
-    <el-dialog :title="addDialogTitle" v-model="addDialogVisible" class="dialogtype" center width="500px">
+    <el-dialog :title="addDialogTitle" v-model="addDialogVisible" class="dialogtype ui-admin-dialog" center width="500px">
       <div v-if="addDialogVisible">
         <el-form :model="addFormData" ref="formRef" :rules="rules" :label-width="currentLocale === 'en-US' ? '200px' : '150px'" label-position="right">
           <el-form-item :label="t('boxOther.soundName') + localeColon" class="form-content" prop="name">
@@ -68,7 +68,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog :title="t('action.test')" v-model="testDialogVisible" class="dialogtype" center width="600px">
+    <el-dialog :title="t('action.test')" v-model="testDialogVisible" class="dialogtype ui-admin-dialog" center width="600px">
       <div v-if="testDialogVisible">
         <el-tabs v-model="activeName" type="card" @tab-click="handleClick">
           <el-tab-pane :label="t('boxOther.audioPlayback')" name="first">
@@ -117,7 +117,7 @@
       </div>
       <template #footer>
         <span class="dialog-footer">
-          <el-button type="primary" @click="testClick" size="small">{{ t('action.test') }}</el-button>
+          <el-button type="primary" @click="testClick" size="small" class="ui-secondary-button">{{ t('action.test') }}</el-button>
         </span>
       </template>
     </el-dialog>
@@ -499,7 +499,7 @@ onMounted(() => {
     }
   }
   button:nth-last-child(1) {
-    background: #f56c6c;
+    background: var(--danger-color);
   }
 }
 

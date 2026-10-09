@@ -909,13 +909,13 @@ defineExpose({
   height: 40px;
   border: none;
   border-radius: 9999px;
-  background: linear-gradient(90deg, #3182ce 0%, #4299e1 100%);
-  color: #fff;
+  background: var(--bg-secondary);
+  color: var(--primary-color);
   cursor: pointer;
-  box-shadow: 0 8px 18px rgba(49, 130, 206, 0.25);
+  box-shadow: 0 8px 18px rgba(88, 82, 223, 0.25);
 }
 .add-card:hover {
-  box-shadow: 0 10px 22px rgba(49, 130, 206, 0.32);
+  box-shadow: 0 10px 22px rgba(88, 82, 223, 0.32);
   transform: translateY(-1px);
 }
 .add-card:active {
@@ -980,7 +980,7 @@ defineExpose({
 
 /* 激活态色彩更清晰 */
 :deep(.mode-switch .el-radio-button.is-active .el-radio-button__inner) {
-  background: var(--primary-color, #3182ce);
+  background: var(--primary-color, var(--primary-color));
   color: #fff;
 }
 
@@ -988,7 +988,7 @@ defineExpose({
 :deep(.mode-switch
     .el-radio-button:not(.is-active)
     .el-radio-button__inner:hover) {
-  background: #f3f4f6;
+  background: var(--bg-secondary);
 }
 
 .simple-mode {

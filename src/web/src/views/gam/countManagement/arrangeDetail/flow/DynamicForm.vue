@@ -1549,21 +1549,21 @@ defineExpose({
 .area-rule-overview {
   margin: 0 0 16px;
   padding: 12px;
-  border: 1px solid #dbeafe;
+  border: 1px solid var(--el-color-primary-light-9);
   border-radius: 8px;
   background: #f8fbff;
 }
 
 .area-rule-overview__title {
   margin-bottom: 12px;
-  color: #1f2937;
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 600;
 }
 
 .area-rule-summary {
   padding: 10px 12px;
-  border-left: 3px solid #409eff;
+  border-left: 3px solid var(--primary-color);
   border-radius: 4px;
   background: #ffffff;
   color: #374151;
@@ -1572,18 +1572,18 @@ defineExpose({
 }
 
 .area-rule-summary.is-warning {
-  border-left-color: #e6a23c;
+  border-left-color: var(--warning-color);
   background: #fdf6ec;
 }
 
 .area-rule-summary__label {
-  color: #1f2937;
+  color: var(--text-primary);
   font-weight: 600;
 }
 
 .area-rule-summary__note {
   margin-top: 6px;
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 
 .el-form-item {
@@ -1599,7 +1599,7 @@ defineExpose({
 }
 
 .select-table-body {
-  color: #606266;
+  color: var(--text-secondary);
   font-size: 14px;
   margin-bottom: 15px;
 }
@@ -1609,7 +1609,7 @@ defineExpose({
 }
 
 .collapse-body {
-  color: #606266;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
@@ -1666,7 +1666,7 @@ defineExpose({
 }
 
 .select-table-body {
-  color: #606266;
+  color: var(--text-secondary);
   font-size: 14px;
   margin-bottom: 15px;
 }

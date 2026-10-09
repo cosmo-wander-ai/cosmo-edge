@@ -1,6 +1,6 @@
 <template>
   <div>
-    <el-dialog v-model="show" :title="t('glossary.cameraDetails')" width="600px" center @close="emit('update:visible', false)">
+    <el-dialog v-model="show" :title="t('glossary.cameraDetails')" width="600px" center @close="emit('update:visible', false)" class="ui-admin-dialog">
       <el-form :label-width="currentLocale === 'en-US' ? '190px' : '140px'" :model="props.detailChannel">
         <el-form-item :label="t('field.channelNo') + localeColon">
           <el-input v-model="props.detailChannel.videoChannelId" size="small" disabled />

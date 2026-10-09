@@ -1,5 +1,5 @@
 <template>
-  <div class="mv-wrap" v-loading.fullscreen="loading" :element-loading-text="t('common.paramSyncing')" element-loading-background="rgba(0, 0, 0, 0.8)">
+  <div class="mv-wrap ui-admin-page" v-loading.fullscreen="loading" :element-loading-text="t('common.paramSyncing')" element-loading-background="rgba(0, 0, 0, 0.8)">
     <div class="container">
       <div class="serve-type-container" v-if="arithmeticShow">
         <el-card class="box-card">
@@ -26,7 +26,7 @@
           </div>
         </el-card>
       </div>
-      <div style="margin-left: 15px;flex:1;">
+      <div class="serve-config-main" style="margin-left: 15px;flex:1;">
         <div class="serve-config-container">
           <el-card class="serve-config-container-card">
             <template #header>
@@ -40,7 +40,7 @@
                 <div class="abc" style="margin-left:10px;">{{ resolvedAlgorithmName }}</div>
                 <div class="serve-config-header-btns">
                   <el-button type="danger" v-if="taskEnableStatus == 1" @click="boxSwitchTask(0)" size="small">{{ t('action.disableService') }}</el-button>
-                  <el-button type="primary" v-if="taskEnableStatus == 0" @click="boxSwitchTask(1)" size="small">{{ t('action.enableService') }}</el-button>
+                  <el-button type="primary" v-if="taskEnableStatus == 0" @click="boxSwitchTask(1)" size="small" class="ui-secondary-button">{{ t('action.enableService') }}</el-button>
                   <el-button type="danger" @click="handleDelServe()" size="small">{{ t('action.deleteService') }}</el-button>
                   <el-button id="onboarding-save-service" class="mv-el-button" type="primary" @click="clickSaveServe()" size="small">{{ t('action.save') }}</el-button>
                 </div>
@@ -57,13 +57,13 @@
                 <div v-if="String(algorithmCode) === '99'" class="LargeModelAlgorithmConfiguration">
                   <el-tooltip style="margin-right: 10px;" class="item" effect="dark" :content="t('validate.saveAndStartFirst')" placement="top" :disabled="false">
                     <span>
-                      <el-button type="primary" @click="LargeModelAlgorithmConfiguration" :disabled="taskEnableStatus != 1">{{ t('action.enterDemoScreen') }}</el-button>
+                      <el-button type="primary" @click="LargeModelAlgorithmConfiguration" :disabled="taskEnableStatus != 1" class="ui-secondary-button">{{ t('action.enterDemoScreen') }}</el-button>
                     </span>
                   </el-tooltip>
                 </div>
                 <div style="margin-left:160px;">
                   <el-button style="margin-right:15px;" @click="parameterVisible = true">{{ t('action.reset') }}</el-button>
-                  <el-button type="primary" @click="batch">{{ t('glossary.batchApply') }}</el-button>
+                  <el-button type="primary" @click="batch" class="ui-secondary-button">{{ t('glossary.batchApply') }}</el-button>
                 </div>
               </el-tab-pane>
 
@@ -90,7 +90,7 @@
                   </el-form-item>
                 </el-form>
                 <div style="margin: 80px 0px 0px 160px;">
-                  <el-button type="primary" @click="batch">{{ t('glossary.batchApply') }}</el-button>
+                  <el-button type="primary" @click="batch" class="ui-secondary-button">{{ t('glossary.batchApply') }}</el-button>
                 </div>
               </el-tab-pane>
             </el-tabs>
@@ -99,7 +99,7 @@
       </div>
     </div>
 
-    <el-dialog :title="t('common.notice')" v-model="confirmDialogVisible" center width="30%">
+    <el-dialog :title="t('common.notice')" v-model="confirmDialogVisible" center width="30%" class="ui-admin-dialog">
       <div style="text-align: center">{{ t('action.confirmDelete') }}</div>
       <template #footer>
         <span class="dialog-footer">
@@ -109,7 +109,7 @@
       </template>
     </el-dialog>
     <!-- 重置参数 -->
-    <el-dialog :title="t('common.notice')" v-model="parameterVisible" center width="550px">
+    <el-dialog :title="t('common.notice')" v-model="parameterVisible" center width="550px" class="ui-admin-dialog">
       <div style="text-align: center">{{ t('validate.resetParamsConfirm') }}</div>
       <template #footer>
         <span class="dialog-footer">
@@ -121,7 +121,7 @@
     <!-- 批量应用 -->
     <Batch v-if="config && config.channelId" v-model:BatchApplication="BatchApplication" @confirm="BatchConfirm" :algorithmId="algorithmId" :channelId="config.channelId"></Batch>
 
-    <el-dialog :title="t('common.notice')" v-model="warningVisible" width="400px" center>
+    <el-dialog :title="t('common.notice')" v-model="warningVisible" width="400px" center class="ui-admin-dialog">
       <div class="dialog-content">{{ warningContent }}</div>
       <template #footer>
         <span class="dialog-footer">
@@ -1063,7 +1063,17 @@ onMounted(() => {
 
 .container {
   display: flex;
+  width: 100%;
+  min-width: 0;
   height: 100%;
+}
+
+.serve-type-container {
+  flex: 0 0 240px;
+}
+
+.serve-config-main {
+  min-width: 0;
 }
 
 .text {
@@ -1091,21 +1101,29 @@ onMounted(() => {
 }
 
 .serve-config-container {
+  width: 100%;
+  min-width: 0;
   height: 100%;
 }
 
 .serve-config-container-card {
   display: flex;
+  width: 100%;
+  min-width: 0;
   height: 100%;
   flex-direction: column;
 
   :deep(.el-card__body) {
-    height: 100%;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
     overflow: auto;
   }
 
   .el-tab-pane {
-    overflow-x: scroll;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
     padding-bottom: 20px;
   }
 }
@@ -1129,7 +1147,7 @@ onMounted(() => {
 }
 
 .c-serve-types {
-  background-color: #f1f5f9;
+  background-color: var(--bg-secondary);
 }
 
 .el-menu-icon {
@@ -1139,13 +1157,23 @@ onMounted(() => {
 
 .serve-config-header {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
   position: relative;
 }
 
 .serve-config-header-btns {
-  position: absolute;
-  right: 0px;
-  top: 0px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+
+  .el-button + .el-button {
+    margin-left: 0;
+  }
 }
 
 .el-button {
@@ -1193,7 +1221,7 @@ onMounted(() => {
   float: left;
   font-size: 14px;
   margin: 0px 30px 0px 100px;
-  color: #606266;
+  color: var(--text-secondary);
   box-sizing: border-box;
 }
 
@@ -1221,7 +1249,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   margin-bottom: 10px;
-  color: #606266;
+  color: var(--text-secondary);
 
   > :first-child {
     margin-right: 10px;

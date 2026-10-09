@@ -209,7 +209,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   background: #ffffff;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.06);
   z-index: 100;
@@ -228,7 +228,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--bg-secondary);
   cursor: grab;
   user-select: none;
   flex-shrink: 0;
@@ -255,11 +255,11 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-.panel-icon-wrapper.icon-blue   { background: #eff6ff; color: #3b82f6; }
-.panel-icon-wrapper.icon-purple { background: #ebf8ff; color: #2b6cb0; }
+.panel-icon-wrapper.icon-blue   { background: #eff6ff; color: var(--primary-color); }
+.panel-icon-wrapper.icon-purple { background: var(--el-color-primary-light-9); color: var(--primary-dark); }
 .panel-icon-wrapper.icon-orange { background: #fff7ed; color: #ea580c; }
-.panel-icon-wrapper.icon-green  { background: #f0fdf4; color: #16a34a; }
-.panel-icon-wrapper.icon-gray   { background: #f3f4f6; color: #6b7280; }
+.panel-icon-wrapper.icon-green  { background: #f0fdf4; color: var(--success-color); }
+.panel-icon-wrapper.icon-gray   { background: var(--bg-secondary); color: var(--text-secondary); }
 
 .panel-icon-svg {
   width: 20px;
@@ -269,7 +269,7 @@ onBeforeUnmount(() => {
 .panel-title {
   font-size: 15px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -280,7 +280,7 @@ onBeforeUnmount(() => {
   height: 28px;
   border: none;
   background: transparent;
-  color: #9ca3af;
+  color: var(--text-secondary);
   font-size: 14px;
   border-radius: 6px;
   cursor: pointer;
@@ -292,7 +292,7 @@ onBeforeUnmount(() => {
 }
 
 .panel-close:hover {
-  background: #f3f4f6;
+  background: var(--bg-secondary);
   color: #374151;
 }
 
@@ -319,13 +319,13 @@ onBeforeUnmount(() => {
 }
 
 .panel-body::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
+  background: var(--text-secondary);
 }
 
 /* ---- 描述提示 ---- */
 .panel-hint {
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--text-secondary);
   line-height: 1.4;
   margin-bottom: 10px;
   padding: 0 2px;

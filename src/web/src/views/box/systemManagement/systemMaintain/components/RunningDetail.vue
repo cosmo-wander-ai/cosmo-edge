@@ -2,7 +2,7 @@
   <div>
     <div class="table-container">
       <div class="table-header">
-        <el-button type="primary" size="small" class="refresh-btn" @click="refreshData">{{ t('action.refresh') }}</el-button>
+        <el-button type="primary" size="small" class="refresh-btn ui-secondary-button" @click="refreshData">{{ t('action.refresh') }}</el-button>
       </div>
       <el-table :data="tableData" :header-cell-style="{ background: '#fafafa' }" style="width: 100%" default-expand-all
         :tree-props="{ children: 'actionStatus', hasChildren: 'hasChildren' }" row-key="id">

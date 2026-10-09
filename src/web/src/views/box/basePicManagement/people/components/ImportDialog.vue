@@ -1,6 +1,6 @@
 <template>
   <div>
-    <el-dialog :title="title" v-model="uploadDialogVisible" :close-on-click-modal="false" center width="480px">
+    <el-dialog :title="title" v-model="uploadDialogVisible" :close-on-click-modal="false" center width="480px" class="ui-admin-dialog">
       <el-upload ref="uploadRef" class="upload-person" action="#" drag multiple :limit="1" :auto-upload="false" :http-request="httpRequest" :file-list="formInline.fileList" :on-change="handleFileChange">
         <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
         <div class="el-upload__text">
@@ -20,7 +20,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog :title="t('common.notice')" :append-to-body="true" v-model="uploadingDialogVisible" :show-close="false" :close-on-click-modal="false" center width="580px">
+    <el-dialog :title="t('common.notice')" :append-to-body="true" v-model="uploadingDialogVisible" :show-close="false" :close-on-click-modal="false" center width="580px" class="ui-admin-dialog">
       <div class="uploading">
         <span class="uploading-title">{{ t('basePic.batchImportingLabel') }}</span>
         <template v-if="totalNumber != 0">
@@ -46,7 +46,7 @@
       </div>
     </el-dialog>
 
-    <el-dialog :title="t('common.notice')" :append-to-body="true" v-model="stopServerTipDialogVisible" :close-on-click-modal="false" center width="332px" class="tip-dialog">
+    <el-dialog :title="t('common.notice')" :append-to-body="true" v-model="stopServerTipDialogVisible" :close-on-click-modal="false" center width="332px" class="tip-dialog ui-admin-dialog">
       <div class="dialog-content" :class="{'padding-bottom-20': isBeginUpload}">
         <img v-if="isBeginUpload" class="uploading-icon" src="@/assets/uploading.png">
         <el-icon v-else class="warning-icon"><WarningFilled /></el-icon>
@@ -63,7 +63,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog :title="t('common.notice')" :append-to-body="true" v-model="successDialogVisible" :close-on-click-modal="false" center width="332px" class="tip-dialog" :class="{'not-all-success': !isAllSuccess}">
+    <el-dialog :title="t('common.notice')" :append-to-body="true" v-model="successDialogVisible" :close-on-click-modal="false" center width="332px" class="tip-dialog ui-admin-dialog" :class="{'not-all-success': !isAllSuccess}">
       <div class="dialog-content">
         <el-icon style="color:#5ad952"><SuccessFilled /></el-icon>
         <span v-if="isAllSuccess">{{ t('basePic.allImportSuccess') }}</span>
@@ -76,14 +76,14 @@
 
       <template v-if="isAllSuccess" #footer>
         <div class="dialog-footer">
-          <el-button type="primary" @click="closeDialog" size="small">{{ t('action.close') }}</el-button>
+          <el-button type="primary" @click="closeDialog" size="small" class="ui-secondary-button">{{ t('action.close') }}</el-button>
         </div>
       </template>
 
       <template v-else #footer>
         <div class="dialog-footer">
           <el-button @click="closeDialog" size="small">{{ t('action.close') }}</el-button>
-          <el-button type="primary" @click="exportFailFn" size="small">{{ t('basePic.exportFailReason') }}</el-button>
+          <el-button type="primary" @click="exportFailFn" size="small" class="ui-secondary-button">{{ t('basePic.exportFailReason') }}</el-button>
         </div>
       </template>
     </el-dialog>
@@ -372,20 +372,20 @@ onMounted(() => {
   > p {
     margin-bottom: 0;
     font-size: 16px;
-    color: #606266;
+    color: var(--text-secondary);
     text-align: center;
   }
 }
 .import-failed {
   > p {
     font-size: 14px;
-    color: #606266;
+    color: var(--text-secondary);
     display: flex;
     align-items: center;
     justify-content: center;
     &:first-child {
       font-size: 16px;
-      color: #606266;
+      color: var(--text-secondary);
     }
     > .el-icon {
       margin-right: 10px;

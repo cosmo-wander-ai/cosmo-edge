@@ -1,5 +1,5 @@
 <template>
-  <el-dialog class="dialogtype" v-if="dialogVisible" :title="title" v-model="dialogVisible" @close="handleClose" width="560px" center>
+  <el-dialog class="dialogtype ui-admin-dialog" v-if="dialogVisible" :title="title" v-model="dialogVisible" @close="handleClose" width="560px" center>
     <div>
       <el-form class="form-wrap" :model="ruleForm" :rules="rules" ref="ruleFormRef" :label-width="currentLocale === 'en-US' ? '160px' : '125px'">
         <el-form-item prop="photo" :label="t('basePic.photo')">
@@ -273,7 +273,7 @@ async function submitForm() {
 .form-wrap {
   padding: 0 30px 0 10px;
   > p {
-    border-left: 3px solid #409eff;
+    border-left: 3px solid var(--primary-color);
     margin-left: 15px;
     padding-left: 10px;
     line-height: 14px;
@@ -300,7 +300,7 @@ async function submitForm() {
   overflow: hidden;
 }
 .avatar-uploader .el-upload:hover {
-  border-color: #409eff;
+  border-color: var(--primary-color);
 }
 .avatar-uploader-icon {
   font-size: 28px;
@@ -351,11 +351,11 @@ async function submitForm() {
         &:first-child {
           font-size: 16px;
           font-weight: bold;
-          color: #303133;
+          color: var(--text-primary);
         }
         &:last-child {
           font-size: 14px;
-          color: #909399;
+          color: var(--text-secondary);
         }
       }
     }
@@ -365,7 +365,7 @@ async function submitForm() {
     .error-title {
       font-size: 16px;
       font-weight: bold;
-      color: #303133;
+      color: var(--text-primary);
     }
     .error-pic {
       margin-top: 30px;
@@ -386,7 +386,7 @@ async function submitForm() {
         > label {
           margin-top: 10px;
           font-size: 14px;
-          color: #303133;
+          color: var(--text-primary);
         }
       }
     }

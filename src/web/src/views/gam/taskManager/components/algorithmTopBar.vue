@@ -14,7 +14,7 @@
       </div>
     </div>
     <div class="btnBar">
-      <el-button class="mv-el-button" type="primary" size="small" @click="getFormData">{{ t('action.search') }}</el-button>
+      <el-button class="mv-el-button ui-secondary-button" type="primary" size="small" @click="getFormData">{{ t('action.search') }}</el-button>
       <el-button size="small" @click="resetFormData">{{ t('action.reset') }}</el-button>
     </div>
   </div>
@@ -105,7 +105,7 @@ onMounted(() => {
         margin-right: 10px;
         font-size: 14px;
         text-align: right;
-        color: #303133;
+        color: var(--text-primary);
       }
 
       .el-form {

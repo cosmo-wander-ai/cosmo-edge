@@ -1,5 +1,5 @@
 <template>
-  <div class="system-maintain">
+  <div class="system-maintain ui-admin-page">
     <el-tabs v-model="activeTab">
       <el-tab-pane :label="t('systemManage.softwareUpgrade')" name="upgrade">
         <div class="upgrade-container">
@@ -11,7 +11,7 @@
               <el-upload ref="upload" class="upload-btn" action="#" :auto-upload="false" :show-file-list="false" :before-upload="beforeUpload" :on-change="handleFileChange" accept=".tar.gz">
                 <el-button size="small">{{ t('systemManage.browse') }}</el-button>
               </el-upload>
-              <el-button size="small" type="primary" @click="handleUpgrade">{{ t('systemManage.upgrade') }}</el-button>
+              <el-button size="small" type="primary" @click="handleUpgrade" class="ui-secondary-button">{{ t('systemManage.upgrade') }}</el-button>
             </div>
 
             <div class="tips">
@@ -24,12 +24,12 @@
       </el-tab-pane>
       <el-tab-pane :label="t('systemManage.restoreSettings')" name="reset">
         <div class="reset-container">
-          <el-button type="primary" size="small" @click="handleReset">{{ t('systemManage.restoreFactory') }}</el-button>
+          <el-button type="primary" size="small" @click="handleReset" class="ui-secondary-button">{{ t('systemManage.restoreFactory') }}</el-button>
         </div>
       </el-tab-pane>
       <el-tab-pane :label="t('systemManage.deviceLog')" name="log">
         <div class="reset-container">
-          <el-button type="primary" size="small" @click="downloadLog">{{ t('systemManage.downloadDeviceLog') }}</el-button>
+          <el-button type="primary" size="small" @click="downloadLog" class="ui-secondary-button">{{ t('systemManage.downloadDeviceLog') }}</el-button>
         </div>
       </el-tab-pane>
       <el-tab-pane v-if="authorization.supported" :label="t('systemManage.modelAuthorization')" name="authorization">
@@ -44,7 +44,7 @@
           <div class="authorization-actions">
             <el-button @click="downloadAuthorizationRequest">{{ t('systemManage.downloadAuthorizationRequest') }}</el-button>
             <el-upload action="#" :auto-upload="false" :show-file-list="false" :on-change="handleCertificateChange" accept=".bin">
-              <el-button type="primary">{{ t('systemManage.uploadAuthorizationFile') }}</el-button>
+              <el-button type="primary" class="ui-secondary-button">{{ t('systemManage.uploadAuthorizationFile') }}</el-button>
             </el-upload>
           </div>
         </div>
@@ -527,7 +527,7 @@ onBeforeUnmount(() => {
     }
   }
   .upgrade-status {
-    border: 1px solid #dcdfe6;
+    border: 1px solid var(--border-color);
     padding: 15px;
     margin-top: 20px;
 
@@ -537,7 +537,7 @@ onBeforeUnmount(() => {
     }
 
     .status-msg {
-      color: #409eff;
+      color: var(--primary-color);
     }
   }
 }
