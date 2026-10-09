@@ -401,6 +401,38 @@ TEST_CASE(
     REQUIRE(audit.Page("", "", 1, 20)["total"] == 0);
 }
 
+TEST_CASE("Visual audit integration: alarm writes survive a stale shared reader snapshot",
+          "[visual-audit-integration][alarm-write-snapshot]") {
+    AuditFile file;
+    test::MockDbService mockDb;
+    ALLOW_CALL(mockDb, GetDb()).LR_RETURN(file.database);
+    test::ScopedServiceOverride<IDbService> dbRegistration(mockDb);
+    AlarmRecordServiceImpl alarms;
+    VisualAuditServiceImpl audit(file.path);
+    VisualDecisionServiceImpl service(Options(), Transport, &audit);
+    auto first = service.Decide(Request("roi-1"), Run("task-1"), Image, 1s);
+    REQUIRE(first.AllCompleted());
+
+    // A shared-connection query keeps its read snapshot while another thread
+    // commits a decision through the audit service's separate WAL connection.
+    SQLite::Statement reader(*file.database, "SELECT request_id FROM t_visualAuditV1");
+    REQUIRE(reader.executeStep());
+    auto second = service.Decide(Request("roi-2"), Run("task-2"), Image, 1s);
+    REQUIRE(second.AllCompleted());
+
+    AlarmRecordUnit event;
+    event.id       = "alarm-during-shared-read";
+    event.property = Json{{"visualJudgments", {Record(first), Record(second)}}}.dump();
+    REQUIRE(alarms.Insert(event));
+    REQUIRE(audit.Page(event.id, "", 1, 20)["total"] == 2);
+    CHECK(Row(audit, Id(first))["delivery"] == "alarm_linked");
+    CHECK(Row(audit, Id(second))["delivery"] == "alarm_linked");
+    reader.reset();
+    AlarmQueryCondition condition;
+    condition.id = event.id;
+    CHECK(alarms.QueryAlarmRecords(condition, 0).totalCount == 1);
+}
+
 TEST_CASE(
     "Visual audit integration: missing contributor prevents false alarm linkage and marks store failure",
     "[visual-audit-integration]") {

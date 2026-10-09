@@ -2,7 +2,9 @@
 
 #include "service/event/impl/AlarmRecordServiceImpl.h"
 
+#include <SQLiteCpp/Database.h>
 #include <SQLiteCpp/Exception.h>
+#include <sqlite3.h>
 
 #include <filesystem>
 #include <set>
@@ -140,6 +142,18 @@ AlarmRecordServiceImpl::AlarmRecordServiceImpl()
         *service::ServiceRegistry::Instance().Get<service::IDbService>().GetDb());
     db_pass_flow_event_->CreateTable();
 
+    event_write_database_ = service::ServiceRegistry::Instance().Get<service::IDbService>().GetDb();
+    const char* filename  = sqlite3_db_filename(event_write_database_->getHandle(), "main");
+    if (filename && *filename) {
+        // A shared reader may keep an old WAL snapshot between executeStep calls.
+        // Retrying INSERT on that same connection cannot refresh the snapshot.
+        event_write_database_ =
+            std::make_shared<SQLite::Database>(filename, SQLite::OPEN_READWRITE | SQLite::OPEN_FULLMUTEX);
+        event_write_database_->setBusyTimeout(5000);
+    }
+    // Anonymous in-memory test databases must keep their original connection.
+    db_event_writer_ = std::make_shared<cosmo::db::TaskEventDao>(*event_write_database_);
+
     LOG_INFO("{}", "AlarmRecordService Init");
 }
 
@@ -211,7 +225,7 @@ bool AlarmRecordServiceImpl::Insert(cosmo::AlarmRecordUnit& unit) {
     auto data = AlarmDataToEventData(unit);
     const std::vector<std::string> audits(uniqueAudits.begin(), uniqueAudits.end());
     const auto insert = [&] {
-        return audits.empty() ? db_event_->Insert(data) : db_event_->Insert(data, audits);
+        return audits.empty() ? db_event_writer_->Insert(data) : db_event_writer_->Insert(data, audits);
     };
     try {
         return insert();
