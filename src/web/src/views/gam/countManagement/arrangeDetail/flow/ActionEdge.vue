@@ -100,14 +100,6 @@ onBeforeUnmount(() => {
   if (menuVisible.value) editor.closeEdgeMenu()
 })
 
-const addBranch = () => {
-  if (!currentEdge.value) return
-  editor.closeEdgeMenu()
-  editor.openAddDialog({
-    mode: 'branch', sourceId: currentEdge.value.source, x: labelX.value, y: labelY.value
-  })
-}
-
 const deleteFollowing = () => {
   editor.deleteFollowing({ edgeId: props.id, x: labelX.value, y: labelY.value })
 }

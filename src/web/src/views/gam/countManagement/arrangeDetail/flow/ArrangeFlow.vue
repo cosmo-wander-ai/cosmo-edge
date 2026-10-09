@@ -118,8 +118,6 @@ const addDialogVisible = ref(false)
 const addDialogEdgeId = ref('')
 const addDialogX = ref(0)
 const addDialogY = ref(0)
-const addDialogMode = ref('insert') // insert | branch
-const addDialogSourceId = ref('')
 
 const nodeWidth = 260
 const nodeHeight = 160
@@ -518,9 +516,7 @@ const handleEdgeMenuFocus = (nodeId) => {
   })
 }
 
-const handleAddComponentDialogOpen = ({ edgeId, x, y, mode, sourceId } = {}) => {
-  addDialogMode.value = mode || 'insert'
-  addDialogSourceId.value = sourceId || ''
+const handleAddComponentDialogOpen = ({ edgeId, x, y } = {}) => {
   addDialogEdgeId.value = edgeId || ''
   addDialogX.value = Number(x || 0)
   addDialogY.value = Number(y || 0)
@@ -739,12 +735,8 @@ const getEdgeEndpoints = (edgeId) => {
 
 const addComponentFromDialog = (type, label, action) => {
   const edgeId = addDialogEdgeId.value
-  const mode = addDialogMode.value
-  const { source, target } =
-    mode === 'insert'
-      ? getEdgeEndpoints(edgeId)
-      : { source: addDialogSourceId.value, target: undefined }
-  if (mode === 'insert' && !edgeId) return
+  if (!edgeId) return
+  const { source, target } = getEdgeEndpoints(edgeId)
 
   const newNodeId = generateActionId()
   let flowItem = Array.isArray(newFlowData.value)
@@ -753,8 +745,7 @@ const addComponentFromDialog = (type, label, action) => {
       )
     : undefined
   if (!flowItem) {
-    const preId =
-      mode === 'insert' ? source || '-1' : addDialogSourceId.value || '-1'
+    const preId = source || '-1'
     flowItem = {
       actionId: action?.id ?? action?.actionId ?? '',
       actionName: action?.actionName ?? action?.name ?? '',
@@ -799,7 +790,7 @@ const addComponentFromDialog = (type, label, action) => {
     }
   }
   commitGraph(addFlowNode(nodes.value, edges.value, newNode, {
-    mode, edgeId, source, target, x: addDialogX.value, y: addDialogY.value
+    edgeId, source, target
   }, generateActionId))
 
   addDialogVisible.value = false

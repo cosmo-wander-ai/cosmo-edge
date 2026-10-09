@@ -165,24 +165,30 @@ const assertConnected = graph => {
   assert.equal(deleteFollowingFlow(nodes, edges, { edgeId: 'missing' }).nodes, nodes)
 }
 
-// Branch creation and reload keep node/edge order and the established ID sequence.
+// Insertion and loading saved branches keep node/edge order and the ID sequence.
 {
   let id = 0
   const nextId = () => `id-${++id}`
   const base = createFlowGraph([], [], nextId, 40)
-  const branch = addFlowNode(base.nodes, base.edges, node('A'), { mode: 'branch', source: '-1', x: 10, y: 20 }, nextId)
-  assert.deepEqual(branch.nodes.map(node => node.id), ['-1', 'end-40', 'A', 'id-1'])
-  assert.deepEqual(branch.nodes.at(-1).position, { x: 310, y: 60 })
-  assert.deepEqual(branch.edges.map(edge => edge.id), ['e-start-end', 'id-2', 'id-3'])
-  const inserted = addFlowNode(base.nodes, base.edges, node('B'), { mode: 'insert', edgeId: 'e-start-end', source: '-1', target: 'end-40' }, nextId)
+  const inserted = addFlowNode(base.nodes, base.edges, node('B'), { edgeId: 'e-start-end', source: '-1', target: 'end-40' }, nextId)
+  assert.deepEqual(inserted.nodes.map(node => node.id), ['-1', 'end-40', 'B'])
+  assert.deepEqual(inserted.edges.map(edge => edge.id), ['id-1', 'id-2'])
   assert.deepEqual(endpoints(inserted), [['-1', 'B'], ['B', 'end-40']])
   const items = [{ flowActionId: 'A', preFlowActionId: -1 }, { flowActionId: 'B', preFlowActionId: '-1' }]
   const reloaded = createFlowGraph(items, [node('A'), node('B')], nextId, 50)
   assert.deepEqual(reloaded.nodes.map(node => node.id), ['-1', 'A', 'B', 'end-A', 'end-B'])
   assert.deepEqual(endpoints(reloaded), [['-1', 'A'], ['-1', 'B'], ['A', 'end-A'], ['B', 'end-B']])
-  assertConnected(branch)
+  const branchEdge = reloaded.edges.find(edge => edge.source === 'A')
+  const branchInserted = addFlowNode(reloaded.nodes, reloaded.edges, node('C'), {
+    edgeId: branchEdge.id, source: branchEdge.source, target: branchEdge.target
+  }, nextId)
+  assert.deepEqual(branchInserted.nodes.map(node => node.id), ['-1', 'A', 'B', 'end-A', 'end-B', 'C'])
+  assert.deepEqual(branchInserted.edges.map(edge => edge.id), ['id-3', 'id-4', 'id-6', 'id-7', 'id-8'])
+  assert.deepEqual(endpoints(branchInserted), [['-1', 'A'], ['-1', 'B'], ['B', 'end-B'], ['A', 'C'], ['C', 'end-A']])
+  assert.equal(branchInserted.edges[2], reloaded.edges[3], 'the other branch keeps its edge')
   assertConnected(inserted)
   assertConnected(reloaded)
+  assertConnected(branchInserted)
 }
 
 console.log('Graph edge checks passed (insertion, node/branch deletion, shared/orphan ends, reconstruction and ordering).')
