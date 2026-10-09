@@ -17,6 +17,7 @@
 #include "util/Log.h"
 #include "util/NToL.h"
 #include "util/PathUtil.h"
+#include "util/ResourceBudget.h"
 
 static constexpr const char* kTag = "TaskAlarm ";
 namespace cosmo {
@@ -88,10 +89,10 @@ void TaskAlarm::HandBodyFeature(CMsgOnEventsReq& msg, AlgDataPtr /*algData*/, Da
     HandBodyPicture(msg, alarmUnit, alarmIdData);
 }
 
+// Build an image path; record its suffix only after the write succeeds.
 std::string TaskAlarm::GetJpgFileName(CMsgOnEventsReq& msg, const std::string& sign, bool needPath) {
     std::string fileName = "_" + sign + ".jpg";
     std::string filePath = cosmo::path::GetEventPath(msg.itimestamp);
-    msg.files.push_back(fileName);
 
     if (needPath) {
         return (std::filesystem::path(filePath) / (msg.messageId + fileName)).string();
@@ -100,16 +101,20 @@ std::string TaskAlarm::GetJpgFileName(CMsgOnEventsReq& msg, const std::string& s
     return msg.messageId + fileName;
 }
 
-void TaskAlarm::UploadImage(CMsgOnEventsReq& msg, std::vector<uint8_t>& data, const std::string& url,
+// Admit synchronous image writes before publishing them in the event file index.
+void TaskAlarm::UploadImage(CMsgOnEventsReq& msg, std::vector<uint8_t>& data, std::string& url,
                             const std::string& sign) {
     std::string fileName = GetJpgFileName(msg, sign);
-    auto ret             = util::WriteFile(fileName, reinterpret_cast<const std::uint8_t*>(data.data()),
-                                           static_cast<int>(data.size()));
+    auto ret             = util::WriteEventMediaFile(cosmo::path::GetEventRootPath(), fileName,
+                                                     reinterpret_cast<const std::uint8_t*>(data.data()),
+                                                     static_cast<int>(data.size()));
     if (false == ret) {
+        url.clear();
         LOG_WARN("write image file Failed {}", fileName);
         return;
     }
 
+    msg.files.push_back("_" + sign + ".jpg");
     if (!service::ServiceRegistry::Instance().Get<service::IConfigReadService>().IsNetworkModel()) {
         // Standalone box mode — do not upload photos
         return;
@@ -128,6 +133,7 @@ void TaskAlarm::UploadImage(CMsgOnEventsReq& msg, std::vector<uint8_t>& data, co
         nullptr, "jpg", fileName, bucket, url);
 }
 
+// Keep feature files within the event reserve while preserving the in-memory payload.
 std::string TaskAlarm::UploadFeature(const std::string& messageId, AiFeature& data, const std::string& url) {
     std::string filePath = cosmo::path::GetRecordJsonPath();
     std::string fileName = (std::filesystem::path(filePath) / (messageId + ".feature")).string();
@@ -135,7 +141,7 @@ std::string TaskAlarm::UploadFeature(const std::string& messageId, AiFeature& da
     auto featureBase64 = util::EncBase64Ex(reinterpret_cast<uint8_t*>(data.feature.data()),
                                            data.feature.size() * sizeof(float));
 
-    auto ret = util::WriteFile(fileName, featureBase64);
+    auto ret = util::WriteEventMediaFile(cosmo::path::GetEventRootPath(), fileName, featureBase64);
     if (false == ret) {
         LOG_WARN("write feature file Failed {}", fileName);
         return featureBase64;

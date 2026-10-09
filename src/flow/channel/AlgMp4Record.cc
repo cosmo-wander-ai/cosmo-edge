@@ -16,6 +16,7 @@
 #include "util/JsonStructUtil.h"
 #include "util/Log.h"
 #include "util/PathUtil.h"
+#include "util/ResourceBudget.h"
 
 #define VALUE_SET_IN_RANGE(target, value, min, max)                                                          \
     if ((value >= min) && (value <= max))                                                                    \
@@ -25,6 +26,7 @@ namespace cosmo {
 static constexpr int timeScale = 90000;
 namespace fs                   = std::filesystem;
 
+// Admit the actual temporary-file creation even when a queued recording starts later.
 AlgMp4Record::AlgMp4Record(media::VideoCodecType streamType, const RecordParam& recordParam, float fps,
                            int width, int height) {
     track_id_  = MP4_INVALID_TRACK_ID;
@@ -52,6 +54,12 @@ AlgMp4Record::AlgMp4Record(media::VideoCodecType streamType, const RecordParam& 
     json_path_         = recordParam.jsonPath;
     overview_json_url_ = recordParam.overviewUrl;
 
+    mp4_handle_ = nullptr;
+    if (!util::AdmitEventMediaWrite(cosmo::path::GetEventRootPath(), 1024 * 1024)) {
+        write_failed_ = true;
+        LOG_WARN("Recording creation rejected by storage reserve");
+        return;
+    }
     mp4_handle_ = MP4Create(file_name_.c_str());
     if (!mp4_handle_) {
         LOG_ERRO("[MP4 TASK] {} {} Create {} Failed.", task_id_, event_name_, file_name_);
@@ -67,6 +75,7 @@ AlgMp4Record::AlgMp4Record(media::VideoCodecType streamType, const RecordParam& 
         task_start_frame_seq_);
 }
 
+// Finalize successful recordings; discard only our closed storage-rejected temporary file.
 AlgMp4Record::~AlgMp4Record() {
     if (mp4_handle_) {
         LOG_INFO(
@@ -76,6 +85,13 @@ AlgMp4Record::~AlgMp4Record() {
             (last_time_ - event_time_), record_frames_, data_size_, total_size_);
         MP4Close(mp4_handle_);
         mp4_handle_ = nullptr;
+        if (storage_rejected_) {
+            std::error_code ec;
+            fs::remove(file_name_, ec);
+            if (ec)
+                LOG_WARN("Storage-rejected recording removal failed: {}", ec.message());
+            return;
+        }
         if (write_failed_) {
             LOG_ERRO("[MP4 TASK] {} {} recording failed; preserve temporary file {}", task_id_, event_name_,
                      file_name_);
@@ -133,6 +149,7 @@ AlgMp4Record::~AlgMp4Record() {
     }
 }
 
+// Write overview metadata through event admission before attempting upload.
 void AlgMp4Record::UploadOverviewFile() {
     MsgAlarmVideoOverviewInfoExtra overviewInfo;
     overviewInfo.algorithmCode = overview_info_.algorithmCode;
@@ -145,7 +162,8 @@ void AlgMp4Record::UploadOverviewFile() {
     auto ret = util::EncodeJson(overviewInfo, jsonStr);
     if (ret) {
         std::string fileName = (fs::path(GetPath()) / (event_name_ + "_overview.json")).string();
-        util::WriteFile(fileName, jsonStr);
+        if (!util::WriteEventMediaFile(cosmo::path::GetEventRootPath(), fileName, jsonStr))
+            return;
         if (service::ServiceRegistry::Instance().Get<service::IConfigReadService>().IsNetworkModel()) {
             std::string bucket = "gaf_commodity_video";
             service::ServiceRegistry::Instance().Get<service::IFileService>().UploadFile(
@@ -163,6 +181,7 @@ void AlgMp4Record::UploadOverviewFile() {
     }
 }
 
+// Rewrite trajectory metadata only while the event volume has usable headroom.
 void AlgMp4Record::UploadJsonFile() {
     auto hisJson = util::ReadFile(json_path_);
     MsgAlarmVideoOverviewInfo jsonFileInfo;
@@ -276,7 +295,8 @@ void AlgMp4Record::UploadJsonFile() {
     jsonFileInfo.area.retroDirect  = std::to_string(static_cast<int>(retro_direct_));
     auto ret                       = util::EncodeJson(jsonFileInfo, jsonStr);
     if (ret) {
-        util::WriteFile(json_path_, jsonStr);
+        if (!util::WriteEventMediaFile(cosmo::path::GetEventRootPath(), json_path_, jsonStr))
+            return;
     }
 
     if (service::ServiceRegistry::Instance().Get<service::IConfigReadService>().IsNetworkModel()) {

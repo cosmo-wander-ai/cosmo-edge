@@ -22,6 +22,7 @@
 #include "service/camera/impl/CameraTaskUnit.h"
 #include "support/MockDefaults.h"
 #include "support/ScopedServiceOverride.h"
+#include "util/FileUtil.h"
 #include "util/JsonStructUtil.h"
 #include "util/PathUtil.h"
 #include "util/dto/ChannelStatusDto.h"
@@ -675,4 +676,36 @@ TEST_CASE("CameraServiceImpl managed activation waits outside the schedule windo
     REQUIRE(tasks.size() == 1);
     REQUIRE(tasks[0].enable);
     REQUIRE(tasks[0].runtimeState == "scheduled");
+}
+
+// A non-directory config parent simulates an unwritable task-list destination without root-only fixtures.
+TEST_CASE("CameraServiceImpl stops and retries persistence after a task-list write failure",
+          "[CameraServiceImpl][storage-failure]") {
+    const std::string camera_id = "test_camera_stop_write_failure";
+    std::filesystem::remove_all(CameraConfigRoot() / camera_id);
+    TestFixture fx(camera_id, "rtsp://127.0.0.1:1/test");
+    ALLOW_CALL(fx.mocks.scheduleSvc, Exist2("sched1", _)).LR_SIDE_EFFECT(_2 = "Schedule 1").RETURN(true);
+    REQUIRE(fx.svc.SaveOrUpdateTask(camera_id, "test_alg", {}, "sched1") == util::ErrorEnum::Success);
+    DrainSwitchThreads(fx.svc);
+    const auto config_dir = CameraConfigRoot() / camera_id;
+    const auto backup_dir = CameraConfigRoot() / (camera_id + "_backup");
+    std::filesystem::remove_all(backup_dir);
+    std::filesystem::rename(config_dir, backup_dir);
+    REQUIRE(util::WriteFile(config_dir.string(), std::string("block directory")));
+    std::atomic<int> stops{0};
+    ALLOW_CALL(fx.mocks.taskSvc, TaskStop(camera_id + "_test_alg")).LR_SIDE_EFFECT(++stops).RETURN(true);
+    CHECK(fx.svc.SwitchTask(camera_id, "test_alg", false) == util::ErrorEnum::SysErr);
+    DrainSwitchThreads(fx.svc);
+    bool enabled = true;
+    REQUIRE(fx.svc.QuerySwitch(camera_id, "test_alg", enabled) == util::ErrorEnum::Success);
+    CHECK_FALSE(enabled);
+    CHECK(stops.load() == 1);
+    std::filesystem::remove(config_dir);
+    std::filesystem::rename(backup_dir, config_dir);
+    REQUIRE(fx.svc.SwitchTask(camera_id, "test_alg", false) == util::ErrorEnum::Success);
+    DrainSwitchThreads(fx.svc);
+    std::vector<CameraTaskPtr> persisted;
+    REQUIRE(util::LoadStructFromJsonFile((config_dir / "taskList.json").string(), persisted));
+    REQUIRE(persisted.size() == 1);
+    CHECK_FALSE(persisted.front()->is_enabled_.load());
 }

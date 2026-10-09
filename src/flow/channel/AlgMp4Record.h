@@ -51,6 +51,7 @@ private:
     MP4FileHandle mp4_handle_;
     MP4TrackId track_id_;
     bool write_failed_{false};
+    bool storage_rejected_{false};  // Remove our closed partial recording on admission failure.
     bool is_vps_ready_{false};
     bool is_sps_ready_{false};
     bool is_pps_ready_{false};

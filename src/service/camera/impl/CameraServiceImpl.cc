@@ -424,11 +424,14 @@ void CameraServiceImpl::DestroyCameraChannel(CameraEntityPtr camera) {
 //  Per-camera task list persistence (inlined from CameraTaskMng)
 // ============================================================
 
+// Persist the complete desired task state and retain failed writes for monitor retry.
 bool CameraServiceImpl::SaveCameraTaskList(const CameraEntityPtr& camera) {
     auto path =
         (std::filesystem::path(cosmo::path::GetCfgPath(camera->conf_file_path_)) / camera->conf_task_list_)
             .string();
-    return util::SaveStructToJsonFile(path, camera->tasks_);
+    const bool saved = util::SaveStructToJsonFile(path, camera->tasks_);
+    camera->task_config_dirty_.store(!saved, std::memory_order_release);
+    return saved;
 }
 
 void CameraServiceImpl::LoadCameraTaskList(CameraEntityPtr camera) {
@@ -511,6 +514,7 @@ void CameraServiceImpl::PrepareCameraTaskOverview(const CameraEntityPtr& camera,
     RecordAlgTaskAction(task->task_id_, task->action_alg_);
 }
 
+// Apply the desired runtime state, reporting a failed stop instead of a false stopped state.
 void CameraServiceImpl::SwitchCameraTask(const CameraEntityPtr& camera, CameraTaskPtr task) {
     if (!task) {
         LOG_WARN("[{}] SwitchCameraTask skipped because task is null", camera->videoChannelId);
@@ -539,8 +543,8 @@ void CameraServiceImpl::SwitchCameraTask(const CameraEntityPtr& camera, CameraTa
             task->status_ = CameraTaskStatus::kAbnormal;
         }
     } else {
-        ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskStop(task->task_id_);
-        task->status_ = CameraTaskStatus::kStop;
+        const bool stopped = ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskStop(task->task_id_);
+        task->status_      = stopped ? CameraTaskStatus::kStop : CameraTaskStatus::kAbnormal;
     }
     UpdateChannelState(camera);
 }
@@ -589,6 +593,7 @@ void CameraServiceImpl::CameraTaskMonitor() {
     }
 }
 
+// Reconcile runtime state and retry desired task configuration after a failed write.
 void CameraServiceImpl::MonitorCameraEntity(const CameraEntityPtr& camera, bool isAuthed) {
     std::lock_guard<std::mutex> command_lock(camera->command_mtx_);
     if (camera->deleting_) {
@@ -597,6 +602,12 @@ void CameraServiceImpl::MonitorCameraEntity(const CameraEntityPtr& camera, bool 
     // Do not race the monitor's TaskStart/TaskStop/status writes against a user
     // switch that is still completing in the background.
     camera->WaitForSwitchThread();
+    if (camera->task_config_dirty_.load(std::memory_order_acquire)) {
+        std::lock_guard<std::shared_mutex> lock(camera->task_mtx_);
+        if (SaveCameraTaskList(camera)) {
+            LOG_INFO("[{}] Pending task configuration persisted", camera->videoChannelId);
+        }
+    }
     std::vector<CameraTaskPtr> snapshot;
     {
         std::shared_lock<std::shared_mutex> lock(camera->task_mtx_);
@@ -625,7 +636,10 @@ void CameraServiceImpl::MonitorCameraEntity(const CameraEntityPtr& camera, bool 
                 LOG_INFO("[{}/{}] Stop TaskEnable:{} AUTH:{} Schedule:{}/{}", camera->videoChannelId,
                          task->task_id_, task->is_enabled_.load(), isAuthed, task->schedule_id_,
                          task->schedule_name_);
-                ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskStop(task->task_id_);
+                if (!ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskStop(task->task_id_)) {
+                    task->status_ = CameraTaskStatus::kAbnormal;
+                    continue;
+                }
                 if (task->is_enabled_)                         // Switch is still on
                     task->status_ = CameraTaskStatus::kPause;  // Paused
                 else

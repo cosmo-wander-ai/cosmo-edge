@@ -3,6 +3,7 @@
 #include "catch2/trompeloeil.hpp"
 // clang-format on
 
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <utility>
@@ -13,9 +14,12 @@
 #include "mock/MockAppInfoService.h"
 #include "mock/MockCameraService.h"
 #include "mock/MockConfigReadService.h"
+#include "mock/MockLinkageService.h"
 #include "service/event/IEventNotifier.h"
 #include "support/MockDefaults.h"
 #include "support/ScopedServiceOverride.h"
+#include "util/FileUtil.h"
+#include "util/PathUtil.h"
 
 namespace {
 
@@ -176,4 +180,51 @@ TEST_CASE("TaskAlarm emits one event for any number of untracked same-frame targ
     CHECK(notifier.httpEvents[0].targets[0].box.x == 100);
     CHECK(notifier.httpEvents[0].targets[1].box.x == 300);
     CHECK(notifier.httpEvents[0].targets[2].box.x == 500);
+}
+
+TEST_CASE("TaskAlarm compensates local metadata after rejected event insert", "[media-admission]") {
+    TaskAlarmDependencies mocks;
+    CapturingEventNotifier notifier;
+    cosmo::test::ScopedServiceOverride<cosmo::service::IEventNotifier> registration(notifier);
+    REQUIRE_CALL(mocks.cameraSvc, GetChannelName("channel")).RETURN("Camera");
+    ALLOW_CALL(mocks.configReadSvc, IsNetworkModel()).RETURN(false);
+    cosmo::test::MockLinkageService linkage;
+    cosmo::test::ScopedServiceOverride<cosmo::service::ILinkageService> linkage_registration(linkage);
+    ALLOW_CALL(linkage, Alarm(trompeloeil::_, trompeloeil::_)).RETURN(true);
+    bool referenced = false;
+    bool recording  = false;
+    SECTION("Unreferenced metadata is removed") {}
+    SECTION("An existing event reference protects metadata") {
+        referenced = true;
+    }
+    SECTION("Active recording metadata is preserved") {
+        recording = true;
+    }
+    std::string orphan;
+    bool wrote_metadata  = false;
+    bool wrote_temporary = false;
+    REQUIRE_CALL(mocks.alarmRecordSvc, Insert(trompeloeil::_))
+        .LR_SIDE_EFFECT(
+            orphan =
+                (std::filesystem::path(cosmo::path::GetEventPath(_1.timestamp)) / (_1.id + ".json")).string())
+        .LR_SIDE_EFFECT(wrote_metadata = cosmo::util::WriteFile(orphan, "{}"))
+        .LR_SIDE_EFFECT(if (recording) {
+            wrote_temporary =
+                cosmo::util::WriteFile(orphan.substr(0, orphan.size() - 5) + "_video.tmp", "active");
+        })
+        .RETURN(false);
+    REQUIRE_CALL(mocks.alarmRecordSvc, HasStoredEvent(trompeloeil::_)).LR_RETURN(referenced);
+    cosmo::ActionNode action;
+    action.actionId     = "alarm-action";
+    action.actionName   = "Alarm";
+    action.flowActionId = "alarm-flow";
+    cosmo::TaskAlarm alarm("channel", "task", action);
+    alarm.HandFrame(MakeTaskAlarmFrame());
+    REQUIRE_FALSE(orphan.empty());
+    REQUIRE(wrote_metadata);
+    if (recording)
+        REQUIRE(wrote_temporary);
+    CHECK(std::filesystem::exists(orphan) == (referenced || recording));
+    REQUIRE(notifier.websocketEvents.size() == 1);
+    CHECK(notifier.websocketEvents[0].files.empty());
 }

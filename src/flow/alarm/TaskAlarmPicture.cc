@@ -94,6 +94,7 @@ void TaskAlarm::HandBestInfoPicture(CMsgOnEventsReq& msg, AlgDataPtr /*algData*/
     }
 }
 
+// Build picture URLs from successfully persisted images; leave failed originals empty.
 void TaskAlarm::HandPicture(CMsgOnEventsReq& msg, AlgDataPtr algData, DataAlarmUnit& alarmUnit) {
 #ifdef DURATION_LOG
     auto timpointCopyFrame = std::chrono::high_resolution_clock::now();
@@ -136,8 +137,9 @@ void TaskAlarm::HandPicture(CMsgOnEventsReq& msg, AlgDataPtr algData, DataAlarmU
         msg.fullPicture = service::ServiceRegistry::Instance().Get<service::IFileService>().GetFileUrl(
             service::FileType::Image);
     } else {
-        msg.fullPicture    = GetJpgFileName(msg, "full", false);
-        msg.orignalPicture = GetJpgFileName(msg, "orig", false);
+        msg.fullPicture = GetJpgFileName(msg, "full", false);
+        if (std::find(msg.files.begin(), msg.files.end(), "_orig.jpg") != msg.files.end())
+            msg.orignalPicture = GetJpgFileName(msg, "orig", false);
     }
 
     // Detection crop photo

@@ -73,8 +73,9 @@ public:
     // per-camera operations. deleting_ is protected by this mutex.
     std::mutex command_mtx_;
     bool deleting_{false};
-    std::mutex switch_mtx_;      // Protects switch_thread_
-    std::thread switch_thread_;  // Background switch thread (joinable, replaces detach)
+    std::atomic<bool> task_config_dirty_{false};  // Retry failed task-list persistence.
+    std::mutex switch_mtx_;                       // Protects switch_thread_
+    std::thread switch_thread_;                   // Background switch thread (joinable, replaces detach)
 
     // Wait for background switch thread to finish
     void WaitForSwitchThread();

@@ -176,3 +176,20 @@ TEST_CASE("AlarmRecordServiceImpl: concurrent Insert safety", "[AlarmRecordServi
 
     REQUIRE(successCount.load() == kThreadCount * kOpsPerThread);
 }
+
+// Orphan reclamation must preserve references in either event table and fail closed on query errors.
+TEST_CASE("AlarmRecordServiceImpl checks both event tables before orphan reclamation",
+          "[AlarmRecordService][storage-recovery]") {
+    auto database = MakeMemoryDb();
+    DbDependency mocks;
+    ALLOW_CALL(mocks.dbSvc, GetDb()).RETURN(database);
+    AlarmRecordServiceImpl service;
+    auto unit = MakeAlarmUnit("common-event");
+    REQUIRE(service.Insert(unit));
+    database->exec("INSERT INTO t_faceEvent(rec_id) VALUES('face-event')");
+    CHECK(service.HasStoredEvent("common-event"));
+    CHECK(service.HasStoredEvent("face-event"));
+    CHECK_FALSE(service.HasStoredEvent("missing-event"));
+    database->exec("DROP TABLE t_faceEvent");
+    CHECK_THROWS(service.HasStoredEvent("missing-event"));
+}

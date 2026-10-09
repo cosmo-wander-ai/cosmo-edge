@@ -11,6 +11,7 @@
 #include "mp4v2/track.h"
 #include "util/Log.h"
 #include "util/PathUtil.h"
+#include "util/ResourceBudget.h"
 
 namespace cosmo {
 namespace {
@@ -198,7 +199,14 @@ bool AlgMp4Record::HandlePps(const uint8_t* frame_data, size_t frame_size, int64
     return false;
 }
 
+// Recheck headroom per sample so an existing recording cannot bypass storage admission.
 bool AlgMp4Record::WriteVideoSample(int64_t seq, bool is_sync) {
+    if (!util::AdmitEventMediaWrite(cosmo::path::GetEventRootPath(), sample_buffer_.size() + 65536)) {
+        write_failed_     = true;
+        storage_rejected_ = true;
+        LOG_WARN("Recording sample rejected by storage reserve");
+        return false;
+    }
     try {
         const bool written = MP4WriteSample(mp4_handle_, track_id_, sample_buffer_.data(),
                                             static_cast<uint32_t>(sample_buffer_.size()),
