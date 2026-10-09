@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import lodash from 'lodash'
 import { mountComponent } from './helpers/mount_behavior_component.mjs'
 import { isPairPictureWorkflow, filterPictureLibraryParams, updatePictureMatchDefaults } from '../src/views/gam/countManagement/arrangeDetail/flow/nodeState.js'
@@ -75,7 +77,8 @@ try {
 } finally { page.unmount() }
 console.log('Dual-image comparison UI checks passed')
 
-const actions = JSON.parse(await readFile(new URL('../../../data/resource/aiboxresource_bm1688/layout/actions.json', import.meta.url), 'utf8'))
+const repositoryRoot = process.env.COSMO_REPO_ROOT || fileURLToPath(new URL('../../../', import.meta.url))
+const actions = JSON.parse(await readFile(path.join(repositoryRoot, 'data/resource/aiboxresource_bm1688/layout/actions.json'), 'utf8'))
 const action = actions.find(a => a.id === 'PB_00007')
 const empty = { default: { render: () => null } }
 const changes = []
