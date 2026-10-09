@@ -22,6 +22,10 @@ task. Tutorials, examples, templates, and scripts are assets the agent may reuse
 
 ## Say the Task Directly
 
+For training from data, or letting an AI assistant query an existing device's alarms, retrieve images,
+and request confirmed detection start/stop, see [Companion Projects: Training Skill and Connect](../guide/companion-projects.md)
+to choose an entry point and check its separate version.
+
 For object-detection customization starting from data, install the independent
 [CosmoEdge training-assistance Skill](https://github.com/cosmo-wander-ai/cosmoedge-training-skill).
 Provide the business goal, the full available dataset, and computing resources. The agent checks

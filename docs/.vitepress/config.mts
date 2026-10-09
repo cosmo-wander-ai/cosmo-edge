@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress'
 
 const guideZh = [
+  { text: '配套工程：训练 Skill 与 Connect', link: '/guide/companion-projects' },
   { text: '构建指南', link: '/guide/build' },
   { text: 'CV186X 快速开始', link: '/guide/cv186x-quick-start' },
   { text: 'RK3576 / RKNN 集成', link: '/guide/rk3576-rknn-development' },
@@ -74,6 +75,7 @@ const communityZh = [
 ]
 
 const guideEn = [
+  { text: 'Companion Projects: Training and Connect', link: '/en/guide/companion-projects' },
   { text: 'Build Guide', link: '/en/guide/build' },
   { text: 'CV186X Quick Start', link: '/en/guide/cv186x-quick-start' },
   { text: 'RK3576 / RKNN Integration', link: '/en/guide/rk3576-rknn-development' },

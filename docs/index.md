@@ -33,6 +33,8 @@ features:
 
 ## 阅读路径
 
+需要定制模型或让 AI 助手使用已有设备时，从[配套工程：训练 Skill 与 Connect](guide/companion-projects.md)选择入口。两个工程分别发布，文档页说明各自的版本、使用条件与验证范围。
+
 1. 第一次体验 CosmoEdge，请从[卷一：快速上手](tutorials/01-quickstart/quickstart.md)开始。
 2. 需要确认当前构建命令，请阅读[构建指南](guide/build.md)。
 3. 需要了解运行目录、端口和服务进程，请阅读[部署指南](guide/deployment.md)。

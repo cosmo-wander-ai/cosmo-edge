@@ -17,7 +17,7 @@ Build and operate video analytics, VLM, and event workflows through a consistent
 [![Docs](https://img.shields.io/badge/docs-online-2563EB?style=flat-square)](https://www.cosmowander.ai/docs/)
 [![Gitee](https://img.shields.io/badge/Gitee-cosmo--edge-C71D23?style=flat-square&logo=gitee)](https://gitee.com/cosmo-wander-ai/cosmo-edge)
 
-[Quick Start](#quick-start) · [Platforms](#choose-a-platform) · [Validation](#validation) · [Documentation](#documentation-devices-and-community) · [简体中文](README.zh-CN.md)
+[Start Here](#choose-your-starting-point) · [Recent Development](#releases-and-recent-development) · [Quick Start](#quick-start) · [Platforms](#choose-a-platform) · [Validation](#validation) · [Documentation](#documentation-devices-and-community) · [简体中文](README.zh-CN.md)
 
 </div>
 
@@ -31,21 +31,32 @@ Build and operate video analytics, VLM, and event workflows through a consistent
 
 CosmoEdge goes beyond model serving with a complete application layer for model import, visual orchestration, alarms, and event delivery. The core engine and console in this repository are released under Apache-2.0; certified hardware, commercial preset models, and Model Guard distribution protection have separate boundaries.
 
-## CosmoEdge 1.1
+## Choose Your Starting Point
 
-- **Multi-platform release:** BM1688, CV186X, RK3576, and RV1126B use the same video-ingest, orchestration, event, and observability workflow with target-specific model artifacts.
-- **Public benchmark pack:** the [CosmoEdge 1.1 multi-platform report](docs/benchmarks/scenario-bench/v1.1/README.md) covers single workloads, concurrent mixed workloads, a controlled 72-hour dual-CV profile, and validated VLM performance with sanitized, traceable benchmark artifacts.
-- **Rockchip release platforms:** RK3576 and RV1126B both include cross-build, board operation, RKNN inference, and MPP/RGA media paths in the same v1.1 release tier; their models and measured evidence remain bound separately.
-- **Sophon model handling:** chip-aware validation supports target-specific `.nn` artifacts for BM1688 and CV186X. The benchmark records an exact Open-package and running-engine binding for both reference devices.
-- **RKNN data path:** targeted DMA-BUF-to-RGA input, persistent bound-input, native quantized output, and direct YOLOv8 tensor decoding paths with explicit fallbacks.
-- **Agent-assisted development:** a repository-guided path for handing model porting, integration, and UI tasks to the coding agent you already use and receiving verifiable deliverables.
-- **Model Guard 2.3:** protects commercial preset-model distribution in Sophon Protected packages. Open and Protected expose the same application features, with no SKU-gated software functionality; they differ in model encryption and device-provisioning tooling.
-- **macOS Docker Preview:** an isolated `linux/amd64` path for one local-video workflow on Apple Silicon, validated through multiple end-to-end lab rounds.
-- **Benchmark scope:** VLM figures are exact short-run gate boundaries for the recorded protocol. The separate 72-hour test covers the listed fixed-channel profiles using controlled local-loop input; detailed conditions are documented in the benchmark report.
+| Your task | Start here | Project and version |
+| --- | --- | --- |
+| Deploy video AI applications, configure models, scenes, and alarms | [Quick Start](#quick-start) · [Platforms](#choose-a-platform) | Engine and console in this repository; stable **v1.1.0** |
+| Customize an object detector from your data | [CosmoEdge Training Skill](https://github.com/cosmo-wander-ai/cosmoedge-training-skill) | Independent project; published **v0.1.0-preview.1**, with later revisions on its `main` |
+| Let an AI assistant query alarms, retrieve images, and request confirmed detection start/stop | [CosmoEdge Connect](https://github.com/cosmo-wander-ai/cosmoedge-connect) | Independent local MCP / WorkBuddy integration; **v0.1.0-alpha.1 source preview** |
+
+The training Skill and Connect are installed and released separately. See [Companion Projects](docs/en/guide/companion-projects.md) for prerequisites, validation scope, and version links.
+
+## Releases and Recent Development
+
+**Stable release: v1.1.0.** Covers BM1688, CV186X, RK3576, RV1126B, and x86, with an Apple Silicon macOS Docker Preview. See the [v1.1 report](docs/benchmarks/scenario-bench/v1.1/README.md) for multi-platform measurements and controlled 72-hour fixed-profile results, and the [GitHub Release](https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.1.0) for installation packages.
+
+**Current `main`: development since v1.1.0.** Merged changes include:
+
+- **Video access:** [ONVIF discovery and authenticated access](docs/en/guide/onvif-access.md), plus [GB28181 device management with TCP/UDP signaling and video access](docs/en/guide/gb28181-access.md).
+- **Models and visual workflows:** YOLO26 and oriented bounding-box (OBB) handling; native BM1688 Laya-V model integration, alarm review, and multi-ROI question configuration for images and video. Implementation and completed validation are described in [PR #219](https://github.com/cosmo-wander-ai/cosmo-edge/pull/219).
+- **Platform integration:** [Management APIs](docs/en/reference/management.md) for versioned resource delivery, resumable uploads, task start/stop, and state readback.
+- **Deployment and engineering quality:** RK3576 protected-model handling, model-package validation, video-sample event measurement and VLM evaluation tools, and fixes to task recovery, media handling, and log retention. See the [Unreleased changelog](CHANGELOG.md#unreleased).
+
+These main-branch changes are not included in v1.1.0 installation packages. Consult each feature's documentation for required models, target platforms, and validation scope. The v1.1 benchmarks remain evidence for their recorded candidates and conditions, not performance measurements of later main builds or new models.
 
 ## Choose a Platform
 
-CosmoEdge provides one engine architecture and orchestration experience, but each build selects one inference backend and uses models generated for that target platform.
+CosmoEdge provides one engine architecture and orchestration experience, but each build selects one inference backend and uses models generated for that target platform. The table describes the v1.1.0 release scope and its associated evidence.
 
 | Platform | Status | Runtime / model artifact | Current scope and evidence |
 | --- | --- | --- | --- |
@@ -56,6 +67,8 @@ CosmoEdge provides one engine architecture and orchestration experience, but eac
 | Sophon BM1684X | Planned | — | Not part of the current release scope |
 
 ## Quick Start
+
+The commands below clone and build current `main`. For the stable release, use the [v1.1.0 packages](https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.1.0), or check out the `v1.1.0` tag before building and follow that version's documentation.
 
 ### Try locally on x86
 
@@ -188,6 +201,9 @@ The v1.1 report covers BM1688, CV186X, RK3576, and RV1126B. It includes 49 indep
 - [72-hour dual-CV report (rendered documentation site)](https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/results/dual-cv-72h/report.html)
 - [Methodology and reproduction](docs/benchmarks/scenario-bench/v1.1/methodology.md)
 
+<details>
+<summary>Expand v1.1 candidate identities, performance tables, and test conditions</summary>
+
 The short-run capacity refresh uses source commit `89c73a7464a81ef378686447d7c1eeb88b988455`, tree `6857fbcce72c7af64e6cb23a27e66a405e9df9af`, one fixed 1080p24 input, 30-second steps, and the gates recorded in the [release manifest](docs/benchmarks/scenario-bench/v1.1/release-manifest.json). The 72-hour observation uses source commit `44209759f450e96cda265acfa8bc6d17a1138888`, tree `5cbdefeaefaf642407356c22c271ccc7d57935b0`, and the same controlled input.
 
 | Platform | 72-hour configured channels | Task bindings | Sample coverage | Min / avg FPS | Result |
@@ -219,6 +235,8 @@ The three VLM platforms use one final protocol: each newly added route completes
 
 The capacity values are exact short-run gate boundaries under the recorded conditions—not maximum-capacity certification or production recommendations. The separate 72-hour table verifies only its configured profile. See the [v1.1 benchmark](docs/benchmarks/scenario-bench/v1.1/README.md) for the complete matrices. Previously published data remains available through one [v1.0 historical archive](https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.0/) link.
 
+</details>
+
 ## Architecture
 
 ```text
@@ -239,7 +257,7 @@ The capacity values are exact short-run gate boundaries under the recorded condi
 +--------------------+----------------------+----------------------+
 ```
 
-One build selects one inference backend. Model artifacts are generated for the target platform, and feature/model coverage and capacity remain platform-specific. Model Guard Protected distribution currently belongs to the Sophon packaging path.
+One build selects one inference backend. Model artifacts are generated for the target platform, and feature/model coverage and capacity remain platform-specific. The v1.1.0 Model Guard Protected distribution notes apply to Sophon packages; current main also includes RK3576 protected-model handling, described in [PR #151](https://github.com/cosmo-wander-ai/cosmo-edge/pull/151).
 
 ## Documentation, Devices, and Community
 
@@ -251,6 +269,8 @@ One build selects one inference backend. Model artifacts are generated for the t
 | [VLM Guide](https://www.cosmowander.ai/docs/tutorials/03-vlm-guide/vlm-guide) | Prompt-based visual judgment and events |
 | [Model Porting Guide](https://www.cosmowander.ai/docs/tutorials/05-model-porting/model-porting) | Importing your own model |
 | [Agent-Assisted Development](docs/en/development/agent-assisted-development.md) | Delegating an extension task with verifiable results |
+| [Companion Projects](docs/en/guide/companion-projects.md) | Training Skill and Connect / MCP prerequisites and independent versions |
+| [Changelog](CHANGELOG.md) | Release history and unreleased main-branch changes |
 | [Build Guide](https://www.cosmowander.ai/docs/guide/build) | x86, Sophon, and RK3576 build/package paths |
 | [API Overview](https://www.cosmowander.ai/docs/reference/api) | REST, WebSocket, MQTT, and webhook integration |
 
@@ -279,7 +299,7 @@ They expose the same application features and use the same MD5 upgrade lifecycle
 <details>
 <summary><b>Can I use my own trained models?</b></summary>
 
-Yes. Use the model-porting path to validate the tensor, preprocessing, post-processing, target runtime, and business accuracy contract. A model artifact must be generated for the platform where it will run.
+Yes. For training from data, use the independent [Training Skill](https://github.com/cosmo-wander-ai/cosmoedge-training-skill). For an existing model, use the model-porting path to validate the tensor, preprocessing, post-processing, target runtime, and business accuracy contract. A model artifact must be generated for the platform where it will run.
 
 </details>
 

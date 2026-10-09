@@ -29,6 +29,8 @@ features:
 
 ## Reading Path
 
+To customize a model or let an AI assistant use an existing device, start with [Companion Projects: Training Skill and Connect](guide/companion-projects.md). The two projects have separate releases; the guide explains versions, prerequisites, and validation scope.
+
 1. First-time users should start with [Volume 1: Quick Start](tutorials/01-quickstart/quickstart.md).
 2. To confirm build commands, read the [Build Guide](guide/build.md).
 3. To understand runtime paths, ports, and services, read the [Deployment Guide](guide/deployment.md).

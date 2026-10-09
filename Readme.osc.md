@@ -19,7 +19,7 @@
 [![Docs](https://img.shields.io/badge/docs-online-2563EB?style=flat-square)](https://www.cosmowander.ai/zh/docs/)
 [![Gitee](https://img.shields.io/badge/Gitee-cosmo--edge-C71D23?style=flat-square&logo=gitee)](https://gitee.com/cosmo-wander-ai/cosmo-edge)
 
-[快速开始](#快速开始) · [平台选择](#选择平台) · [验证](#验证与性能) · [文档](#文档设备与社区) · [English](README.md)
+[使用路径](#选择你的使用路径) · [近期进展](#版本与近期进展) · [快速开始](#快速开始) · [平台选择](#选择平台) · [验证](#验证与性能) · [文档](#文档设备与社区) · [English](README.md)
 
 </div>
 
@@ -35,21 +35,32 @@
 
 CosmoEdge 不只是模型推理服务：它提供从模型导入、可视化编排到告警与事件推送的完整应用层。仓库中的核心引擎与控制台以 Apache-2.0 开源；认证硬件、商业预置模型与 Model Guard 分发保护具有独立边界。
 
-## CosmoEdge 1.1
+## 选择你的使用路径
 
-- **多平台发布**：BM1688、CV186X、RK3576 与 RV1126B 共享同一套视频接入、任务编排、事件和可观测流程，并分别使用目标平台模型产物。
-- **公开 benchmark 包**：[CosmoEdge 1.1 多平台报告](docs/benchmarks/scenario-bench/v1.1/README.zh-CN.md)覆盖单任务、并发混合任务、受控 72 小时双 CV 固定配置与已验证 VLM 性能，并提供脱敏、可追溯的 benchmark 材料。
-- **Rockchip 发布平台**：RK3576 与 RV1126B 均已集成交叉构建、板端运行、RKNN 推理和 MPP/RGA 媒体路径，同属 v1.1 发布平台；二者的模型与实测证据分别绑定。
-- **Sophon 模型处理**：芯片感知校验支持 BM1688 与 CV186X 的目标 `.nn` 产物；benchmark 已记录两台参考设备的 Open 安装包和运行引擎精确绑定。
-- **RKNN 数据路径**：包含 DMA-BUF 到 RGA 输入、持久绑定输入、原生量化输出和 YOLOv8 张量直接解码路径，并保留明确 fallback。
-- **智能体辅助二开**：提供仓库级入口，把模型适配、系统集成和界面改造任务交给常用编码智能体，并获得可核验交付物。
-- **Model Guard 2.3**：为 Sophon Protected 包中的商业预置模型提供分发保护；Open 与 Protected 的应用软件能力一致，不以 SKU 解锁软件功能，区别在于模型是否加密以及是否包含设备授权工具。
-- **macOS Docker Preview**：为 Apple Silicon 提供隔离的 `linux/amd64` 单路本地视频体验路径，已完成多轮线下端到端验证。
-- **测试范围**：VLM 数据是记录协议下的精确短时门禁边界；独立的 72 小时测试验证表中固定路数在受控本地循环输入下的持续运行，完整条件见 benchmark 报告。
+| 你要完成的事 | 从哪里开始 | 工程与版本 |
+| --- | --- | --- |
+| 部署视频 AI 应用，配置模型、场景与告警 | [快速开始](#快速开始) · [选择平台](#选择平台) | 本仓库的引擎与控制台；正式版 **v1.1.0** |
+| 从数据开始定制目标检测模型 | [CosmoEdge 辅助训练 Skill](https://github.com/cosmo-wander-ai/cosmoedge-training-skill) | 独立工程；已发布 **v0.1.0-preview.1**，后续修订见其 `main` |
+| 让 AI 助手查询告警、按需看图并确认后启停检测 | [CosmoEdge Connect](https://github.com/cosmo-wander-ai/cosmoedge-connect) | 独立的本地 MCP / WorkBuddy 接入工程；**v0.1.0-alpha.1 源码预览** |
+
+训练 Skill 与 Connect 分别安装和发布。使用条件、验证范围和各自的版本入口见[配套工程](docs/guide/companion-projects.md)。
+
+## 版本与近期进展
+
+**正式发布：v1.1.0。** 面向 BM1688、CV186X、RK3576、RV1126B 与 x86，包含 Apple Silicon macOS Docker Preview；多平台性能与受控 72 小时固定配置结果见 [v1.1 报告](docs/benchmarks/scenario-bench/v1.1/README.zh-CN.md)。安装包见 [GitHub Release](https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.1.0)。
+
+**当前 `main`：v1.1.0 之后的开发进展。** 已合入的主要更新包括：
+
+- **视频接入**：[ONVIF 发现与认证接入](docs/guide/onvif-access.md)、[GB28181 设备管理及 TCP/UDP 信令与视频接入](docs/guide/gb28181-access.md)。
+- **模型与视觉流程**：YOLO26 与旋转框 OBB 处理；BM1688 原生 Laya-V 模型接入、告警复核及图片/视频的多 ROI 问题配置。实现与已完成验证见 [PR #219](https://github.com/cosmo-wander-ai/cosmo-edge/pull/219)。
+- **平台集成**：[平台管理接口](docs/reference/management.md)支持版本化资源下发、断点续传、任务启停与状态回读。
+- **部署与工程质量**：RK3576 受保护模型路径、模型包装校验、视频样本级事件测量与 VLM 评估工具，以及任务恢复、媒体处理和日志管理修复。详见 [Unreleased 更新记录](CHANGELOG.md#unreleased)。
+
+上述主干更新未包含在 v1.1.0 安装包中；所需模型、目标平台和验证范围以对应说明为准。v1.1 benchmark 仍只描述其固定候选与测试条件，不能用于证明后续主干或新模型的性能。
 
 ## 选择平台
 
-CosmoEdge 提供统一的引擎架构与编排体验，但每次构建只选择一个推理后端，并使用面向目标平台生成的模型产物。
+CosmoEdge 提供统一的引擎架构与编排体验，但每次构建只选择一个推理后端，并使用面向目标平台生成的模型产物。下表说明 v1.1.0 发布范围及其对应证据。
 
 | 平台 | 状态 | 运行时 / 模型产物 | 当前范围与证据 |
 | --- | --- | --- | --- |
@@ -60,6 +71,8 @@ CosmoEdge 提供统一的引擎架构与编排体验，但每次构建只选择�
 | Sophon BM1684X | 规划中 | — | 不属于当前发布范围 |
 
 ## 快速开始
+
+以下命令克隆并构建当前 `main`。需要正式发布版本时，请使用 [v1.1.0 安装包](https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.1.0)，或在构建前切换到 `v1.1.0` 标签并按该版本文档操作。
 
 ### 在 x86 本地试用
 
@@ -178,6 +191,9 @@ v1.1 报告覆盖 BM1688、CV186X、RK3576 与 RV1126B。报告包含人员检�
 - [72 小时双 CV 报告（官网渲染版）](https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/results/dual-cv-72h/report.zh-CN.html)
 - [方法与复现](docs/benchmarks/scenario-bench/v1.1/methodology.md)
 
+<details>
+<summary>展开 v1.1 固定候选、性能表与测试条件</summary>
+
 短时容量刷新使用源码 commit `89c73a7464a81ef378686447d7c1eeb88b988455`、tree `6857fbcce72c7af64e6cb23a27e66a405e9df9af`，采用固定 1080p24 视频、30 秒单级时长和 [release manifest](docs/benchmarks/scenario-bench/v1.1/release-manifest.json) 中记录的门禁。72 小时观测使用源码 commit `44209759f450e96cda265acfa8bc6d17a1138888`、tree `5cbdefeaefaf642407356c22c271ccc7d57935b0`，并复用同一受控输入。
 
 | 平台 | 72 小时固定路数 | 任务绑定 | 样本覆盖 | 最低 / 平均 FPS | 结果 |
@@ -209,6 +225,8 @@ v1.1 报告覆盖 BM1688、CV186X、RK3576 与 RV1126B。报告包含人员检�
 
 容量数值是当前记录条件下的精确短时门禁边界，不是最大容量认证或生产推荐路数；独立的 72 小时表格只验证对应固定配置。完整矩阵见 [v1.1 benchmark](docs/benchmarks/scenario-bench/v1.1/README.zh-CN.md)；此前公开的数据只保留一个 [v1.0 历史归档](https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.0/)入口。
 
+</details>
+
 ## 架构
 
 ```text
@@ -229,7 +247,7 @@ v1.1 报告覆盖 BM1688、CV186X、RK3576 与 RV1126B。报告包含人员检�
 +--------------------+----------------------+----------------------+
 ```
 
-每次构建只选择一个推理后端，模型产物面向目标平台生成；功能、模型覆盖和容量仍具有平台差异。Model Guard Protected 分发目前属于 Sophon 打包路径。
+每次构建只选择一个推理后端，模型产物面向目标平台生成；功能、模型覆盖和容量仍具有平台差异。v1.1.0 的 Model Guard Protected 分发说明针对 Sophon 包；当前主干另有 RK3576 受保护模型实现，见 [PR #151](https://github.com/cosmo-wander-ai/cosmo-edge/pull/151)。
 
 ## 文档、设备与社区
 
@@ -241,6 +259,8 @@ v1.1 报告覆盖 BM1688、CV186X、RK3576 与 RV1126B。报告包含人员检�
 | [VLM 指南](https://www.cosmowander.ai/zh/docs/tutorials/03-vlm-guide/vlm-guide) | 提示词视觉判断与事件 |
 | [模型适配指南](https://www.cosmowander.ai/zh/docs/tutorials/05-model-porting/model-porting) | 导入自有模型 |
 | [智能体辅助二次开发](docs/development/agent-assisted-development.md) | 委托二开任务并获得可核验结果 |
+| [配套工程](docs/guide/companion-projects.md) | Training Skill、Connect / MCP 的使用条件与独立版本 |
+| [更新记录](CHANGELOG.md) | 正式发布历史与主干待发布变化 |
 | [构建指南](https://www.cosmowander.ai/zh/docs/guide/build) | x86、Sophon 与 RK3576 构建、打包路径 |
 | [API 概览](https://www.cosmowander.ai/zh/docs/reference/api) | REST、WebSocket、MQTT 与 webhook 集成 |
 
@@ -271,7 +291,7 @@ v1.1 报告覆盖 BM1688、CV186X、RK3576 与 RV1126B。报告包含人员检�
 <details>
 <summary><b>可以使用自己训练的模型吗？</b></summary>
 
-可以。模型适配流程会验证张量、预处理、后处理、目标运行时和业务精度约束；模型产物必须面向实际运行的平台生成。
+可以。从数据开始训练时，可使用独立的 [Training Skill](https://github.com/cosmo-wander-ai/cosmoedge-training-skill)。已有模型则进入模型适配流程，验证张量、预处理、后处理、目标运行时和业务精度约束；模型产物必须面向实际运行的平台生成。
 
 </details>
 
