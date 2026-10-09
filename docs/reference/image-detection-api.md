@@ -1,6 +1,6 @@
 ---
 title: 图片检测 API 接入指南
-description: 通过 HTTP API 登录、创建图片分析任务、上传图片、执行人脸或通用目标检测并解析结构化结果。
+description: 通过 HTTP API 上传图片、执行无区域编排、底库比对和双图比对，解析业务结论、命中样本与相似度分数。
 prev:
   text: API 概览
   link: /reference/api
@@ -11,7 +11,7 @@ next:
 
 # 图片检测 API 接入指南
 
-本文面向需要从业务系统上传图片并同步取得检测结果的集成方。人脸检测、通用目标检测、关键点和分割任务复用同一组图片分析 API；实际能力由设备上已配置的图片分析算法决定。
+本文面向需要从业务系统上传图片并同步取得分析结果的集成方。检测、分类、关键点、分割、OCR、VLM、底库比对和双图比对复用同一组图片分析 API；实际能力由设备上已配置的图片场景决定。控制台操作见[图片分析与图片比对](../guide/image-analysis.md)，字段速查见[图片分析字段](api-fields.md#图片分析字段)。
 
 ## 接入前提
 
@@ -118,7 +118,7 @@ mtk: <MTK>
 }
 ```
 
-`algorithmUsage: "2"` 表示图片分析算法。`algorithmName` 可以留空后由调用方选择，也可以填写部署时配置的算法名称。
+`algorithmUsage: "2"` 表示图片分析算法，`"1"` 表示视频分析；场景列表的“数据源类型”查询使用同一字段，留空表示不限制类型。`algorithmName` 可以留空后由调用方选择，也可以填写部署时配置的算法名称。
 
 ### 响应
 
@@ -407,11 +407,12 @@ mtk: <MTK>
 
 | 字段 | 说明 |
 | --- | --- |
-| `decision` | `matched` 命中、`not_matched` 未命中、`unknown` 证据不足；目标还可为 `not_evaluated` |
+| `decision` | `matched` 命中、`not_matched` 未命中、`unknown` 证据不足；目标还可为 `not_evaluated`，双图无阈值时为 `score_only` |
 | `box` | `x/y/width/height` 均为像素坐标 |
 | `confidence[]` | 检测与分类输出的标签及置信度 |
 | `attributes[]`、`texts[]` | 属性分类结果、OCR 文字 |
 | `matchInfo` | 库比对分数、分组及命中信息；空库不能作为“未命中”证据 |
+| `outputs[].reason` | 无法判断的原因：`no_comparable_samples` 或 `insufficient_evidence`；已知结论不附带此字段 |
 | `landmark[]` | 关键点，兼容键名为 `xRatio/yRatio`，值为像素坐标 |
 | `maskPolygon[]` | 分割轮廓，`xRatio/yRatio` 为归一化坐标 |
 | `rules` | 每个判断节点的结果；缺少输入时保留 `unknown`，取反也不会变为命中 |
@@ -423,9 +424,55 @@ mtk: <MTK>
 
 `needRetImg: false` 关闭叠加图。开启时 `fullPicture` 可能为文件服务 URL 或 `data:image/jpeg;base64,...`，仅绘制输出选中的目标。
 
+### 底库命中详情与业务结论
+
+人脸、工服库比对在 `targetList[].matchInfo` 中返回比对证据。以下为一个工服库命中的字段示例，数值仅用于说明协议：
+
+```json
+{
+  "setPicCount": 3,
+  "matched": true,
+  "matchDegree": 92.6,
+  "matchId": "sample-001",
+  "name": "示例工服样本",
+  "groupId": "library-001",
+  "groupName": "示例工服库",
+  "baseImageUrl": "/sample-library-image.jpg",
+  "personId": "sample-001"
+}
+```
+
+| 字段 | 含义 |
+| --- | --- |
+| `setPicCount` | 实际参与有效比对的样本数；`0` 表示没有有效比对证据，不是库中展示的图片总数 |
+| `matched` | 是否命中底库；与取反后的业务规则结论分别读取 |
+| `matchDegree` | 最高有效比对分数，采用服务的 0–100 分尺度；不是检测置信度或概率 |
+| `matchId` | 最佳匹配样本 ID |
+| `name` | 人脸库中的人员姓名，或工服库中的样本图片名称 |
+| `groupId`、`groupName` | 最佳匹配所属底库的 ID、名称 |
+| `baseImageUrl` | 底库参考图片地址；与本次输入的结果图片 `fullPicture` 不同 |
+| `personId`、`personCode` | 人员/样本标识及人员编号，在有对应数据时提供 |
+
+`name`、`baseImageUrl`、`personId`、`personCode` 为空时省略，客户端应允许缺失。仅在 `setPicCount > 0` 时解释比对分数。有效比对未命中时，调试响应或配置 `output.targets=all` 可用于查看返回目标的最佳候选信息；候选不应展示为已命中。
+
+例如“图片未穿工服”使用 `match.mode=unmatched`：命中工服库时 `matchInfo.matched=true`，但业务 `decision=not_matched`。默认业务响应仍保留该底库命中目标的详情，即使它不在输出节点的 `targetIds` 中。因此不要把 `targetList.length` 当作命中数，应读取 `outputs[].matchedCount`，并按 `targetIds` 确定业务目标。
+
+### 无法判断与失败的边界
+
+`resCode=1`、`status=completed` 只表示执行完成，业务输出仍可能是 `unknown`：
+
+| 输出或错误 | 含义 |
+| --- | --- |
+| `decision=unknown`、`reason=no_comparable_samples` | 库绑定已提供，但没有样本产生有效比对；检查空库、无效/不兼容特征及模型分数配置 |
+| `decision=unknown`、`reason=insufficient_evidence` | 规则缺少其他有效输入；通过 `debug` 节点记录、筛选原因和规则字段定位 |
+| `decision=not_matched` | 业务规则未成立；与该规则选择的“命中/未命中”模式有关 |
+| `resCode=0` | 配置或执行错误；读取 `resMsg[]`，以及存在时的 `errorNodeId`、`errorSide` |
+
+未选择底库返回 `api.error.FaceLibraryNotConfigured` 或 `api.error.BodyLibraryNotConfigured`，不再用泛化的“无效的参数”表示。选择了库但没有有效样本，与没有配置库是两个不同状态。`unknown` 不会因取反变成 `matched`，也不能作为没有穿工服的证据。
+
 ### 参数与图片组件
 
-每次请求可携带 `taskConfig.params: [{"key":"aiParam.person.confidence","value":"0.6"}]`。参数优先级为：模型默认值 → 节点配置 → 场景模板默认值 → 创建任务参数 → 本次请求参数。请求覆盖不会保存到任务中，也不能改 `atomicCode`。
+每次请求可携带 `taskConfig.params: [{"key":"aiParam.person.confidence","value":"0.6"}]`。参数优先级为：模型默认值 → 节点配置 → 场景模板默认值 → 创建任务参数 → 本次请求参数。请求覆盖不会保存到任务中；`atomicCode` 和 `pair.featureType` 由节点配置决定，不能通过请求切换模型或特征类型。
 
 图片组件包括检测、目标/整图分类、关键点、特征提取、OCR、DINO、SAM、整图/目标裁剪 VLM、目标筛选、目标判断、整图判断、条件分支、库比对和结果输出。目标裁剪使用模型检测框，不是用户配置区域。筛选支持类别、置信度、像素面积和最短边；不提供运动、区域或持续时间条件。
 
@@ -433,9 +480,26 @@ mtk: <MTK>
 
 VLM 用 `inputType=image`（默认）或 `targets` 选择整图/目标输入；分类默认 `targets`，可设为 `image`。库比对独立于特征提取：`match.libraryType=face/body`、`match.mode=matched/unmatched`，通过 `param.faceSet` 或 `param.workClothesSet` 绑定逗号分隔的库 ID，`param.limitScore` 范围 0–100。绑定库和所需模型必须实际存在于设备上。
 
+例如为工服场景覆盖底库与阈值：
+
+```json
+{
+  "taskConfig": {
+    "params": [
+      { "key": "param.workClothesSet", "value": "<LIBRARY_ID_1>,<LIBRARY_ID_2>" },
+      { "key": "param.limitScore", "value": "70" }
+    ]
+  }
+}
+```
+
+人脸场景使用 `param.faceSet`。当前库比对以最高分**大于**有效阈值判定命中；正的 `param.limitScore` 覆盖底库阈值，`0` 则沿用最佳候选所属底库的阈值。双图使用独立的 `pair.threshold`，按大于等于判定且允许留空只返回分数，不应混用这两组参数。
+
 ### 从视频模板生成图片模板
 
 运行 `python tools/generate_picture_templates.py` 生成三个平台的对应图片模板，`--check` 校验产物是否最新。原视频模板保留。转换记录位于各资源目录的 `layout/picture-template-conversions.json`，包含源模板、图片模板 ID 和不转换的原因。
+
+当前生成 13 个单图模板与 2 个双图模板，分别写入 `algorithm_template/`，同时向 `algorithm/` 写入同 ID 的内置场景，随资源包提供。完整列表见[内置模板与场景任务](../guide/image-analysis.md#内置模板与场景任务)。设备实际可用列表仍通过 `/gtw/cwai/algorithm/page` 查询。
 
 可转换模板去掉解码、跟踪、持续时间与视频告警节点，将事件输出替换为图片结果输出。它们表达单张图片可判断的状态，不保留视频持续时间语义。含区域、绊线、离岗、历史计数等条件的模板不会转换。模板提供编排配置，不能替代对应芯片模型的安装和实测。图片输出不自动创建视频事件或触发外部推送。
 
@@ -516,6 +580,12 @@ mtk: <MTK>
 | `messageKey` 或错误类型 | 常见原因 | 建议处理 |
 | --- | --- | --- |
 | `api.error.ActionAlgLoadFailed` | `algorithmCode` 不存在或算法资源不可用 | 重新查询图片分析算法并检查模型状态 |
+| `api.error.FaceLibraryNotConfigured` / `api.error.BodyLibraryNotConfigured` | 未绑定对应底库 | 选择人脸/工服分组，分别设置 `param.faceSet` / `param.workClothesSet` |
+| `api.error.PicturePairInputRequired` | 双图场景缺少 A 或 B | 两侧分别提供一个图片输入 |
+| `api.error.PicturePairUnexpectedReference` | 单图场景收到图片 B | 改用双图场景或移除 `referenceImage` |
+| `api.error.PicturePairNoTarget` / `api.error.PicturePairMultipleTargets` | 某侧有效目标数不是 1 | 按 `errorSide` 检查图片、检测和筛选条件 |
+| `api.error.PicturePairInvalidFeature` | 空特征、无效值或维度不一致 | 检查特征提取模型与输入 |
+| `api.error.PicturePairInvalidCalibration` | 模型比对分数配置无效 | 修复特征模型的分数标定配置 |
 | `api.error.NotCreated` | 未创建任务、任务已取消或 `taskId` 不一致 | 使用相同参数重新调用 `PTaskCreate` |
 | `api.error.TaskCreateFailed` | 模型或 Pipeline 初始化失败 | 检查模型状态和设备日志，避免无界重试 |
 | `api.error.InvalidParam` | 图片来源冲突或字段不合法 | 确保三种图片来源只传一种，并核对字段类型 |

@@ -64,12 +64,47 @@ next:
 | 业务接口 | 字段 |
 | --- | --- |
 | `/gtw/cwai/Camera/AddVideo` | `uploadId` |
-| `/gtw/cwai/aihost/PTaskDetectPic` | `uploadId`，与 `imageBase64`/`imageUrl` 互斥 |
+| `/gtw/cwai/aihost/PTaskDetectPic` | 主图 `uploadId`；双图场景还需 `referenceImage.uploadId`。每一侧与该侧的 `imageBase64`/`imageUrl` 互斥 |
 | `/gtw/cwai/Library/ModifyFacePicLib` | `pictureUploadIds[]` |
 | `/gtw/cwai/BodyLibrary/DetectPerson` | `uploadId` |
 | `/gtw/cwai/ThingsLibrary/AddLibThings` | `thingsList[].pictureUploadId` |
 
 模型组件、模型归档、算法包、升级包、音频和人脸导入包也使用各自 DTO 中的 `uploadId` 字段。旧版 Base64 和兼容字段仍可读取，但大文件和高清图片客户端应使用分片会话，不能依赖服务器路径。
+
+## 图片分析字段
+
+来源：`MsgPTaskCreateRecv`、`MsgPTaskDetectPicRecv`、`MsgPTaskDetectPicSend` 和 `MsgMatchInfo`。完整时序、示例和错误处理见[图片检测 API 接入指南](image-detection-api.md)。
+
+`POST /gtw/cwai/aihost/PTaskDetectPic` 请求：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `algorithmCode`、`taskId` | string | 与创建任务时一致的场景和任务 ID；建议显式指定 `taskId` |
+| `uploadId` / `imageBase64` / `imageUrl` | string | 主图输入，三选一 |
+| `referenceImage` | object | 双图场景的图片 B，同样三选一；单图场景不接受第二张图 |
+| `taskConfig.params` | object[] | 本次请求覆盖，元素为 `{key, value}`；值按字符串传递，不保存为场景默认值 |
+| `resultMode` | string | 默认 `business`；`debug` 附加诊断；`legacy` 仅用于单图旧协议兼容 |
+| `needRetImg` | boolean | 是否生成结果图片 |
+| `requestId` | string | 调用方关联本次分析的标识 |
+
+图片没有区域；不接受非空 `taskConfig.areas` 或 `shieldedAreas`。任务创建也可以携带 `taskConfig`。底库绑定使用 `param.faceSet` / `param.workClothesSet`，双图阈值使用 `pair.threshold`，详见 API 指南的参数说明。
+
+`resData` 关键结果字段：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `schemaVersion` | number | 业务/调试响应为 `2` |
+| `status` | string | 执行状态；执行完成不代表所有业务规则命中 |
+| `outputs[]` | object[] | `nodeId`、`name`、`decision`、`targetIds`、`matchedCount`，未知结论还带 `reason` |
+| `targetList[]` | object[] | 主图目标、像素坐标框、推理信息与规则结果；业务目标以输出节点的 `targetIds` 为准 |
+| `targetList[].matchInfo` | object | `matched`、`matchDegree`、`setPicCount`、样本/分组标识及可选姓名、底库图片；见[底库详情](image-detection-api.md#底库命中详情与业务结论) |
+| `comparison` | object | 双图成功结果：`nodeId`、`featureType`、`decision`、`score`，以及配置时的 `threshold` |
+| `referenceTargetList[]` | object[] | 图片 B 的目标；坐标基于图片 B 原图 |
+| `fullPicture`、`referencePicture` | string | A、B 的结果图片；关闭图片返回时为空 |
+| `nodes[]` | object[] | 节点诊断；双图的 `imageSide` 标记 `A`、`B` 或 `both` |
+| `errorNodeId`、`errorSide` | string | 执行失败时按适用情况提供；同时检查顶层 `resCode` 和 `resMsg[]` |
+
+`outputs[].reason=no_comparable_samples` 表示没有有效底库比对证据，`insufficient_evidence` 表示其他判断依据不足。双图只输出分数时 `comparison.decision=score_only`；合法的 `score=0` 是成功结果，不能与错误或缺失分数混淆。
 
 ## 分页和时间范围
 

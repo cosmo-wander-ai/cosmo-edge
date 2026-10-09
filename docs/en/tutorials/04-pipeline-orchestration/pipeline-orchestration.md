@@ -455,6 +455,8 @@ Pass when nodes persist without a broken connection, the positive sample has a p
 
 The current video action catalog contains the following capabilities; Image Analysis has corresponding image-action variants.
 
+Image workflows use image target filters, target/image rules, branches, library matching, two-image feature comparison, and image result output. They do not reuse the video decoding, tracking, region, or multi-frame nodes below. See [image orchestration](../../guide/image-analysis.md#adjust-image-orchestration) for ordering and constraints, and the [image API guide](../../reference/image-detection-api.md) for results.
+
 | Type | Current nodes | Typical input and output |
 | --- | --- | --- |
 | Input | Video Decode | Video → frames |

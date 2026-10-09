@@ -64,12 +64,47 @@ After upload completion, business APIs reference only the session ID:
 | Business Endpoint | Field |
 | --- | --- |
 | `/gtw/cwai/Camera/AddVideo` | `uploadId` |
-| `/gtw/cwai/aihost/PTaskDetectPic` | `uploadId`, mutually exclusive with `imageBase64`/`imageUrl` |
+| `/gtw/cwai/aihost/PTaskDetectPic` | Primary `uploadId`, plus `referenceImage.uploadId` for pair scenarios; each side excludes its own `imageBase64`/`imageUrl` |
 | `/gtw/cwai/Library/ModifyFacePicLib` | `pictureUploadIds[]` |
 | `/gtw/cwai/BodyLibrary/DetectPerson` | `uploadId` |
 | `/gtw/cwai/ThingsLibrary/AddLibThings` | `thingsList[].pictureUploadId` |
 
 Model components, model archives, algorithm packages, upgrade packages, audio, and face imports likewise use the `uploadId` field in their respective DTOs. Legacy Base64 and compatibility fields remain readable, but large-file and high-resolution-image clients should use staged sessions and must not rely on server paths.
+
+## Image Analysis Fields
+
+Sources: `MsgPTaskCreateRecv`, `MsgPTaskDetectPicRecv`, `MsgPTaskDetectPicSend`, and `MsgMatchInfo`. See the [Image Detection API Guide](image-detection-api.md) for the call sequence, examples, and errors.
+
+`POST /gtw/cwai/aihost/PTaskDetectPic` request:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `algorithmCode`, `taskId` | string | Scenario and task IDs matching task creation; explicitly supply `taskId` |
+| `uploadId` / `imageBase64` / `imageUrl` | string | Primary image input; choose exactly one |
+| `referenceImage` | object | Image B for a pair scenario, with the same mutually exclusive sources; single-image scenarios reject it |
+| `taskConfig.params` | object[] | Request overrides as `{key, value}` entries with string values; not saved as scenario defaults |
+| `resultMode` | string | Defaults to `business`; `debug` adds diagnostics; `legacy` is single-image compatibility only |
+| `needRetImg` | boolean | Whether to generate result images |
+| `requestId` | string | Caller correlation ID for the analysis |
+
+Image tasks reject nonempty `taskConfig.areas` or `shieldedAreas`. Task creation also accepts `taskConfig`. Library bindings use `param.faceSet` / `param.workClothesSet`; pair thresholds use `pair.threshold`. See the API guide for parameter semantics.
+
+Key `resData` fields:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `schemaVersion` | number | `2` for business/debug responses |
+| `status` | string | Execution status; completion does not imply a business match |
+| `outputs[]` | object[] | `nodeId`, `name`, `decision`, `targetIds`, `matchedCount`, and `reason` for unknown decisions |
+| `targetList[]` | object[] | Primary-image targets with pixel boxes, inference data, and rules; use output `targetIds` for business selection |
+| `targetList[].matchInfo` | object | `matched`, `matchDegree`, `setPicCount`, sample/group IDs, and optional name/reference image; see [library details](image-detection-api.md#library-match-details-and-business-decisions) |
+| `comparison` | object | Successful pair result: `nodeId`, `featureType`, `decision`, `score`, and a configured `threshold` |
+| `referenceTargetList[]` | object[] | Image B targets, with coordinates in image B |
+| `fullPicture`, `referencePicture` | string | A/B result images; empty when result image generation is disabled |
+| `nodes[]` | object[] | Node diagnostics; pair `imageSide` is `A`, `B`, or `both` |
+| `errorNodeId`, `errorSide` | string | Failure location when applicable; also inspect top-level `resCode` and `resMsg[]` |
+
+`outputs[].reason=no_comparable_samples` means no usable library-comparison evidence; `insufficient_evidence` means other required evidence is missing. Score-only pairs have `comparison.decision=score_only`. A valid `score=0` is a successful result, distinct from an error or missing score.
 
 ## Pagination and Time Range
 

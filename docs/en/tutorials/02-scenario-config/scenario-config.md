@@ -11,6 +11,8 @@ next:
 
 # Scenario Task Configuration: Channels, Regions, Parameters, and Alarms
 
+The channel, region, and schedule steps on this page apply to video scenarios. For image scenarios, see [Image Analysis and Comparison](../../guide/image-analysis.md): filter Scenario Tasks by image data source, configure parameters, and upload images without configuring regions.
+
 | Item | Details |
 | --- | --- |
 | Who this is for | Deployment engineers, integrators, and advanced users configuring built-in algorithms for a real task |

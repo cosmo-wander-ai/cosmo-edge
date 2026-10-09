@@ -86,17 +86,35 @@ The dev server starts on `http://localhost:3000`. All `/gtw`, `/event`, `/weblog
 
 ```bash
 cd src/web
+npm ci
 npm run build
 ```
 
-`prebuild` automatically runs `npm run i18n:check` before the build. If i18n checks fail, the build is blocked.
+`prebuild` runs API/request contracts, component behavior, image-scenario and other feature checks, followed by `npm run i18n:check`. Any failure blocks Vite packaging. `Component behavior checks passed` reports only one completed stage.
+
+### Resource Checks in the CMake Staging Directory
+
+`cmake/web_frontend.cmake` copies the frontend to `<build>/web/web_unified`, installs locked dependencies, and runs the full build with `COSMO_REPO_ROOT` pointing to the repository source root. Checks reading source resources such as `data/resource/` must prefer this variable and use script-relative fallback only for direct source-tree runs. Library-node and pair checks use:
+
+```js
+const repositoryRoot = process.env.COSMO_REPO_ROOT || fileURLToPath(new URL('../../../', import.meta.url))
+const actionsPath = path.join(repositoryRoot, 'data/resource/aiboxresource_bm1688/layout/actions.json')
+```
+
+Import `path` from `node:path` and `fileURLToPath` from `node:url`. If `Dual-image comparison UI checks passed` is followed by a missing `<build>/data/resource/.../actions.json`, check whether the script still resolves resources relative to its copied location. A source-tree `npm run build` alone cannot cover this case. In a configured build environment, verify the actual target:
+
+```bash
+cmake --build build --target web_frontend -j6
+```
+
+This target installs dependencies, runs prebuild checks, and packages with Vite. It depends on the engine target, so C++ compilation may run first. Resolve resources through the source root; no manual copy into `build/data` is needed.
 
 ## Available Scripts
 
 | Script                    | Purpose                                                  |
 | ------------------------- | -------------------------------------------------------- |
 | `npm run dev`             | Start Vite dev server                                    |
-| `npm run build`           | Production build (via `prebuild` → i18n check)           |
+| `npm run build`           | Production build after all prebuild feature and i18n checks           |
 | `npm run preview`         | Preview the production build locally                     |
 | `npm run i18n:check`      | Run all 5 i18n validation scripts                        |
 | `npm run resource-i18n:check` | Check resource i18n sync status                      |
