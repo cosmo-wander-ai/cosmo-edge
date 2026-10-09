@@ -91,3 +91,42 @@ export const updateAtomicList = (list, payload = {}) => {
     ? [...source, entry]
     : source.map((atomic, current) => current === index ? entry : atomic)
 }
+
+const isActionNode = node =>
+  node.type !== 'start' && node.type !== 'end' && node.type !== 'stageGroup' && !node.data?.isStageGroup
+
+// Both editor canvases share collection; retain picture comparison ownership
+// and library-type filtering when collecting the canonical graph state.
+export const collectMetaDataParams = nodes => collectNodeMetadata(nodes.filter(isActionNode))
+
+export const collectFlowData = (nodes, edges) => {
+  const incoming = new Map()
+  edges.forEach(edge => { if (edge.target) incoming.set(edge.target, edge.source) })
+  const atomicCollected = []
+  const items = nodes.filter(isActionNode).map(node => {
+    const flowActionId = String(node.id)
+    const predecessor = incoming.get(node.id)
+    const configObject = node.data?.configObject ?? createEmptyNodeConfig()
+    const atomic = configObject.webConfig?.atomic
+    if (atomic && (atomic.position || atomic.labelList)) {
+      atomicCollected.push({
+        ...atomic,
+        position: atomic.position || flowActionId,
+        atomicCode: atomic.atomicCode || '',
+        atomicName: atomic.atomicName || '',
+        labelList: atomic.labelList || []
+      })
+    }
+    // Preserve extension and i18n sidecar fields; current edits take precedence.
+    return {
+      ...(node.data?.flowData || {}),
+      actionId: node.data?.actionId || '',
+      actionName: node.data?.actionName || '',
+      remark: node.data?.description || '',
+      flowActionId,
+      preFlowActionId: !predecessor || predecessor === 'start' ? '-1' : String(predecessor),
+      configObject
+    }
+  })
+  return { items, atomicCollected }
+}

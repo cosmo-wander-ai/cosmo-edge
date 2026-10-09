@@ -4,18 +4,19 @@
 
 #include <map>
 #include <memory>
+#include <shared_mutex>
 #include <string>
+#include <vector>
 
-#include "flow/action/ActionInstMngBase.h"
 #include "flow/channel/AlgChannel.h"
 #include "util/dto/ServerMsgTypes.h"
 #include "util/dto/TaskCreateTypes.h"
 
 namespace cosmo {
-class AlgChannelMng : public IMngStatusProvider {
+class AlgChannelMng {
 public:
     AlgChannelMng();
-    ~AlgChannelMng();
+    virtual ~AlgChannelMng();
 
     [[nodiscard]] AlgChannelPtr GetChannelInst(const std::string& channel_id);
     [[nodiscard]] AlgChannelPtr GetInst(const std::string& channel_id, const std::string& task_id,
@@ -24,9 +25,8 @@ public:
 
     [[nodiscard]] std::vector<std::string> GetChannelTasks(const std::string& channel_id);
 
-    void QueueStatus(std::vector<AlgActionDataQueueStatus>& que_status,
-                     unsigned int duration_sec = 30) override;
-    void ActionInfo(std::vector<ActionRuntimeInfo>& action_info) override;
+    void QueueStatus(std::vector<AlgActionDataQueueStatus>& que_status, unsigned int duration_sec = 30);
+    void ActionInfo(std::vector<ActionRuntimeInfo>& action_info);
 
     bool SetUrl(const std::string& channel_id, const std::string& url);
     bool SetVideoRepeatCount(const std::string& channel_id, int repeat_count);

@@ -283,11 +283,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, getCurrentInstance, watch, computed, toRef } from 'vue'
+import { ref, onMounted, onBeforeUnmount, getCurrentInstance, watch, computed, toRef, inject } from 'vue'
 import ConditionView from './ConditionView.vue'
 import LibrarySelect from './LibrarySelect.vue'
 import { v4 } from 'uuid'
 import EventBus from '@/components/eventBus.js'
+import { flowEditorKey } from './flowEditorContext.js'
 import TreeSelectMultiple from './TreeSelectMultiple.vue'
 import TreeTransfer from 'tree-transfer-vue3'
 import _ from 'lodash'
@@ -354,6 +355,7 @@ const updatePictureMatchParam = (item, value) => {
   // Only explicit edits update scene defaults; hydration must not overwrite them.
   emit('picture-match-param-change', { ...item, value: String(value ?? ''), defaultValue: String(value ?? '') })
 }
+const editor = inject(flowEditorKey, null)
 
 const isAreaAlarmAction = computed(
   () =>
@@ -1070,7 +1072,7 @@ const emitAtomicUpdate = () => {
   const atomicName =
     selectedAtomic.value?.atomicName || selectedAtomic.value?.modelName || ''
   if (position && (atomicCode || resultFilter.length)) {
-    EventBus.$emit('flow:atomic:update', {
+    editor?.updateAtomic({
       position,
       atomicCode,
       atomicName,

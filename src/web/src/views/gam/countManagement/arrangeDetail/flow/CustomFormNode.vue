@@ -84,10 +84,10 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { Handle, Position, useVueFlow } from '@vue-flow/core'
+import { computed, inject, onBeforeUnmount } from 'vue'
+import { Handle, Position } from '@vue-flow/core'
 import { ElMessageBox } from 'element-plus'
-import EventBus from '@/components/eventBus.js'
+import { flowEditorKey } from './flowEditorContext.js'
 import { getIconInfo } from './iconMapping.js'
 import { t } from '@/i18n'
 import { resolveResourceActionName } from '@/utils/i18nResource'
@@ -107,11 +107,12 @@ const nodeActionDetail = computed(() => props.data?.actionDetail)
 const iconKey = computed(() => getIconInfo(nodeActionDetail.value?.actionId).key)
 const iconColorClass = computed(() => getIconInfo(nodeActionDetail.value?.actionId).color)
 
-const { getEdges, setEdges, getNodes } = useVueFlow()
+const editor = inject(flowEditorKey)
+let mounted = true
+onBeforeUnmount(() => { mounted = false })
 
-// 点击卡片：通知 ArrangeFlow 打开浮动面板
 const handleClick = () => {
-  EventBus.$emit('flow:openDetailPanel', props.id)
+  editor.openDetailPanel(props.id)
 }
 
 const handleDelete = () => {
@@ -120,144 +121,9 @@ const handleDelete = () => {
     cancelButtonText: t('action.cancel'),
     type: 'warning'
   }).then(() => {
-    const edgesArr = getEdges && 'value' in getEdges ? getEdges.value : getEdges
-    const nodesArr = getNodes && 'value' in getNodes ? getNodes.value : getNodes
-    const incoming = edgesArr.filter((e) => e.target === props.id)
-    const outgoing = edgesArr.filter((e) => e.source === props.id)
-
-    setEdges((es) => {
-      let next = es.filter((e) => e.source !== props.id && e.target !== props.id)
-
-      // 建立前后端点的直连，保持流程连通
-      const exists = (s, t) => next.some((e) => e.source === s && e.target === t)
-
-      incoming.forEach((inE) => {
-        outgoing.forEach((outE) => {
-          const s = inE.source
-          const t = outE.target
-
-          if (s && t && s !== t && !exists(s, t)) {
-            next = next.concat({
-              id: `reconn-${Date.now()}-${s}-${t}`,
-              type: inE.type || outE.type || 'action',
-              source: s,
-              target: t
-            })
-          }
-        })
-      })
-
-      return next
-    })
-
-    // 检查是否需要删除孤立的结束节点（只在分支情况下）
-    setTimeout(() => {
-      // 重新获取当前状态
-      const currentEdges =
-        getEdges && 'value' in getEdges ? getEdges.value : getEdges
-      const currentNodes =
-        getNodes && 'value' in getNodes ? getNodes.value : getNodes
-
-      const nodesToRemove = [props.id]
-
-      // 找到所有结束节点
-      const endNodes = Array.isArray(currentNodes)
-        ? currentNodes.filter((n) => n.type === 'end')
-        : []
-
-      // 检查每个结束节点是否需要删除
-      endNodes.forEach((endNode) => {
-        // 找到指向这个结束节点的所有边
-        const incomingToEnd = Array.isArray(currentEdges)
-          ? currentEdges.filter((e) => e.target === endNode.id)
-          : []
-
-        // 如果没有入边，说明这个结束节点孤立了，需要删除
-        if (incomingToEnd.length === 0) {
-          nodesToRemove.push(endNode.id)
-          return
-        }
-
-        // 检查这个结束节点是否是分支的结束节点
-        const sourceIds = incomingToEnd.map((e) => e.source)
-        if (sourceIds.length !== 1) return
-
-        const directSourceId = sourceIds[0]
-        const directSourceNode = Array.isArray(currentNodes)
-          ? currentNodes.find((n) => n.id === directSourceId)
-          : null
-
-        if (!directSourceNode) return
-
-        // 向上追溯，找到分支点
-        let branchPointId = null
-        let currentId = directSourceId
-        const visited = new Set()
-
-        while (currentId && !visited.has(currentId)) {
-          visited.add(currentId)
-          const outgoingEdges = Array.isArray(currentEdges)
-            ? currentEdges.filter((e) => e.source === currentId)
-            : []
-
-          if (outgoingEdges.length > 1) {
-            branchPointId = currentId
-            break
-          }
-
-          const incomingEdges = Array.isArray(currentEdges)
-            ? currentEdges.filter((e) => e.target === currentId)
-            : []
-
-          if (incomingEdges.length === 1) {
-            currentId = incomingEdges[0].source
-          } else {
-            break
-          }
-        }
-
-        if (branchPointId) {
-          const pathNodes = new Set()
-          const queue = [directSourceId]
-          const pathVisited = new Set()
-
-          while (queue.length > 0) {
-            const nodeId = queue.shift()
-            if (pathVisited.has(nodeId)) continue
-            pathVisited.add(nodeId)
-            if (nodeId === branchPointId) continue
-
-            const node = Array.isArray(currentNodes)
-              ? currentNodes.find((n) => n.id === nodeId)
-              : null
-
-            if (node && node.type !== 'start' && node.type !== 'end') {
-              pathNodes.add(nodeId)
-            }
-
-            const incomingToNode = Array.isArray(currentEdges)
-              ? currentEdges.filter((e) => e.target === nodeId)
-              : []
-
-            incomingToNode.forEach((edge) => {
-              if (edge.source !== branchPointId) {
-                queue.push(edge.source)
-              }
-            })
-          }
-
-          if (pathNodes.size === 0) {
-            nodesToRemove.push(endNode.id)
-          }
-        }
-      })
-
-      // 通知关闭面板（如果删除的是当前打开的节点）
-      EventBus.$emit('flow:closeDetailPanel', props.id)
-      EventBus.$emit('flow:removeNodes', [...new Set(nodesToRemove)])
-    }, 0)
+    if (mounted) editor.deleteNode(props.id)
   }).catch(() => {
-    // 用户取消删除
+    // A cancelled confirmation leaves the graph unchanged.
   })
 }
 </script>

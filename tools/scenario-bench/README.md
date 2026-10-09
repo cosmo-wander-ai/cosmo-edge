@@ -456,7 +456,7 @@ export COSMO_ACCURACY_TOKEN='<short-lived-token>'
 
 node src/accuracy-cli.js doctor \
   --profile full \
-  --concurrency 1 \
+  --concurrency 4 \
   --suite /private/suite/suite.yml \
   --data-root /private/dataset \
   --target-chip bm1688 \
@@ -465,7 +465,7 @@ node src/accuracy-cli.js doctor \
 
 node src/accuracy-cli.js run \
   --profile full \
-  --concurrency 2 \
+  --concurrency 4 \
   --suite /private/suite/suite.yml \
   --data-root /private/dataset \
   --target-chip bm1688 \
@@ -485,12 +485,14 @@ node src/accuracy-cli.js run \
 测量或 trial 严格清理失败才退出 2。
 
 `--profile quick` 选择带 `quick` tag 的代表样本，`--profile full` 运行完整选集。
-`--case`、`--task` 和 `--tag` 可直接过滤。并发可设为 1、2 或 4；它只并行 CV case，
+`--case`、`--task` 和 `--tag` 可直接过滤。并发默认 4，可设为 1、2 或 4；它只并行 CV case，
 VLM 始终等 CV 完成后逐个执行。并发不会改变结果资格，因为工具没有资格/基线概念。
 
 trial 使用唯一通道，等待 Decode/Detector readiness，在观察窗口内从 Event/Page 读取事件，
 按通道、算法和时间再次过滤并去重。达到不可逆结论时可提前结束，最终仍等待事件集合收敛。
 每个 trial 都删除自己的任务和通道并反查；该清理失败会使该 case 为 ERROR。
+
+提前结束检查由 `defaults.earlyStopPollIntervalSec` 控制，默认 1 秒；suite 中的显式值优先。
 
 ### 结果
 

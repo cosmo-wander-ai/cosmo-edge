@@ -4,6 +4,17 @@ Describe what changed and why. For a fix, include the failure path or a before/a
 
 ## Verification
 
+### Common validation examples
+
+| Change | Example |
+| --- | --- |
+| Documentation | `npm ci` → `npm run docs:build` |
+| Frontend | `cd src/web` → `npm ci` → `npm run build` |
+| C++ tests | `bash scripts/format_check.sh --staged --check` → `bash scripts/build_cpu_test.sh` → `./build_cpu/cosmo-tests` |
+| x86 Docker smoke | `docker compose -f docker-compose.x86.yml up -d --build` |
+
+Please list the commands you actually ran and their results.
+
 List the relevant commands and checks you ran, their results, and any checks you could not complete. Include a parent baseline only when needed to identify a regression.
 
 ## Impact
