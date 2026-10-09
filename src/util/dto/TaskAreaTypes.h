@@ -88,6 +88,10 @@ struct MsgMatchInfo {
     std::string groupId;      // Highest score match library ID
     std::string groupName;    // Highest score match library name
     bool matched{false};      // Matched
+    std::string personId;
+    std::string personName;
+    std::string personCode;
+    std::string baseImageUrl;
 
     friend void to_json(nlohmann::json& j, const MsgMatchInfo& v);
     friend void from_json(const nlohmann::json& j, MsgMatchInfo& v);

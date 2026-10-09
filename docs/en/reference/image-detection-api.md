@@ -185,6 +185,68 @@ Production integrations should provide a unique `taskId`. If multiple clients om
 
 Task creation may load models and initialize the Pipeline. Use a timeout of at least 120 seconds. Recreating the same `taskId` reuses an existing task, but each client should still manage its own task lifecycle.
 
+### Face-Library Matching Parameters
+
+Deploy a version supporting image face-library matching and select an image Pipeline with `PA_00005`, `featureInput=0`, and embedding model `1000005`. A face box alone does not identify a person. This embedding model requires five face landmarks; when the Pipeline does not provide complete landmarks, the installed `1000016` model supplies them.
+
+Query the available libraries and select their `id` values from `resData.faceLibList[]`, rather than their display names. Continue pagination if the libraries span multiple pages.
+
+```http
+POST /gtw/cwai/Library/QueryFaceLibInfo
+Content-Type: application/json
+mtk: <MTK>
+```
+
+```json
+{ "pageNum": 1, "pageSize": 100 }
+```
+
+Send the complete matching configuration when creating the task. This example selects two libraries and a threshold of 70:
+
+```json
+{
+  "mvDebug": "Cosmo-Debug",
+  "taskId": "<FACE_TASK_ID>",
+  "algorithmCode": "<FACE_ALGORITHM_ID>",
+  "algorithmUpdateTime": "<CURRENT_TIME_MILLIS>",
+  "taskConfig": {
+    "params": [
+      { "key": "param.faceCompare", "value": "1" },
+      { "key": "param.faceSet", "value": "<LIBRARY_ID_A>,<LIBRARY_ID_B>" },
+      { "key": "param.limitScore", "value": "70" }
+    ]
+  }
+}
+```
+
+All three values are strings. See [Image Face Library Matching](api-fields.md#image-face-library-matching) for parameter and result definitions. `param.faceCompare=0` extracts features without library matching; omitting the switch also leaves matching disabled.
+
+An algorithm's `algorithmMetadata` may not describe all these parameters. Integrators should send them according to this API contract. The console's currently selected libraries, switch, and threshold are temporary page state, with no API for reading that state; clients should retain their own configuration.
+
+### Analyzing One Image with Two Algorithms
+
+Each standard image request runs one algorithm. First call `PTaskCreate` separately for two distinct `taskId` values, with each algorithm's own parameters, then call `PTaskDetectPic` separately:
+
+```json
+{
+  "taskId": "<TASK_ID_A>",
+  "algorithmCode": "<ALGORITHM_ID_A>",
+  "imageUrl": "https://images.example.com/input.jpg"
+}
+```
+
+```json
+{
+  "taskId": "<TASK_ID_B>",
+  "algorithmCode": "<ALGORITHM_ID_B>",
+  "imageUrl": "https://images.example.com/input.jpg"
+}
+```
+
+Replace the example URL with an immutable image reachable from the device, or send the same `imageBase64` separately. With the recommended staged upload, upload the image separately for each analysis using distinct `clientRequestId` values to obtain two `uploadId` values. Each `uploadId` can be consumed only once.
+
+Clients may send the requests concurrently, but model scheduling, device memory, and load determine actual execution time; simultaneous completion is not guaranteed. Check each response's `resCode` independently and correlate results with the client's image ID and `taskId`. A failure from one algorithm must not overwrite the other result. Cancel each task after its requests finish. The current console selects one algorithm, and the standard endpoint does not aggregate the two results.
+
 ## 4. Upload an Image
 
 ### 4.1 Query Device Upload Capabilities

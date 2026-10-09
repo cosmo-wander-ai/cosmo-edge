@@ -897,6 +897,16 @@ export default {
     passwordChangedLoginAgain: 'Password changed. Please log in again.'
   },
   imageAnalysis: {
+    compareLibrary: "Match face library",
+    selectFaceLibrary: "Select face libraries",
+    matchThreshold: "Match threshold",
+    noFaceLibraries: "No face libraries. Create a library and enroll photos first.",
+    libraryLoadFailed: "Could not load face libraries. Please retry.",
+    identity: "Person / Code / Library",
+    similarity: "Similarity",
+    unmatched: "No match",
+    analysisFailed: "Analysis failed",
+    someFailed: "Some images failed. Please check the error details.",
     selectAlgorithmPlaceholder: 'Select image analysis algorithm',
     uploadImage: 'Upload Image',
     analyzing: 'Analyzing...',
@@ -1900,7 +1910,8 @@ export default {
       '分割视觉大模型': 'Visual Segmentation (VLM)',
       '语言视觉大模型': 'Visual Language (VLM)',
       '算法告警数据': 'Algorithm Alarm Data',
-      '网络音柱联动': 'Network Speaker Linkage'
+      '网络音柱联动': 'Network Speaker Linkage',
+      '告警输出联动': 'Alarm Output Linkage'
     },
     algorithmNames: {
       '吸烟检测': 'Smoking Detection',

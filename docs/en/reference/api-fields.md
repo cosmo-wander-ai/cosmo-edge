@@ -13,6 +13,23 @@ next:
 
 This page distills field-level details from the current DTO and route implementations, focusing on the common responses, event queries, event records, HTTP push parameters, and MQTT parameters that are most commonly used by public integrations. A complete OpenAPI schema can be generated from these DTOs later.
 
+## Image Face Library Matching
+
+Use the existing `/gtw/cwai/aihost/PTaskCreate`, `PTaskDetectPic`, and `PTaskCancle` routes. Allocate a separate `taskId` for each analysis session and pass it consistently to create, detect, and cancel requests to avoid sharing parameters across pages.
+
+Pass these string key/value pairs in the creation request's `taskConfig.params`:
+
+| key | value | Meaning |
+| --- | --- | --- |
+| `param.faceCompare` | `1` / `0` | Enable library matching / extract features only; disabled by default |
+| `param.faceSet` | Comma-separated library IDs | Required for matching; an empty string clears the previous selection |
+| `param.limitScore` | `0`–`100` | A score must exceed the threshold; `0` uses library configuration, while the UI accepts `1`–`100` |
+
+Enrollment currently uses embedding model `1000005`. Image matching accepts only image feature nodes using this model with `featureInput=0`. Results appear in `resData.areaList[].targetList[].matchInfo`: `matched` is the decision, `matchDegree` is the similarity score, and `setPicCount` counts enrolled comparison photos. Successful matches additionally include `personId`, `personName`, `personCode`, `groupId`, `groupName`, and `baseImageUrl`. Below-threshold results retain the score without candidate identity, and unmatched faces remain in the result.
+
+Empty or invalid libraries, failed extraction, and missing score calibration return errors, not unknown-person results. Images without faces return no targets. Other image algorithms and feature extraction with matching disabled retain their existing result structure.
+
+
 ## Common Response
 
 | Field | Type | Description |

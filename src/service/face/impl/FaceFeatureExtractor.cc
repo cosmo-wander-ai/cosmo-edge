@@ -170,7 +170,6 @@ bool FaceFeatureExtractor::Init() {
 
     constexpr const char* kAlgCodeDetect    = "1000001";
     constexpr const char* kAlgCodeQuality   = "1000012";
-    constexpr const char* kAlgCodeMask      = "1000010";
     constexpr const char* kAlgCodeLandmark  = "1000016";
     constexpr const char* kAlgCodeRecognize = "1000005";
 
@@ -184,12 +183,7 @@ bool FaceFeatureExtractor::Init() {
         LOG_ERRO("{}[{}] InitModel<Classifier> failed. algCode:1000012", kTag, name_);
         return false;
     }
-    LOG_WARN("{}", "Mask Have No Model");
-    // Mask classification (not yet available)
-    if (!InitModel<AiClassifierUnify>(face_mask_inst_, kAlgCodeMask, "Classifier")) {
-        LOG_ERRO("{}[{}] InitModel<Classifier> failed. algCode:1000010", kTag, name_);
-        return false;
-    }
+    // Enrollment does not use mask classification; it must not gate extraction.
     // Landmark positions
     if (!InitModel<AiLandmarkerUnify>(landmark_inst_, kAlgCodeLandmark, "Landmark")) {
         LOG_ERRO("{}[{}] InitModel<Landmark> failed. algCode:1000016", kTag, name_);
@@ -254,7 +248,7 @@ bool FaceFeatureExtractor::FaceMask(VideoFramePtr frame, std::vector<AiDetectRst
     if (!is_ready_.load(std::memory_order_acquire)) {
         return false;
     }
-    if (!face_mask_inst_) {
+    if (!face_mask_inst_ && !InitModel<AiClassifierUnify>(face_mask_inst_, "1000010", "Mask")) {
         return false;
     }
     auto ret = face_mask_inst_->Classify(frame, ioPuts);

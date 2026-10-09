@@ -126,6 +126,8 @@ std::pair<FacePicPtr, float> FaceLib::SearchFeature(const AiFeature &feature) co
             float min_dist                   = kMinDistSentinel;
             size_t similar_idx               = vec_faces_.size();
             for (size_t j = beg_idx; j < end_idx; ++j) {
+                if (vec_faces_[j]->GetFeature().feature.size() != feature.feature.size())
+                    continue;
                 auto dist =
                     service::ServiceRegistry::Instance().Get<service::IFaceFeature>().CalculateFaceScore(
                         vec_faces_[j]->GetFeature(), feature);
