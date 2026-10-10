@@ -38,7 +38,7 @@
     "task-card-layout:variants": "node scripts/task_card_layout_variants.mjs",
     "visual-questions:check": "node --experimental-vm-modules scripts/visual_questions_behavior_check.mjs",
     "visual-review:check": "node --experimental-vm-modules scripts/visual_review_behavior_check.mjs",
-    "appearance:check": "node scripts/appearance_behavior_check.mjs && node --experimental-vm-modules scripts/appearance_chart_check.mjs"
+    "appearance:check": "node scripts/appearance_behavior_check.mjs && node --experimental-vm-modules scripts/appearance_chart_check.mjs && node --experimental-vm-modules scripts/detection_placeholder_theme_check.mjs && node --experimental-vm-modules scripts/capture_preview_behavior_check.mjs"
   },
   "dependencies": {
     "@vue-flow/background": "^1.3.2",
