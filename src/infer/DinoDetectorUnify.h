@@ -49,7 +49,6 @@ private:
     std::vector<std::string> labels_;
     std::unique_ptr<cosmo::nn::DefaultComponent> detector_;
     std::map<std::string, int> vocab_;  // token -> id, loaded from vocab.txt
-    AppProfiler profiler_;
 };
 
 using DinoDetectorUnifyPtr = std::shared_ptr<DinoDetectorUnify>;

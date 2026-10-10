@@ -25,7 +25,6 @@ util::ErrorEnum AiLandmarkerUnify::Init() {
     }
 
     cosmo::nn::DefaultComponent::Options options;
-    options.profiler = &profiler_;
     landmarker_ =
         std::make_unique<cosmo::nn::DefaultComponent>(options, cfg_path_, model_path_, GetDeviceType());
     LOG_DEBUG("Landmarker {} Init", model_path_);

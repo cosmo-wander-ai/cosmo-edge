@@ -24,7 +24,6 @@ util::ErrorEnum AiRecognizerUnify::Init() {
 
     try {
         cosmo::nn::DefaultComponent::Options options;
-        options.profiler = &profiler_;
         recognizer_ =
             std::make_unique<cosmo::nn::DefaultComponent>(options, cfg_path_, model_path_, GetDeviceType());
     } catch (const std::exception& e) {

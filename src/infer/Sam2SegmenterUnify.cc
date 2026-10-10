@@ -26,7 +26,6 @@ util::ErrorEnum Sam2SegmenterUnify::Init() {
     try {
         // SAM2 contains encoder+decoder; current SDK does not support chaining, use single model for now
         cosmo::nn::DefaultComponent::Options options;
-        options.profiler = &profiler_;
         segmenter_ =
             std::make_unique<cosmo::nn::DefaultComponent>(options, cfg_path_, model_path_, GetDeviceType());
     } catch (const std::exception &e) {

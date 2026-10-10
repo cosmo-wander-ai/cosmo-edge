@@ -54,7 +54,6 @@ private:
     size_t max_batch_size_{1};
     std::string atomic_code_;
     std::unique_ptr<cosmo::nn::DefaultComponent> classifier_;
-    AppProfiler profiler_;
 };
 
 using AiOcrWordClassifierUnifyPtr = std::shared_ptr<AiOcrWordClassifierUnify>;

@@ -3,37 +3,15 @@
 #include <cstdio>
 #include <cstring>
 #include <stdexcept>
-#include <utility>
 
 #include "nn/pipeline/model_pipeline.h"
 #include "nn/pipeline/pipeline_utils.h"
 
 namespace cosmo::nn {
-namespace {
-
-    DefaultComponent::Options MakeOptions(IProfiler* profiler, std::string tokenizer_path,
-                                          std::string word_table_path, int device_id, bool use_skip) {
-        DefaultComponent::Options options;
-        options.profiler        = profiler;
-        options.tokenizer_path  = std::move(tokenizer_path);
-        options.word_table_path = std::move(word_table_path);
-        options.device_id       = device_id;
-        options.use_skip        = use_skip;
-        return options;
-    }
-
-}  // namespace
 
 std::mutex DefaultComponent::mutex;
 
 // ─── Constructor: parse JSON → create Pipeline → Init ────
-
-DefaultComponent::DefaultComponent(std::string json_path, std::string model_path, DeviceType device_type,
-                                   IProfiler* profiler, std::string tokenizer_path,
-                                   std::string word_table_path, int device_id, bool use_skip)
-    : DefaultComponent(
-          MakeOptions(profiler, std::move(tokenizer_path), std::move(word_table_path), device_id, use_skip),
-          std::move(json_path), std::move(model_path), device_type) {}
 
 DefaultComponent::DefaultComponent(const Options& options, std::string json_path, std::string model_path,
                                    DeviceType device_type) {
