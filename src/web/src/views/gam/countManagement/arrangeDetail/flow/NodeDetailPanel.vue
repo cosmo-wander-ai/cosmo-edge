@@ -296,6 +296,72 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   overflow-x: visible;
   padding: 10px 16px 14px;
+  container: flow-parameters / inline-size;
+}
+
+/* The task picker is a third-party two-column tree. Size it to the panel, not
+   its package's fixed 560px minimum, and use the same theme as the form. */
+.node-detail-panel .panel-body :deep(.tree-transfer-vue3) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px minmax(0, 1fr);
+  width: 100%;
+  min-width: 0;
+  min-height: 240px;
+  background: transparent;
+}
+
+.node-detail-panel .panel-body :deep(.tree-transfer-vue3 .transfer-left),
+.node-detail-panel .panel-body :deep(.tree-transfer-vue3 .transfer-right) {
+  width: auto;
+  min-width: 0;
+  border-color: var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-white);
+  overflow: hidden;
+}
+
+.node-detail-panel .panel-body :deep(.tree-transfer-vue3 .transfer-title) {
+  min-height: 40px;
+  box-sizing: border-box;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.node-detail-panel .panel-body :deep(.tree-transfer-vue3 .transfer-center) {
+  min-width: 0;
+}
+
+.node-detail-panel .panel-body :deep(.tree-transfer-vue3 .transfer-main) {
+  min-width: 0;
+  max-height: 260px;
+  overflow: auto;
+}
+
+@container flow-parameters (max-width: 540px) {
+  .node-detail-panel .panel-body :deep(.tree-transfer-vue3) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .node-detail-panel .panel-body :deep(.tree-transfer-vue3 .transfer-left),
+  .node-detail-panel .panel-body :deep(.tree-transfer-vue3 .transfer-right) {
+    min-height: 180px;
+  }
+
+  .node-detail-panel .panel-body :deep(.tree-transfer-vue3 .transfer-center) {
+    flex-direction: row;
+    gap: 12px;
+    min-height: 32px;
+  }
+
+  .node-detail-panel .panel-body :deep(.tree-transfer-vue3 .transfer-center .el-button + .el-button) {
+    margin: 0;
+  }
+
+  .node-detail-panel .panel-body :deep(.tree-transfer-vue3 .transfer-center .el-icon) {
+    transform: rotate(90deg);
+  }
 }
 
 /* 滚动条美化 */
