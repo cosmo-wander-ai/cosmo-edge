@@ -89,9 +89,10 @@ const isDragging = ref(false)
 const panelStyle = computed(() => ({
   '--panel-width': `${getDetailPanelSize(actionDetail.value?.actionId, props.viewport).width}px`,
   '--panel-height': `${getDetailPanelSize(actionDetail.value?.actionId, props.viewport).height}px`,
+  '--panel-min-left': 'min(64px, max(8px, calc(100% - var(--panel-width) - 8px)))',
   // The panel uses screen pixels while its anchor follows the zoomable canvas.
   // Keep its controls reachable after zooming, resizing or dragging near an edge.
-  left: `clamp(8px, ${props.position.x + dragOffset.value.x}px, max(8px, calc(100% - var(--panel-width) - 8px)))`,
+  left: `clamp(var(--panel-min-left), ${props.position.x + dragOffset.value.x}px, max(8px, calc(100% - var(--panel-width) - 8px)))`,
   top: `clamp(8px, ${props.position.y + dragOffset.value.y}px, max(8px, calc(100% - var(--panel-height) - 8px)))`,
   width: 'min(var(--panel-width), calc(100% - 16px))',
   maxHeight: 'min(var(--panel-height), calc(100% - 16px))'

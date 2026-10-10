@@ -48,7 +48,7 @@ export const getDetailPanelSize = (actionId, viewport) => {
   const size = isAlarmDataAction(actionId) ? ALARM_DETAIL_PANEL_SIZE : DETAIL_PANEL_SIZE
   if (![viewport?.width, viewport?.height].every(value => Number.isFinite(value) && value > 0)) return size
   return {
-    width: Math.min(size.width, Math.max(1, viewport.width - 16)),
+    width: Math.min(size.width, Math.max(1, viewport.width - 80)),
     // Keep a row of nodes and its stage label above the scrolling form. On an
     // unusually short canvas, preserve a usable header/body without overflowing.
     height: Math.min(size.height, Math.max(1, viewport.height - 16), Math.max(120, viewport.height - 160))

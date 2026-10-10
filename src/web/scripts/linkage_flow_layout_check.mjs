@@ -160,7 +160,7 @@ for (const zoom of [0.4, 0.75, 1, 1.5]) {
 for (const viewport of [{ width: 1040, height: 510 }, { width: 820, height: 420 }]) {
   for (const actionId of ['LA_AlarmData_Code', 'EVT_00001', 'BA_00001']) {
     const size = getDetailPanelSize(actionId, viewport)
-    assert.ok(size.width <= viewport.width - 16)
+    assert.ok(size.width + 64 <= viewport.width - 8, 'left toolbar and right edge both retain space')
     assert.ok(size.height <= viewport.height - 160, 'panel reserves a visible graph row')
     assert.ok(size.height >= 120, 'panel retains room for a header and scrolling controls')
     const selected = { type: 'customForm', position: { x: 300, y: 0 } }
