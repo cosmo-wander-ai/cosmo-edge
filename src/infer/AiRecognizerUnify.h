@@ -45,7 +45,6 @@ private:
     std::string cfg_path_;
     std::string model_path_;
     std::unique_ptr<cosmo::nn::DefaultComponent> recognizer_;
-    AppProfiler profiler_;
 };
 
 using AiRecognizerUnifyPtr = std::shared_ptr<AiRecognizerUnify>;

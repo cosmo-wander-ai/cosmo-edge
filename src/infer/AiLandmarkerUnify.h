@@ -46,7 +46,6 @@ private:
     std::string cfg_path_;
     std::string model_path_;
     std::unique_ptr<cosmo::nn::DefaultComponent> landmarker_;
-    AppProfiler profiler_;
 };
 
 using AiLandmarkerUnifyPtr = std::shared_ptr<AiLandmarkerUnify>;

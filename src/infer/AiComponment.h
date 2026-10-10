@@ -5,17 +5,9 @@
 #include "media/NativeVideoBuffer.h"
 #include "media/VideoFrame.h"
 #include "nn/core/blob.h"
-#include "nn/utils/profiler.h"
 #include "util/ErrorCode.h"
 
 namespace cosmo {
-class AppProfiler : public cosmo::nn::IProfiler {
-public:
-    void ReportGraphInfo(const char* msg) override;
-
-    void ReportNodeTime(const char* node_name, double time) override;
-};
-
 cosmo::nn::DeviceType GetDeviceType();
 
 util::ErrorEnum ConvertImagesToBlobs(const std::vector<VideoFramePtr>& images,

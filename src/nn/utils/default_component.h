@@ -23,13 +23,6 @@ public:
         bool use_skip = false;
     };
 
-    DefaultComponent(std::string json_path, std::string model_path, DeviceType device_type,
-                     IProfiler* profiler = nullptr, std::string tokenizer_path = std::string(),
-                     std::string word_table_path = std::string(), int device_id = 0,
-                     bool use_skip = false) noexcept(false);
-
-    /// Options-first form remains unambiguous with the legacy constructor's
-    /// optional profiler argument.
     DefaultComponent(const Options& options, std::string json_path, std::string model_path,
                      DeviceType device_type) noexcept(false);
 
