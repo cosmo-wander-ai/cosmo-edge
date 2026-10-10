@@ -145,7 +145,7 @@ const handleRemoveTag = (tag) => {
   height: auto;
   line-height: 1;
   padding: 0;
-  background-color: #fff;
+  background-color: var(--bg-white);
 }
 
 .tree {

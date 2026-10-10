@@ -1,5 +1,9 @@
 <template>
-  <div class="mv-wrap">
+  <div class="mv-wrap ui-admin-page event-console statistics-page">
+    <header class="event-heading">
+      <h1>{{ t('nav.countingStats') }}</h1>
+      <p>{{ t('nav.eventCenter') }}</p>
+    </header>
     <div class="mv-wrap-top">
       <div class="mvtitle">
         <span class="mv-table-title">{{ t('event.queryConditions') }}</span>
@@ -41,7 +45,7 @@
             </el-form-item>
 
             <el-form-item class="search-btns">
-              <el-button type="primary" @click="getData" size="small">{{ t('action.search') }}</el-button>
+              <el-button type="primary" @click="getData" size="small" class="ui-secondary-button">{{ t('action.search') }}</el-button>
               <el-button @click="resetParams('hour')" size="small">{{ t('action.reset') }}</el-button>
             </el-form-item>
           </el-form>
@@ -71,7 +75,7 @@
             </el-form-item>
 
             <el-form-item class="search-btns">
-              <el-button type="primary" @click="getData" size="small">{{ t('action.search') }}</el-button>
+              <el-button type="primary" @click="getData" size="small" class="ui-secondary-button">{{ t('action.search') }}</el-button>
               <el-button @click="resetParams('day')" size="small">{{ t('action.reset') }}</el-button>
             </el-form-item>
 
@@ -102,7 +106,7 @@
             </el-form-item>
 
             <el-form-item class="search-btns">
-              <el-button type="primary" @click="getData" size="small">{{ t('action.search') }}</el-button>
+              <el-button type="primary" @click="getData" size="small" class="ui-secondary-button">{{ t('action.search') }}</el-button>
               <el-button @click="resetParams('month')" size="small">{{ t('action.reset') }}</el-button>
             </el-form-item>
 
@@ -115,7 +119,7 @@
     <div class="stats-overview" v-if="chartList.length">
       <div class="stat-card enter-card">
         <div class="stat-icon-wrapper">
-          <svg viewBox="0 0 1024 1024" width="28" height="28" xmlns="http://www.w3.org/2000/svg"><path d="M512 85.333333c235.648 0 426.666667 191.018667 426.666667 426.666667s-191.018667 426.666667-426.666667 426.666667S85.333333 747.648 85.333333 512 276.352 85.333333 512 85.333333z m97.450667 453.674667H304.597333a36.650667 36.650667 0 1 0 0 73.301333h304.853334l-89.258667 89.258667a36.693333 36.693333 0 0 0 51.84 51.882667l150.357333-150.357334a36.565333 36.565333 0 0 0 0-51.84l-150.357333-150.357333a36.736333 36.736333 0 0 0-51.84 51.882667l89.258667 89.258666z" fill="#1890FF"/></svg>
+          <svg viewBox="0 0 1024 1024" width="28" height="28" xmlns="http://www.w3.org/2000/svg"><path d="M512 85.333333c235.648 0 426.666667 191.018667 426.666667 426.666667s-191.018667 426.666667-426.666667 426.666667S85.333333 747.648 85.333333 512 276.352 85.333333 512 85.333333z m97.450667 453.674667H304.597333a36.650667 36.650667 0 1 0 0 73.301333h304.853334l-89.258667 89.258667a36.693333 36.693333 0 0 0 51.84 51.882667l150.357333-150.357334a36.565333 36.565333 0 0 0 0-51.84l-150.357333-150.357333a36.736333 36.736333 0 0 0-51.84 51.882667l89.258667 89.258666z" fill="var(--theme-accent, #1890FF)"/></svg>
         </div>
         <div class="stat-info">
           <div class="stat-label">{{ t('event.totalEnterFlow') }}</div>
@@ -124,7 +128,7 @@
       </div>
       <div class="stat-card leave-card">
         <div class="stat-icon-wrapper">
-          <svg viewBox="0 0 1024 1024" width="28" height="28" xmlns="http://www.w3.org/2000/svg"><path d="M512 85.333333A426.666667 426.666667 0 1 0 938.666667 512 426.666667 426.666667 0 0 0 512 85.333333zM719.402667 480.64a36.650667 36.650667 0 1 1 0 73.301333H414.549333l89.258667 89.258667a36.693333 36.693333 0 1 1-51.84 51.882667l-150.357333-150.357334a36.565333 36.565333 0 0 1 0-51.84l150.357333-150.357333a36.736333 36.736333 0 1 1 51.84 51.882667l-89.258667 89.258666h304.853334z" fill="#FFB440"/></svg>
+          <svg viewBox="0 0 1024 1024" width="28" height="28" xmlns="http://www.w3.org/2000/svg"><path d="M512 85.333333A426.666667 426.666667 0 1 0 938.666667 512 426.666667 426.666667 0 0 0 512 85.333333zM719.402667 480.64a36.650667 36.650667 0 1 1 0 73.301333H414.549333l89.258667 89.258667a36.693333 36.693333 0 1 1-51.84 51.882667l-150.357333-150.357334a36.565333 36.565333 0 0 1 0-51.84l150.357333-150.357333a36.736333 36.736333 0 1 1 51.84 51.882667l-89.258667 89.258666h304.853334z" fill="var(--theme-warning, #FFB440)"/></svg>
         </div>
         <div class="stat-info">
           <div class="stat-label">{{ t('event.totalLeaveFlow') }}</div>
@@ -133,7 +137,7 @@
       </div>
       <div class="stat-card net-card">
         <div class="stat-icon-wrapper">
-          <svg viewBox="0 0 1024 1024" width="28" height="28" xmlns="http://www.w3.org/2000/svg"><path d="M512 85.333333c235.648 0 426.666667 191.018667 426.666667 426.666667s-191.018667 426.666667-426.666667 426.666667S85.333333 747.648 85.333333 512 276.352 85.333333 512 85.333333z m162.773333 362.496a36.650667 36.650667 0 0 0-51.84-51.882666L512 506.88l-110.933333-110.933333a36.650667 36.650667 0 0 0-51.84 51.84l136.832 136.832a36.565333 36.565333 0 0 0 51.84 0l136.874666-136.789334z" fill="#67C23A"/></svg>
+          <svg viewBox="0 0 1024 1024" width="28" height="28" xmlns="http://www.w3.org/2000/svg"><path d="M512 85.333333c235.648 0 426.666667 191.018667 426.666667 426.666667s-191.018667 426.666667-426.666667 426.666667S85.333333 747.648 85.333333 512 276.352 85.333333 512 85.333333z m162.773333 362.496a36.650667 36.650667 0 0 0-51.84-51.882666L512 506.88l-110.933333-110.933333a36.650667 36.650667 0 0 0-51.84 51.84l136.832 136.832a36.565333 36.565333 0 0 0 51.84 0l136.874666-136.789334z" fill="var(--theme-success, #67C23A)"/></svg>
         </div>
         <div class="stat-info">
           <div class="stat-label">{{ t('event.netInflowCount') }}</div>
@@ -145,7 +149,7 @@
     <div class="mv-wrap-body">
       <div class="mvtitle">
         <span class="mv-table-title">{{ t('event.flowTrendAndDetail') }}</span>
-        <el-button type="primary" size="small" :disabled="!chart" @click="showData" plain>{{ t('event.chartToggleLabel') }}</el-button>
+        <el-button type="primary" size="small" :disabled="!chart" @click="showData" plain class="ui-secondary-button">{{ t('event.chartToggleLabel') }}</el-button>
       </div>
 
       <div class="content-split" v-if="chartList.length">
@@ -154,7 +158,7 @@
         </div>
         
         <div class="table-section">
-          <el-table :data="chartList" height="400" stripe size="small" border class="data-table" :header-cell-style="{background:'#f0f4ff',color:'#333'}">
+          <el-table :data="chartList" height="400" stripe size="small" border class="data-table" :header-cell-style="{background:'var(--theme-accent-soft, #f0f4ff)',color:'var(--theme-text, #333)'}">
             <el-table-column prop="timeString" :label="t('event.tooltipTime')" min-width="140"></el-table-column>
             <el-table-column prop="enterNumber" :label="t('event.enterCount')" width="90" align="center"></el-table-column>
             <el-table-column prop="leaveNumber" :label="t('event.leaveCount')" width="90" align="center"></el-table-column>
@@ -179,6 +183,7 @@ import moment from 'moment'
 import * as echarts from 'echarts'
 import { t, localeColon, currentLocale } from '@/i18n'
 import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
+import { useAppearance } from '@/composables/useAppearance'
 
 const { proxy } = getCurrentInstance()
 
@@ -224,6 +229,45 @@ const pickerOptions = {
 const chart = ref(null)
 const chartRef = ref(null)
 const algorithmList = ref([])
+const { appearance } = useAppearance()
+let lightChartSplitLineColor
+
+// ECharts paints on canvas, so merge visual options when the resolved theme changes.
+// Preserve the current data, legend selection, labels and viewport without fetching again.
+const applyChartTheme = () => {
+  if (!chart.value || chart.value.isDisposed()) return
+  const dark = appearance.value.resolved === 'dark'
+  const styles = getComputedStyle(document.documentElement)
+  const color = (token, fallback) => dark ? styles.getPropertyValue(token).trim() || fallback : fallback
+  const text = color('--text-secondary', '#666')
+  const muted = color('--text-muted', '#999')
+  const border = color('--border-color', '#EBEEF5')
+  const enter = color('--primary-color', '#1890FF')
+  const leave = color('--warning-color', '#FFB440')
+  chart.value.setOption({
+    tooltip: {
+      backgroundColor: color('--bg-white', 'rgba(255, 255, 255, 0.95)'),
+      borderColor: color('--border-color', '#ebeef5'),
+      textStyle: { color: color('--text-primary', '#333') }
+    },
+    legend: { textStyle: { color: text } },
+    xAxis: {
+      axisLine: { lineStyle: { color: border } },
+      axisPointer: { lineStyle: { color: border } },
+      axisLabel: { color: muted }
+    },
+    yAxis: {
+      axisLabel: { color: muted },
+      splitLine: { lineStyle: { color: dark ? color('--border-light', '#333C49') : lightChartSplitLineColor } }
+    },
+    series: [
+      { label: { color: text }, itemStyle: { color: enter }, lineStyle: { color: enter } },
+      { label: { color: text }, itemStyle: { color: leave }, lineStyle: { color: leave } }
+    ]
+  })
+}
+
+watch(() => appearance.value.resolved, applyChartTheme, { flush: 'post' })
 
 // Watch timeGranularity
 watch(timeGranularity, (newVal) => {
@@ -483,11 +527,11 @@ const drawCharts = (timeData, inData, outData) => {
         if (!params) return ''
         const seriesName = params.seriesName === t('event.enter') ? t('event.enterCount') : t('event.leaveCount')
         return `
-          <div style="font-weight: bold; margin-bottom: 8px; font-size: 14px; border-bottom: 1px solid #ebeef5; padding-bottom: 8px;">${t('event.tooltipTime')}: ${params.name}</div>
+          <div style="font-weight: bold; margin-bottom: 8px; font-size: 14px; border-bottom: 1px solid var(--theme-border-light, #ebeef5); padding-bottom: 8px;">${t('event.tooltipTime')}: ${params.name}</div>
           <div style="display: flex; align-items: center; font-size: 13px;">
             ${params.marker}
-            <span style="flex: 1; margin-right: 24px; color: #666;">${seriesName}:</span>
-            <span style="font-weight: 600; font-size: 16px; color: ${params.color};">${params.value} <span style="font-size: 12px; font-weight: normal; color: #999;">${t('event.personUnit')}</span></span>
+            <span style="flex: 1; margin-right: 24px; color: var(--theme-text-secondary, #666);">${seriesName}:</span>
+            <span style="font-weight: 600; font-size: 16px; color: ${params.color};">${params.value} <span style="font-size: 12px; font-weight: normal; color: var(--theme-text-muted, #999);">${t('event.personUnit')}</span></span>
           </div>
         `
       }
@@ -578,6 +622,10 @@ const drawCharts = (timeData, inData, outData) => {
     ]
   }
   chart.value.setOption(option)
+  if (lightChartSplitLineColor === undefined) {
+    lightChartSplitLineColor = chart.value.getOption().yAxis?.[0]?.splitLine?.lineStyle?.color
+  }
+  applyChartTheme()
 }
 
 const showData = () => {
@@ -598,17 +646,38 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+@use '../event-console.scss';
+
+.statistics-page {
+  height: auto;
+  min-height: 100%;
+}
+
 .mv-wrap-top {
-  margin-bottom: 20px;
-  background: white;
+  margin-bottom: 0;
+  background: var(--theme-surface, white);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
 }
 
 .mv-wrap-body {
-  background: white;
+  background: var(--theme-surface, white);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
 }
 
 .tabs {
-  padding: 0 30px;
+  padding: 0 16px;
+
+  :deep(.el-form) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 20px;
+    padding: 2px 0 14px;
+  }
+
+  :deep(.el-form-item) { margin: 0; }
 
   .time-picker {
     width: 125px;
@@ -619,14 +688,14 @@ onMounted(() => {
     vertical-align: middle;
     width: 12px;
     height: 1px;
-    background-color: #dcdfe6;
+    background-color: var(--border-color);
     margin: 0 10px;
   }
 
   .search-btns {
     margin: 0 !important;
-    float: right;
-    padding-bottom: 22px;
+    margin-left: auto !important;
+    padding-bottom: 0;
   }
 }
 
@@ -635,7 +704,7 @@ onMounted(() => {
 }
 
 .no-data {
-  color: #999;
+  color: var(--theme-text-muted, #999);
   text-align: center;
   height: 60px;
   line-height: 60px;
@@ -645,74 +714,71 @@ onMounted(() => {
 .mvtitle {
   display: flex;
   align-items: center;
-  height: 57px;
-  padding: 0 30px 0 20px;
+  min-height: 48px;
+  padding: 10px 16px;
 
   .mv-table-title {
     flex: 1;
+    color: var(--text-primary);
+    font-size: 15px;
+    font-weight: 600;
   }
 }
 
 .stats-overview {
   display: flex;
-  gap: 20px;
-  margin-bottom: 20px;
+  gap: 12px;
+  margin-bottom: 0;
   
   .stat-card {
     flex: 1;
-    background: #fff;
-    border-radius: 8px;
-    padding: 24px;
+    background: var(--theme-surface, #fff);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 16px 20px;
     display: flex;
     align-items: center;
-    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
-    transition: all 0.3s ease;
-    
-    &:hover {
-      box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.1);
-      transform: translateY(-2px);
-    }
 
     .stat-icon-wrapper {
-      width: 56px;
-      height: 56px;
-      border-radius: 12px;
+      width: 40px;
+      height: 40px;
+      border-radius: 6px;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-right: 20px;
+      margin-right: 14px;
     }
     
     &.enter-card .stat-icon-wrapper {
-      background: rgba(24, 144, 255, 0.1);
+      background: var(--bg-subtle);
     }
     
     &.leave-card .stat-icon-wrapper {
-      background: rgba(255, 180, 64, 0.1);
+      background: var(--bg-subtle);
     }
     
     &.net-card .stat-icon-wrapper {
-      background: rgba(103, 194, 58, 0.1);
+      background: var(--bg-subtle);
     }
 
     .stat-info {
       flex: 1;
       
       .stat-label {
-        font-size: 14px;
-        color: #909399;
-        margin-bottom: 8px;
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-bottom: 6px;
       }
       
       .stat-value {
         font-size: 28px;
         font-weight: 600;
-        color: #303133;
+        color: var(--text-primary);
         line-height: 1;
         
         .stat-unit {
           font-size: 14px;
-          color: #909399;
+          color: var(--text-secondary);
           font-weight: normal;
           margin-left: 2px;
         }
@@ -723,40 +789,50 @@ onMounted(() => {
 
 .content-split {
   display: flex;
-  gap: 20px;
-  padding: 0 20px 20px;
+  gap: 14px;
+  padding: 0 16px 16px;
 
   .chart-section {
     flex: 1;
     min-width: 0;
-    border: 1px solid #ebeef5;
+    border: 1px solid var(--border-light);
     border-radius: 4px;
-    padding: 16px;
+    padding: 12px;
   }
   
   .table-section {
     width: 400px;
-    border: 1px solid #ebeef5;
+    border: 1px solid var(--border-light);
     border-radius: 4px;
-    padding: 16px;
-    background: #fff;
+    padding: 0;
+    background: var(--theme-surface, #fff);
     
     .data-table {
       width: 100%;
     }
     
     .positive-flow {
-      color: #F56C6C;
+      color: var(--danger-color);
       font-weight: bold;
     }
     
     .negative-flow {
-      color: #67C23A;
+      color: var(--success-color);
     }
   }
 }
 
 .week-picker {
   width: 180px;
+}
+
+@media (max-width: 1200px) {
+  .content-split { flex-direction: column; }
+  .content-split .table-section { width: 100%; }
+}
+
+@media (max-width: 700px) {
+  .stats-overview { flex-wrap: wrap; }
+  .stats-overview .stat-card { flex-basis: 100%; }
 }
 </style>

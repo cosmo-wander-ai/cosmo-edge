@@ -1,18 +1,22 @@
 <template>
-  <div class="alarm-record">
+  <div class="alarm-record ui-admin-page event-console face-event-console">
+    <header class="event-heading">
+      <h1>{{ t('nav.faceBody') }}</h1>
+      <p>{{ t('nav.eventCenter') }}</p>
+    </header>
     <TopBar ref="topBarRef" :dataSouce="topBarData" :formData="formData" :labelWidth="60" :defaultExpand="true" @search="searchList" />
     <div class="table-container" ref="tableContainerRef">
       <div class="table-header">
         <div class="table-tools">
           <!-- <el-button v-if="runMode != 1" type="primary" size="small" @click="handleBatchDelete"
-            :disabled="multipleSelections.length === 0">批量删除</el-button> -->
+            :disabled="multipleSelections.length === 0" class="ui-secondary-button">批量删除</el-button> -->
           <el-button type="primary" size="small" @click="handleExport"
-            :disabled="tableData.length === 0">{{ t('event.dataExport') }}</el-button>
+            :disabled="tableData.length === 0" class="ui-secondary-button">{{ t('event.dataExport') }}</el-button>
         </div>
       </div>
 
       <!-- 列表视图 -->
-      <el-table :data="tableData" :header-cell-style="{ background: '#fafafa' }" style="width: 100%" :height="tableHeight"
+      <el-table :data="tableData" :header-cell-style="{ background: 'var(--theme-surface-soft, #fafafa)' }" style="width: 100%" :height="tableHeight"
         @selection-change="handleSelectionChange">
         <el-table-column type="selection" min-width="55"></el-table-column>
         <el-table-column type="index" :index="getIndex" :label="t('field.no')" width="80"></el-table-column>
@@ -91,7 +95,7 @@
         </el-table-column>
         <el-table-column :label="t('field.status')" min-width="90">
           <template #default="scope">
-            <span :style="{ color: scope.row.reportStatus === 1 ? '#67C23A' : '#F56C6C' }">
+            <span :style="{ color: scope.row.reportStatus === 1 ? 'var(--theme-success, #67C23A)' : 'var(--theme-danger, #F56C6C)' }">
               {{ scope.row.reportStatus === 1 ? t('event.uploaded') : t('event.notUploaded') }}
             </span>
           </template>
@@ -99,8 +103,8 @@
         <el-table-column :label="t('field.actions')" fixed="right" :width="currentLocale === 'en-US' ? '160' : '100'">
           <template #default="scope">
             <div class="operation-tools">
-              <el-button link class="primary-text" @click="handleDetail(scope.row)">{{ t('action.details') }}</el-button>
-              <el-button link class="primary-text" v-if="scope.row.video" @click="onCheckVideo(scope.row, 1)">{{ t('event.videoPlayback') }}</el-button>
+              <el-button link class="primary-text ui-action ui-action-view" @click="handleDetail(scope.row)">{{ t('action.details') }}</el-button>
+              <el-button link class="primary-text ui-action ui-action-play" v-if="scope.row.video" @click="onCheckVideo(scope.row, 1)">{{ t('event.videoPlayback') }}</el-button>
               <!-- <el-button link class="danger-text" v-if="runMode != 1" @click="handleDelete(scope.row)">删除</el-button> -->
             </div>
           </template>
@@ -582,8 +586,27 @@ onBeforeUnmount(() => {
 </script>
 
 <style lang="scss" scoped>
+@use '../event-console.scss';
+
+.face-event-console > .table-container {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  > .table-header,
+  > .pagination-container {
+    flex: none;
+  }
+
+  > .el-table {
+    flex: 1;
+    min-height: 0;
+    height: 0 !important;
+  }
+}
+
 .table-container {
-  background-color: #fff;
+  background-color: var(--theme-surface, #fff);
   padding: 0 15px;
   margin-top: 16px;
 
@@ -607,7 +630,7 @@ onBeforeUnmount(() => {
 
     &-selected {
       :deep(.el-card__body) {
-        background-color: #f5f7fa;
+        background-color: var(--bg-primary);
       }
     }
 
@@ -616,7 +639,7 @@ onBeforeUnmount(() => {
       top: 10px;
       left: 10px;
       z-index: 1;
-      background-color: rgba(255, 255, 255, 0.8);
+      background-color: var(--theme-surface, rgba(255, 255, 255, 0.8));
       padding: 1px 3px;
     }
 
@@ -638,7 +661,7 @@ onBeforeUnmount(() => {
           margin-bottom: 8px;
 
           .label {
-            color: #606266;
+            color: var(--text-secondary);
             margin-right: 8px;
           }
         }
@@ -646,7 +669,7 @@ onBeforeUnmount(() => {
 
       .grid-actions {
         text-align: right;
-        border-top: 1px solid #ebeef5;
+        border-top: 1px solid var(--border-light);
       }
     }
   }
@@ -672,7 +695,7 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  background-color: #fff;
+  background-color: var(--theme-surface, #fff);
 }
 
 .operation-tools {
@@ -687,7 +710,7 @@ onBeforeUnmount(() => {
   color: var(--el-color-primary) !important;
 
   &:hover {
-    color: #337ecc !important;
+    color: var(--primary-dark) !important;
   }
 }
 
@@ -695,7 +718,7 @@ onBeforeUnmount(() => {
   color: var(--el-color-danger) !important;
 
   &:hover {
-    color: #f56c6c !important;
+    color: var(--danger-color) !important;
   }
 }
 </style>

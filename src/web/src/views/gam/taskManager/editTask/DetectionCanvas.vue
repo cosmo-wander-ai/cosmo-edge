@@ -24,10 +24,12 @@
 <script setup>
 import { ref, watch, onMounted, getCurrentInstance } from 'vue'
 import { t } from '@/i18n'
+import { useAppearance } from '@/composables/useAppearance'
 import defaultImage from '@/assets/CatchPhoto.png'
 import { getDefaultPoints } from './defaultConfig.js'
 
 const { proxy } = getCurrentInstance()
+const { appearance } = useAppearance()
 
 const props = defineProps({
   width: Number,
@@ -71,6 +73,12 @@ const isAssociatedArea = ref(false)
 const associatedAreaPoints = ref([])
 const isMovingLine = ref(false)
 const isReversed = ref(false)
+let backgroundIsPlaceholder = false
+
+const placeholderColor = (token, lightColor, darkColor) => {
+  if (appearance.value.resolved !== 'dark') return lightColor
+  return getComputedStyle(canvasRef.value).getPropertyValue(token).trim() || darkColor
+}
 
 const setDefaultImage = (e) => {
   e.target.src = defaultImage
@@ -108,21 +116,24 @@ const drawBackgroundImage = () => {
   if (img.complete && img.naturalWidth > 0) {
     try {
       context.drawImage(img, 0, 0, canvas.width, canvas.height)
+      backgroundIsPlaceholder = false
     } catch (error) {
       console.error('绘制图片失败:', error)
       // 如果绘制失败，绘制一个占位背景
-      context.fillStyle = '#f0f0f0'
+      backgroundIsPlaceholder = true
+      context.fillStyle = placeholderColor('--bg-secondary', '#f0f0f0', '#282F3B')
       context.fillRect(0, 0, canvas.width, canvas.height)
-      context.fillStyle = '#999'
+      context.fillStyle = placeholderColor('--text-secondary', '#999', '#ABB4C3')
       context.font = '16px Arial'
       context.textAlign = 'center'
       context.fillText(t('common.imageLoadFailed'), canvas.width / 2, canvas.height / 2)
     }
   } else {
     // 图片未加载完成时显示占位背景
-    context.fillStyle = '#f8f9fa'
+    backgroundIsPlaceholder = true
+    context.fillStyle = placeholderColor('--bg-secondary', '#f8f9fa', '#282F3B')
     context.fillRect(0, 0, canvas.width, canvas.height)
-    context.fillStyle = '#6c757d'
+    context.fillStyle = placeholderColor('--text-secondary', '#6c757d', '#ABB4C3')
     context.font = '14px Arial'
     context.textAlign = 'center'
     context.fillText(t('common.imageLoading'), canvas.width / 2, canvas.height / 2)
@@ -608,6 +619,13 @@ onMounted(() => {
   initCanvas()
 })
 
+watch(() => appearance.value.resolved, () => {
+  if (!backgroundIsPlaceholder) return
+  redrawCanvas()
+  // 重绘占位时保留尚未提交的划线及其原始标注颜色。
+  drawLineVertexs(drawingLinePoints.value, polygons.value.length)
+}, { flush: 'post' })
+
 watch(() => props.imageSrc, () => {
   // 当图片源变化时，等待图片加载完成后重新绘制
   if (imageRef.value) {
@@ -662,10 +680,10 @@ defineExpose({ submit, drawLineOperation, drawingLinePoints, directionType, sele
   position: relative;
   width: 100%;
   height: 306px; /* 550 / 1.8 */
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   overflow: hidden;
-  background-color: #f8f9fa;
+  background-color: var(--bg-primary);
 }
 
 .canvas {

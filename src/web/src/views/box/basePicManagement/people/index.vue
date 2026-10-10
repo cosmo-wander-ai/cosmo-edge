@@ -1,5 +1,6 @@
 <template>
-  <div class="people-management">
+  <div class="people-management ui-admin-page">
+    <header class="ui-page-heading"><h1>{{ t('nav.faceLibrary') }}</h1></header>
     <div class="template-container">
       <!-- 左侧模板列表 -->
       <div class="template-list">
@@ -11,8 +12,8 @@
           <div v-for="item in faceLibList" :key="item.id" class="template-item" :class="{ active: currentFaceLib.id === item.id }" @click="handleSelectFaceLib(item)">
             <div class="item-name">{{ item.name }}</div>
             <div class="item-actions">
-              <el-icon @click.stop="handleEdit(item)"><EditPen /></el-icon>
-              <el-icon style="color:red;" @click.stop="handleDelete(item)"><Delete /></el-icon>
+              <el-button link class="ui-action" @click.stop="handleEdit(item)"><el-icon><EditPen /></el-icon>{{ t('action.edit') }}</el-button>
+              <el-button link class="ui-action danger-text" @click.stop="handleDelete(item)"><el-icon><Delete /></el-icon>{{ t('action.delete') }}</el-button>
             </div>
           </div>
         </div>
@@ -30,10 +31,10 @@
             <div class="header-right">
               <div class="operation-tools">
                 <el-button type="primary" @click="handleAddPeople" size="small" :disabled="faceLibList.length === 0" style="padding: 8px 16px;">{{ t('action.add') }}</el-button>
-                <el-button v-if="isUploading" style="background-color: #E6A23C; color: #fff; padding: 8px 16px;" @click="showUploadingDialog" :disabled="faceLibList.length === 0" size="small">{{ t('basePic.batchImporting') }}</el-button>
-                <el-button v-else type="primary" @click="handleBatchImport" size="small" :disabled="faceLibList.length === 0" style="padding: 8px 16px;">{{ t('basePic.batchImport') }}</el-button>
-                <el-button type="primary" @click="handleBatchRemove" size="small" :disabled="multipleSelections.length === 0" style="padding: 8px 16px;">{{ t('action.bulkDelete') }}</el-button>
-                <el-button type="primary" @click="handleClear" size="small" :disabled="tableData.length === 0" style="padding: 8px 16px;">{{ t('basePic.clear') }}</el-button>
+                <el-button v-if="isUploading" style="background-color: var(--theme-warning, #E6A23C); color: #fff; padding: 8px 16px;" @click="showUploadingDialog" :disabled="faceLibList.length === 0" size="small">{{ t('basePic.batchImporting') }}</el-button>
+                <el-button v-else type="primary" @click="handleBatchImport" size="small" :disabled="faceLibList.length === 0" style="padding: 8px 16px;" class="ui-secondary-button">{{ t('basePic.batchImport') }}</el-button>
+                <el-button type="primary" @click="handleBatchRemove" size="small" :disabled="multipleSelections.length === 0" style="padding: 8px 16px;" class="ui-secondary-button">{{ t('action.bulkDelete') }}</el-button>
+                <el-button type="primary" @click="handleClear" size="small" :disabled="tableData.length === 0" style="padding: 8px 16px;" class="ui-secondary-button">{{ t('basePic.clear') }}</el-button>
               </div>
             </div>
           </div>
@@ -61,8 +62,8 @@
                   </div>
                   <div class="grid-actions">
                     <div class="operation-tools">
-                      <el-button link class="span-right10 primary-text" @click="handleEditPeople(item)">{{ t('action.edit') }}</el-button>
-                      <el-button link class="span-right10 danger-text" @click="handleRemovePeople([item.id])">{{ t('action.delete') }}</el-button>
+                      <el-button link class="span-right10 primary-text ui-action ui-action-edit" @click="handleEditPeople(item)">{{ t('action.edit') }}</el-button>
+                      <el-button link class="span-right10 danger-text ui-action ui-action-delete" @click="handleRemovePeople([item.id])">{{ t('action.delete') }}</el-button>
                     </div>
                   </div>
                 </div>
@@ -81,7 +82,7 @@
       </div>
     </div>
 
-    <el-dialog :title="faceDialogTitle" v-model="faceDialogVisible" center width="450px">
+    <el-dialog :title="faceDialogTitle" v-model="faceDialogVisible" center width="450px" class="ui-admin-dialog">
       <el-form :model="faceFormData" :rules="faceFormRules" ref="faceFormRef" :label-width="currentLocale === 'en-US' ? '130px' : '80px'" label-position="right">
         <el-form-item :label="t('basePic.faceLibName')" prop="name">
           <el-input v-model.trim="faceFormData.name" class="form-content" size="small" autocomplete="off" />
@@ -454,16 +455,17 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
+@use "../library-layout.scss" as library;
 .people-management {
   height: 100%;
   box-sizing: border-box;
-  background: #f5f7fa;
+  background: var(--bg-primary);
 }
 
 .template-container {
   display: flex;
   height: 100%;
-  background: #fff;
+  background: var(--theme-surface, #fff);
   border-radius: 8px;
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
   overflow: hidden;
@@ -471,36 +473,36 @@ onMounted(() => {
 
 .template-list {
   min-width: 240px;
-  border-right: 1px solid #e4e7ed;
+  border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
-  background: #fafbfc;
+  background: var(--bg-primary);
 
   .list-header {
     padding: 20px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid #e4e7ed;
-    background: #fff;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--theme-surface, #fff);
 
     .title {
       font-size: 16px;
       font-weight: 600;
-      color: #303133;
+      color: var(--text-primary);
     }
 
     .el-icon {
       font-size: 20px;
-      color: #409eff;
+      color: var(--primary-color);
       cursor: pointer;
       padding: 4px;
       border-radius: 4px;
       transition: all 0.3s;
 
       &:hover {
-        background: #ecf5ff;
-        color: #337ecc;
+        background: var(--el-color-primary-light-9);
+        color: var(--primary-dark);
       }
     }
   }
@@ -524,19 +526,19 @@ onMounted(() => {
     border: 1px solid transparent;
 
     &:hover {
-      background: #f0f9ff;
-      border-color: #b3d8ff;
+      background: var(--el-color-primary-light-9);
+      border-color: var(--el-color-primary-light-7);
     }
 
     &.active {
-      background: linear-gradient(135deg, #eaf3ff 0%, #dcecff 100%);
-      color: #303133;
-      border-color: #409eff;
-      box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.3), 0 6px 16px rgba(64, 158, 255, 0.15);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 2px rgba(88, 82, 223, 0.3), 0 6px 16px rgba(88, 82, 223, 0.15);
       transform: scale(1.02);
 
       .item-actions .el-icon {
-        color: #409eff;
+        color: var(--primary-color);
       }
     }
 
@@ -553,7 +555,7 @@ onMounted(() => {
       gap: 8px;
 
       .el-icon {
-        color: #409eff;
+        color: var(--primary-color);
         cursor: pointer;
         padding: 6px;
         border-radius: 4px;
@@ -561,7 +563,7 @@ onMounted(() => {
         font-size: 26px;
 
         &:hover {
-          background: rgba(64, 158, 255, 0.1);
+          background: var(--theme-accent-soft, rgba(88, 82, 223, 0.1));
           transform: scale(1.1);
         }
       }
@@ -571,15 +573,20 @@ onMounted(() => {
 
 .template-body {
   flex: 1;
+  min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--theme-surface, #fff);
 }
 
 .search-result-body {
   flex: 1;
-  padding: 20px;
-  height: calc(100% - 100px);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  overflow: hidden;
 }
 
 .empty-block {
@@ -589,20 +596,21 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  background: var(--bg-secondary);
   border-radius: 8px;
-  border: 2px dashed #dee2e6;
+  border: 2px dashed var(--theme-border, #dee2e6);
 }
 
 .search-result-header {
+  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
   padding: 16px 20px;
-  background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+  background: var(--bg-secondary);
   border-radius: 8px;
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--border-color);
 
   .header-left {
     display: flex;
@@ -612,13 +620,13 @@ onMounted(() => {
     .title {
       font-size: 18px;
       font-weight: 600;
-      color: #303133;
+      color: var(--text-primary);
     }
 
     .template-num {
       font-size: 14px;
-      color: #909399;
-      background: #f0f2f5;
+      color: var(--text-secondary);
+      background: var(--theme-surface-soft, #f0f2f5);
       padding: 4px 12px;
       border-radius: 12px;
     }
@@ -645,33 +653,31 @@ onMounted(() => {
 
 .search-result-container {
   flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 20px;
-  max-height: calc(100% - 120px);
+  grid-auto-rows: max-content;
+  align-content: start;
+  gap: 16px;
   overflow-y: auto;
-  padding: 4px;
+  padding: 2px;
 
   .grid-item {
     position: relative;
-    border-radius: 12px;
+    min-width: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
     overflow: hidden;
-    transition: all 0.3s;
-    border: 2px solid transparent;
+    box-shadow: var(--shadow-sm);
+    transition: border-color 0.15s;
 
     &:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-      border-color: #409eff;
+      border-color: var(--theme-border, #c5c9d4);
     }
 
     &-selected {
-      border-color: #409eff;
-      box-shadow: 0 4px 20px rgba(64, 158, 255, 0.3);
-
-      :deep(.el-card__body) {
-        background: linear-gradient(135deg, #f0f9ff 0%, #e6f4ff 100%);
-      }
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 1px var(--primary-color);
     }
 
     .grid-checkbox {
@@ -681,115 +687,109 @@ onMounted(() => {
         left: 12px;
         z-index: 2;
         background: transparent;
-        border-radius: 6px;
         padding: 0;
       }
+
       :deep(.el-checkbox__inner) {
         width: 18px;
         height: 18px;
-        border-radius: 6px;
-        border: 2px solid #409eff;
-        background-color: rgba(255, 255, 255, 0.95);
+        border-radius: 4px;
+        border: 1px solid var(--primary-color);
+        background-color: var(--theme-surface, #fff);
       }
+
       :deep(.is-checked .el-checkbox__inner) {
-        background-color: #409eff;
-        border-color: #409eff;
-      }
-      :deep(.el-checkbox:hover .el-checkbox__inner) {
-        box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
+        background-color: var(--primary-color);
       }
     }
 
     :deep(.el-card__body) {
       padding: 0;
-      height: 100%;
+      height: auto;
     }
 
+    // Image, metadata and actions are distinct rows. Nothing overlays the
+    // thumbnail except its existing selection control.
     .grid-content {
-      position: relative;
-      height: 100%;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
 
       .grid-image {
         display: block;
+        flex: 0 0 220px;
         width: 100%;
         height: 220px;
         object-fit: cover;
-        transition: all 0.3s;
+        cursor: pointer;
       }
 
       .grid-info {
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
-        color: white;
-        padding: 20px 12px 12px;
+        position: static;
+        padding: 12px;
+        color: var(--text-primary);
+        background: var(--theme-surface, #fff);
+        border-top: 1px solid var(--border-light);
 
         .info-item {
-          font-size: 13px;
-          margin-bottom: 4px;
           display: flex;
           align-items: center;
+          min-width: 0;
+          gap: 4px;
+          font-size: 13px;
+          line-height: 22px;
 
           .label {
-            color: #e6f4ff;
-            font-weight: 500;
-            min-width: 60px;
+            color: var(--text-secondary);
+            flex-shrink: 0;
+            font-weight: 400;
           }
 
           span:not(.label) {
             flex: 1;
+            min-width: 0;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-            color: #fff;
+            color: var(--text-primary);
           }
         }
       }
 
       .grid-actions {
-        position: absolute;
-        top: 12px;
-        right: 12px;
-        z-index: 2;
-        opacity: 0;
-        transition: all 0.3s;
+        position: static;
+        opacity: 1;
+        margin-top: auto;
+        padding: 8px 12px;
+        background: var(--theme-surface, #fff);
+        border-top: 1px solid var(--border-light);
 
         .operation-tools {
           display: flex;
-          flex-direction: column;
-          gap: 6px;
+          flex-direction: row;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+          gap: 8px;
 
           .el-button {
-            padding: 8px 14px;
-            font-size: 14px;
-            border-radius: 6px;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(4px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            font-weight: 500;
-
-            &:hover {
-              transform: scale(1.05);
-              box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-            }
+            margin: 0;
+            background: transparent;
+            border: 0;
+            box-shadow: none;
+            font-size: 13px;
           }
         }
-      }
-
-      &:hover .grid-actions {
-        opacity: 1;
       }
     }
   }
 }
 
 .pagination-container {
+  flex-shrink: 0;
   padding: 20px;
   text-align: center;
-  background: #fafbfc;
-  border-top: 1px solid #e4e7ed;
+  background: var(--bg-primary);
+  border-top: 1px solid var(--border-color);
   border-radius: 0 0 8px 8px;
 }
 
@@ -819,7 +819,7 @@ onMounted(() => {
   color: var(--el-color-danger) !important;
 
   &:hover {
-    color: #f56c6c !important;
+    color: var(--danger-color) !important;
   }
 }
 
@@ -827,7 +827,7 @@ onMounted(() => {
   color: var(--el-color-primary) !important;
 
   &:hover {
-    color: #337ecc !important;
+    color: var(--primary-dark) !important;
   }
 }
 
@@ -837,16 +837,16 @@ onMounted(() => {
 }
 
 :deep(.search-result-container::-webkit-scrollbar-track) {
-  background: #f1f1f1;
+  background: var(--theme-surface-soft, #f1f1f1);
   border-radius: 3px;
 }
 
 :deep(.search-result-container::-webkit-scrollbar-thumb) {
-  background: #c1c1c1;
+  background: var(--theme-border, #c1c1c1);
   border-radius: 3px;
 
   &:hover {
-    background: #a8a8a8;
+    background: var(--theme-border, #a8a8a8);
   }
 }
 
@@ -855,7 +855,7 @@ onMounted(() => {
 // 表单样式优化
 :deep(.el-form-item__label) {
   font-weight: 500;
-  color: #606266;
+  color: var(--text-secondary);
 }
 
 :deep(.el-input__inner) {
@@ -863,7 +863,7 @@ onMounted(() => {
   transition: all 0.3s;
 
   &:focus {
-    box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
+    box-shadow: 0 0 0 2px rgba(88, 82, 223, 0.2);
   }
 }
 
@@ -876,4 +876,6 @@ onMounted(() => {
     transform: translateY(-1px);
   }
 }
+
+@include library.refined-library;
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <el-dialog v-model="visible" :title="t('gbAccess.title')" width="min(1060px, 95vw)" :before-close="close" :close-on-click-modal="false" destroy-on-close>
+  <el-dialog v-model="visible" :title="t('gbAccess.title')" width="min(1060px, 95vw)" :before-close="close" :close-on-click-modal="false" destroy-on-close class="ui-admin-dialog">
     <el-alert v-if="message" :title="message" :type="messageType" :closable="false" show-icon class="gb-message" />
     <el-tabs v-model="tab">
       <el-tab-pane :label="t('gbAccess.platformTab')" name="platform">
@@ -57,14 +57,14 @@
                 <el-table-column :label="t('gbAccess.channelId')" prop="id" min-width="195" />
                 <el-table-column :label="t('field.channelName')" min-width="190"><template #default="channel"><el-input v-model="channel.row.channelName" :disabled="channel.row.added || busy" maxlength="80" /></template></el-table-column>
                 <el-table-column :label="t('field.channelStatus')" min-width="160"><template #default="channel"><span>{{ stateText(channel.row.state) }}</span><div v-if="channel.row.error" class="gb-error">{{ errorText(channel.row.error) }}</div></template></el-table-column>
-                <el-table-column :label="t('field.actions')" width="130"><template #default="channel"><el-button :disabled="busy || channel.row.added || !scope.row.online || !!channel.row.error" link type="primary" @click="addChannel(scope.row, channel.row)">{{ channel.row.added ? t('gbAccess.alreadyAdded') : t('gbAccess.addChannel') }}</el-button></template></el-table-column>
+                <el-table-column :label="t('field.actions')" width="130"><template #default="channel"><el-button :disabled="busy || channel.row.added || !scope.row.online || !!channel.row.error" link type="primary" @click="addChannel(scope.row, channel.row)" class="ui-secondary-button">{{ channel.row.added ? t('gbAccess.alreadyAdded') : t('gbAccess.addChannel') }}</el-button></template></el-table-column>
               </el-table>
             </template>
           </el-table-column>
           <el-table-column :label="t('gbAccess.deviceId')" prop="id" min-width="195" />
           <el-table-column :label="t('gbAccess.deviceAddress')" prop="ip" min-width="130" />
           <el-table-column :label="t('field.channelStatus')" min-width="180"><template #default="scope"><span>{{ stateText(scope.row.state) }}</span><div v-if="scope.row.error" class="gb-error">{{ errorText(scope.row.error) }}</div></template></el-table-column>
-          <el-table-column :label="t('field.actions')" width="220"><template #default="scope"><el-button link type="primary" :disabled="busy || !scope.row.online" @click="queryCatalog(scope.row)">{{ t('gbAccess.queryCatalog') }}</el-button><el-button link type="primary" :disabled="busy" @click="editDevice(scope.row)">{{ t('action.edit') }}</el-button><el-button link type="danger" :disabled="busy" @click="removeDevice(scope.row)">{{ t('action.delete') }}</el-button></template></el-table-column>
+          <el-table-column :label="t('field.actions')" width="220"><template #default="scope"><el-button link type="primary" :disabled="busy || !scope.row.online" @click="queryCatalog(scope.row)" class="ui-secondary-button">{{ t('gbAccess.queryCatalog') }}</el-button><el-button link type="primary" :disabled="busy" @click="editDevice(scope.row)" class="ui-action ui-action-edit">{{ t('action.edit') }}</el-button><el-button link type="danger" :disabled="busy" @click="removeDevice(scope.row)" class="ui-action ui-action-delete">{{ t('action.delete') }}</el-button></template></el-table-column>
         </el-table>
         <p>{{ t('gbAccess.mediaNote') }}</p>
       </el-tab-pane>

@@ -19,8 +19,12 @@
       </div>
     </transition>
 
-    <div v-if="isShowStopPreview" class="stop-preview">
-      <img src="@/assets/video_preview.png">
+    <div v-if="isShowStopPreview" class="stop-preview" role="status">
+      <svg class="stop-preview-icon" viewBox="0 0 72 72" fill="none" aria-hidden="true">
+        <circle cx="36" cy="36" r="36" fill="var(--bg-secondary, #f3f5f8)" />
+        <rect x="17" y="23" width="38" height="27" rx="5" stroke="currentColor" stroke-width="2" />
+        <path d="M32 31v11m8-11v11" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+      </svg>
       <p>{{ t('common.stopPreview') }}</p>
     </div>
   </div>
@@ -488,21 +492,24 @@ onBeforeUnmount(() => {
 }
 
 .stop-preview {
-  width: 100%;
-  height: 100%;
-  background: #fff;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: var(--bg-white, #fff);
   display: flex;
   flex-flow: column;
   justify-content: center;
   align-items: center;
 
-  img {
-    width: 142px;
-    height: 123px;
+  .stop-preview-icon {
+    width: min(72px, 35%);
+    height: 72px;
+    max-height: calc(100% - 48px);
+    color: var(--text-secondary, #667085);
   }
   p {
     margin: 0 0;
-    color: #3598ff;
+    color: var(--theme-accent, #3598ff);
     font-size: 14px;
     letter-spacing: 2px;
     margin-top: 10px;

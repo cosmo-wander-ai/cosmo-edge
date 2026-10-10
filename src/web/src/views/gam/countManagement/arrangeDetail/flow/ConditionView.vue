@@ -339,7 +339,7 @@ const onClick = (obj) => {
   padding-left: 5px;
   margin-bottom: 5px;
   box-sizing: border-box;
-  border-left: 2px solid #1890ff;
+  border-left: 2px solid var(--primary-color);
   border-top-left-radius: 5%;
   border-bottom-left-radius: 5%;
 }
@@ -368,7 +368,7 @@ const onClick = (obj) => {
   height: 0;
   border-top: 5px solid transparent;
   border-bottom: 5px solid transparent;
-  border-right: 5px solid #1890ff; /* 可以根据需要设置三角形的颜色 */
+  border-right: 5px solid var(--primary-color); /* 可以根据需要设置三角形的颜色 */
   margin-left: 5px; /* 可以根据需要调整三角形与按钮之间的距离 */
 }
 
@@ -380,12 +380,12 @@ const onClick = (obj) => {
     border: none;
     padding: 0;
     margin: 0;
-    color: #499df3;
+    color: var(--primary-color);
     font-size: 22px;
   }
 
   .close-icon {
-    color: red;
+    color: var(--danger-color);
   }
 }
 
@@ -408,7 +408,7 @@ const onClick = (obj) => {
   .el-icon-plus {
     padding: 5px;
     font-size: 22px;
-    color: #1890ff;
+    color: var(--primary-color);
     cursor: pointer;
   }
 }

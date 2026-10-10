@@ -1,21 +1,33 @@
 <template>
   <div class="page">
     <main class="page-main" :style="{ width: `${width}px`, height: `${height}px` }">
-      <VueFlow
-        v-model:nodes="nodes"
-        v-model:edges="edges"
-        :node-types="nodeTypes"
-        :edge-types="edgeTypes"
-        @node-click="handleNodeActive"
-        @node-drag-start="handleNodeDragStart"
-        @pane-click="handlePaneClick"
-        @move="handleViewportMove"
-      >
-        <Background pattern-color="#e5e7eb" gap="16" />
-        <Controls  :show-interactive="false" />
-      </VueFlow>
+      <div class="flow-canvas" :style="{ width: `${canvasViewport.width}px` }">
+        <VueFlow
+          v-model:nodes="nodes"
+          v-model:edges="edges"
+          :node-types="nodeTypes"
+          :edge-types="edgeTypes"
+          @node-click="handleNodeActive"
+          @node-drag-start="handleNodeDragStart"
+          @pane-click="handlePaneClick"
+          @move="handleViewportMove"
+        >
+          <Background pattern-color="var(--flow-grid)" gap="16" />
+          <Controls :show-interactive="false" :show-fit-view="false" />
+        </VueFlow>
+        <div class="flow-view-tools">
+          <button type="button" class="flow-view-button" :title="t('glossary.flowActualSize')" @click="restoreReadingView">
+            <span class="flow-zoom-value">{{ Math.round(currentViewport.zoom * 100) }}%</span>
+            <span>{{ t('glossary.flowActualSize') }}</span>
+          </button>
+          <button type="button" class="flow-view-button" @click="centerView">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5" /></svg>
+            <span>{{ t('glossary.flowFitOverview') }}</span>
+          </button>
+        </div>
+      </div>
 
-      <!-- 浮动配置面板（在 VueFlow 外部，使用屏幕坐标定位） -->
+      <!-- Docking reserves canvas space; floating remains available for dragging. -->
       <NodeDetailPanel
         v-if="detailPanelNodeId"
         ref="detailPanelRef"
@@ -23,13 +35,19 @@
         :node-data="detailPanelNodeData"
         :atomic-list="atomicList"
         :position="screenPanelPosition"
+        :viewport="{ width, height }"
+        :docked="panelDocked"
+        :dock-size="dockedPanelSize"
+        :floating-size="floatingPanelSize"
+        show-dock-control
+        @toggle-dock="togglePanelMode"
         @close="closeDetailPanel"
         @config-change="handlePanelConfigChange"
       />
     </main>
 
     <teleport to="body">
-      <el-dialog v-model="addDialogVisible" :title="t('action.addComponent')" width="710px" :close-on-click-modal="true" center :z-index="6000">
+      <el-dialog v-model="addDialogVisible" :title="t('action.addComponent')" width="710px" :close-on-click-modal="true" center :z-index="6000" class="ui-admin-dialog flow-theme">
         <div class="component-dialog">
           <ActionView :actionList="actionList" @onAction="addComponentFromAction" />
         </div>
@@ -64,9 +82,11 @@ import ActionEdge from './ActionEdge.vue'
 import StageGroupNode from './StageGroupNode.vue'
 import NodeDetailPanel from './NodeDetailPanel.vue'
 import {
-  getDetailPanelAnchor,
-  getDetailPanelSize,
+  getDockedPanelSize,
+  getReadingFloatingPanelSize,
   getFlowBounds,
+  getFlowFitZoom,
+  getFlowReadingViewport,
   getFlowLayoutSpacing,
   getFlowNodeDimensions
 } from './layoutGeometry.js'
@@ -117,8 +137,9 @@ const templateVersion = ref(0)
 const hasFitViewOnce = ref(false)
 onPaneReady((instance) => {
   flowInstance.value = instance
-  // 设置默认视口，不使用自动适应
-  // instance.setViewport({ x: 100, y: 200, zoom: 0.6 })
+  nextTick(() => {
+    if (nodes.value.length) restoreReadingView()
+  })
 })
 
 const addDialogVisible = ref(false)
@@ -126,8 +147,6 @@ const addDialogEdgeId = ref('')
 const addDialogX = ref(0)
 const addDialogY = ref(0)
 
-const nodeWidth = 260
-const nodeHeight = 160
 const layoutDirection = 'LR'
 const newFlowData = ref([])
 const atomicList = ref([])
@@ -159,7 +178,7 @@ const getNodeDimensions = (node) => {
       height: Number(node.data?.height) || 180
     }
   }
-  // 所有业务节点均为固定尺寸卡片（不再有展开态）
+  // Card and terminal dimensions match their rendered components.
   return getFlowNodeDimensions(node)
 }
 
@@ -282,15 +301,10 @@ const applyLayout = () => {
   const nextNodes = [...stageNodes, ...positioned]
   nodes.value = nextNodes
 
-  if (!hasFitViewOnce.value && flowInstance.value) {
+  if (!hasFitViewOnce.value && positioned.length && flowInstance.value) {
     requestAnimationFrame(() => {
       if (!flowInstance.value) return
-      const totalCount = Array.isArray(positioned) ? positioned.length : 0
-      if (totalCount < 5) {
-        centerView()
-      } else {
-        flowInstance.value.fitView()
-      }
+      restoreReadingView()
       hasFitViewOnce.value = true
     })
   }
@@ -299,24 +313,23 @@ const applyLayout = () => {
 // ---- 浮动配置面板状态 ----
 const detailPanelRef = ref(null)
 const detailPanelNodeId = ref(null)
+const panelDocked = ref(true)
 const detailPanelNodeData = computed(() =>
   nodes.value.find((node) => String(node.id) === String(detailPanelNodeId.value))?.data || null
 )
-const detailPanelPosition = ref({ x: 0, y: 0 })  // 画布坐标
+const screenPanelPosition = ref({ x: 0, y: 0 })
 const currentViewport = ref({ x: 0, y: 0, zoom: 1 })
-
-/** 画布坐标 → 屏幕坐标（相对于 .page-main 容器） */
-const screenPanelPosition = computed(() => {
-  const vp = currentViewport.value
-  return {
-    x: detailPanelPosition.value.x * vp.zoom + vp.x,
-    y: detailPanelPosition.value.y * vp.zoom + vp.y
-  }
-})
+const dockedPanelSize = computed(() => getDockedPanelSize(detailPanelNodeData.value?.actionId, props))
+const floatingPanelSize = computed(() => getReadingFloatingPanelSize(detailPanelNodeData.value?.actionId, props, currentViewport.value.zoom))
+const canvasViewport = computed(() => ({
+  width: Math.max(1, props.width - (detailPanelNodeId.value && panelDocked.value ? dockedPanelSize.value.width + 12 : 0)),
+  height: props.height
+}))
 
 /** VueFlow 视口移动/缩放时更新坐标 */
-const handleViewportMove = (transform) => {
-  if (transform) {
+const handleViewportMove = (payload) => {
+  const transform = payload?.flowTransform || payload
+  if (transform && [transform.x, transform.y, transform.zoom].every(Number.isFinite)) {
     currentViewport.value = { x: transform.x, y: transform.y, zoom: transform.zoom }
   }
 }
@@ -347,19 +360,7 @@ const openDetailPanel = (nodeId) => {
     collectCurrentPanelConfig()
   }
 
-  const dim = getNodeDimensions(node)
-  const panelSize = getDetailPanelSize(node.data?.actionId)
-  const panelW = panelSize.width
-  const panelH = panelSize.height
-
-  // 面板顶部对齐选中节点的底部，X 居中对齐节点
-  const { x: panelX, y: panelY } = getDetailPanelAnchor(node, dim, panelSize)
-
   detailPanelNodeId.value = nodeId
-  detailPanelPosition.value = {
-    x: panelX,
-    y: panelY
-  }
 
   // 重置拖拽偏移（切换节点时复位）
   nextTick(() => {
@@ -369,59 +370,24 @@ const openDetailPanel = (nodeId) => {
   // 标记选中态
   markNodeSelected(nodeId)
 
-  // ---- 视口自适应：让所有节点+面板组合都可见 ----
+  // After reserving the dock, keep the selected card readable in the remaining canvas.
   nextTick(() => {
-    if (!flowInstance.value || typeof flowInstance.value.setCenter !== 'function') return
-
-    // 先同步当前视口状态
-    const vpNow = flowInstance.value.getViewport?.()
-    if (vpNow) currentViewport.value = { x: vpNow.x, y: vpNow.y, zoom: vpNow.zoom }
-
-    // 计算所有节点的总边界
-    const allVisible = nodes.value.filter((n) => !isStageGroupNode(n))
-    const bounds = getFlowBounds(allVisible, getNodeDimensions)
-
-    // 将面板区域也纳入边界
-    bounds.minX = Math.min(bounds.minX, panelX)
-    bounds.maxX = Math.max(bounds.maxX, panelX + panelW)
-    bounds.maxY = Math.max(bounds.maxY, panelY + panelH)
-
-    const cx = (bounds.minX + bounds.maxX) / 2
-    const cy = (bounds.minY + bounds.maxY) / 2
-
-    // 获取当前缩放级别，适度缩小以确保全部可见
-    const zoom = Math.min(currentViewport.value.zoom, 0.75)
-
-    flowInstance.value.setCenter(cx, cy, { zoom, duration: 280 })
-
-    // 动画结束后同步视口状态
-    setTimeout(() => {
-      const vpAfter = flowInstance.value?.getViewport?.()
-      if (vpAfter) currentViewport.value = { x: vpAfter.x, y: vpAfter.y, zoom: vpAfter.zoom }
-    }, 300)
+    requestAnimationFrame(() => focusNode(nodeId))
   })
 }
 
-/** 关闭浮动面板 */
+/** Closing saves the form and leaves the user's reading scale unchanged. */
 const closeDetailPanel = () => {
   collectCurrentPanelConfig()
   detailPanelNodeId.value = null
   clearNodeSelected()
+}
 
-  // 恢复视口：让所有节点居中可见
+const togglePanelMode = () => {
+  panelDocked.value = !panelDocked.value
   nextTick(() => {
-    if (!flowInstance.value) return
-    const visibleNodes = nodes.value.filter((n) => !isStageGroupNode(n))
-    if (!visibleNodes.length) return
-
-    const bounds = getFlowBounds(visibleNodes, getNodeDimensions)
-
-    const cx = (bounds.minX + bounds.maxX) / 2
-    const cy = (bounds.minY + bounds.maxY) / 2
-
-    if (typeof flowInstance.value.setCenter === 'function') {
-      flowInstance.value.setCenter(cx, cy, { zoom: 1.0, duration: 280 })
-    }
+    detailPanelRef.value?.resetDragOffset?.()
+    requestAnimationFrame(() => focusNode(detailPanelNodeId.value))
   })
 }
 
@@ -479,42 +445,64 @@ const handlePaneClick = () => {
   closeEdgeMenu()
 }
 
+const setFlowViewport = (viewport, duration = 240) => {
+  if (!flowInstance.value) return
+  flowInstance.value.setViewport(viewport, { duration })
+  currentViewport.value = viewport
+}
+
 const focusNode = (nodeId) => {
-  if (!nodeId) return
-  const node = nodes.value.find((n) => n.id === nodeId)
+  const node = nodes.value.find((n) => String(n.id) === String(nodeId))
   if (!node) return
-
   const dim = getNodeDimensions(node)
-  const cx = node.position.x + dim.width / 2
-  const cy = node.position.y + dim.height / 2
-
-  if (
-    flowInstance.value &&
-    typeof flowInstance.value.setCenter === 'function'
-  ) {
-    flowInstance.value.setCenter(cx, cy, { zoom: 0.8, duration: 300 })
+  const zoom = Math.max(1, currentViewport.value.zoom)
+  const readingWidth = detailPanelNodeId.value && !panelDocked.value
+    ? Math.max(dim.width * zoom + 32, props.width - floatingPanelSize.value.width - 32)
+    : canvasViewport.value.width
+  if (!panelDocked.value) {
+    screenPanelPosition.value = {
+      x: props.width - floatingPanelSize.value.width - 16,
+      y: Math.max(16, (props.height - floatingPanelSize.value.height) / 2)
+    }
   }
+  setFlowViewport({
+    x: readingWidth / 2 - (node.position.x + dim.width / 2) * zoom,
+    y: canvasViewport.value.height / 2 - (node.position.y + dim.height / 2) * zoom,
+    zoom
+  })
+}
+
+const restoreReadingView = () => {
+  const visibleNodes = nodes.value.filter((node) => !isStageGroupNode(node))
+  if (!visibleNodes.length) return
+  if (detailPanelNodeId.value) {
+    currentViewport.value = { ...currentViewport.value, zoom: 1 }
+    focusNode(detailPanelNodeId.value)
+    return
+  }
+  setFlowViewport(getFlowReadingViewport(getFlowBounds(visibleNodes, getNodeDimensions), canvasViewport.value))
 }
 
 const centerView = () => {
-  if (!nodes.value.length) return
-
-  // 计算所有节点的边界
   const visibleNodes = nodes.value.filter((node) => !isStageGroupNode(node))
   if (!visibleNodes.length) return
-
   const bounds = getFlowBounds(visibleNodes, getNodeDimensions)
-
-  const cx = (bounds.minX + bounds.maxX) / 2
-  const cy = (bounds.minY + bounds.maxY) / 2
-
-  if (
-    flowInstance.value &&
-    typeof flowInstance.value.setCenter === 'function'
-  ) {
-    flowInstance.value.setCenter(cx, cy, { zoom: 1.0, duration: 300 })
-  }
+  const zoom = getFlowFitZoom(bounds, canvasViewport.value)
+  setFlowViewport({
+    x: canvasViewport.value.width / 2 - (bounds.minX + bounds.maxX) / 2 * zoom,
+    y: canvasViewport.value.height / 2 - (bounds.minY + bounds.maxY) / 2 * zoom,
+    zoom
+  })
 }
+
+watch(
+  () => [props.width, props.height],
+  () => {
+    if (detailPanelNodeId.value) {
+      nextTick(() => requestAnimationFrame(() => focusNode(detailPanelNodeId.value)))
+    }
+  }
+)
 
 const handleEdgeMenuFocus = (nodeId) => {
   requestAnimationFrame(() => {
@@ -589,8 +577,8 @@ const getActionStage = (actionId = '') => {
       title: t('glossary.inputProcessing'),
       titleKey: 'glossary.inputProcessing',
       fill: 'transparent',
-      stroke: '#f97316',
-      color: '#9a3412'
+      stroke: 'var(--flow-stage-input-line)',
+      color: 'var(--flow-stage-input)'
     }
   }
   // 模型推理 (AA/DA/PA/PDA 前缀 + BA_00009混合目标关联)
@@ -600,8 +588,8 @@ const getActionStage = (actionId = '') => {
       title: t('glossary.modelInference'),
       titleKey: 'glossary.modelInference',
       fill: 'transparent',
-      stroke: '#3b82f6',
-      color: '#1d4ed8'
+      stroke: 'var(--flow-stage-model-line)',
+      color: 'var(--flow-stage-model)'
     }
   }
   // 告警输出 (事件上报/抓拍/特征上报)
@@ -611,8 +599,8 @@ const getActionStage = (actionId = '') => {
       title: t('glossary.alertOutput'),
       titleKey: 'glossary.alertOutput',
       fill: 'transparent',
-      stroke: '#22c55e',
-      color: '#15803d'
+      stroke: 'var(--flow-stage-output-line)',
+      color: 'var(--flow-stage-output)'
     }
   }
   // 规则判断 (默认 — 筛选/灵敏度/判断类)
@@ -621,8 +609,8 @@ const getActionStage = (actionId = '') => {
     title: t('glossary.ruleJudgment'),
     titleKey: 'glossary.ruleJudgment',
     fill: 'transparent',
-    stroke: '#f97316',
-    color: '#ea580c'
+    stroke: 'var(--flow-stage-rule-line)',
+    color: 'var(--flow-stage-rule)'
   }
 }
 
@@ -807,6 +795,7 @@ const addComponentFromDialog = (type, label, action) => {
 }
 
 const rebuildFlowGraph = () => {
+  hasFitViewOnce.value = false
   const items = Array.isArray(newFlowData.value) ? newFlowData.value : []
   columnCenterX.value = {}
   lockedCenterY.value = {}
@@ -987,13 +976,13 @@ watch(
   height: 100%;
   display: flex;
   flex-direction: column;
-  background-color: #f5f7fa;
+  background-color: var(--flow-canvas);
 }
 
 .page-header {
   padding: 12px 20px;
-  border-bottom: 1px solid #e4e7ed;
-  background: #ffffff;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-white);
 }
 
 .page-header h1 {
@@ -1004,20 +993,118 @@ watch(
 .page-header p {
   margin: 4px 0 0;
   font-size: 13px;
-  color: #909399;
+  color: var(--text-secondary);
 }
 
 .page-main {
+  display: flex;
+  gap: 12px;
   flex: none;
   min-height: 0;
   overflow: hidden;
   position: relative;
 }
 
+.flow-canvas {
+  position: relative;
+  flex: none;
+  height: 100%;
+  min-width: 0;
+}
+
+.flow-view-tools {
+  position: absolute;
+  left: 56px;
+  bottom: 14px;
+  display: flex;
+  gap: 4px;
+  max-width: calc(100% - 70px);
+  flex-wrap: wrap;
+  padding: 4px;
+  background: var(--bg-white);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  z-index: 5;
+}
+
+.flow-view-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 6px 8px;
+  min-height: 30px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.flow-view-button:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.flow-view-button:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 1px;
+}
+
+.flow-view-button svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+}
+
+.flow-zoom-value {
+  min-width: 38px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
 .page-main :deep(.vue-flow) {
   width: 100%;
   height: 100%;
   overflow: hidden;
+}
+
+.page-main :deep(.vue-flow__controls) {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.page-main :deep(.vue-flow__controls-button) {
+  color: var(--secondary-color);
+  background: var(--bg-white);
+  border-bottom-color: var(--border-light);
+}
+
+.page-main :deep(.vue-flow__controls-button:hover:not(:disabled)) {
+  color: var(--primary-color);
+  background: var(--bg-secondary);
+}
+
+.page-main :deep(.vue-flow__controls-button svg) {
+  fill: currentColor;
+}
+
+.page-main :deep(.vue-flow__controls-button:disabled) {
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+}
+
+.page-main :deep(.edge-menu) {
+  color: var(--text-primary);
+  background: var(--bg-white);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
 }
 
 
@@ -1056,37 +1143,29 @@ watch(
 
 .comp-btn:hover {
   border-color: var(--primary-color);
-  background: linear-gradient(
-    135deg,
-    var(--bg-primary) 0%,
-    var(--bg-white) 100%
-  );
+  background: var(--bg-secondary);
   color: var(--primary-color);
 }
 
 :deep(.el-dialog) {
   border-radius: var(--radius-sm);
   overflow: hidden;
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-md);
 }
 
 :deep(.el-dialog__header) {
   margin: 0;
   padding: 14px 16px;
-  background: linear-gradient(
-    135deg,
-    var(--primary-color) 0%,
-    var(--primary-light) 100%
-  );
+  background: var(--bg-white);
 }
 
 :deep(.el-dialog__title) {
-  color: #ffffff;
+  color: var(--text-primary);
   font-weight: 600;
 }
 
 :deep(.el-dialog__headerbtn .el-dialog__close) {
-  color: #ffffff;
+  color: var(--text-secondary);
 }
 
 :deep(.el-dialog__body) {
@@ -1115,25 +1194,25 @@ watch(
 
 /* 连接锚点 handle 基本样式（原 theme-default 提供） */
 .vue-flow__handle {
-  width: 8px;
-  height: 8px;
-  background: #b1b1b7;
-  border: 2px solid #fff;
+  width: 6px;
+  height: 6px;
+  background: var(--flow-edge, #b1b1b7);
+  border: 2px solid var(--flow-handle-ring, #fff);
   border-radius: 50%;
 }
 
 .vue-flow__handle:hover {
-  background: #3182ce;
+  background: var(--primary-color);
 }
 
 /* 连线基本样式 */
 .vue-flow__edge-path {
-  stroke: #b1b1b7;
-  stroke-width: 1.5;
+  stroke: var(--flow-edge, #b1b1b7);
+  stroke-width: 1.25;
 }
 
 .vue-flow__edge.selected .vue-flow__edge-path,
 .vue-flow__edge:hover .vue-flow__edge-path {
-  stroke: #3182ce;
+  stroke: var(--primary-color);
 }
 </style>

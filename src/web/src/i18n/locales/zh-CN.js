@@ -1,4 +1,10 @@
 export default {
+  appearance: {
+    switch: '切换主题',
+    light: '浅色',
+    dark: '深色',
+    system: '跟随系统'
+  },
   visualQuestions: {
     "decisionMode": "结果处理",
     "reviewOnly": "仅记录复核结果",
@@ -381,6 +387,13 @@ export default {
     }
   },
   glossary: {
+    flowActualSize: '原始比例',
+    flowFitOverview: '适应总览',
+    flowDockPanel: '停靠面板',
+    flowFloatPanel: '浮动面板',
+    sceneTasksSubtitle: '管理场景编排与通道关联',
+    imageAnalysisSubtitle: '选择场景任务并分析图片',
+    modelRepositorySubtitle: '管理算法模型与场景关联',
     equals: '等于',
     licenseStatus: '授权状态',
     authorizationFailed: '授权失败',
@@ -1114,8 +1127,13 @@ export default {
     itemPacketDiscard: '丢包率'
   },
   event: {
+    autoDismiss: '自动收起',
+    allChannelEvents: '来自全部通道 · 按场景任务筛选',
+    filterSceneTasks: '筛选场景任务',
     aiVideoAnalysis: 'AI视频分析',
     algorithmOverlay: '算法叠加',
+    previewWindows: '窗口 {windows}',
+    openChannelHint: '双击通道，在选中窗口中打开',
     alarmLocation: '告警位置',
     alarmPopup: '告警弹框',
     alarmRecordCsv: '告警记录.csv',

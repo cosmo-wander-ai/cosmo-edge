@@ -80,36 +80,38 @@ onMounted(() => {
 .topBar-wrap {
   flex-shrink: 0;
   position: relative;
-  background: #fff;
-  padding: 0 20px 20px 24px;
-  margin: 12px 12px 0px 12px;
-  // box-shadow: 3px 4px 15px 2px #cacaca;
-  border-radius: 2px;
+  background: var(--theme-surface, #fff);
+  padding: 14px 18px;
+  margin: 0;
+  border-radius: 6px;
   display: flex;
-  overflow: hidden;
-  transition: all 300ms;
+  align-items: center;
+  gap: 12px 24px;
+  flex-wrap: wrap;
 
   .form-search {
     flex: 1;
     display: flex;
     flex-wrap: wrap;
     align-content: flex-start;
+    gap: 12px 24px;
 
     .formDiv {
       display: flex;
       align-items: center;
-      margin: 20px 30px 0 0px;
+      margin: 0;
 
       .formTitle {
         display: inline-block;
         margin-right: 10px;
-        font-size: 14px;
+        font-size: 13px;
         text-align: right;
-        color: #303133;
+        color: var(--text-primary);
+        white-space: nowrap;
       }
 
       .el-form {
-        width: 160px;
+        width: 180px;
       }
 
       .el-formDate {
@@ -130,13 +132,13 @@ onMounted(() => {
   .btnBar {
     flex-shrink: 0;
     display: flex;
-    align-items: flex-end;
-    transition: all 300ms;
+    align-items: center;
+    margin-left: auto;
 
     .optionBtn {
       margin-left: 10px;
       line-height: 32px;
-      color: #1890ff;
+      color: var(--theme-accent, #1890ff);
       font-size: 14px;
       cursor: pointer;
 

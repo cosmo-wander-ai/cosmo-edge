@@ -1,6 +1,6 @@
 <template>
   <div>
-    <el-dialog :model-value="show" :title="t('event.eventDetails')" width="800px" center @close="close">
+    <el-dialog :model-value="show" :title="t('event.eventDetails')" width="800px" center @close="close" class="ui-admin-dialog ui-scroll-dialog event-detail-dialog">
       <div v-if="show" class="content-body">
         <div class="info-item">
           <span class="info-item-title">{{ t('event.alarmType') }}{{ localeColon }}</span>
@@ -52,6 +52,7 @@
             <span class="info-item-title">{{ t('event.baseImage') }}{{ localeColon }}</span>
             <el-image 
               class="capture-img3" 
+              v-if="workClothesRecognitionData.baseImageUrl"
               :src="workClothesRecognitionData.baseImageUrl" 
               fit="contain" 
               :preview-src-list="[workClothesRecognitionData.baseImageUrl]"
@@ -66,17 +67,18 @@
                 </div>
               </template>
             </el-image>
+            <span v-else class="image-missing">{{ t('common.noData') }}</span>
           </div>
 
           <div class="info-item">
             <span class="info-item-title">{{ t('event.workClothesLibrary') }}{{ localeColon }}</span>
-            <span class="info-item-content">{{ workClothesRecognitionData.groupName }}</span>
+            <span class="info-item-content">{{ workClothesRecognitionData.groupName || t('common.noData') }}</span>
           </div>
 
           <div class="info-item">
             <span class="info-item-title">{{ t('event.similarity') }}{{ localeColon }}</span>
             <span class="info-item-content">
-              {{ formatSimilarity(workClothesRecognitionData.matchDegree) }}
+              {{ formatSimilarity(workClothesRecognitionData.matchDegree) || t('common.noData') }}
             </span>
           </div>
         </template>
@@ -87,6 +89,7 @@
             <span class="info-item-title">{{ t('event.baseImage') }}{{ localeColon }}</span>
             <el-image 
               class="capture-img3" 
+              v-if="machineMaterialData.baseImageUrl"
               :src="machineMaterialData.baseImageUrl" 
               fit="contain" 
               :preview-src-list="[machineMaterialData.baseImageUrl]"
@@ -101,17 +104,18 @@
                 </div>
               </template>
             </el-image>
+            <span v-else class="image-missing">{{ t('common.noData') }}</span>
           </div>
 
           <div class="info-item">
             <span class="info-item-title">{{ t('event.machineMaterialLibrary') }}{{ localeColon }}</span>
-            <span class="info-item-content">{{ machineMaterialData.groupName }}</span>
+            <span class="info-item-content">{{ machineMaterialData.groupName || t('common.noData') }}</span>
           </div>
 
           <div class="info-item">
             <span class="info-item-title">{{ t('event.similarity') }}{{ localeColon }}</span>
             <span class="info-item-content">
-              {{ formatSimilarity(machineMaterialData.matchDegree) }}
+              {{ formatSimilarity(machineMaterialData.matchDegree) || t('common.noData') }}
             </span>
           </div>
         </template>
@@ -140,7 +144,7 @@
 
       <template #footer>
         <span class="dialog-footer">
-          <el-button type="primary" @click="close" class="mv-el-button">{{ t('action.close') }}</el-button>
+          <el-button type="primary" @click="close" class="mv-el-button ui-secondary-button">{{ t('action.close') }}</el-button>
         </span>
       </template>
     </el-dialog>
@@ -205,52 +209,88 @@ watch(() => props.visible, (val) => {
 </script>
 
 <style lang="scss" scoped>
-.mv-el-button {
-  width: 77px;
-  height: 32px;
-  padding: 0px;
+:deep(.el-dialog.event-detail-dialog) {
+  padding: 0;
+  max-width: calc(100vw - 32px);
+  color: var(--text-primary);
+  background: var(--bg-white);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
 }
-
+:deep(.event-detail-dialog > .el-dialog__header) {
+  margin-right: 0;
+  padding: 18px 56px 16px 24px;
+  border-bottom: 1px solid var(--border-light);
+  text-align: left;
+}
+:deep(.event-detail-dialog > .el-dialog__header .el-dialog__title) {
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+:deep(.event-detail-dialog > .el-dialog__body) { padding: 20px 24px; }
+:deep(.event-detail-dialog > .el-dialog__footer) {
+  padding: 12px 24px;
+  border-top: 1px solid var(--border-light);
+  text-align: right;
+}
+.mv-el-button { min-width: 80px; height: 32px; }
 .content-body {
-  display: flex;
-  flex-wrap: wrap;
-  padding: 0 20px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 24px;
+  padding: 0;
 }
-
-.info-item {
-  width: 50%;
-  display: flex;
-  margin-bottom: 20px;
-}
-
-.info-item-title {
-  display: inline-block;
-  align-self: baseline;
-  flex-shrink: 0;
-  min-width: 77px;
-  white-space: nowrap;
-  margin-right: 8px;
-}
-
-.info-item-content {
-  display: inline-block;
-  align-self: baseline;
-}
-
-.capture-img3 {
-  width: 176px;
-  height: 100px;
-  object-fit: cover;
-}
-
+.info-item,
 .info-item-big {
-  width: 100%;
   display: flex;
-  margin-bottom: 20px;
-
-  .capture-img3 {
-    width: 320px !important;
-    height: 180px !important;
-  }
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.info-item-big { grid-column: 1 / -1; }
+.info-item-title {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.info-item-content {
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.capture-img3,
+.capture-img4,
+.image-missing {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  height: clamp(160px, 24dvh, 220px);
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  background: var(--bg-primary);
+}
+.capture-img3 :deep(.el-image__inner),
+.capture-img4 :deep(.el-image__inner) { object-fit: contain; }
+.info-item-big > .capture-img3,
+.info-item-big > .capture-img4 { height: clamp(200px, 40dvh, 360px); }
+.image-slot,
+.image-missing { display: grid; place-items: center; color: var(--text-secondary); }
+.image-slot { width: 100%; height: 100%; overflow: hidden; }
+.image-slot :deep(.main-body) { max-width: 100%; }
+.image-missing { border-style: dashed; }
+@media (max-width: 640px) {
+  :deep(.event-detail-dialog > .el-dialog__header) { padding: 16px 48px 14px 16px; }
+  :deep(.event-detail-dialog > .el-dialog__body) { padding: 16px; }
+  :deep(.event-detail-dialog > .el-dialog__footer) { padding: 12px 16px; }
+  .content-body { grid-template-columns: minmax(0, 1fr); gap: 16px; }
 }
 </style>

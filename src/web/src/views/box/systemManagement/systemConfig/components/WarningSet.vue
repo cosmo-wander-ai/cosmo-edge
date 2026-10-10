@@ -1,8 +1,8 @@
 <template>
   <div>
-    <div class="warning-set">
+    <div class="warning-set" :style="{ '--settings-label-width': currentLocale === 'en-US' ? '120px' : '112px' }">
       <div class="warning-set-form">
-        <el-form :label-width="currentLocale === 'en-US' ? '200px' : '140px'" label-position="right" :model="formData">
+        <el-form label-width="var(--settings-label-width)" label-position="right" :model="formData">
           <!-- 告警图片设置 -->
           <div class="section-title">{{ t('systemManage.alarmImageSettings') }}</div>
           <el-form-item>
@@ -20,8 +20,8 @@
             <el-input-number v-model="formData.fullPictureQuality" :min="1" :max="99" size="small" style="width: 120px" :controls="false" @change="handleQualityChange" />
           </el-form-item>
 
-          <el-form-item :label="t('systemManage.panoramaOverlay')">
-            <el-checkbox :value="isAllChecked" @change="handleCheckAll">{{ t('systemManage.selectAll') }}</el-checkbox>
+          <el-form-item class="overlay-options" :label="t('systemManage.panoramaOverlay')">
+            <el-checkbox class="select-all" :value="isAllChecked" @change="handleCheckAll">{{ t('systemManage.selectAll') }}</el-checkbox>
             <div class="checkbox-group">
               <el-checkbox v-model="formData.alarmNameOverlay" :true-value="1" :false-value="0">{{ t('systemManage.overlayAlarmType') }}</el-checkbox>
               <el-checkbox v-model="formData.areaOverlay" :true-value="1" :false-value="0">{{ t('systemManage.overlayAreaDetection') }}</el-checkbox>
@@ -203,35 +203,99 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .warning-set {
-  display: flex;  
-  flex-wrap: wrap;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  box-sizing: border-box;
+  max-width: 800px;
+  padding: 20px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-white);
 
   .warning-set-form {
-    width: 900px;
+    width: 100%;
+    max-width: 100%;
   }
 
   .section-title {
     font-size: 14px;
-    color: #606266;
-    margin: 20px 0;
-    padding-left: 10px;
-    border-left: 4px solid #409eff;
+    color: var(--text-primary);
+    font-weight: 600;
+    margin: 16px 0 12px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-light);
+
+    &:first-child {
+      margin-top: 0;
+      padding-top: 0;
+      border: 0;
+    }
+  }
+
+  :deep(.el-form-item) { margin-bottom: 14px; }
+  :deep(.el-form-item__label) {
+    align-items: center;
+    height: auto;
+    min-height: 32px;
+    line-height: 18px;
+    color: var(--text-secondary);
+  }
+
+  .overlay-options :deep(.el-form-item__content) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px 24px;
+  }
+
+  .select-all {
+    flex-shrink: 0;
+    margin: 0;
   }
 
   .checkbox-group {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
+    gap: 8px 24px;
+    min-width: 0;
+
+    .el-checkbox {
+      margin: 0;
+    }
   }
 
   .time-input {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 10px;
   }
 
   .form-footer {
-    margin-top: 20px;
-    text-align: center;
+    display: flex;
+    justify-content: flex-start;
+    gap: 8px;
+    box-sizing: border-box;
+    width: 100%;
+    margin-top: 2px;
+    padding-top: 12px;
+    padding-left: var(--settings-label-width);
+    border-top: 1px solid var(--border-light);
+
+    .el-button + .el-button {
+      margin-left: 0;
+    }
+  }
+}
+@media (max-width: 640px) {
+  .warning-set {
+    padding: 16px;
+    :deep(.el-form-item) { flex-direction: column; }
+    :deep(.el-form-item__label) { width: 100% !important; justify-content: flex-start; padding: 0 0 5px; min-height: 0; }
+    :deep(.el-form-item__content) { margin-left: 0 !important; }
+    .form-footer { padding-left: 0; }
   }
 }
 </style>

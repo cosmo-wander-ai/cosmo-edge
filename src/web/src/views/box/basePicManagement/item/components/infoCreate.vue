@@ -1,16 +1,16 @@
 <template>
-  <el-dialog class="dialogtype" v-if="dialogVisible" :title="title" v-model="dialogVisible" @close="handleClose" width="560px" center>
+  <el-dialog class="dialogtype ui-admin-dialog" v-if="dialogVisible" :title="title" v-model="dialogVisible" @close="handleClose" width="560px" center>
     <div>
       <el-form class="form-wrap" :model="ruleForm" :rules="rules" ref="ruleFormRef" :label-width="currentLocale === 'en-US' ? '160px' : '125px'">
         <el-form-item prop="photo" :label="t('basePic.photo')">
           <Upload :fileList="fileList" :limit="5" @click="onProgress" @delete="onDelete" />
         </el-form-item>
       </el-form>
-      <span style="font-size: 12px; color: #1890FF; margin-left: 125px;">{{ t('basePic.photoSizeTip') }}</span>
+      <span style="font-size: 12px; color: var(--text-secondary); margin-left: 125px;">{{ t('basePic.photoSizeTip') }}</span>
 
       <div class="obsBtoon">
-        <el-button @click="submitForm('ruleForm')" type="primary" size="small">{{ t('action.save') }}</el-button>
         <el-button @click="handleClose" size="small">{{ t('action.cancel') }}</el-button>
+        <el-button @click="submitForm('ruleForm')" type="primary" size="small">{{ t('action.save') }}</el-button>
       </div>
     </div>
   </el-dialog>
@@ -262,7 +262,7 @@ async function submitForm() {
 .pro {
   padding-left: 110px;
   font-size: 14px;
-  color: #09aaff;
+  color: var(--theme-accent, #09aaff);
   span {
     cursor: pointer;
   }
@@ -273,7 +273,7 @@ async function submitForm() {
 .form-wrap {
   padding: 0 30px 0 10px;
   > p {
-    border-left: 3px solid #409eff;
+    border-left: 3px solid var(--primary-color);
     margin-left: 15px;
     padding-left: 10px;
     line-height: 14px;
@@ -293,24 +293,24 @@ async function submitForm() {
   }
 }
 .avatar-uploader .el-upload {
-  border: 1px dashed #d9d9d9;
+  border: 1px dashed var(--theme-border, #d9d9d9);
   border-radius: 6px;
   cursor: pointer;
   position: relative;
   overflow: hidden;
 }
 .avatar-uploader .el-upload:hover {
-  border-color: #409eff;
+  border-color: var(--primary-color);
 }
 .avatar-uploader-icon {
   font-size: 28px;
-  color: #3598ff;
+  color: var(--theme-accent, #3598ff);
   width: 100px;
   height: 140px;
   line-height: 140px;
   text-align: center;
-  border: 1px solid #f2f6fc;
-  background-color: #f2f6fc;
+  border: 1px solid var(--theme-border-light, #f2f6fc);
+  background-color: var(--theme-surface-soft, #f2f6fc);
   border-radius: 4px;
 }
 .avatar {
@@ -321,7 +321,7 @@ async function submitForm() {
   object-fit: cover;
 }
 .upload-tip {
-  color: #cccccc;
+  color: var(--theme-text-muted, #cccccc);
   font-size: 12px;
   line-height: 12px;
   .pic_tip {
@@ -351,11 +351,11 @@ async function submitForm() {
         &:first-child {
           font-size: 16px;
           font-weight: bold;
-          color: #303133;
+          color: var(--text-primary);
         }
         &:last-child {
           font-size: 14px;
-          color: #909399;
+          color: var(--text-secondary);
         }
       }
     }
@@ -365,7 +365,7 @@ async function submitForm() {
     .error-title {
       font-size: 16px;
       font-weight: bold;
-      color: #303133;
+      color: var(--text-primary);
     }
     .error-pic {
       margin-top: 30px;
@@ -386,7 +386,7 @@ async function submitForm() {
         > label {
           margin-top: 10px;
           font-size: 14px;
-          color: #303133;
+          color: var(--text-primary);
         }
       }
     }

@@ -39,7 +39,7 @@
 		</table>
 		<div v-show="canSelect" class="dwt-layer" :style="{ width: layer.width + 'px', height: layer.height + 'px', left: layer.left + 'px', top: layer.top + 'px' }"></div>
 		<!-- 时间调整弹窗 -->
-		<el-dialog :title="t('boxOther.timeRangeConfig')" v-model="timeConfig.show" width="400px" center append-to-body>
+		<el-dialog :title="t('boxOther.timeRangeConfig')" v-model="timeConfig.show" width="400px" center append-to-body class="ui-admin-dialog">
 			<el-form ref="timeConfigForm" :model="timeConfig.form" :rules="timeConfig.rules">
 				<el-form-item prop="value">
 					<el-time-picker
@@ -363,13 +363,13 @@ const clone = (data) => {
 const getBackground = (result) => {
 	let background = ''
 	if (result.left == 0 && result.right == 0) {
-		background = '#598fe6'
+		background = 'var(--theme-accent, #598fe6)'
 	} else if (result.left == 0) {
-		background = `linear-gradient(to right,#598fe6 0%, #598fe6 ${(1 - result.right / 30) * 100}%, #f5f5f5 ${(1 - result.right / 30) * 100}%, #f5f5f5 100%)`
+		background = `linear-gradient(to right,var(--theme-accent, #598fe6) 0%, var(--theme-accent, #598fe6) ${(1 - result.right / 30) * 100}%, var(--theme-surface-soft, #f5f5f5) ${(1 - result.right / 30) * 100}%, var(--theme-surface-soft, #f5f5f5) 100%)`
 	} else if (result.right == 0) {
-		background = `linear-gradient(to right,#f5f5f5 0%, #f5f5f5 ${(result.left / 30) * 100}%, #598fe6 ${(result.left / 30) * 100}%, #598fe6 100%)`
+		background = `linear-gradient(to right,var(--theme-surface-soft, #f5f5f5) 0%, var(--theme-surface-soft, #f5f5f5) ${(result.left / 30) * 100}%, var(--theme-accent, #598fe6) ${(result.left / 30) * 100}%, var(--theme-accent, #598fe6) 100%)`
 	} else {
-		background = `linear-gradient(to right,#f5f5f5 0%, #f5f5f5 ${(result.left / 30) * 100}%,#598fe6 ${(result.left / 30) * 100}%, #598fe6 ${(1 - result.right / 30) * 100}%, #f5f5f5 ${(1 - result.right / 30) * 100}%,#f5f5f5 100%)`
+		background = `linear-gradient(to right,var(--theme-surface-soft, #f5f5f5) 0%, var(--theme-surface-soft, #f5f5f5) ${(result.left / 30) * 100}%,var(--theme-accent, #598fe6) ${(result.left / 30) * 100}%, var(--theme-accent, #598fe6) ${(1 - result.right / 30) * 100}%, var(--theme-surface-soft, #f5f5f5) ${(1 - result.right / 30) * 100}%,var(--theme-surface-soft, #f5f5f5) 100%)`
 	}
 	return background
 }
@@ -520,7 +520,7 @@ onBeforeUnmount(() => {
 		box-sizing: border-box;
 		font-size: 12px;
 		user-select: none;
-		border: 1px solid #dee4f5;
+		border: 1px solid var(--theme-border, #dee4f5);
 		text-align: center;
 		min-width: 6px;
 		line-height: 1.8em;
@@ -530,7 +530,7 @@ onBeforeUnmount(() => {
 	tbody td {
 		padding: 0;
 		&.unselect {
-			background: #f5f5f5;
+			background: var(--bg-primary);
 		}
 	}
 
@@ -564,7 +564,7 @@ onBeforeUnmount(() => {
 
 				.dwt-select-label {
 					width: 110px;
-					color: #999;
+					color: var(--theme-text-muted, #999);
 				}
 
 				.dwt-sleect-info {
@@ -575,7 +575,7 @@ onBeforeUnmount(() => {
 					flex-wrap: wrap;
 
 					& > span:hover {
-						color: #00a6ff;
+						color: var(--theme-accent, #00a6ff);
 						cursor: pointer;
 					}
 				}
@@ -591,7 +591,7 @@ onBeforeUnmount(() => {
 	z-index: 1;
 	width: 0;
 	height: 0;
-	background: #598fe6;
+	background: var(--theme-accent, #598fe6);
 	opacity: 0.6;
 	pointer-events: none;
 	transition: width 0.12s ease, height 0.12s ease, top 0.12s ease, left 0.12s ease;

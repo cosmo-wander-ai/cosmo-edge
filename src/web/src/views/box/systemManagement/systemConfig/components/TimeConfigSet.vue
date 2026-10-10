@@ -1,8 +1,8 @@
 <template>
-  <div class="time-config">
+  <div class="time-config" :style="{ '--settings-label-width': currentLocale === 'en-US' ? '120px' : '112px' }">
     <div class="time-config-body">
       <div class="time-config-form">
-        <el-form ref="formRef" :model="formData" :label-width="currentLocale === 'en-US' ? '200px' : '150px'">
+        <el-form ref="formRef" :model="formData" label-width="var(--settings-label-width)">
           <el-form-item :label="t('systemManage.timezone')">
             <el-select v-model="formData.timeZoneId" class="form-content" :placeholder="t('systemManage.selectTimezone')" filterable size="small">
               <el-option v-for="zone in zoneInfoList" :key="zone.id" :label="resolveTimezoneName(zone)" :value="zone.id"></el-option>
@@ -28,7 +28,7 @@
           { required: true, message: t('systemManage.enterServerAddress'), trigger: 'blur' }
           ]">
               <el-input v-model="formData.ntp.server" class="form-content" size="small" :placeholder="t('systemManage.enterServerAddress')"></el-input>
-              <el-button type="primary" @click="handleTest(2)" size="small">{{ t('action.test') }}</el-button>
+              <el-button type="primary" @click="handleTest(2)" size="small" class="ui-secondary-button">{{ t('action.test') }}</el-button>
             </el-form-item>
 
             <el-form-item prop="ntp.port" :label="t('systemManage.ntpPort')" :rules="[
@@ -61,14 +61,14 @@
           </template>
         </el-form>
       </div>
-      <div>
+      <div class="time-config-footer">
         <el-button type="primary" @click="handleSave" size="small">{{ t('action.save') }}</el-button>
       </div>
     </div>
 
-    <el-dialog :title="t('common.notice')" v-model="testDialogVisible" :show-close="false" :close-on-click-modal="false" :close-on-press-escape="false" width="30%" center>
+    <el-dialog :title="t('common.notice')" v-model="testDialogVisible" :show-close="false" :close-on-click-modal="false" :close-on-press-escape="false" width="30%" center class="ui-admin-dialog">
       <div style="text-align:center">
-        <el-icon class="is-loading" style="font-size:30px;color:#409EFF;margin:10px 0;display:block;width:100%">
+        <el-icon class="is-loading" style="font-size:30px;color:var(--theme-accent, #409EFF);margin:10px 0;display:block;width:100%">
           <Loading />
         </el-icon>
         <p>{{ t('systemManage.testingInProgress') }}</p>
@@ -274,14 +274,20 @@ onBeforeUnmount(() => {
 
 <style lang="scss" scoped>
 .time-config {
+  box-sizing: border-box;
+  max-width: 720px;
   padding: 20px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-white);
 
   .divider {
     font-size: 14px;
-    color: #606266;
-    margin: 20px 0;
-    padding-left: 10px;
-    border-left: 4px solid #409eff;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 16px 0 12px;
+    padding: 14px 0 0;
+    border-top: 1px solid var(--border-light);
   }
 
   .interval-item {
@@ -291,7 +297,7 @@ onBeforeUnmount(() => {
 
       .el-icon-question {
         margin-left: 10px;
-        color: #909399;
+        color: var(--text-secondary);
         cursor: pointer;
       }
     }
@@ -300,15 +306,66 @@ onBeforeUnmount(() => {
 
 .time-config-body {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  min-width: 0;
 
   .time-config-form {
-    width: 700px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  :deep(.el-form-item) { margin-bottom: 14px; }
+
+  :deep(.el-form-item__label) {
+    align-items: center;
+    height: auto;
+    min-height: 32px;
+    line-height: 18px;
+    color: var(--text-secondary);
+  }
+
+  :deep(.el-form-item__content) {
+    gap: 8px;
+    min-height: 32px;
+  }
+
+  :deep(.el-input.is-disabled .el-input__inner) {
+    color: var(--text-primary);
+    -webkit-text-fill-color: var(--text-primary);
+  }
+
+  :deep(.el-checkbox) { height: auto; min-height: 32px; margin-right: 0; }
+  :deep(.el-checkbox__label) { white-space: normal; line-height: 18px; }
+
+  :deep(.el-radio-group) {
+    display: flex;
+    flex-wrap: wrap;
   }
 }
 
 .form-content {
+  flex: 0 1 400px;
   width: 400px;
-  margin-right: 20px;
+  max-width: 100%;
+  min-width: 0;
+  margin-right: 0;
+}
+
+.time-config-footer {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 2px;
+  padding-top: 12px;
+  padding-left: var(--settings-label-width);
+  border-top: 1px solid var(--border-light);
+}
+@media (max-width: 640px) {
+  .time-config { padding: 16px; }
+  .time-config-body {
+    :deep(.el-form-item) { flex-direction: column; }
+    :deep(.el-form-item__label) { width: 100% !important; justify-content: flex-start; padding: 0 0 5px; min-height: 0; }
+    :deep(.el-form-item__content) { margin-left: 0 !important; }
+  }
+  .time-config-footer { padding-left: 0; }
 }
 </style>

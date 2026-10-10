@@ -2,6 +2,7 @@
   <div
     ref="panelRef"
     class="node-detail-panel"
+    :class="{ 'is-docked': docked }"
     :style="panelStyle"
     @click.stop
     @mousedown.stop
@@ -11,81 +12,20 @@
     <!-- Header：可拖拽区域 -->
     <div class="panel-header" @mousedown="startDrag">
       <div class="panel-header-left">
-        <div class="panel-icon-wrapper" :class="iconColorClass">
-          <!-- 视频解码 -->
-          <svg v-if="iconKey === 'video'" class="panel-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <rect x="3" y="4" width="18" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/>
-            <polygon points="10,7.5 10,13.5 15,10.5" fill="currentColor"/>
-            <line x1="8" y1="20" x2="16" y2="20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            <line x1="12" y1="17" x2="12" y2="20" stroke="currentColor" stroke-width="1.5"/>
-          </svg>
-          <!-- 目标检测 -->
-          <svg v-else-if="iconKey === 'target'" class="panel-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
-            <circle cx="12" cy="12" r="2.5" fill="currentColor"/>
-            <line x1="12" y1="2" x2="12" y2="6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            <line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            <line x1="2" y1="12" x2="6" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            <line x1="18" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          </svg>
-          <!-- 追踪 -->
-          <svg v-else-if="iconKey === 'tracking'" class="panel-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="5" cy="18" r="2" fill="currentColor"/>
-            <circle cx="19" cy="6" r="2" fill="currentColor"/>
-            <path d="M7 17C8 13 10 10 13 9c2-.7 4-.5 5-1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            <polyline points="16,3 19,6 16,9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <!-- 大模型/AI -->
-          <svg v-else-if="iconKey === 'ai'" class="panel-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="5" r="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
-            <circle cx="5" cy="19" r="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
-            <circle cx="19" cy="19" r="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
-            <line x1="12" y1="7.5" x2="6.5" y2="16.5" stroke="currentColor" stroke-width="1.5"/>
-            <line x1="12" y1="7.5" x2="17.5" y2="16.5" stroke="currentColor" stroke-width="1.5"/>
-            <line x1="7.5" y1="19" x2="16.5" y2="19" stroke="currentColor" stroke-width="1.5"/>
-          </svg>
-          <!-- 类别过滤/目标判断 -->
-          <svg v-else-if="iconKey === 'classify'" class="panel-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <rect x="3.5" y="8" width="6.5" height="6.5" rx="1" transform="rotate(45 6.75 11.25)" fill="currentColor"/>
-            <rect x="14" y="8" width="6.5" height="6.5" rx="1" transform="rotate(45 17.25 11.25)" fill="currentColor"/>
-          </svg>
-          <!-- 目标分类 — 网格 -->
-          <svg v-else-if="iconKey === 'grid'" class="panel-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <rect x="3" y="3" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
-            <rect x="14" y="3" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
-            <rect x="3" y="14" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
-            <rect x="14" y="14" width="7" height="7" rx="1.5" fill="currentColor" stroke="currentColor" stroke-width="1.5"/>
-          </svg>
-          <!-- 类别过滤 — 漏斗 -->
-          <svg v-else-if="iconKey === 'filter'" class="panel-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <polygon points="2,4 22,4 14,14 14,21 10,21 10,14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
-          </svg>
-          <!-- 目标判断 — 盾牌勾选 -->
-          <svg v-else-if="iconKey === 'judge'" class="panel-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2L3 7v5c0 5.25 3.83 10.17 9 11.38C17.17 22.17 21 17.25 21 12V7l-9-5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
-            <polyline points="9,12 11,14 15,10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <!-- 计时 -->
-          <svg v-else-if="iconKey === 'timer'" class="panel-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="1.5"/>
-            <polyline points="12,9 12,13 15,15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            <line x1="12" y1="2" x2="12" y2="5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            <line x1="9" y1="2" x2="15" y2="2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          </svg>
-          <!-- 事件上报 -->
-          <svg v-else-if="iconKey === 'send'" class="panel-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M22 2L11 13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M22 2L15 22L11 13L2 9L22 2Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
-          </svg>
-          <!-- 默认-齿轮 -->
-          <svg v-else class="panel-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/>
-            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" fill="none" stroke="currentColor" stroke-width="1.5"/>
-          </svg>
+        <div class="panel-icon-wrapper">
+          <FlowNodeIcon :kind="iconKey" />
         </div>
-        <span class="panel-title">{{ actionDetail ? resolveResourceActionName(actionDetail) : t('glossary.nodeConfig') }}</span>
+        <span class="panel-title" :title="actionDetail ? resolveResourceActionName(actionDetail) : t('glossary.nodeConfig')">{{ actionDetail ? resolveResourceActionName(actionDetail) : t('glossary.nodeConfig') }}</span>
       </div>
-      <button class="panel-close" @click.stop="$emit('close')">✕</button>
+      <div class="panel-header-actions">
+        <button v-if="showDockControl" type="button" class="panel-mode" :title="t(docked ? 'glossary.flowFloatPanel' : 'glossary.flowDockPanel')" :aria-label="t(docked ? 'glossary.flowFloatPanel' : 'glossary.flowDockPanel')" @click.stop="$emit('toggle-dock')">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path v-if="docked" d="M9 3H3v18h18v-6M13 3h8v8M21 3 11 13" />
+            <path v-else d="M3 4h18v16H3ZM14 4v16" />
+          </svg>
+        </button>
+        <button type="button" class="panel-close" :title="t('action.close')" :aria-label="t('action.close')" @click.stop="$emit('close')">✕</button>
+      </div>
     </div>
 
     <!-- Body：可滚动区域 -->
@@ -113,6 +53,7 @@
 import { ref, computed, onBeforeUnmount } from 'vue'
 import DynamicForm from './DynamicForm.vue'
 import { getIconInfo } from './iconMapping.js'
+import FlowNodeIcon from './FlowNodeIcon.vue'
 import { t } from '@/i18n'
 import { resolveResourceActionName, resolveResourceActionRemark } from '@/utils/i18nResource'
 import { getDetailPanelSize } from './layoutGeometry.js'
@@ -121,10 +62,15 @@ const props = defineProps({
   nodeId: { type: String, required: true },
   nodeData: { type: Object, default: () => ({}) },
   atomicList: { type: Array, default: () => [] },
+  viewport: { type: Object, default: () => ({}) },
+  docked: { type: Boolean, default: false },
+  dockSize: { type: Object, default: () => ({ width: 460, height: 500 }) },
+  floatingSize: { type: Object, default: null },
+  showDockControl: { type: Boolean, default: false },
   position: { type: Object, default: () => ({ x: 0, y: 0 }) }
 })
 
-const emit = defineEmits(['close', 'config-change'])
+const emit = defineEmits(['close', 'config-change', 'toggle-dock'])
 
 // ---- 从 nodeData 提取子数据 ----
 const actionDetail = computed(() => props.nodeData?.actionDetail)
@@ -133,7 +79,6 @@ const templateVersion = computed(() => props.nodeData?.templateVersion || 0)
 
 // ---- 图标 ----
 const iconKey = computed(() => getIconInfo(actionDetail.value?.actionId).key)
-const iconColorClass = computed(() => getIconInfo(actionDetail.value?.actionId).color)
 
 // ---- DynamicForm ref ----
 const dynamicFormRef = ref(null)
@@ -154,19 +99,37 @@ const panelRef = ref(null)
 const dragOffset = ref({ x: 0, y: 0 })
 const isDragging = ref(false)
 
-const panelStyle = computed(() => ({
-  left: `${props.position.x + dragOffset.value.x}px`,
-  top: `${props.position.y + dragOffset.value.y}px`,
-  width: `${getDetailPanelSize(actionDetail.value?.actionId).width}px`,
-  maxHeight: `${getDetailPanelSize(actionDetail.value?.actionId).height}px`
+const floatingPanelSize = computed(() => props.floatingSize || getDetailPanelSize(actionDetail.value?.actionId, props.viewport))
+
+const panelStyle = computed(() => props.docked ? {
+  width: `${props.dockSize.width}px`,
+  height: `${props.dockSize.height}px`,
+  maxHeight: `${props.dockSize.height}px`
+} : ({
+  '--panel-width': `${floatingPanelSize.value.width}px`,
+  '--panel-height': `${floatingPanelSize.value.height}px`,
+  '--panel-min-left': 'min(64px, max(8px, calc(100% - var(--panel-width) - 8px)))',
+  // The panel uses screen pixels while its anchor follows the zoomable canvas.
+  // Keep its controls reachable after zooming, resizing or dragging near an edge.
+  left: `clamp(var(--panel-min-left), ${props.position.x + dragOffset.value.x}px, max(8px, calc(100% - var(--panel-width) - 8px)))`,
+  top: `clamp(8px, ${props.position.y + dragOffset.value.y}px, max(8px, calc(100% - var(--panel-height) - 8px)))`,
+  width: 'min(var(--panel-width), calc(100% - 16px))',
+  maxHeight: 'min(var(--panel-height), calc(100% - 16px))'
 }))
 
 let dragStartMouse = { x: 0, y: 0 }
 let dragStartOffset = { x: 0, y: 0 }
 
 const startDrag = (e) => {
-  // 忽略关闭按钮上的拖拽
-  if (e.target.closest('.panel-close')) return
+  // Docking is the default; floating keeps the existing movable header.
+  if (props.docked || e.target.closest('button')) return
+  // Resume from the clamped position, not an invisible offset outside the canvas.
+  if (panelRef.value) {
+    dragOffset.value = {
+      x: panelRef.value.offsetLeft - props.position.x,
+      y: panelRef.value.offsetTop - props.position.y
+    }
+  }
   isDragging.value = true
   dragStartMouse = { x: e.clientX, y: e.clientY }
   dragStartOffset = { ...dragOffset.value }
@@ -204,14 +167,15 @@ onBeforeUnmount(() => {
 <style scoped>
 .node-detail-panel {
   position: absolute;
+  box-sizing: border-box;
   width: 360px;
   max-height: 350px;
   display: flex;
   flex-direction: column;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  background: var(--bg-white);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--flow-panel-shadow);
   z-index: 100;
   animation: panel-in 0.2s ease-out;
   overflow: visible;
@@ -222,13 +186,28 @@ onBeforeUnmount(() => {
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+.node-detail-panel.is-docked {
+  position: relative;
+  flex: none;
+  border-radius: 0;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  box-shadow: none;
+  animation: none;
+}
+
+.is-docked .panel-header {
+  cursor: default;
+}
+
 /* ---- Header ---- */
 .panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--bg-secondary);
   cursor: grab;
   user-select: none;
   flex-shrink: 0;
@@ -246,41 +225,38 @@ onBeforeUnmount(() => {
 }
 
 .panel-icon-wrapper {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-}
-
-.panel-icon-wrapper.icon-blue   { background: #eff6ff; color: #3b82f6; }
-.panel-icon-wrapper.icon-purple { background: #ebf8ff; color: #2b6cb0; }
-.panel-icon-wrapper.icon-orange { background: #fff7ed; color: #ea580c; }
-.panel-icon-wrapper.icon-green  { background: #f0fdf4; color: #16a34a; }
-.panel-icon-wrapper.icon-gray   { background: #f3f4f6; color: #6b7280; }
-
-.panel-icon-svg {
-  width: 20px;
-  height: 20px;
+  color: var(--flow-node-text);
 }
 
 .panel-title {
   font-size: 15px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+.panel-header-actions {
+  display: flex;
+  gap: 4px;
+  padding-left: 8px;
+  flex-shrink: 0;
+}
+
+.panel-mode,
 .panel-close {
   width: 28px;
   height: 28px;
   border: none;
   background: transparent;
-  color: #9ca3af;
+  color: var(--text-secondary);
   font-size: 14px;
   border-radius: 6px;
   cursor: pointer;
@@ -291,17 +267,101 @@ onBeforeUnmount(() => {
   transition: all 0.15s;
 }
 
+.panel-mode svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.panel-mode:focus-visible,
+.panel-close:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 1px;
+}
+
+.panel-mode:hover,
 .panel-close:hover {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--bg-secondary);
+  color: var(--flow-node-text);
 }
 
 /* ---- Body ---- */
 .panel-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: visible;
   padding: 10px 16px 14px;
+  container: flow-parameters / inline-size;
+}
+
+/* The task picker is a third-party two-column tree. Size it to the panel, not
+   its package's fixed 560px minimum, and use the same theme as the form. */
+.node-detail-panel .panel-body :deep(.tree-transfer-vue3) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px minmax(0, 1fr);
+  width: 100%;
+  min-width: 0;
+  min-height: 240px;
+  background: transparent;
+}
+
+.node-detail-panel .panel-body :deep(.tree-transfer-vue3 .transfer-left),
+.node-detail-panel .panel-body :deep(.tree-transfer-vue3 .transfer-right) {
+  width: auto;
+  min-width: 0;
+  border-color: var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-white);
+  overflow: hidden;
+}
+
+.node-detail-panel .panel-body :deep(.tree-transfer-vue3 .transfer-title) {
+  min-height: 40px;
+  box-sizing: border-box;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.node-detail-panel .panel-body :deep(.tree-transfer-vue3 .transfer-center) {
+  min-width: 0;
+}
+
+.node-detail-panel .panel-body :deep(.tree-transfer-vue3 .transfer-main) {
+  min-width: 0;
+  max-height: 260px;
+  overflow: auto;
+}
+
+@container flow-parameters (max-width: 540px) {
+  .node-detail-panel .panel-body :deep(.tree-transfer-vue3) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .node-detail-panel .panel-body :deep(.tree-transfer-vue3 .transfer-left),
+  .node-detail-panel .panel-body :deep(.tree-transfer-vue3 .transfer-right) {
+    min-height: 180px;
+  }
+
+  .node-detail-panel .panel-body :deep(.tree-transfer-vue3 .transfer-center) {
+    flex-direction: row;
+    gap: 12px;
+    min-height: 32px;
+  }
+
+  .node-detail-panel .panel-body :deep(.tree-transfer-vue3 .transfer-center .el-button + .el-button) {
+    margin: 0;
+  }
+
+  .node-detail-panel .panel-body :deep(.tree-transfer-vue3 .transfer-center .el-icon) {
+    transform: rotate(90deg);
+  }
 }
 
 /* 滚动条美化 */
@@ -314,19 +374,19 @@ onBeforeUnmount(() => {
 }
 
 .panel-body::-webkit-scrollbar-thumb {
-  background: #d1d5db;
+  background: var(--flow-scrollbar);
   border-radius: 3px;
 }
 
 .panel-body::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
+  background: var(--text-secondary);
 }
 
 /* ---- 描述提示 ---- */
 .panel-hint {
-  font-size: 12px;
-  color: #9ca3af;
-  line-height: 1.4;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
   margin-bottom: 10px;
   padding: 0 2px;
 }

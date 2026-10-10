@@ -1,4 +1,10 @@
 export default {
+  appearance: {
+    switch: 'Appearance',
+    light: 'Light',
+    dark: 'Dark',
+    system: 'System'
+  },
   visualQuestions: {
     "decisionMode": "Result handling",
     "reviewOnly": "Record reviews only",
@@ -381,6 +387,13 @@ export default {
     }
   },
   glossary: {
+    flowActualSize: 'Actual size',
+    flowFitOverview: 'Fit overview',
+    flowDockPanel: 'Dock panel',
+    flowFloatPanel: 'Float panel',
+    sceneTasksSubtitle: 'Manage scene workflows and linked channels',
+    imageAnalysisSubtitle: 'Select a scene task and analyze images',
+    modelRepositorySubtitle: 'Manage algorithm models and their linked scene tasks',
     equals: 'Equals',
     licenseStatus: 'License Status',
     authorizationFailed: 'Authorization failed',
@@ -1114,8 +1127,13 @@ export default {
     itemPacketDiscard: 'Packet Loss'
   },
   event: {
+    autoDismiss: 'Closes automatically',
+    allChannelEvents: 'All channels · Filter by scene task',
+    filterSceneTasks: 'Filter scene tasks',
     aiVideoAnalysis: 'AI Video Analysis',
     algorithmOverlay: 'Algorithm Overlay',
+    previewWindows: 'Window {windows}',
+    openChannelHint: 'Double-click a channel to open it in the selected window',
     alarmLocation: 'Alarm Location',
     alarmPopup: 'Alarm Popup',
     alarmRecordCsv: 'alarm-record.csv',

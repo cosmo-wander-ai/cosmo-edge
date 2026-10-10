@@ -1,6 +1,6 @@
 <template>
   <div>
-    <el-dialog v-model="show" :title="t('glossary.cameraDetails')" width="600px" center @close="emit('update:visible', false)">
+    <el-dialog v-model="show" :title="t('glossary.cameraDetails')" width="600px" center @close="emit('update:visible', false)" class="ui-admin-dialog">
       <el-form :label-width="currentLocale === 'en-US' ? '190px' : '140px'" :model="props.detailChannel">
         <el-form-item :label="t('field.channelNo') + localeColon">
           <el-input v-model="props.detailChannel.videoChannelId" size="small" disabled />
@@ -32,13 +32,13 @@
         <el-form-item :label="t('glossary.algorithmService') + localeColon">
           <span v-for="(item, idx) in props.detailChannel.algorithms" :key="idx" style="margin-right:8px;">
             {{ resolveResourceAlgorithmName(item) }}
-            <span v-if="item.status === 1" style="color: #00b300;">{{ t('status.running') }}</span>
-            <span v-else style="color: #999;">{{item.statusText}}</span>
+            <span v-if="item.status === 1" style="color: var(--theme-success, #00b300);">{{ t('status.running') }}</span>
+            <span v-else style="color: var(--theme-text-muted, #999);">{{item.statusText}}</span>
             <span v-if="item.workday" style="margin-left:4px;">{{item.workday}}</span>
           </span>
         </el-form-item>
         <el-form-item :label="t('field.status') + localeColon">
-          <span :style="{color: props.detailChannel.channelStatus === 1 ? '#00b300' : '#999'}">
+          <span :style="{color: props.detailChannel.channelStatus === 1 ? 'var(--theme-success, #00b300)' : 'var(--theme-text-muted, #999)'}">
             {{ props.detailChannel.channelStatus === 1 ? t('status.online') : t('status.offline') }}
           </span>
         </el-form-item>

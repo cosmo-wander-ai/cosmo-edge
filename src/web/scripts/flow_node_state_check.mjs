@@ -99,7 +99,13 @@ for (const linkage of [false, true]) {
         const graph = { nodes: [], edges: [] }
         graphs.push(graph)
         provide(flowKey, graph)
-        return { onPaneReady() {} }
+        return { onPaneReady(callback) {
+          Promise.resolve().then(() => callback({
+            setViewport(viewport) { graph.viewport = { ...viewport } },
+            getViewport() { return graph.viewport || { x: 0, y: 0, zoom: 1 } },
+            setCenter() {}, fitView() {}
+          }))
+        } }
       },
       Handle: empty.default, Position: { Left: 'left', Right: 'right' },
       BaseEdge: empty.default,
@@ -193,6 +199,27 @@ for (const linkage of [false, true]) {
     openNode('node-1')
     await editor.settle()
     assert.equal(input().props.modelValue, 'saved', 'real node opens its own panel')
+    {
+      assert.equal(graphs[0].viewport.zoom, 1, 'both editors initialize at natural reading scale')
+      graphRoot().props.onMove({ event: null, flowTransform: { x: 20, y: 30, zoom: 0.8 } })
+      await editor.settle()
+      assert.equal(editor.all(node => hasClass(node, 'flow-zoom-value'), graphRoot().parent)[0].text, '80%', 'Vue Flow move payload updates the visible zoom without NaN')
+      click(editor.all(node => hasClass(node, 'flow-view-button'), graphRoot().parent)[0])
+      await editor.settle()
+      assert.equal(graphs[0].viewport.zoom, 1, 'the reading control restores actual-size text')
+      const panel = () => editor.all(node => hasClass(node, 'node-detail-panel'))[0]
+      assert.ok(hasClass(panel(), 'is-docked'), 'configuration starts in the reserved right dock')
+      input().props.activate('preserved-between-panel-modes')
+      click(editor.all(node => hasClass(node, 'panel-mode'), panel())[0])
+      await editor.settle()
+      assert.ok(!hasClass(panel(), 'is-docked'), 'floating mode remains available for movable configuration')
+      assert.equal(input().props.modelValue, 'preserved-between-panel-modes', 'undocking preserves pending form input')
+      click(editor.all(node => hasClass(node, 'panel-mode'), panel())[0])
+      await editor.settle()
+      assert.ok(hasClass(panel(), 'is-docked'))
+      assert.equal(input().props.modelValue, 'preserved-between-panel-modes', 'docking preserves pending form input')
+      assert.equal(graphs[0].viewport.zoom, 1, 'panel presentation changes do not shrink node text')
+    }
     input().props.activate('edited-before-debounce')
     let saved = savedItems()
     assert.equal(saved[0].configObject.params[0].value, 'edited-before-debounce', 'immediate save flushes the panel')
@@ -346,7 +373,13 @@ for (const linkage of [false, true]) {
     await editor.settle()
     for (const index of [0, 1]) openNode('node-1', index)
     await editor.settle()
-    const conditionRows = (index = 0) => editor.all(node => hasClass(node, 'condition-row'), graphRoot(index).parent)
+    const canvasRoot = (index = 0) => {
+      let root = graphRoot(index)
+      while (root && !hasClass(root, 'page-main')) root = root.parent
+      assert.ok(root, 'each graph and its docked/floating panel share a canvas container')
+      return root
+    }
+    const conditionRows = (index = 0) => editor.all(node => hasClass(node, 'condition-row'), canvasRoot(index))
     const leftSelect = (row = 0, index = 0) => editor.all(node => node.type === 'tree-select-fixture', conditionRows(index)[row])[0]
     const rightSelect = (row = 0, index = 0) => editor.all(node => node.type === 'el-select' && hasClass(node, 'condition-select'), conditionRows(index)[row])[0]
     const operationSelect = (row = 0, index = 0) => editor.all(node => node.type === 'el-select' && hasClass(node, 'operation-select'), conditionRows(index)[row])[0]
@@ -409,13 +442,13 @@ for (const linkage of [false, true]) {
     assert.equal(conditionRows().length, 2, 'adding to a leaf creates a condition group')
     assert.equal(conditionValue().type, 2, 'new groups keep the AND operation code')
     assert.deepEqual(conditionValue().list[0], { ...singleCondition, level: 2 }, 'grouping preserves the existing condition identity, operation and values')
-    const logicalButton = () => editor.all(node => hasClass(node, 'condition-btn'), graphRoot().parent)[0]
+    const logicalButton = () => editor.all(node => hasClass(node, 'condition-btn'), canvasRoot())[0]
     for (const expected of [3, 1, 2]) {
       click(logicalButton())
       await editor.settle()
       assert.equal(conditionValue().type, expected, 'logical operations retain their numeric codes and wrap order')
     }
-    click(editor.all(node => hasClass(node, 'add-icon'), graphRoot().parent)[0])
+    click(editor.all(node => hasClass(node, 'add-icon'), canvasRoot())[0])
     await editor.settle()
     assert.equal(conditionRows().length, 3, 'adding to a group appends a condition')
     const groupedItems = savedItems()
@@ -439,7 +472,7 @@ for (const linkage of [false, true]) {
     await conditionTool(1, 1)
     assert.equal(conditionRows().length, 1, 'a group with one remaining child merges back into a leaf')
     assert.deepEqual(conditionValue(), singleCondition, 'merging restores the original condition JSON')
-    click(editor.all(node => hasClass(node, 'panel-close'), graphRoot().parent)[0])
+    click(editor.all(node => hasClass(node, 'panel-close'), canvasRoot())[0])
     await editor.settle()
     openNode('node-1')
     await editor.settle()

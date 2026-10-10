@@ -1,0 +1,137 @@
+.event-console {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  background: var(--bg-primary);
+
+  .event-heading {
+    flex: none;
+    padding-bottom: 2px;
+
+    h1 {
+      margin: 0;
+      color: var(--text-primary);
+      font-size: 24px;
+      font-weight: 650;
+      line-height: 1.35;
+    }
+
+    p {
+      margin: 5px 0 0;
+      color: var(--text-secondary);
+      font-size: 13px;
+    }
+  }
+
+  > :deep(.topBar-wrap) {
+    flex: none;
+    margin: 0 !important;
+    padding: 12px 16px 0;
+    border-radius: 6px;
+    box-shadow: none;
+    gap: 8px 18px;
+
+    &.expanded {
+      height: auto !important;
+      padding-top: 12px;
+      padding-bottom: 12px !important;
+      overflow: visible;
+    }
+
+    .form-search {
+      min-width: 0;
+      gap: 10px 20px;
+      align-items: center;
+    }
+
+    .formDiv {
+      max-width: 100%;
+      margin: 0;
+      min-height: 32px;
+    }
+
+    .formTitle {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .el-formDate {
+      max-width: 100%;
+    }
+
+    .btnBar {
+      align-self: center;
+      padding: 0;
+    }
+  }
+
+  .table-container {
+    flex: 1;
+    min-height: 240px;
+    height: auto;
+    margin: 0;
+    padding: 14px;
+    overflow: auto;
+    border-radius: 6px;
+    box-shadow: none;
+  }
+
+  .table-header {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 16px;
+    min-height: 32px;
+    padding: 0 0 12px;
+
+    h2 {
+      margin: 0 auto 0 0;
+      color: var(--text-primary);
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .table-tools {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      float: none;
+
+      :deep(.el-button) { margin-left: 0; }
+    }
+  }
+
+  .pagination-container {
+    flex: none;
+    padding: 12px 0 0;
+    overflow-x: auto;
+  }
+
+  :deep(.el-table__body .el-table__cell) {
+    padding-top: 7px;
+    padding-bottom: 7px;
+  }
+
+  :deep(.el-table .el-image) {
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    background: var(--bg-subtle);
+  }
+
+  .operation-tools {
+    align-items: flex-start;
+    gap: 2px 8px;
+  }
+}
+
+@media (max-width: 900px) {
+  .event-console > :deep(.topBar-wrap.expanded) {
+    flex-wrap: wrap;
+
+    .form-search { flex-basis: 100%; }
+    .btnBar { margin-left: auto; }
+  }
+}

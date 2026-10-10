@@ -2,7 +2,7 @@
   <div class="flow-container">
     <div class="flow-wrap">
       <VueFlow :nodes="nodes" :edges="edges" :node-types="nodeTypes" :default-zoom="0.4">
-        <Background pattern-color="#e5e7eb" gap="16" />
+        <Background pattern-color="var(--flow-grid)" gap="16" />
         <Controls show-interactive />
       </VueFlow>
     </div>
@@ -152,8 +152,73 @@ const nodeTypes = {
 .flow-wrap {
   width: 100%;
   height: 400px;
-  border: 1px solid var(--el-border-color, #dcdfe6);
-  border-radius: 6px;
-  background: #fff;
+  border: 0;
+  border-radius: 0;
+  background: var(--flow-canvas);
+
+  :deep(.vue-flow__edge-path) {
+    stroke: var(--flow-edge);
+  }
+
+  :deep(.vue-flow__edge.selected .vue-flow__edge-path),
+  :deep(.vue-flow__edge:hover .vue-flow__edge-path) {
+    stroke: var(--primary-color);
+  }
+
+  :deep(.vue-flow__controls) {
+    box-shadow: var(--shadow-sm);
+  }
+
+  :deep(.vue-flow__controls-button) {
+    background: var(--bg-white);
+    color: var(--text-secondary);
+    border-bottom-color: var(--border-light);
+  }
+
+  :deep(.vue-flow__controls-button:hover:not(:disabled)) {
+    background: var(--bg-secondary);
+    color: var(--primary-color);
+  }
+
+  :deep(.vue-flow__controls-button:disabled) {
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+  }
+
+  :deep(.vue-flow__controls-button svg) {
+    fill: currentColor;
+  }
+
+  :deep(.box-node-container) {
+    background: var(--flow-node);
+    border-color: var(--border-color);
+    border-radius: 8px;
+    box-shadow: var(--shadow-sm);
+  }
+
+  :deep(.node-header),
+  :deep(.config-title) {
+    color: var(--text-primary);
+  }
+
+  :deep(.config-section) {
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  :deep(.custom-table .el-table__header-wrapper th) {
+    background-color: var(--flow-io-header-bg) !important;
+    color: var(--text-primary);
+  }
+
+  :deep(.el-input.is-disabled .el-input__inner) {
+    color: var(--secondary-color);
+    -webkit-text-fill-color: var(--secondary-color);
+  }
+
+  :deep(.el-select__wrapper.is-disabled .el-select__selected-item) {
+    color: var(--secondary-color);
+  }
 }
 </style>

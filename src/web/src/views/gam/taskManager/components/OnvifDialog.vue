@@ -1,5 +1,5 @@
 <template>
-  <el-dialog v-model="visible" :title="t('onvif.title')" width="960px" :close-on-click-modal="!busy" :before-close="close">
+  <el-dialog v-model="visible" :title="t('onvif.title')" width="960px" :close-on-click-modal="!busy" :before-close="close" class="ui-admin-dialog">
     <el-tabs v-if="!editing" v-model="mode">
       <el-tab-pane :label="t('onvif.manualTab')" name="manual" :disabled="busy" />
       <el-tab-pane :label="t('onvif.autoTab')" name="auto" :disabled="busy" />
@@ -20,7 +20,7 @@
     </el-form>
     <template v-if="mode === 'auto'">
       <div class="discovery-toolbar">
-        <el-button type="primary" :loading="busy" @click="discover">{{ t('onvif.discover') }}</el-button>
+        <el-button type="primary" :loading="busy" @click="discover" class="ui-secondary-button">{{ t('onvif.discover') }}</el-button>
         <span class="form-hint">{{ t('onvif.searchHint') }}</span>
       </div>
       <el-table v-if="rows.length" ref="table" :data="rows" row-key="key" @selection-change="selection = $event" max-height="330">

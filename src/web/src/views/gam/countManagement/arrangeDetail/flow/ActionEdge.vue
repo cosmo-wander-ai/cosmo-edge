@@ -4,13 +4,13 @@
     <div class="edge-action-wrapper" :style="{
         transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
       }">
-      <button type="button" class="edge-action-button" @click.stop="handleClick">
+      <button type="button" class="edge-action-button" :aria-label="t('action.addComponent')" :aria-expanded="menuVisible" @click.stop="handleClick">
         +
       </button>
       <div v-if="menuVisible" class="edge-menu">
         <span class="menu-item" @click.stop="openAddDialog">{{ t('action.addComponent') }}</span>
         <span class="divider"></span>
-        <span class="menu-item" :class="{ 'is-disabled': isToEnd }" @click.stop="!isToEnd && deleteFollowing()">
+        <span class="menu-item menu-item-danger" :class="{ 'is-disabled': isToEnd }" @click.stop="!isToEnd && deleteFollowing()">
           {{ t('action.deleteFollowingFlow') }}
         </span>
       </div>
@@ -122,53 +122,54 @@ export default {
   width: 24px;
   height: 24px;
   padding: 0;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 500;
   line-height: 22px;
   border-radius: 50%;
-  border: 1.5px solid #d1d5db;
-  background-color: #ffffff;
-  color: #9ca3af;
+  border: 1px solid var(--flow-action-border);
+  background-color: var(--flow-node);
+  color: var(--text-secondary);
   cursor: pointer;
   white-space: nowrap;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: border-color 0.15s, color 0.15s, background-color 0.15s;
 }
-.edge-action-button.is-disabled {
-  border-color: #cfd4dc;
-  background-color: #e5e7eb;
-  color: #9ca3af;
+.edge-action-button.is-disabled,
+.edge-action-button:disabled {
+  border-color: var(--flow-action-disabled-border);
+  background-color: var(--flow-disabled-bg);
+  color: var(--flow-disabled-text);
   cursor: not-allowed;
 }
 
 .edge-menu .menu-item.is-disabled {
-  color: #9ca3af;
+  color: var(--flow-disabled-text);
   cursor: not-allowed;
   pointer-events: none;
 }
 
-.edge-action-button:hover {
-  border-color: #3182ce;
-  color: #3182ce;
-  background-color: #ebf8ff;
-  box-shadow: 0 2px 8px rgba(49, 130, 206, 0.2);
+.edge-action-button:hover:not(.is-disabled):not(:disabled) {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background-color: var(--el-color-primary-light-9);
+  box-shadow: none;
 }
 
 .edge-menu {
   position: absolute;
-  top: 48px;
+  top: 34px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 10px 16px;
-  border-radius: 18px;
-  color: #fff;
-  background: linear-gradient(90deg, #5fc8df 0%, #3182ce 100%);
-  box-shadow: 0 6px 18px rgba(49, 130, 206, 0.25);
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: 6px;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-md);
   z-index: 4000;
 }
 
@@ -181,9 +182,22 @@ export default {
   white-space: nowrap;
 }
 
+.edge-menu .menu-item:not(.is-disabled):hover {
+  color: var(--primary-color);
+}
+
+.edge-menu .menu-item-danger:not(.is-disabled) {
+  color: var(--danger-color);
+}
+
+.edge-action-button:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
 .edge-menu .divider {
   width: 1px;
   height: 16px;
-  background: rgba(255, 255, 255, 0.6);
+  background: var(--border-color);
 }
 </style>

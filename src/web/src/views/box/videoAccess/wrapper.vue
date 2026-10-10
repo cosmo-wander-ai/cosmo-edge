@@ -1,5 +1,9 @@
 <template>
-  <div class="mv-wrap">
+  <div class="mv-wrap ui-admin-page video-access-workspace">
+    <header class="workspace-heading">
+      <h1>{{ t('nav.videoAccess') }}</h1>
+      <p>{{ t('boxOther.videoChannel') }} · {{ t('glossary.scenarioTask') }}</p>
+    </header>
     <el-tabs v-model="activeName" type="border-card" class="custom-tabs">
       <el-tab-pane :label="t('boxOther.videoChannel')" name="first">
         <camera-management v-if="activeName === 'first'" />
@@ -21,18 +25,44 @@ const activeName = ref('first')
 </script>
 
 <style scoped lang="scss">
+.video-access-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+}
+
+.workspace-heading {
+  flex: none;
+
+  h1 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 24px;
+    font-weight: 650;
+    line-height: 1.35;
+  }
+
+  p {
+    margin: 5px 0 0;
+    color: var(--text-secondary);
+    font-size: 13px;
+  }
+}
+
 .custom-tabs {
-  background: var(--bg-white, #ffffff);
-  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.05));
-  border: 1px solid var(--border-light, #f1f5f9);
-  overflow: hidden;
-  height: 100%;
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+  min-height: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
 
   :deep(.el-tabs__header) {
-    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    background: transparent;
     margin: 0;
+    border-bottom: 1px solid var(--border-color);
   }
 
   :deep(.el-tabs__nav) {
@@ -40,21 +70,21 @@ const activeName = ref('first')
   }
 
   :deep(.el-tabs__item) {
-    color: var(--text-secondary, #64748b);
+    color: var(--text-secondary, var(--text-secondary));
     font-weight: 500;
-    font-size: 0.95rem;
-    padding: 16px 24px;
+    font-size: 14px;
+    height: 40px;
+    padding: 0 20px;
     border: none;
-    transition: all 0.3s ease;
     position: relative;
 
     &:hover {
-      color: var(--primary-color, #3182ce);
-      background: rgba(49, 130, 206, 0.05);
+      color: var(--primary-color, var(--primary-color));
+      background: var(--bg-hover);
     }
 
     &.is-active {
-      color: var(--primary-color, #3182ce);
+      color: var(--primary-color, var(--primary-color));
       font-weight: 600;
       background: var(--bg-white, #ffffff);
 
@@ -62,23 +92,18 @@ const activeName = ref('first')
         content: '';
         position: absolute;
         bottom: 0;
-        left: 0;
-        right: 0;
-        height: 3px;
-        background: linear-gradient(
-          135deg,
-          var(--primary-color, #3182ce) 0%,
-          var(--primary-light, #4299e1) 100%
-        );
-        border-radius: 3px 3px 0 0;
+        left: 16px;
+        right: 16px;
+        height: 2px;
+        background: var(--primary-color);
       }
     }
   }
 
   :deep(.el-tabs__content) {
-    background: var(--bg-white, #ffffff);
+    background: transparent;
     flex: 1;
-    padding: 0;
+    padding: 12px 0 0;
     overflow-y: auto;
   }
 }

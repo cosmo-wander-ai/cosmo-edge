@@ -1,5 +1,5 @@
 <template>
-  <div class="custom-config">
+  <div class="custom-config ui-admin-page">
     <div class="page-header">
       <div class="title">{{ t('systemManage.customSettings') }}</div>
       <div class="actions">
@@ -200,22 +200,31 @@ onMounted(async () => {
 
 <style lang="scss" scoped>
 .custom-config {
-  padding: 20px;
-  background: #fff;
-  border-radius: 4px;
+  padding: 0;
+  background: transparent;
+
+  > .el-form {
+    box-sizing: border-box;
+    max-width: 820px;
+    padding: 24px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-white);
+  }
 
   .page-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
-    padding-bottom: 15px;
-    border-bottom: 1px solid #ebeef5;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
 
     .title {
-      font-size: 16px;
-      font-weight: 500;
-      color: #303133;
+      font-size: 24px;
+      line-height: 1.4;
+      font-weight: 650;
+      color: var(--text-primary);
     }
 
     .actions {
@@ -228,21 +237,21 @@ onMounted(async () => {
   .logo-uploader {
     padding-top: 8px;
     :deep(.el-upload) {
-      border: 1px dashed #d9d9d9;
+      border: 1px dashed var(--theme-border, #d9d9d9);
       border-radius: 6px;
       cursor: pointer;
       position: relative;
       overflow: hidden;
 
       &:hover {
-        border-color: #409eff;
+        border-color: var(--primary-color);
       }
     }
   }
 
   .logo-uploader-icon {
     font-size: 28px;
-    color: #8c939d;
+    color: var(--theme-text-muted, #8c939d);
     width: 100px;
     height: 100px;
     line-height: 100px;
@@ -256,7 +265,9 @@ onMounted(async () => {
   }
 
   .upload-tip {
-    color: #909399;
+    flex-basis: 100%;
+    margin-top: 10px;
+    color: var(--text-secondary);
     font-size: 12px;
 
     .el-icon-info {
@@ -266,6 +277,7 @@ onMounted(async () => {
 }
 
 .item-content {
-  width: 300px;
+  width: 100%;
+  max-width: 430px;
 }
 </style>

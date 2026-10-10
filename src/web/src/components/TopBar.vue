@@ -257,12 +257,12 @@ onMounted(() => {
 .topBar-wrap {
   flex-shrink: 0;
   position: relative;
-  background: #fff;
-  padding: 0 20px 0 24px;
-  border-radius: 2px;
+  background: var(--theme-surface, #fff);
+  padding: 0 16px;
+  border-radius: 6px;
   display: flex;
   overflow: hidden;
-  transition: all 300ms;
+  transition: height 180ms ease;
 
   &.expanded {
     padding-bottom: 16px !important;
@@ -277,14 +277,14 @@ onMounted(() => {
     .formDiv {
       display: flex;
       align-items: center;
-      margin: 12px 24px 12px 0px;
+      margin: 12px 20px 12px 0;
 
       .formTitle {
         display: inline-block;
         margin-right: 8px;
-        font-size: 14px;
+        font-size: 13px;
         text-align: right;
-        color: #303133;
+        color: var(--secondary-color);
         flex-shrink: 0;
         max-width: 150px;
         overflow: hidden;
@@ -307,18 +307,18 @@ onMounted(() => {
     display: flex;
     align-items: center;
     padding: 12px 0;
-    transition: all 300ms;
+    transition: height 180ms ease;
 
     .optionBtn {
       margin-left: 10px;
       line-height: 32px;
       color: var(--primary-color);
-      font-size: 14px;
+      font-size: 13px;
       cursor: pointer;
 
       .el-icon {
         display: inline-block;
-        transition: all 300ms;
+        transition: height 180ms ease;
 
         &.retract {
           transform: rotate(180deg);

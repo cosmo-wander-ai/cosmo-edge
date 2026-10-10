@@ -1,26 +1,28 @@
 <template>
-  <div class="main-body">
-    <div class="top-tool">
+  <div class="main-body ui-admin-page flow-theme">
+    <div class="top-tool scene-heading">
       <div class="name-version">
+        <span class="scene-context">{{ t('nav.sceneTasks') }}</span>
         <span class="arrange-name" @click="showVersionClick">{{ displayAlgorithmName }}</span>
       </div>
-      <div>
+      <div class="scene-actions">
         <el-button class="save-btn" type="primary" size="small" @click="saveClick()">{{ t('action.save') }}</el-button>
-        <el-button class="save-btn" type="primary" size="small" @click="saveClick('export')">{{ t('action.saveAndExport') }}</el-button>
+        <el-button class="save-btn" size="small" @click="saveClick('export')">{{ t('action.saveAndExport') }}</el-button>
         <el-button class="save-btn" size="small" @click="goBack">{{ t('action.goBack') }}</el-button>
       </div>
     </div>
 
     <div class="main-container">
       <div class="right-body">
-        <el-tabs v-model="tabActiveName" type="border-card">
+        <el-tabs v-model="tabActiveName" class="scene-tabs">
           <el-tab-pane :label="t('glossary.businessFlow')" name="flow">
+            <div class="arrange-toolbar">
+              <label class="arrange-template-label" for="flow-template">{{ t('field.selectTemplate') }}</label>
+              <el-select id="flow-template" v-model="selectedTemplate" :placeholder="t('field.selectTemplate')" class="arrange-template-select" filterable @change="handleTemplateChange">
+                <el-option v-for="item in templateList" :key="item.algorithmCode" :label="resolveResourceAlgorithmName(item)" :value="item.algorithmCode" />
+              </el-select>
+            </div>
             <div id="arrange-content" class="arrange-content" ref="arrangeContentRef">
-              <div class="arrange-select">
-                <el-select v-model="selectedTemplate" :placeholder="t('field.selectTemplate')" size="small" style="width: 200px" filterable @change="handleTemplateChange">
-                  <el-option v-for="item in templateList" :key="item.algorithmCode" :label="resolveResourceAlgorithmName(item)" :value="item.algorithmCode" />
-                </el-select>
-              </div>
               <arrange-flow v-if="showArrangeFlow" ref="flowRef" :width="width" :height="height" :algorithmData="algorithmData" :algorithmMetadata="algorithmMetadata" :actionList="actionList" :atomicCode="$route.query.algorithmId" @onMetadata="syncMetadata"></arrange-flow>
             </div>
           </el-tab-pane>
@@ -182,7 +184,7 @@ const updateCanvasSize = () => {
       const rect = el.getBoundingClientRect()
       const viewportH = window.innerHeight
       const bottomPadding = 24
-      width.value = Math.max(300, rect.width)
+      width.value = Math.max(300, el.clientWidth)
       height.value = Math.max(300, viewportH - rect.top - bottomPadding)
     })
   })
@@ -534,24 +536,45 @@ const goBack = () => {
 }
 </script>
 
+<style lang="scss" src="./flow/flow-palette.scss"></style>
+
 <style scoped lang="scss">
 .main-body {
   display: flex;
   flex-direction: column;
-  padding: 0 10px;
+  min-width: 0;
+  padding: 0;
 }
 
-.top-tool {
+.top-tool.scene-heading {
   background: transparent;
-  margin-bottom: 10px;
-  height: 35px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  margin-bottom: 18px;
+  min-height: 42px;
   display: flex;
   justify-content: space-between;
-  align-content: center;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
 
   .save-btn {
-    margin-left: 10px;
+    margin-left: 0;
+    min-height: 32px;
   }
+}
+
+.scene-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.scene-context {
+  color: var(--text-secondary);
+  font-size: 13px;
 }
 
 @keyframes spin {
@@ -574,85 +597,84 @@ const goBack = () => {
 
 .arrange-name {
   display: inline-block;
-  line-height: 32px;
-  margin-right: 10px;
-  color: #606266;
-  font-size: 20px;
-  /*设置字体大小*/
-  font-weight: 400;
-  /*设置字体粗细*/
-  // -webkit-text-stroke: 1px #000; /*文字描边*/
-  // -webkit-text-fill-color: transparent; /*设置文字的填充颜色*/
+  line-height: 1.35;
+  color: var(--text-primary);
+  font-size: 24px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+  cursor: pointer;
 }
 
-.arrange-select {
-  position: absolute;
-  display: inline-block;
-  padding: 10px;
-  top: 10px;
-  left: 10px;
-  z-index: 100;
+.arrange-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--border-color);
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: var(--bg-white);
+}
+
+.arrange-template-label {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.arrange-template-select {
+  width: 280px;
+  max-width: 100%;
+}
+
+.arrange-content {
+  border: 1px solid var(--border-color);
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .main-container {
   display: flex;
   flex: 1;
+  min-width: 0;
 }
 
 .right-body {
   flex: 1;
-  height: calc(100vh - 195px);
+  min-width: 0;
 
-  :deep(.el-tabs--border-card) {
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    box-shadow: var(--shadow-sm);
-    background: var(--bg-white);
-    overflow: hidden;
+  :deep(.scene-tabs) {
+    border: 0;
+    box-shadow: none;
+    background: transparent;
   }
 
-  :deep(.el-tabs--border-card > .el-tabs__header) {
-    background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border-color);
-    margin: 0;
-    padding: 8px 12px;
+  :deep(.scene-tabs > .el-tabs__header) {
+    margin: 0 0 16px;
+    background: transparent;
   }
 
-  :deep(.el-tabs--border-card .el-tabs__item) {
-    border-radius: var(--radius-sm);
+  :deep(.scene-tabs > .el-tabs__header .el-tabs__item) {
+    height: 42px;
+    font-size: 14px;
     color: var(--text-secondary);
-    margin-right: 6px;
-    transition: all 0.2s ease;
-    padding: 8px 14px;
+    &.is-active { color: var(--primary-color); }
   }
 
-  :deep(.el-tabs--border-card .el-tabs__item:hover) {
-    background: rgba(49, 130, 206, 0.08);
-    color: var(--primary-color);
-  }
-
-  :deep(.el-tabs--border-card .el-tabs__item.is-active) {
-    background: linear-gradient(
-      135deg,
-      var(--primary-color) 0%,
-      var(--primary-light) 100%
-    );
-    color: #ffffff;
-    box-shadow: 0 2px 8px rgba(49, 130, 206, 0.25);
-  }
-
-  :deep(.el-tabs__content) {
-    padding: 10px;
+  :deep(.scene-tabs > .el-tabs__content) {
+    padding: 0;
     box-sizing: border-box;
-    height: calc(100vh - 200px);
-    overflow-y: scroll;
+    overflow: visible;
   }
 }
 
 .name-version {
   display: flex;
-  align-items: center;
-  color: #909399;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  color: var(--text-secondary);
 }
 
 .expand-version {
@@ -671,7 +693,7 @@ const goBack = () => {
     }
 
     50% {
-      text-shadow: 0 0 10px #409eff, 0 0 40px #409eff;
+      text-shadow: 0 0 10px var(--primary-color), 0 0 40px var(--primary-color);
     }
   }
 }
@@ -680,8 +702,9 @@ const goBack = () => {
   display: inline-block;
   padding: 5px 10px;
   border-radius: 5px;
-  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3),
-    -2px -2px 5px rgba(255, 255, 255, 0.5);
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  box-shadow: none;
 }
 
 .form-content {
@@ -694,10 +717,10 @@ const goBack = () => {
 }
 
 .icon-blue {
-  color: #409eff;
+  color: var(--primary-color);
 }
 
 .icon-red {
-  color: red;
+  color: var(--danger-color);
 }
 </style>
