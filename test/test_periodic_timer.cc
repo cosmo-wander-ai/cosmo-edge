@@ -6,6 +6,10 @@
  */
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
+#include <future>
+#include <mutex>
+#include <stdexcept>
 #include <thread>
 
 #include "util/PeriodicTimer.h"
@@ -98,4 +102,106 @@ TEST_CASE("PeriodicTimer: Cancel with invalid ID is safe", "[periodic-timer]") {
     REQUIRE_NOTHROW(timer.Cancel(kInvalidTaskId));
     REQUIRE_NOTHROW(timer.Cancel(999999));
     timer.Destroy();
+}
+
+TEST_CASE("PeriodicTimer isolates exceptions without changing task repetition",
+          "[periodic-timer][callback-exception]") {
+    const bool unknown_exception = GENERATE(false, true);
+    std::mutex mutex;
+    std::condition_variable changed;
+    int one_shot_failures     = 0;
+    int ready_batch_successes = 0;
+    int repeated_failures     = 0;
+    int repeated_successes    = 0;
+    const auto fail           = [unknown_exception] {
+        if (unknown_exception) {
+            throw 42;
+        }
+        throw std::runtime_error("expected timer callback failure");
+    };
+    PeriodicTimer timer("callback-isolation");
+
+    // Both one-shot tasks are due before Start, so they run in the same batch.
+    timer.Schedule(
+        [&] {
+            ++one_shot_failures;
+            fail();
+        },
+        0, false);
+    timer.Schedule([&] { ++ready_batch_successes; }, 0, false);
+    timer.Schedule(
+        [&] {
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                ++repeated_failures;
+                changed.notify_all();
+            }
+            fail();
+        },
+        10);
+    timer.Schedule(
+        [&] {
+            std::lock_guard<std::mutex> lock(mutex);
+            ++repeated_successes;
+            changed.notify_all();
+        },
+        10);
+    timer.Start();
+
+    bool kept_running;
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        kept_running = changed.wait_for(lock, std::chrono::seconds(3),
+                                        [&] { return repeated_failures >= 3 && repeated_successes >= 3; });
+    }
+    timer.Destroy();
+
+    CHECK(kept_running);
+    CHECK(one_shot_failures == 1);
+    CHECK(ready_batch_successes == 1);
+    CHECK(repeated_failures >= 3);
+    CHECK(repeated_successes >= 3);
+}
+
+TEST_CASE("PeriodicTimer Destroy joins an active callback that throws",
+          "[periodic-timer][callback-exception]") {
+    const bool unknown_exception = GENERATE(false, true);
+    std::promise<void> entered;
+    std::promise<void> release;
+    std::promise<void> destroying;
+    auto entered_future    = entered.get_future();
+    auto released          = release.get_future().share();
+    auto destroying_future = destroying.get_future();
+    PeriodicTimer timer("stop-failing-callback");
+    timer.Schedule(
+        [&] {
+            entered.set_value();
+            released.wait();
+            if (unknown_exception) {
+                throw 42;
+            }
+            throw std::runtime_error("expected callback failure during stop");
+        },
+        0, false);
+    timer.Start();
+
+    if (entered_future.wait_for(std::chrono::seconds(3)) != std::future_status::ready) {
+        release.set_value();
+        timer.Destroy();
+        FAIL("timer callback did not start");
+    }
+    auto stopped                    = std::async(std::launch::async, [&] {
+        destroying.set_value();
+        timer.Destroy();
+    });
+    const auto destroy_started      = destroying_future.wait_for(std::chrono::seconds(3));
+    const auto waiting_for_callback = stopped.wait_for(std::chrono::milliseconds(20));
+    // Release the callback before assertions so failure cannot strand the joining thread.
+    release.set_value();
+    const auto joined = stopped.wait_for(std::chrono::seconds(3));
+    stopped.get();
+
+    CHECK(destroy_started == std::future_status::ready);
+    CHECK(waiting_for_callback == std::future_status::timeout);
+    CHECK(joined == std::future_status::ready);
 }
