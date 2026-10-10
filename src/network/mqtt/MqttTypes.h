@@ -25,12 +25,12 @@ enum class MqttErrorCode {
     kClientNotCreated,
     kContextIsNull,
     kWaitAckTimeout,
-    kWaitResponseTimeout,
-    kOffline
+    // 0x040B was the removed second-phase response timeout.
+    kOffline = 0x040C
 };
 
 // Async-to-sync publish states (bitmask)
-enum class SyncPubState : int { kError = 0x00, kSent = 0x01, kAcked = 0x02, kResponded = 0x04 };
+enum class SyncPubState : int { kError = 0x00, kSent = 0x01, kAcked = 0x02 };
 
 // Log level
 enum class MqttLogLevel {

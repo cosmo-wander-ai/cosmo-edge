@@ -6,7 +6,6 @@
 // Async-to-sync: requires JSON payload with head.requestId (unique).
 // Migrated from cwai::AIoT_MQTT to cosmo::network::mqtt.
 
-#include <atomic>
 #include <condition_variable>
 #include <map>
 #include <mutex>
@@ -42,14 +41,13 @@ public:
     // Unsubscribe from a topic. Returns 0 on success.
     int MQTTClientUnSubscribe(const std::string& topic);
 
-    // Publish a message. Supports optional async-to-sync wait.
-    // @param msg              Message to publish
-    // @param response_timeout_ms  Timeout for response wait (<=0 to skip)
-    // @param sync_result      Output for sync result (nullptr to skip)
-    // @param ack_timeout_ms   Timeout for ACK wait (<=0 to skip)
+    // Publish asynchronously, or wait for one business ACK with a matching requestId.
+    // @param msg             Message to publish
+    // @param ack_timeout_ms  Timeout for ACK wait (<=0 to send asynchronously)
+    // @param sync_result     Output for ACK result (nullptr to send asynchronously)
     // Returns 0 on success.
-    int MQTTClientPublish(const MqttMessage& msg, int response_timeout_ms = 1000,
-                          SyncPubResult* sync_result = nullptr, int ack_timeout_ms = 0);
+    int MQTTClientPublish(const MqttMessage& msg, int ack_timeout_ms = 0,
+                          SyncPubResult* sync_result = nullptr);
 
     // Disconnect and release all resources.
     // @param timeout_ms  Disconnect timeout (0 = discard pending messages)
@@ -77,23 +75,16 @@ public:
     const std::string& GetSyncRequestIdPrefix() const;
 
 private:
-    // Insert subscription info into cache (for resubscribe after reconnect).
-    void InsertSubInfo(const std::string& topic, int qos);
-
-    // Remove subscription info from cache.
-    void EraseSubInfo(const std::string& topic);
-
     // Check connection status under existing lock.
     bool IsConnectedLocked() const;
 
     // --- Publish helpers (extracted from monolithic MQTTClientPublish) ---
     // Parse requestId from JSON payload and pre-insert sync cache entry.
     // Returns the requestId (empty if not applicable).
-    std::string PrepareSyncPublish(const MqttMessage& msg, SyncPubResult* const sync_result);
+    std::string PrepareSyncPublish(const MqttMessage& msg);
 
-    // Wait for ACK and/or response after successful publish.
-    int WaitForSyncResponse(const std::string& request_id, int ack_timeout_ms, int response_timeout_ms,
-                            SyncPubResult* sync_result);
+    // Wait for a business ACK after successful publish.
+    int WaitForAck(const std::string& request_id, int ack_timeout_ms, SyncPubResult* sync_result);
 
     // Paho MQTT client handle
     void* mqtt_handle_{nullptr};
@@ -112,20 +103,13 @@ private:
     // Protects mqtt_handle_, callbacks, user_context_
     std::mutex mutex_;
 
-    // Connection options (saved for reconnection)
+    // Own the strings referenced by Paho connection options.
     MqttConnectOptions connect_opts_;
-
-    // Subscription cache {topic -> qos}
-    std::map<std::string, int> subscriptions_;
-    std::mutex subscriptions_mutex_;
 
     // Async-to-sync publish: pending results keyed by requestId
     std::map<std::string, SyncPubResult> sync_results_;
     std::mutex sync_mutex_;
     std::condition_variable sync_cv_;
-
-    // Per-instance reconnect flag (was global g_bEnableReconnect)
-    std::atomic_bool enable_reconnect_{false};
 };
 
 }  // namespace cosmo::network::mqtt
