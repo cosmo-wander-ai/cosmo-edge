@@ -105,8 +105,9 @@
                               <span class="status-dot" aria-hidden="true"></span>
                               <span>{{ t(channelDisplayStatus(data).label) }}</span>
                             </div>
-                            <span v-if="visiblePreviewWindows[data.id]?.length" class="channel-window" :title="t('event.previewWindows', { windows: visiblePreviewWindows[data.id].join(' / ') })">
-                              {{ t('event.previewWindows', { windows: visiblePreviewWindows[data.id].join('/') }) }}
+                            <span v-if="visiblePreviewWindows[data.id]?.length" class="channel-window" :title="t('event.previewWindows', { windows: visiblePreviewWindows[data.id].join(' / ') })" :aria-label="t('event.previewWindows', { windows: visiblePreviewWindows[data.id].join(' / ') })">
+                              <el-icon aria-hidden="true"><Monitor /></el-icon>
+                              <span aria-hidden="true">{{ visiblePreviewWindows[data.id].join('/') }}</span>
                             </span>
                           </div>
                         </div>
@@ -265,7 +266,7 @@
 <script setup>
 import { computed, ref, watch, onMounted, onBeforeUnmount, getCurrentInstance } from 'vue'
 import beepOgg from '@/assets/beep.ogg'
-import { Search, Setting, FullScreen, Back, Refresh, ArrowLeft, ArrowRight, VideoCamera, Bell } from '@element-plus/icons-vue'
+import { Search, Setting, FullScreen, Back, Refresh, ArrowLeft, ArrowRight, VideoCamera, Monitor, Bell } from '@element-plus/icons-vue'
 import flv from '../components/flvVideo.vue'
 import ThemeSwitcher from '@/components/ThemeSwitcher.vue'
 import DetailDialog from '../components/detailDialog.vue'
@@ -1265,7 +1266,7 @@ button:focus-visible {
   .is-online .status-dot { background: var(--success-color); }
   .is-warning .status-dot { background: var(--warning-color); }
   .is-local .status-dot { background: transparent; box-shadow: inset 0 0 0 1px var(--text-muted); }
-  .channel-window { flex: 0 0 auto; max-width: 88px; padding: 0 4px; border: 1px solid var(--screen-border); border-radius: 3px; background: var(--bg-primary); color: var(--screen-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; line-height: 14px; font-variant-numeric: tabular-nums; }
+  .channel-window { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 3px; padding: 0 4px; border: 1px solid var(--screen-border); border-radius: 3px; background: var(--bg-primary); color: var(--screen-muted); white-space: nowrap; font-size: 10px; line-height: 14px; font-variant-numeric: tabular-nums; }
   &.is-assigned .channel-symbol { color: var(--screen-accent); }
   &.is-assigned .channel-name { font-weight: 600; }
 }
