@@ -1,6 +1,6 @@
 <template>
   <div>
-    <el-dialog v-model="show" :title="t('action.details')" width="800px" center @close="close">
+    <el-dialog v-model="show" :title="t('action.details')" width="800px" center @close="close" class="ui-admin-dialog ui-scroll-dialog event-detail-dialog">
       <div v-if="show" class="content-body">
         <div class="info-item-big">
           <span class="info-item-title">
@@ -123,7 +123,7 @@
         </template>
 
         <!-- 所属通道 -->
-        <div class="info-item-big">
+        <div class="info-item">
           <span class="info-item-title">
             {{ t('field.channelName') }}{{ localeColon }}
           </span>
@@ -133,7 +133,7 @@
         </div>
 
         <!-- 告警时间 -->
-        <div class="info-item-big">
+        <div class="info-item">
           <span class="info-item-title">
             {{ t('event.captureTime') }}{{ localeColon }}
           </span>
@@ -145,7 +145,7 @@
       </div>
       <template #footer>
         <span class="dialog-footer">
-          <el-button type="primary" @click="close" class="mv-el-button">{{ t('action.close') }}</el-button>
+          <el-button type="primary" @click="close" class="mv-el-button ui-secondary-button">{{ t('action.close') }}</el-button>
         </span>
       </template>
     </el-dialog>
@@ -210,25 +210,88 @@ const checkObj = (obj) => {
 </script>
 
 <style lang="scss" scoped>
-:deep(.el-dialog) {
+:deep(.el-dialog.event-detail-dialog) {
+  padding: 0;
   max-width: calc(100vw - 32px);
-  background: var(--bg-white);
   color: var(--text-primary);
+  background: var(--bg-white);
   border: 1px solid var(--border-color);
   border-radius: 10px;
+  box-shadow: var(--shadow-lg);
 }
-:deep(.el-dialog__body) { max-height: calc(100dvh - 220px); overflow-y: auto; }
-:deep(.el-dialog__title) { color: var(--text-primary); font-weight: 600; }
-.mv-el-button { min-width: 77px; height: 32px; }
-.content-body { display: flex; flex-wrap: wrap; gap: 20px 24px; padding: 0 8px; }
-.info-item { display: flex; flex-direction: column; gap: 8px; width: calc(50% - 12px); min-width: 0; }
-.info-item-title { color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
-.info-item-content { min-width: 0; color: var(--text-primary); font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
-.capture-img3 { width: 176px; height: 100px; max-width: 100%; border: 1px solid var(--border-light); border-radius: 5px; background: var(--bg-primary); }
-.info-item-big { display: flex; flex-direction: column; gap: 8px; width: 100%; min-width: 0; }
-.info-item-big .capture-img3 { width: 320px; height: 180px; }
-.video-bg { position: relative; width: 320px; max-width: 100%; height: 180px; background: #171c24; border-radius: 5px; overflow: hidden; }
-.video-bg .el-icon-video-play { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: block; font-size: 48px; color: #fff; cursor: pointer; }
-.wran-video :deep(.mini-video-play-download) { display: none; }
-@media (max-width: 640px) { .info-item { width: 100%; } }
+:deep(.event-detail-dialog > .el-dialog__header) {
+  margin-right: 0;
+  padding: 18px 56px 16px 24px;
+  border-bottom: 1px solid var(--border-light);
+  text-align: left;
+}
+:deep(.event-detail-dialog > .el-dialog__header .el-dialog__title) {
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+:deep(.event-detail-dialog > .el-dialog__body) { padding: 20px 24px; }
+:deep(.event-detail-dialog > .el-dialog__footer) {
+  padding: 12px 24px;
+  border-top: 1px solid var(--border-light);
+  text-align: right;
+}
+.mv-el-button { min-width: 80px; height: 32px; }
+.content-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 24px;
+  padding: 0;
+}
+.info-item,
+.info-item-big {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.info-item-big { grid-column: 1 / -1; }
+.info-item-title {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.info-item-content {
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.capture-img3,
+.capture-img4,
+.image-missing {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  height: clamp(160px, 24dvh, 220px);
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  background: var(--bg-primary);
+}
+.capture-img3 :deep(.el-image__inner),
+.capture-img4 :deep(.el-image__inner) { object-fit: contain; }
+.info-item-big > .capture-img3,
+.info-item-big > .capture-img4 { height: clamp(200px, 40dvh, 360px); }
+.image-slot,
+.image-missing { display: grid; place-items: center; color: var(--text-secondary); }
+.image-slot { width: 100%; height: 100%; overflow: hidden; }
+.image-slot :deep(.main-body) { max-width: 100%; }
+.image-missing { border-style: dashed; }
+@media (max-width: 640px) {
+  :deep(.event-detail-dialog > .el-dialog__header) { padding: 16px 48px 14px 16px; }
+  :deep(.event-detail-dialog > .el-dialog__body) { padding: 16px; }
+  :deep(.event-detail-dialog > .el-dialog__footer) { padding: 12px 16px; }
+  .content-body { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+}
 </style>

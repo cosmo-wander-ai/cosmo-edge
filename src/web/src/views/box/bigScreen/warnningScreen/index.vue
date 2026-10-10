@@ -3,7 +3,10 @@
     <!-- 告警弹窗 -->
     <transition name="alert-slide">
       <div v-if="showAlert" class="alert-popup">
-        <div class="alert-top-title">{{ resolveResourceAlgorithmName(currentSocketData) }}</div>
+        <div class="alert-top-title">
+          <span class="alert-status">{{ t('home.alert') }}</span>
+          <div class="alert-name">{{ resolveResourceAlgorithmName(currentSocketData) }}</div>
+        </div>
         
         <div class="alert-body">
           <div class="alert-left">
@@ -1351,7 +1354,7 @@ button:focus-visible {
 :deep(.image-slot img) { max-width: 80%; max-height: 80%; }
 .form-content { width: calc(100% - 30px); }
 
-// Keep the automatic alarm popup behavior, with a neutral frame and bounded size.
+// Image-led layout; alert delivery, timing and sound remain unchanged.
 .alert-popup {
   position: fixed;
   top: 50%;
@@ -1360,31 +1363,37 @@ button:focus-visible {
   z-index: 9999;
   display: flex;
   flex-direction: column;
-  width: min(900px, calc(100vw - 48px));
-  max-height: calc(100dvh - 48px);
+  width: min(760px, calc(100vw - 40px));
+  max-height: calc(100dvh - 40px);
+  box-sizing: border-box;
   overflow: auto;
   background: var(--bg-white);
   color: var(--screen-text);
   border: 1px solid var(--screen-border);
-  border-top: 3px solid #d95545;
-  border-radius: 10px;
-  box-shadow: 0 20px 64px #151c3640;
+  border-radius: 8px;
+  box-shadow: 0 16px 48px #11182738, 0 2px 8px #11182714;
 
-  .alert-top-title { padding: 18px 24px; border-bottom: 1px solid var(--screen-border); font-size: 22px; font-weight: 650; }
-  .alert-body { display: flex; gap: 24px; padding: 24px; }
-  .alert-left { flex: 1.5; min-width: 0; }
-  .warn-one-body { width: 100%; height: 340px; background: var(--bg-primary); border-radius: 6px; overflow: hidden; }
+  .alert-top-title { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--screen-border); }
+  .alert-status { display: inline-flex; align-items: center; flex: 0 0 auto; gap: 6px; padding: 3px 7px; border-radius: 4px; color: var(--danger-color); background: var(--el-color-danger-light-9); font-size: 12px; font-weight: 600; line-height: 18px; }
+  .alert-status::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .alert-name { min-width: 0; font-size: 18px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+  .alert-body { display: flex; flex-direction: column; gap: 16px; padding: 16px 20px 18px; }
+  .alert-left { min-width: 0; }
+  .warn-one-body { width: 100%; aspect-ratio: 16 / 9; max-height: calc(100dvh - 230px); min-height: 120px; background: var(--bg-primary); border: 1px solid var(--screen-border); border-radius: 5px; overflow: hidden; box-sizing: border-box; }
   .warn-one-body :deep(.el-image) { width: 100%; height: 100%; }
-  .warn-two-body { display: flex; flex-direction: column; gap: 16px; }
-  .event-image-container { display: flex; gap: 12px; }
-  .event-image-item { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 8px; text-align: center; }
-  .event-image-item :deep(.el-image) { width: 100%; height: 230px; background: var(--bg-primary); border-radius: 6px; }
-  .image-label { color: var(--screen-muted); font-size: 13px; }
-  .match-info { display: flex; justify-content: center; gap: 14px; padding: 12px; background: var(--bg-primary); border-radius: 6px; font-size: 17px; }
+  .warn-two-body { display: flex; flex-direction: column; gap: 12px; }
+  .event-image-container { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .event-image-item { display: flex; min-width: 0; flex-direction: column; overflow: hidden; text-align: center; border: 1px solid var(--screen-border); border-radius: 5px; background: var(--bg-primary); }
+  .event-image-item :deep(.el-image) { width: 100%; height: clamp(120px, 32dvh, 260px); }
+  .image-label { padding: 7px 10px; border-top: 1px solid var(--screen-border); color: var(--screen-muted); background: var(--bg-white); font-size: 12px; }
+  .match-info { display: flex; justify-content: space-between; gap: 16px; padding: 10px 12px; border: 1px solid var(--screen-border); background: var(--bg-primary); border-radius: 5px; font-size: 14px; }
+  .match-name { min-width: 0; overflow-wrap: anywhere; }
   .match-score { color: var(--screen-accent); font-weight: 600; }
-  .alert-right { display: flex; flex: 1; min-width: 0; flex-direction: column; justify-content: center; gap: 28px; }
-  .info-label { margin-bottom: 8px; color: var(--screen-muted); font-size: 13px; }
-  .info-value { color: var(--screen-text); font-size: 18px; line-height: 1.6; overflow-wrap: anywhere; }
+  .alert-right { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; min-width: 0; }
+  .info-item { min-width: 0; }
+  .info-item + .info-item { padding-left: 20px; border-left: 1px solid var(--screen-border); }
+  .info-label { margin-bottom: 4px; color: var(--screen-muted); font-size: 12px; line-height: 18px; }
+  .info-value { color: var(--screen-text); font-size: 14px; font-weight: 500; line-height: 22px; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 }
 
 .alert-slide-enter-active,
@@ -1419,7 +1428,13 @@ button:focus-visible {
   .right-panel.expanded { flex-basis: 240px; width: 240px; }
   .select-area.expanded { flex-basis: 190px; width: 190px; }
   .custom-tree-node span { max-width: 106px; }
-  .alert-popup .alert-body { flex-direction: column; }
-  .alert-popup .alert-right { flex-direction: row; justify-content: space-between; }
+}
+
+@media (max-width: 480px) {
+  .alert-popup { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); }
+  .alert-popup .alert-top-title { padding: 12px 14px; }
+  .alert-popup .alert-body { padding: 14px; gap: 12px; }
+  .alert-popup .alert-right { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .alert-popup .info-item + .info-item { padding: 10px 0 0; border-left: 0; border-top: 1px solid var(--screen-border); }
 }
 </style>
