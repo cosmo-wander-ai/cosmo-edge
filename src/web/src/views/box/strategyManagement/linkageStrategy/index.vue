@@ -286,6 +286,10 @@ const handleSave = () => {
   align-items: center;
   margin-bottom: 16px;
   padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 
   .page-title {
     font-size: 24px;
