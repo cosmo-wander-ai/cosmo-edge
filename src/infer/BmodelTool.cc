@@ -302,7 +302,8 @@ BmodelInfo BmodelTool::GetBmodelInfo(const std::string& bmodelPath) {
         info.error_msg = adapter_error;
         return info;
     }
-    if (cosmo::nn::IsRknnYolov8DflAdapter(output_adapter.kind)) {
+    if (cosmo::nn::IsRknnYolov8DflAdapter(output_adapter.kind) ||
+        cosmo::nn::IsRknnYolo26OneToOneAdapter(output_adapter.kind)) {
         BmodelNodeInfo node;
         node.name      = "output0";
         node.shape     = output_adapter.logical_shape;

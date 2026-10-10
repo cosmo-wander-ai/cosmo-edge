@@ -8,14 +8,17 @@
 #include <cmath>
 #include <limits>
 
+#include "nn/device/rknn/rknn_yolo26_adapter.h"
+
 namespace cosmo::nn {
 namespace {
 
-    constexpr std::array<RknnOutputAdapterRegistryEntry, 7> kOutputAdapterRegistry{{
+    constexpr std::array<RknnOutputAdapterRegistryEntry, 8> kOutputAdapterRegistry{{
         {RknnOutputAdapterKind::GenericTensorV1, "generic_tensor_v1", true, true},
         {RknnOutputAdapterKind::YoloAnchor3HeadV1, "yolo_anchor_3head_v1", false, false},
         {RknnOutputAdapterKind::YoloDfl6HeadV1, "yolo_dfl_6head_v1", true, true},
         {RknnOutputAdapterKind::YoloDfl9HeadScoreSumV1, "yolo_dfl_9head_score_sum_v1", true, true},
+        {RknnOutputAdapterKind::Yolo26OneToOne6HeadV1, "yolo26_one2one_6head_v1", true, true},
         {RknnOutputAdapterKind::YoloPoseV1, "yolo_pose_v1", false, false},
         {RknnOutputAdapterKind::YoloSegV1, "yolo_seg_v1", false, false},
         {RknnOutputAdapterKind::YoloObbV1, "yolo_obb_v1", false, false},
@@ -128,7 +131,7 @@ namespace {
 
 }  // namespace
 
-const std::array<RknnOutputAdapterRegistryEntry, 7>& RknnOutputAdapterRegistry() {
+const std::array<RknnOutputAdapterRegistryEntry, 8>& RknnOutputAdapterRegistry() {
     return kOutputAdapterRegistry;
 }
 
@@ -144,12 +147,26 @@ bool IsRknnYolov8DflAdapter(RknnOutputAdapterKind kind) {
            kind == RknnOutputAdapterKind::YoloDfl9HeadScoreSumV1;
 }
 
+bool IsRknnYolo26OneToOneAdapter(RknnOutputAdapterKind kind) {
+    return kind == RknnOutputAdapterKind::Yolo26OneToOne6HeadV1;
+}
+
 bool ResolveRknnOutputAdapter(const std::vector<std::vector<int>>& shapes,
                               RknnOutputAdapterContract& contract, std::string& error) {
     contract = {};
     std::string ignored_error;
     if ((shapes.size() == 6 && DetectYolov8DflContract(shapes, 2, contract, ignored_error)) ||
         (shapes.size() == 9 && DetectYolov8DflContract(shapes, 3, contract, ignored_error))) {
+        error.clear();
+        return true;
+    }
+    RknnYolo26Layout yolo26;
+    if (DetectRknnYolo26Layout(shapes, yolo26, ignored_error)) {
+        contract               = {};
+        contract.kind          = RknnOutputAdapterKind::Yolo26OneToOne6HeadV1;
+        contract.class_count   = yolo26.class_count;
+        contract.point_count   = yolo26.point_count;
+        contract.logical_shape = yolo26.logical_shape;
         error.clear();
         return true;
     }

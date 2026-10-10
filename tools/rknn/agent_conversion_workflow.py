@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import shutil
 import sys
@@ -220,11 +221,28 @@ def _prepare_conversion_input(
         raise core.WorkflowError(
             f"RKNN model spec source SHA-256 differs from {common._run_relative(source, run_dir)}"
         )
+    adapter = spec.get("conversion", {}).get("output_adapter")
+    if adapter == "yolo26_one2one_6head_v1":
+        extracted = attempt_dir / f"{parameters['modelName']}-runtime.onnx"
+        extracted_report = attempt_dir / "output-extraction.json"
+        _run_stage(
+            [python, str(PROJECT_ROOT / "tools" / "rknn" / "extract_yolo26_heads.py"),
+             "--input", str(source), "--output", str(extracted), "--report", str(extracted_report)],
+            cwd=attempt_dir,
+            log_path=logs_dir / "S2-output-extraction.log",
+            commands=commands,
+            run_dir=run_dir,
+            environment=environment,
+            detail="YOLO26 one-to-one output-head extraction failed",
+        )
+        expected_input_hash = spec.get("conversion", {}).get("input_sha256")
+        if expected_input_hash and core.sha256_file(extracted) != expected_input_hash:
+            raise common.ExecutionFailure("YOLO26 extracted RKNN input SHA-256 mismatch")
+        return extracted, [common._artifact(extracted_report, run_dir, "output-adapter-provenance")]
     expected_input_hash = spec.get("conversion", {}).get("input_sha256", expected_source_hash)
     if not expected_input_hash or expected_input_hash == source_hash:
         return source, []
 
-    adapter = spec.get("conversion", {}).get("output_adapter")
     if adapter != "yolo_dfl_6head_v1":
         raise core.WorkflowError(
             "model spec requires a transformed RKNN input but declares no supported transform"
@@ -609,6 +627,33 @@ def execute_conversion(
             "report": common._run_relative(build_report_path, run_dir),
             "reportSha256": core.sha256_file(build_report_path),
         }
+        package_code = parameters["raw"].get("packageAlgorithmCode")
+        if package_code is not None:
+            if parameters["spec"].get("model_type") != "yolo26_det":
+                raise core.WorkflowError("automatic RKNN package generation supports yolo26_det")
+            package_dir = artifacts_dir / (
+                f"prod_{parameters['targetChip'].upper()}_{package_code}_YOLO26_V1.0.0"
+            )
+            package_report = verification_dir / "package-report.json"
+            _run_stage(
+                [python, str(PROJECT_ROOT / "tools" / "rknn" / "package_yolo26.py"),
+                 "--source-onnx", str(parameters["sourceModel"]),
+                 "--model", str(artifact_path), "--output-dir", str(package_dir),
+                 "--algorithm-code", str(package_code), "--chip", parameters["targetChip"],
+                 "--report", str(package_report)],
+                cwd=work_dir,
+                log_path=logs_dir / "S4-package.log",
+                commands=commands,
+                run_dir=run_dir,
+                environment=environment,
+                detail="YOLO26 RKNN package generation failed",
+            )
+            manifest["stages"]["package"] = {
+                "status": "PASS",
+                "model": common._artifact(package_dir / "model.rknn", run_dir, "package-model"),
+                "config": common._artifact(package_dir / "config.json", run_dir, "package-config"),
+                "report": common._artifact(package_report, run_dir, "package-report"),
+            }
         manifest["stages"]["tensorCompare"] = {
             "status": "UNVERIFIED",
             "detail": "Numerical parity is deferred to the target-bound RKNN runtime validation.",
@@ -835,6 +880,34 @@ def verify_conversion(
             "detail": "RKNN artifact, target profile, model contract, toolchain report, and hashes agree." if artifact_ok else "RKNN artifact contract evidence is incomplete or changed.",
         }
     )
+    package_code = parameters["raw"].get("packageAlgorithmCode")
+    if package_code is not None:
+        package_stage = manifest.get("stages", {}).get("package", {})
+        try:
+            package_model = _manifest_file(run_dir, package_stage.get("model"), "package model")
+            package_config = _manifest_file(run_dir, package_stage.get("config"), "package config")
+            package_report = _manifest_file(run_dir, package_stage.get("report"), "package report")
+            config = core.load_json(package_config)
+            report = core.load_json(package_report)
+            package_ok = (
+                package_stage.get("status") == "PASS"
+                and isinstance(config, dict)
+                and isinstance(report, dict)
+                and package_model.read_bytes() == artifact_path.read_bytes()
+                and config.get("algorithm_code") == str(package_code)
+                and config.get("chip_type") == parameters["targetChip"].upper()
+                and config.get("model_type") == parameters["spec"].get("model_type")
+                and config.get("models", [{}])[0].get("file_name") == "model.rknn"
+                and config.get("models", [{}])[0].get("file_md5")
+                == hashlib.md5(package_model.read_bytes()).hexdigest()
+                and report.get("model_sha256") == core.sha256_file(package_model)
+                and report.get("config_sha256") == core.sha256_file(package_config)
+            )
+        except (core.WorkflowError, IndexError, TypeError, AttributeError):
+            package_ok = False
+        stages.append({"id": "S4P", "status": "PASS" if package_ok else "FAIL",
+                       "detail": "RKNN model package and config identities agree." if package_ok
+                       else "RKNN package evidence is incomplete or changed."})
     stages.append(
         {
             "id": "S5",
@@ -844,6 +917,8 @@ def verify_conversion(
     )
 
     required_ids = {"S1", "S2", "S4"}
+    if package_code is not None:
+        required_ids.add("S4P")
     if parameters["quantization"] == "INT8":
         required_ids.add("S3")
     required = [item for item in stages if item["id"] in required_ids]
