@@ -23,6 +23,7 @@
     "onvif-access:check": "node --experimental-vm-modules --test scripts/onvif_access_check.mjs scripts/onvif_dialog_check.mjs",
     "gb28181-access:check": "node --experimental-vm-modules --test scripts/gb28181_dialog_check.mjs",
     "network-validation:check": "node scripts/network_validation_check.mjs",
+    "workwear-enrollment:check": "node --experimental-vm-modules --test scripts/workwear_enrollment_check.mjs",
     "prebuild": "npm run api-contract:check && npm run request-behavior:check && npm run network-validation:check && npm run upgrade-package:check && npm run route-query:check && npm run device-info:check && npm run mqtt-port-validation:check && npm run linkage-flow:check && npm run linkage-form:check && npm run task-param-ownership:check && npm run component-behavior:check && npm run graph-edges:check && npm run onvif-access:check && npm run gb28181-access:check && npm run i18n:check",
     "build": "vite build",
     "preview": "vite preview",
@@ -32,7 +33,7 @@
     "api-contract:check": "node --experimental-vm-modules scripts/api_contract_check.mjs",
     "request-behavior:check": "node --experimental-vm-modules scripts/request_behavior_check.mjs",
     "task-card-layout:build": "node scripts/task_card_layout_fixture.mjs",
-    "component-behavior:check": "node --experimental-vm-modules scripts/component_behavior_check.mjs && node --experimental-vm-modules scripts/model_config_behavior_check.mjs && node --experimental-vm-modules scripts/flow_node_state_check.mjs",
+    "component-behavior:check": "node --experimental-vm-modules scripts/component_behavior_check.mjs && node --experimental-vm-modules scripts/model_config_behavior_check.mjs && node --experimental-vm-modules scripts/flow_node_state_check.mjs && npm run workwear-enrollment:check",
     "component-behavior:variants": "node scripts/component_behavior_variants.mjs",
     "task-card-layout:variants": "node scripts/task_card_layout_variants.mjs"
   },

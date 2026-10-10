@@ -288,6 +288,105 @@ TEST_CASE("BodyLibHandler: AddLibPerson accepts legit in-root picture", "[body-l
     REQUIRE(ret.resData.personId.size() == 1);
 }
 
+TEST_CASE("BodyLibHandler: enrolls event crop without substituting a same-name library photo",
+          "[body-lib-handler]") {
+    BodyHandlerPathEnvironment path_environment;
+    BodyLibHandlerMocks mocks;
+    auto handler         = MakeHandler(mocks);
+    const auto event_dir = std::filesystem::path(path_environment.tmp_dir) / "event/2026/09/28";
+    std::filesystem::create_directories(event_dir);
+    {
+        std::ofstream(event_dir / "capture_detect.jpg", std::ios::binary) << "event crop";
+        std::ofstream(std::filesystem::path(path::GetPersonLibPhotoDir()) / "capture_detect.jpg",
+                      std::ios::binary)
+            << "different photo";
+    }
+    auto frame = std::make_shared<media::VideoFrame>(4, 4);
+    const std::vector<float> feature{0.25f, 0.5f};
+    REQUIRE_CALL(mocks.videoCodecSvc, DecodeJpeg(_))
+        .WITH(_1 == std::vector<uint8_t>({'e', 'v', 'e', 'n', 't', ' ', 'c', 'r', 'o', 'p'}))
+        .RETURN(frame);
+    REQUIRE_CALL(mocks.bodyLibSvc, ExtractBodyFeature(frame)).RETURN(feature);
+    REQUIRE_CALL(mocks.personRecogDaoSvc, AddPerson(_, "lib-1", _, feature)).RETURN(true);
+    REQUIRE_CALL(mocks.bodyLibSvc, InvalidateCache("lib-1"));
+
+    BodyLib::MsgAddLibPersonRecv data{};
+    data.personOperation = 1;
+    data.personLibId     = "lib-1";
+    BodyLib::MsgAddLibPersonRecv::Person person{};
+    SECTION("web URL from alarm query") {
+        person.pictureUrl = "/event/2026/09/28/capture_detect.jpg";
+    }
+    SECTION("data-relative event path") {
+        person.pictureUrl = "event/2026/09/28/capture_detect.jpg";
+    }
+    data.personList.push_back(person);
+    std::error_condition errc;
+    auto ret = handler.Handle(std::move(data), errc);
+    REQUIRE(!errc);
+    REQUIRE(ret.resData.personId.size() == 1);
+    const auto saved =
+        std::filesystem::path(path::GetPersonLibPhotoDir()) / (ret.resData.personId.front() + ".jpg");
+    std::ifstream input(saved, std::ios::binary);
+    REQUIRE(std::string(std::istreambuf_iterator<char>(input), {}) == "event crop");
+    REQUIRE(std::filesystem::exists(event_dir / "capture_detect.jpg"));
+}
+
+TEST_CASE("BodyLibHandler: missing or unsafe event pictures cannot report success", "[body-lib-handler]") {
+    BodyHandlerPathEnvironment path_environment;
+    BodyLibHandlerMocks mocks;
+    auto handler = MakeHandler(mocks);
+    std::filesystem::create_directories(path_environment.tmp_dir + "/conf");
+    std::ofstream(path_environment.tmp_dir + "/conf/private.jpg") << "private";
+    std::filesystem::create_directories(path::GetEventRootPath() + "/directory.jpg");
+    // The old basename fallback must not turn an invalid event URL into a valid library image.
+    std::ofstream(path::GetPersonLibPhotoDir() + "/private.jpg") << "library photo";
+    FORBID_CALL(mocks.videoCodecSvc, DecodeJpeg(_));
+    FORBID_CALL(mocks.personRecogDaoSvc, AddPerson(_, _, _, _));
+    FORBID_CALL(mocks.bodyLibSvc, InvalidateCache(_));
+    for (const auto& url :
+         {"", "/event/missing.jpg", "/event/directory.jpg", "/event/../conf/private.jpg", "/conf/private.jpg",
+          "https://example.invalid/event/private.jpg", "//event/private.jpg"}) {
+        CAPTURE(url);
+        BodyLib::MsgAddLibPersonRecv data{};
+        data.personOperation = 1;
+        data.personLibId     = "lib-1";
+        BodyLib::MsgAddLibPersonRecv::Person person{};
+        person.pictureUrl = url;
+        data.personList.push_back(person);
+        std::error_condition errc;
+        auto ret = handler.Handle(std::move(data), errc);
+        REQUIRE(ret.resData.personId.empty());
+        REQUIRE(errc == util::ErrorEnum::FileNotExist);
+    }
+}
+
+TEST_CASE("BodyLibHandler: event symlinks cannot enroll files outside the event directory",
+          "[body-lib-handler]") {
+    BodyHandlerPathEnvironment path_environment;
+    BodyLibHandlerMocks mocks;
+    auto handler = MakeHandler(mocks);
+    std::filesystem::create_directories(path_environment.tmp_dir + "/conf");
+    std::ofstream(path_environment.tmp_dir + "/conf/private.jpg") << "private";
+    const auto events = path::GetEventRootPath();
+    std::filesystem::create_symlink(path_environment.tmp_dir + "/conf/private.jpg", events + "/link.jpg");
+    std::filesystem::create_directory_symlink(path_environment.tmp_dir + "/conf", events + "/outside");
+    FORBID_CALL(mocks.videoCodecSvc, DecodeJpeg(_));
+    FORBID_CALL(mocks.personRecogDaoSvc, AddPerson(_, _, _, _));
+    for (const auto& url : {"/event/link.jpg", "/event/outside/private.jpg"}) {
+        BodyLib::MsgAddLibPersonRecv data{};
+        data.personOperation = 1;
+        data.personLibId     = "lib-1";
+        BodyLib::MsgAddLibPersonRecv::Person person{};
+        person.pictureUrl = url;
+        data.personList.push_back(person);
+        std::error_condition errc;
+        auto ret = handler.Handle(std::move(data), errc);
+        REQUIRE(ret.resData.personId.empty());
+        REQUIRE(errc == util::ErrorEnum::FileNotExist);
+    }
+}
+
 TEST_CASE("BodyLibHandler: failed extraction cannot enroll an unusable sample",
           "[body-lib-handler][workwear-enrollment]") {
     BodyHandlerPathEnvironment path_environment;

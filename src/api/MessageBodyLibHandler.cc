@@ -27,6 +27,49 @@ static constexpr const char* kTag     = "BodyLibHandler";
 static constexpr int kDefaultPageNum  = 1;
 static constexpr int kDefaultPageSize = 10;
 
+namespace {
+
+    // Alarm queries return web paths, not absolute filesystem paths. Resolve only the
+    // two image namespaces accepted by body enrollment; never substitute by basename.
+    bool ResolveBodyPicturePath(const std::string& picture_url, std::string& resolved) {
+        if (picture_url.empty() || std::any_of(picture_url.begin(), picture_url.end(), [](unsigned char ch) {
+                return ch < 0x20 || ch == 0x7f || ch == '\\' || ch == ':' || ch == '?' || ch == '#';
+            })) {
+            return false;
+        }
+        const auto relative = picture_url.front() == '/' ? picture_url.substr(1) : picture_url;
+        const std::filesystem::path relative_path(relative);
+        if (relative_path.empty() || relative_path.has_root_path()) {
+            return false;
+        }
+        for (const auto& part : relative_path) {
+            if (part.empty() || part == "." || part == "..") {
+                return false;
+            }
+        }
+
+        const std::string photo_prefix = "weblibPic/personPicture/";
+        const std::string event_prefix = "event/";
+        std::string root;
+        std::string suffix;
+        if (relative.rfind(event_prefix, 0) == 0) {
+            root   = path::GetEventRootPath(false);
+            suffix = relative.substr(event_prefix.size());
+        } else if (relative.rfind(photo_prefix, 0) == 0) {
+            root   = path::GetPersonLibPhotoDir();
+            suffix = relative.substr(photo_prefix.size());
+        } else if (picture_url.front() != '/' && !relative_path.has_parent_path()) {
+            root   = path::GetPersonLibPhotoDir();
+            suffix = relative;
+        } else {
+            return false;
+        }
+        return path::ResolveExistingPathWithinRoot(root, (std::filesystem::path(root) / suffix).string(),
+                                                   path::PathEntryType::kRegularFile, resolved);
+    }
+
+}  // namespace
+
 MessageBodyLibHandler::MessageBodyLibHandler(service::IPersonRecogDaoService& dao_svc,
                                              service::IBodyLibService& body_lib_svc,
                                              service::ICameraTaskConfig& camera_task_config,
@@ -200,36 +243,11 @@ BodyLib::MsgAddLibPersonSend MessageBodyLibHandler::Handle(BodyLib::MsgAddLibPer
 
     std::error_condition failure = util::ErrorEnum::FileNotExist;
     for (auto& personSrc : data.personList) {
-        if (personSrc.pictureUrl.empty()) {
-            continue;
-        }
-        // pictureUrl may be a web path (/weblibPic/...) or a local relative path. Take only the
-        // filename and confine to the person-photo dir; otherwise fall back to the legacy BaseDir +
-        // pictureUrl form confined to the base dir. Either way the resolved path must stay inside its
-        // allowed root to block path traversal (CWE-22).
-        const auto file_name = std::filesystem::path(personSrc.pictureUrl.ToString()).filename();
-        if (file_name.empty() || file_name == "." || file_name == "..") {
-            // path("../").filename() yields "" and would otherwise resolve to photo_dir itself.
-            LOG_WARN("{} AddLibPerson skip: invalid pictureUrl (no usable filename): {}", kTag,
+        std::string srcPath;
+        if (!ResolveBodyPicturePath(personSrc.pictureUrl.ToString(), srcPath)) {
+            LOG_WARN("{} AddLibPerson skip: picture is missing or outside image directories: {}", kTag,
                      personSrc.pictureUrl);
             continue;
-        }
-        const auto photo_dir           = cosmo::path::GetPersonLibPhotoDir();
-        const auto base_dir            = cosmo::path::GetBaseDir();
-        const std::string primary_path = (std::filesystem::path(photo_dir) / file_name).string();
-        const bool use_primary =
-            cosmo::path::IsWithinRoot(photo_dir, primary_path) && util::FileExist(primary_path);
-
-        std::string srcPath = primary_path;  // name kept for the unchanged decode/copy block below
-        if (!use_primary) {
-            srcPath = (std::filesystem::path(base_dir) / personSrc.pictureUrl.ToString()).string();
-            if (!cosmo::path::IsWithinRoot(base_dir, srcPath) || !util::FileExist(srcPath)) {
-                LOG_WARN(
-                    "{} AddLibPerson skip: path outside allowed root or not found, pictureUrl:{} "
-                    "resolved:{}",
-                    kTag, personSrc.pictureUrl, srcPath);
-                continue;
-            }
         }
 
         std::string personId = util::GenerateUUID();

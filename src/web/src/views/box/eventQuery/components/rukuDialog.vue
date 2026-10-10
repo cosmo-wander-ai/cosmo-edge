@@ -109,6 +109,10 @@ const addWorkClothes = () => {
     proxy.$message.warning(t('event.selectWorkClothesLibWarning'))
     return
   }
+  if (!props.rukuData.detectedPicture) {
+    proxy.$message.error(t('api.error.FileNotExist'))
+    return
+  }
   const params = {
     personOperation: 1,
     personLibId: formData.value.libId,
@@ -116,7 +120,11 @@ const addWorkClothes = () => {
       pictureUrl: props.rukuData.detectedPicture
     }]
   }
-  proxy.$API.addLibPerson(params).then(() => {
+  return proxy.$API.addLibPerson(params).then((res) => {
+    if (!Array.isArray(res.resData?.personId) || res.resData.personId.length === 0) {
+      proxy.$message.error(t('api.error.Failed'))
+      return
+    }
     proxy.$message.success(t('common.operationSucceeded'))
     emit('update:visible', false)
   })
