@@ -113,7 +113,7 @@ for (const library of ['workClothes', 'item']) {
         fetch() { assert.fail('network access is forbidden in this component check') }
       },
       api: new Proxy({
-        async boxQueryCameraList(params) { calls.cameraList.push(plain(params)); return { resData: { rows: [channel] } } },
+        async getChannelList(params) { calls.cameraList.push(plain(params)); return { resData: { rows: [channel] } } },
         async boxRequestLiveStream(params) {
           calls.request.push(plain(params))
           assert.equal(params.channelId, channel.videoChannelId)
