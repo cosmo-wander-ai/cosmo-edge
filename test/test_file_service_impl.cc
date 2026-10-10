@@ -425,6 +425,46 @@ TEST_CASE("File upload worker: expired credentials refresh without corrupting fi
     CHECK(results[0].success);
 }
 
+TEST_CASE("File upload worker: failed configuration refresh preserves credentials and notifies once",
+          "[FileService][http][upload]") {
+    const auto failure = GENERATE(0, 1, 2);
+    const cosmo::test::LoopbackHttpServer::Response refresh =
+        failure == 0 ? cosmo::test::LoopbackHttpServer::Response{503, "unavailable"}
+                     : cosmo::test::LoopbackHttpServer::Response{
+                           200, failure == 1 ? "not-json-response" : R"({"resCode":0})"};
+    const cosmo::test::LoopbackHttpServer::Response expired{
+        200, R"({"resCode":0,"resMsg":[{"msgCode":"180000010"}]})"};
+    cosmo::test::LoopbackHttpServer server;
+    REQUIRE(server.Start());
+    const auto url = ServerUrl(server);
+    UploadCompletions completions;
+    std::vector<std::string> changed_addresses;
+    UploadWorker sut(url, [&](std::string address) { changed_addresses.push_back(std::move(address)); });
+    sut.manager.SetIpPort("127.0.0.1:" + std::to_string(server.Port()));
+    std::vector<std::string> requests;
+    auto served = std::async(std::launch::async, [&]() {
+        return server.ServeResponses({expired, refresh, expired, refresh, expired, refresh}, &requests,
+                                     [&](std::size_t) { return completions.Values().empty(); });
+    });
+    REQUIRE(sut.Submit("failed-refresh", completions.Callback()) == 1);
+    REQUIRE(sut.worker.start());
+    REQUIRE(completions.WaitFor(1));
+    sut.worker.Stop();
+
+    REQUIRE(served.get());
+    REQUIRE(requests.size() == 6);
+    for (std::size_t index = 0; index < requests.size(); index += 2) {
+        CHECK(requests[index].find("\r\nuser: old-user\r\n") != std::string::npos);
+        CHECK(requests[index].find("\r\ntoken: old-token\r\n") != std::string::npos);
+        CHECK(requests[index].find("\r\nfileUrl: " + url + "/remote/event.jpg\r\n") != std::string::npos);
+    }
+    CHECK(changed_addresses.empty());
+    const auto results = completions.Values();
+    REQUIRE(results.size() == 1);
+    CHECK(results[0].id == "failed-refresh");
+    CHECK_FALSE(results[0].success);
+}
+
 TEST_CASE("File upload worker: processing exceptions fail once and allow the next task",
           "[FileService][http][upload]") {
     const bool standard_exception = GENERATE(false, true);
