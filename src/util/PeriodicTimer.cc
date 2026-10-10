@@ -2,6 +2,7 @@
 
 #include "util/PeriodicTimer.h"
 
+#include <exception>
 #include <vector>
 
 #include "util/Log.h"
@@ -92,7 +93,13 @@ void PeriodicTimer::Run() {
             lck.unlock();
             for (auto& cb : to_run) {
                 if (cb) {
-                    cb();
+                    try {
+                        cb();
+                    } catch (const std::exception& error) {
+                        LOG_ERRO("Timer {} callback failed: {}", name_, error.what());
+                    } catch (...) {
+                        LOG_ERRO("Timer {} callback failed: unknown exception", name_);
+                    }
                 }
             }
             lck.lock();
