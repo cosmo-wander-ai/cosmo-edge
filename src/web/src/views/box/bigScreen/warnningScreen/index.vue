@@ -258,7 +258,6 @@ import DetailDialog from '../components/detailDialog.vue'
 import CaptureDialog from '../components/captureDialog.vue'
 import moment from 'moment'
 import TreeSelect from '../components/TreeSelect.vue'
-import EventBus from '@/components/eventBus'
 import _ from 'lodash'
 import { t, localeColon, currentLocale } from '@/i18n'
 import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
@@ -931,7 +930,6 @@ const checkPropertyKey = (data, key) => {
 
 // Lifecycle
 onMounted(() => {
-  EventBus.$emit('changeScreen', true)
   queryPopUpParam()
   initCameraList()
   queryWarnRecord()
@@ -955,7 +953,6 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  EventBus.$emit('changeScreen', false)
   clearAlertTimers()
   timeInterval.value && clearInterval(timeInterval.value)
   socketTimer.value && clearInterval(socketTimer.value)

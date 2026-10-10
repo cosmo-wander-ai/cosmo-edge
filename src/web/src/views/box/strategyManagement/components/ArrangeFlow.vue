@@ -382,6 +382,7 @@ const deleteFollowing = (operation) => {
 }
 
 provide(flowEditorKey, {
+  customMetadata: readonly(ref([])),
   nodes: readonly(nodes),
   edges: readonly(edges),
   activeEdgeId: readonly(activeEdgeId),
