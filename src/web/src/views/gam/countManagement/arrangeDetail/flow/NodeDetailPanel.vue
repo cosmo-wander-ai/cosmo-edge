@@ -102,6 +102,13 @@ let dragStartOffset = { x: 0, y: 0 }
 const startDrag = (e) => {
   // 忽略关闭按钮上的拖拽
   if (e.target.closest('.panel-close')) return
+  // Resume from the clamped position, not an invisible offset outside the canvas.
+  if (panelRef.value) {
+    dragOffset.value = {
+      x: panelRef.value.offsetLeft - props.position.x,
+      y: panelRef.value.offsetTop - props.position.y
+    }
+  }
   isDragging.value = true
   dragStartMouse = { x: e.clientX, y: e.clientY }
   dragStartOffset = { ...dragOffset.value }
