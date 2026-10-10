@@ -3606,5 +3606,13 @@
   "resource.param.ba_00004.llmopenai_timeout_ms.llmprovider.openai_vlm.description": "Request timeout in milliseconds",
   "resource.param.ba_00004.llmopenai_timeout_ms.llmprovider.openai_vlm.failedtip": "Please enter timeout",
   "resource.param.ba_00004.llmopenai_max_tokens.llmprovider.openai_vlm.description": "Maximum output token count",
-  "resource.param.ba_00004.llmopenai_max_tokens.llmprovider.openai_vlm.failedtip": "Please enter maximum output token count"
+  "resource.param.ba_00004.llmopenai_max_tokens.llmprovider.openai_vlm.failedtip": "Please enter maximum output token count",
+  "resource.action.la_alarmoutput_code.actionname": "Alarm Output Linkage",
+  "resource.action.la_alarmoutput_code.remark": "Activate a box alarm output and reset it after the configured duration",
+  "resource.param.la_alarmoutput_code.duration.description": "Hold for 1–600 seconds; repeated alarms extend the hold time",
+  "resource.param.la_alarmoutput_code.duration.failedtip": "Enter an integer from 1 to 600",
+  "resource.param.la_alarmoutput_code.duration.name": "Duration (s)",
+  "resource.param.la_alarmoutput_code.outputchannel.description": "Enter an alarm output channel configured on this box",
+  "resource.param.la_alarmoutput_code.outputchannel.failedtip": "Enter an integer from 1 to 64",
+  "resource.param.la_alarmoutput_code.outputchannel.name": "Output Channel"
 }

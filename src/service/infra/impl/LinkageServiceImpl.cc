@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <set>
 
+#include "linkage/AlarmOutputController.h"
 #include "linkage/LinkAgeAudioDevice.h"
 #include "nlohmann/json.hpp"
 #include "service/detail/ServiceRegistry.h"
@@ -61,7 +62,11 @@ namespace {
     }
 }  // namespace
 
-LinkageServiceImpl::LinkageServiceImpl() : async_queue_("Linkage Alarm QUE", 100) {
+LinkageServiceImpl::LinkageServiceImpl()
+    : alarm_outputs_(
+          std::make_shared<cosmo::linkage::AlarmOutputController>(cosmo::linkage::LoadAlarmOutputChannels(
+              (std::filesystem::path(cosmo::path::GetCfgPath("linkAge")) / "alarmOutputs.json").string()))),
+      async_queue_("Linkage Alarm QUE", 100) {
     LoadConfig();
     const std::string linkage_storages_file_path = cosmo::path::GetLinkageStoragesJsonPath();
     if (!LoadSupportedStorageFromJson(linkage_storages_file_path)) {
@@ -84,6 +89,7 @@ void LinkageServiceImpl::Stop() {
     }
     async_queue_.Stop();
     async_queue_.stop();
+    alarm_outputs_->Stop();
     stopped_ = true;
 }
 

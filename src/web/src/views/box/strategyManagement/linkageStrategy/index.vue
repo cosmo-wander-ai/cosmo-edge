@@ -25,7 +25,7 @@
               </div>
             </div>
             <div class="item-tools" @click.stop>
-              <el-switch v-model="item.enabled" size="small" @change="handleSwitchStrategy(item)" />
+              <el-switch v-model="item.enabled" :loading="item.switching" size="small" @change="handleSwitchStrategy(item)" />
               <el-icon class="tool-icon" @click="handleEditStrategy(item)">
                 <EditPen />
               </el-icon>
@@ -200,11 +200,18 @@ const handleDeleteStrategy = (item) => {
   })
 }
 
-const handleSwitchStrategy = (item) => {
-  const params = { id: item.id, status: item.enabled ? 1 : 0 }
-  $API.boxStrategySwitch(params).then(() => {
+const handleSwitchStrategy = async (item) => {
+  if (item.switching) return
+  const enabled = item.enabled
+  item.switching = true
+  try {
+    await $API.boxStrategySwitch({ id: item.id, switch: enabled })
     proxy.$message.success(t('common.operationSucceeded'))
-  })
+  } catch {
+    item.enabled = !enabled
+  } finally {
+    item.switching = false
+  }
 }
 
 const handleSelectStrategy = (item) => {
