@@ -1125,6 +1125,8 @@ export default {
   event: {
     aiVideoAnalysis: 'AI Video Analysis',
     algorithmOverlay: 'Algorithm Overlay',
+    previewWindows: 'Window {windows}',
+    openChannelHint: 'Double-click a channel to open it in the selected window',
     alarmLocation: 'Alarm Location',
     alarmPopup: 'Alarm Popup',
     alarmRecordCsv: 'alarm-record.csv',

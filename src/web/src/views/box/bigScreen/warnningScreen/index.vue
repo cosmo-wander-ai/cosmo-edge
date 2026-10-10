@@ -84,30 +84,39 @@
             </div>
             <div class="exseach">
               <el-input size="small" :placeholder="t('event.searchKeyword')" maxlength="32" v-model="cameraFilterText">
-                <template #suffix>
+                <template #prefix>
                   <el-icon><Search /></el-icon>
                 </template>
               </el-input>
               <div class="tree-body">
                 <el-tree id="onboarding-camera-tree" ref="tree" class="filter-tree" :data="camearList" :highlight-current="true" node-key="id" default-expand-all :filter-node-method="filterNode">
-                  <template #default="{ node, data }">
-                    <div class="custom-tree-node" :class="{'padding-left-18': nodeLabel(data) !== t('common.all')}" @dblclick="handleCameraNodeClick(data)">
-                      <div v-if="data.channelType == 0 && data.status == 0" class="stnode">
-                        <img src="@/assets/close-circle.png" />
-                        <span>{{ node.label }}</span>
-                      </div>
-                      <div v-else-if="nodeLabel(data) !== t('common.all')" class="stnode">
-                        <img src="@/assets/check-circle.png" />
+                  <template #default="{ data }">
+                    <div class="custom-tree-node" :class="{ 'is-assigned': visiblePreviewWindows[data.id]?.length }" @dblclick="handleCameraNodeClick(data)">
+                      <div v-if="data.labelI18nKey === 'common.all'" class="channel-group">
                         <span>{{ nodeLabel(data) }}</span>
+                        <span class="channel-count">{{ data.children?.length || 0 }}</span>
                       </div>
-                      <div v-else>
-                        <span>{{ nodeLabel(data) }}</span>
-                      </div>
+                      <template v-else>
+                        <span class="channel-symbol" aria-hidden="true"><el-icon><VideoCamera /></el-icon></span>
+                        <div class="channel-copy">
+                          <div class="channel-name" :title="nodeLabel(data)">{{ nodeLabel(data) }}</div>
+                          <div class="channel-meta">
+                            <div class="channel-state" :class="'is-' + channelDisplayStatus(data).tone" :title="t(channelDisplayStatus(data).label)">
+                              <span class="status-dot" aria-hidden="true"></span>
+                              <span>{{ t(channelDisplayStatus(data).label) }}</span>
+                            </div>
+                            <span v-if="visiblePreviewWindows[data.id]?.length" class="channel-window" :title="t('event.previewWindows', { windows: visiblePreviewWindows[data.id].join(' / ') })">
+                              {{ t('event.previewWindows', { windows: visiblePreviewWindows[data.id].join('/') }) }}
+                            </span>
+                          </div>
+                        </div>
+                      </template>
                     </div>
                   </template>
                 </el-tree>
               </div>
             </div>
+            <div class="channel-list-hint">{{ t('event.openChannelHint') }}</div>
           </div>
           <button id="onboarding-camera-toggle" type="button" class="select-area-tools panel-icon" :title="t(cameraDrawerVisible ? 'action.collapse' : 'event.channelList')" :aria-label="t(cameraDrawerVisible ? 'action.collapse' : 'event.channelList')" :aria-expanded="cameraDrawerVisible" @click.stop="toggleCameraDrawer">
             <el-icon><ArrowLeft v-if="cameraDrawerVisible" /><VideoCamera v-else /></el-icon>
@@ -254,7 +263,7 @@
   </div>
 </template>
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount, getCurrentInstance } from 'vue'
+import { computed, ref, watch, onMounted, onBeforeUnmount, getCurrentInstance } from 'vue'
 import beepOgg from '@/assets/beep.ogg'
 import { Search, Setting, FullScreen, Back, Refresh, ArrowLeft, ArrowRight, VideoCamera, Bell } from '@element-plus/icons-vue'
 import flv from '../components/flvVideo.vue'
@@ -399,6 +408,27 @@ const dateFormat = (value) => {
 
 const nodeLabel = (data) => {
   return data?.labelI18nKey ? t(data.labelI18nKey) : data?.label
+}
+
+// Window badges describe the visible layout, not transport or decoder health.
+const visiblePreviewWindows = computed(() => {
+  const windows = Object.create(null)
+  playedCameraList.value.forEach((camera, index) => {
+    if (!camera.id || (screenType.value === 1 && index !== currentSelectedIndex.value)) return
+    const id = String(camera.id)
+    if (!windows[id]) windows[id] = []
+    windows[id].push(index + 1)
+  })
+  return windows
+})
+
+// Presentation only: retain the existing channel-open eligibility checks.
+const channelDisplayStatus = (channel) => {
+  if (Number(channel.channelType) === 3) return { label: 'glossary.offlineVideo', tone: 'local' }
+  if (Number(channel.status) === 1) return { label: 'status.online', tone: 'online' }
+  if (Number(channel.status) === 2) return { label: 'status.validationError', tone: 'warning' }
+  if (Number(channel.status) === 3) return { label: 'status.unsupportedResolution', tone: 'warning' }
+  return { label: 'status.offline', tone: 'offline' }
 }
 
 const handleFullScreenChange = () => {
@@ -1122,7 +1152,7 @@ button:focus-visible {
 
 .select-area {
   border-right: 1px solid var(--screen-border);
-  &.expanded { flex-basis: 240px; width: 240px; }
+  &.expanded { flex-basis: 256px; width: 256px; }
 }
 
 .right-panel {
@@ -1166,8 +1196,8 @@ button:focus-visible {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    flex: 0 0 44px;
-    padding: 0 40px 0 14px;
+    flex: 0 0 48px;
+    padding: 0 40px 0 16px;
     font-size: 14px;
     font-weight: 600;
   }
@@ -1178,16 +1208,18 @@ button:focus-visible {
   flex: 1;
   flex-direction: column;
   min-height: 0;
-  padding: 0 10px 10px;
+  padding: 0 10px 6px;
 
   :deep(.el-input) { flex: 0 0 auto; margin-bottom: 10px; }
-  :deep(.el-input__wrapper) { background: var(--bg-white); }
+  :deep(.el-input__wrapper) { background: var(--bg-primary); box-shadow: inset 0 0 0 1px var(--screen-border); border-radius: 5px; }
+  :deep(.el-input__wrapper.is-focus) { box-shadow: inset 0 0 0 1px var(--screen-accent); }
   :deep(.el-input__inner) { height: 30px; color: var(--screen-text); }
 
   .tree-body {
     flex: 1;
     min-height: 0;
     overflow: auto;
+    scrollbar-width: thin;
   }
 
   :deep(.el-tree) {
@@ -1197,23 +1229,48 @@ button:focus-visible {
   }
 
   :deep(.el-tree-node__content) {
-    height: 34px;
+    height: 32px;
     border-radius: 5px;
+    margin-bottom: 3px;
     &:hover { background: var(--bg-primary); }
   }
 
+  :deep(.el-tree-node__expand-icon) { color: var(--screen-muted); }
+  :deep(.el-tree-node__children .el-tree-node__content) { height: 48px; padding-left: 8px !important; padding-right: 8px; }
+  :deep(.el-tree-node__expand-icon.is-leaf) { display: none; }
   :deep(.el-tree-node.is-current > .el-tree-node__content) {
-    background: var(--theme-selected-bg, #efedff);
-    color: var(--screen-accent);
+    background: var(--bg-primary);
+    box-shadow: inset 0 0 0 1px var(--screen-border);
   }
 }
 
 .custom-tree-node {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 9px;
   min-width: 0;
-  .stnode { display: flex; align-items: center; }
-  img { width: 16px; height: 16px; margin-right: 6px; }
-  span { display: inline-block; max-width: 148px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  height: 100%;
+  cursor: pointer;
+
+  .channel-group { display: flex; flex: 1; align-items: center; gap: 8px; color: var(--screen-muted); font-size: 12px; }
+  .channel-count { padding: 0 5px; border-radius: 3px; background: var(--bg-primary); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .channel-symbol { display: grid; place-items: center; flex: 0 0 28px; height: 28px; border: 1px solid var(--screen-border); border-radius: 5px; color: var(--screen-muted); background: var(--bg-white); font-size: 15px; }
+  .channel-copy { flex: 1; min-width: 0; }
+  .channel-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--screen-text); font-size: 13px; line-height: 20px; }
+  .channel-meta { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .channel-state { display: flex; flex: 1; align-items: center; gap: 5px; min-width: 0; color: var(--screen-muted); font-size: 11px; line-height: 16px; }
+  .channel-state > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .status-dot { flex: 0 0 5px; height: 5px; border-radius: 50%; background: var(--text-muted); }
+  .is-online .status-dot { background: var(--success-color); }
+  .is-warning .status-dot { background: var(--warning-color); }
+  .is-local .status-dot { background: transparent; box-shadow: inset 0 0 0 1px var(--text-muted); }
+  .channel-window { flex: 0 0 auto; max-width: 88px; padding: 0 4px; border: 1px solid var(--screen-border); border-radius: 3px; background: var(--bg-primary); color: var(--screen-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; line-height: 14px; font-variant-numeric: tabular-nums; }
+  &.is-assigned .channel-symbol { color: var(--screen-accent); }
+  &.is-assigned .channel-name { font-weight: 600; }
 }
+
+.channel-list-hint { flex-shrink: 0; padding: 10px 14px; border-top: 1px solid var(--screen-border); color: var(--screen-muted); font-size: 11px; line-height: 16px; }
 
 .video-grid {
   display: flex;
@@ -1427,7 +1484,6 @@ button:focus-visible {
   .right-tools { margin-left: auto; }
   .right-panel.expanded { flex-basis: 240px; width: 240px; }
   .select-area.expanded { flex-basis: 190px; width: 190px; }
-  .custom-tree-node span { max-width: 106px; }
 }
 
 @media (max-width: 480px) {

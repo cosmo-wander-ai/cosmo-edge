@@ -1125,6 +1125,8 @@ export default {
   event: {
     aiVideoAnalysis: 'AI视频分析',
     algorithmOverlay: '算法叠加',
+    previewWindows: '窗口 {windows}',
+    openChannelHint: '双击通道，在选中窗口中打开',
     alarmLocation: '告警位置',
     alarmPopup: '告警弹框',
     alarmRecordCsv: '告警记录.csv',
