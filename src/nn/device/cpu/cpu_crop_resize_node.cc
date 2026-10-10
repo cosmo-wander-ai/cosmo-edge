@@ -166,6 +166,9 @@ Status CpuCropResizeNode::Forward(std::vector<std::shared_ptr<Blob>>& image_blob
                                   std::vector<std::shared_ptr<Blob>>& rect_blobs,
                                   std::vector<std::shared_ptr<Blob>>& top_blobs) {
     timer.Start();
+    // Resolve deferred host pixels before any batch output is written.
+    RETURN_ON_FAIL(CheckNodeInputOutput(image_blobs, top_blobs, false));
+    RETURN_ON_FAIL(CheckNodeInputOutput(rect_blobs, top_blobs, false));
 
     auto top_blob = top_blobs.at(0);
     auto top_desc = top_blob->GetBlobDesc();

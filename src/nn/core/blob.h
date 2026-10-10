@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <functional>
 #include <map>
 #include <memory>
 #include <string>
@@ -61,6 +62,10 @@ struct PUBLIC BlobHandle {
                    height_stride >= height && format != IMAGE_UNKNOWN;
         }
     } native_image;
+
+    // Optional owned host fallback for an otherwise native image. The provider
+    // must retain the image and synchronize/cache materialization across copies.
+    std::function<void*()> host_data_provider;
 };
 
 class BlobImpl;
@@ -79,7 +84,8 @@ public:
 
     void SetBlobDesc(BlobDesc desc);
 
-    BlobHandle GetHandle();
+    // Native-aware nodes can inspect DMA-BUF metadata without generating host pixels.
+    BlobHandle GetHandle(bool materialize_host = true);
 
     void SetHandle(BlobHandle handle);
 

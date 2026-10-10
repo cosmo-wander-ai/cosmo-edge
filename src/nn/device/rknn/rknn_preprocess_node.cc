@@ -438,9 +438,9 @@ bool RknnResizeNode::ResizeWithRga(const Blob& bottom, Blob& top, bool allow_bou
 
     auto& mutable_bottom = const_cast<Blob&>(bottom);
     auto bottom_desc     = mutable_bottom.GetBlobDesc();
-    auto bottom_handle   = mutable_bottom.GetHandle();
+    auto bottom_handle   = mutable_bottom.GetHandle(false);
     auto top_handle      = top.GetHandle();
-    if (!bottom_handle.base || !top_handle.base || bottom_desc.dims.size() != 4 || bottom_desc.dims[0] != 1 ||
+    if (!top_handle.base || bottom_desc.dims.size() != 4 || bottom_desc.dims[0] != 1 ||
         bottom_desc.dims[3] != 3 ||
         (bottom_desc.image_format != IMAGE_BGR && bottom_desc.image_format != IMAGE_RGB)) {
         GetInferencePipelineMetrics().RecordRknnRgaFailure();
@@ -552,7 +552,11 @@ bool RknnResizeNode::ResizeWithRga(const Blob& bottom, Blob& top, bool allow_bou
         }
     }
 
-    media::ScopedRgaBufferHandle host_source_handle(bottom_handle.base, source_size);
+    // Generate packed host pixels only after the native path is unavailable.
+    const auto host_handle = mutable_bottom.GetHandle();
+    if (!host_handle.base)
+        return false;
+    media::ScopedRgaBufferHandle host_source_handle(host_handle.base, source_size);
     const int host_source_format =
         bottom_desc.image_format == IMAGE_RGB ? RK_FORMAT_RGB_888 : RK_FORMAT_BGR_888;
     if (host_source_handle.Get() == 0 ||
@@ -613,7 +617,7 @@ void RknnResizeNode::ResizeWithCpu(const Blob& bottom, Blob& top, bool output_rg
 
 Status RknnResizeNode::ResizeSingle(const std::shared_ptr<Blob>& bottom, const std::shared_ptr<Blob>& top,
                                     bool allow_bound_target) {
-    if (!bottom || !top || !bottom->GetHandle().base || !top->GetHandle().base)
+    if (!bottom || !top || !top->GetHandle().base)
         return Status(COSMO_NN_ERR_NULL_PARAM, "RKNN resize input or output is null");
     const auto bottom_desc = bottom->GetBlobDesc();
     if (bottom_desc.data_type != DATA_TYPE_UINT8 || bottom_desc.data_format != DATA_FORMAT_NHWC ||
@@ -626,6 +630,8 @@ Status RknnResizeNode::ResizeSingle(const std::shared_ptr<Blob>& bottom, const s
     if (detector_contract_)
         rga_success = ResizeWithRga(*bottom, *top, allow_bound_target);
     if (!rga_success) {
+        if (!bottom->GetHandle().base)
+            return Status(COSMO_NN_ERR_NULL_PARAM, "RKNN host resize fallback could not materialize input");
         const auto cpu_started = MetricsClock::now();
         try {
             ResizeWithCpu(*bottom, *top, detector_contract_);
@@ -797,10 +803,10 @@ bool RknnCropResizeNode::ForwardWithRga(std::vector<std::shared_ptr<Blob>>& imag
     IM_STATUS last_status = IM_STATUS_FAILED;
     for (size_t image_index = 0; image_index < image_blobs.size(); ++image_index) {
         const auto& image_blob = image_blobs[image_index];
-        if (!image_blob || !image_blob->GetHandle().base)
+        if (!image_blob)
             return false;
         const auto image_desc   = image_blob->GetBlobDesc();
-        const auto image_handle = image_blob->GetHandle();
+        const auto image_handle = image_blob->GetHandle(false);
         if (image_desc.data_type != DATA_TYPE_UINT8 || image_desc.data_format != DATA_FORMAT_NHWC ||
             image_desc.dims.size() != 4 || image_desc.dims[0] != 1 || image_desc.dims[1] <= 0 ||
             image_desc.dims[2] <= 0 || image_desc.dims[3] != 3 ||
@@ -929,7 +935,10 @@ bool RknnCropResizeNode::ForwardWithRga(std::vector<std::shared_ptr<Blob>>& imag
 
             if (!success) {
                 if (!host_source_handle) {
-                    host_source_handle.ImportVirtual(image_handle.base,
+                    const auto host_handle = image_blob->GetHandle();
+                    if (!host_handle.base)
+                        return false;
+                    host_source_handle.ImportVirtual(host_handle.base,
                                                      PackedByteCount(source_width, source_height));
                 }
                 if (host_source_handle) {

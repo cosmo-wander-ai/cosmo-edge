@@ -640,6 +640,13 @@ TEST_CASE("RKNN classifier crop-resize keeps an exact CPU fallback", "[nn][rknn]
         pixels[pixel * 3 + 1] = 20;
         pixels[pixel * 3 + 2] = 30;
     }
+    int host_requests = 0;
+    BlobHandle deferred_handle;
+    deferred_handle.host_data_provider = [image, &host_requests]() {
+        ++host_requests;
+        return image->GetHandle().base;
+    };
+    auto deferred_image = std::make_shared<Blob>(image->GetBlobDesc(), deferred_handle);
     BlobDesc rect_desc;
     rect_desc.device_type = DEVICE_NAIVE;
     rect_desc.data_type   = DATA_TYPE_INT32;
@@ -657,10 +664,11 @@ TEST_CASE("RKNN classifier crop-resize keeps an exact CPU fallback", "[nn][rknn]
     auto top             = std::make_shared<Blob>(top_desc, true);
 
     const auto before = GetInferencePipelineMetrics().Snapshot();
-    std::vector<std::shared_ptr<Blob>> images{image};
+    std::vector<std::shared_ptr<Blob>> images{deferred_image};
     std::vector<std::shared_ptr<Blob>> rects{rect};
     std::vector<std::shared_ptr<Blob>> tops{top};
     REQUIRE(bool(node.Forward(images, rects, tops)));
+    CHECK(host_requests > 0);
     const auto after = GetInferencePipelineMetrics().Snapshot();
     CHECK(after.rknn_rga_crop_resize_failures == before.rknn_rga_crop_resize_failures + 1);
     CHECK(after.rknn_cpu_crop_resize_fallback_calls == before.rknn_cpu_crop_resize_fallback_calls + 1);
@@ -710,16 +718,22 @@ TEST_CASE("RKNN native input failure is bounded while host RGA keeps processing 
     auto host   = std::make_shared<Blob>(PackedImageDesc(height, width, IMAGE_RGB), true);
     auto handle = host->GetHandle();
     std::fill_n(static_cast<uint8_t*>(handle.base), width * height * 3, 128);
-    handle.native_image = {mpp_buffer_get_fd(native.buffer),
-                           bytes,
-                           width,
-                           height,
-                           width,
-                           height,
-                           IMAGE_NV12,
-                           NativeImageColorSpace::Bt709,
-                           NativeImageColorRange::Full};
-    auto image          = std::make_shared<Blob>(host->GetBlobDesc(), handle);
+    handle.native_image       = {mpp_buffer_get_fd(native.buffer),
+                                 bytes,
+                                 width,
+                                 height,
+                                 width,
+                                 height,
+                                 IMAGE_NV12,
+                                 NativeImageColorSpace::Bt709,
+                                 NativeImageColorRange::Full};
+    int host_requests         = 0;
+    handle.base               = nullptr;
+    handle.host_data_provider = [host, &host_requests]() {
+        ++host_requests;
+        return host->GetHandle().base;
+    };
+    auto image = std::make_shared<Blob>(host->GetBlobDesc(), handle);
     SharedResource resource;
     RknnResizeNode resize_node;
     RknnCropResizeNode crop_node;
@@ -766,6 +780,10 @@ TEST_CASE("RKNN native input failure is bounded while host RGA keeps processing 
     CHECK(fallbacks <= 1);
     if (force_import_failure)
         CHECK(fallbacks == 1);
+    if (fallbacks > 0)
+        CHECK(host_requests > 0);
+    else
+        CHECK(host_requests == 0);
     CHECK(after.rknn_cpu_resize_fallback_calls == before.rknn_cpu_resize_fallback_calls);
     CHECK(after.rknn_cpu_crop_resize_fallback_calls == before.rknn_cpu_crop_resize_fallback_calls);
 }
@@ -793,10 +811,19 @@ TEST_CASE("RKNN RGA failure falls back once to CPU while preserving native input
     auto* source             = static_cast<uint8_t*>(bottom->GetHandle().base);
     std::fill(source, source + static_cast<size_t>(320) * 640 * 3, 128);
 
+    int host_requests = 0;
+    BlobHandle deferred_handle;
+    deferred_handle.host_data_provider = [bottom, &host_requests]() {
+        ++host_requests;
+        return bottom->GetHandle().base;
+    };
+    auto deferred_bottom = std::make_shared<Blob>(bottom->GetBlobDesc(), deferred_handle);
+
     const auto before = GetInferencePipelineMetrics().Snapshot();
-    std::vector<std::shared_ptr<Blob>> resize_bottoms{bottom};
+    std::vector<std::shared_ptr<Blob>> resize_bottoms{deferred_bottom};
     std::vector<std::shared_ptr<Blob>> resize_tops{resized};
     REQUIRE(bool(resize_node.Forward(resize_bottoms, resize_tops)));
+    CHECK(host_requests > 0);
     const auto resized_metrics = GetInferencePipelineMetrics().Snapshot();
     CHECK(resized_metrics.rknn_rga_failures == before.rknn_rga_failures + 1);
     CHECK(resized_metrics.rknn_cpu_resize_fallback_calls == before.rknn_cpu_resize_fallback_calls + 1);
@@ -830,6 +857,61 @@ TEST_CASE("RKNN RGA failure falls back once to CPU while preserving native input
     CHECK(native->GetBlobDesc().data_type == DATA_TYPE_INT8);
     CHECK(native->GetBlobDesc().data_format == DATA_FORMAT_NHWC);
     CHECK(static_cast<const int8_t*>(native->GetHandle().base)[(320 * 640 + 320) * 3] == 0);
+}
+
+TEST_CASE("RKNN fallback rejects unavailable deferred pixels before reading a batch",
+          "[nn][rknn][fast-preprocess][deferred-host]") {
+    using namespace cosmo::nn;
+    ScopedEnvironment force_fail("COSMO_RKNN_RGA_FORCE_FAIL", "1");
+    BlobHandle failed_handle;
+    int host_requests                = 0;
+    failed_handle.host_data_provider = [&]() -> void* {
+        ++host_requests;
+        return nullptr;
+    };
+    auto image = std::make_shared<Blob>(PackedImageDesc(4, 4, IMAGE_BGR), failed_handle);
+    SharedResource resource;
+    SECTION("detector resize") {
+        Resize param;
+        param.dsize   = {640, 640};
+        param.gravity = 1;
+        param.color   = {114, 114, 114};
+        RknnResizeNode node;
+        node.SetSharedResource(&resource);
+        node.LoadParam(&param);
+        REQUIRE(bool(node.InferTopShapes()));
+        auto top = std::make_shared<Blob>(PackedImageDesc(640, 640, IMAGE_RGB), true);
+        std::vector<std::shared_ptr<Blob>> images{image}, tops{top};
+        CHECK_FALSE(bool(node.Forward(images, tops)));
+    }
+    SECTION("later classifier image") {
+        CropResize param;
+        param.h_top_crop = param.h_bottom_crop = param.w_left_crop = param.w_right_crop = {0.0f};
+        param.dsize                                                                     = {4, 4};
+        param.gravity                                                                   = 0;
+        RknnCropResizeNode node;
+        node.SetMaxBatch(2);
+        node.SetSharedResource(&resource);
+        node.LoadParam(&param);
+        REQUIRE(bool(node.InferTopShapes()));
+        auto available = std::make_shared<Blob>(PackedImageDesc(4, 4, IMAGE_BGR), true);
+        BlobDesc rect_desc;
+        rect_desc.device_type = DEVICE_NAIVE;
+        rect_desc.data_type   = DATA_TYPE_INT32;
+        rect_desc.dims        = {1, 4};
+        auto rect             = std::make_shared<Blob>(rect_desc, true);
+        const std::array<int32_t, 4> bounds{0, 0, 4, 4};
+        std::copy(bounds.begin(), bounds.end(), static_cast<int32_t*>(rect->GetHandle().base));
+        auto top_desc    = PackedImageDesc(4, 4, IMAGE_BGR);
+        top_desc.dims[0] = 2;
+        auto top         = std::make_shared<Blob>(top_desc, true);
+        auto* output     = static_cast<uint8_t*>(top->GetHandle().base);
+        std::fill_n(output, 2 * 4 * 4 * 3, uint8_t{91});
+        std::vector<std::shared_ptr<Blob>> images{available, image}, rects{rect, rect}, tops{top};
+        CHECK_FALSE(bool(node.Forward(images, rects, tops)));
+        CHECK(std::all_of(output, output + 2 * 4 * 4 * 3, [](uint8_t value) { return value == 91; }));
+    }
+    CHECK(host_requests > 0);
 }
 
 #endif

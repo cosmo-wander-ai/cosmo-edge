@@ -46,8 +46,11 @@ void Blob::SetBlobDesc(BlobDesc desc) {
     impl->SetBlobDesc(desc);
 }
 
-BlobHandle Blob::GetHandle() {
-    return impl->GetHandle();
+BlobHandle Blob::GetHandle(bool materialize_host) {
+    auto handle = impl->GetHandle();
+    if (materialize_host && !handle.base && handle.host_data_provider)
+        handle.base = handle.host_data_provider();
+    return handle;
 }
 
 void Blob::SetHandle(BlobHandle handle) {

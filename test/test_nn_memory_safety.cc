@@ -11,6 +11,13 @@
 #include "nn/utils/blob_memory_size_utils.h"
 #include "nn/utils/dims_vector_utils.h"
 
+#ifdef COSMO_NN_USE_HOST_BACKEND
+#include "nn/device/cpu/cpu_affine_crop_node.h"
+#include "nn/device/cpu/cpu_crop_resize_node.h"
+#include "nn/device/cpu/cpu_resize_node.h"
+#include "nn/device/cpu/cpu_sequence_node.h"
+#endif
+
 #ifdef COSMO_NN_USE_SOPHON_BACKEND
 #include "nn/device/sophon/sophon_memory_utils.h"
 #endif
@@ -41,6 +48,72 @@ namespace {
         REQUIRE(nn::DimsVectorUtils::Count({1, 2}, -1) == -1);
         REQUIRE(nn::DimsVectorUtils::Count({1, 2}, 2, 1) == -1);
     }
+
+    TEST_CASE("Native blob inspection does not request its host fallback", "[nn-memory-safety]") {
+        auto owner                                            = std::make_shared<std::array<uint8_t, 12>>();
+        std::weak_ptr<std::array<uint8_t, 12>> retained_owner = owner;
+        int host_requests                                     = 0;
+        nn::BlobHandle handle;
+        handle.native_image.fd    = 7;
+        handle.host_data_provider = [owner, &host_requests]() -> void* {
+            ++host_requests;
+            return owner->data();
+        };
+        nn::Blob blob(nn::BlobDesc{}, std::move(handle));
+        owner.reset();
+        const auto native = blob.GetHandle(false);
+        CHECK(native.base == nullptr);
+        CHECK(native.native_image.fd == 7);
+        CHECK(host_requests == 0);
+        CHECK_FALSE(retained_owner.expired());
+        const auto host = blob.GetHandle();
+        CHECK(host.base != nullptr);
+        CHECK(host_requests == 1);
+    }
+
+#ifdef COSMO_NN_USE_HOST_BACKEND
+    TEST_CASE("CPU pixel consumers reject an unavailable deferred image",
+              "[nn-memory-safety][deferred-host]") {
+        nn::BlobDesc desc;
+        desc.device_type  = nn::DEVICE_NAIVE;
+        desc.data_type    = nn::DATA_TYPE_UINT8;
+        desc.data_format  = nn::DATA_FORMAT_NHWC;
+        desc.image_format = nn::IMAGE_BGR;
+        desc.dims         = {1, 4, 4, 3};
+        int host_requests = 0;
+        nn::BlobHandle deferred;
+        deferred.host_data_provider = [&]() -> void* {
+            ++host_requests;
+            return nullptr;
+        };
+        auto image = std::make_shared<nn::Blob>(desc, deferred);
+        std::array<uint8_t, 48> output{};
+        output.fill(91);
+        nn::BlobHandle target;
+        target.base = output.data();
+        auto top    = std::make_shared<nn::Blob>(desc, target);
+        std::vector<std::shared_ptr<nn::Blob>> images{image}, params{image}, tops{top};
+        SECTION("resize") {
+            nn::CpuResizeNode node;
+            CHECK_FALSE(bool(node.Forward(images, tops)));
+        }
+        SECTION("crop resize") {
+            nn::CpuCropResizeNode node;
+            CHECK_FALSE(bool(node.Forward(images, params, tops)));
+        }
+        SECTION("affine crop") {
+            nn::CpuAffineCropNode node;
+            CHECK_FALSE(bool(node.Forward(images, params, tops)));
+        }
+        SECTION("sequence") {
+            nn::CpuSequenceNode node;
+            CHECK_FALSE(bool(node.Forward(images, params, tops)));
+        }
+        CHECK(host_requests == 1);
+        for (const auto value : output)
+            CHECK(value == 91);
+    }
+#endif
 
     TEST_CASE("Blob memory sizing fails closed before integer overflow", "[nn-memory-safety]") {
         nn::BlobMemorySizeInfo valid{nn::DATA_TYPE_FLOAT, {1024}};
