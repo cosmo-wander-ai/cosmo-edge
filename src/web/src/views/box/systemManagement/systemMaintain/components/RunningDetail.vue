@@ -93,13 +93,13 @@ onMounted(() => {
 }
 
 .table-container {
-  margin-top: 16px;
+  margin-top: 0;
   min-width: 0;
 
   .table-header {
     display: flex;
     justify-content: flex-end;
-    margin-bottom: 12px;
+    margin-bottom: 0;
   }
 }
 

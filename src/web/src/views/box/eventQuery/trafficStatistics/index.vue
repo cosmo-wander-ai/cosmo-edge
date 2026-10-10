@@ -1,5 +1,9 @@
 <template>
-  <div class="mv-wrap ui-admin-page">
+  <div class="mv-wrap ui-admin-page event-console statistics-page">
+    <header class="event-heading">
+      <h1>{{ t('nav.countingStats') }}</h1>
+      <p>{{ t('nav.eventCenter') }}</p>
+    </header>
     <div class="mv-wrap-top">
       <div class="mvtitle">
         <span class="mv-table-title">{{ t('event.queryConditions') }}</span>
@@ -642,17 +646,38 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+@use '../event-console.scss';
+
+.statistics-page {
+  height: auto;
+  min-height: 100%;
+}
+
 .mv-wrap-top {
-  margin-bottom: 20px;
+  margin-bottom: 0;
   background: var(--theme-surface, white);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
 }
 
 .mv-wrap-body {
   background: var(--theme-surface, white);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
 }
 
 .tabs {
-  padding: 0 30px;
+  padding: 0 16px;
+
+  :deep(.el-form) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 20px;
+    padding: 2px 0 14px;
+  }
+
+  :deep(.el-form-item) { margin: 0; }
 
   .time-picker {
     width: 125px;
@@ -669,8 +694,8 @@ onMounted(() => {
 
   .search-btns {
     margin: 0 !important;
-    float: right;
-    padding-bottom: 22px;
+    margin-left: auto !important;
+    padding-bottom: 0;
   }
 }
 
@@ -689,63 +714,60 @@ onMounted(() => {
 .mvtitle {
   display: flex;
   align-items: center;
-  height: 57px;
-  padding: 0 30px 0 20px;
+  min-height: 48px;
+  padding: 10px 16px;
 
   .mv-table-title {
     flex: 1;
+    color: var(--text-primary);
+    font-size: 15px;
+    font-weight: 600;
   }
 }
 
 .stats-overview {
   display: flex;
-  gap: 20px;
-  margin-bottom: 20px;
+  gap: 12px;
+  margin-bottom: 0;
   
   .stat-card {
     flex: 1;
     background: var(--theme-surface, #fff);
-    border-radius: 8px;
-    padding: 24px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 16px 20px;
     display: flex;
     align-items: center;
-    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
-    transition: all 0.3s ease;
-    
-    &:hover {
-      box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.1);
-      transform: translateY(-2px);
-    }
 
     .stat-icon-wrapper {
-      width: 56px;
-      height: 56px;
-      border-radius: 12px;
+      width: 40px;
+      height: 40px;
+      border-radius: 6px;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-right: 20px;
+      margin-right: 14px;
     }
     
     &.enter-card .stat-icon-wrapper {
-      background: var(--theme-accent-soft, rgba(24, 144, 255, 0.1));
+      background: var(--bg-subtle);
     }
     
     &.leave-card .stat-icon-wrapper {
-      background: var(--theme-warning-soft, rgba(255, 180, 64, 0.1));
+      background: var(--bg-subtle);
     }
     
     &.net-card .stat-icon-wrapper {
-      background: var(--theme-success-soft, rgba(103, 194, 58, 0.1));
+      background: var(--bg-subtle);
     }
 
     .stat-info {
       flex: 1;
       
       .stat-label {
-        font-size: 14px;
+        font-size: 13px;
         color: var(--text-secondary);
-        margin-bottom: 8px;
+        margin-bottom: 6px;
       }
       
       .stat-value {
@@ -767,22 +789,22 @@ onMounted(() => {
 
 .content-split {
   display: flex;
-  gap: 20px;
-  padding: 0 20px 20px;
+  gap: 14px;
+  padding: 0 16px 16px;
 
   .chart-section {
     flex: 1;
     min-width: 0;
     border: 1px solid var(--border-light);
     border-radius: 4px;
-    padding: 16px;
+    padding: 12px;
   }
   
   .table-section {
     width: 400px;
     border: 1px solid var(--border-light);
     border-radius: 4px;
-    padding: 16px;
+    padding: 0;
     background: var(--theme-surface, #fff);
     
     .data-table {
@@ -802,5 +824,15 @@ onMounted(() => {
 
 .week-picker {
   width: 180px;
+}
+
+@media (max-width: 1200px) {
+  .content-split { flex-direction: column; }
+  .content-split .table-section { width: 100%; }
+}
+
+@media (max-width: 700px) {
+  .stats-overview { flex-wrap: wrap; }
+  .stats-overview .stat-card { flex-basis: 100%; }
 }
 </style>

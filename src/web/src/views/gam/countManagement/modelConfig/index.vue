@@ -1,9 +1,9 @@
 <template>
-  <div class="page ui-admin-page flow-theme">
+  <div class="page model-config-page ui-admin-page flow-theme">
     <div class="header">
       <div class="title">
         <div class="title-row">
-          <span class="model-name">{{ modelName }}</span>
+          <h1 class="model-name">{{ modelName }}</h1>
           <span class="model-code">{{ t('field.modelId') }}{{ localeColon }}{{ modelCode }}</span>
         </div>
         <div class="tags">
@@ -13,14 +13,14 @@
         </div>
       </div>
       <div class="actions">
-        <el-button type="primary" size="small" :disabled="!configReady" @click="handleSave">{{ t('action.save') }}</el-button>
+        <el-button type="primary" :disabled="!configReady" @click="handleSave">{{ t('action.save') }}</el-button>
         <el-tooltip :content="t('common.presetModelNotExportable')" :disabled="isExportable" placement="top">
           <span>
-            <el-button size="small" :disabled="!configReady || !isExportable" @click="handleExport">{{ t('action.export') }}</el-button>
+            <el-button :disabled="!configReady || !isExportable" @click="handleExport">{{ t('action.export') }}</el-button>
           </span>
         </el-tooltip>
-        <el-button size="small" @click="handleReset">{{ t('action.restoreDefault') }}</el-button>
-        <el-button size="small" @click="goBack">{{ t('action.goBack') }}</el-button>
+        <el-button @click="handleReset">{{ t('action.restoreDefault') }}</el-button>
+        <el-button @click="goBack">{{ t('action.goBack') }}</el-button>
       </div>
     </div>
 
@@ -251,7 +251,8 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .page {
-  height: calc(100vh - 100px);
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -261,13 +262,17 @@ onMounted(() => {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 0 0 12px;
+  padding: 0 0 18px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  gap: 14px 20px;
 }
 
 .title {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  min-width: 0;
 }
 
 .title-span-tip {
@@ -279,31 +284,39 @@ onMounted(() => {
 .title-row {
   display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
 }
 
 .model-name {
   color: var(--text-primary);
-  font-size: 18px;
-  font-weight: 600;
+  margin: 0;
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 650;
+  letter-spacing: -0.4px;
+  overflow-wrap: anywhere;
 }
 
 .model-code {
-  margin-left: 8px;
   color: var(--text-secondary);
+  font-size: 13px;
 }
 
 .tags {
   display: flex;
-  gap: 8px;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .actions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 
   :deep(.el-button + .el-button) {
-    margin-left: 6px;
+    margin-left: 0;
   }
 }
 
@@ -316,12 +329,14 @@ onMounted(() => {
 }
 
 .card {
-  margin-top: 12px;
+  margin-top: 14px;
+  border-radius: 7px;
   border-color: var(--border-color);
   box-shadow: none;
 
   :deep(.el-card__header) {
-    background: var(--bg-white);
+    padding: 14px 18px;
+    background: var(--bg-subtle);
     border-bottom-color: var(--border-light);
     color: var(--text-primary);
   }
@@ -336,6 +351,7 @@ onMounted(() => {
 }
 
 .card-header {
+  font-size: 14px;
   font-weight: 600;
   display: flex;
   align-items: center;

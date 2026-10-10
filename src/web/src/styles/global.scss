@@ -1,18 +1,18 @@
 // Shared console tokens. Media surfaces keep their own dark backgrounds.
 :root {
-  --primary-color: #5852df;
-  --primary-light: #706be7;
-  --primary-dark: #4741c5;
+  --primary-color: #6254cd;
+  --primary-light: #7568d8;
+  --primary-dark: #5143b8;
   --secondary-color: #4f596b;
   --accent-color: #7772e8;
-  --text-primary: #20222d;
-  --text-secondary: #657084;
+  --text-primary: #202630;
+  --text-secondary: #657181;
   --text-muted: #7b8493;
   --text-tertiary: #7b8493;
-  --bg-primary: #f3f5f8;
+  --bg-primary: #f4f6f8;
   --bg-secondary: #eef1f5;
   --bg-white: #fff;
-  --border-color: #dce1e8;
+  --border-color: #dde2e8;
   --border-light: #e8ebf0;
   --success-color: #216e53;
   --warning-color: #936016;
@@ -22,7 +22,7 @@
   --shadow-md: 0 4px 16px rgba(24, 34, 51, 0.06);
   --shadow-lg: 0 12px 32px rgba(24, 34, 51, 0.1);
   --shadow-xl: 0 20px 48px rgba(24, 34, 51, 0.14);
-  --radius-sm: 8px;
+  --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 8px;
   --radius-xl: 12px;
@@ -41,9 +41,9 @@
   --table-row-hover-bg: #f5f6fa;
   --primary-soft-bg: #f0effa;
   --primary-soft-border: #dfdef1;
-  --primary-button-bg: #5852df;
-  --primary-button-hover-bg: #8a86e9;
-  --primary-button-active-bg: #4741c5;
+  --primary-button-bg: #6254cd;
+  --primary-button-hover-bg: #7769d8;
+  --primary-button-active-bg: #5143b8;
   --primary-button-text: #fff;
   --secondary-button-hover-bg: #f6f5fd;
   --secondary-button-hover-border: #b6b2e9;
@@ -51,7 +51,7 @@
   --focus-ring: var(--el-color-primary-light-5);
 
   --el-color-primary: var(--primary-color);
-  --el-color-primary-light-3: #8a86e9;
+  --el-color-primary-light-3: #7769d8;
   --el-color-primary-light-5: #aca9ef;
   --el-color-primary-light-7: #ceccf5;
   --el-color-primary-light-8: #dfdef9;

@@ -7,7 +7,7 @@
         </el-form-item>
       </el-form>
       <div style="margin-left: 100px;">
-        <span style="font-size: 12px; color: var(--theme-accent, #1890FF);">{{ t('basePic.workClothesPhotoTip') }}</span>
+        <span style="font-size: 12px; color: var(--text-secondary);">{{ t('basePic.workClothesPhotoTip') }}</span>
       </div>
       <div class="obsBtoon">
         <el-button @click="handleClose" size="small">{{ t('action.cancel') }}</el-button>

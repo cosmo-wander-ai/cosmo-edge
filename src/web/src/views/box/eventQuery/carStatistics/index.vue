@@ -1,5 +1,9 @@
 <template>
-  <div class="alarm-record ui-admin-page">
+  <div class="alarm-record ui-admin-page event-console">
+    <header class="event-heading">
+      <h1>{{ t('nav.vehicleAnalysis') }}</h1>
+      <p>{{ t('nav.eventCenter') }}</p>
+    </header>
     <TopBar 
       ref="topBarRef" 
       :dataSouce="topBarData" 
@@ -542,6 +546,7 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
+@use '../event-console.scss';
 .table-container {
   background-color: var(--theme-surface, #fff);
   padding: 0 15px;

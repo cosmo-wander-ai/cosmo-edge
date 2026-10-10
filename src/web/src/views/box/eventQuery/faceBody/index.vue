@@ -1,5 +1,9 @@
 <template>
-  <div class="alarm-record ui-admin-page">
+  <div class="alarm-record ui-admin-page event-console">
+    <header class="event-heading">
+      <h1>{{ t('nav.faceBody') }}</h1>
+      <p>{{ t('nav.eventCenter') }}</p>
+    </header>
     <TopBar ref="topBarRef" :dataSouce="topBarData" :formData="formData" :labelWidth="60" :defaultExpand="true" @search="searchList" />
     <div class="table-container" ref="tableContainerRef">
       <div class="table-header">
@@ -100,7 +104,7 @@
           <template #default="scope">
             <div class="operation-tools">
               <el-button link class="primary-text ui-action ui-action-view" @click="handleDetail(scope.row)">{{ t('action.details') }}</el-button>
-              <el-button link class="primary-text" v-if="scope.row.video" @click="onCheckVideo(scope.row, 1)">{{ t('event.videoPlayback') }}</el-button>
+              <el-button link class="primary-text ui-action ui-action-play" v-if="scope.row.video" @click="onCheckVideo(scope.row, 1)">{{ t('event.videoPlayback') }}</el-button>
               <!-- <el-button link class="danger-text" v-if="runMode != 1" @click="handleDelete(scope.row)">删除</el-button> -->
             </div>
           </template>
@@ -582,6 +586,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style lang="scss" scoped>
+@use '../event-console.scss';
 .table-container {
   background-color: var(--theme-surface, #fff);
   padding: 0 15px;

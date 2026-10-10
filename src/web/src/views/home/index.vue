@@ -6,7 +6,7 @@
     <!-- 资源概览条 -->
     <div class="resource-bar">
       <div class="resource-bar-header">
-        <div>
+        <div class="resource-bar-labels">
           <div class="resource-bar-title">{{ $t('home.systemResource') }}</div>
           <div class="resource-bar-subtitle">{{ $t('home.loadOverview') }}</div>
         </div>
@@ -705,20 +705,20 @@ onBeforeUnmount(() => {
 }
 
 .overview-heading {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .overview-heading h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 650;
   line-height: 1.3;
   letter-spacing: -.6px;
 }
 
 .resource-bar {
-  padding: 16px 0 19px;
-  margin-bottom: 24px;
+  padding: 14px 0 16px;
+  margin-bottom: 20px;
   background: var(--bg-white);
   border: 1px solid var(--border-color);
   border-radius: 8px;
@@ -731,13 +731,20 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
-  padding: 0 24px 16px;
+  padding: 0 20px 12px;
 }
 
 .resource-bar-title {
   font-size: 14px;
   font-weight: 600;
   line-height: 20px;
+}
+
+.resource-bar-labels {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .resource-bar-subtitle {
@@ -776,7 +783,7 @@ onBeforeUnmount(() => {
 
 .resource-item {
   min-width: 0;
-  padding: 0 24px;
+  padding: 0 20px;
   border-right: 1px solid var(--border-color);
 }
 
@@ -813,7 +820,7 @@ onBeforeUnmount(() => {
 }
 
 .resource-value {
-  font-size: 34px;
+  font-size: 30px;
   line-height: 1.2;
   font-weight: 500;
   letter-spacing: -1px;
@@ -828,7 +835,7 @@ onBeforeUnmount(() => {
 
 .resource-progress {
   height: 3px;
-  margin-top: 13px;
+  margin-top: 9px;
   background: var(--theme-border-light, #e6eaf0);
   border-radius: 4px;
   overflow: hidden;
@@ -985,18 +992,18 @@ onBeforeUnmount(() => {
 
 .task-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(300px, calc((100% - 48px) / 4))), 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(270px, calc((100% - 36px) / 4))), 1fr));
+  gap: 12px;
   align-items: stretch;
-  margin-bottom: 25px;
+  margin-bottom: 20px;
 }
 
 .task-card {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  min-height: 203px;
-  padding: 17px 18px 0;
+  min-height: 184px;
+  padding: 14px 16px 0;
   background: var(--bg-white);
   border: 1px solid var(--border-color);
   border-radius: 8px;
@@ -1017,6 +1024,10 @@ onBeforeUnmount(() => {
 }
 
 .task-card-title-area {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
   min-width: 0;
   flex: 1;
 }
@@ -1033,19 +1044,19 @@ onBeforeUnmount(() => {
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 5px;
+  margin-top: 0;
 }
 
 .task-tag {
   padding: 0 5px;
-  border: 1px solid var(--theme-border, #e3dfec);
+  border: 1px solid var(--border-light);
   border-radius: 3px;
-  font-size: 9px;
+  font-size: 10px;
   line-height: 15px;
   font-weight: 600;
   letter-spacing: .4px;
-  color: var(--theme-accent, #66557d);
-  background: var(--theme-accent-soft, #f5f3f9);
+  color: var(--tag-text);
+  background: var(--tag-bg);
 }
 
 .task-status {
@@ -1169,7 +1180,7 @@ onBeforeUnmount(() => {
 }
 
 .task-btn-primary {
-  color: var(--primary-color);
+  color: var(--secondary-color);
 }
 
 .task-btn-secondary {

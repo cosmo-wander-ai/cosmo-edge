@@ -1,5 +1,5 @@
 <template>
-  <div class="mv-wrap ui-admin-page" v-loading.fullscreen="loading" :element-loading-text="t('common.paramSyncing')" element-loading-background="rgba(0, 0, 0, 0.8)">
+  <div class="mv-wrap ui-admin-page service-config-page" v-loading.fullscreen="loading" :element-loading-text="t('common.paramSyncing')" element-loading-background="rgba(0, 0, 0, 0.8)">
     <div class="container">
       <div class="serve-type-container" v-if="arithmeticShow">
         <el-card class="box-card">
@@ -8,7 +8,7 @@
               <span>{{ t('glossary.scenarioTask') }}</span>
             </div>
           </template>
-          <el-input :placeholder="t('field.filterKeyword')" v-model="filterText" size="small" clearable style="margin-left: 10px;width: 220px;"></el-input>
+          <el-input :placeholder="t('field.filterKeyword')" v-model="filterText" size="small" clearable class="tree-search"></el-input>
           <div class="tree-body">
             <el-tree id="onboarding-algorithm-tree" class="filter-tree" :data="arithmeticTree" :props="defaultProps" highlight-current default-expand-all :filter-node-method="filterNode" ref="tree" @node-click="chooseType" node-key="algorithmId">
               <template #default="{ data }">
@@ -26,22 +26,22 @@
           </div>
         </el-card>
       </div>
-      <div class="serve-config-main" style="margin-left: 15px;flex:1;">
+      <div class="serve-config-main">
         <div class="serve-config-container">
           <el-card class="serve-config-container-card">
             <template #header>
               <div class="serve-config-header clearfix">
-                <div>
-                  <span class="abc">{{ t('glossary.serviceConfig') }}</span>
+                <div class="service-identity">
+                  <strong>{{ t('glossary.serviceConfig') }}</strong>
                   <div :class="['circle', { 'red-circle': taskEnableStatus == 0 }, { 'green-circle': taskEnableStatus == 1 }]" class="abc"></div>
-                  <span v-if="taskEnableStatus == 1" style="margin-left: 10px" class="abc">{{ t('common.enabled') }}</span>
-                  <span v-else style="margin-left: 10px" class="abc">{{ t('common.disabled') }}</span>
+                  <span v-if="taskEnableStatus == 1" class="service-state">{{ t('common.enabled') }}</span>
+                  <span v-else class="service-state">{{ t('common.disabled') }}</span>
                 </div>
-                <div class="abc" style="margin-left:10px;">{{ resolvedAlgorithmName }}</div>
+                <div class="service-name">{{ resolvedAlgorithmName }}</div>
                 <div class="serve-config-header-btns">
-                  <el-button type="danger" v-if="taskEnableStatus == 1" @click="boxSwitchTask(0)" size="small">{{ t('action.disableService') }}</el-button>
+                  <el-button type="danger" plain v-if="taskEnableStatus == 1" @click="boxSwitchTask(0)" size="small">{{ t('action.disableService') }}</el-button>
                   <el-button type="primary" v-if="taskEnableStatus == 0" @click="boxSwitchTask(1)" size="small" class="ui-secondary-button">{{ t('action.enableService') }}</el-button>
-                  <el-button type="danger" @click="handleDelServe()" size="small">{{ t('action.deleteService') }}</el-button>
+                  <el-button type="danger" plain @click="handleDelServe()" size="small">{{ t('action.deleteService') }}</el-button>
                   <el-button id="onboarding-save-service" class="mv-el-button" type="primary" @click="clickSaveServe()" size="small">{{ t('action.save') }}</el-button>
                 </div>
               </div>
@@ -61,7 +61,7 @@
                     </span>
                   </el-tooltip>
                 </div>
-                <div style="margin-left:160px;">
+                <div class="form-actions">
                   <el-button style="margin-right:15px;" @click="parameterVisible = true">{{ t('action.reset') }}</el-button>
                   <el-button type="primary" @click="batch" class="ui-secondary-button">{{ t('glossary.batchApply') }}</el-button>
                 </div>
@@ -89,7 +89,7 @@
                     <el-input v-model="videoRepeatCount" class="width200" size="small" oninput="value=value.replace(/[^\d-]/g,'')" @input="handleVideoRepeatInput"></el-input>
                   </el-form-item>
                 </el-form>
-                <div style="margin: 80px 0px 0px 160px;">
+                <div class="form-actions">
                   <el-button type="primary" @click="batch" class="ui-secondary-button">{{ t('glossary.batchApply') }}</el-button>
                 </div>
               </el-tab-pane>
@@ -1064,13 +1064,16 @@ onMounted(() => {
   width: 100%;
   min-width: 0;
   height: 100%;
+  gap: 12px;
 }
 
 .serve-type-container {
-  flex: 0 0 240px;
+  flex: 0 0 220px;
+  min-width: 0;
 }
 
 .serve-config-main {
+  flex: 1;
   min-width: 0;
 }
 
@@ -1089,13 +1092,29 @@ onMounted(() => {
 }
 
 .box-card {
-  width: 240px;
+  width: 100%;
   height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 6px;
+  box-shadow: none;
+
+  :deep(.el-card__header) {
+    padding: 14px;
+    font-size: 14px;
+    font-weight: 600;
+  }
 
   :deep(.el-card__body) {
-    padding: 20px 0px 10px;
-    overflow: scroll;
+    padding: 12px 0;
+    min-height: 0;
+    overflow: auto;
   }
+}
+
+.tree-search {
+  margin: 0 10px;
+  width: calc(100% - 20px);
 }
 
 .serve-config-container {
@@ -1110,19 +1129,24 @@ onMounted(() => {
   min-width: 0;
   height: 100%;
   flex-direction: column;
+  border-radius: 6px;
+  box-shadow: none;
+
+  :deep(.el-card__header) { padding: 12px 16px; }
 
   :deep(.el-card__body) {
     flex: 1;
     min-width: 0;
     min-height: 0;
     overflow: auto;
+    padding: 12px 16px;
   }
 
   .el-tab-pane {
     min-width: 0;
     max-width: 100%;
     overflow-x: auto;
-    padding-bottom: 20px;
+    padding-bottom: 12px;
   }
 }
 
@@ -1182,15 +1206,15 @@ onMounted(() => {
 .circle {
   width: 7px;
   height: 7px;
-  background-color: red;
+  background-color: var(--danger-color);
   border-radius: 50%;
   display: inline-block;
-  position: absolute;
-  top: 14px;
+  flex: none;
+  margin-left: 4px;
 }
 
 .red-circle {
-  background-color: red;
+  background-color: var(--danger-color);
 }
 
 .green-circle {
@@ -1203,6 +1227,27 @@ onMounted(() => {
 
 .abc {
   line-height: 35px;
+}
+
+.service-identity {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.service-state { color: var(--text-secondary); font-size: 12px; }
+.service-name { min-width: 0; color: var(--text-secondary); overflow-wrap: anywhere; }
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 14px;
+  margin-top: 10px;
+  border-top: 1px solid var(--border-light);
+
+  .el-button { margin: 0 !important; }
 }
 
 .chooseMultiple {
@@ -1230,13 +1275,13 @@ onMounted(() => {
 }
 
 .LargeModelAlgorithmConfiguration {
-  position: absolute;
-  top: 15px;
-  right: 30px;
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 0;
 }
 
 .custom-treeText {
-  width: 160px;
+  width: 142px;
   display: inline-block;
   overflow: hidden;
   white-space: nowrap;
@@ -1271,9 +1316,19 @@ onMounted(() => {
 }
 
 .strategy-body {
-  margin-top: 20px;
-  margin-left: 50px;
+  margin: 14px 0 0;
 }
+
+.service-config-page :deep(.main-container) {
+  margin-top: 12px;
+  padding-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.service-config-page :deep(.main-container .left-config) { flex: 0 0 550px; }
+.service-config-page :deep(.main-container .right-config) { margin-left: 0; min-width: 260px; }
+.service-config-page :deep(.main-container .area-top) { font-weight: 600; font-size: 13px; }
 
 .dialog-content {
   width: 100%;

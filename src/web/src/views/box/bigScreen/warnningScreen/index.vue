@@ -56,7 +56,7 @@
       </div>
     </transition>
     <div class="header">
-      <div class="title">{{ t('event.aiVideoAnalysis') }}</div>
+      <div class="title">{{ t('nav.liveDisplay') }}</div>
       <div class="screen-control">
         <button type="button" class="screen-btn" :class="{ 'is-active': screenType === 1 }" :aria-pressed="screenType === 1" @click="switchScreen(1)">{{ t('event.oneScreen') }}</button>
         <button type="button" class="screen-btn" :class="{ 'is-active': screenType === 4 }" :aria-pressed="screenType === 4" @click="switchScreen(4)">{{ t('event.fourScreens') }}</button>
@@ -154,7 +154,7 @@
           </div>
           <div class="record-content">
             <template v-if="eventList.length > 0">
-              <div v-for="(event, index) in eventList" :key="index" class="event-item" @click="eventDetail(event)">
+              <div v-for="(event, index) in eventList" :key="index" class="event-item" :class="{ 'has-comparison': checkPropertyKey(event, 'recognition') && event.property.recognition.matchDegree != '-1' }" @click="eventDetail(event)">
                 <div v-if="checkPropertyKey(event,'recognition') && event.property.recognition.matchDegree != '-1'" class="event-image2">
                   <div class="event-image2-body">
                     <el-image :src="event.detectedPicture" fit="contain">
@@ -193,7 +193,7 @@
                   </el-image>
                 </div>
                 <div class="event-info">
-                  <div>{{ t('event.eventType') }}{{ localeColon }}{{ resolveResourceAlgorithmName(event) }}</div>
+                  <div class="event-name">{{ resolveResourceAlgorithmName(event) }}</div>
                   <div>{{ t('event.channel') }}{{ localeColon }}{{ event.channelName }}</div>
                   <div>{{ t('event.alarmTime') }}{{ localeColon }}{{ dateFormat(event.timestamp) }}</div>
                 </div>
@@ -1018,7 +1018,7 @@ button:focus-visible {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  min-height: 52px;
+  min-height: 56px;
   gap: 6px 20px;
   padding: 6px 16px;
   border-bottom: 1px solid var(--screen-border);
@@ -1064,7 +1064,7 @@ button:focus-visible {
   &.is-active {
     color: var(--screen-accent);
     background: var(--bg-white);
-    box-shadow: 0 1px 3px #20222d14;
+    box-shadow: inset 0 0 0 1px var(--primary-color);
     font-weight: 600;
   }
 }
@@ -1219,7 +1219,7 @@ button:focus-visible {
   min-width: 0;
   min-height: 0;
   padding: 6px;
-  background: var(--theme-stage-surround, #e9edf2);
+  background: var(--theme-stage-surround, var(--bg-primary));
   box-sizing: border-box;
 }
 
@@ -1273,7 +1273,7 @@ button:focus-visible {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 6px 12px 12px;
+  padding: 10px 14px 14px;
   box-sizing: border-box;
 }
 
@@ -1284,7 +1284,7 @@ button:focus-visible {
   gap: 2px;
   min-height: 64px;
   padding-right: 30px;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
 
   > span:first-child { display: flex; align-items: center; gap: 4px; }
@@ -1307,26 +1307,29 @@ button:focus-visible {
 }
 
 .event-item {
-  margin-bottom: 10px;
-  padding: 10px;
-  border: 1px solid var(--screen-border);
-  border-radius: 6px;
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--screen-border);
   background: var(--bg-white);
   cursor: pointer;
-
-  &:hover { border-color: var(--theme-selected-border, #aaa6e8); background: var(--theme-hover-bg, #fcfcff); }
-  &:last-child { margin-bottom: 0; }
+  &:hover { background: var(--bg-subtle); }
+  &:last-child { border-bottom: 0; }
+  &.has-comparison { grid-template-columns: minmax(0, 1fr); }
 }
 
-.event-image,
-.event-image2 {
+.event-image, .event-image2 {
   width: 100%;
-  height: 142px;
-  margin-bottom: 10px;
+  height: 64px;
   background: var(--bg-primary);
   border-radius: 4px;
   overflow: hidden;
 }
+.event-image2 { height: 132px; }
+.event-name { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
 
 .event-image :deep(.el-image) { width: 100%; height: 100%; }
 .event-image2 { display: flex; position: relative; gap: 6px; }

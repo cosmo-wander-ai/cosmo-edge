@@ -387,6 +387,9 @@ export default {
     }
   },
   glossary: {
+    sceneTasksSubtitle: 'Manage scene workflows and linked channels',
+    imageAnalysisSubtitle: 'Select a scene task and analyze images',
+    modelRepositorySubtitle: 'Manage algorithm models and their linked scene tasks',
     equals: 'Equals',
     licenseStatus: 'License Status',
     authorizationFailed: 'Authorization failed',

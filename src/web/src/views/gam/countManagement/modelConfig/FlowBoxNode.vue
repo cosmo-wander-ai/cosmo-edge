@@ -93,20 +93,20 @@ const handleChange = (index, field, value) => {
 
 <style scoped lang="scss">
 .box-node-container {
-  background: var(--bg-secondary);
-  border-radius: 16px;
+  background: var(--bg-panel);
+  border-radius: 7px;
   width: 560px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+  box-shadow: none;
   position: relative;
   display: flex;
   flex-direction: column;
-   padding: 10px 14px 14px;
+  padding: 14px;
   border: 1px solid var(--border-light);
   cursor: default;
 }
 
 .node-header {
-  margin-bottom: 24px;
+  margin-bottom: 14px;
   text-align: center;
   color: var(--text-primary);
 }
@@ -123,16 +123,17 @@ const handleChange = (index, field, value) => {
 
 .config-section {
   background: var(--bg-white);
-  border-radius: 12px;
-  padding: 20px;
+  border-radius: 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--border-light);
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  gap: 12px;
+  box-shadow: none;
 }
 
 .config-title {
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 4px;

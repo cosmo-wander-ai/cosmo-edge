@@ -200,21 +200,30 @@ onMounted(async () => {
 
 <style lang="scss" scoped>
 .custom-config {
-  padding: 20px;
-  background: var(--theme-surface, #fff);
-  border-radius: 4px;
+  padding: 0;
+  background: transparent;
+
+  > .el-form {
+    box-sizing: border-box;
+    max-width: 820px;
+    padding: 24px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-white);
+  }
 
   .page-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
-    padding-bottom: 15px;
-    border-bottom: 1px solid var(--border-light);
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
 
     .title {
-      font-size: 16px;
-      font-weight: 500;
+      font-size: 24px;
+      line-height: 1.4;
+      font-weight: 650;
       color: var(--text-primary);
     }
 
@@ -256,6 +265,8 @@ onMounted(async () => {
   }
 
   .upload-tip {
+    flex-basis: 100%;
+    margin-top: 10px;
     color: var(--text-secondary);
     font-size: 12px;
 
@@ -266,6 +277,7 @@ onMounted(async () => {
 }
 
 .item-content {
-  width: 300px;
+  width: 100%;
+  max-width: 430px;
 }
 </style>

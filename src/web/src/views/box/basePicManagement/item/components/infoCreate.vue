@@ -6,7 +6,7 @@
           <Upload :fileList="fileList" :limit="5" @click="onProgress" @delete="onDelete" />
         </el-form-item>
       </el-form>
-      <span style="font-size: 12px; color: var(--theme-accent, #1890FF); margin-left: 125px;">{{ t('basePic.photoSizeTip') }}</span>
+      <span style="font-size: 12px; color: var(--text-secondary); margin-left: 125px;">{{ t('basePic.photoSizeTip') }}</span>
 
       <div class="obsBtoon">
         <el-button @click="handleClose" size="small">{{ t('action.cancel') }}</el-button>

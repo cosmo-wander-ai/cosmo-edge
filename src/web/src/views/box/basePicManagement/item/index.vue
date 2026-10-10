@@ -1,5 +1,6 @@
 <template>
   <div class="people-management ui-admin-page">
+    <header class="ui-page-heading"><h1>{{ t('nav.itemLibrary') }}</h1></header>
     <div class="template-container">
       <!-- 左侧模板列表 -->
       <div class="template-list">
@@ -31,7 +32,7 @@
             <div v-if="runMode != 1" class="header-right">
               <div class="operation-tools">
                 <el-button type="primary" @click="handleCaptureAdd" size="small" :disabled="thingsLibList.length === 0" style="padding: 8px 16px;">{{ t('basePic.captureAdd') }}</el-button>
-                <el-button type="primary" @click="handleManualAdd" size="small" :disabled="thingsLibList.length === 0" style="padding: 8px 16px;">{{ t('basePic.manualAdd') }}</el-button>
+                <el-button type="primary" @click="handleManualAdd" class="ui-secondary-button" size="small" :disabled="thingsLibList.length === 0" style="padding: 8px 16px;">{{ t('basePic.manualAdd') }}</el-button>
                 <el-button type="primary" @click="handleBatchRemove" size="small" :disabled="multipleSelections.length === 0" style="padding: 8px 16px;" class="ui-secondary-button">{{ t('action.bulkDelete') }}</el-button>
                 <el-button type="primary" @click="handleClear" size="small" :disabled="thingsLibList.length === 0" style="padding: 8px 16px;" class="ui-secondary-button">{{ t('basePic.clear') }}</el-button>
               </div>

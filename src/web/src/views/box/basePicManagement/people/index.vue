@@ -1,5 +1,6 @@
 <template>
   <div class="people-management ui-admin-page">
+    <header class="ui-page-heading"><h1>{{ t('nav.faceLibrary') }}</h1></header>
     <div class="template-container">
       <!-- 左侧模板列表 -->
       <div class="template-list">

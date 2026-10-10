@@ -36,12 +36,12 @@
         </el-table-column>
         <el-table-column :label="t('field.channelName')" prop="channelName" min-width="108" show-overflow-tooltip>
         </el-table-column>
-        <el-table-column :label="t('glossary.scenarioTask')" prop="taskList" min-width="280">
+        <el-table-column :label="t('glossary.scenarioTask')" prop="taskList" min-width="330">
           <template #default="scope">
             <div>
               <div id="onboarding-task-switch" class="task_table" v-for="(item, index) in scope.row.taskList" :key="index">
                 <div class="analytical">
-                  <div class="task_text">{{ resolveResourceAlgorithmName(item) }}</div>
+                  <div class="task_text" :title="resolveResourceAlgorithmName(item)">{{ resolveResourceAlgorithmName(item) }}</div>
                 </div>
                 <el-switch class="task-switch" v-model="item.enableStatus" active-color="var(--theme-success, #216e53)" :active-value="1" :inactive-value="0" @change="taskEnableChange(item, scope.row.videoChannelId)"></el-switch>
                 <div class="rtspa" v-if="item.status == 1">
@@ -68,7 +68,7 @@
                   </div>
                   <div class="Task_status">{{ t('status.abnormal') }}</div>
                 </div>
-                <div>{{ resolveScheduleName(item.scheduleName) }}</div>
+                <div class="task-schedule">{{ resolveScheduleName(item.scheduleName) }}</div>
               </div>
             </div>
           </template>
@@ -93,32 +93,36 @@
         <el-table-column :label="t('field.channelStatus')" :width="currentLocale === 'en-US' ? '150px' : '110px'" fixed="right" show-overflow-tooltip>
           <template #default="scope">
             <template v-if="scope.row.channelStatus == 3">
-              <span v-if="scope.row.channelType !== 3" style="color:var(--theme-success, green);">{{ t('status.online') }}</span>
+              <span v-if="scope.row.channelType !== 3" class="channel-status is-online">{{ t('status.online') }}</span>
               <br />
               <span style="color:var(--theme-danger, red);">({{ t('status.unsupportedResolution') }})</span>
             </template>
             <template v-else-if="scope.row.channelStatus == 2">
-              <span v-if="scope.row.channelType !== 3" style="color:var(--theme-success, green);">{{ t('status.online') }}</span>
+              <span v-if="scope.row.channelType !== 3" class="channel-status is-online">{{ t('status.online') }}</span>
               <br />
               <span style="color:var(--theme-danger, red);">({{ t('status.validationError') }})</span>
             </template>
             <template v-else-if="scope.row.channelStatus == 1">
-              <span style="color:var(--theme-success, green);">{{ t('status.online') }}</span>
+              <span class="channel-status is-online">{{ t('status.online') }}</span>
             </template>
             <template v-else>
-              <span v-if="scope.row.channelType !== 3">{{ t('status.offline') }}</span>
+              <span v-if="scope.row.channelType !== 3" class="channel-status is-offline">{{ t('status.offline') }}</span>
             </template>
           </template>
         </el-table-column>
         <el-table-column prop="handle" :label="t('field.actions')" :width="currentLocale === 'en-US' ? '340' : '280'" fixed="right" class-name="ops-wrap-cell">
           <template #default="scope">
             <div class="operation-tools">
+              <div class="operation-line">
               <el-button link class="primary-text ui-action ui-action-view" @click="handleDetailChannel(scope.row)">{{ t('action.details') }}</el-button>
               <el-button v-if="runMode != 1" link class="primary-text ui-action ui-action-edit" @click="handleEditChannel(scope.row)">{{ t('action.edit') }}</el-button>
               <el-button :disabled="scope.row.channelStatus == 3 || (scope.row.channelStatus == 0 && ![2, 3].includes(scope.row.channelType))" link class="primary-text ui-action ui-action-camera" @click="handleChannelPic(scope.row)">{{ t('action.snapshot') }}</el-button>
+              </div>
+              <div class="operation-line">
               <el-button id="onboarding-allocate-btn" v-if="runMode != 1" :disabled="scope.row.channelStatus == 3 || (scope.row.channelStatus == 0 && ![2, 3].includes(scope.row.channelType))" link class="primary-text ui-action ui-action-settings" @click="handleAllocateClick(scope.row)">{{ t('action.allocateTask') }}</el-button>
               <el-button v-if="scope.row.channelType == 3 && runMode != 1" link class="primary-text ui-action ui-action-download" @click="handleVideoDownload(scope.row)">{{ t('action.videoDownload') }}</el-button>
               <el-button v-if="runMode != 1" link class="danger-text ui-action ui-action-delete" @click="handleDeleteChannel(scope.row)">{{ t('action.delete') }}</el-button>
+              </div>
             </div>
           </template>
         </el-table-column>
@@ -848,6 +852,23 @@ const setDefaultImage = (e) => {
 </script>
 
 <style scoped lang="scss">
+.video-access-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.video-access-page > .mv-table-wrap {
+  margin: 0;
+  padding: 14px;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.video-access-page :deep(.topBar-wrap) {
+  margin: 0 !important;
+}
+
 .video-access-page :deep(.el-table__body td.el-table__cell) {
   padding-top: 8px;
   padding-bottom: 8px;
@@ -875,8 +896,44 @@ const setDefaultImage = (e) => {
 }
 
 .task_table {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(94px, 1fr) 32px max-content minmax(48px, max-content);
   align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 3px 0;
+
+  + .task_table {
+    border-top: 1px solid var(--border-light);
+  }
+}
+
+.analytical {
+  min-width: 0;
+}
+
+.task-schedule {
+  color: var(--text-secondary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.channel-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  &::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  &.is-online { color: var(--success-color); }
+  &.is-offline { color: var(--text-secondary); }
 }
 
 .mv-table-wrap .stop-button {
@@ -975,17 +1032,14 @@ const setDefaultImage = (e) => {
 }
 
 .task_text {
-  margin-right: 8px;
-  width: 88px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  color: var(--text-primary);
+  font-weight: 500;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .Task_status {
-  width: 50px;
-  margin-left: 4px;
-  overflow: hidden;
+  margin-left: 0;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -1003,11 +1057,19 @@ const setDefaultImage = (e) => {
   padding-right: 0;
 }
 
-.operation-tools {
+.video-access-page .operation-tools {
   display: flex;
-  align-items: center;
-  gap: 4px 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.operation-line {
+  display: flex;
   flex-wrap: wrap;
+  gap: 2px 8px;
+
+  &:empty { display: none; }
 }
 
 .operation-tools > .el-button {
@@ -1022,7 +1084,10 @@ const setDefaultImage = (e) => {
 }
 
 .task-switch {
-  margin-right: 8px;
+  margin: 0;
+  --el-switch-height: 18px;
+  --el-switch-button-size: 14px;
+  --el-switch-width: 32px;
 }
 
 .runBtn {

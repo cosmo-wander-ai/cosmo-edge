@@ -80,14 +80,14 @@ const handleKeyDown = (e) => {
 
 <style scoped lang="scss">
 .mvtitle {
-  padding: 0px 0 0px 20px;
+  padding: 0;
 }
 .param-body {
   min-width: 0;
   width: 100%;
-  max-height: calc(100vh - 350px);
+  max-height: calc(100vh - 310px);
   overflow: auto;
-  padding: 10px 0;
+  padding: 6px 0;
 }
 .flexjustify {
   display: flex;
@@ -96,7 +96,7 @@ const handleKeyDown = (e) => {
 
 .mv-table-card-wrap {
   background: var(--theme-surface, #fff);
-  height: 100%;
+  min-height: 0;
 }
 .rightlable {
   color: var(--theme-text-muted, #ccc);

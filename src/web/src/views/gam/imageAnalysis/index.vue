@@ -1,5 +1,9 @@
 <template>
   <div class="image-analysis-page ui-admin-page">
+    <div class="analysis-page-heading">
+      <h1>{{ $t('nav.imageAnalysis') }}</h1>
+      <p>{{ $t('glossary.imageAnalysisSubtitle') }}</p>
+    </div>
     <!-- 顶部工具栏 -->
     <div class="toolbar-section">
       <div class="toolbar-left">
@@ -27,10 +31,10 @@
           accept="image/*"
           multiple
         >
-          <el-button type="primary" :icon="Upload" class="ui-secondary-button">{{ $t('imageAnalysis.uploadImage') }}</el-button>
+          <el-button :icon="Upload">{{ $t('imageAnalysis.uploadImage') }}</el-button>
         </el-upload>
         <el-button
-          type="success"
+          type="primary"
           :icon="VideoPlay"
           :loading="analyzing"
           :disabled="!selectedAlgorithm || uploadedFiles.length === 0"
@@ -84,8 +88,8 @@
           <div class="image-footer">
             <div class="image-name" :title="item.name">{{ item.name }}</div>
             <div class="image-status">
-              <el-tag v-if="item.analyzing" type="warning" size="small" effect="dark">{{ $t('imageAnalysis.analyzingStatus') }}</el-tag>
-              <el-tag v-else-if="item.result" type="success" size="small" effect="dark">{{ $t('imageAnalysis.completed') }}</el-tag>
+              <el-tag v-if="item.analyzing" type="warning" size="small" effect="light">{{ $t('imageAnalysis.analyzingStatus') }}</el-tag>
+              <el-tag v-else-if="item.result" type="success" size="small" effect="light">{{ $t('imageAnalysis.completed') }}</el-tag>
               <el-tag v-else type="info" size="small" effect="plain">{{ $t('imageAnalysis.pending') }}</el-tag>
             </div>
           </div>
@@ -121,12 +125,10 @@
       <el-empty :description="$t('imageAnalysis.emptyDescription')">
         <template #image>
           <div class="empty-icon">
-            <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
-              <rect x="10" y="25" width="100" height="70" rx="8" fill="none" stroke="var(--primary-color)" stroke-width="2" opacity="0.4"/>
-              <circle cx="40" cy="52" r="10" fill="none" stroke="var(--primary-color)" stroke-width="2" opacity="0.5"/>
-              <polygon points="25,85 55,55 75,75 95,50 105,65 105,85" fill="var(--primary-color)" opacity="0.15"/>
-              <rect x="42" y="4" width="36" height="18" rx="4" fill="var(--primary-color)" opacity="0.2"/>
-              <text x="60" y="16" text-anchor="middle" fill="var(--primary-color)" font-size="9" opacity="0.6">AI</text>
+            <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="7" y="11" width="50" height="42" rx="4" />
+              <circle cx="22" cy="25" r="5" />
+              <path d="m8 46 15-14 11 10 11-15 11 12" />
             </svg>
           </div>
         </template>
@@ -627,9 +629,16 @@ const onPreviewImageLoad = () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 16px;
+  padding: 0;
+  min-height: 0;
   gap: 16px;
   overflow: hidden;
+}
+
+.analysis-page-heading {
+  flex-shrink: 0;
+  h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 650; letter-spacing: -0.4px; }
+  p { margin: 4px 0 0; color: var(--text-secondary); font-size: 13px; }
 }
 
 /* ─ Toolbar ─ */
@@ -637,22 +646,28 @@ const onPreviewImageLoad = () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 20px;
+  padding: 14px 16px;
+  flex-wrap: wrap;
+  gap: 12px;
   background: var(--bg-white);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md, 8px);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
   flex-shrink: 0;
 }
 
 .toolbar-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  .el-button + .el-button { margin-left: 0; }
 }
 
 .algorithm-select {
   width: 280px;
+  max-width: 100%;
 }
 
 .toolbar-right {
@@ -663,22 +678,22 @@ const onPreviewImageLoad = () => {
 .file-count {
   font-size: 13px;
   color: var(--text-secondary);
-  padding: 4px 12px;
-  background: var(--bg-secondary);
-  border-radius: 12px;
+  padding: 4px 0;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ─ Content ─ */
 .content-section {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding-bottom: 16px;
 }
 
 .image-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 14px;
 }
 
 .image-card {
@@ -686,18 +701,16 @@ const onPreviewImageLoad = () => {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md, 8px);
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
-  transition: all 0.25s ease;
+  box-shadow: none;
+  transition: border-color 0.15s;
   cursor: pointer;
 
   &:hover {
-    border-color: var(--primary-color);
-    box-shadow: 0 4px 16px rgba(88, 82, 223, 0.15);
-    transform: translateY(-2px);
+    border-color: var(--border-hover);
   }
 
   &.has-result {
-    border-color: rgba(16, 185, 129, 0.3);
+    border-color: var(--border-color);
   }
 }
 
@@ -728,7 +741,8 @@ const onPreviewImageLoad = () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
+  gap: 8px;
+  padding: 12px 14px;
   border-top: 1px solid var(--border-color);
 }
 
@@ -738,7 +752,8 @@ const onPreviewImageLoad = () => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 200px;
+  min-width: 0;
+  flex: 1;
 }
 
 .image-status {
@@ -749,7 +764,7 @@ const onPreviewImageLoad = () => {
 .result-panel {
   padding: 10px 14px;
   border-top: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+  background: var(--bg-subtle);
 }
 
 .result-section {
@@ -785,13 +800,16 @@ const onPreviewImageLoad = () => {
   align-items: center;
   justify-content: center;
   background: var(--bg-white);
-  border: 1px dashed var(--border-color);
+  min-height: 220px;
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-md, 8px);
 }
 
 .empty-icon {
-  width: 120px;
-  height: 120px;
+  width: 72px;
+  height: 72px;
+  margin: 0 auto;
+  color: var(--text-muted);
 }
 
 /* ─ Preview Dialog ─ */

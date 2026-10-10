@@ -1,10 +1,15 @@
 <template>
-  <div class="alarm-record ui-admin-page">
+  <div class="alarm-record ui-admin-page event-console">
+    <header class="event-heading">
+      <h1>{{ t('nav.eventCenter') }}</h1>
+      <p>{{ t('nav.detectionAnalysis') }}</p>
+    </header>
     <LayaReviewDialog v-model="layaVisible" :event-id="layaEventId" />
     <TopBar ref="topBarRef" :dataSouce="topBarData" :formData="formData" :labelWidth="60" :defaultExpand="true" @search="searchList" />
 
     <div class="table-container">
       <div class="table-header">
+        <h2>{{ t('nav.detectionAnalysis') }}</h2>
         <div class="table-tools">
           <el-button size="small" @click="layaEventId = ''; layaVisible = true">{{ t('visualReview.title') }}</el-button>
           <el-button type="primary" size="small" @click="handleExport" :disabled="tableData.length === 0" class="ui-secondary-button">{{ t('event.dataExport') }}</el-button>
@@ -62,11 +67,13 @@
         <template v-if="tableData.length">
           <el-card v-for="item in tableData" :key="item.id" class="grid-item" :class="{'grid-item-selected': multipleSelections.includes(item.id)}">
             <div class="grid-content">
-              <el-image :src="item.fullPicture" fit="cover" class="grid-image" @click="handleImageView([item.fullPicture])" />
+              <el-image :src="item.fullPicture" fit="contain" class="grid-image" @click="handleImageView([item.fullPicture])" />
               <div class="grid-info">
-                <div class="info-item">
-                  <span class="label">{{ t('event.alarmType') }}{{ localeColon }}</span>
-                  <span>{{ resolveResourceAlgorithmName(item) }}</span>
+                <div class="event-card-heading">
+                  <h3 :title="resolveResourceAlgorithmName(item)">{{ resolveResourceAlgorithmName(item) }}</h3>
+                  <span class="event-report-status" :class="item.reportStatus === 1 ? 'is-uploaded' : 'is-pending'">
+                    {{ reportStatusText(item.reportStatus) }}
+                  </span>
                 </div>
                 <div class="info-item">
                   <span class="label">{{ t('field.channelName') }}{{ localeColon }}</span>
@@ -80,18 +87,12 @@
                   <span class="label">{{ t('event.alarmTime') }}{{ localeColon }}</span>
                   <span>{{ dateFormat(item.timestamp) }}</span>
                 </div>
-                <div class="info-item">
-                  <span class="label">{{ t('field.status') }}{{ localeColon }}</span>
-                  <span :style="{color: item.reportStatus === 1 ? 'var(--theme-success, #67C23A)' : 'var(--theme-danger, #F56C6C)'}">
-                    {{ reportStatusText(item.reportStatus) }}
-                  </span>
-                </div>
               </div>
               <div class="grid-actions">
-                <el-button link class="primary-text" @click="layaEventId = item.id; layaVisible = true">{{ t('visualReview.review') }}</el-button>
+                <el-button link class="ui-action ui-action-edit" @click="layaEventId = item.id; layaVisible = true">{{ t('visualReview.review') }}</el-button>
                 <el-button link class="primary-text ui-action ui-action-view" @click="handleDetail(item)">{{ t('action.details') }}</el-button>
-                <el-button link class="primary-text" v-if="checkRuku(item)" @click="handleRuku(item)">{{ t('event.captureImageStorage') }}</el-button>
-                <el-button link class="primary-text" v-if="item.video" @click="onCheckVideo(item, 1)">{{ t('event.videoPlayback') }}</el-button>
+                <el-button link class="ui-action ui-action-upload" v-if="checkRuku(item)" @click="handleRuku(item)">{{ t('event.captureImageStorage') }}</el-button>
+                <el-button link class="ui-action ui-action-play" v-if="item.video" @click="onCheckVideo(item, 1)">{{ t('event.videoPlayback') }}</el-button>
                 <!-- <el-button v-if="runMode != 1" link class="danger-text" @click="handleDelete(item)">删除</el-button> -->
               </div>
             </div>
@@ -493,126 +494,144 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
-.alarm-record {
-  height: 100%;
-  background-color: var(--theme-surface, white);;
+@use '../event-console.scss';
+
+.event-console .table-container {
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
-.table-container {
-  background-color: var(--theme-surface, #fff);
-  padding: 0 15px;
-  margin-top: 16px;
-  height: calc(100% - 135px);
-  overflow: auto;
-
-  .table-header {
-    padding: 16px 0;
-    overflow: hidden;
-
-    .table-tools {
-      float: right;
-    }
-  }
-}
-
 
 .grid-view {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
 
-  .grid-item {
-    position: relative;
+.grid-item {
+  min-width: 0;
+  border-radius: 6px;
+  box-shadow: none;
 
-    &-selected {
-      :deep(.el-card__body) {
-        background-color: var(--bg-primary);
-      }
-    }
+  &-selected { border-color: var(--primary-color); }
 
-    .grid-checkbox {
-      .el-checkbox {
-        position: absolute;
-        top: 8px;
-        left: 10px;
-        z-index: 1;
-        margin: 0;
-        padding: 0;
-        background: transparent;
-      }
-    }
-
-    :deep(.el-card__body) {
-      padding: 10px 10px 0 10px;
-    }
-
-    .grid-content {
-      font-size: 14px;
-
-      .grid-image {
-        width: 100%;
-        height: 150px;
-        margin-bottom: 10px;
-        cursor: pointer;
-      }
-
-      .grid-info {
-        .info-item {
-          margin-bottom: 8px;
-
-          .label {
-            color: var(--text-secondary);
-            margin-right: 8px;
-          }
-        }
-      }
-
-      .grid-actions {
-        padding: 12px 0 8px;
-        border-top: 1px solid var(--border-light);
-        display: flex;
-        justify-content: flex-end;
-        gap: 8px;
-
-        .el-button {
-          margin: 0;
-          padding: 0 8px;
-          font-weight: 500;
-        }
-      }
-    }
+  :deep(.el-card__body) {
+    height: 100%;
+    padding: 10px 10px 0;
+    box-sizing: border-box;
   }
+}
+
+.grid-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  font-size: 13px;
+}
+
+.grid-image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  flex: none;
+  border-radius: 3px;
+  background: var(--bg-subtle);
+  cursor: pointer;
+}
+
+.grid-info {
+  flex: 1;
+  padding: 10px 2px;
+}
+
+.event-card-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+  margin-bottom: 9px;
+
+  h3 {
+    min-width: 0;
+    flex: 1;
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 14px;
+    line-height: 1.5;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+}
+
+.event-report-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  white-space: nowrap;
+
+  &::before {
+    content: '';
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  &.is-uploaded { color: var(--success-color); }
+  &.is-pending { color: var(--danger-color); }
+}
+
+.info-item {
+  display: flex;
+  gap: 8px;
+  margin-top: 5px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+
+  .label {
+    flex: none;
+    color: var(--text-secondary);
+  }
+
+  > span:last-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+.grid-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  min-height: 38px;
+  padding: 5px 0;
+  border-top: 1px solid var(--border-light);
 }
 
 .empty-block {
   grid-column: 1 / -1;
-  height: 100%;
-  min-height: inherit;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background-color: var(--theme-surface, #fff);
+  display: grid;
+  place-items: center;
+  min-height: 260px;
+  background: var(--bg-white);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
 }
 
 .operation-btns {
-  .el-button {
-    margin: 0;
-    padding: 0 5px;
-  }
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 8px;
 }
 
-.primary-text {
-  color: var(--el-color-primary) !important;
-
-  &:hover {
-    color: var(--primary-dark) !important;
-  }
+@media (max-width: 1200px) {
+  .grid-view { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-.danger-text {
-  color: var(--el-color-danger) !important;
-
-  &:hover {
-    color: var(--danger-color) !important;
-  }
+@media (max-width: 720px) {
+  .grid-view { grid-template-columns: minmax(0, 1fr); }
 }
 </style>

@@ -1,7 +1,21 @@
 <template>
   <div class="model-repo-page ui-admin-page">
-    <!-- 页面头部：搜索 + 操作按钮 -->
-    <div class="repo-header">
+    <div class="repo-page-heading">
+      <div>
+        <h1>{{ t('nav.modelRepository') }}</h1>
+        <p>{{ t('glossary.modelRepositorySubtitle') }}</p>
+      </div>
+      <div class="header-actions">
+        <el-button type="primary" @click="addClick">
+          <el-icon><Plus /></el-icon> {{ t('action.addModel') }}
+        </el-button>
+        <el-button @click="importModelClick">
+          <el-icon><Upload /></el-icon> {{ t('action.importModel') }}
+        </el-button>
+      </div>
+    </div>
+
+    <div class="repo-toolbar">
       <div class="search-box">
         <el-input
           v-model="searchKeyword"
@@ -11,28 +25,20 @@
           @input="debouncedSearch"
         />
       </div>
-      <div class="header-actions">
-        <el-button type="primary" class="btn-primary-gradient" @click="addClick">
-          <el-icon><Plus /></el-icon> {{ t('action.addModel') }}
-        </el-button>
-        <el-button @click="importModelClick">
-          <el-icon><Upload /></el-icon> {{ t('action.importModel') }}
-        </el-button>
-      </div>
-    </div>
-
-    <!-- 类型筛选 Tab -->
-    <div class="type-tabs">
+      <div class="type-tabs">
       <button
         v-for="tab in modelTypeTabs"
         :key="tab.value"
         class="type-tab"
+        type="button"
         :class="{ active: activeTypeTab === tab.value }"
+        :aria-pressed="activeTypeTab === tab.value"
         @click="switchTypeTab(tab.value)"
       >
         {{ tab.label }}
         <span class="tab-count">{{ tab.count }}</span>
       </button>
+      </div>
     </div>
 
     <!-- 卡片网格 -->
@@ -43,14 +49,12 @@
         class="model-card"
       >
         <div class="card-top">
-          <div class="card-icon" :class="getModelIconClass(model)" v-html="getModelSvg(model)"></div>
-        </div>
-        <div class="card-info">
-          <div class="card-title">{{ model.modelName }}</div>
-          <div class="card-meta">ID: {{ model.modelCode }} · {{ model.version || '—' }}</div>
-        </div>
-        <div class="card-tags">
-          <span class="model-type-tag" :class="getModelTypeColor(model)">{{ getModelTypeLabel(model) }}</span>
+          <div class="repo-model-icon"><AlgorithmTypeIcon :type="getModelIconType(model)" /></div>
+          <div class="card-info">
+            <div class="card-title" :title="model.modelName">{{ model.modelName }}</div>
+            <div class="card-tags"><span class="model-type-tag">{{ getModelTypeLabel(model) }}</span></div>
+            <div class="card-meta">ID: {{ model.modelCode }} <span aria-hidden="true">·</span> {{ model.version || '—' }}</div>
+          </div>
         </div>
         <div class="card-footer">
           <span class="alg-count">{{ t('glossary.linkedSceneTasks', { n: getModelAlgCount(model.modelCode) }) }}</span>
@@ -178,11 +182,11 @@
 
     <el-dialog :title="t('glossary.modelDetail')" v-model="modelDetailDialogVisible" width="620px" @close="modelDetailDialogVisible = false" class="ui-admin-dialog">
       <div class="detail-header">
-        <div class="detail-icon" :class="getModelIconClass(detailModel)" v-html="getModelSvg(detailModel)"></div>
+        <div class="detail-icon"><AlgorithmTypeIcon :type="getModelIconType(detailModel)" /></div>
         <div class="detail-title-area">
           <h3>{{ detailModel.modelName }}</h3>
           <div class="detail-badges">
-            <span class="model-type-tag" :class="getModelTypeColor(detailModel)">{{ getModelTypeLabel(detailModel) }}</span>
+            <span class="model-type-tag">{{ getModelTypeLabel(detailModel) }}</span>
             <span class="alg-count-badge">{{ t('glossary.linkedSceneTasks', { n: getModelAlgCount(detailModel.modelCode) }) }}</span>
           </div>
         </div>
@@ -301,6 +305,7 @@ import {
 import { useRouter } from 'vue-router'
 import { Search, Plus, Upload } from '@element-plus/icons-vue'
 import { t, localeColon, currentLocale } from '@/i18n'
+import AlgorithmTypeIcon from './AlgorithmTypeIcon.vue'
 import {
   uploadFileInChunks,
   UploadPurpose
@@ -421,38 +426,14 @@ const modelTypeTabs = computed(() => {
 const getModelTypeLabel = (model) => {
   return modelTypeMap.value[model?.modelCode] || model?._subType || getModelMainType(model) || 'unknown'
 }
-const getModelTypeColor = (model) => {
-  const t = getModelMainType(model)
-  const map = { detect: 'tag-detect', classify: 'tag-classify', keypoints: 'tag-keypoints', feature: 'tag-feature', ocr: 'tag-ocr', foundation: 'tag-foundation' }
-  return map[t] || 'tag-detect'
-}
-const getModelIconClass = (model) => {
-  const t = getModelMainType(model)
-  const map = { detect: 'icon-blue', classify: 'icon-green', keypoints: 'icon-cyan', feature: 'icon-purple', ocr: 'icon-amber', foundation: 'icon-gradient' }
-  return map[t] || 'icon-blue'
-}
-
-// 按模型类型返回语义化 SVG 图标
-const modelSvgMap = {
-  // 检测：取景框/目标定位
-  detect: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V3h4"/><path d="M17 3h4v4"/><path d="M21 17v4h-4"/><path d="M7 21H3v-4"/><rect x="7.5" y="7.5" width="9" height="9" rx="1.5"/><circle cx="12" cy="12" r="2"/></svg>',
-  // 分类：四宫格/分类矩阵
-  classify: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg>',
-  // 关键点：人体姿态骨架
-  keypoints: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2.5"/><path d="M12 6.5v4"/><path d="M12 10.5l-5 3.5"/><path d="M12 10.5l5 3.5"/><path d="M7 14l-2 6"/><path d="M17 14l2 6"/><circle cx="7" cy="14" r="1.2"/><circle cx="17" cy="14" r="1.2"/><circle cx="5" cy="20" r="1.2"/><circle cx="19" cy="20" r="1.2"/></svg>',
-  // 特征提取：指纹/DNA 双螺旋
-  feature: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M6 6c3 0 3 4 6 4s3-4 6-4"/><path d="M6 14c3 0 3 4 6 4s3-4 6-4"/><circle cx="6" cy="6" r="1"/><circle cx="18" cy="6" r="1"/><circle cx="6" cy="14" r="1"/><circle cx="18" cy="14" r="1"/></svg>',
-  // OCR：文字框
-  ocr: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h10M7 13h6M7 17h3"/></svg>',
-  // 大模型：星光/AI 大脑
-  foundation: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2 5 5 1-4 3.5 1 5.5-4-3-4 3 1-5.5L5 8l5-1 2-5z"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/><path d="M7 18h10"/></svg>',
-  // 默认：立方体
-  other: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16.5v-9l-9-5.25L3 7.5v9l9 5.25 9-5.25z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/></svg>'
-}
-
-const getModelSvg = (model) => {
-  const t = getModelMainType(model)
-  return modelSvgMap[t] || modelSvgMap.other
+// Use the subtype returned by the existing typed queries, never the model name.
+// A neutral package symbol covers the initial load before metadata is available.
+const getModelIconType = (model) => {
+  const subtype = modelTypeMap.value[model?.modelCode] || model?._subType
+  if (subtype === 'dino') return 'text-detection'
+  if (subtype === 'sam2') return 'segmentation'
+  if (['qwen3vl', 'qwen3_5', 'laya_v'].includes(subtype)) return 'multimodal'
+  return modelMainTypeMap.value[model?.modelCode] || model?._mainType || subTypeToMain[subtype] || 'other'
 }
 
 // ── 模型使用状态（通过 algorithmInquire 获取算法列表中的 models 字段关联） ──
@@ -1443,175 +1424,139 @@ onMounted(() => {
   min-height: 100%;
 }
 
-// ── 页面头部 ──
-.repo-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px 0;
-}
-.search-box {
-  width: 320px;
-}
-.header-actions {
-  display: flex;
-  gap: 10px;
-}
-.btn-primary-gradient {
-  background: var(--theme-accent-button, var(--primary-color)) !important;
-  border: none !important;
-  color: #fff !important;
-  &:hover { background: var(--theme-accent-button-hover, var(--primary-dark)) !important; }
-}
+.model-repo-page.ui-admin-page {
+  .repo-page-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 20px;
 
-// ── 类型筛选 Tab ──
-.type-tabs {
-  display: flex;
-  gap: 8px;
-  padding: 16px 24px 8px;
-  flex-wrap: wrap;
-}
-.type-tab {
-  padding: 5px 16px;
-  border-radius: 20px;
-  border: 1px solid var(--border-color);
-  background: var(--theme-surface, #fff);
-  cursor: pointer;
-  font-size: 13px;
-  color: var(--theme-text, #374151);
-  transition: all 0.2s;
-  &:hover { border-color: var(--primary-color); color: var(--primary-color); }
-  &.active {
-    background: var(--theme-accent-button, var(--primary-color));
-    color: #fff;
-    border-color: var(--primary-color);
+    h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 650; letter-spacing: -0.4px; }
+    p { margin: 4px 0 0; color: var(--text-secondary); font-size: 13px; }
   }
-}
-.tab-count {
-  margin-left: 4px;
-  opacity: 0.7;
-  font-size: 12px;
-}
 
-// ── 卡片网格 ──
-.model-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  padding: 12px 24px;
-}
-@media (max-width: 1200px) {
-  .model-grid { grid-template-columns: repeat(2, 1fr); }
-}
-@media (max-width: 768px) {
-  .model-grid { grid-template-columns: 1fr; }
-}
-
-.model-card {
-  background: var(--theme-surface, #fff);
-  border-radius: 12px;
-  padding: 20px;
-  border: 1px solid var(--border-light);
-  transition: all 0.25s ease;
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-    border-color: rgba(88, 82, 223, 0.2);
+  .header-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .header-actions .el-button + .el-button { margin-left: 0; }
+  .repo-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px 24px;
+    margin-bottom: 16px;
   }
-}
-.card-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 12px;
-}
-
-// ── 图标 ──
-.card-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  svg { width: 22px; height: 22px; }
-  &.icon-blue { background: var(--theme-accent-soft, rgba(59, 130, 246, 0.1)); color: var(--primary-color); }
-  &.icon-green { background: var(--theme-success-soft, rgba(34, 197, 94, 0.1)); color: var(--success-color); }
-  &.icon-cyan { background: var(--theme-cyan-soft, rgba(6, 182, 212, 0.1)); color: var(--theme-cyan, #06b6d4); }
-  &.icon-purple { background: var(--theme-accent-soft, rgba(66, 153, 225, 0.1)); color: var(--primary-light); }
-  &.icon-amber { background: var(--theme-warning-soft, rgba(245, 158, 11, 0.1)); color: var(--warning-color); }
-  &.icon-gradient { background: var(--bg-secondary); color: var(--primary-dark); }
-}
-
-
-// ── 关联场景任务标签 ──
-.alg-count-badge {
-  font-size: 12px;
-  color: var(--text-secondary);
-  background: var(--bg-secondary);
-  padding: 2px 8px;
-  border-radius: 10px;
-}
-
-// ── 卡片信息 ──
-.card-info { margin-bottom: 10px; }
-.card-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.card-meta {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-// ── 类型标签 ──
-.card-tags { margin-bottom: 12px; }
-.model-type-tag {
-  display: inline-block;
-  padding: 2px 10px;
-  border-radius: 12px;
-  font-size: 12px;
-  &.tag-detect { background: var(--el-color-primary-light-9); color: var(--primary-color); }
-  &.tag-classify { background: var(--el-color-success-light-9); color: var(--success-color); }
-  &.tag-keypoints { background: var(--theme-cyan-soft, #cffafe); color: var(--theme-cyan, #0891b2); }
-  &.tag-feature { background: var(--el-color-primary-light-9); color: var(--primary-dark); }
-  &.tag-ocr { background: var(--el-color-warning-light-9); color: var(--theme-warning, #b45309); }
-  &.tag-foundation { background: var(--bg-secondary); color: var(--primary-dark); }
-}
-
-// ── 卡片底部 ──
-.card-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-top: 12px;
-  border-top: 1px solid var(--bg-primary);
-}
-.alg-count {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-.card-actions {
-  display: flex;
-  gap: 4px;
-  .el-button {
+  .search-box { width: 280px; max-width: 100%; flex-shrink: 0; }
+  .type-tabs {
+    display: flex;
+    flex: 1 1 560px;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 8px;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .type-tab {
+    min-height: 38px;
+    padding: 7px 11px;
+    margin-bottom: -1px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
     font-size: 13px;
-    color: var(--primary-color) !important;
-    &:hover { color: var(--primary-dark) !important; }
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+
+    &:hover { color: var(--text-primary); background: var(--bg-hover); }
+    &:focus-visible { outline: 2px solid var(--focus-ring, var(--primary-color)); outline-offset: 2px; }
+    &.active { color: var(--primary-color); background: transparent; border-bottom-color: var(--primary-color); font-weight: 600; }
+  }
+  .tab-count { margin-left: 5px; color: inherit; background: transparent; font-size: 12px; font-weight: 400; }
+
+  .model-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    padding: 0;
+  }
+  .model-card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: 18px 18px 12px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 7px;
+    box-shadow: none;
+    transition: border-color 0.15s;
+
+    &:hover { transform: none; border-color: var(--border-hover); box-shadow: none; }
+  }
+  .card-top { display: flex; align-items: flex-start; gap: 14px; min-width: 0; margin-bottom: 18px; }
+  .repo-model-icon {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    color: var(--secondary-color);
+    background: var(--bg-subtle);
+    border-radius: 6px;
+  }
+  .repo-model-icon :deep(svg) { width: 28px; height: 28px; }
+  .card-info { min-width: 0; flex: 1; }
+  .card-title {
+    margin: 0 0 4px;
+    color: var(--text-primary);
+    font-size: 16px;
+    line-height: 22px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .card-tags { margin-bottom: 6px; }
+  .model-type-tag { padding: 0; background: transparent; color: var(--text-secondary); font-size: 12px; line-height: 18px; }
+  .card-meta { color: var(--text-secondary); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
+  .card-meta > span { margin: 0 3px; }
+  .card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    padding-top: 10px;
+    margin-top: auto;
+    border-top: 1px solid var(--border-light);
+  }
+  .alg-count { color: var(--text-secondary); font-size: 12px; line-height: 20px; }
+  .card-actions { display: flex; gap: 8px; margin-left: auto; }
+  .pagination-container { display: flex; justify-content: flex-end; padding: 20px 0 0; overflow-x: auto; }
+
+  @media (max-width: 1200px) {
+    .model-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 760px) {
+    .model-grid { grid-template-columns: minmax(0, 1fr); }
+    .type-tabs { flex-basis: 100%; gap: 0 4px; }
+    .type-tab { padding-inline: 8px; }
+    .repo-page-heading { align-items: flex-start; }
   }
 }
 
-// ── 分页 ──
-.pagination-container {
-  display: flex;
-  justify-content: center;
-  padding: 16px 24px;
+.alg-count-badge {
+  color: var(--text-secondary);
+  background: var(--bg-subtle);
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 12px;
 }
+
+.model-type-tag { color: var(--text-secondary); font-size: 12px; }
 
 // ── 增强详情弹窗 ──
 .detail-header {
@@ -1623,14 +1568,16 @@ onMounted(() => {
   border-bottom: 1px solid var(--border-light);
 }
 .detail-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 12px;
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  color: var(--secondary-color);
+  background: var(--bg-subtle);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  svg { width: 26px; height: 26px; }
+  :deep(svg) { width: 28px; height: 28px; }
 }
 .detail-title-area {
   h3 { margin: 0 0 6px; font-size: 18px; color: var(--text-primary); }

@@ -1,5 +1,6 @@
 <template>
   <div class="system-config ui-admin-page">
+    <h1 class="settings-heading">{{ t('nav.systemSettings') }}</h1>
     <el-tabs v-model="activeName">
       <el-tab-pane :label="t('systemManage.deviceInfo')" name="device">
         <device-info v-if="activeName === 'device'" />
@@ -143,21 +144,41 @@ const confirmRestart = () => {
 </script>
 <style lang="scss" scoped>
 .system-config {
-  padding: 20px;
-  background: var(--theme-surface, #fff);
-  border-radius: 4px;
+  padding: 0;
+  background: transparent;
+
+  :deep(> .el-tabs > .el-tabs__header) { margin-bottom: 18px; }
+  :deep(> .el-tabs > .el-tabs__header .el-tabs__item) { height: 42px; }
+}
+
+.settings-heading {
+  margin: 0 0 18px;
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 1.4;
+  color: var(--text-primary);
 }
 
 .restart-setting {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 660px;
+  max-width: 100%;
+  padding: 24px;
+  background: var(--bg-white);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
 }
 
 .restart-setting-form {
-  width: 400px;
+  min-width: 0;
 }
 
 .restart-setting-tools {
-  margin-top: 5px;
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-light);
 }
 </style>

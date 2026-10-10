@@ -130,14 +130,30 @@ onBeforeUnmount(() => {
 
 <style lang="scss" scoped>
 .info-list {
-  padding: 20px;
+  box-sizing: border-box;
+  padding: 8px 24px;
+  max-width: 960px;
+  background: var(--bg-white);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
 
   :deep(.el-form-item) {
-    margin-bottom: 5px;
+    margin-bottom: 0;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border-light);
+
+    &:last-child { border-bottom: 0; }
+
+    .el-form-item__label {
+      color: var(--text-secondary);
+      justify-content: flex-start;
+    }
 
     .el-form-item__content {
       font-size: 14px;
       color: var(--text-primary);
+      overflow-wrap: anywhere;
+      font-variant-numeric: tabular-nums;
     }
   }
 }

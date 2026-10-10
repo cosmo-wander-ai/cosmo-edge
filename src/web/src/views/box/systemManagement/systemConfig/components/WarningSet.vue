@@ -206,6 +206,12 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  box-sizing: border-box;
+  max-width: 1040px;
+  padding: 24px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-white);
 
   .warning-set-form {
     width: 100%;
@@ -214,10 +220,17 @@ onMounted(() => {
 
   .section-title {
     font-size: 14px;
-    color: var(--text-secondary);
-    margin: 20px 0;
-    padding-left: 10px;
-    border-left: 4px solid var(--primary-color);
+    color: var(--text-primary);
+    font-weight: 600;
+    margin: 24px 0 18px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border-light);
+
+    &:first-child {
+      margin-top: 0;
+      padding-top: 0;
+      border: 0;
+    }
   }
 
   .overlay-options :deep(.el-form-item__content) {
@@ -246,6 +259,7 @@ onMounted(() => {
 
   .time-input {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 10px;
   }

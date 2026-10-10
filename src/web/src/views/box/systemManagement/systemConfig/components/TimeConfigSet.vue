@@ -61,7 +61,7 @@
           </template>
         </el-form>
       </div>
-      <div>
+      <div class="time-config-footer">
         <el-button type="primary" @click="handleSave" size="small">{{ t('action.save') }}</el-button>
       </div>
     </div>
@@ -274,14 +274,20 @@ onBeforeUnmount(() => {
 
 <style lang="scss" scoped>
 .time-config {
-  padding: 20px;
+  box-sizing: border-box;
+  max-width: 900px;
+  padding: 24px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-white);
 
   .divider {
     font-size: 14px;
-    color: var(--text-secondary);
-    margin: 20px 0;
-    padding-left: 10px;
-    border-left: 4px solid var(--primary-color);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 24px 0 18px;
+    padding: 12px 0;
+    border-top: 1px solid var(--border-light);
   }
 
   .interval-item {
@@ -300,15 +306,37 @@ onBeforeUnmount(() => {
 
 .time-config-body {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  min-width: 0;
 
   .time-config-form {
-    width: 700px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  :deep(.el-form-item__content) {
+    gap: 8px;
+  }
+
+  :deep(.el-radio-group) {
+    display: flex;
+    flex-wrap: wrap;
   }
 }
 
 .form-content {
-  width: 400px;
-  margin-right: 20px;
+  flex: 1 1 260px;
+  width: 100%;
+  max-width: 430px;
+  min-width: 0;
+  margin-right: 0;
+}
+
+.time-config-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-light);
 }
 </style>

@@ -1,5 +1,6 @@
 <template>
-  <div class="mv-wrap ui-admin-page">
+  <div class="mv-wrap ui-admin-page sound-page">
+    <h1 class="sound-heading">{{ t('nav.networkSpeaker') }}</h1>
     <TopBar ref="topBarRef" :dataSouce="topBarData" :formData="formData" :labelWidth="60" @search="searchList" />
 
     <div class="table-container">
@@ -22,14 +23,14 @@
         <el-table-column prop="ip" show-overflow-tooltip :label="t('boxOther.ipAddress')"></el-table-column>
         <el-table-column prop="status" show-overflow-tooltip :label="t('field.status')">
           <template #default="scope">
-            <span v-if="scope.row.online" style="color: lightgreen;">{{ t('status.online') }}</span>
-            <span v-else style="color:red;">{{ t('status.offline') }}</span>
+            <span v-if="scope.row.online" class="sound-status is-online">{{ t('status.online') }}</span>
+            <span v-else class="sound-status is-offline">{{ t('status.offline') }}</span>
           </template>
         </el-table-column>
         <el-table-column width="240px" :label="t('field.actions')">
           <template #default="scope">
             <div class="operation-tools">
-              <el-button link class="span-right10 primary-text" @click="testSound(scope.row)">{{ t('action.test') }}</el-button>
+              <el-button link class="span-right10 ui-action" @click="testSound(scope.row)">{{ t('action.test') }}</el-button>
               <el-button link class="span-right10 primary-text ui-action ui-action-edit" @click="editSound(scope.row)">{{ t('action.edit') }}</el-button>
               <el-button link class="span-right10 danger-text ui-action ui-action-delete" @click="deleteSound([scope.row.devId])">{{ t('action.delete') }}</el-button>
             </div>
@@ -44,7 +45,7 @@
     </div>
 
     <!-- 添加/编辑音柱 -->
-    <el-dialog :title="addDialogTitle" v-model="addDialogVisible" class="dialogtype ui-admin-dialog" center width="500px">
+    <el-dialog :title="addDialogTitle" v-model="addDialogVisible" class="dialogtype ui-admin-dialog sound-dialog" center width="560px">
       <div v-if="addDialogVisible">
         <el-form :model="addFormData" ref="formRef" :rules="rules" :label-width="currentLocale === 'en-US' ? '200px' : '150px'" label-position="right">
           <el-form-item :label="t('boxOther.soundName') + localeColon" class="form-content" prop="name">
@@ -62,15 +63,15 @@
       </div>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="addDialogVisible = false" size="small" style="margin-right: 10px;">{{ t('action.cancel') }}</el-button>
+          <el-button @click="addDialogVisible = false" size="small">{{ t('action.cancel') }}</el-button>
           <el-button type="primary" size="small" @click="saveSound">{{ t('action.save') }}</el-button>
         </span>
       </template>
     </el-dialog>
 
-    <el-dialog :title="t('action.test')" v-model="testDialogVisible" class="dialogtype ui-admin-dialog" center width="600px">
+    <el-dialog :title="t('action.test')" v-model="testDialogVisible" class="dialogtype ui-admin-dialog sound-dialog" center width="660px">
       <div v-if="testDialogVisible">
-        <el-tabs v-model="activeName" type="card" @tab-click="handleClick">
+        <el-tabs v-model="activeName" @tab-click="handleClick">
           <el-tab-pane :label="t('boxOther.audioPlayback')" name="first">
             <el-form :model="audioForm" ref="audioFormRef" :label-width="currentLocale === 'en-US' ? '200px' : '170px'" label-position="right">
               <el-form-item v-for="item in resolvedAudioConfig" :key="item.key" :prop="item.key" :rules="getFormRules(item)">
@@ -482,6 +483,40 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
+.sound-heading {
+  margin: 0 0 18px;
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
+.sound-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+
+  &::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  &.is-online { color: var(--success-color); }
+  &.is-offline { color: var(--danger-color); }
+}
+
+.table-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+
+  .el-button + .el-button { margin-left: 0; }
+}
+
 .other {
   margin-left: 60px;
 }
@@ -540,20 +575,28 @@ onMounted(() => {
 }
 
 .table-container {
-  background-color: var(--theme-surface, #fff);
-  padding: 0 15px;
+  background-color: var(--bg-white);
   margin-top: 16px;
 
   .table-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 0;
+    flex-wrap: wrap;
+    gap: 12px;
   }
 }
 
 .form-content {
-  width: calc(100% - 50px);
+  width: 100%;
+  min-width: 0;
+}
+
+.dialog-footer {
+  display: inline-flex;
+  gap: 8px;
+
+  .el-button + .el-button { margin-left: 0; }
 }
 
 .operation-tools {

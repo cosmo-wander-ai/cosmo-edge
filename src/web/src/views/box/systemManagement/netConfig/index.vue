@@ -1,5 +1,8 @@
 <template>
   <div class="net-config ui-admin-page">
+    <header class="network-heading">
+      <h1>{{ t('nav.networkSettings') }}</h1>
+    </header>
     <el-tabs v-model="activeName">
       <el-tab-pane :label="t('systemManage.networkPortSettings')" name="network">
         <div class="network-container" v-if="activeName === 'network'">
@@ -7,9 +10,12 @@
             <div class="network-card" v-for="(item, index) in netCardList" :key="index">
               <div class="card-header">
                 <div class="title">
-                  <span class="title-label">{{ t('systemManage.nameLabel') }}</span>
+                  <svg class="ethernet-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <path d="M6.5 7.5h11v7h-2v2h-2v2h-3v-2h-2v-2h-2zM9 7.5v3m3-3v3m3-3v3" />
+                  </svg>
                   <span class="title-content">{{ item.ethName }}</span>
-                  <el-button type="primary" size="small" :class="item.isEdit ? 'network-save' : 'network-edit ui-action ui-action-edit'" @click="handleEdit(item,index)">{{ item.isEdit ? t('action.save') : t('action.edit') }}</el-button>
+                  <el-button :type="item.isEdit ? 'primary' : undefined" size="small" :class="item.isEdit ? 'network-save' : 'network-edit'" @click="handleEdit(item,index)">{{ item.isEdit ? t('action.save') : t('action.edit') }}</el-button>
                 </div>
               </div>
               <div class="card-content">
@@ -26,7 +32,7 @@
                   <el-form-item :label="t('systemManage.ipAddress')" prop="ipAddr">
                     <div class="ip-input">
                       <el-input v-model="item.ipAddr" :disabled="!item.isEdit || item.dhcp == 1"></el-input>
-                      <el-button type="primary" size="small" @click="handleTest(item.ipAddr, index)" class="ui-secondary-button">{{ t('systemManage.ipConflictCheck') }}</el-button>
+                      <el-button size="small" @click="handleTest(item.ipAddr, index)">{{ t('systemManage.ipConflictCheck') }}</el-button>
                     </div>
                   </el-form-item>
                   <el-form-item :label="t('systemManage.subnetMask')" prop="netMask">
@@ -431,48 +437,62 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .net-config {
-  padding: 20px;
-  background: var(--theme-surface, #fff);
-  border-radius: 4px;
+  padding: 0;
+  background: transparent;
+
+  .network-heading {
+    margin-bottom: 18px;
+
+    h1 {
+      margin: 0;
+      color: var(--text-primary);
+      font-size: 24px;
+      line-height: 1.4;
+      font-weight: 650;
+    }
+  }
+
+  :deep(> .el-tabs > .el-tabs__header) { margin-bottom: 18px; }
+  :deep(> .el-tabs > .el-tabs__header .el-tabs__item) { height: 42px; }
 
   .network-container {
-    padding: 20px;
+    padding: 0;
 
     .network-list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 20px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
     }
   }
 
   .network-card {
-    background: var(--theme-surface, #fff);
-    border-radius: 4px;
-    padding: 20px;
-    width: 400px;
-    max-width: 100%;
+    background: var(--bg-white);
+    border-radius: 6px;
+    padding: 24px;
     min-width: 0;
     border: 1px solid var(--border-color);
-    box-shadow: var(--shadow-sm);
+    box-shadow: none;
 
     .card-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 20px;
+      margin-bottom: 24px;
 
       .title {
         display: flex;
         align-items: center;
         width: 100%;
         min-width: 0;
-        gap: 8px;
+        gap: 12px;
         font-size: 15px;
       }
 
       .el-button {
         flex-shrink: 0;
         margin-left: auto;
+        min-width: 68px;
+        height: 32px;
       }
 
       span {
@@ -480,10 +500,11 @@ onMounted(() => {
         color: var(--text-secondary);
       }
 
-      .title-label {
-        flex: 0 0 90px;
-        margin-right: 0;
-        text-align: right;
+      .ethernet-icon {
+        flex: 0 0 28px;
+        width: 28px;
+        height: 28px;
+        color: var(--text-secondary);
       }
 
       .title-content {
@@ -492,18 +513,22 @@ onMounted(() => {
         margin-right: 0;
         overflow: hidden;
         text-overflow: ellipsis;
-        white-space: nowrap;
+        white-space: normal;
+        overflow-wrap: anywhere;
         text-align: left;
         color: var(--text-primary);
+        font-size: 20px;
+        font-weight: 650;
       }
     }
 
     .card-content {
       :deep(.el-form-item) {
-        margin-bottom: 18px;
+        margin-bottom: 16px;
 
         .el-form-item__label {
           color: var(--text-secondary);
+          line-height: 36px;
         }
 
         .el-form-item__content {
@@ -517,6 +542,22 @@ onMounted(() => {
         }
       }
 
+      :deep(.el-input__wrapper),
+      :deep(.el-select__wrapper) { min-height: 36px; }
+
+      :deep(.el-input.is-disabled .el-input__wrapper),
+      :deep(.el-select__wrapper.is-disabled) {
+        background: var(--bg-subtle);
+        box-shadow: 0 0 0 1px var(--border-light) inset;
+      }
+
+      :deep(.el-input.is-disabled .el-input__inner) {
+        color: var(--text-secondary);
+        -webkit-text-fill-color: var(--text-secondary);
+      }
+
+      :deep(.el-select__wrapper.is-disabled .el-select__selected-item) { color: var(--text-secondary); }
+
       .ip-input {
         display: flex;
         flex-wrap: wrap;
@@ -526,7 +567,7 @@ onMounted(() => {
         min-width: 0;
 
         .el-input {
-          flex: 1 1 140px;
+          flex: 1 1 130px;
           width: auto;
           min-width: 0;
         }
@@ -534,38 +575,57 @@ onMounted(() => {
         .el-button {
           flex: 0 0 auto;
           margin-left: 0;
+          min-height: 34px;
         }
       }
     }
   }
+
+  @media (max-width: 1120px) {
+    .network-container .network-list { grid-template-columns: 1fr; }
+    .network-card { max-width: 720px; }
+  }
 }
 
 .dns-container {
-  padding: 20px;
-  width: 400px;
+  box-sizing: border-box;
+  padding: 24px;
+  width: 580px;
+  max-width: 100%;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-white);
 
   .dns-input {
+    width: 100%;
     .el-input {
-      width: 220px;
+      width: 100%;
     }
   }
 
   .dns-footer {
     margin-top: 20px;
-    text-align: center;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
 
     .el-button {
-      margin: 0 10px;
+      margin: 0;
     }
   }
 }
 
 .detect-container {
-  padding: 20px;
-  width: 500px;
+  box-sizing: border-box;
+  padding: 24px;
+  width: 660px;
+  max-width: 100%;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-white);
 
   :deep(.el-input) {
-    width: 220px;
+    width: 100%;
   }
 }
 

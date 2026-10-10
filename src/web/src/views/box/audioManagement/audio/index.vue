@@ -1,5 +1,6 @@
 <template>
   <div class="ui-admin-page">
+    <header class="ui-page-heading"><h1>{{ t('nav.audioManagement') }}</h1></header>
     <TopBar ref="topBarRef" :dataSouce="topBarData" :formData="formData" :labelWidth="60" @search="searchList" />
 
     <div class="table-container">

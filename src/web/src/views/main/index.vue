@@ -508,7 +508,7 @@ const handleReboot = () => {
 }
 
 .sidebar {
-  width: 200px;
+  width: 216px;
   flex-shrink: 0;
   background: var(--bg-shell, var(--bg-white));
   color: var(--secondary-color);
@@ -527,7 +527,7 @@ const handleReboot = () => {
 }
 
 .sidebar-header {
-  height: 64px;
+  height: 56px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -628,7 +628,7 @@ const handleReboot = () => {
   font-weight: 500;
   color: var(--text-secondary);
   letter-spacing: .4px;
-  padding: 16px 12px 6px;
+  padding: 13px 12px 5px;
 }
 
 .menu-section-divider {
@@ -656,7 +656,7 @@ const handleReboot = () => {
 }
 
 .menu-item.is-active {
-  background: var(--theme-selected-bg, #eeedf9);
+  background: var(--primary-soft-bg);
   box-shadow: inset 2px 0 var(--primary-color);
   color: var(--primary-color);
 }
@@ -722,7 +722,7 @@ const handleReboot = () => {
 }
 
 .submenu-item.is-active {
-  background: var(--theme-selected-bg, #eeedf9);
+  background: var(--primary-soft-bg);
 }
 
 .submenu-item.is-active .submenu-title {
@@ -753,7 +753,7 @@ const handleReboot = () => {
 }
 
 .main-header {
-  height: 64px;
+  height: 56px;
   flex-shrink: 0;
   background: var(--bg-shell, var(--bg-white));
   display: flex;
@@ -827,7 +827,7 @@ const handleReboot = () => {
 .avatar {
   width: 28px;
   height: 28px;
-  background: var(--theme-selected-bg, #eeedf9);
+  background: var(--primary-soft-bg);
   border: 1px solid var(--theme-selected-border, #dedaf6);
   color: var(--primary-color);
   border-radius: 50%;
@@ -890,7 +890,7 @@ const handleReboot = () => {
 .content-area {
   flex: 1;
   min-height: 0;
-  padding: 24px;
+  padding: 20px 24px;
   background: var(--bg-primary);
   overflow: auto;
 }

@@ -387,6 +387,9 @@ export default {
     }
   },
   glossary: {
+    sceneTasksSubtitle: '管理场景编排与通道关联',
+    imageAnalysisSubtitle: '选择场景任务并分析图片',
+    modelRepositorySubtitle: '管理算法模型与场景关联',
     equals: '等于',
     licenseStatus: '授权状态',
     authorizationFailed: '授权失败',

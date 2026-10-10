@@ -1,5 +1,12 @@
 <template>
   <div class="task-page ui-admin-page">
+    <div class="task-page-heading">
+      <div>
+        <h1>{{ t('nav.sceneTasks') }}</h1>
+        <p>{{ t('glossary.sceneTasksSubtitle') }}</p>
+      </div>
+      <el-button type="primary" @click="addAlgorithmic">{{ t('action.createTask') }}</el-button>
+    </div>
     <TopBar ref="topBarRef" :dataSouce="topBarData" :formData="formData" :labelWidth="80" @search="searchList" />
     <!-- 工具栏 -->
     <div class="task-toolbar">
@@ -7,7 +14,6 @@
         <span class="task-count">{{ t('common.totalTasks', { n: pageData.total }) }}</span>
       </div>
       <div class="toolbar-right">
-        <el-button type="primary" size="small" class="btn-primary-gradient" @click="addAlgorithmic">{{ t('action.createTask') }}</el-button>
         <el-checkbox v-model="selectAll" @change="toggleSelectAll" :indeterminate="isIndeterminate" style="margin-right: 8px;">{{ t('action.selectAll') }}</el-checkbox>
         <el-button size="small" :disabled="batchDeleteIds.length === 0" @click="batchDelete">{{ t('action.bulkDelete') }}</el-button>
         <el-button size="small" @click="uploadAlgorithmic">{{ t('action.importTask') }}</el-button>
@@ -39,21 +45,16 @@
         <el-button v-if="row.supplier != 'HJ'" class="card-delete-btn ui-action danger-text" link @click.stop="deleteClick(row)">
           <el-icon><Delete /></el-icon>{{ t('action.delete') }}
         </el-button>
-        <!-- 图标 -->
         <div class="card-top">
-          <div class="card-icon" :class="getCategoryIconClass(row)" v-html="getCategorySvg(row)"></div>
-        </div>
-        <!-- 信息 -->
-        <div class="card-info">
-          <div class="card-title" :title="resolveResourceAlgorithmName(row)">{{ resolveResourceAlgorithmName(row) }}</div>
-          <div class="card-meta">ID: {{ row.algorithmId }} · {{ getUsageLabel(row) }}</div>
-          <el-tooltip v-if="row.remark" :content="resolveResourceAlgorithmRemark(row)" placement="top" :show-after="300" popper-class="task-remark-tooltip">
-            <div class="card-desc">{{ resolveResourceAlgorithmRemark(row) }}</div>
-          </el-tooltip>
-        </div>
-        <!-- 类型标签 -->
-        <div class="card-tags">
-          <span class="category-tag" :class="getCategoryTagColor(row)">{{ returnCategoryName(row) }}</span>
+          <div class="card-icon" aria-hidden="true" v-html="getCategorySvg(row)"></div>
+          <div class="card-info">
+            <div class="card-title" :title="resolveResourceAlgorithmName(row)">{{ resolveResourceAlgorithmName(row) }}</div>
+            <div class="card-tags"><span class="category-tag">{{ returnCategoryName(row) }}</span></div>
+            <div class="card-meta">ID: {{ row.algorithmId }} · {{ getUsageLabel(row) }}</div>
+            <el-tooltip v-if="row.remark" :content="resolveResourceAlgorithmRemark(row)" placement="top" :show-after="300" popper-class="task-remark-tooltip">
+              <div class="card-desc">{{ resolveResourceAlgorithmRemark(row) }}</div>
+            </el-tooltip>
+          </div>
         </div>
         <!-- 底部 -->
         <div class="card-footer">
@@ -710,121 +711,108 @@ export default {
   min-height: 0;
   overflow: hidden;
 }
-.task-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 24px;
-  flex-shrink: 0;
-}
-.toolbar-left { display: flex; align-items: center; }
-.task-count {
-  font-size: 13px;
-  color: var(--text-secondary);
-  background: var(--bg-secondary);
-  padding: 4px 14px;
-  border-radius: 12px;
-}
-.toolbar-right { display: flex; align-items: center; gap: 8px; }
-.btn-primary-gradient {
-  background: var(--theme-accent-button, var(--primary-color)) !important;
-  border: none !important;
-  color: #fff !important;
-  &:hover { background: var(--theme-accent-button-hover, var(--primary-dark)) !important; }
-}
-.task-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-auto-rows: minmax(260px, auto);
-  gap: 16px;
-  padding: 4px 24px 12px;
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  align-content: start;
-}
-@media (max-width: 1200px) { .task-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 768px) { .task-grid { grid-template-columns: minmax(0, 1fr); } }
-.task-card {
-  position: relative;
-  background: var(--theme-surface, #fff);
-  border-radius: 12px;
-  padding: 20px;
-  border: 1px solid var(--border-light);
-  transition: all 0.25s ease;
-  min-height: 260px;
-  min-width: 0;
-  height: auto;
-  display: flex;
-  flex-direction: column;
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-    border-color: rgba(88, 82, 223,0.2);
-    .card-delete-btn { opacity: 1; }
+.task-page.ui-admin-page {
+  .task-page-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+    gap: 12px;
+    margin-bottom: 18px;
+
+    h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 650; letter-spacing: -0.4px; }
+    p { margin: 4px 0 0; color: var(--text-secondary); font-size: 13px; }
   }
-  &.selected {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px rgba(88, 82, 223,0.15);
+  .task-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    padding: 0 0 14px;
+    flex-shrink: 0;
+  }
+  .toolbar-left, .toolbar-right { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .toolbar-right .el-button + .el-button { margin-left: 0; }
+  .task-count { color: var(--text-secondary); font-size: 13px; background: transparent; }
+  .task-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-auto-rows: minmax(210px, auto);
+    gap: 14px;
+    padding: 0 0 12px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    align-content: start;
+  }
+  .task-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 210px;
+    height: auto;
+    padding: 16px 18px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 7px;
+    background: var(--bg-panel);
+    box-shadow: none;
+    transition: border-color 0.15s;
+
+    &:hover { transform: none; box-shadow: none; border-color: var(--border-hover); }
+    &.selected { border-color: var(--primary-color); box-shadow: inset 0 0 0 1px var(--primary-color); }
+  }
+  .card-select { position: absolute; top: 8px; left: 18px; z-index: 1; }
+  .card-delete-btn { position: absolute; top: 10px; right: 13px; opacity: 1; color: var(--danger-color) !important; }
+  .card-top { display: flex; align-items: flex-start; gap: 12px; margin: 30px 0 16px; min-width: 0; }
+  .card-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    border-radius: 6px;
+    color: var(--secondary-color);
+    background: var(--bg-subtle);
+    :deep(svg) { width: 24px; height: 24px; }
+  }
+  .card-info { min-width: 0; flex: 1; }
+  .card-title { color: var(--text-primary); font-size: 16px; font-weight: 600; line-height: 22px; margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card-meta { color: var(--text-secondary); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
+  .card-desc { color: var(--text-secondary); font-size: 12px; line-height: 18px; margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+  .card-tags { margin-bottom: 6px; }
+  .category-tag { color: var(--text-secondary); background: transparent; padding: 0; font-size: 12px; line-height: 18px; }
+  .card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+    min-width: 0;
+    gap: 5px 8px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-light);
+    margin-top: auto;
+  }
+  .card-status { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 10px; font-size: 12px; }
+  .status-indicator {
+    &.status-ok { color: var(--success-color); }
+    &.status-warn { color: var(--danger-color); cursor: help; }
+  }
+  .running-count { color: var(--text-secondary); font-weight: 500; }
+  .card-actions { display: flex; flex-shrink: 0; gap: 8px; margin-left: auto; }
+  .pagination-container { display: flex; justify-content: flex-end; padding: 12px 0 0; flex-shrink: 0; overflow-x: auto; }
+
+  @media (max-width: 1200px) { .task-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 768px) {
+    .task-grid { grid-template-columns: minmax(0, 1fr); }
+    .task-page-heading { margin-bottom: 14px; }
   }
 }
-.card-select { position: absolute; top: 12px; left: 12px; z-index: 1; }
-.card-delete-btn {
-  position: absolute; top: 12px; right: 12px;
-  opacity: 0; transition: opacity 0.2s;
-  color: var(--danger-color) !important;
-  &:hover { color: var(--danger-color) !important; }
-}
-.card-top { margin-bottom: 12px; }
-.card-icon {
-  width: 44px; height: 44px; border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
-  :deep(svg) { width: 22px; height: 22px; }
-  &.icon-blue { background: var(--theme-accent-soft, rgba(59,130,246,0.1)); color: var(--primary-color); }
-  &.icon-purple { background: var(--theme-accent-soft, rgba(66,153,225,0.1)); color: var(--primary-light); }
-  &.icon-cyan { background: var(--theme-cyan-soft, rgba(6,182,212,0.1)); color: var(--theme-cyan, #06b6d4); }
-  &.icon-green { background: var(--theme-success-soft, rgba(34,197,94,0.1)); color: var(--success-color); }
-  &.icon-orange { background: var(--theme-warning-soft, rgba(245,158,11,0.1)); color: var(--warning-color); }
-}
-.card-info { min-width: 0; margin-bottom: 10px; }
-.card-title {
-  font-size: 15px; font-weight: 600; color: var(--text-primary);
-  margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.card-meta { font-size: 12px; color: var(--text-secondary); }
-.card-desc {
-  font-size: 12px; color: var(--text-secondary); margin-top: 4px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  max-width: 100%;
-}
-.card-tags { margin-bottom: 12px; }
-.category-tag {
-  display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px;
-  &.tag-blue { background: var(--el-color-primary-light-9); color: var(--primary-color); }
-  &.tag-purple { background: var(--el-color-primary-light-9); color: var(--primary-dark); }
-  &.tag-cyan { background: var(--theme-cyan-soft, #cffafe); color: var(--theme-cyan, #0891b2); }
-  &.tag-green { background: var(--el-color-success-light-9); color: var(--success-color); }
-  &.tag-orange { background: var(--el-color-warning-light-9); color: var(--warning-color); }
-}
-.card-footer {
-  display: flex; justify-content: space-between; align-items: center;
-  min-width: 0; gap: 8px;
-  padding-top: 12px; border-top: 1px solid var(--bg-primary);
-  margin-top: auto;
-  flex-shrink: 0;
-}
-.card-status { display: flex; align-items: center; gap: 10px; font-size: 12px; }
-.status-indicator {
-  &.status-ok { color: var(--success-color); }
-  &.status-warn { color: var(--danger-color); cursor: help; }
-}
-.running-count { color: var(--primary-color); font-weight: 500; }
-.card-actions {
-  display: flex; flex-shrink: 0; gap: 4px;
-  .el-button { font-size: 13px; color: var(--primary-color) !important; &:hover { color: var(--primary-dark) !important; } }
-}
-.pagination-container { display: flex; justify-content: center; padding: 12px 24px 16px; flex-shrink: 0; }
 .tips { text-align: center; padding: 20px 0; }
 .dialog-footer { display: flex; justify-content: center; }
 .input-width { width: calc(100% - 80px); }

@@ -300,8 +300,8 @@ const handleChangePassword = async () => {
   padding: 36px;
   background: var(--bg-white);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px #20222d08;
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
 }
 
 .logo-section {
@@ -391,7 +391,7 @@ const handleChangePassword = async () => {
 .form-input:focus {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px #5852df12;
+  box-shadow: 0 0 0 3px var(--primary-soft-bg);
 }
 
 .submit-button {

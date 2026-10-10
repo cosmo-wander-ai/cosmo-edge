@@ -275,7 +275,8 @@ const handleSave = () => {
 .page-container {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 84px);
+  height: 100%;
+  min-height: 520px;
   box-sizing: border-box;
 }
 
@@ -283,29 +284,28 @@ const handleSave = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
-  padding: 12px 16px;
-  background: var(--bg-white);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-sm);
+  margin-bottom: 16px;
+  padding: 0;
 
   .page-title {
-    font-size: 16px;
-    font-weight: 600;
+    font-size: 24px;
+    font-weight: 650;
     color: var(--text-primary);
   }
 }
 
 .editor-container {
   display: flex;
-  gap: 10px;
-  height: 100%;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
 }
 
 .strategy-sidebar {
-  width: 260px;
-  min-width: 240px;
+  width: 240px;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
   background: var(--bg-white);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
@@ -318,7 +318,7 @@ const handleSave = () => {
     align-items: center;
     padding: 10px 12px;
     border-bottom: 1px solid var(--border-color);
-    background: var(--bg-secondary);
+    background: var(--bg-subtle);
     .title {
       font-size: 14px;
       font-weight: 600;
@@ -331,12 +331,14 @@ const handleSave = () => {
 
   .sidebar-list {
     padding: 8px;
+    min-height: 0;
+    overflow-y: auto;
     .sidebar-item {
       display: flex;
       justify-content: space-between;
       align-items: center;
       padding: 8px 10px;
-      border-radius: 8px;
+      border-radius: 5px;
       transition: background 0.2s ease;
       cursor: pointer;
 

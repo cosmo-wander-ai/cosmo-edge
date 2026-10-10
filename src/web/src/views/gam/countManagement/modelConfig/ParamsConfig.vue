@@ -110,7 +110,7 @@
           />
           <el-input v-model="lab.id" placeholder="ID" class="label-id" />
           <el-input v-model="lab.name" :placeholder="t('field.name')" class="label-name" />
-          <el-button circle type="danger" size="small" @click="removeLabel(idx)">
+          <el-button circle plain type="danger" size="small" @click="removeLabel(idx)">
             <el-icon>
               <CircleClose />
             </el-icon>
@@ -592,11 +592,19 @@ watch(
 
 <style scoped lang="scss">
 .card {
-  margin-top: 12px;
+  margin-top: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  box-shadow: none;
+
+  &:first-child { margin-top: 0; }
 }
 
 :deep(.el-card__header) {
   cursor: pointer;
+  padding: 14px 18px;
+  background: var(--bg-subtle);
+  border-color: var(--border-light);
 }
 
 :deep(.el-card__body) {
@@ -604,6 +612,8 @@ watch(
 }
 
 .card-header {
+  color: var(--text-primary);
+  font-size: 14px;
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -611,7 +621,10 @@ watch(
 }
 
 .card-body {
-  padding: 20px;
+  padding: 18px;
+  :deep(.el-form-item) { margin-bottom: 18px; }
+  :deep(.el-form-item:last-child) { margin-bottom: 0; }
+  :deep(.el-form-item__content) { min-width: 0; }
 }
 
 .collapse-icon {
@@ -630,28 +643,38 @@ watch(
 }
 
 .field-control {
-  width: 260px;
+  width: 320px;
+  max-width: 100%;
 }
 
 .textarea-control {
-  width: 420px;
+  width: 480px;
+  max-width: 100%;
 }
 
 .slider-row {
   display: flex;
   align-items: center;
+  width: 420px;
+  max-width: 100%;
+  gap: 14px;
 }
 
 .slider {
-  width: 240px;
+  width: auto;
+  min-width: 80px;
+  flex: 1;
 }
 
 .slider-input {
-  margin-left: 8px;
+  margin-left: 0;
+  width: 130px;
+  flex-shrink: 0;
 }
 
 .tip {
   display: block;
+  flex-basis: 100%;
   color: var(--text-secondary);
   font-size: 12px;
   margin-top: 4px;
@@ -661,8 +684,12 @@ watch(
   display: flex;
   align-items: center;
   gap: 10px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-light);
   margin-top: 20px;
   margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .labels-desc {
@@ -676,6 +703,7 @@ watch(
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
+  flex-wrap: wrap;
 }
 
 .label-threshold {
@@ -692,6 +720,11 @@ watch(
 
 .add-label-btn {
   font-size: 14px;
-  color: var(--primary-color);
+  color: var(--text-secondary);
+}
+@media (max-width: 768px) {
+  .card-body :deep(.el-form-item) { display: block; }
+  .card-body :deep(.el-form-item__label) { width: 100% !important; justify-content: flex-start; margin-bottom: 4px; }
+  .card-body :deep(.el-form-item__content) { margin-left: 0 !important; }
 }
 </style>

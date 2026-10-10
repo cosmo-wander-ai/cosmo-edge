@@ -1,5 +1,6 @@
 <template>
   <div class="main-body ui-admin-page">
+    <header class="ui-page-heading"><h1>{{ t('nav.dataDocking') }}</h1></header>
     <!-- <div class="main-container-header">
       <div class="tips">{{ t('boxOther.runModeTip') }}</div>
       <span>{{ t('boxOther.runMode') }}</span>
@@ -44,7 +45,7 @@
                     :disabled="!mqttFormData.switch" @input="(e) => handleMqttInput(e, 'port')" />
                 </el-form-item>
                 <el-form-item :label="t('field.status') + localeColon" v-if="mqttFormData.switch">
-                  <span v-if="mqttFormData.status" style="color:var(--theme-success, #0efe42);">{{ t('status.online') }}</span>
+                  <span v-if="mqttFormData.status" style="color:var(--success-color);">{{ t('status.online') }}</span>
                   <span v-else>{{ t('status.offline') }}</span>
                 </el-form-item>
               </el-form>
@@ -69,7 +70,7 @@
               <el-input v-model.trim="netFormData.httpUrl" :placeholder="t('validate.enterField', { field: t('boxOther.serverAddress') })" size="small" />
             </el-form-item>
             <el-form-item :label="t('field.status') + localeColon">
-              <span v-if="netFormData.status" style="color:var(--theme-success, #0efe42);">{{ t('status.online') }}</span>
+              <span v-if="netFormData.status" style="color:var(--success-color);">{{ t('status.online') }}</span>
               <span v-else>{{ t('status.offline') }}</span>
             </el-form-item>
           </el-form>
@@ -379,9 +380,8 @@ onMounted(() => {
 .main-body {
   display: flex;
   flex-direction: column;
-  padding: 10px 15px;
-  background-color: var(--theme-surface, #fff);
-  border-radius: 2px;
+  padding: 0;
+  background-color: var(--bg-primary);
 }
 
 .main-container-header {
@@ -399,18 +399,24 @@ onMounted(() => {
 }
 
 .main-container-body {
-  margin-top: 15px;
+  padding: 0 20px 20px;
+  background: var(--bg-white);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
 }
 
 .item-content {
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 20px 0 4px;
 
   .el-form {
-    width: 550px;
+    width: min(100%, 620px);
   }
 
   :deep(.el-input) {
-    width: 300px;
+    width: min(100%, 400px);
   }
 }
 

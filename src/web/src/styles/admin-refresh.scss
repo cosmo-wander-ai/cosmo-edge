@@ -240,42 +240,6 @@
 .ui-action-play { --ui-action-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.4' stroke-linejoin='round'%3E%3Cpath d='m5 2.5 8 5.5-8 5.5Z'/%3E%3C/svg%3E"); }
 .ui-action-stop { --ui-action-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.4'%3E%3Crect x='3' y='3' width='10' height='10' rx='1'/%3E%3C/svg%3E"); }
 
-// Task / model repositories use the same visual hierarchy as the overview.
-.ui-admin-page.task-page,
-.ui-admin-page.model-repo-page {
-  .repo-header { padding: 16px; margin-bottom: 16px; }
-  .task-toolbar { padding: 0 0 16px; gap: 12px; flex-wrap: wrap; }
-  .toolbar-right,
-  .header-actions { gap: 8px; flex-wrap: wrap; }
-  .task-count,
-  .tab-count { color: var(--tag-text); background: var(--tag-bg); border-radius: 4px; }
-  .task-grid,
-  .model-grid { gap: 16px; padding: 0 0 12px; }
-  .task-card,
-  .model-card {
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: var(--shadow-sm);
-    transition: border-color 0.15s, box-shadow 0.15s;
-    &:hover { transform: none; box-shadow: var(--shadow-md); border-color: var(--border-hover); }
-    &.selected { border-color: var(--primary-color); box-shadow: 0 0 0 1px var(--primary-color); }
-  }
-  .task-card .card-top { margin-top: 14px; }
-  .card-icon { width: 36px; height: 36px; border-radius: 8px; background: var(--primary-soft-bg); color: var(--primary-color); }
-  .card-title { font-size: 16px; color: var(--text-primary); line-height: 24px; }
-  .card-meta,
-  .card-desc { color: var(--text-secondary); line-height: 20px; }
-  .card-footer { border-color: var(--border-light); flex-wrap: wrap; row-gap: 8px; }
-  .card-status { flex-wrap: wrap; gap: 8px; }
-  .card-actions { margin-left: auto; gap: 8px; }
-  .card-delete-btn { opacity: 1; font-size: 12px; top: 8px; right: 12px; }
-  .category-tag,
-  .model-type-tag { border-radius: 4px; color: var(--tag-text); background: var(--tag-bg); padding: 2px 7px; }
-  .type-tab { color: var(--secondary-color); border-radius: 6px; }
-  .type-tab.active { color: var(--primary-color); background: var(--el-color-primary-light-9); }
-}
-
 // Reference libraries preserve their tree and thumbnail workflows.
 .ui-admin-page.people-management {
   .template-container { border: 1px solid var(--border-color); border-radius: 8px; box-shadow: var(--shadow-sm); }
@@ -300,30 +264,6 @@
   .pagination-container { padding: 12px 16px; }
 }
 
-.ui-admin-page.image-analysis-page {
-  padding: 0;
-  .toolbar-left { flex-wrap: wrap; gap: 8px; }
-  .toolbar-section { gap: 12px; }
-  .image-card:hover { transform: none; box-shadow: var(--shadow-md); }
-  .result-panel { background: var(--bg-subtle); }
-  .result-label.empty-result { color: var(--text-secondary); }
-  .empty-icon { width: 88px; height: 88px; }
-}
-
-.ui-admin-page.system-config,
-.ui-admin-page.net-config,
-.ui-admin-page.system-maintain,
-.ui-admin-page.custom-config {
-  background: var(--bg-white);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  box-shadow: var(--shadow-sm);
-  .section-title,
-  .divider { color: var(--text-primary); font-size: 14px; font-weight: 600; }
-  .network-card { border-radius: 8px; border-color: var(--border-color); box-shadow: none; }
-  .network-card.active { background: var(--el-color-primary-light-9); border-color: var(--primary-color); }
-}
-
 // Graph geometry, canvas layers, viewport transforms and media dimensions stay native.
 .ui-admin-page {
   .node-card,
@@ -340,21 +280,22 @@
 
 .el-dialog.ui-admin-dialog {
   border: 1px solid var(--border-color);
-  border-radius: 10px;
-  box-shadow: var(--shadow-xl);
+  border-radius: 8px;
+  max-width: calc(100vw - 40px);
+  box-shadow: var(--shadow-lg);
   padding: 0;
 
   > .el-dialog__header {
     margin-right: 0;
-    padding: 20px 48px 16px 24px;
+    padding: 16px 48px 14px 20px;
     border-bottom: 1px solid var(--border-light);
     text-align: left;
   }
 
   > .el-dialog__header .el-dialog__title { color: var(--text-primary); font-size: 16px; font-weight: 600; }
   > .el-dialog__header .el-dialog__headerbtn { top: 12px; right: 12px; width: 32px; height: 32px; }
-  > .el-dialog__body { padding: 20px 24px; color: var(--text-primary); }
-  > .el-dialog__footer { padding: 16px 24px; border-top: 1px solid var(--border-light); text-align: right; }
+  > .el-dialog__body { padding: 20px; color: var(--text-primary); }
+  > .el-dialog__footer { padding: 14px 20px; border-top: 1px solid var(--border-light); text-align: right; }
   > .el-dialog__footer .dialog-footer { justify-content: flex-end; gap: 8px; }
   .el-descriptions { --el-descriptions-table-border: 1px solid var(--border-light); }
   .el-descriptions__label { color: var(--secondary-color); }
@@ -419,4 +360,56 @@
   }
 
   > .el-dialog__footer .footer-btn { justify-content: flex-end; }
+}
+
+// Page-level headings sit on the canvas, with controls on a separate surface.
+.ui-page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+
+  h1 { margin: 0; color: var(--text-primary); font-size: 24px; font-weight: 650; line-height: 1.35; letter-spacing: -.4px; }
+  p { margin: 5px 0 0; color: var(--text-secondary); font-size: 13px; }
+}
+
+.ui-admin-page, .ui-admin-dialog {
+  .el-empty { padding: 32px 16px; }
+  .el-form-item { margin-bottom: 20px; }
+  .el-tabs__item { height: 42px; }
+  .el-descriptions__cell { line-height: 1.6; }
+  .el-table .el-table-fixed-column--right { box-shadow: none; }
+  .el-input__wrapper.is-focus, .el-select__wrapper.is-focused { box-shadow: 0 0 0 1px var(--primary-color) inset; }
+}
+
+.ui-admin-page.people-management {
+  display: flex;
+  flex-direction: column;
+  min-height: 540px;
+  .template-container { flex: 1; min-height: 0; height: auto; border-radius: 6px; }
+  .template-list { flex-shrink: 0; width: 220px; min-width: 220px; }
+  .template-list .list-header { padding: 14px 16px; min-height: 48px; box-sizing: border-box; }
+  .template-list .list-header .title { font-size: 14px; }
+  .template-item { padding: 9px 10px; gap: 6px; }
+  .template-item.active { background: var(--bg-subtle); border-color: var(--border-light); box-shadow: inset 2px 0 var(--primary-color); color: var(--text-primary); }
+  .template-item .item-actions .el-icon { color: var(--secondary-color); }
+  .search-result-header { margin-bottom: 14px; padding-bottom: 12px; }
+  .search-result-header .header-left { gap: 5px; align-items: flex-start; min-width: 0; }
+  .search-result-header .header-right { min-width: 0; }
+  .search-result-header .header-left .title { font-size: 15px; }
+  .search-result-header .header-left .title-tip { display: block; margin-top: 3px; }
+  .search-result-header .header-left .template-num { padding: 0; font-size: 12px; background: transparent; }
+  .search-result-header .header-right .operation-tools { gap: 8px; flex-wrap: wrap; }
+  .search-result-header .header-right .operation-tools .el-button:hover { transform: none; box-shadow: none; }
+  .search-result-container { gap: 12px; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+  .empty-block { background: var(--bg-white); border: 0; min-height: 220px; }
+  .pagination-container { padding: 12px 0 0; }
+}
+
+@media (max-width: 1000px) {
+  .ui-admin-page.people-management .template-list { width: 180px; min-width: 180px; }
+  .ui-page-heading h1 { font-size: 22px; }
 }

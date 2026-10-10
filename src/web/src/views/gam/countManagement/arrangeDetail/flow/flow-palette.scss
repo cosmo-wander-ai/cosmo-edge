@@ -4,8 +4,8 @@
   --flow-grid: #e5e7eb;
   --flow-node: #ffffff;
   --flow-node-text: #374151;
-  --flow-node-hover-border: #90cdf4;
-  --flow-edge: #b1b1b7;
+  --flow-node-hover-border: var(--primary-color);
+  --flow-edge: #8893a2;
   --flow-handle-ring: #ffffff;
   --flow-end-bg: #20222d;
   --flow-end-outline: transparent;
@@ -34,8 +34,8 @@
   --flow-action-border: #d1d5db;
   --flow-action-disabled-border: #cfd4dc;
   --flow-scrollbar: #d1d5db;
-  --flow-panel-shadow: 0 12px 40px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.06);
-  --flow-info-bg: #f8fbff;
+  --flow-panel-shadow: var(--shadow-md);
+  --flow-info-bg: var(--bg-subtle);
   --flow-warning-bg: #fdf6ec;
   --flow-io-header-bg: #f8f9fb;
   --flow-mode-bg: rgba(255, 255, 255, 0.92);
