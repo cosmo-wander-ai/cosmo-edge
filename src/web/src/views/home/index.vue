@@ -97,7 +97,7 @@
         </div>
 
         <!-- 通道标签 -->
-        <div class="task-card-tags" v-if="task.channels && task.channels.length > 0">
+        <div class="task-card-tags" v-if="task.channels && task.channels.length > 0" tabindex="0" :aria-label="$t('home.runningChannels')">
           <span class="task-channel-tag" v-for="ch in task.channels" :key="ch.channelId">
             <span class="tag-dot"></span>
             {{ ch.channelName }}
@@ -1123,10 +1123,20 @@ onBeforeUnmount(() => {
 }
 
 .task-card-tags {
+  max-height: 52px;
+  overflow-y: auto;
+  align-content: flex-start;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-hover) transparent;
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
   margin-bottom: 13px;
+}
+
+.task-card-tags:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }
 
 .task-channel-tag {
