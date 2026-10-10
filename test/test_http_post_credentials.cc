@@ -3,20 +3,32 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <optional>
 #include <string>
 #include <system_error>
 #include <utility>
 #include <vector>
 
+#include "LoopbackHttpServer.h"
 #include "catch_amalgamated.hpp"
 #include "network/http/HttpPost.h"
-#include "network/http/HttpRequest.h"
+#include "util/CipherUtil.h"
 
 namespace {
 
 constexpr const char* kKeyFileEnv    = "COSMO_APP_KEY_FILE";
 constexpr const char* kSecretFileEnv = "COSMO_APP_SECRET_FILE";
+
+std::string HeaderValue(const std::string& request, const std::string& name) {
+    const auto prefix = "\r\n" + name + ": ";
+    const auto begin  = request.find(prefix);
+    REQUIRE(begin != std::string::npos);
+    const auto value_begin = begin + prefix.size();
+    const auto end         = request.find("\r\n", value_begin);
+    REQUIRE(end != std::string::npos);
+    return request.substr(value_begin, end - value_begin);
+}
 
 class ScopedEnvironment {
 public:
@@ -100,11 +112,12 @@ private:
 TEST_CASE("HttpPost rejects signed requests without runtime credentials", "[HttpPost][security]") {
     ScopedEnvironment environment;
     cosmo::network::http::HttpPost post;
-    cosmo::network::http::HttpStringHandler handler;
-    cosmo::network::http::HttpRequest request("http://127.0.0.1/", handler);
+    post.SetIpPort("127.0.0.1:1");
+    std::string response = "unchanged";
 
     REQUIRE_FALSE(post.HasAppInfo());
-    REQUIRE_FALSE(post.AppendHeaderS(request));
+    REQUIRE_FALSE(post.GetFileServerConfig(response));
+    CHECK(response == "unchanged");
 }
 
 TEST_CASE("HttpPost loads application credentials from mounted files", "[HttpPost][security]") {
@@ -114,12 +127,52 @@ TEST_CASE("HttpPost loads application credentials from mounted files", "[HttpPos
     REQUIRE(setenv(kKeyFileEnv, files.Key().c_str(), 1) == 0);
     REQUIRE(setenv(kSecretFileEnv, files.Secret().c_str(), 1) == 0);
 
+    cosmo::test::LoopbackHttpServer server;
+    REQUIRE(server.Start());
     cosmo::network::http::HttpPost post;
-    cosmo::network::http::HttpStringHandler handler;
-    cosmo::network::http::HttpRequest request("http://127.0.0.1/", handler);
+    post.SetIpPort("127.0.0.1:" + std::to_string(server.Port()));
+    const std::string body =
+        R"({"resCode":1,"resData":{"fileServerUrl":"https://files.example.test","user":"test-user","token":"test-token"}})";
+    std::vector<std::string> requests;
+    auto served =
+        std::async(std::launch::async, [&]() { return server.ServeResponses({{200, body}}, &requests); });
+    std::string response;
 
     REQUIRE(post.HasAppInfo());
-    REQUIRE(post.AppendHeaderS(request));
+    REQUIRE(post.GetFileServerConfig(response));
+    REQUIRE(served.get());
+    CHECK(response == body);
+    REQUIRE(requests.size() == 1);
+    const auto& request = requests.front();
+    CHECK(request.find("POST /adp-gtw/cwai/api/v1/manager/ai/getFileServerConfig HTTP/1.1\r\n") == 0);
+    const auto body_begin = request.find("\r\n\r\n");
+    REQUIRE(body_begin != std::string::npos);
+    CHECK(request.substr(body_begin + 4) == "{}");
+    CHECK(HeaderValue(request, "Content-Type") == "application/json");
+    CHECK(HeaderValue(request, "AppKey") == "application-key");
+    CHECK(HeaderValue(request, "RequestId").find("CWAI_Analyzer_") == 0);
+    const auto nonce        = HeaderValue(request, "Nonce");
+    const auto current_time = HeaderValue(request, "CurTime");
+    CHECK_FALSE(nonce.empty());
+    CHECK(current_time.size() == 13);
+    CHECK(current_time.find_first_not_of("0123456789") == std::string::npos);
+    CHECK(HeaderValue(request, "CheckSum") == cosmo::util::Sha1(nonce + std::string(32, 's') + current_time));
+}
+
+TEST_CASE("HttpPost rejects non-200 configuration responses", "[HttpPost][http]") {
+    const int status = GENERATE(201, 401, 503);
+    ScopedEnvironment environment;
+    cosmo::test::LoopbackHttpServer server;
+    REQUIRE(server.Start());
+    cosmo::network::http::HttpPost post;
+    post.SetIpPort("127.0.0.1:" + std::to_string(server.Port()));
+    post.SetAppInfo("test-app-key", "test-app-secret");
+    auto served          = std::async(std::launch::async,
+                                      [&]() { return server.ServeResponses({{status, R"({"resCode":1})"}}); });
+    std::string response = "unchanged";
+    CHECK_FALSE(post.GetFileServerConfig(response));
+    REQUIRE(served.get());
+    CHECK(response == "unchanged");
 }
 
 TEST_CASE("HttpPost accepts credential files at the exact size boundary", "[HttpPost][security]") {
