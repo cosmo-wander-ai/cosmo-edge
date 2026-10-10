@@ -1,10 +1,31 @@
 <template>
   <div class="page flow-theme">
     <main class="page-main" :style="{ width: `${width}px`, height: `${height}px` }">
-      <VueFlow v-model:nodes="nodes" v-model:edges="edges" :node-types="nodeTypes" :edge-types="edgeTypes" @node-click="handleNodeClick" @pane-click="handlePaneClick" @move="handleViewportMove">
-        <Background pattern-color="var(--flow-grid)" gap="16" />
-        <Controls :show-interactive="false" />
-      </VueFlow>
+      <div class="flow-canvas" :style="{ width: `${canvasViewport.width}px` }">
+        <VueFlow
+          v-model:nodes="nodes"
+          v-model:edges="edges"
+          :node-types="nodeTypes"
+          :edge-types="edgeTypes"
+          @node-click="handleNodeClick"
+          @pane-click="handlePaneClick"
+          @move="handleViewportMove"
+        >
+          <Background pattern-color="var(--flow-grid)" gap="16" />
+          <Controls :show-interactive="false" :show-fit-view="false" />
+        </VueFlow>
+        <div class="flow-view-tools">
+          <button type="button" class="flow-view-button" :title="t('glossary.flowActualSize')" @click="restoreReadingView">
+            <span class="flow-zoom-value">{{ Math.round(currentViewport.zoom * 100) }}%</span>
+            <span>{{ t('glossary.flowActualSize') }}</span>
+          </button>
+          <button type="button" class="flow-view-button" @click="centerView">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5" /></svg>
+            <span>{{ t('glossary.flowFitOverview') }}</span>
+          </button>
+        </div>
+      </div>
+
       <NodeDetailPanel
         v-if="detailPanelNodeId"
         ref="detailPanelRef"
@@ -13,6 +34,11 @@
         :atomic-list="atomicList"
         :position="screenPanelPosition"
         :viewport="{ width, height }"
+        :docked="panelDocked"
+        :dock-size="dockedPanelSize"
+        :floating-size="floatingPanelSize"
+        show-dock-control
+        @toggle-dock="togglePanelMode"
         @close="closeDetailPanel"
         @config-change="handlePanelConfigChange"
       />
@@ -36,6 +62,7 @@ import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
 import dagre from 'dagre'
 import _ from 'lodash'
+import { t } from '@/i18n'
 
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/controls/dist/style.css'
@@ -51,12 +78,11 @@ import EndNode from '@/views/gam/countManagement/arrangeDetail/flow/EndNode.vue'
 import ActionEdge from '@/views/gam/countManagement/arrangeDetail/flow/ActionEdge.vue'
 import NodeDetailPanel from '@/views/gam/countManagement/arrangeDetail/flow/NodeDetailPanel.vue'
 import {
-  getDetailPanelAnchor,
-  getDetailPanelCanvasBounds,
-  getDetailPanelScreenPosition,
-  getDetailPanelSize,
+  getDockedPanelSize,
+  getReadingFloatingPanelSize,
   getFlowBounds,
   getFlowFitZoom,
+  getFlowReadingViewport,
   getFlowLayoutSpacing,
   getFlowNodeDimensions
 } from '@/views/gam/countManagement/arrangeDetail/flow/layoutGeometry.js'
@@ -102,8 +128,9 @@ const { onPaneReady } = useVueFlow()
 const flowInstance = ref(null)
 onPaneReady((instance) => {
   flowInstance.value = instance
-  requestAnimationFrame(() => {
-    centerView()
+  nextTick(() => {
+    if (!nodes.value.length) return
+    restoreReadingView()
     centeredStrategyId.value = String(props.strategyId || '')
   })
 })
@@ -119,16 +146,19 @@ const atomicList = ref([])
 const centeredStrategyId = ref(null)
 const detailPanelRef = ref(null)
 const detailPanelNodeId = ref(null)
+const panelDocked = ref(true)
 const detailPanelNodeData = computed(() =>
   nodes.value.find((node) => String(node.id) === String(detailPanelNodeId.value))?.data || null
 )
-const detailPanelPosition = ref({ x: 0, y: 0 })
+const screenPanelPosition = ref({ x: 0, y: 0 })
 const currentViewport = ref({ x: 0, y: 0, zoom: 1 })
-const screenPanelPosition = computed(() => getDetailPanelScreenPosition(
-  detailPanelPosition.value,
-  currentViewport.value,
-  getDetailPanelSize(detailPanelNodeData.value?.actionId, props)
-))
+const dockedPanelSize = computed(() => getDockedPanelSize(detailPanelNodeData.value?.actionId, props))
+const floatingPanelSize = computed(() => getReadingFloatingPanelSize(detailPanelNodeData.value?.actionId, props, currentViewport.value.zoom))
+const canvasViewport = computed(() => ({
+  width: Math.max(1, props.width - (detailPanelNodeId.value && panelDocked.value ? dockedPanelSize.value.width + 12 : 0)),
+  height: props.height
+}))
+
 const parseArray = (val) => {
   if (Array.isArray(val)) return val
   if (typeof val === 'string' && val.trim()) {
@@ -202,45 +232,70 @@ const applyLayout = () => {
   if (centeredStrategyId.value !== strategyId) {
     requestAnimationFrame(() => {
       if (!flowInstance.value) return
-      centerView()
+      restoreReadingView()
       centeredStrategyId.value = strategyId
     })
   }
 }
 
+const setFlowViewport = (viewport, duration = 240) => {
+  if (!flowInstance.value) return
+  flowInstance.value.setViewport(viewport, { duration })
+  currentViewport.value = viewport
+}
+
 const focusNode = (nodeId) => {
-  if (!nodeId) return
-  const node = nodes.value.find((n) => n.id === nodeId)
+  const node = nodes.value.find((n) => String(n.id) === String(nodeId))
   if (!node) return
-
   const dim = getNodeDimensions(node)
-  const cx = node.position.x + dim.width / 2
-  const cy = node.position.y + dim.height / 2
-
-  if (
-    flowInstance.value &&
-    typeof flowInstance.value.setCenter === 'function'
-  ) {
-    flowInstance.value.setCenter(cx, cy, { zoom: 0.8, duration: 300 })
+  const zoom = Math.max(1, currentViewport.value.zoom)
+  const readingWidth = detailPanelNodeId.value && !panelDocked.value
+    ? Math.max(dim.width * zoom + 32, props.width - floatingPanelSize.value.width - 32)
+    : canvasViewport.value.width
+  if (!panelDocked.value) {
+    screenPanelPosition.value = {
+      x: props.width - floatingPanelSize.value.width - 16,
+      y: Math.max(16, (props.height - floatingPanelSize.value.height) / 2)
+    }
   }
+  setFlowViewport({
+    x: readingWidth / 2 - (node.position.x + dim.width / 2) * zoom,
+    y: canvasViewport.value.height / 2 - (node.position.y + dim.height / 2) * zoom,
+    zoom
+  })
+}
+
+const restoreReadingView = () => {
+  const visibleNodes = nodes.value
+  if (!visibleNodes.length) return
+  if (detailPanelNodeId.value) {
+    currentViewport.value = { ...currentViewport.value, zoom: 1 }
+    focusNode(detailPanelNodeId.value)
+    return
+  }
+  setFlowViewport(getFlowReadingViewport(getFlowBounds(visibleNodes, getNodeDimensions), canvasViewport.value))
 }
 
 const centerView = () => {
-  if (!nodes.value.length) return
-
-  // 计算所有节点的边界
-  const bounds = getFlowBounds(nodes.value, getNodeDimensions)
-
-  const cx = (bounds.minX + bounds.maxX) / 2
-  const cy = (bounds.minY + bounds.maxY) / 2
-
-  if (
-    flowInstance.value &&
-    typeof flowInstance.value.setCenter === 'function'
-  ) {
-    flowInstance.value.setCenter(cx, cy, { zoom: getFlowFitZoom(bounds, props), duration: 300 })
-  }
+  const visibleNodes = nodes.value
+  if (!visibleNodes.length) return
+  const bounds = getFlowBounds(visibleNodes, getNodeDimensions)
+  const zoom = getFlowFitZoom(bounds, canvasViewport.value)
+  setFlowViewport({
+    x: canvasViewport.value.width / 2 - (bounds.minX + bounds.maxX) / 2 * zoom,
+    y: canvasViewport.value.height / 2 - (bounds.minY + bounds.maxY) / 2 * zoom,
+    zoom
+  })
 }
+
+watch(
+  () => [props.width, props.height],
+  () => {
+    if (detailPanelNodeId.value) {
+      nextTick(() => requestAnimationFrame(() => focusNode(detailPanelNodeId.value)))
+    }
+  }
+)
 
 const updateNodeConfig = (nodeId, config) => {
   const nextNodes = replaceNodeConfig(nodes.value, nodeId, config)
@@ -259,12 +314,10 @@ const handlePanelConfigChange = (config) => {
   updateNodeConfig(detailPanelNodeId.value, config)
 }
 
-const handleViewportMove = (transform) => {
-  if (!transform) return
-  currentViewport.value = {
-    x: transform.x,
-    y: transform.y,
-    zoom: transform.zoom
+const handleViewportMove = (payload) => {
+  const transform = payload?.flowTransform || payload
+  if (transform && [transform.x, transform.y, transform.zoom].every(Number.isFinite)) {
+    currentViewport.value = { x: transform.x, y: transform.y, zoom: transform.zoom }
   }
 }
 
@@ -295,38 +348,13 @@ const handleNodeClick = ({ node } = {}) => {
   if (detailPanelNodeId.value && detailPanelNodeId.value !== String(node.id)) {
     collectCurrentPanelConfig()
   }
-  const dimensions = getNodeDimensions(node)
-  const panelSize = getDetailPanelSize(node.data?.actionId, props)
-  const { x: panelX, y: panelY } = getDetailPanelAnchor(
-    node,
-    dimensions,
-    panelSize
-  )
   detailPanelNodeId.value = String(node.id)
-  detailPanelPosition.value = {
-    x: panelX,
-    y: panelY
-  }
   markNodeSelected(node.id)
   closeEdgeMenu()
 
   nextTick(() => {
     detailPanelRef.value?.resetDragOffset?.()
-    if (!flowInstance.value?.setCenter) return
-
-    const viewport = flowInstance.value.getViewport?.()
-    const zoom = Math.min(viewport?.zoom || 1, 0.75)
-    const bounds = getFlowBounds(nodes.value, getNodeDimensions,
-      getDetailPanelCanvasBounds({ x: panelX, y: panelY }, panelSize, zoom))
-    flowInstance.value.setCenter(
-      (bounds.minX + bounds.maxX) / 2,
-      (bounds.minY + bounds.maxY) / 2,
-      { zoom, duration: 280 }
-    )
-    setTimeout(() => {
-      const viewportAfter = flowInstance.value?.getViewport?.()
-      if (viewportAfter) currentViewport.value = viewportAfter
-    }, 300)
+    requestAnimationFrame(() => focusNode(node.id))
   })
 }
 
@@ -334,7 +362,14 @@ const closeDetailPanel = () => {
   collectCurrentPanelConfig()
   detailPanelNodeId.value = null
   clearNodeSelected()
-  nextTick(centerView)
+}
+
+const togglePanelMode = () => {
+  panelDocked.value = !panelDocked.value
+  nextTick(() => {
+    detailPanelRef.value?.resetDragOffset?.()
+    requestAnimationFrame(() => focusNode(detailPanelNodeId.value))
+  })
 }
 
 const handlePaneClick = () => {
@@ -640,10 +675,74 @@ watch(
 }
 
 .page-main {
+  display: flex;
+  gap: 12px;
   flex: none;
   min-height: 0;
   overflow: hidden;
   position: relative;
+}
+
+.flow-canvas {
+  position: relative;
+  flex: none;
+  height: 100%;
+  min-width: 0;
+}
+
+.flow-view-tools {
+  position: absolute;
+  left: 56px;
+  bottom: 14px;
+  display: flex;
+  gap: 4px;
+  max-width: calc(100% - 70px);
+  flex-wrap: wrap;
+  padding: 4px;
+  background: var(--bg-white);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  z-index: 5;
+}
+
+.flow-view-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 6px 8px;
+  min-height: 30px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.flow-view-button:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.flow-view-button:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 1px;
+}
+
+.flow-view-button svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+}
+
+.flow-zoom-value {
+  min-width: 38px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
 }
 
 .page-main :deep(.vue-flow) {

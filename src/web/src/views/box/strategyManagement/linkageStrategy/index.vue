@@ -13,25 +13,25 @@
       <aside class="strategy-sidebar">
         <div class="sidebar-header">
           <span class="title">{{ t('linkageStrategy.allStrategies') }}</span>
-          <el-icon class="add-icon" @click="handleAddStrategy">
-            <Plus />
-          </el-icon>
+          <button type="button" class="sidebar-icon-button" :title="t('linkageStrategy.addStrategy')" :aria-label="t('linkageStrategy.addStrategy')" @click="handleAddStrategy">
+            <el-icon><Plus /></el-icon>
+          </button>
         </div>
         <div class="sidebar-list">
           <div v-for="(item, idx) in strategyList" :key="item.id || idx" class="sidebar-item" :class="{ active: activeStrategy?.id === item.id }" @click="handleSelectStrategy(item)">
             <div class="item-left">
-              <div class="item-name">
+              <div class="item-name" :title="item.name">
                 {{ item.name }}
               </div>
             </div>
             <div class="item-tools" @click.stop>
               <el-switch v-model="item.enabled" size="small" @change="handleSwitchStrategy(item)" />
-              <el-icon class="tool-icon" @click="handleEditStrategy(item)">
-                <EditPen />
-              </el-icon>
-              <el-icon class="tool-icon danger" @click="handleDeleteStrategy(item)">
-                <Delete />
-              </el-icon>
+              <button type="button" class="sidebar-icon-button" :title="t('action.edit')" :aria-label="`${t('action.edit')} ${item.name}`" @click="handleEditStrategy(item)">
+                <el-icon><EditPen /></el-icon>
+              </button>
+              <button type="button" class="sidebar-icon-button danger" :title="t('action.delete')" :aria-label="`${t('action.delete')} ${item.name}`" @click="handleDeleteStrategy(item)">
+                <el-icon><Delete /></el-icon>
+              </button>
             </div>
           </div>
         </div>
@@ -291,6 +291,9 @@ const handleSave = () => {
   border-radius: 0;
   box-shadow: none;
 
+  gap: 12px;
+  flex-wrap: wrap;
+
   .page-title {
     font-size: 24px;
     font-weight: 650;
@@ -357,6 +360,7 @@ const handleSave = () => {
         display: flex;
         align-items: center;
         gap: 8px;
+        min-width: 0;
         .item-index {
           width: 18px;
           height: 18px;
@@ -369,7 +373,8 @@ const handleSave = () => {
           justify-content: center;
         }
         .item-name {
-          max-width: 120px;
+          max-width: 112px;
+          font-size: 14px;
           overflow: hidden;
           white-space: nowrap;
           text-overflow: ellipsis;
@@ -380,7 +385,8 @@ const handleSave = () => {
       .item-tools {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 2px;
+        flex-shrink: 0;
         .tool-icon {
           cursor: pointer;
           &:hover {
@@ -397,11 +403,13 @@ const handleSave = () => {
 
 .flow-container {
   flex: 1 1 auto;
+  min-width: 0;
+  box-sizing: border-box;
   background: var(--bg-white);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  padding: 4px;
-  box-shadow: var(--shadow-sm);
+  padding: 0;
+  box-shadow: none;
   overflow: hidden;
 }
 
@@ -409,7 +417,25 @@ const handleSave = () => {
   display: flex;
   justify-content: center;
 }
-.strategy-sidebar .item-tools .tool-icon.danger {
-  color: var(--el-color-danger);
+.sidebar-icon-button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 5px;
+  color: var(--text-secondary);
+  background: transparent;
+  cursor: pointer;
 }
+
+.sidebar-icon-button:hover {
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+}
+
+.sidebar-icon-button.danger:hover { color: var(--danger-color); }
+.sidebar-icon-button:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 1px; }
 </style>

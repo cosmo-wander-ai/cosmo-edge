@@ -199,8 +199,8 @@ for (const linkage of [false, true]) {
     openNode('node-1')
     await editor.settle()
     assert.equal(input().props.modelValue, 'saved', 'real node opens its own panel')
-    if (!linkage) {
-      assert.equal(graphs[0].viewport.zoom, 1, 'scene initialization preserves natural reading scale')
+    {
+      assert.equal(graphs[0].viewport.zoom, 1, 'both editors initialize at natural reading scale')
       graphRoot().props.onMove({ event: null, flowTransform: { x: 20, y: 30, zoom: 0.8 } })
       await editor.settle()
       assert.equal(editor.all(node => hasClass(node, 'flow-zoom-value'), graphRoot().parent)[0].text, '80%', 'Vue Flow move payload updates the visible zoom without NaN')
@@ -208,7 +208,7 @@ for (const linkage of [false, true]) {
       await editor.settle()
       assert.equal(graphs[0].viewport.zoom, 1, 'the reading control restores actual-size text')
       const panel = () => editor.all(node => hasClass(node, 'node-detail-panel'))[0]
-      assert.ok(hasClass(panel(), 'is-docked'), 'scene configuration starts in the reserved right dock')
+      assert.ok(hasClass(panel(), 'is-docked'), 'configuration starts in the reserved right dock')
       input().props.activate('preserved-between-panel-modes')
       click(editor.all(node => hasClass(node, 'panel-mode'), panel())[0])
       await editor.settle()
