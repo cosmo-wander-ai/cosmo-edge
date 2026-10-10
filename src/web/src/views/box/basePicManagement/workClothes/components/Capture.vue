@@ -42,7 +42,7 @@
 
           <div class="video-body">
             <div v-if="openImgtable || !channelId" class="nodataImg">
-              <img src="@/assets/zanwu1.png" alt="">
+              <svg class="empty-camera-icon" viewBox="0 0 72 72" fill="none" aria-hidden="true"><rect x="15" y="20" width="42" height="30" rx="5" stroke="currentColor" stroke-width="2"/><path d="M27 57h18M36 50v7M29 31l14 10M43 31 29 41" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
               <p>{{ t('basePic.noCamera') }}</p>
             </div>
             <flv v-else :channelId="channelId" class="flv-body"></flv>
@@ -284,6 +284,7 @@ const save = () => {
 }
 
 // 预览
+.empty-camera-icon { width: 72px; height: 72px; color: var(--text-secondary); }
 .nodataImg {
   width: 684px;
   height: 389px;
@@ -297,7 +298,7 @@ const save = () => {
   }
   p {
     margin: 0 0;
-    color: var(--theme-accent, #3598ff);
+    color: var(--text-secondary);
     font-size: 14px;
     letter-spacing: 2px;
     margin-top: 10px;
@@ -333,11 +334,12 @@ const save = () => {
   position: absolute;
   top: 0;
   height: 100%;
-  background: #101938;
+  background: var(--bg-subtle);
+  border-right: 1px solid var(--border-color);
   transition: width 0.3s ease;
   z-index: 200;
   padding: 10px;
-  color: white;
+  color: var(--secondary-color);
   box-sizing: border-box;
 
   &.expanded {

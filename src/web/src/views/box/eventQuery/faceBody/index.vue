@@ -1,5 +1,5 @@
 <template>
-  <div class="alarm-record ui-admin-page event-console">
+  <div class="alarm-record ui-admin-page event-console face-event-console">
     <header class="event-heading">
       <h1>{{ t('nav.faceBody') }}</h1>
       <p>{{ t('nav.eventCenter') }}</p>
@@ -587,6 +587,24 @@ onBeforeUnmount(() => {
 
 <style lang="scss" scoped>
 @use '../event-console.scss';
+
+.face-event-console > .table-container {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  > .table-header,
+  > .pagination-container {
+    flex: none;
+  }
+
+  > .el-table {
+    flex: 1;
+    min-height: 0;
+    height: 0 !important;
+  }
+}
+
 .table-container {
   background-color: var(--theme-surface, #fff);
   padding: 0 15px;

@@ -5,7 +5,7 @@
         <h3 class="card-title">{{ t('glossary.detectionConfig') }}</h3>
       </div>
 
-      <div class="form-section">
+      <div class="form-section detection-fields">
         <div class="form-row">
           <label class="form-label">{{ t('glossary.areaType') }}</label>
           <el-select v-model="areaType" :placeholder="t('field.selectAreaType')" size="default" class="form-select">
@@ -186,72 +186,71 @@ defineExpose({
 
 <style scoped lang="scss">
 .detection-container {
-  padding: 20px;
+  padding: 0;
   background: var(--bg-primary);
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .detection-card {
+  max-width: 1040px;
+  width: 100%;
   background: var(--bg-white);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
   overflow: hidden;
-  transition: all 0.3s ease;
 }
 
 .card-header {
-  padding: 16px 20px;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
+  padding: 14px 18px;
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-light);
 }
 
 .card-title {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
   display: flex;
   align-items: center;
 
-  &::before {
-    content: '';
-    width: 4px;
-    height: 18px;
-    background: var(--bg-secondary);
-    border-radius: 2px;
-    margin-right: 10px;
-  }
 }
 
 .form-section {
-  padding: 20px;
+  padding: 18px;
+}
+
+.detection-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 28px;
 }
 
 .form-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr);
   align-items: center;
-  margin-bottom: 16px;
-  gap: 16px;
-
-  &:last-child {
-    margin-bottom: 0;
-  }
+  margin: 0;
+  gap: 12px;
 }
 
 .form-label {
-  min-width: 120px;
-  font-size: 0.95rem;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 20px;
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--text-secondary);
   text-align: right;
 }
 
 .form-select {
-  min-width: 200px;
+  width: 320px;
+  max-width: 100%;
+  min-width: 0;
 
   :deep(.el-input__wrapper) {
     border-radius: var(--radius-sm);
@@ -269,18 +268,19 @@ defineExpose({
 }
 
 .checkbox-section {
-  padding: 16px 20px;
-  background: var(--bg-primary);
+  padding: 14px 18px;
+  background: var(--bg-white);
   border-top: 1px solid var(--border-light);
 }
 
 .checkbox-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px 16px;
 }
 
 .checkbox-item {
+  margin-right: 0;
   :deep(.el-checkbox__input) {
     .el-checkbox__inner {
       border-radius: var(--radius-sm);
@@ -299,7 +299,7 @@ defineExpose({
 }
 
 .checkbox-label {
-  font-size: 0.9rem;
+  font-size: 13px;
   color: var(--text-secondary);
   font-weight: 500;
 }
@@ -342,12 +342,12 @@ defineExpose({
 // 响应式设计
 @media (max-width: 768px) {
   .detection-container {
-    padding: 16px;
+    padding: 0;
     gap: 16px;
   }
 
   .form-row {
-    flex-direction: column;
+    grid-template-columns: 1fr;
     align-items: flex-start;
     gap: 8px;
   }
@@ -367,6 +367,10 @@ defineExpose({
   }
 
   .checkbox-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detection-fields {
     grid-template-columns: 1fr;
   }
 

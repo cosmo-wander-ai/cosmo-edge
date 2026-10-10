@@ -410,6 +410,7 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
+@use "../library-layout.scss" as library;
 .people-management {
   height: 100%;
   box-sizing: border-box;
@@ -788,4 +789,6 @@ onMounted(() => {
     color: var(--primary-dark) !important;
   }
 }
+
+@include library.refined-library;
 </style>

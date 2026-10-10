@@ -812,6 +812,14 @@ const onPreviewImageLoad = () => {
   color: var(--text-muted);
 }
 
+.image-analysis-page .empty-icon svg {
+  color: var(--text-muted);
+  fill: none;
+  stroke: var(--text-muted);
+
+  * { fill: none; }
+}
+
 /* ─ Preview Dialog ─ */
 .preview-dialog {
   :deep(.el-dialog__body) {

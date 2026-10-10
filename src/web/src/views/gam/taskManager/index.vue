@@ -897,7 +897,7 @@ const setDefaultImage = (e) => {
 
 .task_table {
   display: grid;
-  grid-template-columns: minmax(94px, 1fr) 32px max-content minmax(48px, max-content);
+  grid-template-columns: minmax(94px, 1fr) 40px max-content minmax(48px, max-content);
   align-items: center;
   gap: 7px;
   min-height: 32px;
@@ -1087,7 +1087,7 @@ const setDefaultImage = (e) => {
   margin: 0;
   --el-switch-height: 18px;
   --el-switch-button-size: 14px;
-  --el-switch-width: 32px;
+  --el-switch-width: 40px;
 }
 
 .runBtn {

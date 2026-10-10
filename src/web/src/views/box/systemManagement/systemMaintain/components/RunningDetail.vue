@@ -4,7 +4,7 @@
       <div class="table-header">
         <el-button type="primary" size="small" class="refresh-btn ui-secondary-button" @click="refreshData">{{ t('action.refresh') }}</el-button>
       </div>
-      <el-table :data="tableData" :header-cell-style="{ background: 'var(--theme-surface-soft, #fafafa)' }" style="width: 100%" default-expand-all
+      <el-table :data="tableData" :header-cell-style="{ background: 'var(--theme-surface-soft, #fafafa)' }" style="width: 100%" height="calc(100vh - 280px)" scrollbar-always-on default-expand-all
         :tree-props="{ children: 'actionStatus', hasChildren: 'hasChildren' }" row-key="id">
         <el-table-column prop="channelId" :label="t('systemManage.channelId')" min-width="148" show-overflow-tooltip></el-table-column>
         <el-table-column prop="taskId" :label="t('systemManage.taskId')" min-width="152" show-overflow-tooltip></el-table-column>
@@ -79,6 +79,10 @@ onMounted(() => {
 <style lang="scss" scoped>
 .runtime-detail {
   min-width: 0;
+
+  :deep(.el-table) {
+    min-height: 240px;
+  }
 
   :deep(.el-table .cell) {
     overflow: hidden;
