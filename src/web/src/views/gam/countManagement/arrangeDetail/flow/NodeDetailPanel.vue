@@ -2,6 +2,7 @@
   <div
     ref="panelRef"
     class="node-detail-panel"
+    :class="{ 'is-docked': docked }"
     :style="panelStyle"
     @click.stop
     @mousedown.stop
@@ -14,9 +15,17 @@
         <div class="panel-icon-wrapper">
           <FlowNodeIcon :kind="iconKey" />
         </div>
-        <span class="panel-title">{{ actionDetail ? resolveResourceActionName(actionDetail) : t('glossary.nodeConfig') }}</span>
+        <span class="panel-title" :title="actionDetail ? resolveResourceActionName(actionDetail) : t('glossary.nodeConfig')">{{ actionDetail ? resolveResourceActionName(actionDetail) : t('glossary.nodeConfig') }}</span>
       </div>
-      <button class="panel-close" @click.stop="$emit('close')">✕</button>
+      <div class="panel-header-actions">
+        <button v-if="showDockControl" type="button" class="panel-mode" :title="t(docked ? 'glossary.flowFloatPanel' : 'glossary.flowDockPanel')" :aria-label="t(docked ? 'glossary.flowFloatPanel' : 'glossary.flowDockPanel')" @click.stop="$emit('toggle-dock')">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path v-if="docked" d="M9 3H3v18h18v-6M13 3h8v8M21 3 11 13" />
+            <path v-else d="M3 4h18v16H3ZM14 4v16" />
+          </svg>
+        </button>
+        <button type="button" class="panel-close" :title="t('action.close')" :aria-label="t('action.close')" @click.stop="$emit('close')">✕</button>
+      </div>
     </div>
 
     <!-- Body：可滚动区域 -->
@@ -54,10 +63,14 @@ const props = defineProps({
   nodeData: { type: Object, default: () => ({}) },
   atomicList: { type: Array, default: () => [] },
   viewport: { type: Object, default: () => ({}) },
+  docked: { type: Boolean, default: false },
+  dockSize: { type: Object, default: () => ({ width: 460, height: 500 }) },
+  floatingSize: { type: Object, default: null },
+  showDockControl: { type: Boolean, default: false },
   position: { type: Object, default: () => ({ x: 0, y: 0 }) }
 })
 
-const emit = defineEmits(['close', 'config-change'])
+const emit = defineEmits(['close', 'config-change', 'toggle-dock'])
 
 // ---- 从 nodeData 提取子数据 ----
 const actionDetail = computed(() => props.nodeData?.actionDetail)
@@ -86,9 +99,15 @@ const panelRef = ref(null)
 const dragOffset = ref({ x: 0, y: 0 })
 const isDragging = ref(false)
 
-const panelStyle = computed(() => ({
-  '--panel-width': `${getDetailPanelSize(actionDetail.value?.actionId, props.viewport).width}px`,
-  '--panel-height': `${getDetailPanelSize(actionDetail.value?.actionId, props.viewport).height}px`,
+const floatingPanelSize = computed(() => props.floatingSize || getDetailPanelSize(actionDetail.value?.actionId, props.viewport))
+
+const panelStyle = computed(() => props.docked ? {
+  width: `${props.dockSize.width}px`,
+  height: `${props.dockSize.height}px`,
+  maxHeight: `${props.dockSize.height}px`
+} : ({
+  '--panel-width': `${floatingPanelSize.value.width}px`,
+  '--panel-height': `${floatingPanelSize.value.height}px`,
   '--panel-min-left': 'min(64px, max(8px, calc(100% - var(--panel-width) - 8px)))',
   // The panel uses screen pixels while its anchor follows the zoomable canvas.
   // Keep its controls reachable after zooming, resizing or dragging near an edge.
@@ -102,8 +121,8 @@ let dragStartMouse = { x: 0, y: 0 }
 let dragStartOffset = { x: 0, y: 0 }
 
 const startDrag = (e) => {
-  // 忽略关闭按钮上的拖拽
-  if (e.target.closest('.panel-close')) return
+  // Docking is the default; floating keeps the existing movable header.
+  if (props.docked || e.target.closest('button')) return
   // Resume from the clamped position, not an invisible offset outside the canvas.
   if (panelRef.value) {
     dragOffset.value = {
@@ -167,6 +186,21 @@ onBeforeUnmount(() => {
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+.node-detail-panel.is-docked {
+  position: relative;
+  flex: none;
+  border-radius: 0;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  box-shadow: none;
+  animation: none;
+}
+
+.is-docked .panel-header {
+  cursor: default;
+}
+
 /* ---- Header ---- */
 .panel-header {
   display: flex;
@@ -209,6 +243,14 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
 }
 
+.panel-header-actions {
+  display: flex;
+  gap: 4px;
+  padding-left: 8px;
+  flex-shrink: 0;
+}
+
+.panel-mode,
 .panel-close {
   width: 28px;
   height: 28px;
@@ -225,6 +267,23 @@ onBeforeUnmount(() => {
   transition: all 0.15s;
 }
 
+.panel-mode svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.panel-mode:focus-visible,
+.panel-close:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 1px;
+}
+
+.panel-mode:hover,
 .panel-close:hover {
   background: var(--bg-secondary);
   color: var(--flow-node-text);
@@ -259,9 +318,9 @@ onBeforeUnmount(() => {
 
 /* ---- 描述提示 ---- */
 .panel-hint {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-secondary);
-  line-height: 1.4;
+  line-height: 1.5;
   margin-bottom: 10px;
   padding: 0 2px;
 }

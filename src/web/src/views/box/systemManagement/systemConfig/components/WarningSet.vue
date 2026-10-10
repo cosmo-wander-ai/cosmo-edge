@@ -1,8 +1,8 @@
 <template>
   <div>
-    <div class="warning-set">
+    <div class="warning-set" :style="{ '--settings-label-width': currentLocale === 'en-US' ? '120px' : '112px' }">
       <div class="warning-set-form">
-        <el-form :label-width="currentLocale === 'en-US' ? '200px' : '140px'" label-position="right" :model="formData">
+        <el-form label-width="var(--settings-label-width)" label-position="right" :model="formData">
           <!-- 告警图片设置 -->
           <div class="section-title">{{ t('systemManage.alarmImageSettings') }}</div>
           <el-form-item>
@@ -207,23 +207,23 @@ onMounted(() => {
   flex-direction: column;
   align-items: flex-start;
   box-sizing: border-box;
-  max-width: 1040px;
-  padding: 24px;
+  max-width: 800px;
+  padding: 20px;
   border: 1px solid var(--border-color);
   border-radius: 6px;
   background: var(--bg-white);
 
   .warning-set-form {
     width: 100%;
-    max-width: 900px;
+    max-width: 100%;
   }
 
   .section-title {
     font-size: 14px;
     color: var(--text-primary);
     font-weight: 600;
-    margin: 24px 0 18px;
-    padding-top: 18px;
+    margin: 16px 0 12px;
+    padding-top: 14px;
     border-top: 1px solid var(--border-light);
 
     &:first-child {
@@ -231,6 +231,15 @@ onMounted(() => {
       padding-top: 0;
       border: 0;
     }
+  }
+
+  :deep(.el-form-item) { margin-bottom: 14px; }
+  :deep(.el-form-item__label) {
+    align-items: center;
+    height: auto;
+    min-height: 32px;
+    line-height: 18px;
+    color: var(--text-secondary);
   }
 
   .overlay-options :deep(.el-form-item__content) {
@@ -266,17 +275,27 @@ onMounted(() => {
 
   .form-footer {
     display: flex;
-    justify-content: flex-end;
+    justify-content: flex-start;
     gap: 8px;
+    box-sizing: border-box;
     width: 100%;
-    max-width: 900px;
-    margin-top: 16px;
-    padding-top: 16px;
+    margin-top: 2px;
+    padding-top: 12px;
+    padding-left: var(--settings-label-width);
     border-top: 1px solid var(--border-light);
 
     .el-button + .el-button {
       margin-left: 0;
     }
+  }
+}
+@media (max-width: 640px) {
+  .warning-set {
+    padding: 16px;
+    :deep(.el-form-item) { flex-direction: column; }
+    :deep(.el-form-item__label) { width: 100% !important; justify-content: flex-start; padding: 0 0 5px; min-height: 0; }
+    :deep(.el-form-item__content) { margin-left: 0 !important; }
+    .form-footer { padding-left: 0; }
   }
 }
 </style>

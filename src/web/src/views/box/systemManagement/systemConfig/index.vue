@@ -15,9 +15,9 @@
         <warning-set v-if="activeName === 'warning'" />
       </el-tab-pane>
       <el-tab-pane :label="t('systemManage.restartSettings')" name="restart">
-        <div class="restart-setting">
+        <div class="restart-setting" :style="{ '--settings-label-width': currentLocale === 'en-US' ? '120px' : '112px' }">
           <div class="restart-setting-form">
-            <el-form :label-width="currentLocale === 'en-US' ? '170px' : '120px'">
+            <el-form label-width="var(--settings-label-width)">
               <el-form-item :label="t('systemManage.timedRestart')">
                 <el-switch v-model="restartConfig.isTimingRestart" :active-value="1" :inactive-value="0" />
               </el-form-item>
@@ -163,9 +163,9 @@ const confirmRestart = () => {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  width: 660px;
+  width: 720px;
   max-width: 100%;
-  padding: 24px;
+  padding: 20px;
   background: var(--bg-white);
   border: 1px solid var(--border-color);
   border-radius: 6px;
@@ -173,12 +173,30 @@ const confirmRestart = () => {
 
 .restart-setting-form {
   min-width: 0;
+  :deep(.el-form-item) { margin-bottom: 14px; }
+  :deep(.el-form-item__label) {
+    align-items: center;
+    height: auto;
+    min-height: 32px;
+    line-height: 18px;
+    color: var(--text-secondary);
+  }
 }
 
 .restart-setting-tools {
   display: flex;
-  justify-content: flex-end;
-  padding-top: 16px;
+  justify-content: flex-start;
+  padding-top: 12px;
+  padding-left: var(--settings-label-width);
   border-top: 1px solid var(--border-light);
+}
+@media (max-width: 640px) {
+  .restart-setting { padding: 16px; }
+  .restart-setting-form {
+    :deep(.el-form-item) { flex-direction: column; }
+    :deep(.el-form-item__label) { width: 100% !important; justify-content: flex-start; padding: 0 0 5px; min-height: 0; }
+    :deep(.el-form-item__content) { margin-left: 0 !important; }
+  }
+  .restart-setting-tools { padding-left: 0; }
 }
 </style>

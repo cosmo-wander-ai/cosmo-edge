@@ -387,6 +387,10 @@ export default {
     }
   },
   glossary: {
+    flowActualSize: 'Actual size',
+    flowFitOverview: 'Fit overview',
+    flowDockPanel: 'Dock panel',
+    flowFloatPanel: 'Float panel',
     sceneTasksSubtitle: 'Manage scene workflows and linked channels',
     imageAnalysisSubtitle: 'Select a scene task and analyze images',
     modelRepositorySubtitle: 'Manage algorithm models and their linked scene tasks',
@@ -1123,6 +1127,9 @@ export default {
     itemPacketDiscard: 'Packet Loss'
   },
   event: {
+    autoDismiss: 'Closes automatically',
+    allChannelEvents: 'All channels · Filter by scene task',
+    filterSceneTasks: 'Filter scene tasks',
     aiVideoAnalysis: 'AI Video Analysis',
     algorithmOverlay: 'Algorithm Overlay',
     previewWindows: 'Window {windows}',

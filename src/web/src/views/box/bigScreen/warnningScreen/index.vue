@@ -6,6 +6,7 @@
         <div class="alert-top-title">
           <span class="alert-status">{{ t('home.alert') }}</span>
           <div class="alert-name">{{ resolveResourceAlgorithmName(currentSocketData) }}</div>
+          <span class="alert-dismiss-hint">{{ t('event.autoDismiss') }}</span>
         </div>
         
         <div class="alert-body">
@@ -159,8 +160,9 @@
             </span>
             <span class="today-count">{{ t('event.todayAlarmCount', { n: alarmCount }) }}</span>
           </div>
+          <div class="record-scope">{{ t('event.allChannelEvents') }}</div>
           <div class="record-search">
-            <TreeSelect class="tree-select" :treeData="algorithmInfoList" v-model="selectedAlgorithmList" />
+            <TreeSelect class="tree-select" :treeData="algorithmInfoList" v-model="selectedAlgorithmList" :placeholder="t('event.filterSceneTasks')" :aria-label="t('event.filterSceneTasks')" />
             <el-button size="small" :title="t('action.search')" :aria-label="t('action.search')" @click="searchRecord">
               <el-icon><Search /></el-icon>
             </el-button>
@@ -207,8 +209,8 @@
                 </div>
                 <div class="event-info">
                   <div class="event-name">{{ resolveResourceAlgorithmName(event) }}</div>
-                  <div>{{ t('event.channel') }}{{ localeColon }}{{ event.channelName }}</div>
-                  <div>{{ t('event.alarmTime') }}{{ localeColon }}{{ dateFormat(event.timestamp) }}</div>
+                  <div>{{ t('home.channel') }}{{ localeColon }}{{ event.channelName }}</div>
+                  <div>{{ t('home.time') }}{{ localeColon }}{{ dateFormat(event.timestamp) }}</div>
                 </div>
               </div>
             </template>
@@ -1153,12 +1155,12 @@ button:focus-visible {
 
 .select-area {
   border-right: 1px solid var(--screen-border);
-  &.expanded { flex-basis: 256px; width: 256px; }
+  &.expanded { flex-basis: clamp(208px, 16.25vw, 232px); width: clamp(208px, 16.25vw, 232px); }
 }
 
 .right-panel {
   border-left: 1px solid var(--screen-border);
-  &.expanded { flex-basis: 304px; width: 304px; }
+  &.expanded { flex-basis: clamp(248px, 19.375vw, 280px); width: clamp(248px, 19.375vw, 280px); }
 }
 
 .panel-icon {
@@ -1212,7 +1214,7 @@ button:focus-visible {
   padding: 0 10px 6px;
 
   :deep(.el-input) { flex: 0 0 auto; margin-bottom: 10px; }
-  :deep(.el-input__wrapper) { background: var(--bg-primary); box-shadow: inset 0 0 0 1px var(--screen-border); border-radius: 5px; }
+  :deep(.el-input__wrapper) { background: var(--bg-white); box-shadow: inset 0 0 0 1px var(--control-border); border-radius: 5px; }
   :deep(.el-input__wrapper.is-focus) { box-shadow: inset 0 0 0 1px var(--screen-accent); }
   :deep(.el-input__inner) { height: 30px; color: var(--screen-text); }
 
@@ -1260,7 +1262,7 @@ button:focus-visible {
   .channel-copy { flex: 1; min-width: 0; }
   .channel-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--screen-text); font-size: 13px; line-height: 20px; }
   .channel-meta { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-  .channel-state { display: flex; flex: 1; align-items: center; gap: 5px; min-width: 0; color: var(--screen-muted); font-size: 11px; line-height: 16px; }
+  .channel-state { display: flex; flex: 1; align-items: center; gap: 5px; min-width: 0; color: var(--screen-muted); font-size: 12px; line-height: 16px; }
   .channel-state > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .status-dot { flex: 0 0 5px; height: 5px; border-radius: 50%; background: var(--text-muted); }
   .is-online .status-dot { background: var(--success-color); }
@@ -1271,7 +1273,7 @@ button:focus-visible {
   &.is-assigned .channel-name { font-weight: 600; }
 }
 
-.channel-list-hint { flex-shrink: 0; padding: 10px 14px; border-top: 1px solid var(--screen-border); color: var(--screen-muted); font-size: 11px; line-height: 16px; }
+.channel-list-hint { flex-shrink: 0; padding: 8px 12px; border-top: 1px solid var(--screen-border); color: var(--screen-muted); font-size: 12px; line-height: 18px; }
 
 .video-grid {
   display: flex;
@@ -1334,7 +1336,7 @@ button:focus-visible {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 10px 14px 14px;
+  padding: 8px 10px 10px;
   box-sizing: border-box;
 }
 
@@ -1343,7 +1345,7 @@ button:focus-visible {
   flex-direction: column;
   flex-shrink: 0;
   gap: 2px;
-  min-height: 64px;
+  min-height: 56px;
   padding-right: 30px;
   font-size: 16px;
   font-weight: 600;
@@ -1352,10 +1354,13 @@ button:focus-visible {
   .today-count { font-size: 12px; font-weight: 400; color: var(--screen-muted); }
 }
 
+.record-scope { margin: 2px 0 7px; color: var(--screen-muted); font-size: 12px; line-height: 18px; }
+
 .record-search {
   display: flex;
   flex-shrink: 0;
   gap: 6px;
+  :deep(.el-select__wrapper) { --el-border-color: var(--control-border); min-height: 32px; }
   .tree-select { flex: 1; min-width: 0; }
   .el-button { width: 30px; height: 30px; padding: 0; }
 }
@@ -1371,9 +1376,9 @@ button:focus-visible {
   display: grid;
   grid-template-columns: 88px minmax(0, 1fr);
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   margin: 0;
-  padding: 12px 0;
+  padding: 10px 0;
   border-bottom: 1px solid var(--screen-border);
   background: var(--bg-white);
   cursor: pointer;
@@ -1403,7 +1408,7 @@ button:focus-visible {
   span { position: absolute; top: 0; left: 0; padding: 3px 6px; background: #20222dcc; color: #fff; font-size: 11px; }
 }
 .match-div { position: absolute; bottom: 0; left: 0; right: 0; padding: 6px; background: #20222dcc; color: #fff; font-size: 12px; text-align: center; }
-.event-info { font-size: 12px; line-height: 1.8; color: var(--screen-muted); overflow-wrap: anywhere; }
+.event-info { min-width: 0; font-size: 12px; line-height: 1.65; color: var(--screen-muted); overflow-wrap: anywhere; }
 .event-info > div:first-child { color: var(--screen-text); }
 .empty-body { display: flex; justify-content: center; height: 100%; }
 .empty-body :deep(.el-empty__description p) { color: var(--screen-muted); }
@@ -1434,7 +1439,8 @@ button:focus-visible {
   .alert-top-title { display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--screen-border); }
   .alert-status { display: inline-flex; align-items: center; flex: 0 0 auto; gap: 6px; padding: 3px 7px; border-radius: 4px; color: var(--danger-color); background: var(--el-color-danger-light-9); font-size: 12px; font-weight: 600; line-height: 18px; }
   .alert-status::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
-  .alert-name { min-width: 0; font-size: 18px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+  .alert-name { flex: 1; min-width: 0; font-size: 18px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+  .alert-dismiss-hint { flex: 0 0 auto; max-width: 100px; color: var(--screen-muted); font-size: 12px; line-height: 18px; }
   .alert-body { display: flex; flex-direction: column; gap: 16px; padding: 16px 20px 18px; }
   .alert-left { min-width: 0; }
   .warn-one-body { width: 100%; aspect-ratio: 16 / 9; max-height: calc(100dvh - 230px); min-height: 120px; background: var(--bg-primary); border: 1px solid var(--screen-border); border-radius: 5px; overflow: hidden; box-sizing: border-box; }
@@ -1475,8 +1481,8 @@ button:focus-visible {
   .header { gap: 6px 10px; padding: 6px 10px; }
   .header .title { font-size: 17px; }
   .header-btn { padding: 0 6px; }
-  .right-panel.expanded { flex-basis: 272px; width: 272px; }
-  .select-area.expanded { flex-basis: 220px; width: 220px; }
+  .right-panel.expanded { flex-basis: 248px; width: 248px; }
+  .select-area.expanded { flex-basis: 208px; width: 208px; }
 }
 
 @media (max-width: 800px) {

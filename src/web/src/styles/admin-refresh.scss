@@ -4,7 +4,7 @@
 .ui-admin-dialog {
   color: var(--text-primary);
   font-family: var(--el-font-family);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
 
   .el-input__wrapper,
@@ -14,14 +14,30 @@
     border-radius: 6px;
   }
 
+  .el-input,
+  .el-select,
+  .el-textarea,
+  .el-input-number {
+    --el-input-border-color: var(--control-border);
+    --el-border-color: var(--control-border);
+    --el-text-color-placeholder: var(--text-muted);
+    --el-font-size-base: 14px;
+  }
+
   .el-input__wrapper,
   .el-select__wrapper {
     min-height: 32px;
   }
 
+  .el-input--small,
+  .el-select--small .el-select__wrapper,
+  .el-textarea__inner {
+    font-size: 14px;
+  }
+
   .el-form-item__label {
     color: var(--secondary-color);
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .el-form-item__content {

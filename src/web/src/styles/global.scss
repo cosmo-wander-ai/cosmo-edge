@@ -6,14 +6,15 @@
   --secondary-color: #4f596b;
   --accent-color: #7772e8;
   --text-primary: #202630;
-  --text-secondary: #657181;
-  --text-muted: #7b8493;
-  --text-tertiary: #7b8493;
+  --text-secondary: #596575;
+  --text-muted: #626e7e;
+  --text-tertiary: #626e7e;
   --bg-primary: #f4f6f8;
   --bg-secondary: #eef1f5;
   --bg-white: #fff;
   --border-color: #dde2e8;
   --border-light: #e8ebf0;
+  --control-border: #bfc7d2;
   --success-color: #216e53;
   --warning-color: #936016;
   --danger-color: #c83d4e;
@@ -27,7 +28,7 @@
   --radius-lg: 8px;
   --radius-xl: 12px;
 
-  // Surface and control roles preserve the approved light palette exactly.
+  // Controls need a stronger boundary than passive cards and dividers.
   --bg-shell: #fff;
   --bg-panel: #fff;
   --bg-card: #fff;

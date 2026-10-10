@@ -1486,7 +1486,7 @@ onMounted(() => {
     display: flex;
     flex-direction: column;
     min-width: 0;
-    padding: 18px 18px 12px;
+    padding: 16px 16px 10px;
     background: var(--bg-panel);
     border: 1px solid var(--border-color);
     border-radius: 7px;
@@ -1495,7 +1495,7 @@ onMounted(() => {
 
     &:hover { transform: none; border-color: var(--border-hover); box-shadow: none; }
   }
-  .card-top { display: flex; align-items: flex-start; gap: 14px; min-width: 0; margin-bottom: 18px; }
+  .card-top { display: flex; align-items: flex-start; gap: 12px; min-width: 0; margin-bottom: 12px; }
   .repo-model-icon {
     display: flex;
     justify-content: center;
@@ -1519,7 +1519,7 @@ onMounted(() => {
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .card-tags { margin-bottom: 6px; }
+  .card-tags { margin-bottom: 4px; }
   .model-type-tag { padding: 0; background: transparent; color: var(--text-secondary); font-size: 12px; line-height: 18px; }
   .card-meta { color: var(--text-secondary); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
   .card-meta > span { margin: 0 3px; }
@@ -1529,7 +1529,7 @@ onMounted(() => {
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 4px 12px;
-    padding-top: 10px;
+    padding-top: 8px;
     margin-top: auto;
     border-top: 1px solid var(--border-light);
   }

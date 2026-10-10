@@ -16,12 +16,13 @@
       <div class="right-body">
         <el-tabs v-model="tabActiveName" class="scene-tabs">
           <el-tab-pane :label="t('glossary.businessFlow')" name="flow">
+            <div class="arrange-toolbar">
+              <label class="arrange-template-label" for="flow-template">{{ t('field.selectTemplate') }}</label>
+              <el-select id="flow-template" v-model="selectedTemplate" :placeholder="t('field.selectTemplate')" class="arrange-template-select" filterable @change="handleTemplateChange">
+                <el-option v-for="item in templateList" :key="item.algorithmCode" :label="resolveResourceAlgorithmName(item)" :value="item.algorithmCode" />
+              </el-select>
+            </div>
             <div id="arrange-content" class="arrange-content" ref="arrangeContentRef">
-              <div class="arrange-select">
-                <el-select v-model="selectedTemplate" :placeholder="t('field.selectTemplate')" size="small" style="width: 200px" filterable @change="handleTemplateChange">
-                  <el-option v-for="item in templateList" :key="item.algorithmCode" :label="resolveResourceAlgorithmName(item)" :value="item.algorithmCode" />
-                </el-select>
-              </div>
               <arrange-flow v-if="showArrangeFlow" ref="flowRef" :width="width" :height="height" :algorithmData="algorithmData" :algorithmMetadata="algorithmMetadata" :actionList="actionList" :atomicCode="$route.query.algorithmId" @onMetadata="syncMetadata"></arrange-flow>
             </div>
           </el-tab-pane>
@@ -183,7 +184,7 @@ const updateCanvasSize = () => {
       const rect = el.getBoundingClientRect()
       const viewportH = window.innerHeight
       const bottomPadding = 24
-      width.value = Math.max(300, rect.width)
+      width.value = Math.max(300, el.clientWidth)
       height.value = Math.max(300, viewportH - rect.top - bottomPadding)
     })
   })
@@ -604,13 +605,33 @@ const goBack = () => {
   cursor: pointer;
 }
 
-.arrange-select {
-  position: absolute;
-  display: inline-block;
-  padding: 10px;
-  top: 10px;
-  left: 10px;
-  z-index: 100;
+.arrange-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--border-color);
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: var(--bg-white);
+}
+
+.arrange-template-label {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.arrange-template-select {
+  width: 280px;
+  max-width: 100%;
+}
+
+.arrange-content {
+  border: 1px solid var(--border-color);
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .main-container {

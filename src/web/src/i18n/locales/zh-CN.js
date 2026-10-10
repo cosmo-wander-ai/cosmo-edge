@@ -387,6 +387,10 @@ export default {
     }
   },
   glossary: {
+    flowActualSize: '原始比例',
+    flowFitOverview: '适应总览',
+    flowDockPanel: '停靠面板',
+    flowFloatPanel: '浮动面板',
     sceneTasksSubtitle: '管理场景编排与通道关联',
     imageAnalysisSubtitle: '选择场景任务并分析图片',
     modelRepositorySubtitle: '管理算法模型与场景关联',
@@ -1123,6 +1127,9 @@ export default {
     itemPacketDiscard: '丢包率'
   },
   event: {
+    autoDismiss: '自动收起',
+    allChannelEvents: '来自全部通道 · 按场景任务筛选',
+    filterSceneTasks: '筛选场景任务',
     aiVideoAnalysis: 'AI视频分析',
     algorithmOverlay: '算法叠加',
     previewWindows: '窗口 {windows}',

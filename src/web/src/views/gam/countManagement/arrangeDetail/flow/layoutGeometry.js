@@ -6,6 +6,43 @@ export const DETAIL_PANEL_SIZE = Object.freeze({ width: 360, height: 350 })
 export const ALARM_DETAIL_PANEL_SIZE = Object.freeze({ width: 760, height: 430 })
 export const DETAIL_PANEL_GAP = 12
 
+// Reading is the default. Long flows start at the left and stay at 100%; an
+// explicit overview action can still fit every branch into the available area.
+export const getFlowReadingViewport = (bounds, viewport, padding = 56) => {
+  const width = bounds.maxX - bounds.minX
+  const height = bounds.maxY - bounds.minY
+  if (![width, height, viewport?.width, viewport?.height].every(value => Number.isFinite(value) && value > 0)) {
+    return { x: padding, y: padding, zoom: 1 }
+  }
+  return {
+    x: Math.max(padding, (viewport.width - width) / 2) - bounds.minX,
+    y: Math.max(padding, (viewport.height - height) / 2) - bounds.minY,
+    zoom: 1
+  }
+}
+
+export const getDockedPanelSize = (actionId, viewport) => {
+  const availableWidth = Math.max(1, Number(viewport?.width) || 1)
+  const availableHeight = Math.max(1, Number(viewport?.height) || 1)
+  const preferredWidth = isAlarmDataAction(actionId) ? 640 : 460
+  return {
+    // Keep at least half the canvas for the graph; the panel's own content scrolls.
+    width: Math.max(1, Math.min(preferredWidth, Math.floor(availableWidth * 0.48))),
+    height: availableHeight
+  }
+}
+
+export const getReadingFloatingPanelSize = (actionId, viewport, zoom = 1) => {
+  const size = isAlarmDataAction(actionId) ? ALARM_DETAIL_PANEL_SIZE : DETAIL_PANEL_SIZE
+  const width = Math.max(1, Number(viewport?.width) || size.width + 240)
+  const height = Math.max(1, Number(viewport?.height) || size.height + 32)
+  return {
+    // Reserve a 96px card plus 56px reading margins on its two sides.
+    width: Math.max(1, Math.min(size.width, width - FLOW_NODE_SIZE.width * Math.max(1, zoom) - 144)),
+    height: Math.max(1, Math.min(size.height, height - 32))
+  }
+}
+
 export const getFlowNodeDimensions = (node) => ({
   ...(node?.type === 'start' || node?.type === 'end' ? FLOW_TERMINAL_SIZE : FLOW_NODE_SIZE)
 })

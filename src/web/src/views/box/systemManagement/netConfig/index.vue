@@ -1,5 +1,5 @@
 <template>
-  <div class="net-config ui-admin-page">
+  <div class="net-config ui-admin-page" :style="{ '--settings-label-width': currentLocale === 'en-US' ? '120px' : '112px' }">
     <header class="network-heading">
       <h1>{{ t('nav.networkSettings') }}</h1>
     </header>
@@ -19,7 +19,7 @@
                 </div>
               </div>
               <div class="card-content">
-                <el-form :model="item" :rules="rules" :ref="(el) => setEditFormRef(el, index)" label-position="right" :label-width="currentLocale === 'en-US' ? '140px' : '100px'" size="small">
+                <el-form :model="item" :rules="rules" :ref="(el) => setEditFormRef(el, index)" label-position="right" label-width="var(--settings-label-width)" size="small">
                   <el-form-item :label="t('systemManage.macAddress')" prop="mac">
                     <el-input v-model="item.mac" disabled></el-input>
                   </el-form-item>
@@ -49,7 +49,7 @@
       </el-tab-pane>
       <el-tab-pane :label="t('systemManage.dnsSettings')" name="dns">
         <div class="dns-container" v-if="activeName === 'dns'">
-          <el-form ref="dnsFormRef" :model="dnsConfig" :rules="dnsRules" label-position="right" :label-width="currentLocale === 'en-US' ? '140px' : '100px'" size="small">
+          <el-form ref="dnsFormRef" :model="dnsConfig" :rules="dnsRules" label-position="right" label-width="var(--settings-label-width)" size="small">
             <el-form-item :label="'DNS1' + localeColon" prop="dns1">
               <div class="dns-input">
                 <el-input v-model="dnsConfig.dns1" :placeholder="t('systemManage.enterDNS1')"></el-input>
@@ -69,7 +69,7 @@
       </el-tab-pane>
       <el-tab-pane :label="t('systemManage.networkDetection')" name="detect">
         <div class="detect-container" v-if="activeName === 'detect'">
-          <el-form :model="detectForm" :rules="detectRules" ref="detectFormRef" label-position="right" :label-width="currentLocale === 'en-US' ? '200px' : '180px'" size="small">
+          <el-form :model="detectForm" :rules="detectRules" ref="detectFormRef" label-position="right" label-width="var(--settings-label-width)" size="small">
             <el-form-item :label="t('systemManage.targetAddress')" prop="ip">
               <el-input v-model.trim="detectForm.ip" :placeholder="t('systemManage.enterTargetAddress')"></el-input>
             </el-form-item>
@@ -468,7 +468,7 @@ onMounted(() => {
   .network-card {
     background: var(--bg-white);
     border-radius: 6px;
-    padding: 24px;
+    padding: 20px;
     min-width: 0;
     border: 1px solid var(--border-color);
     box-shadow: none;
@@ -477,7 +477,7 @@ onMounted(() => {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 24px;
+      margin-bottom: 16px;
 
       .title {
         display: flex;
@@ -524,11 +524,14 @@ onMounted(() => {
 
     .card-content {
       :deep(.el-form-item) {
-        margin-bottom: 16px;
+        margin-bottom: 14px;
 
         .el-form-item__label {
           color: var(--text-secondary);
-          line-height: 36px;
+          line-height: 18px;
+          height: auto;
+          min-height: 32px;
+          align-items: center;
         }
 
         .el-form-item__content {
@@ -543,7 +546,7 @@ onMounted(() => {
       }
 
       :deep(.el-input__wrapper),
-      :deep(.el-select__wrapper) { min-height: 36px; }
+      :deep(.el-select__wrapper) { min-height: 32px; }
 
       :deep(.el-input.is-disabled .el-input__wrapper),
       :deep(.el-select__wrapper.is-disabled) {
@@ -552,11 +555,11 @@ onMounted(() => {
       }
 
       :deep(.el-input.is-disabled .el-input__inner) {
-        color: var(--text-secondary);
-        -webkit-text-fill-color: var(--text-secondary);
+        color: var(--text-primary);
+        -webkit-text-fill-color: var(--text-primary);
       }
 
-      :deep(.el-select__wrapper.is-disabled .el-select__selected-item) { color: var(--text-secondary); }
+      :deep(.el-select__wrapper.is-disabled .el-select__selected-item) { color: var(--text-primary); }
 
       .ip-input {
         display: flex;
@@ -575,7 +578,7 @@ onMounted(() => {
         .el-button {
           flex: 0 0 auto;
           margin-left: 0;
-          min-height: 34px;
+          min-height: 32px;
         }
       }
     }
@@ -589,8 +592,8 @@ onMounted(() => {
 
 .dns-container {
   box-sizing: border-box;
-  padding: 24px;
-  width: 580px;
+  padding: 20px;
+  width: 600px;
   max-width: 100%;
   border: 1px solid var(--border-color);
   border-radius: 6px;
@@ -604,9 +607,12 @@ onMounted(() => {
   }
 
   .dns-footer {
-    margin-top: 20px;
+    margin-top: 2px;
+    padding-top: 12px;
+    padding-left: var(--settings-label-width);
+    border-top: 1px solid var(--border-light);
     display: flex;
-    justify-content: flex-end;
+    justify-content: flex-start;
     gap: 8px;
 
     .el-button {
@@ -617,8 +623,8 @@ onMounted(() => {
 
 .detect-container {
   box-sizing: border-box;
-  padding: 24px;
-  width: 660px;
+  padding: 20px;
+  width: 600px;
   max-width: 100%;
   border: 1px solid var(--border-color);
   border-radius: 6px;
@@ -626,6 +632,27 @@ onMounted(() => {
 
   :deep(.el-input) {
     width: 100%;
+  }
+}
+
+.dns-container, .detect-container {
+  :deep(.el-form-item) { margin-bottom: 14px; }
+  :deep(.el-form-item__label) {
+    align-items: center;
+    height: auto;
+    min-height: 32px;
+    line-height: 18px;
+    color: var(--text-secondary);
+  }
+}
+
+@media (max-width: 640px) {
+  .net-config {
+    .network-card, .dns-container, .detect-container { padding: 16px; }
+    :deep(.el-form-item) { flex-direction: column; }
+    :deep(.el-form-item__label) { width: 100% !important; justify-content: flex-start; padding: 0 0 5px; min-height: 0; }
+    :deep(.el-form-item__content) { margin-left: 0 !important; }
+    .dns-footer { padding-left: 0; }
   }
 }
 

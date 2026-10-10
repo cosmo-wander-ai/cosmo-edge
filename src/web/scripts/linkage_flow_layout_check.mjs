@@ -12,6 +12,9 @@ import {
   getDetailPanelSize,
   getFlowLayoutSpacing,
   getFlowFitZoom,
+  getFlowReadingViewport,
+  getDockedPanelSize,
+  getReadingFloatingPanelSize,
   getFlowNodeDimensions,
   getFlowBounds
 } from '../src/views/gam/countManagement/arrangeDetail/flow/layoutGeometry.js'
@@ -81,7 +84,7 @@ assert.ok(branched.every(node => node.position.x >= branchBounds.minX &&
   node.position.y + node.height <= branchBounds.maxY), 'mixed node bounds include every visible rectangle')
 
 // At realistic canvas sizes, centering must not crop the first/last card or
-// the stage label area. Both initialization and panel-close use this zoom.
+// the stage label area when the user explicitly requests an overview.
 for (const positioned of [linear, branched]) {
   const bounds = getFlowBounds(positioned)
   for (const viewport of [{ width: 1040, height: 510 }, { width: 1486, height: 695 }]) {
@@ -102,6 +105,39 @@ for (const positioned of [linear, branched]) {
     }, viewport), zoom, 'panning the graph does not change its required fit scale')
   }
 }
+// Reading mode must keep 14px labels at 14 screen pixels even when a long
+// workflow extends off-screen. Opening a dock reserves actual graph width.
+for (const viewport of [{ width: 1040, height: 440 }, { width: 1272, height: 493 }]) {
+  for (const actionId of ['BA_00001', 'LA_AlarmData_Code']) {
+    const dock = getDockedPanelSize(actionId, viewport)
+    const graphViewport = { width: viewport.width - dock.width - 12, height: viewport.height }
+    assert.ok(dock.width >= 440, 'desktop forms are wider than the old 360px panel')
+    assert.equal(dock.height, viewport.height, 'the form can use the full available height')
+    assert.ok(graphViewport.width >= viewport.width / 2 - 12, 'the graph keeps its own usable region')
+    const bounds = getFlowBounds(linear)
+    const reading = getFlowReadingViewport(bounds, graphViewport)
+    assert.equal(reading.zoom * 14, 14, 'default label size is 14 screen pixels')
+    assert.ok(linear[0].position.x + reading.x >= 56, 'long workflows start with their input visible')
+    assert.ok(linear.at(-1).position.x + reading.x > graphViewport.width, 'long workflows remain pannable instead of shrinking')
+    const overview = getFlowFitZoom(bounds, graphViewport)
+    assert.ok(overview < 1, 'explicit overview still fits the whole workflow')
+  }
+}
+assert.deepEqual(getFlowReadingViewport(getFlowBounds([]), { width: 1000, height: 500 }), { x: 56, y: 56, zoom: 1 })
+for (const viewport of [{ width: 1040, height: 440 }, { width: 820, height: 420 }]) {
+  for (const actionId of ['BA_00001', 'LA_AlarmData_Code']) {
+    for (const zoom of [1, 1.5, 2]) {
+      const panel = getReadingFloatingPanelSize(actionId, viewport, zoom)
+      const panelX = viewport.width - panel.width - 16
+      const readingWidth = viewport.width - panel.width - 32
+      const nodeRight = readingWidth / 2 + FLOW_NODE_SIZE.width * zoom / 2
+      assert.ok(nodeRight + 16 <= panelX, 'floating configuration leaves the selected card unobstructed')
+      assert.ok(readingWidth >= FLOW_NODE_SIZE.width * zoom + 112, 'floating mode retains unscaled reading margins')
+      assert.ok(panel.height <= viewport.height - 32, 'floating controls stay within the canvas height')
+    }
+  }
+}
+
 assert.equal(getFlowFitZoom({ minX: 0, minY: 0, maxX: compactWidth, maxY: 96 }, { width: 1040, height: 510 }), 1,
   'short flows retain the natural 100% scale')
 assert.equal(getFlowFitZoom({ minX: 0, minY: 0, maxX: compactWidth, maxY: 96 }, { width: 1040, height: 510 }, 0.75), 0.75,

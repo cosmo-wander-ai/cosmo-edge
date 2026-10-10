@@ -41,8 +41,8 @@
         <div class="card-select">
           <el-checkbox :model-value="isCardSelected(row)" @change="toggleCardSelect(row)" />
         </div>
-        <!-- 删除按钮 (hover显示) -->
-        <el-button v-if="row.supplier != 'HJ'" class="card-delete-btn ui-action danger-text" link @click.stop="deleteClick(row)">
+        <!-- 删除操作保持可达，悬停或聚焦时强调 -->
+        <el-button v-if="row.supplier != 'HJ'" class="card-delete-btn ui-action" link @click.stop="deleteClick(row)">
           <el-icon><Delete /></el-icon>{{ t('action.delete') }}
         </el-button>
         <div class="card-top">
@@ -739,7 +739,7 @@ export default {
   .task-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-auto-rows: minmax(210px, auto);
+    grid-auto-rows: minmax(168px, auto);
     gap: 14px;
     padding: 0 0 12px;
     flex: 1;
@@ -753,9 +753,9 @@ export default {
     display: flex;
     flex-direction: column;
     min-width: 0;
-    min-height: 210px;
+    min-height: 168px;
     height: auto;
-    padding: 16px 18px 12px;
+    padding: 12px 16px 10px;
     border: 1px solid var(--border-color);
     border-radius: 7px;
     background: var(--bg-panel);
@@ -765,9 +765,25 @@ export default {
     &:hover { transform: none; box-shadow: none; border-color: var(--border-hover); }
     &.selected { border-color: var(--primary-color); box-shadow: inset 0 0 0 1px var(--primary-color); }
   }
-  .card-select { position: absolute; top: 8px; left: 18px; z-index: 1; }
-  .card-delete-btn { position: absolute; top: 10px; right: 13px; opacity: 1; color: var(--danger-color) !important; }
-  .card-top { display: flex; align-items: flex-start; gap: 12px; margin: 30px 0 16px; min-width: 0; }
+  .card-select {
+    position: absolute;
+    top: 6px;
+    left: 16px;
+    z-index: 1;
+    :deep(.el-checkbox) { height: 24px; }
+  }
+  .card-delete-btn.el-button {
+    position: absolute;
+    top: 6px;
+    right: 11px;
+    color: var(--text-secondary) !important;
+
+    &:hover, &:focus-visible {
+      color: var(--danger-color) !important;
+      background: var(--el-color-danger-light-9) !important;
+    }
+  }
+  .card-top { display: flex; align-items: flex-start; gap: 12px; margin: 22px 0 10px; min-width: 0; }
   .card-icon {
     display: flex;
     align-items: center;
@@ -781,10 +797,21 @@ export default {
     :deep(svg) { width: 24px; height: 24px; }
   }
   .card-info { min-width: 0; flex: 1; }
-  .card-title { color: var(--text-primary); font-size: 16px; font-weight: 600; line-height: 22px; margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card-title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    color: var(--text-primary);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 22px;
+    margin-bottom: 3px;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+  }
   .card-meta { color: var(--text-secondary); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
   .card-desc { color: var(--text-secondary); font-size: 12px; line-height: 18px; margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
-  .card-tags { margin-bottom: 6px; }
+  .card-tags { margin-bottom: 2px; }
   .category-tag { color: var(--text-secondary); background: transparent; padding: 0; font-size: 12px; line-height: 18px; }
   .card-footer {
     display: flex;
@@ -794,7 +821,7 @@ export default {
     flex-shrink: 0;
     min-width: 0;
     gap: 5px 8px;
-    padding-top: 10px;
+    padding-top: 8px;
     border-top: 1px solid var(--border-light);
     margin-top: auto;
   }

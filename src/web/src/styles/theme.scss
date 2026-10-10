@@ -18,9 +18,9 @@ html.dark:not([data-theme]) {
   --primary-button-active-bg: #5849c1;
   --primary-button-text: #fff;
   --text-primary: #e8ebf1;
-  --text-secondary: #abb4c3;
-  --text-muted: #929daf;
-  --text-tertiary: #929daf;
+  --text-secondary: #b6bfcc;
+  --text-muted: #a0abbb;
+  --text-tertiary: #a0abbb;
   --bg-primary: #14171d;
   --bg-shell: #1b1f27;
   --bg-panel: #20252e;
@@ -31,6 +31,7 @@ html.dark:not([data-theme]) {
   --bg-empty: #1b2028;
   --bg-hover: #323b49;
   --border-color: #404957;
+  --control-border: #626e80;
   --border-light: #333c49;
   --border-hover: #626f83;
   --tag-bg: #303846;
@@ -382,7 +383,8 @@ html.dark:not([data-theme]) {
   .el-input-number {
     --el-input-bg-color: var(--bg-panel);
     --el-input-text-color: var(--text-primary);
-    --el-input-border-color: var(--border-color);
+    --el-input-border-color: var(--control-border);
+    --el-border-color: var(--control-border);
     --el-input-hover-border-color: var(--border-hover);
     --el-input-focus-border-color: var(--primary-color);
     --el-input-placeholder-color: var(--text-muted);

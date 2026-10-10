@@ -37,7 +37,7 @@ defineProps({
   left: 0;
   width: 100%;
   text-align: center;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   line-height: 18px;
   white-space: nowrap;

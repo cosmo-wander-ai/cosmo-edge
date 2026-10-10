@@ -758,7 +758,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 14px;
   flex-wrap: wrap;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-secondary);
 }
 
@@ -808,7 +808,7 @@ onBeforeUnmount(() => {
 .resource-state {
   padding: 1px 5px;
   border-radius: 3px;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 16px;
   font-weight: 500;
 }
@@ -854,7 +854,7 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   gap: 4px;
   margin-top: 7px;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-secondary);
   line-height: 1.5;
 }
@@ -864,8 +864,8 @@ onBeforeUnmount(() => {
 }
 
 .state-idle, .state-medium {
-  color: var(--theme-accent, #595390);
-  background: var(--theme-accent-soft, #f0effb);
+  color: var(--text-secondary);
+  background: var(--bg-subtle);
 }
 
 .state-unavailable {
@@ -1064,7 +1064,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 5px;
   padding-top: 3px;
-  font-size: 11px;
+  font-size: 12px;
   white-space: nowrap;
   color: var(--text-secondary);
 }

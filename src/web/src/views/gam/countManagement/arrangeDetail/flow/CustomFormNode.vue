@@ -102,7 +102,7 @@ const handleDelete = () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 20px 5px 8px;
+  padding: 14px 5px 8px;
   cursor: pointer;
   width: 100%;
   height: 100%;
@@ -122,13 +122,13 @@ const handleDelete = () => {
 }
 
 .node-name {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--flow-node-text);
   text-align: center;
-  line-height: 16px;
-  min-height: 32px;
-  max-height: 32px;
+  line-height: 20px;
+  min-height: 40px;
+  max-height: 40px;
   width: 100%;
   word-break: normal;
   overflow-wrap: anywhere;
