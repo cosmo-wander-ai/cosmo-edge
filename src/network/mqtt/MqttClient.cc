@@ -15,7 +15,6 @@ namespace cosmo::network::mqtt {
 CMvMQTTClient::CMvMQTTClient(const std::string& sync_prefix) : sync_prefix_(sync_prefix) {}
 
 CMvMQTTClient::~CMvMQTTClient() {
-    enable_reconnect_ = false;
     std::lock_guard<std::mutex> lock(mutex_);
     if (MQTTClient_isConnected(mqtt_handle_)) {
         LOG_INFO("{}", "[create] MQTTClient is still connected in destructor");
@@ -50,7 +49,7 @@ int CMvMQTTClient::MQTTClientCreate(const MqttConnectOptions& opts) {
         return ret;
     }
 
-    // Save connect options for reconnection
+    // Keep the strings referenced by Paho connection options alive.
     connect_opts_ = opts;
 
     do {
@@ -89,7 +88,6 @@ int CMvMQTTClient::MQTTClientCreate(const MqttConnectOptions& opts) {
     if (ret) {
         MQTTClient_destroy(&mqtt_handle_);
     } else {
-        enable_reconnect_ = true;
         LOG_INFO("{}", "[create] MQTTClient_connect success");
     }
     return ret;
@@ -126,7 +124,6 @@ int CMvMQTTClient::MQTTClientSubscribe(const std::string& topic, int qos) {
     }
     LOG_INFO("[sub] MQTTClient subscribe success, topic: [{}], qos: [{}]", topic, qos);
 
-    InsertSubInfo(topic, qos);
     return ret;
 }
 
@@ -150,15 +147,11 @@ int CMvMQTTClient::MQTTClientUnSubscribe(const std::string& topic) {
     }
     LOG_INFO("[unsub] MQTTClient unsubscribe success, topic: [{}]", topic);
 
-    EraseSubInfo(topic);
     return ret;
 }
 
-std::string CMvMQTTClient::PrepareSyncPublish(const MqttMessage& msg, SyncPubResult* const sync_result) {
+std::string CMvMQTTClient::PrepareSyncPublish(const MqttMessage& msg) {
     std::string request_id;
-    if (nullptr == sync_result) {
-        return request_id;
-    }
 
     try {
         auto j     = json::parse(msg.payload);
@@ -182,56 +175,25 @@ std::string CMvMQTTClient::PrepareSyncPublish(const MqttMessage& msg, SyncPubRes
     return request_id;
 }
 
-int CMvMQTTClient::WaitForSyncResponse(const std::string& request_id, int ack_timeout_ms,
-                                       int response_timeout_ms, SyncPubResult* sync_result) {
+int CMvMQTTClient::WaitForAck(const std::string& request_id, int ack_timeout_ms, SyncPubResult* sync_result) {
     int ret = MQTTCLIENT_SUCCESS;
     std::unique_lock<std::mutex> lock(sync_mutex_);
 
-    auto check_state = [&](int required_state) {
+    auto is_acked = [&] {
         auto it = sync_results_.find(request_id);
         if (it != sync_results_.end()) {
             *sync_result = it->second;
-            return (it->second.sync_state & required_state) != 0;
+            return (it->second.sync_state & static_cast<int>(SyncPubState::kAcked)) != 0;
         }
         return false;
     };
 
-    // Wait for ACK if requested
-    if (ack_timeout_ms > 0) {
-        LOG_INFO("[pub] Wait ACK for requestId: [{}]", request_id);
-        if (sync_cv_.wait_for(lock, std::chrono::milliseconds(ack_timeout_ms), [&] {
-                return check_state(static_cast<int>(SyncPubState::kAcked) |
-                                   static_cast<int>(SyncPubState::kResponded));
-            })) {
-            LOG_INFO("[pub] Wait ACK success, requestId: [{}], state: [{}]", request_id,
-                     sync_result->sync_state);
-
-            // Wait for response if requested
-            if (response_timeout_ms > 0) {
-                LOG_INFO("[pub] Wait response for requestId: [{}]", request_id);
-                if (!sync_cv_.wait_for(lock, std::chrono::milliseconds(response_timeout_ms), [&] {
-                        return check_state(static_cast<int>(SyncPubState::kResponded));
-                    })) {
-                    LOG_ERRO("[pub] Wait response timeout, requestId: [{}]", request_id);
-                    ret = static_cast<int>(MqttErrorCode::kWaitResponseTimeout);
-                } else {
-                    LOG_INFO("[pub] Wait response success, requestId: [{}]", request_id);
-                }
-            }
-        } else {
-            LOG_ERRO("[pub] Wait ACK timeout, requestId: [{}]", request_id);
-            ret = static_cast<int>(MqttErrorCode::kWaitAckTimeout);
-        }
-    }
-    // Only wait for response (no ACK wait)
-    else if (response_timeout_ms > 0) {
-        if (!sync_cv_.wait_for(lock, std::chrono::milliseconds(response_timeout_ms),
-                               [&] { return check_state(static_cast<int>(SyncPubState::kResponded)); })) {
-            LOG_ERRO("[pub] Wait response timeout, requestId: [{}]", request_id);
-            ret = static_cast<int>(MqttErrorCode::kWaitResponseTimeout);
-        } else {
-            LOG_INFO("[pub] Wait response success, requestId: [{}]", request_id);
-        }
+    LOG_INFO("[pub] Wait ACK for requestId: [{}]", request_id);
+    if (sync_cv_.wait_for(lock, std::chrono::milliseconds(ack_timeout_ms), is_acked)) {
+        LOG_INFO("[pub] Wait ACK success, requestId: [{}], state: [{}]", request_id, sync_result->sync_state);
+    } else {
+        LOG_ERRO("[pub] Wait ACK timeout, requestId: [{}]", request_id);
+        ret = static_cast<int>(MqttErrorCode::kWaitAckTimeout);
     }
 
     // Cleanup the pending entry
@@ -239,12 +201,11 @@ int CMvMQTTClient::WaitForSyncResponse(const std::string& request_id, int ack_ti
     return ret;
 }
 
-int CMvMQTTClient::MQTTClientPublish(const MqttMessage& msg, int response_timeout_ms,
-                                     SyncPubResult* sync_result, int ack_timeout_ms) {
+int CMvMQTTClient::MQTTClientPublish(const MqttMessage& msg, int ack_timeout_ms, SyncPubResult* sync_result) {
     LOG_INFO("[pub] MQTTClient ready to publish, topic: [{}]", msg.topic);
 
-    // Pre-insert sync cache entry before publish to avoid race with response
-    auto request_id = PrepareSyncPublish(msg, sync_result);
+    // Register before sending so an immediate business ACK cannot be missed.
+    auto request_id = sync_result && ack_timeout_ms > 0 ? PrepareSyncPublish(msg) : std::string();
     bool inserted   = !request_id.empty();
 
     // Perform the publish
@@ -287,16 +248,14 @@ int CMvMQTTClient::MQTTClientPublish(const MqttMessage& msg, int response_timeou
         return ret;
     }
 
-    // Wait for sync response if applicable
+    // Wait for the business ACK if requested.
     if (inserted) {
-        ret = WaitForSyncResponse(request_id, ack_timeout_ms, response_timeout_ms, sync_result);
+        ret = WaitForAck(request_id, ack_timeout_ms, sync_result);
     }
     return ret;
 }
 
 int CMvMQTTClient::MQTTClientDestroy(int timeout_ms) {
-    enable_reconnect_ = false;
-
     std::lock_guard<std::mutex> lock(mutex_);
     if (MQTTClient_isConnected(mqtt_handle_)) {
         LOG_INFO("{}", "[destroy] MQTTClient is still connected");
@@ -322,16 +281,6 @@ bool CMvMQTTClient::MQTTClientIsConnected() {
 
 bool CMvMQTTClient::IsConnectedLocked() const {
     return (1 == MQTTClient_isConnected(mqtt_handle_));
-}
-
-void CMvMQTTClient::InsertSubInfo(const std::string& topic, int qos) {
-    std::lock_guard<std::mutex> lock(subscriptions_mutex_);
-    subscriptions_[topic] = qos;
-}
-
-void CMvMQTTClient::EraseSubInfo(const std::string& topic) {
-    std::lock_guard<std::mutex> lock(subscriptions_mutex_);
-    subscriptions_.erase(topic);
 }
 
 void CMvMQTTClient::InvokeMessageCallback(MessageArrived& msg) {
@@ -380,31 +329,21 @@ void CMvMQTTClient::InvokeReconnectCallback() {
 }
 
 bool CMvMQTTClient::UpdateSyncResult(const SyncPubResult& result) {
-    bool found     = false;
-    bool responded = false;
+    bool found = false;
     {
         std::unique_lock<std::mutex> lock(sync_mutex_);
         auto it = sync_results_.find(result.request_id);
         if (it != sync_results_.end()) {
             found = true;
-            if (it->second.sync_state & static_cast<int>(SyncPubState::kResponded)) {
-                responded = true;
-            } else {
-                it->second.sync_state |= result.sync_state;
-                it->second.qos     = result.qos;
-                it->second.payload = result.payload;
-                it->second.topic   = result.topic;
-            }
+            it->second.sync_state |= result.sync_state;
+            it->second.qos     = result.qos;
+            it->second.payload = result.payload;
+            it->second.topic   = result.topic;
         }
     }
     if (found) {
-        if (!responded) {
-            LOG_INFO("[update] Notify requestId: [{}], state: [{}]", result.request_id, result.sync_state);
-            sync_cv_.notify_all();
-        } else {
-            LOG_INFO("[update] Unwanted notify requestId: [{}], state: [{}]", result.request_id,
-                     result.sync_state);
-        }
+        LOG_INFO("[update] Notify requestId: [{}], state: [{}]", result.request_id, result.sync_state);
+        sync_cv_.notify_all();
     }
     return found;
 }

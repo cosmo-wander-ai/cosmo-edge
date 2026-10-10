@@ -550,7 +550,7 @@ bool MqttLifecycleServiceImpl::Register() {
 
     pub_msg.payload = nlohmann::json(sendmsg).dump();
     mqtt::SyncPubResult sync_result;
-    if (mqtt_client_->MQTTClientPublish(pub_msg, 0, &sync_result, k_register_ack_timeout_ms)) {
+    if (mqtt_client_->MQTTClientPublish(pub_msg, k_register_ack_timeout_ms, &sync_result)) {
         LOG_WARN("Publish [Register] Failed, Payload: [{}]", pub_msg.payload);
         return false;
     }
@@ -593,7 +593,7 @@ bool MqttLifecycleServiceImpl::HeartBeat() {
 
     pub_msg.payload = nlohmann::json(sendmsg).dump();
     mqtt::SyncPubResult sync_result;
-    if (mqtt_client_->MQTTClientPublish(pub_msg, 0, &sync_result, k_heartbeat_ack_timeout_ms)) {
+    if (mqtt_client_->MQTTClientPublish(pub_msg, k_heartbeat_ack_timeout_ms, &sync_result)) {
         heartbeat_failed_count_ += 1;
         if (heartbeat_failed_count_ >= kHeartbeatFailMax) {
             registered_ = false;
