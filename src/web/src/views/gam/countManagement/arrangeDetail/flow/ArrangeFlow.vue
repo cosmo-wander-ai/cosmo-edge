@@ -65,8 +65,11 @@ import StageGroupNode from './StageGroupNode.vue'
 import NodeDetailPanel from './NodeDetailPanel.vue'
 import {
   getDetailPanelAnchor,
+  getDetailPanelCanvasBounds,
+  getDetailPanelScreenPosition,
   getDetailPanelSize,
   getFlowBounds,
+  getFlowFitZoom,
   getFlowLayoutSpacing,
   getFlowNodeDimensions
 } from './layoutGeometry.js'
@@ -304,13 +307,11 @@ const detailPanelPosition = ref({ x: 0, y: 0 })  // 画布坐标
 const currentViewport = ref({ x: 0, y: 0, zoom: 1 })
 
 /** 画布坐标 → 屏幕坐标（相对于 .page-main 容器） */
-const screenPanelPosition = computed(() => {
-  const vp = currentViewport.value
-  return {
-    x: detailPanelPosition.value.x * vp.zoom + vp.x,
-    y: detailPanelPosition.value.y * vp.zoom + vp.y
-  }
-})
+const screenPanelPosition = computed(() => getDetailPanelScreenPosition(
+  detailPanelPosition.value,
+  currentViewport.value,
+  getDetailPanelSize(detailPanelNodeData.value?.actionId)
+))
 
 /** VueFlow 视口移动/缩放时更新坐标 */
 const handleViewportMove = (transform) => {
@@ -347,8 +348,6 @@ const openDetailPanel = (nodeId) => {
 
   const dim = getNodeDimensions(node)
   const panelSize = getDetailPanelSize(node.data?.actionId)
-  const panelW = panelSize.width
-  const panelH = panelSize.height
 
   // 面板顶部对齐选中节点的底部，X 居中对齐节点
   const { x: panelX, y: panelY } = getDetailPanelAnchor(node, dim, panelSize)
@@ -379,16 +378,15 @@ const openDetailPanel = (nodeId) => {
     const allVisible = nodes.value.filter((n) => !isStageGroupNode(n))
     const bounds = getFlowBounds(allVisible, getNodeDimensions)
 
-    // 将面板区域也纳入边界
-    bounds.minX = Math.min(bounds.minX, panelX)
-    bounds.maxX = Math.max(bounds.maxX, panelX + panelW)
-    bounds.maxY = Math.max(bounds.maxY, panelY + panelH)
+    // The detached panel stays in screen pixels, even when the graph is zoomed.
+    const zoom = Math.min(currentViewport.value.zoom, 0.75)
+    const panelBounds = getDetailPanelCanvasBounds({ x: panelX, y: panelY }, panelSize, zoom)
+    bounds.minX = Math.min(bounds.minX, panelBounds.minX)
+    bounds.maxX = Math.max(bounds.maxX, panelBounds.maxX)
+    bounds.maxY = Math.max(bounds.maxY, panelBounds.maxY)
 
     const cx = (bounds.minX + bounds.maxX) / 2
     const cy = (bounds.minY + bounds.maxY) / 2
-
-    // 获取当前缩放级别，适度缩小以确保全部可见
-    const zoom = Math.min(currentViewport.value.zoom, 0.75)
 
     flowInstance.value.setCenter(cx, cy, { zoom, duration: 280 })
 
@@ -418,7 +416,7 @@ const closeDetailPanel = () => {
     const cy = (bounds.minY + bounds.maxY) / 2
 
     if (typeof flowInstance.value.setCenter === 'function') {
-      flowInstance.value.setCenter(cx, cy, { zoom: 1.0, duration: 280 })
+      flowInstance.value.setCenter(cx, cy, { zoom: getFlowFitZoom(bounds, props), duration: 280 })
     }
   })
 }
@@ -510,7 +508,7 @@ const centerView = () => {
     flowInstance.value &&
     typeof flowInstance.value.setCenter === 'function'
   ) {
-    flowInstance.value.setCenter(cx, cy, { zoom: 1.0, duration: 300 })
+    flowInstance.value.setCenter(cx, cy, { zoom: getFlowFitZoom(bounds, props), duration: 300 })
   }
 }
 

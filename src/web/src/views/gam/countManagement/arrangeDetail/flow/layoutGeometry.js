@@ -24,6 +24,21 @@ export const getFlowBounds = (
   }
 }, initial)
 
+// Centering should keep short flows at their natural size while fitting long
+// or branched flows. The padding also leaves room for stage labels above cards.
+export const getFlowFitZoom = (bounds, viewport, maxZoom = 1, padding = 56) => {
+  const width = bounds.maxX - bounds.minX
+  const height = bounds.maxY - bounds.minY
+  if (![width, height, viewport?.width, viewport?.height].every(value => Number.isFinite(value) && value > 0)) {
+    return maxZoom
+  }
+  return Math.min(
+    maxZoom,
+    Math.max(1, viewport.width - padding * 2) / width,
+    Math.max(1, viewport.height - padding * 2) / height
+  )
+}
+
 export const getFlowLayoutSpacing = (dimensions = FLOW_NODE_SIZE) => ({
   nodesep: Math.max(40, Math.min(240, Math.round(dimensions.height * 0.5))),
   ranksep: Math.max(50, Math.min(320, Math.round(dimensions.width * 0.4)))
@@ -39,4 +54,20 @@ export const getDetailPanelAnchor = (
 ) => ({
   x: node.position.x + dimensions.width / 2 - panelSize.width / 2,
   y: node.position.y + dimensions.height + DETAIL_PANEL_GAP
+})
+
+// The anchor is in canvas coordinates, but the detached panel does not scale.
+export const getDetailPanelCanvasBounds = (anchor, panelSize, zoom) => {
+  const minX = anchor.x + panelSize.width / 2 - panelSize.width / zoom / 2
+  return {
+    minX,
+    minY: anchor.y,
+    maxX: minX + panelSize.width / zoom,
+    maxY: anchor.y + panelSize.height / zoom
+  }
+}
+
+export const getDetailPanelScreenPosition = (anchor, viewport, panelSize) => ({
+  x: anchor.x * viewport.zoom + viewport.x - panelSize.width * (1 - viewport.zoom) / 2,
+  y: anchor.y * viewport.zoom + viewport.y
 })

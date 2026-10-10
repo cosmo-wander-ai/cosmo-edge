@@ -51,8 +51,11 @@ import ActionEdge from '@/views/gam/countManagement/arrangeDetail/flow/ActionEdg
 import NodeDetailPanel from '@/views/gam/countManagement/arrangeDetail/flow/NodeDetailPanel.vue'
 import {
   getDetailPanelAnchor,
+  getDetailPanelCanvasBounds,
+  getDetailPanelScreenPosition,
   getDetailPanelSize,
   getFlowBounds,
+  getFlowFitZoom,
   getFlowLayoutSpacing,
   getFlowNodeDimensions
 } from '@/views/gam/countManagement/arrangeDetail/flow/layoutGeometry.js'
@@ -120,14 +123,11 @@ const detailPanelNodeData = computed(() =>
 )
 const detailPanelPosition = ref({ x: 0, y: 0 })
 const currentViewport = ref({ x: 0, y: 0, zoom: 1 })
-const screenPanelPosition = computed(() => ({
-  x:
-    detailPanelPosition.value.x * currentViewport.value.zoom +
-    currentViewport.value.x,
-  y:
-    detailPanelPosition.value.y * currentViewport.value.zoom +
-    currentViewport.value.y
-}))
+const screenPanelPosition = computed(() => getDetailPanelScreenPosition(
+  detailPanelPosition.value,
+  currentViewport.value,
+  getDetailPanelSize(detailPanelNodeData.value?.actionId)
+))
 const parseArray = (val) => {
   if (Array.isArray(val)) return val
   if (typeof val === 'string' && val.trim()) {
@@ -237,7 +237,7 @@ const centerView = () => {
     flowInstance.value &&
     typeof flowInstance.value.setCenter === 'function'
   ) {
-    flowInstance.value.setCenter(cx, cy, { zoom: 1.0, duration: 300 })
+    flowInstance.value.setCenter(cx, cy, { zoom: getFlowFitZoom(bounds, props), duration: 300 })
   }
 }
 
@@ -296,8 +296,6 @@ const handleNodeClick = ({ node } = {}) => {
   }
   const dimensions = getNodeDimensions(node)
   const panelSize = getDetailPanelSize(node.data?.actionId)
-  const panelWidth = panelSize.width
-  const panelHeight = panelSize.height
   const { x: panelX, y: panelY } = getDetailPanelAnchor(
     node,
     dimensions,
@@ -315,11 +313,10 @@ const handleNodeClick = ({ node } = {}) => {
     detailPanelRef.value?.resetDragOffset?.()
     if (!flowInstance.value?.setCenter) return
 
-    const bounds = getFlowBounds(nodes.value, getNodeDimensions, {
-      minX: panelX, minY: panelY, maxX: panelX + panelWidth, maxY: panelY + panelHeight
-    })
     const viewport = flowInstance.value.getViewport?.()
     const zoom = Math.min(viewport?.zoom || 1, 0.75)
+    const bounds = getFlowBounds(nodes.value, getNodeDimensions,
+      getDetailPanelCanvasBounds({ x: panelX, y: panelY }, panelSize, zoom))
     flowInstance.value.setCenter(
       (bounds.minX + bounds.maxX) / 2,
       (bounds.minY + bounds.maxY) / 2,

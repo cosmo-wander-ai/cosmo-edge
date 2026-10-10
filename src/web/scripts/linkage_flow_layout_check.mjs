@@ -7,8 +7,11 @@ import {
   FLOW_NODE_SIZE,
   FLOW_TERMINAL_SIZE,
   getDetailPanelAnchor,
+  getDetailPanelCanvasBounds,
+  getDetailPanelScreenPosition,
   getDetailPanelSize,
   getFlowLayoutSpacing,
+  getFlowFitZoom,
   getFlowNodeDimensions,
   getFlowBounds
 } from '../src/views/gam/countManagement/arrangeDetail/flow/layoutGeometry.js'
@@ -77,6 +80,35 @@ assert.ok(branched.every(node => node.position.x >= branchBounds.minX &&
   node.position.y >= branchBounds.minY && node.position.x + node.width <= branchBounds.maxX &&
   node.position.y + node.height <= branchBounds.maxY), 'mixed node bounds include every visible rectangle')
 
+// At realistic canvas sizes, centering must not crop the first/last card or
+// the stage label area. Both initialization and panel-close use this zoom.
+for (const positioned of [linear, branched]) {
+  const bounds = getFlowBounds(positioned)
+  for (const viewport of [{ width: 1040, height: 510 }, { width: 1486, height: 695 }]) {
+    const zoom = getFlowFitZoom(bounds, viewport)
+    const offsetX = viewport.width / 2 - (bounds.minX + bounds.maxX) / 2 * zoom
+    const offsetY = viewport.height / 2 - (bounds.minY + bounds.maxY) / 2 * zoom
+    assert.ok(zoom > 0 && zoom <= 1, 'fit zoom is positive and does not enlarge short flows')
+    for (const node of positioned) {
+      assert.ok(node.position.x * zoom + offsetX >= 55.99)
+      assert.ok((node.position.x + node.width) * zoom + offsetX <= viewport.width - 55.99)
+      assert.ok(node.position.y * zoom + offsetY >= 55.99)
+      assert.ok((node.position.y + node.height) * zoom + offsetY <= viewport.height - 55.99)
+    }
+    assert.ok((bounds.minY - 48) * zoom + offsetY >= 7.99, 'stage labels stay above the cards without clipping')
+    assert.equal(getFlowFitZoom({
+      minX: bounds.minX - 500, maxX: bounds.maxX - 500,
+      minY: bounds.minY + 200, maxY: bounds.maxY + 200
+    }, viewport), zoom, 'panning the graph does not change its required fit scale')
+  }
+}
+assert.equal(getFlowFitZoom({ minX: 0, minY: 0, maxX: compactWidth, maxY: 96 }, { width: 1040, height: 510 }), 1,
+  'short flows retain the natural 100% scale')
+assert.equal(getFlowFitZoom({ minX: 0, minY: 0, maxX: compactWidth, maxY: 96 }, { width: 1040, height: 510 }, 0.75), 0.75,
+  'an explicit zoom ceiling is honored')
+assert.equal(getFlowFitZoom(getFlowBounds([]), { width: 1040, height: 510 }), 1,
+  'an empty canvas does not produce NaN or infinite viewport transforms')
+
 const node = { position: { x: 500, y: 200 } }
 const panel = getDetailPanelAnchor(node)
 assert.equal(panel.x, 500 + FLOW_NODE_SIZE.width / 2 - DETAIL_PANEL_SIZE.width / 2)
@@ -108,3 +140,18 @@ assert.deepEqual(getFlowBounds([node], () => ({ width: 20, height: 30 }), {
 }), { minX: 0, minY: 0, maxX: 1000, maxY: 800 })
 
 console.log('linkage flow layout checks passed')
+
+// Fixed-size floating panels remain centered and included in canvas bounds at
+// every zoom. Screen-space dimensions must not shrink with the graph.
+for (const zoom of [0.4, 0.75, 1, 1.5]) {
+  for (const size of [DETAIL_PANEL_SIZE, ALARM_DETAIL_PANEL_SIZE]) {
+    const anchor = getDetailPanelAnchor(node, FLOW_NODE_SIZE, size)
+    const viewport = { x: 60, y: 40, zoom }
+    const screen = getDetailPanelScreenPosition(anchor, viewport, size)
+    const bounds = getDetailPanelCanvasBounds(anchor, size, zoom)
+    assert.ok(Math.abs((bounds.maxX - bounds.minX) * zoom - size.width) < 0.001)
+    assert.ok(Math.abs((bounds.maxY - bounds.minY) * zoom - size.height) < 0.001)
+    assert.ok(Math.abs(screen.x + size.width / 2 - ((node.position.x + FLOW_NODE_SIZE.width / 2) * zoom + viewport.x)) < 0.001)
+    assert.ok(screen.y > (node.position.y + FLOW_NODE_SIZE.height) * zoom + viewport.y)
+  }
+}
