@@ -632,7 +632,7 @@ const loadLibraryOptions = (version) => {
   currentParams.forEach((item) => {
     if (item.type === 'commoditySet' || item.type === 'workClothesSet') {
       const isThings = item.type === 'commoditySet'
-      const query = isThings ? proxy.$API.boxQueryThingsLibInfo : proxy.$API.boxQueryPersonLibInfo
+      const query = isThings ? proxy.$API.queryThingsLibInfo : proxy.$API.queryPersonLibInfo
       query({ pageNum: 1, pageSize: 1000 }).then(({ resData }) => {
         if (version !== hydrationVersion) return
         const libraries = isThings ? resData?.thingsLibList : resData?.personLibList
@@ -640,7 +640,7 @@ const loadLibraryOptions = (version) => {
         if (!item.value) item.value = networkOptions.value[0]?.value
       })
     } else if (item.type === 'faceSet') {
-      proxy.$API.boxQueryFaceLibInfo({ pageNum: 1, pageSize: 1000 }).then(({ resData }) => {
+      proxy.$API.queryFaceLibInfo({ pageNum: 1, pageSize: 1000 }).then(({ resData }) => {
         if (version !== hydrationVersion) return
         FaceSets.value = resData?.faceLibList || []
         transferData.value = FaceSets.value.map((obj) => ({ key: String(obj.id), label: obj.name }))

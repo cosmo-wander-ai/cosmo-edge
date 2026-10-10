@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import {
   collapseTaskParamSchemasByKey,
   combineTaskParamSources,
-  filterActiveTaskParams,
   filterChannelEditableParams,
   filterTaskParamsForSubmission,
   flattenTaskParamTree,
@@ -421,14 +420,18 @@ const conditionalParams = [
     dependsOn: { key: 'mode', value: '2' }
   }
 ]
+const submittedConditionalParams = filterTaskParamsForSubmission(conditionalParams)
 assert.deepEqual(
-  filterActiveTaskParams(conditionalParams).map((param) => param.value),
-  [1, 'active']
-)
-assert.deepEqual(
-  filterTaskParamsForSubmission(conditionalParams).map((param) => param.value),
+  submittedConditionalParams.map((param) => param.value),
   [1, 'active', 'inactive', 'preserved']
 )
+assert.notEqual(submittedConditionalParams, conditionalParams)
+submittedConditionalParams.forEach((param, index) => {
+  assert.equal(param, conditionalParams[index], 'submission keeps parameter objects')
+})
+for (const params of [undefined, null, {}, []]) {
+  assert.deepEqual(filterTaskParamsForSubmission(params), [])
+}
 
 const leadsRadioParams = [
   { key: 'unrelated', type: 'switch', value: '1' },
@@ -436,28 +439,32 @@ const leadsRadioParams = [
   { key: 'LeadsRadio', type: 'text', value: 'legacy' }
 ]
 assert.deepEqual(
-  filterActiveTaskParams(leadsRadioParams).map((param) => param.key),
-  ['unrelated', 'isEnabled']
-)
-assert.deepEqual(
   filterTaskParamsForSubmission(leadsRadioParams).map((param) => param.key),
   ['unrelated', 'isEnabled']
 )
 leadsRadioParams[1].value = '1'
 assert.deepEqual(
-  filterActiveTaskParams(leadsRadioParams).map((param) => param.key),
+  filterTaskParamsForSubmission(leadsRadioParams).map((param) => param.key),
   ['unrelated', 'isEnabled', 'LeadsRadio']
 )
 assert.deepEqual(
-  filterActiveTaskParams([
+  filterTaskParamsForSubmission([
     { key: 'booleanParent', type: 'switch', value: false },
     {
-      key: 'looselyMatchedChild',
+      key: 'LeadsRadio',
       type: 'text',
       dependsOn: { key: 'booleanParent', value: 0 }
     }
   ]).map((param) => param.key),
-  ['booleanParent', 'looselyMatchedChild']
+  ['booleanParent', 'LeadsRadio']
+)
+assert.deepEqual(
+  filterTaskParamsForSubmission([
+    { key: 'mode', type: 'select', value: '2' },
+    { key: 'LeadsRadio', type: 'text', dependsOn: { key: 'mode', value: '1' } },
+    { key: 'inactive', type: 'text', value: 'kept', dependsOn: { key: 'mode', value: '1' } }
+  ]).map((param) => param.key),
+  ['mode', 'inactive']
 )
 
 assert.deepEqual(
