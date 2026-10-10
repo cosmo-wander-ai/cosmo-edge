@@ -4,7 +4,6 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import EventBus from '@/components/eventBus.js'
 
 // Canvas drawing classes and logic
 const colors = [
@@ -475,18 +474,12 @@ const unbindEvent = () => {
   canvasContext.value.unbindEvent()
 }
 
-const handleResetSelectPoints = () => {
-  selectPoints.value = []
-}
-
 // Lifecycle hooks
 onMounted(() => {
-  EventBus.$on('resetSelectPoints', handleResetSelectPoints)
   init()
 })
 
 onBeforeUnmount(() => {
-  EventBus.$off('resetSelectPoints', handleResetSelectPoints)
   canvasContext.value.unbindEvent()
 })
 </script>

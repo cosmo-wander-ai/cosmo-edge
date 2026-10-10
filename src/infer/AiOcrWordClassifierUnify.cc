@@ -32,7 +32,6 @@ util::ErrorEnum AiOcrWordClassifierUnify::Init() {
     }
     try {
         cosmo::nn::DefaultComponent::Options options;
-        options.profiler        = &profiler_;
         options.word_table_path = word_dict_path_;
         classifier_ =
             std::make_unique<cosmo::nn::DefaultComponent>(options, json_path_, model_path_, GetDeviceType());

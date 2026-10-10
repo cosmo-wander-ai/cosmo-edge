@@ -24,7 +24,7 @@ const parameter = ref()
 const mode = query.get('mode')
 const app = createApp({ render() { return mode === 'parameter' ? h('div', [h(Parameters, {ref: parameter, algorithmMetadata: {params: [{key:'threshold', name: 'Threshold', type:'text', value:'1',level:'2'}]}}), h('button', {id: 'save', onClick() { document.querySelector('#saved').textContent = JSON.stringify(parameter.value.saveParamConfig()) }}, 'Save'), h('output', {id:'saved'})]) : h(Cards) } })
 app.use(ElementPlus, {locale: elementLocale.value}).use(i18n)
-app.config.globalProperties.$API = {algorithmInquire: async () => ({resData: {rows, total: count}}), boxCameraPage: async () => ({resData: {rows: []}})}
+app.config.globalProperties.$API = {algorithmInquire: async () => ({resData: {rows, total: count}}), getChannelList: async () => ({resData: {rows: []}})}
 app.config.globalProperties.$route = {path: '/gam/algorithmicManagement'}
 app.config.globalProperties.$router = {push() { document.body.dataset.clicked = 'true' }}
 app.mount('#app')

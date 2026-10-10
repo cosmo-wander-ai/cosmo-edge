@@ -684,7 +684,7 @@ const init = () => {
     pageNum: pageData.pageNum,
     pageSize: pageData.pageSize
   }
-  proxy.$API.boxCameraPage(params).then((res) => {
+  proxy.$API.getChannelList(params).then((res) => {
     if (!res) return
     const { resData } = res
     tableData.value = resData.rows

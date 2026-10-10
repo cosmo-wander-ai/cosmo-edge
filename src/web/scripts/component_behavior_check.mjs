@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { reactive } from 'vue'
+import { h, reactive } from 'vue'
 import { mountComponent } from './helpers/mount_behavior_component.mjs'
 
 const parameter = await mountComponent('views/gam/countManagement/arrangeDetail/flow/ParameterSetting.vue', {
@@ -126,7 +126,7 @@ let resolveLibrary
 const library = await mountComponent('views/gam/taskManager/editTask/dynamicForm.vue', {
   props: { modelValue: [{ key: 'library', type: 'commoditySet', name: 'Library', value: '', senior: 0, isColumn: true }] },
   mocks: { './distanceDialog.vue': { default: { render: () => null } }, '@/assets/CatchPhoto.png': { default: '' } },
-  api: { boxQueryThingsLibInfo: () => new Promise(resolve => { resolveLibrary = resolve }) }
+  api: { queryThingsLibInfo: () => new Promise(resolve => { resolveLibrary = resolve }) }
 })
 try {
   library.instance.$.props.modelValue = [{ key: 'new', type: 'text', name: 'New', value: 'new-model', senior: 0, isColumn: true }]
@@ -156,13 +156,81 @@ for (const platform of ['1', '-1', null, '15']) for (const scenario of [
       selectConfigByAlgorithmId: () => new Promise(() => {}),
       selectAllAlgorithmInfo: async (params) => { calls.push(params); return { resData: {} } },
       channelCodeDetail: async (params) => { assert.equal(params.channelCode, 'legacy'); return { resData: { channelId: 'resolved-channel' } } },
-      boxGetTimeTemplate: async () => ({ resData: { rows: [] } })
+      queryTimeTemplatePage: async () => ({ resData: { rows: [] } })
     }
   })
   try {
     await service.settle()
     assert.equal(calls.length, 1, 'one channel lookup per mount')
     assert.equal(calls[0].channelId, scenario.expected)
+  } finally { service.unmount() }
+}
+
+// Save through the real service -> parameter panel -> dynamic form chain.
+for (const scenario of [
+  { enabled: '0', inactive: 'kept', valid: true },
+  { enabled: '0', inactive: '', valid: false },
+  { enabled: '0', inactive: 'kept', leads: '', valid: true },
+  { enabled: '1', inactive: 'kept', leads: '', valid: false },
+  { enabled: '1', inactive: 'kept', leads: 'legacy', valid: true }
+]) {
+  const saved = [], errors = []
+  const taskParams = [
+    { key: 'mode', type: 'switch', value: '0' },
+    { key: 'inactive', type: 'text', value: scenario.inactive, regexpr: '^.+$', dependsOn: { key: 'mode', value: '1' } },
+    { key: 'unrelated', type: 'switch', value: '1' },
+    { key: 'isEnabled', type: 'switch', value: scenario.enabled },
+    { key: 'sceneOnly', type: 'text', value: '', regexpr: '^.+$', senior: 2, channelEditable: false },
+    { key: 'cycleA', type: 'switch', value: '1', dependsOn: { key: 'cycleB', value: '1' } },
+    { key: 'cycleB', type: 'switch', value: '1', dependsOn: { key: 'cycleA', value: '1' } },
+    ...('leads' in scenario ? [{ key: 'LeadsRadio', type: 'text', value: scenario.leads, regexpr: '^.+$' }] : [])
+  ].map(param => ({ name: param.key, senior: 0, isColumn: true, ...param }))
+  const storage = { getItem: () => null }
+  const service = await mountComponent('views/gam/taskManager/editTask/serviceConfig.vue', {
+    props: { channelId: 'channel-submission', joinType: 0 },
+    mocks: {
+      './areaSetting2.vue': { default: { render() { return h({ methods: { submit: () => [] }, render: () => null }, { ref: 'canvasRef' }) } } },
+      './BatchApplication.vue': { default: { render: () => null } },
+      './distanceDialog.vue': { default: { render: () => null } },
+      '@/assets/CatchPhoto.png': { default: '' },
+      '@/components/eventBus.js': { default: { $emit() {} } },
+      uuid: { v4: () => 'fixture-id' }
+    },
+    globals: {
+      localStorage: storage, window: { location: { search: '', hash: '' }, localStorage: storage },
+      document: { addEventListener() {}, removeEventListener() {} },
+      setTimeout: () => 1, clearTimeout() {}
+    },
+    message: { error: value => errors.push(value) },
+    api: {
+      algorithmInquire: async () => ({ resData: { rows: [{ algorithmId: 'algorithm-submission', algorithmCode: '2001', algorithmCategory: '2', algorithmName: 'Submission' }] } }),
+      selectAllAlgorithmInfo: async () => ({ resData: { algorithmIds: ['algorithm-submission'] } }),
+      queryTimeTemplatePage: async () => ({ resData: { rows: [] } }),
+      selectConfigByAlgorithmId: async () => ({ resData: {
+        category: 0, taskEnableStatus: 0,
+        algorithmMetadata: JSON.stringify({ regionType: 'polygon', scheduleSupport: 0, params: taskParams }),
+        taskConfig: { areas: [], shieldedAreas: [], params: [] }
+      } }),
+      saveOrUpdate: async data => { saved.push(JSON.parse(JSON.stringify(data))); return { resCode: 1 } }
+    }
+  })
+  try {
+    for (let i = 0; i < 6; i++) await service.settle()
+    service.all(node => node.props.id === 'onboarding-save-service')[0].props.onClick()
+    for (let i = 0; i < 6; i++) await service.settle()
+    assert.equal(saved.length, scenario.valid ? 1 : 0, JSON.stringify(scenario))
+    assert.equal(errors.length, scenario.valid ? 0 : 1)
+    if (scenario.valid) {
+      assert.equal(saved[0].channelId, 'channel-submission')
+      assert.equal(saved[0].algorithmId, 'algorithm-submission')
+      assert.deepEqual(saved[0].taskConfig.params, [
+        { key: 'mode', value: '0' },
+        { key: 'inactive', value: 'kept' },
+        { key: 'unrelated', value: '1' },
+        { key: 'isEnabled', value: scenario.enabled },
+        ...(scenario.enabled === '1' ? [{ key: 'LeadsRadio', value: scenario.leads }] : [])
+      ])
+    }
   } finally { service.unmount() }
 }
 

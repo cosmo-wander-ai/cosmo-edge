@@ -59,15 +59,6 @@ export default {
       data
     })
   },
-  //box
-  //通道列表
-  boxCameraPage: data => {
-    return request({
-      url: '/gtw/cwai/camera/page',
-      method: 'post',
-      data
-    })
-  },
   // 添加通道
   boxAddCamera: data => {
     return request({
@@ -88,14 +79,6 @@ export default {
   boxRecaptureImage: data => {
     return request({
       url: '/gtw/cwai/Camera/GetPicture',
-      method: 'post',
-      data
-    })
-  },
-  // 时间模板
-  boxGetTimeTemplate: data => {
-    return request({
-      url: '/gtw/cwai/schedule/Page',
       method: 'post',
       data
     })
@@ -128,30 +111,6 @@ export default {
   boxDeleteTask: data => {
     return request({
       url: '/gtw/cwai/task/delete',
-      method: 'post',
-      data
-    })
-  },
-  // box 机务库
-  boxQueryPersonLibInfo: data => {
-    return request({
-      url: '/gtw/cwai/BodyLibrary/QueryPersonLibInfo',
-      method: 'post',
-      data
-    })
-  },
-  // box 人脸库
-  boxQueryFaceLibInfo: data => {
-    return request({
-      url: '/gtw/cwai/Library/QueryFaceLibInfo',
-      method: 'post',
-      data
-    })
-  },
-  // box 物品库
-  boxQueryThingsLibInfo: data => {
-    return request({
-      url: '/gtw/cwai/ThingsLibrary/QueryThingsLibInfo',
       method: 'post',
       data
     })

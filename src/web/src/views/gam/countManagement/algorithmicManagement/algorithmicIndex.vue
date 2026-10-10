@@ -679,9 +679,9 @@ export default {
       }
       return svgs[String(row.algorithmCategory)] || svgs['2']
     },
-    // ── 加载真实通道运行数（复用运行总览的 boxCameraPage 逻辑）──
+    // ── 加载真实通道运行数（复用运行总览的 getChannelList 逻辑）──
     loadChannelCounts() {
-      this.$API.boxCameraPage({ pageNum: 1, pageSize: 500 }).then(res => {
+      this.$API.getChannelList({ pageNum: 1, pageSize: 500 }).then(res => {
         const rows = res?.resData?.rows || []
         const countMap = {}
         rows.forEach(channel => {

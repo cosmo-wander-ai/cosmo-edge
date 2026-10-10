@@ -613,17 +613,14 @@ const resolveActiveTaskParamFlags = (params) => {
   return active
 }
 
-export const filterActiveTaskParams = (params) => {
-  const list = Array.isArray(params) ? params : []
-  const active = resolveActiveTaskParamFlags(list)
-  return list.filter((_, index) => active[index])
-}
-
 // Metadata keys are globally unique. Preserve inactive conditional values so
 // switching a selector does not erase user input; only the root-only legacy
 // LeadsRadio follows its template's isEnabled gate.
 export const filterTaskParamsForSubmission = (params) => {
   const list = Array.isArray(params) ? params : []
+  if (!list.some((param) => String(param?.key ?? '') === 'LeadsRadio')) {
+    return [...list]
+  }
   const active = resolveActiveTaskParamFlags(list)
   return list.filter((param, index) => {
     const key = String(param?.key ?? '')

@@ -59,7 +59,6 @@ private:
 #else
     std::unique_ptr<cosmo::nn::DefaultComponent> generator_;
 #endif
-    AppProfiler profiler_;
 };
 
 using Qwen3VLUnifyPtr = std::shared_ptr<Qwen3VLUnify>;

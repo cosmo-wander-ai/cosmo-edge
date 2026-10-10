@@ -87,9 +87,16 @@ const props = defineProps({
   algorithmData: {
     type: Object,
     default: () => ({})
+  },
+  algorithmMetadata: {
+    type: Object,
+    default: () => ({})
   }
 })
 
+const customMetadata = computed(() =>
+  (props.algorithmMetadata?.params || []).filter(item => !item.level)
+)
 const nodes = ref([])
 const edges = ref([])
 const activeEdgeId = ref(null)
@@ -551,6 +558,7 @@ const deleteFollowing = (operation) => {
 }
 
 provide(flowEditorKey, {
+  customMetadata: readonly(customMetadata),
   nodes: readonly(nodes),
   edges: readonly(edges),
   activeEdgeId: readonly(activeEdgeId),

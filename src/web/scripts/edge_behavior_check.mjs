@@ -79,9 +79,9 @@ for (const platform of platforms) {
 }
 
 for (const platform of platforms) for (const [type, method, listKey] of [
-  ['commoditySet', 'boxQueryThingsLibInfo', 'thingsLibList'],
-  ['workClothesSet', 'boxQueryPersonLibInfo', 'personLibList'],
-  ['faceSet', 'boxQueryFaceLibInfo', 'faceLibList']
+  ['commoditySet', 'queryThingsLibInfo', 'thingsLibList'],
+  ['workClothesSet', 'queryPersonLibInfo', 'personLibList'],
+  ['faceSet', 'queryFaceLibInfo', 'faceLibList']
 ]) {
   const storage = makeStorage(platform)
   let requests = 0
@@ -179,7 +179,7 @@ for (const platform of platforms) {
     api: {
       algorithmInquire: async () => ({ resData: { rows: [{ algorithmId: 'algorithm-1', algorithmCode: '2001', algorithmCategory: '2', algorithmName: 'User algorithm' }] } }),
       selectAllAlgorithmInfo: async () => ({ resData: { algorithmIds: ['algorithm-1'] } }),
-      boxGetTimeTemplate: async () => ({ resData: { rows: [{ scheduleId: 'schedule-1', scheduleName: 'Custom schedule' }] } }),
+      queryTimeTemplatePage: async () => ({ resData: { rows: [{ scheduleId: 'schedule-1', scheduleName: 'Custom schedule' }] } }),
       selectConfigByAlgorithmId: async () => ({ resData: {
         category: 1, pollingId, scheduleId: 'schedule-1', taskEnableStatus: enabled,
         algorithmMetadata: JSON.stringify({ regionType: 'polygon', scheduleSupport: 1, params: [
@@ -261,7 +261,7 @@ for (const platform of platforms) {
     globals: globalsFor(storage),
     api: {
       algorithmInquire: async () => ({ resData: { rows: [], total: 0 } }),
-      boxCameraPage: async () => ({ resData: { rows: [] } }),
+      getChannelList: async () => ({ resData: { rows: [] } }),
       addAlgorithmLayout: async data => { created.push(plain(data)); return { resCode: 1 } }
     }
   })
@@ -336,7 +336,7 @@ for (const failConsumer of [false, true]) {
     globals: globalsFor(storage),
     api: {
       algorithmInquire: async () => ({ resData: { rows: [], total: 0 } }),
-      boxCameraPage: async () => ({ resData: { rows: [] } }),
+      getChannelList: async () => ({ resData: { rows: [] } }),
       boxAlgorithmUpload: async data => { uploaded.push(plain(data)); if (failConsumer) throw failure; return { resCode: 1 } },
       cancelAtomicModelUpload: async data => { cancelled.push(plain(data)); return { resCode: 1 } }
     }

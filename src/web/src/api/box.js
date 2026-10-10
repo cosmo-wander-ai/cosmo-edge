@@ -484,15 +484,6 @@ export default {
     })
   },
 
-  // 查询所有算法信息
-  boxAllAlgorithmInfo(data) {
-    return request({
-      url: '/gtw/cwai/algorithm/page',
-      method: 'post',
-      data
-    })
-  },
-
   getChannelList(data) {
     return request({
       url: '/gtw/cwai/camera/page',

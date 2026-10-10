@@ -123,7 +123,13 @@ for (const linkage of [false, true]) {
       $emit(name) { assert.ok(!/^(flow|edgeMenu):/.test(name), 'graph operations must be canvas-scoped') }
     } },
     '@element-plus/icons-vue': Object.fromEntries(['QuestionFilled', 'ArrowDown', 'ArrowRight', 'CirclePlus', 'CircleClose'].map(name => [name, empty.default])),
-    './ConditionView.vue': empty, './TreeSelectMultiple.vue': empty, 'tree-transfer-vue3': { default: empty.default }
+    '@/components/TreeSelect.vue': { default: {
+      props: ['modelValue', 'data'], emits: ['update:modelValue'],
+      setup(props, { emit }) {
+        return () => h('tree-select-fixture', { ...props, activate: value => emit('update:modelValue', value) })
+      }
+    } },
+    './TreeSelectMultiple.vue': empty, 'tree-transfer-vue3': { default: empty.default }
   }
   const entry = linkage ? 'views/box/strategyManagement/components/ArrangeFlow.vue' : 'views/gam/countManagement/arrangeDetail/flow/ArrangeFlow.vue'
   const editor = await mountComponent(entry, {
@@ -138,7 +144,10 @@ for (const linkage of [false, true]) {
         addEventListener(name, callback) { documentListeners.add(callback) },
         removeEventListener(name, callback) { documentListeners.delete(callback) }
       },
-      localStorage: { setItem() { assert.fail('collecting a node must not persist a localStorage snapshot') } }
+      localStorage: {
+        getItem: () => JSON.stringify([{ key: 'stale-global', name: 'Stale parameter', type: 'select', options: [{ name: 'Legacy', value: 'legacy' }] }]),
+        setItem() { assert.fail('collecting a node must not persist a localStorage snapshot') }
+      }
     }
   })
   const savedItems = (index = 0) => {
@@ -307,6 +316,142 @@ for (const linkage of [false, true]) {
     canvasProps[1].actionList = null
     await editor.settle()
     assert.deepEqual(savedItems(1), secondBefore, 'an unavailable action catalog keeps saved node names')
+
+    // Exercise condition editing through the real canvas, detail panel and form.
+    // A stale browser value is present throughout, including linkage canvases.
+    const metadata = [
+      { params: [
+        { key: 'custom.mode', name: 'Mode', type: 'select', options: [{ name: 'Red', value: 'red' }, { name: 'Blue', value: 'blue' }] },
+        { key: 'custom.tags', name: 'Tags', type: 'check', options: [{ name: 'Tag A', value: 'tag-a' }, { name: 'Tag B', value: 'tag-b' }] },
+        { key: 'node.only', name: 'Node parameter', type: 'text', level: '1' },
+        { key: 'threshold.only', name: 'Threshold', type: 'text', level: '2' }
+      ] },
+      { params: [{ key: 'custom.status', name: 'Status', type: 'radio', options: [{ name: 'Ready', value: 'ready' }, { name: 'Busy', value: 'busy' }] }] }
+    ]
+    const conditionAction = { id: 'condition-action', actionName: 'Condition', actionType: 1, inputParamConfig: JSON.stringify([{ key: 'condition', name: 'Condition', type: 'condition', level: '1' }]) }
+    const initialConditions = [0, 1].map(index => ({
+      key: `saved-${index}`, level: 1, type: 11,
+      keyL: linkage ? 'stale-global' : index === 0 ? 'custom.mode' : 'custom.status',
+      keyR: linkage ? 'legacy' : index === 0 ? 'red' : 'ready',
+      rightType: !linkage && index === 1 ? 'radio' : 'select', list: [], showTools: false
+    }))
+    for (const index of [0, 1]) {
+      canvasProps[index].actionList = [conditionAction]
+      if (!linkage) canvasProps[index].algorithmMetadata = plain(metadata[index])
+      reload(workflow.map(item => ({
+        ...item, actionId: conditionAction.id, actionName: 'Condition',
+        configObject: { params: [], webConfig: { labelList: [], labelFilterList: [], metaDataParams: [], atomic: {} }, condition: plain(initialConditions[index]) }
+      })), index)
+    }
+    await editor.settle()
+    for (const index of [0, 1]) openNode('node-1', index)
+    await editor.settle()
+    const conditionRows = (index = 0) => editor.all(node => hasClass(node, 'condition-row'), graphRoot(index).parent)
+    const leftSelect = (row = 0, index = 0) => editor.all(node => node.type === 'tree-select-fixture', conditionRows(index)[row])[0]
+    const rightSelect = (row = 0, index = 0) => editor.all(node => node.type === 'el-select' && hasClass(node, 'condition-select'), conditionRows(index)[row])[0]
+    const operationSelect = (row = 0, index = 0) => editor.all(node => node.type === 'el-select' && hasClass(node, 'operation-select'), conditionRows(index)[row])[0]
+    const taskCandidates = (index = 0) => plain(leftSelect(0, index).props.data.find(item => item.id === -2)?.children || []).map(item => [item.id, item.label])
+    const selectCandidates = select => editor.all(node => node.type === 'el-option', select).map(node => [node.props.value, node.props.label])
+    const conditionTool = async (rowIndex, toolIndex) => {
+      const row = conditionRows()[rowIndex]
+      row.props.onMouseenter({ target: { blur() {} } })
+      await editor.settle()
+      const tools = editor.all(node => hasClass(node, 'tool-buttons'), row)[0]
+      click(editor.all(node => node.type === 'el-button', tools)[toolIndex])
+      await editor.settle()
+    }
+    const conditionValue = (index = 0) => savedItems(index)[0].configObject.condition
+    const otherConditionsBefore = savedItems(1)
+    assert.deepEqual(conditionValue(), initialConditions[0], 'opening conditions preserves their saved JSON')
+    assert.deepEqual(taskCandidates(), linkage ? [] : [['custom.mode', 'Mode'], ['custom.tags', 'Tags']], 'left candidates contain only this canvas custom parameters')
+    assert.deepEqual(taskCandidates(1), linkage ? [] : [['custom.status', 'Status']], 'a second canvas owns a distinct parameter set')
+    assert.deepEqual(selectCandidates(rightSelect()), linkage ? [] : [['red', 'Red'], ['blue', 'Blue']], 'right candidates ignore stale browser metadata')
+    assert.deepEqual(selectCandidates(rightSelect(0, 1)), linkage ? [] : [['ready', 'Ready'], ['busy', 'Busy']])
+    assert.deepEqual(selectCandidates(operationSelect()).map(([value]) => value), [11, 12, 13, 14, 15, 16], 'comparison operation codes remain stable')
+
+    if (!linkage) {
+      canvasProps[0].algorithmMetadata.params[0].options[0].name = 'Scarlet'
+      canvasProps[0].algorithmMetadata.params[0].options.push({ name: 'Green', value: 'green' })
+      await editor.settle()
+      assert.deepEqual(selectCandidates(rightSelect()), [['red', 'Scarlet'], ['blue', 'Blue'], ['green', 'Green']], 'in-place enum edits immediately update candidates')
+      assert.deepEqual(conditionValue(), initialConditions[0], 'enum edits preserve the selected value and operation')
+      assert.deepEqual(selectCandidates(rightSelect(0, 1)), [['ready', 'Ready'], ['busy', 'Busy']], 'enum edits remain inside their canvas')
+
+      canvasProps[0].algorithmMetadata = { params: [{ key: 'custom.mode', name: 'Replacement mode', type: 'select', options: [{ name: 'Purple', value: 'purple' }] }] }
+      await editor.settle()
+      assert.deepEqual(taskCandidates(), [['custom.mode', 'Replacement mode']], 'replacing metadata refreshes the left candidates')
+      assert.deepEqual(selectCandidates(rightSelect()), [['purple', 'Purple']], 'replacing metadata refreshes the right candidates')
+      assert.deepEqual(conditionValue(), initialConditions[0], 'a candidate change does not reset saved selections that are no longer listed')
+
+      canvasProps[0].algorithmMetadata.params = []
+      await editor.settle()
+      assert.deepEqual(taskCandidates(), [], 'switching to empty metadata clears custom candidates')
+      assert.deepEqual(selectCandidates(rightSelect()), [], 'empty metadata clears enum candidates')
+      assert.deepEqual(taskCandidates(1), [['custom.status', 'Status']], 'clearing metadata leaves another canvas intact')
+      assert.deepEqual(conditionValue(), initialConditions[0], 'clearing candidates does not rewrite the saved condition')
+
+      canvasProps[0].algorithmMetadata = plain(metadata[0])
+      await editor.settle()
+      leftSelect().props.activate('custom.tags')
+      await editor.settle()
+      assert.equal(rightSelect().props.multiple, true, 'selecting a check parameter uses multiple values')
+      assert.deepEqual(selectCandidates(rightSelect()), [['tag-a', 'Tag A'], ['tag-b', 'Tag B']])
+      assert.deepEqual(selectCandidates(operationSelect()).map(([value]) => value), [31, 32], 'contains operation codes remain stable')
+      operationSelect().props.activate(31)
+      rightSelect().props.activate(['tag-a'])
+      await editor.settle()
+      assert.equal(conditionValue().type, 31)
+      assert.deepEqual(conditionValue().keyR, ['tag-a'])
+    }
+
+    const singleCondition = conditionValue()
+    await conditionTool(0, 0)
+    assert.equal(conditionRows().length, 2, 'adding to a leaf creates a condition group')
+    assert.equal(conditionValue().type, 2, 'new groups keep the AND operation code')
+    assert.deepEqual(conditionValue().list[0], { ...singleCondition, level: 2 }, 'grouping preserves the existing condition identity, operation and values')
+    const logicalButton = () => editor.all(node => hasClass(node, 'condition-btn'), graphRoot().parent)[0]
+    for (const expected of [3, 1, 2]) {
+      click(logicalButton())
+      await editor.settle()
+      assert.equal(conditionValue().type, expected, 'logical operations retain their numeric codes and wrap order')
+    }
+    click(editor.all(node => hasClass(node, 'add-icon'), graphRoot().parent)[0])
+    await editor.settle()
+    assert.equal(conditionRows().length, 3, 'adding to a group appends a condition')
+    const groupedItems = savedItems()
+    assert.deepEqual(groupedItems.map(item => item.flowActionId), ['node-1', 'node-2'], 'condition editing retains flow node IDs')
+    assert.equal(new Set(groupedItems[0].configObject.condition.list.map(item => item.key)).size, 3, 'added conditions have distinct persistent IDs')
+    openNode('node-2')
+    await editor.settle()
+    openNode('node-1')
+    await editor.settle()
+    assert.deepEqual(savedItems(), groupedItems, 'switching nodes and reopening preserves grouped condition JSON')
+    reload(groupedItems)
+    await editor.settle()
+    openNode('node-1')
+    await editor.settle()
+    assert.deepEqual(savedItems(), groupedItems, 'saving and reloading preserves condition JSON, IDs and operation codes')
+    assert.equal(conditionRows().length, 3)
+
+    await conditionTool(1, 1)
+    assert.equal(conditionRows().length, 2, 'deleting a condition removes only that leaf')
+    assert.deepEqual(conditionValue().list.map(item => item.key), [singleCondition.key, groupedItems[0].configObject.condition.list[2].key])
+    await conditionTool(1, 1)
+    assert.equal(conditionRows().length, 1, 'a group with one remaining child merges back into a leaf')
+    assert.deepEqual(conditionValue(), singleCondition, 'merging restores the original condition JSON')
+    click(editor.all(node => hasClass(node, 'panel-close'), graphRoot().parent)[0])
+    await editor.settle()
+    openNode('node-1')
+    await editor.settle()
+    assert.deepEqual(conditionValue(), singleCondition, 'the merged condition survives closing and reopening')
+    assert.deepEqual(savedItems(1), otherConditionsBefore, 'condition edits never change another canvas')
+
+    for (const index of [0, 1]) {
+      canvasProps[index].actionList = [action]
+      reload(workflow, index)
+    }
+    await editor.settle()
+    assert.deepEqual(savedItems(1), secondBefore)
 
     confirmation = 'pending'
     click(nodeControl('node-1', 'node-delete'))

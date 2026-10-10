@@ -283,7 +283,6 @@ import { matchesParamDependency } from '@/utils/taskParamOwnership'
 import { ref, onMounted, onBeforeUnmount, getCurrentInstance, watch, computed, toRef, inject } from 'vue'
 import ConditionView from './ConditionView.vue'
 import { v4 } from 'uuid'
-import EventBus from '@/components/eventBus.js'
 import { flowEditorKey } from './flowEditorContext.js'
 import TreeSelectMultiple from './TreeSelectMultiple.vue'
 import TreeTransfer from 'tree-transfer-vue3'
@@ -1230,7 +1229,6 @@ const onClick = (obj) => {
   }
 
   console.log(condition.value)
-  EventBus.$emit('onCondition')
 }
 
 const removeObject = (obj, targetKey) => {

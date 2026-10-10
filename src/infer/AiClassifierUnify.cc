@@ -24,7 +24,6 @@ util::ErrorEnum AiClassifierUnify::Init() {
     }
 
     cosmo::nn::DefaultComponent::Options options;
-    options.profiler = &profiler_;
     classifier_ =
         std::make_unique<cosmo::nn::DefaultComponent>(options, cfg_path_, model_path_, GetDeviceType());
     LOG_DEBUG("DEBUG: Classifier {} Init", model_path_);

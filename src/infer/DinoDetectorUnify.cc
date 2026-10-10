@@ -32,7 +32,6 @@ util::ErrorEnum DinoDetectorUnify::Init() {
 
     try {
         cosmo::nn::DefaultComponent::Options options;
-        options.profiler       = &profiler_;
         options.tokenizer_path = vocab_path_;
         detector_ =
             std::make_unique<cosmo::nn::DefaultComponent>(options, cfg_path_, model_path_, GetDeviceType());

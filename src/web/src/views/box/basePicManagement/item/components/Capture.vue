@@ -173,7 +173,7 @@ const initCameraList = () => {
     pageNum: 1,
     pageSize: 1000
   }
-  proxy.$API.boxQueryCameraList(params).then((res) => {
+  proxy.$API.getChannelList(params).then((res) => {
     const { resData } = res
     let childCameras = []
     childCameras = resData.rows.map((item) => {

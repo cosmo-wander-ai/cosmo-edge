@@ -25,8 +25,6 @@ public:
     [[nodiscard]] Model::MsgAddSend Handle(Model::MsgAddRecv&& data, const RequestDispatchContext& context,
                                            std::error_condition& errc) const;
     [[nodiscard]] Model::MsgUploadTempSend Handle(Model::MsgUploadTempRecv&& data,
-                                                  std::error_condition& errc) const;
-    [[nodiscard]] Model::MsgUploadTempSend Handle(Model::MsgUploadTempRecv&& data,
                                                   const RequestDispatchContext& context,
                                                   std::error_condition& errc) const;
     [[nodiscard]] Model::MsgCancelUploadSend Handle(Model::MsgCancelUploadRecv&& data,

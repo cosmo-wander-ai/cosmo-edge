@@ -416,7 +416,7 @@ const formatResourceTime = (date) => {
 const taskList = ref([])
 
 const loadTaskList = () => {
-  proxy.$API.boxCameraPage({ pageNum: 1, pageSize: 100 }).then(res => {
+  proxy.$API.getChannelList({ pageNum: 1, pageSize: 100 }).then(res => {
     const rows = res?.resData?.rows || []
     const taskMap = {}
 

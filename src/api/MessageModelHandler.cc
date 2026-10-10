@@ -282,14 +282,6 @@ Model::MsgAddSend MessageModelHandler::Handle(Model::MsgAddRecv&& data, const Re
 
 // Upload temp file
 Model::MsgUploadTempSend MessageModelHandler::Handle(Model::MsgUploadTempRecv&& data,
-                                                     std::error_condition& errc) const {
-    Model::MsgUploadTempSend retData{};
-    errc = model_service_.UploadTempFile(data.filePath, data.fileName, data.contentLength, data.uploadId,
-                                         data.chunkIndex, data.totalChunks, retData.resData.filePath);
-    return retData;
-}
-
-Model::MsgUploadTempSend MessageModelHandler::Handle(Model::MsgUploadTempRecv&& data,
                                                      const RequestDispatchContext& context,
                                                      std::error_condition& errc) const {
     Model::MsgUploadTempSend result{};

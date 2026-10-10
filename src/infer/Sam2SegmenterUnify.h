@@ -43,7 +43,6 @@ private:
     std::string cfg_path_;
     std::string model_path_;
     std::unique_ptr<cosmo::nn::DefaultComponent> segmenter_;
-    AppProfiler profiler_;
 };
 
 using Sam2SegmenterUnifyPtr = std::shared_ptr<Sam2SegmenterUnify>;

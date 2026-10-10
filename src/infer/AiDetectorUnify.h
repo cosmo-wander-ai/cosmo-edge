@@ -42,7 +42,6 @@ private:
     std::string model_path_;
     std::vector<std::string> labels_;
     std::unique_ptr<cosmo::nn::DefaultComponent> detector_;
-    AppProfiler profiler_;
 };
 
 using AiDetectorUnifyPtr = std::shared_ptr<AiDetectorUnify>;

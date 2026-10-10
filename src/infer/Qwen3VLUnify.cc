@@ -44,7 +44,6 @@ util::ErrorEnum Qwen3VLUnify::Init() {
 
     try {
         cosmo::nn::DefaultComponent::Options options;
-        options.profiler       = &profiler_;
         options.tokenizer_path = tokenizer_path_;
         generator_ =
             std::make_unique<cosmo::nn::DefaultComponent>(options, cfg_path_, model_path_, GetDeviceType());

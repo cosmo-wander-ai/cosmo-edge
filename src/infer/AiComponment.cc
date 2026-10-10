@@ -15,10 +15,6 @@
 #include "util/Log.h"
 
 namespace cosmo {
-void AppProfiler::ReportGraphInfo(const char* /*msg*/) {}
-
-void AppProfiler::ReportNodeTime(const char* /*node_name*/, double /*time*/) {}
-
 cosmo::nn::DeviceType GetDeviceType() {
 #if defined(COSMO_NN_USE_CPU_BACKEND)
     return cosmo::nn::DeviceType::DEVICE_CPU;
