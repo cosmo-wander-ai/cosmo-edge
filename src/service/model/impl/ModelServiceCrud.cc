@@ -407,16 +407,4 @@ cosmo::util::ErrorEnum ModelServiceImpl::AddAtomicModel(
                                            normalizationMode, colorChannel);
 }
 
-// ──────────────────────────────────────────────
-// Upload — delegates to ModelUploadHelper
-// ──────────────────────────────────────────────
-
-cosmo::util::ErrorEnum ModelServiceImpl::UploadTempFile(
-    const std::string& filePath, const std::string& fileName, const std::string& contentLength,
-    const std::string& uploadId, const std::string& chunkIndex, const std::string& totalChunks,
-    std::string& persistentPath) {
-    return upload_helper_.UploadTempFile(filePath, fileName, contentLength, uploadId, chunkIndex, totalChunks,
-                                         persistentPath);
-}
-
 }  // namespace cosmo::service
