@@ -60,6 +60,10 @@ struct InferencePipelineMetricsSnapshot {
     uint64_t rknn_rga_fill_nanoseconds{0};
     uint64_t rknn_rga_resize_color_calls{0};
     uint64_t rknn_rga_resize_color_nanoseconds{0};
+    uint64_t rknn_rga_small_frame_resize_calls{0};
+    uint64_t rknn_rga_small_frame_resize_nanoseconds{0};
+    uint64_t rknn_rga_small_frame_csc_calls{0};
+    uint64_t rknn_rga_small_frame_csc_nanoseconds{0};
     uint64_t rknn_rga_crop_resize_calls{0};
     uint64_t rknn_rga_crop_resize_nanoseconds{0};
     uint64_t rknn_rga_crop_resize_failures{0};
@@ -146,6 +150,8 @@ public:
     void RecordRknnPreprocessFastHit();
     void RecordRknnRgaFill(uint64_t nanoseconds);
     void RecordRknnRgaResizeColor(uint64_t nanoseconds);
+    void RecordRknnRgaSmallFrameResize(uint64_t nanoseconds);
+    void RecordRknnRgaSmallFrameCsc(uint64_t nanoseconds);
     void RecordRknnRgaCropResize(uint64_t nanoseconds, bool success);
     void RecordRknnRgaCropSource(bool dmabuf);
     void RecordRknnRgaFailure();
@@ -230,6 +236,10 @@ private:
     std::atomic<uint64_t> rknn_rga_fill_nanoseconds_{0};
     std::atomic<uint64_t> rknn_rga_resize_color_calls_{0};
     std::atomic<uint64_t> rknn_rga_resize_color_nanoseconds_{0};
+    std::atomic<uint64_t> rknn_rga_small_frame_resize_calls_{0};
+    std::atomic<uint64_t> rknn_rga_small_frame_resize_nanoseconds_{0};
+    std::atomic<uint64_t> rknn_rga_small_frame_csc_calls_{0};
+    std::atomic<uint64_t> rknn_rga_small_frame_csc_nanoseconds_{0};
     std::atomic<uint64_t> rknn_rga_crop_resize_calls_{0};
     std::atomic<uint64_t> rknn_rga_crop_resize_nanoseconds_{0};
     std::atomic<uint64_t> rknn_rga_crop_resize_failures_{0};

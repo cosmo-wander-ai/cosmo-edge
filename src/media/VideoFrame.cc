@@ -2,6 +2,9 @@
 
 #include "media/VideoFrame.h"
 
+#include <atomic>
+#include <exception>
+#include <mutex>
 #include <thread>
 
 #include "media/PixelFormatUtils.h"
@@ -12,6 +15,16 @@
 
 namespace cosmo {
 namespace media {
+
+    struct VideoFrame::DeferredData {
+        explicit DeferredData(Materializer provider) : materializer(std::move(provider)) {}
+
+        std::once_flag once;
+        Materializer materializer;
+        std::shared_ptr<VideoFrame> frame;
+        std::atomic<bool> completed{false};
+        std::atomic<bool> failed{false};
+    };
 
     VideoFrame::VideoFrame(int w, int h, PixelFormat fmt, uint64_t frameIndex, int64_t ts) {
         pixel_fmt_            = fmt;
@@ -48,19 +61,44 @@ namespace media {
         active_      = true;
     }
 
+    VideoFrame::VideoFrame(int w, int h, PixelFormat fmt, uint64_t frameIndex, int64_t ts,
+                           Materializer materializer) {
+        const auto frame_size = PixelFormatUtils::CalculateFrameSize(w, h, fmt);
+        if (!frame_size || !materializer)
+            return;
+        pixel_fmt_     = fmt;
+        width_         = static_cast<size_t>(w);
+        height_        = static_cast<size_t>(h);
+        channel_       = PixelFormatUtils::PixelFormatChannels(fmt);
+        size_          = *frame_size;
+        frame_index_   = frameIndex;
+        timestamp_     = ts;
+        uuid_          = util::GenerateUUID();
+        deferred_data_ = std::make_shared<DeferredData>(std::move(materializer));
+        active_        = true;
+    }
+
     VideoFrame& VideoFrame::operator=(VideoFrame&& data) noexcept {
         if (&data != this) {
-            size_        = data.GetSize();
-            width_       = data.GetWidth();
-            height_      = data.GetHeight();
-            pixel_fmt_   = data.GetPixelFormat();
-            frame_index_ = data.GetFrameIndex();
-            timestamp_   = data.GetTimestamp();
-            active_      = data.Active();
-            uuid_        = util::GenerateUUID();
+            if (block_) {
+                mem::GetMemoryPool().Recycle(block_);
+                block_ = nullptr;
+            }
+            Clear();
+            size_         = data.GetSize();
+            width_        = data.GetWidth();
+            height_       = data.GetHeight();
+            channel_      = data.GetChannel();
+            pixel_fmt_    = data.GetPixelFormat();
+            frame_index_  = data.GetFrameIndex();
+            timestamp_    = data.GetTimestamp();
+            stream_index_ = data.GetStreamIndex();
+            active_       = data.Active();
+            uuid_         = util::GenerateUUID();
 
             block_           = data.block_;
             host_frame_data_ = data.host_frame_data_;
+            deferred_data_   = std::move(data.deferred_data_);
 
             data.block_           = nullptr;
             data.host_frame_data_ = nullptr;
@@ -77,6 +115,7 @@ namespace media {
         height_      = 0;
         frame_index_ = 0;
         timestamp_   = 0;
+        deferred_data_.reset();
 
         if (host_frame_data_) {
             free(host_frame_data_);
@@ -150,7 +189,11 @@ namespace media {
     }
 
     bool VideoFrame::Active() const {
-        return active_;
+        return active_ && (!deferred_data_ || !deferred_data_->failed.load(std::memory_order_acquire));
+    }
+
+    bool VideoFrame::IsDeferred() const {
+        return deferred_data_ && !deferred_data_->completed.load(std::memory_order_acquire);
     }
 
     std::string VideoFrame::GetName() const {
@@ -166,6 +209,28 @@ namespace media {
     }
 
     uint8_t* VideoFrame::GetData() {
+        if (deferred_data_) {
+            std::call_once(deferred_data_->once, [this]() {
+                // Consume the provider even on failure, so parallel consumers
+                // see the same result and never repeat a failed conversion.
+                auto materializer = std::move(deferred_data_->materializer);
+                try {
+                    auto frame = materializer();
+                    if (frame && frame.get() != this && frame->Active() && frame->GetWidth() == width_ &&
+                        frame->GetHeight() == height_ && frame->GetPixelFormat() == pixel_fmt_ &&
+                        frame->GetData()) {
+                        deferred_data_->frame = std::move(frame);
+                    }
+                } catch (const std::exception& error) {
+                    LOG_WARN("Deferred frame materialization failed: {}", error.what());
+                } catch (...) {
+                    LOG_WARN("{}", "Deferred frame materialization failed");
+                }
+                deferred_data_->failed.store(!deferred_data_->frame, std::memory_order_release);
+                deferred_data_->completed.store(true, std::memory_order_release);
+            });
+            return deferred_data_->frame ? deferred_data_->frame->GetData() : nullptr;
+        }
         if (!block_)
             return nullptr;
 
@@ -182,7 +247,9 @@ bool VideoFrameValid(VideoFramePtr frame, bool blog) {
         return false;
     }
 
-    if (frame->Active()) {
+    // Pixel consumers already use this validation boundary before accessing
+    // data. Metadata-only inference admission uses Active() and can remain lazy.
+    if (frame->Active() && frame->GetData()) {
         return true;
     }
 

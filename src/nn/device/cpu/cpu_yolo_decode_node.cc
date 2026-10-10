@@ -70,10 +70,12 @@ std::vector<CpuYoloBox> CpuYoloDecodeNPUNode::NMS(std::vector<CpuYoloBox>& detec
     while (!detections.empty()) {
         result.push_back(detections[0]);
         for (auto it = detections.begin() + 1; it != detections.end();) {
-            float x1 = std::max(result.back().x, it->x);
-            float y1 = std::max(result.back().y, it->y);
-            float x2 = std::min(result.back().x + result.back().width, it->x + it->width);
-            float y2 = std::min(result.back().y + result.back().height, it->y + it->height);
+            const auto& selected = result.back();
+            // Decode and output use centers; only IoU needs each box's edges.
+            float x1 = std::max(selected.x - selected.width / 2, it->x - it->width / 2);
+            float y1 = std::max(selected.y - selected.height / 2, it->y - it->height / 2);
+            float x2 = std::min(selected.x + selected.width / 2, it->x + it->width / 2);
+            float y2 = std::min(selected.y + selected.height / 2, it->y + it->height / 2);
 
             float intersection = std::max(0.0f, x2 - x1) * std::max(0.0f, y2 - y1);
             float area1        = result.back().width * result.back().height;

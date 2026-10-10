@@ -276,12 +276,20 @@ TEST_CASE("Rockchip MPP decodes its H264 output through the Copy-out boundary",
         std::copy_n(static_cast<const uint8_t*>(target->GetHandle().base), host_result.size(),
                     host_result.begin());
     }
-    const auto inference_before = cosmo::nn::GetInferencePipelineMetrics().Snapshot();
+    const auto inference_before      = cosmo::nn::GetInferencePipelineMetrics().Snapshot();
+    int host_requests                = 0;
+    source_handle.base               = nullptr;
+    source_handle.host_data_provider = [bgr, &host_requests]() -> void* {
+        ++host_requests;
+        return bgr->GetData();
+    };
+    source_blob->SetHandle(source_handle);
     {
         ScopedEnvValue enabled("COSMO_RKNN_MPP_DMABUF", "1");
         REQUIRE(bool(resize_node.Forward(bottoms, tops)));
     }
-    const auto inference_after  = cosmo::nn::GetInferencePipelineMetrics().Snapshot();
+    const auto inference_after = cosmo::nn::GetInferencePipelineMetrics().Snapshot();
+    CHECK(host_requests == 0);
     const auto* native_result   = static_cast<const uint8_t*>(target->GetHandle().base);
     uint64_t absolute_error_sum = 0;
     int max_absolute_error      = 0;
@@ -305,6 +313,7 @@ TEST_CASE("Rockchip MPP decodes its H264 output through the Copy-out boundary",
         REQUIRE(bool(resize_node.Forward(bottoms, tops)));
     }
     const auto fallback_after = cosmo::nn::GetInferencePipelineMetrics().Snapshot();
+    CHECK(host_requests > 0);
     CHECK(std::equal(host_result.begin(), host_result.end(),
                      static_cast<const uint8_t*>(target->GetHandle().base)));
     CHECK(fallback_after.rknn_mpp_dmabuf_fallbacks == fallback_before.rknn_mpp_dmabuf_fallbacks + 1);
@@ -352,6 +361,7 @@ TEST_CASE("Rockchip MPP decodes its H264 output through the Copy-out boundary",
             REQUIRE(VideoFrameValid(replay_bgr, true));
             auto replay_handle                       = source_blob->GetHandle();
             replay_handle.base                       = replay_bgr->GetData();
+            replay_handle.host_data_provider         = {};
             replay_handle.native_image.fd            = replay_native->fd;
             replay_handle.native_image.bytes         = replay_native->bytes;
             replay_handle.native_image.width         = replay_native->width;

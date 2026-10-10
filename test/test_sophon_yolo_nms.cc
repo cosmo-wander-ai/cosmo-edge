@@ -1,6 +1,14 @@
 #include "catch_amalgamated.hpp"
 #include "nn/device/sophon/sophon_yolo_nms.h"
 
+#ifdef COSMO_NN_USE_HOST_BACKEND
+#include <array>
+#include <cmath>
+
+#include "nn/device/cpu/cpu_yolo_decode_node.h"
+#include "nn/utils/op.h"
+#endif
+
 using cosmo::nn::SophonYoloNms;
 using cosmo::nn::YoloBox;
 using cosmo::nn::YoloBoxVec;
@@ -93,3 +101,50 @@ TEST_CASE("Sophon YOLO NMS handles empty and single candidate input", "[nn][soph
         CHECK(result[0].y == -2.25f);
     }
 }
+
+#ifdef COSMO_NN_USE_HOST_BACKEND
+TEST_CASE("CPU YOLO decode NMS agrees with Sophon for unequal centered boxes", "[nn][cpu][nms]") {
+    using namespace cosmo::nn;
+    // Center-based IoU is 80 / 216 > .35. Using centers as upper-left corners
+    // gives 60 / 236 < .35 and incorrectly retains both candidates.
+    const auto logit = [](float probability) { return std::log(probability / (1.0f - probability)); };
+    std::array<float, 6> first{0.0f, 0.0f, 0.0f, 0.0f, logit(std::sqrt(0.9f)), logit(std::sqrt(0.9f))};
+    std::array<float, 6> second{logit(0.6f),           0.0f, 0.0f, 0.0f, logit(std::sqrt(0.8f)),
+                                logit(std::sqrt(0.8f))};
+    YoloNpuPost param;
+    param.top_k              = 2;
+    param.nms_threshold      = 0.35f;
+    param.nms_detection_conf = 0.1f;
+    param.anchors            = {{{10.0f, 10.0f}}, {{14.0f, 14.0f}}};
+    param.stride             = {20.0f, 20.0f};
+    CpuYoloDecodeNPUNode node;
+    node.LoadParam(&param);
+    REQUIRE(bool(node.InferTopShapes()));
+
+    BlobDesc head_desc;
+    head_desc.dims = {1, 1, 1, 1, 6};
+    BlobHandle first_handle, second_handle;
+    first_handle.base  = first.data();
+    second_handle.base = second.data();
+    std::vector<std::shared_ptr<Blob>> heads{std::make_shared<Blob>(head_desc, first_handle),
+                                             std::make_shared<Blob>(head_desc, second_handle)};
+    std::array<float, 12> output{};
+    BlobDesc top_desc;
+    top_desc.dims = node.GetTopBlobShapes().front();
+    BlobHandle top_handle;
+    top_handle.base = output.data();
+    std::vector<std::shared_ptr<Blob>> tops{std::make_shared<Blob>(top_desc, top_handle)};
+    REQUIRE(bool(node.Forward(heads, tops)));
+
+    YoloBoxVec boxes{{10, 10, 10, 10, 0.9f, 0}, {14, 10, 14, 14, 0.8f, 0}};
+    const auto expected = SophonYoloNms(boxes, param.nms_threshold);
+    REQUIRE(expected.size() == 1);
+    CHECK(output[0] == Catch::Approx(expected[0].x));
+    CHECK(output[1] == Catch::Approx(expected[0].y));
+    CHECK(output[2] == Catch::Approx(expected[0].width));
+    CHECK(output[3] == Catch::Approx(expected[0].height));
+    CHECK(output[4] == Catch::Approx(expected[0].confidence));
+    CHECK(output[5] == expected[0].class_id);
+    CHECK(output[10] == 0.0f);  // Suppressed output slot stays empty.
+}
+#endif

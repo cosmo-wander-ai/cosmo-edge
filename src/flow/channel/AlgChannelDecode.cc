@@ -451,30 +451,47 @@ AlgDataPtr AlgChannelDecode::ColorConvert(AlgDataPtr demux_data, VideoFramePtr i
         return nullptr;
     }
 
-    const auto convert_started = std::chrono::steady_clock::now();
-    const auto record_duration = [&]() {
+    // Keep decoded I420 materialization on the decoder thread. Only the packed
+    // AI image can be deferred: it owns this host frame, not the decoder/context.
+    const auto convert = [in_data]() {
+        const auto convert_started = std::chrono::steady_clock::now();
+        auto& transform = service::ServiceRegistry::Instance().Get<service::IVideoFrameTransform>();
+        VideoFramePtr result;
+        const auto pixel_format = in_data->GetPixelFormat();
+        if (pixel_format == media::PixelFormat::PIXEL_BGR8) {
+            result = in_data;
+        } else if (pixel_format == media::PixelFormat::PIXEL_RGB8) {
+            auto i420_frame = transform.RGB2I420(in_data);
+            if (i420_frame)
+                result = transform.I4202BGR(i420_frame);
+        } else if (pixel_format == media::PixelFormat::PIXEL_I420) {
+            result = transform.I4202BGR(in_data);
+        } else {
+            LOG_WARN("Unsupported decoded pixel format {}", static_cast<int>(pixel_format));
+        }
         const auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(
                                  std::chrono::steady_clock::now() - convert_started)
                                  .count();
         nn::GetInferencePipelineMetrics().RecordColorConvert(static_cast<uint64_t>(elapsed));
+        return result;
     };
-    auto& transform = service::ServiceRegistry::Instance().Get<service::IVideoFrameTransform>();
     VideoFramePtr ai_frame;
-    const auto pixel_format = in_data->GetPixelFormat();
-    if (pixel_format == media::PixelFormat::PIXEL_BGR8) {
-        ai_frame = in_data;
-    } else if (pixel_format == media::PixelFormat::PIXEL_RGB8) {
-        auto i420_frame = transform.RGB2I420(in_data);
-        if (i420_frame) {
-            ai_frame = transform.I4202BGR(i420_frame);
-        }
-    } else if (pixel_format == media::PixelFormat::PIXEL_I420) {
-        ai_frame = transform.I4202BGR(in_data);
-    } else {
-        LOG_WARN("{} unsupported decoded pixel format {}", name_, static_cast<int>(pixel_format));
+#if defined(COSMO_NN_USE_RKNN_BACKEND) && defined(COSMO_MEDIA_USE_ROCKCHIP_BACKEND)
+    const bool native_matches = native_buffer && native_buffer->Valid() &&
+                                native_buffer->width == static_cast<int>(in_data->GetWidth()) &&
+                                native_buffer->height == static_cast<int>(in_data->GetHeight()) &&
+                                (native_buffer->format == media::NativeVideoBufferFormat::NV12 ||
+                                 native_buffer->format == media::NativeVideoBufferFormat::I420);
+    if (native_matches && in_data->GetPixelFormat() == media::PixelFormat::PIXEL_I420) {
+        ai_frame = std::make_shared<media::VideoFrame>(
+            static_cast<int>(in_data->GetWidth()), static_cast<int>(in_data->GetHeight()),
+            media::PixelFormat::PIXEL_BGR8, in_data->GetFrameIndex(), in_data->GetTimestamp(), convert);
+    } else
+#endif
+    {
+        ai_frame = convert();
     }
     if ((!ai_frame) || (!ai_frame->Active())) {
-        record_duration();
         action_status_ = util::ErrorEnum::DecoderColorConvertFailed;
         return nullptr;
     }
@@ -493,7 +510,6 @@ AlgDataPtr AlgChannelDecode::ColorConvert(AlgDataPtr demux_data, VideoFramePtr i
 
     data->firstTimePoint = demux_data->firstTimePoint;
     action_status_       = util::ErrorEnum::Success;
-    record_duration();
     return data;
 }
 

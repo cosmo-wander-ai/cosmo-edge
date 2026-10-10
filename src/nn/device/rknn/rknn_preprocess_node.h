@@ -50,6 +50,10 @@ private:
     // Failed acceleration stays disabled for this node's lifetime. The packed
     // RGB path remains available when only native YUV CSC/import is unsupported.
     bool native_rga_unavailable_{false};
+    // A failed full-range BT.709 CSC does not disable NV12-only resizing, or
+    // native CSC for a later frame with different color metadata.
+    bool native_full_range_csc_unavailable_{false};
+    bool native_small_frame_unavailable_{false};
     bool rga_unavailable_{false};
     uint32_t rga_bound_target_handle_{0};
     uint64_t rga_bound_target_generation_{0};

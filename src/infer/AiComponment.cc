@@ -48,7 +48,7 @@ util::ErrorEnum ConvertImagesToBlobs(const std::vector<VideoFramePtr>& images,
     for (size_t i = 0; i < images.size(); i++) {
         auto image = images[i];
         if (!image || !image->Active())
-            continue;
+            return util::ErrorEnum::InvalidParam;
 
 #ifdef COSMO_NN_USE_HOST_BACKEND
         // CPU backend: CpuResizeNode/CpuNormalizeNode expect packed BGR/RGB (NHWC)
@@ -69,6 +69,8 @@ util::ErrorEnum ConvertImagesToBlobs(const std::vector<VideoFramePtr>& images,
             auto bgr_blob = std::make_shared<cosmo::nn::Blob>(bgr_desc, true);
             auto* src     = image->GetData();
             auto* dst     = static_cast<uint8_t*>(bgr_blob->GetHandle().base);
+            if (!src || !dst)
+                return util::ErrorEnum::InvalidParam;
 
             // I420 plane pointers: Y[w*h], U[w*h/4], V[w*h/4]
             const uint8_t* yp = src;
@@ -116,7 +118,6 @@ util::ErrorEnum ConvertImagesToBlobs(const std::vector<VideoFramePtr>& images,
                              static_cast<int>(cosmo::nn::ImageFormatChannels(desc.image_format))};
         desc.device_type  = GetDeviceType();
         cosmo::nn::BlobHandle handle;
-        handle.base = image->GetData();
         if (i < native_buffers.size() && native_buffers[i] && native_buffers[i]->Valid() &&
             native_buffers[i]->width == static_cast<int>(image->GetWidth()) &&
             native_buffers[i]->height == static_cast<int>(image->GetHeight())) {
@@ -144,6 +145,21 @@ util::ErrorEnum ConvertImagesToBlobs(const std::vector<VideoFramePtr>& images,
             } else if (native.format == media::NativeVideoBufferFormat::I420) {
                 handle.native_image.format = cosmo::nn::IMAGE_I420;
             }
+        }
+#if defined(COSMO_NN_USE_RKNN_BACKEND) && defined(COSMO_MEDIA_USE_ROCKCHIP_BACKEND)
+        if (image->IsDeferred() && handle.native_image.Valid()) {
+            // Retain both owners: native-aware preprocessing may never request
+            // BGR, while another consumer or a hardware fallback can request it.
+            handle.host_data_provider = [image, native = native_buffers[i]]() -> void* {
+                (void)native;  // The borrowed fd remains valid for the blob's lifetime.
+                return image->GetData();
+            };
+        } else
+#endif
+        {
+            handle.base = image->GetData();
+            if (!handle.base)
+                return util::ErrorEnum::InvalidParam;
         }
         blob->SetBlobDesc(desc);
         blob->SetHandle(handle);
@@ -175,6 +191,8 @@ std::shared_ptr<cosmo::nn::Blob> ConvertImageToBlob(VideoFramePtr image) {
         auto bgr_blob = std::make_shared<cosmo::nn::Blob>(bgr_desc, true);
         auto* src     = image->GetData();
         auto* dst     = static_cast<uint8_t*>(bgr_blob->GetHandle().base);
+        if (!src || !dst)
+            return nullptr;
 
         const uint8_t* yp = src;
         const uint8_t* up = src + w * h;
@@ -217,6 +235,8 @@ std::shared_ptr<cosmo::nn::Blob> ConvertImageToBlob(VideoFramePtr image) {
     desc.device_type  = GetDeviceType();
     cosmo::nn::BlobHandle handle;
     handle.base = image->GetData();
+    if (!handle.base)
+        return nullptr;
     blob->SetBlobDesc(desc);
     blob->SetHandle(handle);
 

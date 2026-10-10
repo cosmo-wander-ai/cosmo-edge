@@ -121,6 +121,8 @@ Status CpuSequenceNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs
                                 std::vector<std::shared_ptr<Blob>>& params,
                                 std::vector<std::shared_ptr<Blob>>& top_blobs) {
     timer.Start();
+    RETURN_ON_FAIL(CheckNodeInputOutput(bottom_blobs, top_blobs, false));
+    RETURN_ON_FAIL(CheckNodeInputOutput(params, top_blobs, false));
 
     const int image_count = bottom_blobs.size();
     const int rect_count  = params.size();

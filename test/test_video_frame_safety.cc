@@ -1,18 +1,25 @@
+#include <algorithm>
+#include <array>
+#include <atomic>
 #include <limits>
 #include <memory>
+#include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "catch_amalgamated.hpp"
+#include "infer/AiComponment.h"
 #include "media/EncodedImageInfo.h"
 #include "media/PixelFormatUtils.h"
 #include "media/VideoDecoder.h"
 #include "media/VideoFrame.h"
+#include "mem/AllocatorCpu.h"
+#include "mem/MemoryPoolMng.h"
 #include "util/CipherUtil.h"
 #include "util/VideoInfo.h"
 
 #ifdef COSMO_NN_USE_SOPHON_BACKEND
-#include <algorithm>
 #include <chrono>
 #include <vector>
 
@@ -103,6 +110,173 @@ TEST_CASE("Deferred decoded frames materialize or discard exactly once", "[video
     materialized.Discard();
     CHECK(materialize_count == 1);
     CHECK(discard_count == 1);
+}
+
+TEST_CASE("Deferred host pixels preserve identity and materialize once across consumers",
+          "[video-frame-safety][deferred-host]") {
+    mem::MemoryPoolMng pool(std::make_unique<mem::AllocatorCpu>(), {48});
+    mem::SetMemoryPoolContext(&pool);
+    struct ResetPool {
+        ~ResetPool() {
+            mem::SetMemoryPoolContext(nullptr);
+        }
+    } reset_pool;
+    auto source = std::make_shared<VideoFrame>(4, 4, PixelFormat::PIXEL_BGR8, 42, 123456);
+    REQUIRE(source->Active());
+    source->SetStreamIndex(7);
+    std::fill_n(source->GetData(), source->GetSize(), uint8_t{93});
+    auto* expected_data                       = source->GetData();
+    std::weak_ptr<VideoFrame> retained_source = source;
+    std::atomic<int> calls{0};
+    auto deferred =
+        std::make_shared<VideoFrame>(4, 4, PixelFormat::PIXEL_BGR8, 42, 123456, [source, &calls]() {
+            ++calls;
+            return source;
+        });
+    deferred->SetStreamIndex(7);
+    source.reset();
+    CHECK_FALSE(retained_source.expired());
+    CHECK(deferred->Active());
+    CHECK(deferred->IsDeferred());
+    CHECK(deferred->GetFrameIndex() == 42);
+    CHECK(deferred->GetTimestamp() == 123456);
+    CHECK(deferred->GetStreamIndex() == 7);
+    CHECK(deferred->GetWidth() == 4);
+    CHECK(deferred->GetHeight() == 4);
+    CHECK(deferred->GetSize() == 48);
+    CHECK(calls == 0);
+
+    std::array<uint8_t*, 8> pixels{};
+    std::vector<std::thread> consumers;
+    for (size_t index = 0; index < pixels.size(); ++index) {
+        consumers.emplace_back([&, index]() { pixels[index] = deferred->GetData(); });
+    }
+    for (auto& consumer : consumers)
+        consumer.join();
+    CHECK(calls == 1);
+    CHECK_FALSE(deferred->IsDeferred());
+    for (auto* data : pixels) {
+        REQUIRE(data == expected_data);
+        CHECK(data[47] == 93);
+    }
+    CHECK(VideoFrameValid(deferred));
+    CHECK(calls == 1);
+    deferred.reset();
+    CHECK(retained_source.expired());
+}
+
+TEST_CASE("Unused deferred host pixels release their source without conversion",
+          "[video-frame-safety][deferred-host]") {
+    auto owner                        = std::make_shared<int>(42);
+    std::weak_ptr<int> retained_owner = owner;
+    int calls                         = 0;
+    auto deferred =
+        std::make_shared<VideoFrame>(4, 4, PixelFormat::PIXEL_BGR8, 42, 123456, [owner, &calls]() {
+            (void)owner;
+            ++calls;
+            return VideoFramePtr{};
+        });
+    owner.reset();
+    REQUIRE(deferred->Active());
+    CHECK_FALSE(retained_owner.expired());
+    deferred.reset();
+    CHECK(calls == 0);
+    CHECK(retained_owner.expired());
+}
+
+TEST_CASE("Deferred host failures are cached and rejected by pixel validation",
+          "[video-frame-safety][deferred-host]") {
+    int calls     = 0;
+    auto deferred = std::make_shared<VideoFrame>(4, 4, PixelFormat::PIXEL_BGR8, 42, 123456, [&]() {
+        ++calls;
+        return VideoFramePtr{};
+    });
+    REQUIRE(deferred->Active());
+    CHECK_FALSE(VideoFrameValid(deferred));
+    CHECK(deferred->GetData() == nullptr);
+    CHECK_FALSE(deferred->Active());
+    CHECK_FALSE(deferred->IsDeferred());
+    CHECK(calls == 1);
+}
+
+TEST_CASE("Inference rejects failed deferred pixels without shrinking the image batch",
+          "[video-frame-safety][deferred-host]") {
+    auto failed     = std::make_shared<VideoFrame>(4, 4, PixelFormat::PIXEL_BGR8, 42, 123456,
+                                                   []() { return VideoFramePtr{}; });
+    int later_calls = 0;
+    auto later      = std::make_shared<VideoFrame>(4, 4, PixelFormat::PIXEL_BGR8, 43, 123457, [&]() {
+        ++later_calls;
+        return VideoFramePtr{};
+    });
+    SECTION("first host request fails") {
+        REQUIRE(failed->Active());
+    }
+    SECTION("another consumer already observed the failure") {
+        REQUIRE(failed->GetData() == nullptr);
+        REQUIRE_FALSE(failed->Active());
+    }
+    std::vector<std::shared_ptr<nn::Blob>> blobs;
+    CHECK(ConvertImagesToBlobs({failed, later}, blobs) == util::ErrorEnum::InvalidParam);
+    CHECK(blobs.empty());
+    CHECK(later_calls == 0);
+    CHECK(ConvertImageToBlob(failed) == nullptr);
+}
+
+TEST_CASE("Deferred host frames reject a mismatched provider layout", "[video-frame-safety][deferred-host]") {
+    mem::MemoryPoolMng pool(std::make_unique<mem::AllocatorCpu>(), {48});
+    mem::SetMemoryPoolContext(&pool);
+    struct ResetPool {
+        ~ResetPool() {
+            mem::SetMemoryPoolContext(nullptr);
+        }
+    } reset_pool;
+    auto rgb = std::make_shared<VideoFrame>(4, 4, PixelFormat::PIXEL_RGB8);
+    REQUIRE(rgb->Active());
+    auto deferred =
+        std::make_shared<VideoFrame>(4, 4, PixelFormat::PIXEL_BGR8, 42, 123456, [rgb]() { return rgb; });
+    CHECK_FALSE(VideoFrameValid(deferred));
+    CHECK(deferred->GetData() == nullptr);
+}
+
+TEST_CASE("Deferred host exceptions are cached across concurrent consumers",
+          "[video-frame-safety][deferred-host]") {
+    std::atomic<int> calls{0};
+    auto deferred =
+        std::make_shared<VideoFrame>(4, 4, PixelFormat::PIXEL_BGR8, 42, 123456, [&]() -> VideoFramePtr {
+            ++calls;
+            throw std::runtime_error("conversion failed");
+        });
+    std::array<bool, 8> valid{};
+    std::vector<std::thread> consumers;
+    for (size_t index = 0; index < valid.size(); ++index)
+        consumers.emplace_back([&, index]() { valid[index] = VideoFrameValid(deferred); });
+    for (auto& consumer : consumers)
+        consumer.join();
+    CHECK(calls == 1);
+    CHECK(std::none_of(valid.begin(), valid.end(), [](bool value) { return value; }));
+    CHECK_FALSE(deferred->Active());
+    CHECK_FALSE(deferred->IsDeferred());
+}
+
+TEST_CASE("Moving a deferred host frame preserves identity without conversion",
+          "[video-frame-safety][deferred-host]") {
+    int calls = 0;
+    VideoFrame source(4, 4, PixelFormat::PIXEL_BGR8, 42, 123456, [&]() {
+        ++calls;
+        return VideoFramePtr{};
+    });
+    source.SetStreamIndex(7);
+    VideoFrame target(0, 0);
+    target = std::move(source);
+    CHECK_FALSE(source.Active());
+    CHECK(target.Active());
+    CHECK(target.IsDeferred());
+    CHECK(target.GetFrameIndex() == 42);
+    CHECK(target.GetTimestamp() == 123456);
+    CHECK(target.GetStreamIndex() == 7);
+    CHECK(calls == 0);
+    CHECK(target.GetData() == nullptr);
+    CHECK(calls == 1);
 }
 
 TEST_CASE("Frame size calculation rejects unsafe dimensions", "[video-frame-safety]") {

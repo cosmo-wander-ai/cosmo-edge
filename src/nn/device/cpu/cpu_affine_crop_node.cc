@@ -131,6 +131,8 @@ Status CpuAffineCropNode::Forward(std::vector<std::shared_ptr<Blob>>& image_blob
                                   std::vector<std::shared_ptr<Blob>>& landmark_blobs,
                                   std::vector<std::shared_ptr<Blob>>& top_blobs) {
     timer.Start();
+    RETURN_ON_FAIL(CheckNodeInputOutput(image_blobs, top_blobs, false));
+    RETURN_ON_FAIL(CheckNodeInputOutput(landmark_blobs, top_blobs, false));
 
     if (image_blobs.empty() || landmark_blobs.empty())
         return Status(COSMO_NN_ERR_INVALID_INPUT, "empty input blobs");

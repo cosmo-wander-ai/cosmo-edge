@@ -138,6 +138,7 @@ Status CpuResizeNode::ResizeSingle(std::shared_ptr<Blob>& bottom, std::shared_pt
 Status CpuResizeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
                               std::vector<std::shared_ptr<Blob>>& top_blobs) {
     timer.Start();
+    RETURN_ON_FAIL(CheckNodeInputOutput(bottom_blobs, top_blobs, false));
 
     auto top_blob = top_blobs.at(0);
 

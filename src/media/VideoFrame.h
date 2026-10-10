@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <functional>
 #include <memory>
 #include <string>
 
@@ -13,8 +14,15 @@ namespace media {
 
     class VideoFrame {
     public:
+        using Materializer = std::function<std::shared_ptr<VideoFrame>()>;
+
         VideoFrame(int width, int height, PixelFormat format = PixelFormat::PIXEL_I420,
                    uint64_t frameIndex = 0, int64_t timestamp = 0);
+
+        // A deferred frame exposes its identity without allocating pixels. The
+        // provider retains its source and runs at most once, on first GetData().
+        VideoFrame(int width, int height, PixelFormat format, uint64_t frameIndex, int64_t timestamp,
+                   Materializer materializer);
 
         VideoFrame& operator=(VideoFrame&& data) noexcept;
 
@@ -48,6 +56,7 @@ namespace media {
         void SetStreamIndex(int64_t streamIndex);
 
         bool Active() const;
+        bool IsDeferred() const;
 
         std::string GetName() const;
 
@@ -76,6 +85,9 @@ namespace media {
 
         mem::Block* block_        = nullptr;
         uint8_t* host_frame_data_ = nullptr;
+
+        struct DeferredData;
+        std::shared_ptr<DeferredData> deferred_data_;
     };
 
 }  // namespace media
