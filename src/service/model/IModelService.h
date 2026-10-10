@@ -1,5 +1,5 @@
 /// @file IModelService.h
-/// @brief Model service interface — full CRUD, import/export, chunked upload,
+/// @brief Model service interface — full CRUD, import/export,
 ///        and configuration management for AI model packages.
 ///        Inherits IModelQuery and IModelPathMapping for ISP compliance.
 #pragma once
@@ -51,23 +51,6 @@ public:
     /// @param filePath Path to the model archive.
     /// @return ErrorEnum::kSuccess on success.
     virtual cosmo::util::ErrorEnum ModelAdd(const std::string& filePath) = 0;
-
-    // ── Chunked File Upload ──
-
-    /// Upload a temporary file chunk (supports resumable uploads).
-    /// @param filePath       Local path of the uploaded chunk.
-    /// @param fileName       Original file name.
-    /// @param contentLength  Total content length.
-    /// @param uploadId       Unique upload session ID.
-    /// @param chunkIndex     Current chunk index (0-based).
-    /// @param totalChunks    Total number of chunks.
-    /// @param persistentPath [out] Path to the assembled file after all chunks arrive.
-    /// @return ErrorEnum::kSuccess on success.
-    virtual cosmo::util::ErrorEnum UploadTempFile(const std::string& filePath, const std::string& fileName,
-                                                  const std::string& contentLength,
-                                                  const std::string& uploadId, const std::string& chunkIndex,
-                                                  const std::string& totalChunks,
-                                                  std::string& persistentPath) = 0;
 
     // ── Model Configuration ──
 

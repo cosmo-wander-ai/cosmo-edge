@@ -23,11 +23,6 @@ public:
                std::vector<cosmo::ModelInfo>(const std::string&, const std::string&, int, int, size_t&),
                override);
     MAKE_MOCK1(GetModelInfo, cosmo::ModelInfo(const std::string&), override);
-    MAKE_MOCK7(UploadTempFile,
-               cosmo::util::ErrorEnum(const std::string&, const std::string&, const std::string&,
-                                      const std::string&, const std::string&, const std::string&,
-                                      std::string&),
-               override);
     MAKE_MOCK4(GetModelConfig, cosmo::util::ErrorEnum(const std::string&, std::string&, bool&, std::string&),
                override);
     MAKE_MOCK2(SaveModelConfig, cosmo::util::ErrorEnum(const std::string&, const std::string&), override);

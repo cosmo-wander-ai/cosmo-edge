@@ -9,7 +9,6 @@
 #include "service/model/IModelService.h"
 #include "service/model/impl/ModelImportExporter.h"
 #include "service/model/impl/ModelPathMapper.h"
-#include "service/model/impl/ModelUploadHelper.h"
 
 namespace cosmo::service {
 
@@ -33,12 +32,6 @@ public:
     std::vector<cosmo::ModelInfo> QueryModelInfo(const std::string& modelName, const std::string& modelCode,
                                                  int pageNum, int pageSize, size_t& total) override;
     cosmo::ModelInfo GetModelInfo(const std::string& modelCode) override;
-
-    // ---- Temp file upload (delegates to ModelUploadHelper) ----
-    cosmo::util::ErrorEnum UploadTempFile(const std::string& filePath, const std::string& fileName,
-                                          const std::string& contentLength, const std::string& uploadId,
-                                          const std::string& chunkIndex, const std::string& totalChunks,
-                                          std::string& persistentPath) override;
 
     // ---- Config CRUD ----
     cosmo::util::ErrorEnum GetModelConfig(const std::string& modelCode, std::string& configJson,
@@ -110,7 +103,6 @@ private:
     // ---- Extracted sub-components ----
     ModelPathMapper path_mapper_;
     ModelImportExporter import_exporter_;
-    ModelUploadHelper upload_helper_;
 };
 
 }  // namespace cosmo::service
