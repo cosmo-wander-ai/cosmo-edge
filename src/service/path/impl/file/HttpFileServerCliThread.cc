@@ -8,6 +8,7 @@
 #include "network/http/HttpPost.h"
 #include "service/path/dto/ClientMsgFile.h"
 #include "util/FileUtil.h"
+#include "util/JsonStructUtil.h"
 #include "util/Log.h"
 
 namespace cosmo::service {
@@ -110,10 +111,12 @@ int CHttpFileServerCliThread::RetryUpload(int max_retries, CUploadFileTask& task
         if (res_msg.msgCode == kErrCodeBadRequest || res_msg.msgCode == kErrCodeTokenExpA ||
             res_msg.msgCode == kErrCodeTokenExpB) {
             cosmo::CMsgReqGetFileServerConfig req;
-            auto get_result =
-                http_post_
-                    .HttpClientSubmit<cosmo::CMsgReqGetFileServerConfig, cosmo::CMsgReqGetFileServerConfig>(
-                        cosmo::network::http::CliReqType::kCliGetFileSrv, req, req);
+            std::string response;
+            bool get_result = http_post_.GetFileServerConfig(response);
+            if (get_result && !cosmo::util::DecodeJson(response, req)) {
+                LOG_ERRO("HTTP POST response DecodeJson failed, response_bytes:{}", response.size());
+                get_result = false;
+            }
             if (get_result && req.resCode == cosmo::kClientRspSuccess) {
                 LOG_INFO("{} Token refreshed, retrying upload", kTag);
                 file_server_cli_.SetIpPort(req.resData.fileServerUrl);
