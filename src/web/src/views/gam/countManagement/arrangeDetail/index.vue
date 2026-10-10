@@ -206,18 +206,6 @@ const getDetail = (algorithmId, isChooseModel) => {
       algorithmData.value.algorithmCode = route.query.algorithmId
     }
 
-    // 处理自定义参数
-    let customMetadata = []
-    algorithmMetadata.value.params.forEach((item) => {
-      if (!item.level) {
-        customMetadata.push(item)
-      }
-    })
-    // 如果存在自定义任务参数，保存到编排中，条件判断使用
-    if (customMetadata.length > 0) {
-      localStorage.setItem('customMetadata', JSON.stringify(customMetadata))
-    }
-
     if (algorithmMetadata.value?.region?.heads?.length == 0) {
       initMetadata()
     }
@@ -287,17 +275,6 @@ const getTemplateDetail = (algorithmId) => {
     algorithmData.value = resData
     algorithmMetadata.value = JSON.parse(algorithmData.value.algorithmMetadata)
     algorithmData.value.algorithmCode = route.query.algorithmId
-
-    // 处理自定义参数
-    let customMetadata = []
-    algorithmMetadata.value.params.forEach((item) => {
-      if (!item.level) {
-        customMetadata.push(item)
-      }
-    })
-    if (customMetadata.length > 0) {
-      localStorage.setItem('customMetadata', JSON.stringify(customMetadata))
-    }
 
     if (algorithmMetadata.value?.region?.heads?.length == 0) {
       initMetadata()
@@ -421,17 +398,6 @@ const handleConfigData = () => {
   }
   const params = configRef.value.saveParamConfig()
   algorithmMetadata.value.params = params
-  const customMetadata = []
-  algorithmMetadata.value.params.forEach((item) => {
-    if (!item.level) {
-      customMetadata.push(item)
-    }
-  })
-  if (customMetadata.length > 0) {
-    localStorage.setItem('customMetadata', JSON.stringify(customMetadata))
-  } else {
-    localStorage.removeItem('customMetadata')
-  }
 }
 
 const handleMetaData = () => {

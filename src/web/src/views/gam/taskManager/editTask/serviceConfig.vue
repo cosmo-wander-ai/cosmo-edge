@@ -141,7 +141,6 @@ import { QuestionFilled, CircleCheckFilled } from '@element-plus/icons-vue'
 import areaSetting from './areaSetting2.vue'
 import { regionParams } from '@/utils/visualQuestions'
 import paramSetting from './paramSetting.vue'
-import EventBus from '@/components/eventBus.js'
 import { v4 } from 'uuid'
 import Batch from './BatchApplication.vue'
 import { getLocationQueryParam } from '@/utils/locationQuery'
@@ -543,7 +542,6 @@ const resetConfig = () => {
   config.value.shieldAreaRows = []
   config.value.shieldAreaHeader = []
   config.value.areasTitle = []
-  EventBus.$emit('resetSelectPoints', '')
 }
 
 const getSelectConfig = () => {
