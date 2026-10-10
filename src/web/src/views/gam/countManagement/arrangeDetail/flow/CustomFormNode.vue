@@ -1,82 +1,27 @@
 <template>
-  <div class="action-node" :class="{ selected: props.data?.selected }">
-    <button type="button" class="node-delete" @click.stop="handleDelete">×</button>
+  <div
+    class="action-node"
+    :class="{ selected: props.data?.selected }"
+    :style="{ width: `${FLOW_NODE_SIZE.width}px`, height: `${FLOW_NODE_SIZE.height}px` }"
+  >
+    <button
+      type="button"
+      class="node-delete"
+      :title="t('action.delete')"
+      :aria-label="`${t('action.delete')} ${resolveResourceActionName(nodeActionDetail)}`"
+      @click.stop="handleDelete"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7M14 10v7" />
+      </svg>
+    </button>
     <Handle type="target" :position="Position.Left" />
 
     <div class="node-card" @click.stop="handleClick">
-      <div class="node-icon-wrapper" :class="iconColorClass">
-        <!-- 视频解码 -->
-        <svg v-if="iconKey === 'video'" class="node-icon-svg" style="width:30px;height:30px" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <rect x="3" y="4" width="18" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/>
-          <polygon points="10,7.5 10,13.5 15,10.5" fill="currentColor"/>
-          <line x1="8" y1="20" x2="16" y2="20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          <line x1="12" y1="17" x2="12" y2="20" stroke="currentColor" stroke-width="1.5"/>
-        </svg>
-        <!-- 目标检测 -->
-        <svg v-else-if="iconKey === 'target'" class="node-icon-svg" style="width:30px;height:30px" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
-          <circle cx="12" cy="12" r="2.5" fill="currentColor"/>
-          <line x1="12" y1="2" x2="12" y2="6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          <line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          <line x1="2" y1="12" x2="6" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          <line x1="18" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-        <!-- 追踪 -->
-        <svg v-else-if="iconKey === 'tracking'" class="node-icon-svg" style="width:30px;height:30px" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="5" cy="18" r="2" fill="currentColor"/>
-          <circle cx="19" cy="6" r="2" fill="currentColor"/>
-          <path d="M7 17C8 13 10 10 13 9c2-.7 4-.5 5-1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          <polyline points="16,3 19,6 16,9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        <!-- 大模型/AI -->
-        <svg v-else-if="iconKey === 'ai'" class="node-icon-svg" style="width:30px;height:30px" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="12" cy="5" r="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
-          <circle cx="5" cy="19" r="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
-          <circle cx="19" cy="19" r="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
-          <line x1="12" y1="7.5" x2="6.5" y2="16.5" stroke="currentColor" stroke-width="1.5"/>
-          <line x1="12" y1="7.5" x2="17.5" y2="16.5" stroke="currentColor" stroke-width="1.5"/>
-          <line x1="7.5" y1="19" x2="16.5" y2="19" stroke="currentColor" stroke-width="1.5"/>
-        </svg>
-        <!-- 类别过滤/目标判断 -->
-        <svg v-else-if="iconKey === 'classify'" class="node-icon-svg" style="width:30px;height:30px" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <rect x="3.5" y="8" width="6.5" height="6.5" rx="1" transform="rotate(45 6.75 11.25)" fill="currentColor"/>
-          <rect x="14" y="8" width="6.5" height="6.5" rx="1" transform="rotate(45 17.25 11.25)" fill="currentColor"/>
-        </svg>
-        <!-- 目标分类 — 网格 -->
-        <svg v-else-if="iconKey === 'grid'" class="node-icon-svg" style="width:30px;height:30px" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <rect x="3" y="3" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
-          <rect x="14" y="3" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
-          <rect x="3" y="14" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
-          <rect x="14" y="14" width="7" height="7" rx="1.5" fill="currentColor" stroke="currentColor" stroke-width="1.5"/>
-        </svg>
-        <!-- 类别过滤 — 漏斗 -->
-        <svg v-else-if="iconKey === 'filter'" class="node-icon-svg" style="width:30px;height:30px" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <polygon points="2,4 22,4 14,14 14,21 10,21 10,14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
-        </svg>
-        <!-- 目标判断 — 盾牌勾选 -->
-        <svg v-else-if="iconKey === 'judge'" class="node-icon-svg" style="width:30px;height:30px" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 2L3 7v5c0 5.25 3.83 10.17 9 11.38C17.17 22.17 21 17.25 21 12V7l-9-5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
-          <polyline points="9,12 11,14 15,10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        <!-- 计时 -->
-        <svg v-else-if="iconKey === 'timer'" class="node-icon-svg" style="width:30px;height:30px" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="1.5"/>
-          <polyline points="12,9 12,13 15,15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          <line x1="12" y1="2" x2="12" y2="5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          <line x1="9" y1="2" x2="15" y2="2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-        <!-- 事件上报 -->
-        <svg v-else-if="iconKey === 'send'" class="node-icon-svg" style="width:30px;height:30px" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path d="M22 2L11 13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M22 2L15 22L11 13L2 9L22 2Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
-        </svg>
-        <!-- 默认-齿轮 -->
-        <svg v-else class="node-icon-svg" style="width:30px;height:30px" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/>
-          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" fill="none" stroke="currentColor" stroke-width="1.5"/>
-        </svg>
+      <div class="node-icon-wrapper">
+        <FlowNodeIcon :kind="iconKey" />
       </div>
-      <div class="node-name">{{ resolveResourceActionName(nodeActionDetail) }}</div>
+      <div class="node-name" :title="resolveResourceActionName(nodeActionDetail)">{{ resolveResourceActionName(nodeActionDetail) }}</div>
     </div>
 
     <Handle type="source" :position="Position.Right" />
@@ -89,6 +34,8 @@ import { Handle, Position } from '@vue-flow/core'
 import { ElMessageBox } from 'element-plus'
 import { flowEditorKey } from './flowEditorContext.js'
 import { getIconInfo } from './iconMapping.js'
+import FlowNodeIcon from './FlowNodeIcon.vue'
+import { FLOW_NODE_SIZE } from './layoutGeometry.js'
 import { t } from '@/i18n'
 import { resolveResourceActionName } from '@/utils/i18nResource'
 
@@ -105,7 +52,6 @@ const props = defineProps({
 
 const nodeActionDetail = computed(() => props.data?.actionDetail)
 const iconKey = computed(() => getIconInfo(nodeActionDetail.value?.actionId).key)
-const iconColorClass = computed(() => getIconInfo(nodeActionDetail.value?.actionId).color)
 
 const editor = inject(flowEditorKey)
 let mounted = true
@@ -132,9 +78,7 @@ const handleDelete = () => {
 .action-node {
   background: var(--flow-node);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
-  width: 96px;
-  min-height: 96px;
+  border-radius: 8px;
   box-sizing: border-box;
   box-shadow: none;
   position: relative;
@@ -148,53 +92,46 @@ const handleDelete = () => {
   border-color: var(--flow-node-hover-border);
 }
 
-/* 选中态：indigo 发光边框 */
 .action-node.selected {
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px var(--flow-selected-ring);
+  box-shadow: 0 0 0 2px var(--flow-selected-ring);
 }
 
-.node-card {
+.action-node .node-card {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 14px 6px 10px;
+  padding: 20px 5px 8px;
   cursor: pointer;
   width: 100%;
+  height: 100%;
   box-sizing: border-box;
-  gap: 6px;
+  gap: 8px;
+  box-shadow: none;
 }
 
 .node-icon-wrapper {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.node-icon-wrapper.icon-blue   { background: var(--flow-icon-blue-bg); color: var(--primary-color); }
-.node-icon-wrapper.icon-purple { background: var(--flow-icon-purple-bg); color: var(--flow-icon-purple-text); }
-.node-icon-wrapper.icon-orange { background: var(--flow-icon-orange-bg); color: var(--flow-icon-orange-text); }
-.node-icon-wrapper.icon-green  { background: var(--flow-icon-green-bg); color: var(--flow-icon-green-text); }
-.node-icon-wrapper.icon-gray   { background: var(--bg-secondary); color: var(--text-secondary); }
-
-.node-icon-svg {
-  width: 30px;
-  height: 30px;
+  flex-shrink: 0;
+  color: var(--flow-node-text);
 }
 
 .node-name {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--flow-node-text);
   text-align: center;
-  line-height: 1.25;
+  line-height: 16px;
+  min-height: 32px;
+  max-height: 32px;
+  width: 100%;
   word-break: normal;
-  overflow-wrap: break-word;
-  max-width: 88px;
+  overflow-wrap: anywhere;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -203,22 +140,56 @@ const handleDelete = () => {
 
 .node-delete {
   position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 1px solid var(--danger-color);
-  background-color: var(--flow-delete-bg);
-  color: var(--danger-color);
-  font-size: 12px;
-  line-height: 1;
+  top: 2px;
+  right: 2px;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 0;
   cursor: pointer;
   z-index: 10;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s, background-color 0.15s, color 0.15s;
+}
+
+.node-delete svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.action-node:hover .node-delete,
+.action-node.selected .node-delete,
+.action-node:focus-within .node-delete {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .node-delete:hover {
-  background-color: var(--flow-delete-hover);
+  background-color: var(--bg-secondary);
+  color: var(--flow-node-text);
+}
+
+.node-delete:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 1px;
+}
+
+@media (any-pointer: coarse) {
+  .node-delete {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 </style>

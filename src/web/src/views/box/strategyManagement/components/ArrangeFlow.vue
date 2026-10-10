@@ -655,7 +655,10 @@ watch(
 }
 
 .page-main :deep(.vue-flow__controls) {
-  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: none;
+  overflow: hidden;
 }
 
 .page-main :deep(.vue-flow__controls-button) {
@@ -679,8 +682,11 @@ watch(
 }
 
 .page-main :deep(.vue-flow__handle) {
+  width: 6px;
+  height: 6px;
+  border: 2px solid var(--flow-handle-ring);
+  border-radius: 50%;
   background: var(--flow-edge);
-  border-color: var(--flow-handle-ring);
 }
 
 .page-main :deep(.vue-flow__handle:hover) {
@@ -689,6 +695,7 @@ watch(
 
 .page-main :deep(.vue-flow__edge-path) {
   stroke: var(--flow-edge);
+  stroke-width: 1.25;
 }
 
 .page-main :deep(.vue-flow__edge.selected .vue-flow__edge-path),
@@ -699,7 +706,8 @@ watch(
 .page-main :deep(.edge-menu) {
   color: var(--text-primary);
   background: var(--bg-white);
-  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
 }
 
 .component-dialog {

@@ -1,9 +1,9 @@
 <template>
-  <div class="end-node">
+  <div class="end-node" :style="{ width: `${FLOW_TERMINAL_SIZE.width}px`, height: `${FLOW_TERMINAL_SIZE.height}px` }">
     <Handle type="target" :position="Position.Left" />
     <div class="node-icon">
-      <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor">
-        <rect x="4" y="4" width="16" height="16" rx="2" />
+      <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7">
+        <rect x="5" y="5" width="14" height="14" rx="2" />
       </svg>
     </div>
     <span class="end-label">{{ t('glossary.end') }}</span>
@@ -13,6 +13,7 @@
 <script setup>
 import { Handle, Position } from '@vue-flow/core'
 import { t } from '@/i18n'
+import { FLOW_TERMINAL_SIZE } from './layoutGeometry.js'
 
 const props = defineProps({
   id: {
@@ -28,49 +29,17 @@ const props = defineProps({
 <style scoped>
 .end-node {
   position: relative;
-  width: 76px;
-  height: 96px;
   box-sizing: border-box;
-  border-radius: 12px;
-  background: var(--flow-end-bg);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  color: var(--flow-end-text);
-  box-shadow: inset 0 0 0 1px var(--flow-end-outline);
-}
-
-.node-icon {
+  border: 1px solid var(--flow-action-border);
+  border-radius: 24px;
+  background: var(--flow-node);
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
+  color: var(--flow-node-text);
 }
 
-.end-label {
-  font-size: 11px;
-  margin-top: 2px;
-  letter-spacing: 1px;
-}
-
-.node-delete {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 1px solid var(--danger-color);
-  background-color: var(--flow-delete-bg);
-  color: var(--danger-color);
-  font-size: 12px;
-  line-height: 1;
-  padding: 0;
-  cursor: pointer;
-}
-
-.node-delete:hover {
-  background-color: var(--flow-delete-hover);
-}
+.node-icon { display: flex; align-items: center; justify-content: center; }
+.end-label { font-size: 12px; font-weight: 500; }
 </style>

@@ -1,9 +1,9 @@
 <template>
-  <div class="start-node">
+  <div class="start-node" :style="{ width: `${FLOW_TERMINAL_SIZE.width}px`, height: `${FLOW_TERMINAL_SIZE.height}px` }">
     <Handle type="source" :position="Position.Right" />
     <div class="node-icon">
-      <svg viewBox="0 0 24 24" width="30" height="30" fill="#fff">
-        <polygon points="6,4 20,12 6,20" />
+      <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
+        <polygon points="7,4 20,12 7,20" />
       </svg>
     </div>
     <span class="start-label">{{ t('glossary.start') }}</span>
@@ -13,6 +13,7 @@
 <script setup>
 import { Handle, Position } from '@vue-flow/core'
 import { t } from '@/i18n'
+import { FLOW_TERMINAL_SIZE } from './layoutGeometry.js'
 
 const props = defineProps({
   id: {
@@ -26,49 +27,17 @@ const props = defineProps({
 <style scoped>
 .start-node {
   position: relative;
-  width: 76px;
-  height: 96px;
   box-sizing: border-box;
-  border-radius: 12px;
-  background: var(--primary-button-bg, var(--primary-color));
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  color: #ffffff;
-  box-shadow: none;
-}
-
-.node-icon {
+  border: 1px solid var(--flow-action-border);
+  border-radius: 24px;
+  background: var(--flow-node);
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
+  color: var(--flow-node-text);
 }
 
-.start-label {
-  font-size: 11px;
-  margin-top: 2px;
-  letter-spacing: 1px;
-}
-
-.node-delete {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 1px solid var(--danger-color);
-  background-color: var(--flow-delete-bg);
-  color: var(--danger-color);
-  font-size: 12px;
-  line-height: 1;
-  padding: 0;
-  cursor: pointer;
-}
-
-.node-delete:hover {
-  background-color: var(--flow-delete-hover);
-}
+.node-icon { display: flex; align-items: center; justify-content: center; }
+.start-label { font-size: 12px; font-weight: 500; }
 </style>

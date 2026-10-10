@@ -37,8 +37,8 @@ defineProps({
   left: 0;
   width: 100%;
   text-align: center;
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 500;
   line-height: 18px;
   white-space: nowrap;
 }
@@ -48,10 +48,10 @@ defineProps({
   top: 24px;
   left: 0;
   right: 0;
-  height: 10px;
-  border-top: 2px dashed;
-  border-left: 2px dashed;
-  border-right: 2px dashed;
+  height: 4px;
+  border-top: 1px solid;
+  border-left: 1px solid;
+  border-right: 1px solid;
   border-bottom: none;
   border-radius: 0;
   pointer-events: none;

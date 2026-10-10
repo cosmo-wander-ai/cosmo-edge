@@ -126,8 +126,6 @@ const addDialogEdgeId = ref('')
 const addDialogX = ref(0)
 const addDialogY = ref(0)
 
-const nodeWidth = 260
-const nodeHeight = 160
 const layoutDirection = 'LR'
 const newFlowData = ref([])
 const atomicList = ref([])
@@ -159,7 +157,7 @@ const getNodeDimensions = (node) => {
       height: Number(node.data?.height) || 180
     }
   }
-  // 所有业务节点均为固定尺寸卡片（不再有展开态）
+  // Card and terminal dimensions match their rendered components.
   return getFlowNodeDimensions(node)
 }
 
@@ -1023,7 +1021,7 @@ watch(
 .page-main :deep(.vue-flow__controls) {
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
   overflow: hidden;
 }
 
@@ -1141,8 +1139,8 @@ watch(
 
 /* 连接锚点 handle 基本样式（原 theme-default 提供） */
 .vue-flow__handle {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   background: var(--flow-edge, #b1b1b7);
   border: 2px solid var(--flow-handle-ring, #fff);
   border-radius: 50%;
@@ -1155,7 +1153,7 @@ watch(
 /* 连线基本样式 */
 .vue-flow__edge-path {
   stroke: var(--flow-edge, #b1b1b7);
-  stroke-width: 1.5;
+  stroke-width: 1.25;
 }
 
 .vue-flow__edge.selected .vue-flow__edge-path,

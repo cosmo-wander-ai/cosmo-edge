@@ -1,11 +1,14 @@
 import { isAlarmDataAction } from './linkageFormCompatibility.js'
 
-export const FLOW_NODE_SIZE = Object.freeze({ width: 76, height: 96 })
+export const FLOW_NODE_SIZE = Object.freeze({ width: 96, height: 96 })
+export const FLOW_TERMINAL_SIZE = Object.freeze({ width: 96, height: 48 })
 export const DETAIL_PANEL_SIZE = Object.freeze({ width: 360, height: 350 })
 export const ALARM_DETAIL_PANEL_SIZE = Object.freeze({ width: 760, height: 430 })
 export const DETAIL_PANEL_GAP = 12
 
-export const getFlowNodeDimensions = () => ({ ...FLOW_NODE_SIZE })
+export const getFlowNodeDimensions = (node) => ({
+  ...(node?.type === 'start' || node?.type === 'end' ? FLOW_TERMINAL_SIZE : FLOW_NODE_SIZE)
+})
 
 export const getFlowBounds = (
   nodes,

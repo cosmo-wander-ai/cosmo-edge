@@ -4,7 +4,7 @@
     <div class="edge-action-wrapper" :style="{
         transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
       }">
-      <button type="button" class="edge-action-button" @click.stop="handleClick">
+      <button type="button" class="edge-action-button" :aria-label="t('action.addComponent')" :aria-expanded="menuVisible" @click.stop="handleClick">
         +
       </button>
       <div v-if="menuVisible" class="edge-menu">
@@ -122,11 +122,11 @@ export default {
   width: 24px;
   height: 24px;
   padding: 0;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 500;
   line-height: 22px;
   border-radius: 50%;
-  border: 1.5px solid var(--flow-action-border);
+  border: 1px solid var(--flow-action-border);
   background-color: var(--flow-node);
   color: var(--text-secondary);
   cursor: pointer;
@@ -134,7 +134,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: border-color 0.15s, color 0.15s, background-color 0.15s;
 }
 .edge-action-button.is-disabled,
 .edge-action-button:disabled {
@@ -154,19 +154,19 @@ export default {
   border-color: var(--primary-color);
   color: var(--primary-color);
   background-color: var(--el-color-primary-light-9);
-  box-shadow: 0 2px 8px var(--flow-selected-ring);
+  box-shadow: none;
 }
 
 .edge-menu {
   position: absolute;
-  top: 48px;
+  top: 34px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 10px 16px;
-  border-radius: 18px;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: 6px;
   color: var(--text-primary);
   background: var(--bg-secondary);
   box-shadow: var(--shadow-md);
@@ -191,7 +191,8 @@ export default {
 }
 
 .edge-action-button:focus-visible {
-  outline-color: var(--primary-color);
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }
 
 .edge-menu .divider {
