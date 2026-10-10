@@ -12,6 +12,7 @@
         :node-data="detailPanelNodeData"
         :atomic-list="atomicList"
         :position="screenPanelPosition"
+        :viewport="{ width, height }"
         @close="closeDetailPanel"
         @config-change="handlePanelConfigChange"
       />
@@ -126,7 +127,7 @@ const currentViewport = ref({ x: 0, y: 0, zoom: 1 })
 const screenPanelPosition = computed(() => getDetailPanelScreenPosition(
   detailPanelPosition.value,
   currentViewport.value,
-  getDetailPanelSize(detailPanelNodeData.value?.actionId)
+  getDetailPanelSize(detailPanelNodeData.value?.actionId, props)
 ))
 const parseArray = (val) => {
   if (Array.isArray(val)) return val
@@ -295,7 +296,7 @@ const handleNodeClick = ({ node } = {}) => {
     collectCurrentPanelConfig()
   }
   const dimensions = getNodeDimensions(node)
-  const panelSize = getDetailPanelSize(node.data?.actionId)
+  const panelSize = getDetailPanelSize(node.data?.actionId, props)
   const { x: panelX, y: panelY } = getDetailPanelAnchor(
     node,
     dimensions,

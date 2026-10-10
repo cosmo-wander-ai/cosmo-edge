@@ -139,8 +139,6 @@ assert.deepEqual(getFlowBounds([node], () => ({ width: 20, height: 30 }), {
   minX: 0, minY: 0, maxX: 1000, maxY: 800
 }), { minX: 0, minY: 0, maxX: 1000, maxY: 800 })
 
-console.log('linkage flow layout checks passed')
-
 // Fixed-size floating panels remain centered and included in canvas bounds at
 // every zoom. Screen-space dimensions must not shrink with the graph.
 for (const zoom of [0.4, 0.75, 1, 1.5]) {
@@ -155,3 +153,39 @@ for (const zoom of [0.4, 0.75, 1, 1.5]) {
     assert.ok(screen.y > (node.position.y + FLOW_NODE_SIZE.height) * zoom + viewport.y)
   }
 }
+
+// A short canvas must leave room for the selected node as well as the detached
+// scrolling panel. These are the two browser fixtures that previously clipped
+// the graph when a 430px alarm panel was centered into a smaller canvas.
+for (const viewport of [{ width: 1040, height: 510 }, { width: 820, height: 420 }]) {
+  for (const actionId of ['LA_AlarmData_Code', 'EVT_00001', 'BA_00001']) {
+    const size = getDetailPanelSize(actionId, viewport)
+    assert.ok(size.width <= viewport.width - 16)
+    assert.ok(size.height <= viewport.height - 160, 'panel reserves a visible graph row')
+    assert.ok(size.height >= 120, 'panel retains room for a header and scrolling controls')
+    const selected = { type: 'customForm', position: { x: 300, y: 0 } }
+    const anchor = getDetailPanelAnchor(selected, FLOW_NODE_SIZE, size)
+    const zoom = 0.75
+    const bounds = getFlowBounds([selected], getFlowNodeDimensions, getDetailPanelCanvasBounds(anchor, size, zoom))
+    const transform = {
+      x: viewport.width / 2 - (bounds.minX + bounds.maxX) / 2 * zoom,
+      y: viewport.height / 2 - (bounds.minY + bounds.maxY) / 2 * zoom,
+      zoom
+    }
+    const screen = getDetailPanelScreenPosition(anchor, transform, size)
+    const nodeBottom = (selected.position.y + FLOW_NODE_SIZE.height) * zoom + transform.y
+    assert.ok(transform.y >= 8, 'selected node stays inside the canvas')
+    assert.ok(screen.y >= nodeBottom + DETAIL_PANEL_GAP * zoom - 0.01, 'panel does not cover the selected node')
+    assert.ok(screen.x >= 8 && screen.x + size.width <= viewport.width - 8)
+    assert.ok(screen.y + size.height <= viewport.height - 8, 'last panel controls remain within the canvas')
+  }
+}
+for (const viewport of [{ width: 240, height: 180 }, { width: 12, height: 12 }]) {
+  const size = getDetailPanelSize('LA_AlarmData_Code', viewport)
+  assert.ok(size.width > 0 && size.width <= viewport.width)
+  assert.ok(size.height > 0 && size.height <= viewport.height)
+}
+assert.deepEqual(getDetailPanelSize('LA_AlarmData_Code', { width: 0, height: 0 }), ALARM_DETAIL_PANEL_SIZE,
+  'an unmeasured viewport keeps the default dimensions')
+
+console.log('linkage flow layout checks passed')

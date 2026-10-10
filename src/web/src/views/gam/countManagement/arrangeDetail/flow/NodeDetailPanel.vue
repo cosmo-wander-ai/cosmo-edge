@@ -53,6 +53,7 @@ const props = defineProps({
   nodeId: { type: String, required: true },
   nodeData: { type: Object, default: () => ({}) },
   atomicList: { type: Array, default: () => [] },
+  viewport: { type: Object, default: () => ({}) },
   position: { type: Object, default: () => ({ x: 0, y: 0 }) }
 })
 
@@ -86,8 +87,8 @@ const dragOffset = ref({ x: 0, y: 0 })
 const isDragging = ref(false)
 
 const panelStyle = computed(() => ({
-  '--panel-width': `${getDetailPanelSize(actionDetail.value?.actionId).width}px`,
-  '--panel-height': `${getDetailPanelSize(actionDetail.value?.actionId).height}px`,
+  '--panel-width': `${getDetailPanelSize(actionDetail.value?.actionId, props.viewport).width}px`,
+  '--panel-height': `${getDetailPanelSize(actionDetail.value?.actionId, props.viewport).height}px`,
   // The panel uses screen pixels while its anchor follows the zoomable canvas.
   // Keep its controls reachable after zooming, resizing or dragging near an edge.
   left: `clamp(8px, ${props.position.x + dragOffset.value.x}px, max(8px, calc(100% - var(--panel-width) - 8px)))`,

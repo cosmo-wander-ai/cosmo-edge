@@ -23,6 +23,7 @@
         :node-data="detailPanelNodeData"
         :atomic-list="atomicList"
         :position="screenPanelPosition"
+        :viewport="{ width, height }"
         @close="closeDetailPanel"
         @config-change="handlePanelConfigChange"
       />
@@ -310,7 +311,7 @@ const currentViewport = ref({ x: 0, y: 0, zoom: 1 })
 const screenPanelPosition = computed(() => getDetailPanelScreenPosition(
   detailPanelPosition.value,
   currentViewport.value,
-  getDetailPanelSize(detailPanelNodeData.value?.actionId)
+  getDetailPanelSize(detailPanelNodeData.value?.actionId, props)
 ))
 
 /** VueFlow 视口移动/缩放时更新坐标 */
@@ -347,7 +348,7 @@ const openDetailPanel = (nodeId) => {
   }
 
   const dim = getNodeDimensions(node)
-  const panelSize = getDetailPanelSize(node.data?.actionId)
+  const panelSize = getDetailPanelSize(node.data?.actionId, props)
 
   // 面板顶部对齐选中节点的底部，X 居中对齐节点
   const { x: panelX, y: panelY } = getDetailPanelAnchor(node, dim, panelSize)
