@@ -55,6 +55,8 @@ TEST_CASE("Inference pipeline metrics expose host, graph, and RKNN stage timings
     metrics.RecordRknnMppDmaBufImport(7'000, false);
     metrics.RecordRknnMppDmaBufFrame(3'133'440);
     metrics.RecordRknnMppDmaBufFallback();
+    metrics.RecordRknnRgaSmallFrameResize(1'200'000);
+    metrics.RecordRknnRgaSmallFrameCsc(800'000);
     metrics.RecordRknnOutputFormat(true, 1'225'600);
     metrics.RecordRknnOutputFormat(false, 4'902'400, true);
     metrics.RecordRknnYolov8Transform(1'400'000, 1'500'000);
@@ -138,6 +140,11 @@ TEST_CASE("Inference pipeline metrics expose host, graph, and RKNN stage timings
     CHECK(snapshot.rknn_mpp_dmabuf_import_nanoseconds == 67'000);
     CHECK(snapshot.rknn_mpp_dmabuf_import_failures == 1);
     CHECK(snapshot.rknn_mpp_dmabuf_frames == 1);
+    CHECK(snapshot.rknn_rga_small_frame_resize_calls == 1);
+    CHECK(snapshot.rknn_rga_small_frame_resize_nanoseconds == 1200000);
+    CHECK(snapshot.rknn_rga_small_frame_csc_calls == 1);
+    CHECK(snapshot.rknn_rga_small_frame_csc_nanoseconds == 800000);
+
     CHECK(snapshot.rknn_mpp_dmabuf_fallbacks == 1);
     CHECK(snapshot.rknn_mpp_dmabuf_source_bytes == 3'133'440);
     CHECK(snapshot.rknn_native_int8_outputs == 1);

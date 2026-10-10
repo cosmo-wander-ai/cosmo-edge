@@ -180,6 +180,10 @@ TEST_CASE("accelerator telemetry exposes additive load semantics", "[json][syste
     original.rknnBoundInputFrames               = 4;
     original.rknnRgaBoundInputFrames            = 4;
     original.rknnRgaBoundUint8Frames            = 4;
+    original.rknnRgaSmallFrameResizeCalls       = 3;
+    original.rknnRgaSmallFrameResizeMs          = 5.5;
+    original.rknnRgaSmallFrameCscCalls          = 3;
+    original.rknnRgaSmallFrameCscMs             = 2.5;
     original.rknnMppDmaBufImportCalls           = 4;
     original.rknnMppDmaBufImportMs              = 1.25;
     original.rknnMppDmaBufFrames                = 4;
@@ -208,6 +212,10 @@ TEST_CASE("accelerator telemetry exposes additive load semantics", "[json][syste
     CHECK(doc["rknnBoundInputFrames"] == 4);
     CHECK(doc["rknnRgaBoundInputFrames"] == 4);
     CHECK(doc["rknnRgaBoundUint8Frames"] == 4);
+    CHECK(doc["rknnRgaSmallFrameResizeCalls"] == 3);
+    CHECK(doc["rknnRgaSmallFrameResizeMs"] == 5.5);
+    CHECK(doc["rknnRgaSmallFrameCscCalls"] == 3);
+    CHECK(doc["rknnRgaSmallFrameCscMs"] == 2.5);
     CHECK(doc["rknnMppDmaBufImportCalls"] == 4);
     CHECK(doc["rknnMppDmaBufFrames"] == 4);
     CHECK(doc["rknnMppDmaBufSourceBytes"] == 12'533'760);
@@ -243,6 +251,10 @@ TEST_CASE("accelerator telemetry exposes additive load semantics", "[json][syste
     CHECK(restored.rknnBoundInputFrames == original.rknnBoundInputFrames);
     CHECK(restored.rknnRgaBoundInputFrames == original.rknnRgaBoundInputFrames);
     CHECK(restored.rknnRgaBoundUint8Frames == original.rknnRgaBoundUint8Frames);
+    CHECK(restored.rknnRgaSmallFrameResizeCalls == original.rknnRgaSmallFrameResizeCalls);
+    CHECK(restored.rknnRgaSmallFrameResizeMs == original.rknnRgaSmallFrameResizeMs);
+    CHECK(restored.rknnRgaSmallFrameCscCalls == original.rknnRgaSmallFrameCscCalls);
+    CHECK(restored.rknnRgaSmallFrameCscMs == original.rknnRgaSmallFrameCscMs);
     CHECK(restored.rknnMppDmaBufImportCalls == original.rknnMppDmaBufImportCalls);
     CHECK(restored.rknnMppDmaBufImportMs == original.rknnMppDmaBufImportMs);
     CHECK(restored.rknnMppDmaBufFrames == original.rknnMppDmaBufFrames);

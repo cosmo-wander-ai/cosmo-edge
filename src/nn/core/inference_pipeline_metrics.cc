@@ -96,6 +96,14 @@ void InferencePipelineMetrics::RecordRknnRgaResizeColor(uint64_t nanoseconds) {
     RecordStage(rknn_rga_resize_color_calls_, rknn_rga_resize_color_nanoseconds_, 1, nanoseconds);
 }
 
+void InferencePipelineMetrics::RecordRknnRgaSmallFrameResize(uint64_t nanoseconds) {
+    RecordStage(rknn_rga_small_frame_resize_calls_, rknn_rga_small_frame_resize_nanoseconds_, 1, nanoseconds);
+}
+
+void InferencePipelineMetrics::RecordRknnRgaSmallFrameCsc(uint64_t nanoseconds) {
+    RecordStage(rknn_rga_small_frame_csc_calls_, rknn_rga_small_frame_csc_nanoseconds_, 1, nanoseconds);
+}
+
 void InferencePipelineMetrics::RecordRknnRgaCropResize(uint64_t nanoseconds, bool success) {
     RecordStage(rknn_rga_crop_resize_calls_, rknn_rga_crop_resize_nanoseconds_, 1, nanoseconds);
     if (!success)
@@ -300,6 +308,10 @@ InferencePipelineMetricsSnapshot InferencePipelineMetrics::Snapshot() const {
     SNAPSHOT_FIELD(rknn_rga_fill_nanoseconds);
     SNAPSHOT_FIELD(rknn_rga_resize_color_calls);
     SNAPSHOT_FIELD(rknn_rga_resize_color_nanoseconds);
+    SNAPSHOT_FIELD(rknn_rga_small_frame_resize_calls);
+    SNAPSHOT_FIELD(rknn_rga_small_frame_resize_nanoseconds);
+    SNAPSHOT_FIELD(rknn_rga_small_frame_csc_calls);
+    SNAPSHOT_FIELD(rknn_rga_small_frame_csc_nanoseconds);
     SNAPSHOT_FIELD(rknn_rga_crop_resize_calls);
     SNAPSHOT_FIELD(rknn_rga_crop_resize_nanoseconds);
     SNAPSHOT_FIELD(rknn_rga_crop_resize_failures);

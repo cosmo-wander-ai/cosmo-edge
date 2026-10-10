@@ -192,6 +192,10 @@ void from_json(const nlohmann::json& j, MsgGpuInfo& v) {
     JSON_OPT(j, v, rknnMppDmaBufImportCalls);
     JSON_OPT(j, v, rknnMppDmaBufImportMs);
     JSON_OPT(j, v, rknnMppDmaBufImportFailures);
+    JSON_OPT(j, v, rknnRgaSmallFrameResizeCalls);
+    JSON_OPT(j, v, rknnRgaSmallFrameResizeMs);
+    JSON_OPT(j, v, rknnRgaSmallFrameCscCalls);
+    JSON_OPT(j, v, rknnRgaSmallFrameCscMs);
     JSON_OPT(j, v, rknnMppDmaBufFrames);
     JSON_OPT(j, v, rknnMppDmaBufFallbacks);
     JSON_OPT(j, v, rknnMppDmaBufSourceBytes);
@@ -361,6 +365,10 @@ void to_json(nlohmann::json& j, const MsgGpuInfo& v) {
     j["rknnMppDmaBufImportCalls"]           = v.rknnMppDmaBufImportCalls;
     j["rknnMppDmaBufImportMs"]              = v.rknnMppDmaBufImportMs;
     j["rknnMppDmaBufImportFailures"]        = v.rknnMppDmaBufImportFailures;
+    j["rknnRgaSmallFrameResizeCalls"]       = v.rknnRgaSmallFrameResizeCalls;
+    j["rknnRgaSmallFrameResizeMs"]          = v.rknnRgaSmallFrameResizeMs;
+    j["rknnRgaSmallFrameCscCalls"]          = v.rknnRgaSmallFrameCscCalls;
+    j["rknnRgaSmallFrameCscMs"]             = v.rknnRgaSmallFrameCscMs;
     j["rknnMppDmaBufFrames"]                = v.rknnMppDmaBufFrames;
     j["rknnMppDmaBufFallbacks"]             = v.rknnMppDmaBufFallbacks;
     j["rknnMppDmaBufSourceBytes"]           = v.rknnMppDmaBufSourceBytes;

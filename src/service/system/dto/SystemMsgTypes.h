@@ -177,6 +177,11 @@ struct MsgGpuInfo {
     uint64_t rknnMppDmaBufImportCalls{0};
     double rknnMppDmaBufImportMs{0.0};
     uint64_t rknnMppDmaBufImportFailures{0};
+    // Hybrid native resize + small host RGB conversion; distinct from full-frame host fallback.
+    uint64_t rknnRgaSmallFrameResizeCalls{0};
+    double rknnRgaSmallFrameResizeMs{0.0};
+    uint64_t rknnRgaSmallFrameCscCalls{0};
+    double rknnRgaSmallFrameCscMs{0.0};
     uint64_t rknnMppDmaBufFrames{0};
     uint64_t rknnMppDmaBufFallbacks{0};
     uint64_t rknnMppDmaBufSourceBytes{0};
