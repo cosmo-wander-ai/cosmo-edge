@@ -119,14 +119,6 @@ export default {
       timeout: 60000
     })
   },
-  // 查询原子模型组件列表接口
-  getModelComponents: (data) => {
-    return request({
-      url: '/gtw/cwai/atomic/model/getModelComponents',
-      method: 'post',
-      data
-    })
-  },
   // 查询原子模型配置接口
   getModelConfig: (data) => {
     return request({

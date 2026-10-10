@@ -5,14 +5,6 @@ function getIp() {
 }
 
 export default {
-  //  获取相机列表
-  boxQueryCameraList(data) {
-    return request({
-      url: '/gtw/cwai/camera/page',
-      method: 'post',
-      data
-    })
-  },
   //  请求预览任务
   boxRequestLiveStream(data) {
     return request({
@@ -69,5 +61,4 @@ export default {
     return `${wsUrl}/wsInterface/requestEventResult`
   }
 }
-
 

@@ -598,7 +598,7 @@ const initCameraList = () => {
     pageNum: 1,
     pageSize: 1000
   }
-  $API.boxQueryCameraList(params).then((res) => {
+  $API.getChannelList(params).then((res) => {
     const { resData } = res
     let childCameras = []
     childCameras = resData.rows.map((item) => {
@@ -770,7 +770,7 @@ const getAlgorithmInfo = () => {
     pageNum: 1,
     pageSize: 1000
   }
-  $API.boxAllAlgorithmInfo(params).then((res) => {
+  $API.algorithmInquire(params).then((res) => {
     const { resData } = res
     rawAlgorithmList.value = resData.rows || []
     updateAlgorithmInfoList()

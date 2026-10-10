@@ -993,7 +993,7 @@ const handleVideoRepeatInput = (val) => {
 }
 
 const getTimetemplate = () => {
-  proxy.$API.boxGetTimeTemplate({}).then((res) => {
+  proxy.$API.queryTimeTemplatePage({}).then((res) => {
     const { resData } = res
     timeTemplateList.value = resData.rows || []
   })

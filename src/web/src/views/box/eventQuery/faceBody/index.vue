@@ -297,7 +297,7 @@ const getAlgorithmInfo = () => {
     pageNum: 1,
     pageSize: 1000
   }
-  proxy.$API.boxAllAlgorithmInfo(params).then((res) => {
+  proxy.$API.algorithmInquire(params).then((res) => {
     const { resData } = res
     rawAlgorithmList.value = resData.rows || []
     updateAlgorithmOptions()
