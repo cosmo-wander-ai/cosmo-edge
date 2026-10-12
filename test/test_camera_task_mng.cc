@@ -175,6 +175,53 @@ TEST_CASE("CameraServiceImpl basic task operations", "[CameraServiceImpl]") {
     }
 }
 
+TEST_CASE("CameraServiceImpl supports more than five tasks per channel", "[CameraServiceImpl]") {
+    CameraTaskMngDependencies mocks;
+    const std::string cameraId = "test_camera_many_tasks";
+    std::filesystem::remove_all(CameraConfigRoot() / cameraId);
+    CameraServiceImpl svc;
+    MsgCameraInfo config;
+    config.videoChannelId = cameraId;
+    config.channelName    = "test";
+    config.url            = "rtsp://127.0.0.1:1/test";
+    config.channelType    = MsgCameraType::MsgCameraTypeLive;
+    std::string outId;
+    REQUIRE(svc.Add(config, outId) == util::ErrorEnum::Success);
+    ALLOW_CALL(mocks.scheduleSvc, Exist2("sched1", _)).LR_SIDE_EFFECT(_2 = "Schedule 1").RETURN(true);
+
+    for (int i = 0; i < 8; ++i) {
+        const auto algorithmId = "test_alg_" + std::to_string(i);
+        CAPTURE(algorithmId);
+        if (i % 3 == 0) {
+            REQUIRE(svc.ModifyTaskStrategy(cameraId, algorithmId, "sched1") == util::ErrorEnum::Success);
+        } else if (i % 3 == 1) {
+            REQUIRE(svc.SwitchTask(cameraId, algorithmId, false) == util::ErrorEnum::Success);
+        } else {
+            MsgTaskConfig params;
+            REQUIRE(svc.PrepareTask(cameraId, algorithmId, params, "sched1") == util::ErrorEnum::Success);
+        }
+    }
+    REQUIRE(svc.GetTasks(cameraId).size() == 8);
+
+    // Reassigning an existing algorithm must not create a duplicate task.
+    REQUIRE(svc.ModifyTaskStrategy(cameraId, "test_alg_0", "sched1") == util::ErrorEnum::Success);
+    REQUIRE(svc.GetTasks(cameraId).size() == 8);
+    svc.Stop();
+
+    // A new service must restore every persisted task and allow further assignments.
+    CameraServiceImpl restored;
+    REQUIRE(restored.Add(config, outId) == util::ErrorEnum::Success);
+    REQUIRE(restored.GetTasks(cameraId).size() == 8);
+    for (int i = 0; i < 8; ++i) {
+        bool enable = true;
+        REQUIRE(restored.QuerySwitch(cameraId, "test_alg_" + std::to_string(i), enable) ==
+                util::ErrorEnum::Success);
+        REQUIRE_FALSE(enable);
+    }
+    REQUIRE(restored.ModifyTaskStrategy(cameraId, "test_alg_8", "sched1") == util::ErrorEnum::Success);
+    REQUIRE(restored.GetTasks(cameraId).size() == 9);
+}
+
 TEST_CASE("CameraServiceImpl reapplies unchanged saved parameters before every restart",
           "[CameraServiceImpl][task-parameters][restart]") {
     std::filesystem::remove_all(CameraConfigRoot() / "test_camera_param_restart");

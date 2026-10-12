@@ -453,11 +453,6 @@ void CameraServiceImpl::LoadCameraTaskList(CameraEntityPtr camera) {
 // ============================================================
 
 util::ErrorEnum CameraServiceImpl::MakeCameraTask(const CameraEntityPtr& camera, CameraTaskPtr task) {
-    const bool is_existing_task =
-        std::find(camera->tasks_.begin(), camera->tasks_.end(), task) != camera->tasks_.end();
-    if (!is_existing_task && camera->tasks_.size() >= camera->max_task_count_) {
-        return util::ErrorEnum::TaskTooMuch;
-    }
     auto algData = ServiceRegistry::Instance().Get<IAlgorithmQuery>().GetAlgorithm(task->algorithm_code_);
     if (!algData) {
         return util::ErrorEnum::ActionAlgNotExist;

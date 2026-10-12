@@ -146,8 +146,6 @@ util::ErrorEnum CameraServiceImpl::SaveTask(const std::string& cameraId, const s
                 return util::ErrorEnum::InvalidParam;
             }
             needs_enable = enable && !(*it)->is_enabled_.load(std::memory_order_acquire);
-        } else if (camera->tasks_.size() >= camera->max_task_count_) {
-            return util::ErrorEnum::TaskTooMuch;
         }
     }
 

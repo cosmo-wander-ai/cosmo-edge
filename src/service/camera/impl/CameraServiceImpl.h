@@ -55,8 +55,7 @@ public:
 
     // ---- Per-camera task runtime state (not persisted) ----
     mutable std::shared_mutex task_mtx_;  // Protects tasks_
-    std::vector<CameraTaskPtr> tasks_;    // Max 5 algorithm tasks per channel
-    size_t max_task_count_{5};
+    std::vector<CameraTaskPtr> tasks_;    // Algorithm tasks assigned to this channel
 
     std::string conf_file_path_{};  // ${cameraCfgPath}/${cameraId}
     std::string conf_task_list_{"taskList.json"};
