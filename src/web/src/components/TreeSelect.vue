@@ -259,7 +259,7 @@ onMounted(() => {
   height: auto;
   line-height: 1;
   padding: 0;
-  background-color: #fff;
+  background-color: var(--theme-surface, #fff);
 }
 
 .tree {

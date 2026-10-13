@@ -80,14 +80,14 @@ const handleKeyDown = (e) => {
 
 <style scoped lang="scss">
 .mvtitle {
-  padding: 0px 0 0px 20px;
+  padding: 0;
 }
 .param-body {
-  min-width: 640px;
+  min-width: 0;
   width: 100%;
-  max-height: calc(100vh - 350px);
+  max-height: calc(100vh - 310px);
   overflow: auto;
-  padding: 10px 0;
+  padding: 6px 0;
 }
 .flexjustify {
   display: flex;
@@ -95,18 +95,18 @@ const handleKeyDown = (e) => {
 }
 
 .mv-table-card-wrap {
-  background: #fff;
-  height: 100%;
+  background: var(--theme-surface, #fff);
+  min-height: 0;
 }
 .rightlable {
-  color: #ccc;
+  color: var(--theme-text-muted, #ccc);
   font-style: normal;
   margin-left: 20px;
 }
 .form-wrap {
   padding: 0 30px 0 10px;
   > p {
-    border-left: 3px solid #409eff;
+    border-left: 3px solid var(--primary-color);
     margin-left: 15px;
     padding-left: 10px;
     line-height: 14px;

@@ -1,0 +1,103 @@
+// A palette changes brand emphasis and navigation, independently of light/dark.
+// Keep these tokens on html so teleported dialogs and menus inherit them too.
+html[data-palette='classic-blue'] {
+  --nav-bg: #1e2d3a;
+  --nav-text: #c6d1dc;
+  --nav-icon: #c6d1dc;
+  --nav-muted: #9bacbc;
+  --nav-brand-text: #fff;
+  --nav-logo-bg: #fff;
+  --nav-border: #374959;
+  --nav-hover-bg: #2c4052;
+  --nav-hover-text: #fff;
+  --nav-active-bg: #2b70b8;
+  --nav-active-text: #fff;
+  --nav-active-shadow: none;
+  --nav-scrollbar: #64788b;
+  --media-accent-color: #83beff;
+  // Older surfaces use theme aliases that were previously defined only in dark mode.
+  --theme-accent: var(--primary-color);
+  --theme-accent-soft: var(--el-color-primary-light-9);
+  --theme-accent-button: var(--primary-button-bg);
+  --theme-accent-button-hover: var(--primary-button-hover-bg);
+  --theme-accent-button-active: var(--primary-button-active-bg);
+
+  // Element Plus otherwise uses its pale primary ramp for filled-button hover.
+  .el-button--primary:not(.is-plain):not(.is-text):not(.is-link):not(.ui-action):not(.ui-secondary-button) {
+    --el-button-text-color: var(--primary-button-text);
+    --el-button-bg-color: var(--primary-button-bg);
+    --el-button-border-color: var(--primary-button-bg);
+    --el-button-hover-text-color: var(--primary-button-text);
+    --el-button-hover-bg-color: var(--primary-button-hover-bg);
+    --el-button-hover-border-color: var(--primary-button-hover-bg);
+    --el-button-active-text-color: var(--primary-button-text);
+    --el-button-active-bg-color: var(--primary-button-active-bg);
+    --el-button-active-border-color: var(--primary-button-active-bg);
+  }
+
+  .el-button--primary.is-link,
+  .el-button--primary.is-text {
+    --el-button-hover-text-color: var(--primary-dark);
+    --el-button-hover-link-text-color: var(--primary-dark);
+  }
+
+  .el-link--primary {
+    --el-link-hover-text-color: var(--primary-dark);
+  }
+}
+
+html[data-palette='classic-blue']:not([data-theme='dark']):not(.dark),
+html[data-palette='classic-blue'][data-theme='light'] {
+  --primary-color: #226bb9;
+  --primary-light: #4388d0;
+  --primary-dark: #2064ae;
+  --accent-color: #226bb9;
+  --primary-button-bg: #2875c7;
+  --primary-button-hover-bg: #226bb9;
+  --primary-button-active-bg: #1b5b9f;
+  --primary-button-text: #fff;
+  --primary-soft-bg: #eaf3fc;
+  --primary-soft-border: #bcd6ef;
+  --secondary-button-hover-bg: #f0f6fd;
+  --secondary-button-hover-border: #8fb9e3;
+  --focus-ring: #2875c7;
+  --accent-focus-rgb: 40, 117, 199;
+  --accent-selected-ring: rgba(40, 117, 199, 0.14);
+  --el-color-primary-light-3: #689ed8;
+  --el-color-primary-light-5: #94bae3;
+  --el-color-primary-light-7: #bfd6ee;
+  --el-color-primary-light-8: #d4e3f4;
+  --el-color-primary-light-9: #eaf1f9;
+  --el-color-primary-dark-2: #2064ae;
+
+  ::selection {
+    color: var(--text-primary);
+    background: #c9e1f8;
+  }
+}
+
+html[data-palette='classic-blue'][data-theme='dark'],
+html[data-palette='classic-blue'].dark:not([data-theme]) {
+  --primary-color: #83beff;
+  --primary-light: #a5d0ff;
+  --primary-dark: #70adef;
+  --accent-color: #83beff;
+  --primary-button-bg: #2875c7;
+  --primary-button-hover-bg: #226bb9;
+  --primary-button-active-bg: #2064ae;
+  --primary-button-text: #fff;
+  --primary-soft-bg: #203750;
+  --primary-soft-border: #426b96;
+  --secondary-button-hover-bg: #203750;
+  --secondary-button-hover-border: #6a9bc9;
+  --focus-ring: #a5d0ff;
+  --accent-focus-rgb: 131, 190, 255;
+  --accent-selected-ring: rgba(131, 190, 255, 0.18);
+  --text-selection-bg: #284b70;
+  --el-color-primary-light-3: #628ebd;
+  --el-color-primary-light-5: #4a6e94;
+  --el-color-primary-light-7: #344e6c;
+  --el-color-primary-light-8: #293f58;
+  --el-color-primary-light-9: #23364b;
+  --el-color-primary-dark-2: #a5d0ff;
+}

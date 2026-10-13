@@ -1,5 +1,6 @@
 <template>
-  <div class="system-maintain">
+  <div class="system-maintain ui-admin-page">
+    <h1 class="settings-heading">{{ t('nav.systemMaintenance') }}</h1>
     <el-tabs v-model="activeTab">
       <el-tab-pane :label="t('systemManage.softwareUpgrade')" name="upgrade">
         <div class="upgrade-container">
@@ -11,7 +12,7 @@
               <el-upload ref="upload" class="upload-btn" action="#" :auto-upload="false" :show-file-list="false" :before-upload="beforeUpload" :on-change="handleFileChange" accept=".tar.gz">
                 <el-button size="small">{{ t('systemManage.browse') }}</el-button>
               </el-upload>
-              <el-button size="small" type="primary" @click="handleUpgrade">{{ t('systemManage.upgrade') }}</el-button>
+              <el-button size="small" type="primary" @click="handleUpgrade" class="ui-secondary-button">{{ t('systemManage.upgrade') }}</el-button>
             </div>
 
             <div class="tips">
@@ -24,12 +25,12 @@
       </el-tab-pane>
       <el-tab-pane :label="t('systemManage.restoreSettings')" name="reset">
         <div class="reset-container">
-          <el-button type="primary" size="small" @click="handleReset">{{ t('systemManage.restoreFactory') }}</el-button>
+          <el-button type="primary" size="small" @click="handleReset" class="ui-secondary-button">{{ t('systemManage.restoreFactory') }}</el-button>
         </div>
       </el-tab-pane>
       <el-tab-pane :label="t('systemManage.deviceLog')" name="log">
         <div class="reset-container">
-          <el-button type="primary" size="small" @click="downloadLog">{{ t('systemManage.downloadDeviceLog') }}</el-button>
+          <el-button type="primary" size="small" @click="downloadLog" class="ui-secondary-button">{{ t('systemManage.downloadDeviceLog') }}</el-button>
         </div>
       </el-tab-pane>
       <el-tab-pane v-if="authorization.supported" :label="t('systemManage.modelAuthorization')" name="authorization">
@@ -44,7 +45,7 @@
           <div class="authorization-actions">
             <el-button @click="downloadAuthorizationRequest">{{ t('systemManage.downloadAuthorizationRequest') }}</el-button>
             <el-upload action="#" :auto-upload="false" :show-file-list="false" :on-change="handleCertificateChange" accept=".bin">
-              <el-button type="primary">{{ t('systemManage.uploadAuthorizationFile') }}</el-button>
+              <el-button type="primary" class="ui-secondary-button">{{ t('systemManage.uploadAuthorizationFile') }}</el-button>
             </el-upload>
           </div>
         </div>
@@ -458,49 +459,77 @@ onBeforeUnmount(() => {
 
 <style lang="scss" scoped>
 .system-maintain {
-  padding: 20px;
-  background: #fff;
-  border-radius: 4px;
+  padding: 0;
+  background: transparent;
 
-  .upgrade-container {
-    padding: 20px;
+  .settings-heading {
+    margin: 0 0 18px;
+    font-size: 24px;
+    font-weight: 650;
+    line-height: 1.4;
+    color: var(--text-primary);
   }
 
-  .authorization-container { padding: 20px; max-width: 720px; }
-  .authorization-actions { display: flex; gap: 12px; margin-top: 20px; }
+  :deep(> .el-tabs > .el-tabs__header) { margin-bottom: 18px; }
+  :deep(> .el-tabs > .el-tabs__header .el-tabs__item) { height: 42px; }
+
+  .upgrade-container,
+  .authorization-container,
+  .reset-container {
+    box-sizing: border-box;
+    padding: 24px;
+    max-width: 960px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-white);
+  }
+
+  .authorization-container { max-width: 720px; }
+  .authorization-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
 
   .form-item {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
+    gap: 10px;
     margin-bottom: 20px;
 
     .label {
-      width: 80px;
+      flex-shrink: 0;
+      color: var(--text-secondary);
     }
 
     .file-input {
-      width: 300px;
-      margin-right: 20px;
+      flex: 1 1 260px;
+      max-width: 480px;
+      min-width: 0;
+      margin-right: 0;
     }
 
     .upload-btn {
       height: 100%;
-      margin-right: 10px;
+      margin-right: 0;
     }
   }
 
   .tips {
-    margin-bottom: 20px;
-    color: #f00;
-    font-size: 14px;
+    margin: 0;
+    padding: 14px 16px;
+    border-left: 2px solid var(--warning-color);
+    border-radius: 4px;
+    background: var(--bg-subtle);
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.7;
 
     .tip-item {
-      margin-bottom: 5px;
+      margin: 0;
+      & + .tip-item { margin-top: 6px; }
     }
   }
 
   .status-box {
-    border: 1px dashed #f00;
+    border: 1px dashed var(--theme-danger, #f00);
     padding: 15px;
     margin-bottom: 20px;
 
@@ -510,24 +539,22 @@ onBeforeUnmount(() => {
     }
 
     .status-content {
-      color: #f00;
+      color: var(--theme-danger, #f00);
       font-size: 14px;
       line-height: 1.8;
     }
   }
 
   .reset-container {
-    padding: 20px;
-
     .tips {
       margin-top: 20px;
-      color: #666;
+      color: var(--theme-text-secondary, #666);
       font-size: 14px;
       line-height: 1.8;
     }
   }
   .upgrade-status {
-    border: 1px solid #dcdfe6;
+    border: 1px solid var(--border-color);
     padding: 15px;
     margin-top: 20px;
 
@@ -537,7 +564,7 @@ onBeforeUnmount(() => {
     }
 
     .status-msg {
-      color: #409eff;
+      color: var(--primary-color);
     }
   }
 }

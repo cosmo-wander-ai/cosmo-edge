@@ -1,14 +1,14 @@
 <template>
-  <div>
+  <div class="ui-admin-page video-access-page">
     <TopBar ref="topBarRef" @init="init" @search="searchList" @reset="resetList" :active="true" />
     <div class="mv-table-wrap">
       <div class="taskButton">
         <span></span>
         <div v-if="runMode == 0">
           <el-button id="onboarding-add-channel" size="small" type="primary" @click="addChannelClick">{{ t('action.add') }}</el-button>
-          <el-button id="gb28181-access" size="small" type="primary" :title="t('gbAccess.title')" @click="gb28181Dialog.open()">GB28181</el-button>
+          <el-button id="gb28181-access" size="small" type="primary" :title="t('gbAccess.title')" @click="gb28181Dialog.open()" class="ui-secondary-button">GB28181</el-button>
           <el-dropdown @command="handleBatchCommand" :disabled="multipleSelection.length == 0">
-            <el-button size="small" type="primary" style="margin-left: 8px;" :disabled="multipleSelection.length == 0">
+            <el-button size="small" type="primary" style="margin-left: 8px;" :disabled="multipleSelection.length == 0" class="ui-secondary-button">
               {{ t('action.batchOperation') }}
             </el-button>
             <template #dropdown>
@@ -23,102 +23,99 @@
         </div>
       </div>
       <!-- 表格数据 -->
-      <el-table ref="tableRef" :data="tableData" tooltip-effect="dark" @selection-change="handleSelectionChange" :row-style="rowClass" stripe class="customer-no-border-table" :max-height="tableMaxHeight">
-        <el-table-column type="selection" width="50px"></el-table-column>
-        <!-- <el-table-column type="index">
-        </el-table-column>-->
-        <el-table-column type="index" :label="t('field.no')" width="80">
+      <el-table ref="tableRef" :data="tableData" tooltip-effect="dark" @selection-change="handleSelectionChange" :row-style="rowClass" stripe class="customer-no-border-table" :max-height="tableMaxHeight" :span-method="spanTaskColumns" :style="{ '--task-runtime-share': taskRuntimeWidth + 'fr' }">
+        <el-table-column type="selection" width="40"></el-table-column>
+        <el-table-column type="index" :label="t('field.no')" width="48" class-name="channel-index-cell">
           <template #default="scope">
             <span>{{ ((pageData.pageNum - 1) * pageData.pageSize) + scope.$index + 1 }}</span>
           </template>
         </el-table-column>
-        <el-table-column :label="t('field.channelNo')" prop="videoChannelId" min-width="120" show-overflow-tooltip>
-        </el-table-column>
-        <el-table-column :label="t('field.channelName')" prop="channelName" min-width="120" show-overflow-tooltip>
-        </el-table-column>
-        <el-table-column :label="t('glossary.scenarioTask')" prop="taskList" min-width="320">
+        <el-table-column :label="t('field.channelInfo')" prop="channelName" min-width="176">
           <template #default="scope">
-            <div>
-              <div id="onboarding-task-switch" class="task_table" v-for="(item, index) in scope.row.taskList" :key="index">
-                <div class="analytical">
-                  <div class="task_text">{{ resolveResourceAlgorithmName(item) }}</div>
+            <div class="channel-identity">
+              <div class="channel-heading">
+                <div class="channel-name" :title="scope.row.channelName">{{ scope.row.channelName }}</div>
+                <div class="channel-state" :aria-label="t('field.channelStatus')">
+                  <template v-if="scope.row.channelStatus == 3">
+                    <span v-if="scope.row.channelType !== 3" class="channel-status is-online">{{ t('status.online') }}</span>
+                    <span class="channel-status-error">({{ t('status.unsupportedResolution') }})</span>
+                  </template>
+                  <template v-else-if="scope.row.channelStatus == 2">
+                    <span v-if="scope.row.channelType !== 3" class="channel-status is-online">{{ t('status.online') }}</span>
+                    <span class="channel-status-error">({{ t('status.validationError') }})</span>
+                  </template>
+                  <template v-else-if="scope.row.channelStatus == 1">
+                    <span class="channel-status is-online">{{ t('status.online') }}</span>
+                  </template>
+                  <template v-else>
+                    <span v-if="scope.row.channelType !== 3" class="channel-status is-offline">{{ t('status.offline') }}</span>
+                  </template>
                 </div>
-                <el-switch class="task-switch" v-model="item.enableStatus" active-color="#00f944" :active-value="1" :inactive-value="0" @change="taskEnableChange(item, scope.row.videoChannelId)"></el-switch>
-                <div class="rtspa" v-if="item.status == 1">
-                  <div class="rtspa_one">
-                    <i style="width: 6px; height: 6px; border-radius: 50%; background-color: #32dda1;display: block; "></i>
-                  </div>
-                  <div class="Task_status">{{ t('status.inProgress') }}</div>
+              </div>
+              <div class="channel-id" :title="t('field.channelNo') + localeColon + scope.row.videoChannelId">{{ scope.row.videoChannelId }}</div>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('glossary.scenarioTask')" prop="taskList" min-width="164" class-name="channel-tasks-cell">
+          <template #default="scope">
+            <div class="channel-tasks">
+              <div class="channel-task-row" v-for="(item, index) in scope.row.taskList" :key="index">
+                <div class="task-identity">
+                  <div class="task_text" :title="resolveResourceAlgorithmName(item)">{{ resolveResourceAlgorithmName(item) }}</div>
+                  <div class="task-schedule" :title="resolveScheduleName(item.scheduleName)">{{ resolveScheduleName(item.scheduleName) }}</div>
                 </div>
-                <div class="run-status" v-if="item.status == 0">
-                  <div class="rtspa_one">
-                    <i style=" width: 6px;height: 6px;border-radius: 50%;background-color: #f52828; display: block;"></i>
-                  </div>
-                  <div class="Task_status">{{ t('status.stopped') }}</div>
+                <div id="onboarding-task-switch" class="task-runtime">
+                  <el-switch class="task-switch" v-model="item.enableStatus" active-color="var(--theme-success, #216e53)" :active-value="1" :inactive-value="0" :aria-label="resolveResourceAlgorithmName(item) + localeColon + t('field.enabled')" @change="taskEnableChange(item, scope.row.videoChannelId)"></el-switch>
+                  <span v-if="item.status == 1" class="task-runtime-state is-running">{{ t('status.running') }}</span>
+                  <span v-if="item.status == 0" class="task-runtime-state is-stopped">{{ t('status.stopped') }}</span>
+                  <span v-if="item.status == -1" class="task-runtime-state is-paused">{{ t('status.paused') }}</span>
+                  <span v-if="item.status == 2" class="task-runtime-state is-abnormal">{{ t('status.abnormal') }}</span>
                 </div>
-                <div class="rtspa" v-if="item.status == -1">
-                  <div class="rtspa_one">
-                    <i style=" width: 6px;height: 6px;border-radius: 50%;background-color: #ebb563; display: block;"></i>
-                  </div>
-                  <div class="Task_status">{{ t('status.paused') }}</div>
-                </div>
-                <div class="rtspa" v-if="item.status == 2">
-                  <div class="rtspa_one">
-                    <i style=" width: 6px; height: 6px; border-radius: 50%;background-color: #fca60b; display: block;"></i>
-                  </div>
-                  <div class="Task_status">{{ t('status.abnormal') }}</div>
-                </div>
-                <div>{{ resolveScheduleName(item.scheduleName) }}</div>
+              </div>
+              <div v-if="!scope.row.taskList?.length" class="channel-task-row is-empty">
+                <span class="task-identity">—</span>
+                <span class="task-runtime">—</span>
               </div>
             </div>
           </template>
         </el-table-column>
-        <el-table-column :label="t('glossary.accessType')" prop="channelType" width="140" min-width="100" show-overflow-tooltip>
+        <el-table-column :label="t('glossary.runningStatus')" column-key="taskRuntime" :min-width="taskRuntimeWidth" />
+        <el-table-column :label="t('glossary.accessType')" prop="channelType" :min-width="currentLocale === 'en-US' ? 98 : 96" show-overflow-tooltip>
           <template #default="scope">
             <span>{{ channelTypeLabel(scope.row.channelType) }}</span>
           </template>
         </el-table-column>
-        <el-table-column :label="t('field.resolution')" show-overflow-tooltip min-width="120">
+        <el-table-column :label="t('field.videoParameters')" min-width="144">
           <template #default="scope">
-            <span>{{ scope.row.width ? scope.row.width + ' x ' + scope.row.height : '' }}</span>
+            <div class="video-parameters">
+              <span class="video-resolution">{{ scope.row.width ? scope.row.width + ' × ' + scope.row.height : '—' }}</span>
+              <div class="video-parameters-meta">
+                <span v-if="scope.row.codec" :title="t('field.videoCodec')">{{ scope.row.codec }}</span>
+                <span v-if="scope.row.fps" :title="t('glossary.frameRate')">{{ Math.ceil(scope.row.fps) }} fps</span>
+              </div>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column :label="t('field.videoCodec')" prop="codec" width="120" show-overflow-tooltip>
-        </el-table-column>
-        <el-table-column :label="t('glossary.frameRate')" prop="fps" show-overflow-tooltip>
-          <template #default="scope">
-            <span>{{ scope.row.fps ? Math.ceil(scope.row.fps) : '' }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column :label="t('field.channelStatus')" :width="currentLocale === 'en-US' ? '150px' : '110px'" fixed="right" show-overflow-tooltip>
-          <template #default="scope">
-            <template v-if="scope.row.channelStatus == 3">
-              <span v-if="scope.row.channelType !== 3" style="color:green;">{{ t('status.online') }}</span>
-              <br />
-              <span style="color:red;">({{ t('status.unsupportedResolution') }})</span>
-            </template>
-            <template v-else-if="scope.row.channelStatus == 2">
-              <span v-if="scope.row.channelType !== 3" style="color:green;">{{ t('status.online') }}</span>
-              <br />
-              <span style="color:red;">({{ t('status.validationError') }})</span>
-            </template>
-            <template v-else-if="scope.row.channelStatus == 1">
-              <span style="color:green;">{{ t('status.online') }}</span>
-            </template>
-            <template v-else>
-              <span v-if="scope.row.channelType !== 3">{{ t('status.offline') }}</span>
-            </template>
-          </template>
-        </el-table-column>
-        <el-table-column prop="handle" :label="t('field.actions')" :width="currentLocale === 'en-US' ? '280' : '200'" fixed="right" class-name="ops-wrap-cell">
+        <el-table-column prop="handle" :label="t('field.actions')" width="164" fixed="right" class-name="ops-wrap-cell">
           <template #default="scope">
             <div class="operation-tools">
-              <el-button link class="primary-text" @click="handleDetailChannel(scope.row)">{{ t('action.details') }}</el-button>
-              <el-button v-if="runMode != 1" link class="primary-text" @click="handleEditChannel(scope.row)">{{ t('action.edit') }}</el-button>
-              <el-button :disabled="scope.row.channelStatus == 3 || (scope.row.channelStatus == 0 && ![2, 3].includes(scope.row.channelType))" link class="primary-text" @click="handleChannelPic(scope.row)">{{ t('action.snapshot') }}</el-button>
-              <el-button id="onboarding-allocate-btn" v-if="runMode != 1" :disabled="scope.row.channelStatus == 3 || (scope.row.channelStatus == 0 && ![2, 3].includes(scope.row.channelType))" link class="primary-text" @click="handleAllocateClick(scope.row)">{{ t('action.allocateTask') }}</el-button>
-              <el-button v-if="scope.row.channelType == 3 && runMode != 1" link class="primary-text" @click="handleVideoDownload(scope.row)">{{ t('action.videoDownload') }}</el-button>
-              <el-button v-if="runMode != 1" link class="danger-text" @click="handleDeleteChannel(scope.row)">{{ t('action.delete') }}</el-button>
+              <div class="operation-line">
+                <el-button link class="primary-text ui-action ui-action-view" @click="handleDetailChannel(scope.row)">{{ t('action.details') }}</el-button>
+                <el-button v-if="runMode != 1" link class="primary-text ui-action ui-action-edit" @click="handleEditChannel(scope.row)">{{ t('action.edit') }}</el-button>
+                <el-dropdown trigger="click" placement="bottom-end">
+                  <el-button link class="channel-more-actions" :title="t('field.actions')" :aria-label="t('field.actions') + localeColon + scope.row.channelName">•••</el-button>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item :disabled="scope.row.channelStatus == 3 || (scope.row.channelStatus == 0 && ![2, 3].includes(scope.row.channelType))" @click="handleChannelPic(scope.row)">{{ t('action.snapshot') }}</el-dropdown-item>
+                      <el-dropdown-item v-if="scope.row.channelType == 3 && runMode != 1" @click="handleVideoDownload(scope.row)">{{ t('action.videoDownload') }}</el-dropdown-item>
+                      <el-dropdown-item v-if="runMode != 1" divided class="channel-delete-action" @click="handleDeleteChannel(scope.row)">{{ t('action.delete') }}</el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+              </div>
+              <div class="operation-line" v-if="runMode != 1">
+                <el-button id="onboarding-allocate-btn" :disabled="scope.row.channelStatus == 3 || (scope.row.channelStatus == 0 && ![2, 3].includes(scope.row.channelType))" link class="primary-text ui-action ui-action-settings" @click="handleAllocateClick(scope.row)">{{ t('action.allocateTask') }}</el-button>
+              </div>
             </div>
           </template>
         </el-table-column>
@@ -130,8 +127,8 @@
       </div>
     </div>
 
-    <el-dialog :title="channelDialogTitle" v-model="channelDialogVisible" width="550px" @close="resetchannelForm" center>
-      <el-form v-if="channelDialogVisible" :model="channelForm" :rules="channelFormRules" ref="channelFormRef" :label-width="currentLocale === 'en-US' ? '190px' : '140px'">
+    <el-dialog :title="channelDialogTitle" v-model="channelDialogVisible" :width="channelForm.channelType === 7 ? 'min(720px, calc(100vw - 48px))' : '550px'" @close="resetchannelForm" class="ui-admin-dialog ui-scroll-dialog">
+      <el-form v-if="channelDialogVisible" :model="channelForm" :rules="channelFormRules" ref="channelFormRef" :class="{ 'gb-channel-edit-form': channelForm.channelType === 7 }" :label-position="channelForm.channelType === 7 ? 'top' : 'right'" :label-width="channelForm.channelType === 7 ? 'auto' : currentLocale === 'en-US' ? '190px' : '140px'">
         <el-form-item :label="t('field.channelNo') + localeColon" prop="videoChannelId" required v-if="channelDialogMode === 'edit'">
           <el-input class="form-item-content" v-model="channelForm.videoChannelId" autocomplete="off" size="small" disabled />
         </el-form-item>
@@ -189,14 +186,14 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <div class="dialog-footer" style="text-align:center;">
+        <div class="dialog-footer channel-dialog-footer">
           <el-button size="small" @click="channelDialogVisible = false">{{ t('action.cancel') }}</el-button>
           <el-button id="onboarding-save-channel" size="small" type="primary" @click="submitAddChannel">{{ t('action.save') }}</el-button>
         </div>
       </template>
     </el-dialog>
 
-    <el-dialog :title="t('glossary.channelPhoto')" v-model="channelPicDialogVisible" center width="740px">
+    <el-dialog :title="t('glossary.channelPhoto')" v-model="channelPicDialogVisible" center width="740px" class="ui-admin-dialog">
       <div>
         <img ref="image" class="channel-img" :src="channelImgSrc" @error="setDefaultImage">
       </div>
@@ -309,6 +306,14 @@ const channelFormRef = ref(null)
 const tableRef = ref(null)
 const paginationRef = ref(null)
 const tableMaxHeight = ref(600)
+const taskRuntimeWidth = computed(() => currentLocale.value === 'en-US' ? 148 : 144)
+
+// Keep real task/status headers while sharing each task's row height in the body.
+const spanTaskColumns = ({ column }) => {
+  if (column.property === 'taskList') return [1, 2]
+  if (column.columnKey === 'taskRuntime') return [0, 0]
+  return [1, 1]
+}
 
 const calculateTableHeight = () => {
   nextTick(() => {
@@ -805,7 +810,7 @@ const selectRow = ref([])
 
 const rowClass = ({ rowIndex }) => {
   if (selectRow.value.includes(rowIndex)) {
-    return { 'background-color': 'rgba(185, 221, 249, 0.75)' }
+    return { 'background-color': 'var(--theme-accent-soft, rgba(185, 221, 249, 0.75))' }
   }
 }
 
@@ -848,50 +853,202 @@ const setDefaultImage = (e) => {
 </script>
 
 <style scoped lang="scss">
+.video-access-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.video-access-page > .mv-table-wrap {
+  margin: 0;
+  padding: 14px;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.video-access-page :deep(.topBar-wrap) {
+  margin: 0 !important;
+}
+
+.video-access-page :deep(.el-table__body td.el-table__cell) {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.video-access-page :deep(.el-table__header th.el-table__cell) {
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+
+.video-access-page :deep(.el-table .channel-index-cell .cell) {
+  padding-inline: 8px;
+  white-space: nowrap;
+}
+
 .taskButton {
   display: flex;
   justify-content: space-between;
-  margin: 12px 0px 10px 0px;
-  padding: 12px 12px 12px 0;
+  align-items: center;
+  margin: 0;
+  padding: 0 0 12px;
 
   :deep(.el-button.is-disabled) {
-    background-color: #a0cfff !important;
-    border-color: #a0cfff !important;
-    color: #fff !important;
+    background-color: var(--theme-surface-soft, #eef1f5) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-secondary) !important;
     cursor: not-allowed;
-    opacity: 0.6;
+    opacity: 1;
   }
 }
 
-.task_table {
+.video-access-page :deep(.el-table .cell) {
+  padding-inline: 12px;
+  word-break: normal;
+}
+
+.video-access-page :deep(td.channel-tasks-cell > .cell) {
+  padding-inline: 0;
+}
+
+.channel-task-row {
+  display: grid;
+  grid-template-columns: minmax(0, 164fr) minmax(0, var(--task-runtime-share));
+  align-items: center;
+  min-height: 48px;
+  padding: 4px 0;
+  box-sizing: border-box;
+
+  + .channel-task-row {
+    border-top: 1px solid var(--border-light);
+  }
+
+  &.is-empty { color: var(--text-secondary); }
+}
+
+.task-identity,
+.task-runtime {
+  min-width: 0;
+  padding-inline: 12px;
+}
+
+.task-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.task-runtime {
   display: flex;
   align-items: center;
+  gap: 8px;
+}
+
+.task-runtime-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  line-height: 20px;
+  color: var(--text-secondary);
+
+  &::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  &.is-running { color: var(--success-color); }
+  &.is-paused,
+  &.is-abnormal { color: var(--warning-color); }
+}
+
+.task-schedule {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.channel-identity,
+.video-parameters {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.channel-identity { min-height: 48px; justify-content: center; }
+
+.channel-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  min-width: 0;
+}
+
+.channel-name {
+  min-width: 0;
+  color: var(--text-primary);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.channel-id,
+.video-parameters-meta {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.channel-state,
+.video-parameters-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+
+.channel-state { font-size: 12px; line-height: 18px; }
+.channel-status-error { color: var(--danger-color); overflow-wrap: anywhere; }
+.video-resolution { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.video-parameters-meta > span + span::before { content: '·'; margin-right: 8px; }
+
+.channel-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  &::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  &.is-online { color: var(--success-color); }
+  &.is-offline { color: var(--text-secondary); }
 }
 
 .mv-table-wrap .stop-button {
-  background: #34b7b2;
-  border-color: #34b7b2;
+  background: var(--theme-success, #34b7b2);
+  border-color: var(--theme-success, #34b7b2);
 }
 
 .mv-table-wrap .delet-button {
-  background: #ef5858;
-  border-color: #ef5858;
+  background: var(--theme-danger, #ef5858);
+  border-color: var(--theme-danger, #ef5858);
 }
 
 .mv-table-wrap {
-  background: white;
+  background: var(--theme-surface, white);
   border-radius: 8px;
-}
-
-.rtspa {
-  display: flex;
-  min-width: 60px;
-}
-
-.rtspa .rtspa_one {
-  display: flex;
-  align-items: center;
-  padding-right: 8px;
 }
 
 /*表格全选框去除空框*/
@@ -937,7 +1094,7 @@ const setDefaultImage = (e) => {
   // background: url(../../../../assets/diagnose_warning.png) no-repeat center;
   background-size: 100% 100%;
   margin-right: 10px;
-  color: red;
+  color: var(--theme-danger, red);
   font-size: 16px;
   cursor: pointer;
 }
@@ -946,7 +1103,7 @@ const setDefaultImage = (e) => {
   display: flex;
   margin: 12px 12px 0px 12px;
   padding: 12px;
-  background-color: #fff;
+  background-color: var(--theme-surface, #fff);
 }
 
 /*算法授权不足*/
@@ -964,52 +1121,55 @@ const setDefaultImage = (e) => {
 }
 
 .task_text {
-  margin-right: 10px;
-  width: 100px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  color: var(--text-primary);
+  font-weight: 500;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
-.Task_status {
-  width: 60px;
-  margin-left: 10px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+.video-access-page .operation-tools {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
 }
 
-.task_table_text {
-  margin-right: 18px;
-  width: 120px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.el-table .cell,
-.el-table th div {
-  padding-right: 0;
-}
-
-.operation-tools {
+.operation-line {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 2px 6px;
+
+  &:empty { display: none; }
 }
 
-.operation-tools > .el-button {
+.operation-line > .el-button {
   margin-left: 0;
   padding: 0;
 }
 
+.channel-more-actions {
+  min-width: 24px;
+  min-height: 26px;
+  padding: 0 2px;
+  color: var(--text-secondary);
+  letter-spacing: 1px;
+}
+
+.channel-more-actions:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+.channel-delete-action { color: var(--danger-color); }
+
 .el-table :deep(.ops-wrap-cell .cell) {
   white-space: normal !important;
+  padding-left: 8px;
+  padding-right: 8px;
 }
 
 .task-switch {
-  margin-right: 10px;
+  flex: none;
+  margin: 0;
+  --el-switch-height: 18px;
+  --el-switch-button-size: 14px;
+  --el-switch-width: 40px;
 }
 
 .runBtn {
@@ -1039,20 +1199,32 @@ const setDefaultImage = (e) => {
   text-overflow: ellipsis;
 }
 
-.run-status {
-  display: flex;
-  align-items: center;
-}
-
 .form-item-content {
   width: calc(100% - 80px);
+}
+
+.gb-channel-edit-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 20px;
+
+  :deep(.el-form-item) { min-width: 0; margin-bottom: 16px; }
+  :deep(.el-form-item__label) { margin-bottom: 6px; padding: 0; line-height: 20px; height: auto; color: var(--text-secondary); font-size: 13px; }
+  .form-item-content { width: 100%; }
+}
+
+.channel-dialog-footer { display: flex; justify-content: flex-end; gap: 8px; }
+.channel-dialog-footer :deep(.el-button + .el-button) { margin-left: 0; }
+
+@media (max-width: 600px) {
+  .gb-channel-edit-form { grid-template-columns: minmax(0, 1fr); }
 }
 
 .form-item-tip {
   margin-top: 4px;
   font-size: 12px;
   line-height: 18px;
-  color: #909399;
+  color: var(--text-secondary);
 }
 
 .el-upload__tip {
@@ -1067,7 +1239,7 @@ const setDefaultImage = (e) => {
 }
 
 .tip-content {
-  color: #409eff;
+  color: var(--primary-color);
   font-size: 13px;
   line-height: 18px;
 }

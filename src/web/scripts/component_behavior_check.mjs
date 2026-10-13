@@ -237,3 +237,7 @@ for (const scenario of [
 console.log('Component behavior checks passed')
 
 await import('./edge_behavior_check.mjs')
+
+await import('./realtime_preview_behavior_check.mjs')
+
+await import('./scene_task_display_check.mjs')

@@ -1,5 +1,5 @@
 <template>
-  <el-dialog :title="t('glossary.distanceMeasure')" v-model="show" width="700px" center append-to-body @closed="handleClose">
+  <el-dialog :title="t('glossary.distanceMeasure')" v-model="show" width="700px" center append-to-body @closed="handleClose" class="ui-admin-dialog">
     <div class="distance-dialog">
       <el-alert :title="t('validate.distanceMeasureTip')" type="info" show-icon :closable="false" />
       <div class="map-container" ref="mapContainer">
@@ -230,9 +230,9 @@ const handleConfirm = () => {
     position: relative;
     width: 100%;
     height: 400px;
-    background: #f5f5f5;
+    background: var(--bg-primary);
     overflow: hidden;
-    border: 1px solid #dcdfe6;
+    border: 1px solid var(--border-color);
     border-radius: 4px;
 
     .distance-canvas {
@@ -249,7 +249,7 @@ const handleConfirm = () => {
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      color: #909399;
+      color: var(--text-secondary);
       font-size: 14px;
     }
   }
@@ -257,13 +257,13 @@ const handleConfirm = () => {
   .info-panel {
     margin-top: 15px;
     padding: 10px;
-    background: #f5f7fa;
+    background: var(--bg-primary);
     border-radius: 4px;
 
     .distance-info {
       display: flex;
       gap: 20px;
-      color: #606266;
+      color: var(--text-secondary);
       font-size: 14px;
     }
   }

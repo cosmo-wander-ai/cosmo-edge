@@ -5,11 +5,11 @@
       <div class="template-list">
         <div class="list-header">
           <span class="title">{{ t('boxOther.allTemplates') }}</span>
-          <el-icon @click="handleAdd"><Plus /></el-icon>
+          <el-button link class="ui-action" @click="handleAdd" :aria-label="t('action.add')"><el-icon><Plus /></el-icon></el-button>
         </div>
         <div class="list-content">
           <div v-for="(item, index) in templateList" :key="item.scheduleId" class="template-item" :class="{ active: currentTemplate.scheduleId === item.scheduleId }" @click="handleSelectTemplate(item)">
-            <div class="item-name">{{ resolveScheduleName(item.scheduleName) }}</div>
+            <div class="item-name" :title="resolveScheduleName(item.scheduleName)">{{ resolveScheduleName(item.scheduleName) }}</div>
             <div class="item-actions" v-if="index > 2">
               <el-icon @click.stop="handleEdit(item)"><EditPen /></el-icon>
               <el-icon @click.stop="handleDelete(item)"><Delete /></el-icon>
@@ -32,7 +32,7 @@
               </el-form-item>
               <el-form-item :label="t('boxOther.templateTime')">
                 <div style="flex:1; position:relative">
-                  <el-button size="small" style="margin-left:8px" @click="handleClickAllDays">{{ t('boxOther.fullTime') }}</el-button>
+                  <el-button size="small" @click="handleClickAllDays">{{ t('boxOther.fullTime') }}</el-button>
                   <el-button size="small" @click="handleClickWeekDays">{{ t('boxOther.weekday') }}</el-button>
                   <el-button size="small" @click="handleClickWeekendDays">{{ t('boxOther.weekend') }}</el-button>
                   <el-button size="small" @click="clearWeektime">{{ t('action.clear') }}</el-button>
@@ -54,7 +54,7 @@
     </div>
 
     <!-- 新增/编辑弹窗 -->
-    <el-dialog :title="dialogTitle" v-model="dialogVisible" width="500px" center>
+    <el-dialog :title="dialogTitle" v-model="dialogVisible" width="500px" center class="ui-admin-dialog">
       <el-form ref="formRef" :model="formData" :rules="rules" label-width="100px">
         <el-form-item :label="t('boxOther.templateName')" prop="scheduleName">
           <el-input v-model="formData.scheduleName" class="form-content300" :placeholder="t('boxOther.templateNameRequired')" size="small"></el-input>
@@ -69,7 +69,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog :title="t('common.notice')" v-model="centerDialogVisible" width="30%" :show-close="false" center>
+    <el-dialog :title="t('common.notice')" v-model="centerDialogVisible" width="30%" :show-close="false" center class="ui-admin-dialog">
       <template #header>
         <span class="dialog-footer">
           <span style="line-height: 40px;">{{ t('boxOther.copyTo') }}</span>
@@ -488,31 +488,35 @@ onMounted(() => {
 .template-container {
   display: flex;
   height: 100%;
-  background: #fff;
-  border-radius: 4px;
+  background: var(--theme-surface, #fff);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+  min-height: 480px;
 }
 
 .template-list {
-  width: 200px;
-  border-right: 1px solid #ebeef5;
+  flex: 0 0 196px;
+  min-width: 0;
+  border-right: 1px solid var(--border-light);
   display: flex;
   flex-direction: column;
 
   .list-header {
-    padding: 15px;
+    padding: 12px 14px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid #ebeef5;
+    border-bottom: 1px solid var(--border-light);
 
     .title {
-      font-size: 16px;
-      font-weight: 500;
+      font-size: 14px;
+      font-weight: 600;
     }
 
     .el-icon {
       font-size: 18px;
-      color: #599ef8;
+      color: var(--text-secondary);
       cursor: pointer;
     }
   }
@@ -520,39 +524,46 @@ onMounted(() => {
   .list-content {
     flex: 1;
     overflow-y: auto;
-    padding: 10px;
+    padding: 8px;
   }
 
   .template-item {
-    font-size: 14px;
-    padding: 5px 0 5px 10px;
+    font-size: 13px;
+    min-height: 36px;
+    padding: 5px 8px;
+    gap: 8px;
     border-radius: 4px;
     cursor: pointer;
-    transition: all 0.3s;
     display: flex;
     justify-content: space-between;
     align-items: center;
 
     &:hover {
-      background: #f5f7fa;
+      background: var(--bg-primary);
     }
 
     &.active {
-      background: #ecf5ff;
+      background: var(--primary-soft-bg);
+      color: var(--primary-color);
+      box-shadow: inset 2px 0 var(--primary-color);
+      font-weight: 500;
     }
 
     .item-name {
-      max-width: 120px;
+      min-width: 0;
+      flex: 1;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
 
     .item-actions {
+      display: flex;
+      flex: none;
+      gap: 6px;
       .el-icon {
-        color: #599ef8;
+        color: var(--text-secondary);
         cursor: pointer;
-        margin-left: 5px;
       }
     }
   }
@@ -560,30 +571,33 @@ onMounted(() => {
 
 .template-edit {
   flex: 1;
-  padding: 20px;
+  min-width: 0;
+  padding: 18px;
   display: flex;
   flex-direction: column;
   overflow: auto;
 
   .edit-header {
-    padding-bottom: 20px;
+    padding-bottom: 12px;
 
     .header-content {
       display: flex;
-      margin-bottom: 20px;
+      gap: 16px;
     }
 
     .form-content {
-      width: 400px;
+      width: min(400px, 100%);
     }
 
     .edit-form {
       flex: 1;
-      padding-right: 20px;
+      min-width: 0;
+
+      :deep(.el-form-item) { margin-bottom: 14px; }
     }
 
     .save-btn {
-      padding-top: 5px;
+      padding-top: 0;
     }
   }
 }
@@ -603,8 +617,16 @@ onMounted(() => {
     line-height: 30px;
 
     &:hover {
-      color: #599ef8;
+      color: var(--theme-accent, #599ef8);
     }
   }
+}
+
+@media (max-width: 900px) {
+  .template-list { flex-basis: 160px; }
+  .template-edit { padding: 14px; }
+  .template-edit .header-content { flex-wrap: wrap; }
+  .template-edit .edit-form { flex-basis: 100%; }
+  .template-edit .save-btn { margin-left: auto; }
 }
 </style>

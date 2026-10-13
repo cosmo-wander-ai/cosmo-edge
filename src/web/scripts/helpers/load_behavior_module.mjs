@@ -9,11 +9,11 @@ import { parse, compileScript, compileTemplate, rewriteDefault } from 'vue/compi
 export const sourceRoot = process.env.WEB_BEHAVIOR_SOURCE_ROOT ||
   fileURLToPath(new URL('../../src/', import.meta.url))
 
-export const loadBehaviorModule = async (entry, { mocks = {}, globals = {}, env = {} } = {}) => {
+export const loadBehaviorModule = async (entry, { mocks = {}, globals = {}, env = {}, readSource = id => readFile(id, 'utf8') } = {}) => {
   const context = vm.createContext({ console, ...globals })
   const modules = new Map()
   const moduleSource = async (id) => {
-    const source = await readFile(id, 'utf8')
+    const source = await readSource(id)
     if (!id.endsWith('.vue')) return source
     const { descriptor, errors } = parse(source, { filename: id })
     if (errors.length) throw errors[0]
@@ -30,7 +30,9 @@ export const loadBehaviorModule = async (entry, { mocks = {}, globals = {}, env 
       : path.resolve(path.dirname(parent), specifier)
     if (!mocked && !path.extname(id)) id += '.js'
     if (modules.has(id)) return modules.get(id)
-    const module = mocked
+    // Cache construction before any asynchronous source read. Diamond imports
+    // must share one module (and therefore one exported Symbol/provide key).
+    const pending = Promise.resolve().then(async () => mocked
       ? new vm.SyntheticModule(Object.keys(mocks[id]), function () {
         for (const [name, value] of Object.entries(mocks[id])) this.setExport(name, value)
       }, { context, identifier: id })
@@ -38,12 +40,14 @@ export const loadBehaviorModule = async (entry, { mocks = {}, globals = {}, env 
         context,
         identifier: id,
         initializeImportMeta(meta) { meta.env = env; meta.url = pathToFileURL(id).href }
-      })
-    modules.set(id, module)
-    await module.link((dependency, importer) => load(dependency, importer.identifier))
-    return module
+      }))
+    modules.set(id, pending)
+    return pending
   }
   const module = await load(`./${entry}`)
+  // The VM recursively links the graph, including cycles. Independently linking
+  // dependencies can expose modules whose own link operation is still pending.
+  await module.link((dependency, importer) => load(dependency, importer.identifier))
   await module.evaluate()
   return module.namespace
 }

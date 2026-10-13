@@ -1,0 +1,35 @@
+// Applied after each library's legacy scoped styles so selected rows and
+// actions keep the same restrained treatment in every reference library.
+@mixin refined-library {
+  .people-management {
+    .template-list .template-item {
+      flex-wrap: nowrap;
+      align-items: center;
+      min-height: 46px;
+      padding: 9px 10px;
+      border-radius: 5px;
+      gap: 8px;
+      transition: background-color .15s, border-color .15s;
+      .item-name { width: auto; flex: 1; min-width: 0; max-width: none; font-size: 13px; }
+      .item-actions { flex-shrink: 0; width: auto; gap: 6px; flex-wrap: nowrap; }
+      .item-actions .el-icon { color: var(--secondary-color); transform: none; }
+      &.active {
+        background: var(--bg-subtle);
+        color: var(--text-primary);
+        border-color: var(--border-light);
+        box-shadow: inset 2px 0 var(--primary-color);
+        transform: none;
+        .item-actions .el-icon { color: var(--secondary-color); }
+      }
+      &:hover { background: var(--bg-hover); border-color: var(--border-light); }
+    }
+    .search-result-header .header-right .operation-tools .el-button:hover { transform: none; box-shadow: none; }
+    .search-result-container .grid-item .grid-content .grid-actions { padding: 8px 10px; }
+    .pagination-container { background: var(--bg-white); border-top: 1px solid var(--border-light); }
+  }
+  @media (max-width: 1100px) {
+    .people-management .template-list .template-item { flex-wrap: wrap; }
+    .people-management .template-list .template-item .item-name { flex-basis: 100%; }
+    .people-management .template-list .template-item .item-actions { margin-left: auto; }
+  }
+}

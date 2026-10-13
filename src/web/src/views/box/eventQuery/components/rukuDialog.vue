@@ -6,7 +6,7 @@
       center 
       @close="emit('update:visible', false)" 
       width="500px"
-    >
+     class="ui-admin-dialog">
       <el-form :model="formData" label-width="120px" label-position="right">
         <el-form-item :label="t('event.detectedImage') + localeColon">
           <el-image 

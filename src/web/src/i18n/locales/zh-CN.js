@@ -1,4 +1,15 @@
 export default {
+  appearance: {
+    switch: '外观设置',
+    light: '浅色',
+    dark: '深色',
+    system: '跟随系统',
+    mode: '显示模式',
+    palette: '配色',
+    modern: '新版',
+    classicBlue: '经典蓝',
+    selected: '已选中'
+  },
   visualQuestions: {
     "decisionMode": "结果处理",
     "reviewOnly": "仅记录复核结果",
@@ -26,6 +37,8 @@ export default {
     "roiInvalid": "请选择 1–8 个有效问题，或填写区域提示词。"
 },
   visualReview: {
+    serviceStatus: '服务状态',
+    filterAction: '过滤动作',
   "decisionLabel": "规则结论",
   "actionLabel": "处理结果",
   "filtered": "已过滤",
@@ -117,6 +130,13 @@ export default {
   }
 },
   gbAccess: {
+    deviceCount: "共 {count} 台设备",
+    registerDevice: "登记设备",
+    editDevice: "编辑设备",
+    emptyDeviceList: "尚未登记设备",
+    channelCount: "{count} 个通道",
+    saveWarning: "保存将断开现有国标注册，设备重新注册后恢复。",
+
     mediaTransport: '视频传输协议', transportTip: '注册信令自动兼容 TCP/UDP。视频默认 TCP；仅支持 UDP 视频的设备请选择 UDP。修改后设备需重新注册。',
     udpMediaListenFailed: 'UDP 视频端口监听失败，请检查端口占用',
     title: '国标设备接入', platformTab: '平台设置', devicesTab: '设备与通道',
@@ -381,6 +401,27 @@ export default {
     }
   },
   glossary: {
+    taskConfiguration: "配置版本",
+    taskChannelSummary: "关联通道",
+    taskChannelRunning: "运行",
+    taskChannelPaused: "暂停",
+    taskChannelError: "异常",
+    taskChannelStopped: "停止",
+    taskChannelUnknown: "未知",
+    taskChannelLoading: "正在获取通道状态",
+    taskChannelUnavailable: "通道状态获取失败，数量未知",
+    taskChannelPartial: "通道或任务列表不完整，仅显示已获取数据的下限；— 表示未知。",
+    analysisUsage: '分析用途',
+    taskRunningChannels: '运行通道',
+    flowZoomIn: '放大',
+    flowZoomOut: '缩小',
+    flowActualSize: '原始比例',
+    flowFitOverview: '适应总览',
+    flowDockPanel: '停靠面板',
+    flowFloatPanel: '浮动面板',
+    sceneTasksSubtitle: '管理场景编排与通道关联',
+    imageAnalysisSubtitle: '选择场景任务并分析图片',
+    modelRepositorySubtitle: '管理算法模型与场景关联',
     equals: '等于',
     licenseStatus: '授权状态',
     authorizationFailed: '授权失败',
@@ -753,6 +794,8 @@ export default {
     username: '用户名',
     channelNo: '通道编号',
     channelName: '通道名称',
+    channelInfo: '通道信息',
+    videoParameters: '视频参数',
     channelStatus: '通道状态',
     externalChannelNo: '外部通道编号',
     resolution: '分辨率',
@@ -1014,7 +1057,13 @@ export default {
     passwordChangedLoginAgain: '修改成功，请重新登录'
   },
   imageAnalysis: {
-    selectAlgorithmPlaceholder: '选择图片分析算法',
+    workflow: '图片分析流程',
+    selectTask: '选择场景任务',
+    viewResults: '查看结果',
+    results: '分析结果',
+    failed: '分析失败',
+    workflowHint: '选择场景任务并上传图片，点击“开始分析”查看逐图结果。',
+    selectAlgorithmPlaceholder: '选择图片分析场景任务',
     uploadImage: '上传图片',
     analyzing: '分析中...',
     startAnalysis: '开始分析',
@@ -1024,7 +1073,7 @@ export default {
     pending: '待分析',
     detectedTargets: '检测目标',
     noTargetsDetected: '未检测到目标',
-    emptyDescription: '请选择算法并上传图片进行分析',
+    emptyDescription: '请选择场景任务并上传图片进行分析',
     imagePreview: '图片预览',
     detectionCount: '检测数量',
     detectionDetails: '检测结果详情',
@@ -1114,8 +1163,21 @@ export default {
     itemPacketDiscard: '丢包率'
   },
   event: {
+    fitCover: "裁切铺满",
+    fitContain: "完整画面",
+    fitCoverHint: "点击切换为裁切铺满，将裁去超出窗口的画面边缘",
+    fitContainHint: "点击切换为完整画面，保留全部画面，比例不同时留边",
+
+    recordCount: '共 {n} 条记录',
+    fullImageHint: '点击图片查看完整证据',
+    uploadStatus: '上传状态',
+    autoDismiss: '自动收起',
+    allChannelEvents: '来自全部通道 · 按场景任务筛选',
+    filterSceneTasks: '筛选场景任务',
     aiVideoAnalysis: 'AI视频分析',
     algorithmOverlay: '算法叠加',
+    previewWindows: '窗口 {windows}',
+    openChannelHint: '双击通道，在选中窗口中打开',
     alarmLocation: '告警位置',
     alarmPopup: '告警弹框',
     alarmRecordCsv: '告警记录.csv',

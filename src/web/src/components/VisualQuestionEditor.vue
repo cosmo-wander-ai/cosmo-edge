@@ -71,12 +71,12 @@ const remove = i => update(c => { const id = c.questions[i].id; c.questions.spli
 </script>
 <style scoped>
 .visual-questions { width: 100%; min-width: 300px; max-width: 650px; }
-.hint { color: #606266; line-height: 1.5; }
-.question { padding: 12px; margin: 10px 0; border: 1px solid #dcdfe6; border-radius: 6px; }
+.hint { color: var(--theme-text-secondary, #606266); line-height: 1.5; }
+.question { padding: 12px; margin: 10px 0; border: 1px solid var(--theme-border, #dcdfe6); border-radius: 6px; }
 .question-title, .option { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
 .question-title .el-select { width: 150px; }
 .options { margin-top: 10px; }
 .decision-policy { margin-top: 16px; }
 .decision-policy .el-select { margin-top: 8px; }
-.error { color: #f56c6c; }
+.error { color: var(--theme-danger, #f56c6c); }
 </style>

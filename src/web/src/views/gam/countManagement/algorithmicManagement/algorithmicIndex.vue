@@ -1,5 +1,9 @@
 <template>
-  <div class="task-page">
+  <div class="task-page ui-admin-page">
+    <div class="task-page-heading">
+      <h1>{{ t('nav.sceneTasks') }}</h1>
+      <el-button type="primary" @click="addAlgorithmic">{{ t('action.createTask') }}</el-button>
+    </div>
     <TopBar ref="topBarRef" :dataSouce="topBarData" :formData="formData" :labelWidth="80" @search="searchList" />
     <!-- 工具栏 -->
     <div class="task-toolbar">
@@ -7,7 +11,6 @@
         <span class="task-count">{{ t('common.totalTasks', { n: pageData.total }) }}</span>
       </div>
       <div class="toolbar-right">
-        <el-button type="primary" size="small" class="btn-primary-gradient" @click="addAlgorithmic">{{ t('action.createTask') }}</el-button>
         <el-checkbox v-model="selectAll" @change="toggleSelectAll" :indeterminate="isIndeterminate" style="margin-right: 8px;">{{ t('action.selectAll') }}</el-checkbox>
         <el-button size="small" :disabled="batchDeleteIds.length === 0" @click="batchDelete">{{ t('action.bulkDelete') }}</el-button>
         <el-button size="small" @click="uploadAlgorithmic">{{ t('action.importTask') }}</el-button>
@@ -23,52 +26,80 @@
       </div>
     </div>
 
-    <!-- 卡片网格 -->
-    <div class="task-grid">
-      <div
-        v-for="row in tableData"
-        :key="row.algorithmId"
-        class="task-card"
-        :class="{ selected: isCardSelected(row) }"
-      >
-        <!-- 选择框 -->
-        <div class="card-select">
-          <el-checkbox :model-value="isCardSelected(row)" @change="toggleCardSelect(row)" />
-        </div>
-        <!-- 删除按钮 (hover显示) -->
-        <el-button v-if="row.supplier != 'HJ'" class="card-delete-btn" link @click.stop="deleteClick(row)">
-          <el-icon><Delete /></el-icon>
-        </el-button>
-        <!-- 图标 -->
-        <div class="card-top">
-          <div class="card-icon" :class="getCategoryIconClass(row)" v-html="getCategorySvg(row)"></div>
-        </div>
-        <!-- 信息 -->
-        <div class="card-info">
-          <div class="card-title" :title="resolveResourceAlgorithmName(row)">{{ resolveResourceAlgorithmName(row) }}</div>
-          <div class="card-meta">ID: {{ row.algorithmId }} · {{ getUsageLabel(row) }}</div>
-          <el-tooltip v-if="row.remark" :content="resolveResourceAlgorithmRemark(row)" placement="top" :show-after="300" popper-class="task-remark-tooltip">
-            <div class="card-desc">{{ resolveResourceAlgorithmRemark(row) }}</div>
-          </el-tooltip>
-        </div>
-        <!-- 类型标签 -->
-        <div class="card-tags">
-          <span class="category-tag" :class="getCategoryTagColor(row)">{{ returnCategoryName(row) }}</span>
-        </div>
-        <!-- 底部 -->
-        <div class="card-footer">
-          <div class="card-status">
-            <span class="status-indicator" :class="getModelStatusOk(row) ? 'status-ok' : 'status-warn'" :title="getModelStatusOk(row) ? '' : returnLostModel(row.models || [])">
-              ● {{ getModelStatusOk(row) ? t('status.normal') : t('glossary.modelMissing') }}
-            </span>
-            <span class="running-count" v-if="channelCountMap[row.algorithmId]">{{ t('common.runningChannels', { n: channelCountMap[row.algorithmId] }) }}</span>
-          </div>
-          <div class="card-actions">
-            <el-button link size="small" @click.stop="arrangeDetailClick(row)">{{ t('action.arrangeAlgorithm') }}</el-button>
-            <el-button link size="small" v-if="row.supplier != 'HJ'" @click.stop="editClick(row)">{{ t('action.edit') }}</el-button>
-          </div>
-        </div>
-      </div>
+    <div class="task-list" tabindex="0" :aria-label="t('nav.sceneTasks')">
+      <table class="task-table">
+        <colgroup>
+          <col class="select-column" />
+          <col class="identity-column" />
+          <col class="usage-column" />
+          <col class="category-column" />
+          <col class="channels-column" />
+          <col class="updated-column" />
+          <col class="actions-column" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th scope="col" class="task-select-cell">
+              <el-checkbox v-model="selectAll" @change="toggleSelectAll" :indeterminate="isIndeterminate" :aria-label="t('action.selectAll')" />
+            </th>
+            <th scope="col">{{ t('field.taskName') }}</th>
+            <th scope="col">{{ t('glossary.analysisUsage') }}</th>
+            <th scope="col">{{ t('field.taskType') }}</th>
+            <th scope="col">{{ t('glossary.taskChannelSummary') }}</th>
+            <th scope="col">{{ t('field.updateTime') }}</th>
+            <th scope="col" class="task-actions-cell">{{ t('field.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="row in tableData" :key="row.algorithmId" :class="{ selected: isCardSelected(row) }">
+            <td class="task-select-cell">
+              <el-checkbox :model-value="isCardSelected(row)" :aria-label="resolveResourceAlgorithmName(row)" @change="toggleCardSelect(row)" />
+            </td>
+            <td class="task-identity">
+              <div class="task-identity-content">
+                <SceneTaskIcon class="task-category-icon" :task="row" />
+                <el-tooltip :content="getTaskIdentityDetails(row)" placement="top-start" :show-after="400" popper-class="task-remark-tooltip">
+                  <div class="task-identity-text" tabindex="0">
+                    <div class="task-name">{{ resolveResourceAlgorithmName(row) }}</div>
+                    <div class="task-meta">ID: {{ row.algorithmId }}</div>
+                  </div>
+                </el-tooltip>
+              </div>
+            </td>
+            <td>{{ getUsageLabel(row) }}</td>
+            <td>{{ returnCategoryName(row) || '—' }}</td>
+            <td class="task-channel-cell">
+              <el-tooltip :content="getChannelDetails(row)" placement="top" :show-after="400" popper-class="task-remark-tooltip">
+                <div class="task-channel-summary" tabindex="0">
+                  <span class="channel-total">{{ getChannelTotalLabel(row) }}</span>
+                  <div v-if="channelSummary.available && (channelSummary.complete || taskDisplay[row.algorithmId].channels.total)" class="channel-states">
+                    <span v-for="state in getVisibleChannelStates(row)" :key="state" class="channel-state" :class="state">
+                      {{ t(`glossary.taskChannel${state[0].toUpperCase() + state.slice(1)}`) }} {{ getChannelStateCount(row, state) }}
+                    </span>
+                    <span v-if="taskDisplay[row.algorithmId].channels.unknown" class="channel-state unknown">{{ t('glossary.taskChannelUnknown') }} {{ getChannelStateCount(row, 'unknown') }}</span>
+                  </div>
+                </div>
+              </el-tooltip>
+            </td>
+            <td class="task-updated" :title="row.releaseTime || ''">
+              <span>{{ getUpdatedParts(row).date }}</span>
+              <span class="task-meta">{{ getUpdatedParts(row).time }}</span>
+            </td>
+            <td class="task-actions-cell">
+              <div class="task-actions">
+                <el-button link size="small" @click.stop="arrangeDetailClick(row)" class="ui-action ui-action-flow">{{ t('action.arrangeAlgorithm') }}</el-button>
+                <el-button link size="small" v-if="row.supplier != 'HJ'" @click.stop="editClick(row)" class="ui-action ui-action-edit">{{ t('action.edit') }}</el-button>
+                <el-button link size="small" v-if="row.supplier != 'HJ'" @click.stop="deleteClick(row)" class="ui-action ui-action-delete">
+                  {{ t('action.delete') }}
+                </el-button>
+              </div>
+            </td>
+          </tr>
+          <tr v-if="!tableData.length" class="task-empty-row">
+            <td colspan="7">{{ t('common.noData') }}</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
     <!-- 分页 -->
@@ -77,7 +108,7 @@
     </div>
 
     <!-- 删除确认 -->
-    <el-dialog :title="t('common.notice')" v-model="deleteDialogVisible" width="350px" center @close="batchDeleteFalg = false">
+    <el-dialog :title="t('common.notice')" v-model="deleteDialogVisible" width="350px" center @close="batchDeleteFalg = false" class="ui-admin-dialog">
       <div class="tips">{{ t('validate.deleteTaskWarning') }}</div>
       <template #footer>
         <span class="dialog-footer">
@@ -86,7 +117,7 @@
         </span>
       </template>
     </el-dialog>
-    <el-dialog :title="algorithmDialogTitle" v-model="addAlgorithmicVisible" width="500px" center @close="addAlgorithmiClosed">
+    <el-dialog :title="algorithmDialogTitle" v-model="addAlgorithmicVisible" width="500px" center @close="addAlgorithmiClosed" class="ui-admin-dialog">
       <div>
         <el-form ref="addAlgorithmicFormRef" :model="addAlgorithmicForm" :rules="addAlgorithmicRules" label-position="right" label-width="110px">
           <el-form-item :label="t('field.taskName') + localeColon" prop="algorithmName">
@@ -122,7 +153,7 @@
         </span>
       </template>
     </el-dialog>
-    <el-dialog :title="t('action.importTask')" v-model="uploadAlgorithmicVisible" width="400px" center :close-on-click-modal="!uploadAlgorithmicLoading" :close-on-press-escape="!uploadAlgorithmicLoading" :show-close="!uploadAlgorithmicLoading" @close="uploadAlgorithmicClosed">
+    <el-dialog :title="t('action.importTask')" v-model="uploadAlgorithmicVisible" width="400px" center :close-on-click-modal="!uploadAlgorithmicLoading" :close-on-press-escape="!uploadAlgorithmicLoading" :show-close="!uploadAlgorithmicLoading" @close="uploadAlgorithmicClosed" class="ui-admin-dialog">
       <div>
         <div class="upload-div">{{ t('validate.selectFile') }}{{ localeColon }}</div>
         <el-input v-model="uploadAlgorithmicName" class="upload-input" disabled :placeholder="t('validate.selectFile')" size="small"></el-input>
@@ -143,10 +174,12 @@
 
 <script>
 import TopBar from '@/components/TopBar.vue'
-import { ArrowDown, Delete } from '@element-plus/icons-vue'
+import { ArrowDown } from '@element-plus/icons-vue'
 import moment from 'moment'
 import { t, localeColon } from '@/i18n'
 import { resolveResourceAlgorithmRemark, resolveResourceAlgorithmName } from '@/utils/i18nResource'
+import SceneTaskIcon from '@/components/SceneTaskIcon.vue'
+import { emptyTaskChannelSummary, summarizeTaskChannels } from '@/utils/sceneTaskDisplay'
 import {
   uploadFileInChunks,
   UploadPurpose
@@ -156,7 +189,7 @@ export default {
   components: {
     TopBar,
     ArrowDown,
-    Delete
+    SceneTaskIcon
   },
   setup() {
     return { t, localeColon, resolveResourceAlgorithmRemark, resolveResourceAlgorithmName }
@@ -177,8 +210,10 @@ export default {
       batchDeleteIds: [],
       selectedCards: [],
       selectAll: false,
-      channelCountMap: {},
-      channelCountMap: {},
+      channelSummary: { available: false, complete: false, byAlgorithm: {} },
+      channelSummaryLoading: true,
+      channelSummaryRequest: 0,
+      channelStateKeys: ['running', 'paused', 'error', 'stopped'],
       formData: {
         algorithmId: '',
         algorithmCategory: '',
@@ -221,6 +256,11 @@ export default {
     }
   },
   computed: {
+    taskDisplay() {
+      return Object.fromEntries(this.tableData.map(row => [row.algorithmId, {
+        channels: this.channelSummary.byAlgorithm[row.algorithmId] || emptyTaskChannelSummary()
+      }]))
+    },
     topBarData() {
       const list = [
         {
@@ -656,47 +696,58 @@ export default {
       if (row.algorithmUsage == 2) return t('glossary.imageAnalysis')
       return ''
     },
-    getModelStatusOk(row) {
-      return !this.returnLostModel(row.models || [])
+    getTaskIdentityDetails(row) {
+      return [resolveResourceAlgorithmName(row), `ID: ${row.algorithmId}`,
+        row.confVersionName && `${t('glossary.taskConfiguration')}${localeColon.value} ${row.confVersionName}`,
+        resolveResourceAlgorithmRemark(row)].filter(Boolean).join('\n')
     },
-    getCategoryIconClass(row) {
-      const map = { '1': 'icon-blue', '2': 'icon-purple', '3': 'icon-purple', '8': 'icon-green', '9': 'icon-green', '10': 'icon-blue', '11': 'icon-green' }
-      return map[String(row.algorithmCategory)] || 'icon-blue'
+    getChannelTotalLabel(row) {
+      if (this.channelSummaryLoading) return '…'
+      if (!this.channelSummary.available) return t('glossary.taskChannelUnknown')
+      const summary = this.taskDisplay[row.algorithmId].channels
+      if (!this.channelSummary.complete && !summary.total) return t('glossary.taskChannelUnknown')
+      return `${this.channelSummary.complete ? '' : '≥'}${t('home.channelUnit', { n: summary.total })}`
     },
-    getCategoryTagColor(row) {
-      const map = { '1': 'tag-blue', '2': 'tag-purple', '3': 'tag-purple', '8': 'tag-green', '9': 'tag-green', '10': 'tag-blue', '11': 'tag-green' }
-      return map[String(row.algorithmCategory)] || 'tag-blue'
+    getChannelStateCount(row, state) {
+      const count = this.taskDisplay[row.algorithmId].channels[state]
+      return this.channelSummary.complete ? count : count ? `≥${count}` : '—'
     },
-    getCategorySvg(row) {
-      const svgs = {
-        '1': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M6 21v-1a6 6 0 0 1 12 0v1"/></svg>',
-        '2': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
-        '3': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
-        '8': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
-        '9': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>',
-        '10': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="10" rx="2"/><circle cx="7.5" cy="18" r="2"/><circle cx="16.5" cy="18" r="2"/><path d="M6 8V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/></svg>',
-        '11': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 5-8"/></svg>'
+    getVisibleChannelStates(row) {
+      return this.channelStateKeys.filter(state => this.taskDisplay[row.algorithmId].channels[state] > 0)
+    },
+    getChannelDetails(row) {
+      if (this.channelSummaryLoading) return t('glossary.taskChannelLoading')
+      if (!this.channelSummary.available) return t('glossary.taskChannelUnavailable')
+      const labels = {
+        running: t('glossary.taskChannelRunning'), paused: t('glossary.taskChannelPaused'),
+        error: t('glossary.taskChannelError'), stopped: t('glossary.taskChannelStopped'),
+        unknown: t('glossary.taskChannelUnknown')
       }
-      return svgs[String(row.algorithmCategory)] || svgs['2']
+      const summary = this.taskDisplay[row.algorithmId].channels
+      return [
+        `${t('glossary.taskChannelSummary')}${localeColon.value} ${this.getChannelTotalLabel(row)}`,
+        ...Object.entries(labels).filter(([state]) => state !== 'unknown' || summary.unknown).map(([state, label]) => `${label} ${this.getChannelStateCount(row, state)}`),
+        !this.channelSummary.complete && t('glossary.taskChannelPartial')
+      ].filter(Boolean).join('\n')
     },
-    // ── 加载真实通道运行数（复用运行总览的 getChannelList 逻辑）──
+    getUpdatedParts(row) {
+      const value = String(row.releaseTime || '').trim()
+      const match = value.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})$/)
+      return match ? { date: match[1], time: match[2] } : { date: value || '—', time: '' }
+    },
+    // Display the actual task state; loading or partial lists must not imply zero.
     loadChannelCounts() {
+      const request = ++this.channelSummaryRequest
+      this.channelSummaryLoading = true
+      this.channelSummary = { available: false, complete: false, byAlgorithm: {} }
       this.$API.getChannelList({ pageNum: 1, pageSize: 500 }).then(res => {
-        const rows = res?.resData?.rows || []
-        const countMap = {}
-        rows.forEach(channel => {
-          if (channel.taskList && Array.isArray(channel.taskList)) {
-            channel.taskList.forEach(task => {
-              if (task.status === 0) return
-              if (!countMap[task.algorithmId]) countMap[task.algorithmId] = new Set()
-              countMap[task.algorithmId].add(channel.videoChannelId)
-            })
-          }
-        })
-        const result = {}
-        Object.keys(countMap).forEach(k => { result[k] = countMap[k].size })
-        this.channelCountMap = result
-      }).catch(() => {})
+        if (request !== this.channelSummaryRequest) return
+        this.channelSummary = summarizeTaskChannels(res?.resData)
+      }).catch(() => {
+        if (request === this.channelSummaryRequest) this.channelSummary = { available: false, complete: false, byAlgorithm: {} }
+      }).finally(() => {
+        if (request === this.channelSummaryRequest) this.channelSummaryLoading = false
+      })
     }
   }
 }
@@ -710,127 +761,138 @@ export default {
   min-height: 0;
   overflow: hidden;
 }
-.task-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 24px;
-  flex-shrink: 0;
-}
-.toolbar-left { display: flex; align-items: center; }
-.task-count {
-  font-size: 13px;
-  color: #6b7280;
-  background: #f3f4f6;
-  padding: 4px 14px;
-  border-radius: 12px;
-}
-.toolbar-right { display: flex; align-items: center; gap: 8px; }
-.btn-primary-gradient {
-  background: linear-gradient(135deg, #3182ce, #4299e1) !important;
-  border: none !important;
-  color: #fff !important;
-  &:hover { background: linear-gradient(135deg, #2b6cb0, #2b6cb0) !important; }
-}
-.task-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-auto-rows: minmax(260px, auto);
-  gap: 16px;
-  padding: 4px 24px 12px;
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  align-content: start;
-}
-@media (max-width: 1200px) { .task-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 768px) { .task-grid { grid-template-columns: minmax(0, 1fr); } }
-.task-card {
-  position: relative;
-  background: #fff;
-  border-radius: 12px;
-  padding: 20px;
-  border: 1px solid #f0f0f0;
-  transition: all 0.25s ease;
-  min-height: 260px;
-  min-width: 0;
-  height: auto;
-  display: flex;
-  flex-direction: column;
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-    border-color: rgba(49,130,206,0.2);
-    .card-delete-btn { opacity: 1; }
+.task-page.ui-admin-page {
+  .task-page-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+    gap: 12px;
+    margin-bottom: 14px;
+
+    h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 650; letter-spacing: -0.4px; }
   }
-  &.selected {
-    border-color: #3182ce;
-    box-shadow: 0 0 0 2px rgba(49,130,206,0.15);
+  .task-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    padding: 0 0 14px;
+    flex-shrink: 0;
+  }
+  .toolbar-left, .toolbar-right { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .toolbar-right .el-button + .el-button { margin-left: 0; }
+  .task-count { color: var(--text-secondary); font-size: 13px; background: transparent; }
+  .task-list {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    container-type: inline-size;
+    border: 1px solid var(--border-color);
+    border-radius: 7px;
+    background: var(--bg-panel);
+    scrollbar-gutter: stable;
+
+    &:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+  }
+  .task-table {
+    width: 100%;
+    min-width: 1000px;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 20px;
+
+    // Share the remaining width across content columns instead of stretching only the name.
+    --task-content-width: calc(max(1000px, 100cqi) - 292px);
+    .select-column { width: 40px; }
+    .identity-column { width: calc(var(--task-content-width) * 0.35); }
+    .usage-column { width: calc(var(--task-content-width) * 0.14); }
+    .category-column { width: calc(var(--task-content-width) * 0.12); }
+    .channels-column { width: calc(var(--task-content-width) * 0.18); }
+    .updated-column { width: calc(var(--task-content-width) * 0.21); }
+    .actions-column { width: 252px; }
+
+    th, td { padding: 7px 14px; text-align: left; overflow-wrap: normal; }
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      padding-block: 11px;
+      background: var(--table-header-bg);
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+    td { height: 54px; box-sizing: border-box; border-bottom: 1px solid var(--border-light); background: var(--bg-panel); }
+    tr:last-child td { border-bottom: 0; }
+    tbody tr:hover td { background: var(--table-row-hover-bg); }
+    tbody tr.selected td { background: var(--el-color-primary-light-9); }
+    .task-select-cell { padding-inline: 14px 8px; }
+    .task-actions-cell {
+      position: sticky;
+      right: 0;
+      z-index: 1;
+      border-left: 1px solid var(--border-light);
+    }
+    th.task-actions-cell { z-index: 3; }
+  }
+  .task-select-cell :deep(.el-checkbox) { height: 24px; }
+  .task-identity-content { display: flex; align-items: center; gap: 9px; min-width: 0; }
+  .task-category-icon { width: 20px; height: 20px; flex: 0 0 20px; color: var(--text-secondary); }
+  .task-identity-text { min-width: 0; }
+  .task-identity-text:focus-visible, .task-channel-summary:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; border-radius: 2px; }
+  .task-name {
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .task-meta { display: block; min-width: 0; color: var(--text-secondary); font-size: 12px; line-height: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .task-updated {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    > span { white-space: nowrap; }
+    .task-meta { display: inline; margin-left: 6px; }
+  }
+  .task-channel-summary { display: flex; flex-direction: column; align-items: flex-start; gap: 0; font-variant-numeric: tabular-nums; }
+  .channel-total { flex: 0 0 auto; font-weight: 500; color: var(--text-primary); white-space: nowrap; }
+  .channel-states { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; min-width: 0; font-size: 12px; line-height: 18px; }
+  .channel-state {
+    white-space: nowrap;
+    + .channel-state::before { content: '·'; color: var(--text-tertiary, var(--text-secondary)); margin-right: 6px; }
+    &.running { color: var(--success-color); }
+    &.paused { color: var(--warning-color); }
+    &.error { color: var(--danger-color); }
+    &.stopped, &.unknown, &.empty { color: var(--text-secondary); }
+  }
+  .task-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; }
+  .task-actions .el-button.ui-action { font-size: 12px; }
+  .task-table .task-empty-row td { height: 180px; text-align: center; color: var(--text-secondary); }
+  .pagination-container { display: flex; justify-content: flex-end; padding: 12px 0 0; flex-shrink: 0; overflow-x: auto; }
+
+  @container (max-width: 1120px) {
+    .task-updated .task-meta { display: block; margin-left: 0; }
+  }
+
+  @media (max-width: 768px) {
+    .task-page-heading { margin-bottom: 14px; }
+    .task-table .task-actions-cell { position: static; }
   }
 }
-.card-select { position: absolute; top: 12px; left: 12px; z-index: 1; }
-.card-delete-btn {
-  position: absolute; top: 12px; right: 12px;
-  opacity: 0; transition: opacity 0.2s;
-  color: #ef4444 !important;
-  &:hover { color: #dc2626 !important; }
-}
-.card-top { margin-bottom: 12px; }
-.card-icon {
-  width: 44px; height: 44px; border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
-  :deep(svg) { width: 22px; height: 22px; }
-  &.icon-blue { background: rgba(59,130,246,0.1); color: #3b82f6; }
-  &.icon-purple { background: rgba(66,153,225,0.1); color: #4299e1; }
-  &.icon-cyan { background: rgba(6,182,212,0.1); color: #06b6d4; }
-  &.icon-green { background: rgba(34,197,94,0.1); color: #22c55e; }
-  &.icon-orange { background: rgba(245,158,11,0.1); color: #f59e0b; }
-}
-.card-info { min-width: 0; margin-bottom: 10px; }
-.card-title {
-  font-size: 15px; font-weight: 600; color: #1f2937;
-  margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.card-meta { font-size: 12px; color: #9ca3af; }
-.card-desc {
-  font-size: 12px; color: #9ca3af; margin-top: 4px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  max-width: 100%;
-}
-.card-tags { margin-bottom: 12px; }
-.category-tag {
-  display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px;
-  &.tag-blue { background: #dbeafe; color: #2563eb; }
-  &.tag-purple { background: #ebf8ff; color: #2b6cb0; }
-  &.tag-cyan { background: #cffafe; color: #0891b2; }
-  &.tag-green { background: #dcfce7; color: #16a34a; }
-  &.tag-orange { background: #fef3c7; color: #d97706; }
-}
-.card-footer {
-  display: flex; justify-content: space-between; align-items: center;
-  min-width: 0; gap: 8px;
-  padding-top: 12px; border-top: 1px solid #f5f5f5;
-  margin-top: auto;
-  flex-shrink: 0;
-}
-.card-status { display: flex; align-items: center; gap: 10px; font-size: 12px; }
-.status-indicator {
-  &.status-ok { color: #22c55e; }
-  &.status-warn { color: #ef4444; cursor: help; }
-}
-.running-count { color: #3182ce; font-weight: 500; }
-.card-actions {
-  display: flex; flex-shrink: 0; gap: 4px;
-  .el-button { font-size: 13px; color: #3182ce !important; &:hover { color: #2b6cb0 !important; } }
-}
-.pagination-container { display: flex; justify-content: center; padding: 12px 24px 16px; flex-shrink: 0; }
 .tips { text-align: center; padding: 20px 0; }
 .dialog-footer { display: flex; justify-content: center; }
 .input-width { width: calc(100% - 80px); }
 .upload-div { margin-left: 20px; margin-bottom: 10px; }
 .upload-input { width: calc(100% - 100px); margin-left: 20px; margin-right: 10px; }
-.upload-warn { margin-top: 5px; margin-left: 20px; color: #3182ce; font-size: 12px; }
+.upload-warn { margin-top: 5px; margin-left: 20px; color: var(--primary-color); font-size: 12px; }
 .upload-btn { display: inline-block; }
 :deep(.el-textarea__inner) { height: 100px; }
 </style>

@@ -105,13 +105,13 @@ watch(() => props.fileList, (newValue) => {
     overflow: hidden;
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    border: 2px solid #e4e7ed;
-    background: #fff;
+    border: 2px solid var(--theme-border, #e4e7ed);
+    background: var(--theme-surface, #fff);
 
     &:hover {
       transform: translateY(-4px);
       box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-      border-color: #409eff;
+      border-color: var(--theme-accent, #409eff);
 
       .delete-style {
         opacity: 1;
@@ -160,19 +160,19 @@ watch(() => props.fileList, (newValue) => {
         border-radius: 6px;
         font-weight: 500;
         transition: all 0.3s;
-        background: rgba(255, 255, 255, 0.95);
+        background: var(--theme-surface, rgba(255, 255, 255, 0.95));
         border: 1px solid rgba(255, 255, 255, 0.2);
-        color: #409eff;
+        color: var(--theme-accent, #409eff);
         backdrop-filter: blur(4px);
 
         &:hover {
           transform: scale(1.05);
           box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
-          background: #fff;
+          background: var(--theme-surface, #fff);
         }
 
         &.btn2 {
-          color: #f56c6c;
+          color: var(--theme-danger, #f56c6c);
 
           &:hover {
             box-shadow: 0 4px 12px rgba(245, 108, 108, 0.3);
@@ -187,9 +187,9 @@ watch(() => props.fileList, (newValue) => {
     align-items: center;
     justify-content: center;
     font-size: 32px;
-    color: #c0ccda;
-    border: 2px dashed #d3dce6;
-    background: linear-gradient(135deg, #fafbfc 0%, #f5f7fa 100%);
+    color: var(--theme-text-muted, #c0ccda);
+    border: 2px dashed var(--theme-border, #d3dce6);
+    background: linear-gradient(135deg, var(--theme-surface-soft, #fafbfc) 0%, var(--theme-surface-soft, #f5f7fa) 100%);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     overflow: hidden;
@@ -206,9 +206,9 @@ watch(() => props.fileList, (newValue) => {
     }
 
     &:hover {
-      border-color: #409eff;
-      color: #409eff;
-      background: linear-gradient(135deg, #f0f9ff 0%, #e6f4ff 100%);
+      border-color: var(--theme-accent, #409eff);
+      color: var(--theme-accent, #409eff);
+      background: linear-gradient(135deg, var(--theme-accent-soft, #f0f9ff) 0%, var(--theme-accent-soft, #e6f4ff) 100%);
       transform: translateY(-2px);
       box-shadow: 0 4px 15px rgba(64, 158, 255, 0.2);
 
@@ -270,7 +270,7 @@ watch(() => props.fileList, (newValue) => {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(255, 255, 255, 0.8);
+    background: var(--theme-surface, rgba(255, 255, 255, 0.8));
     display: flex;
     align-items: center;
     justify-content: center;

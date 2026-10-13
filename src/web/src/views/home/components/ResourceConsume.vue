@@ -1,12 +1,5 @@
 <template>
   <div class="resource-usage">
-    <!-- 背景装饰 -->
-    <div class="bg-decoration">
-      <div class="grid-lines"></div>
-      <div class="glow-orb glow-orb-1"></div>
-      <div class="glow-orb glow-orb-2"></div>
-    </div>
-
     <!-- 评分卡片 -->
     <div class="score-card">
       <div class="score-icon">
@@ -20,35 +13,24 @@
           <span class="number">{{ customScore }}</span>
           <span class="unit">{{ t('resource.scoreUnit') }}</span>
         </div>
-        <div class="score-status" :class="getScoreStatus(customScore)">
-          {{ getScoreText(customScore) }}
-        </div>
       </div>
-      <!-- <div class="score-ring">
-        <svg viewBox="0 0 100 100">
-          <circle cx="50" cy="50" r="45" class="ring-bg" />
-          <circle 
-            cx="50" 
-            cy="50" 
-            r="45" 
-            class="ring-progress"
-            :style="{ strokeDashoffset: getRingOffset(customScore) }"
-          />
-        </svg>
-      </div> -->
+      <div class="score-status" :class="getScoreStatus(customScore)">
+        {{ getScoreText(customScore) }}
+      </div>
     </div>
 
     <!-- 资源监控网格 -->
     <div class="charts-container">
-      <div 
-        v-for="(item, index) in resourceList" 
-        :key="item.key" 
+      <div
+        v-for="(item, index) in resourceList"
+        :key="item.key"
         class="chart-item"
-        :style="{ animationDelay: `${index * 0.1}s` }"
+        :class="{ 'is-unavailable': !isResourceAvailable(item) }"
+        :data-progress-color="getProgressColor(resourcePercent(item))"
       >
         <div class="chart-header">
           <div class="chart-title">
-            <div class="title-icon" :style="{ background: getGradientColor(resourcePercent(item)) }">
+            <div class="title-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path v-if="item.key.includes('cpu') || item.key.includes('npu')" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                 <path v-else-if="item.key.includes('Memory')" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
@@ -58,42 +40,37 @@
             </div>
             <span>{{ resolveResourceName(item) }}</span>
           </div>
-          <div class="chart-percentage" :style="{ color: getProgressColor(resourcePercent(item)) }">
-            {{ isResourceAvailable(item) ? `${item.usedPercent}%` : t('resource.unavailable') }}
-          </div>
         </div>
 
-        <!-- 圆形进度条 -->
+        <div class="chart-percentage">
+          <span>{{ isResourceAvailable(item) ? item.usedPercent : t('resource.unavailable') }}</span>
+          <span v-if="isResourceAvailable(item)" class="percentage-unit">%</span>
+        </div>
+
+        <!-- 细进度条，保留原数值与阈值分类 -->
         <div class="progress-wrapper">
-          <el-progress 
-            type="circle" 
+          <el-progress
             :percentage="resourcePercent(item)"
-            :color="getProgressColor(resourcePercent(item))"
-            :width="110" 
-            :stroke-width="10"
+            color="var(--metric-accent)"
+            :stroke-width="5"
             :show-text="false"
+            :aria-label="resolveResourceName(item)"
           />
-          <div class="progress-center">
-            <div class="center-value">{{ isResourceAvailable(item) ? item.usedPercent : '--' }}</div>
-            <div v-if="isResourceAvailable(item)" class="center-unit">%</div>
-          </div>
         </div>
 
         <!-- 使用详情 -->
         <div class="usage-stats">
           <div class="stat-row">
             <div class="stat-label">
-              <span class="stat-dot" :style="{ background: getProgressColor(resourcePercent(item)) }"></span>
               <span v-if="item.key === 'packetDiscardUtilization'">{{ t('resource.packetLostCount') }}</span>
               <span v-else>{{ t('resource.usedLabel') }}</span>
             </div>
-            <div class="stat-value" :style="{ color: getProgressColor(resourcePercent(item)) }">
+            <div class="stat-value">
               {{ isResourceAvailable(item) ? item.usedSize : '--' }}
             </div>
           </div>
           <div class="stat-row">
             <div class="stat-label">
-              <span class="stat-dot stat-dot-gray"></span>
               <span v-if="item.key === 'packetDiscardUtilization'">{{ t('resource.totalPacketCount') }}</span>
               <span v-else>{{ t('resource.unusedLabel') }}</span>
             </div>
@@ -218,362 +195,236 @@ onBeforeUnmount(() => {
 
 <style lang="scss" scoped>
 .resource-usage {
-  position: relative;
-  padding: 20px;
-  background: #f5f7fa;
-  overflow: hidden;
+  min-width: 0;
+  color: var(--text-primary);
+  background: var(--bg-white);
 }
 
-// 背景装饰
-.bg-decoration {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.grid-lines {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-image: 
-    linear-gradient(rgba(49, 130, 206, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(49, 130, 206, 0.03) 1px, transparent 1px);
-  background-size: 40px 40px;
-}
-
-.glow-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(60px);
-  opacity: 0.15;
-  animation: float 8s ease-in-out infinite;
-}
-
-.glow-orb-1 {
-  width: 300px;
-  height: 300px;
-  background: radial-gradient(circle, #3182ce 0%, transparent 70%);
-  top: -150px;
-  left: -150px;
-}
-
-.glow-orb-2 {
-  width: 250px;
-  height: 250px;
-  background: radial-gradient(circle, #4299e1 0%, transparent 70%);
-  bottom: -125px;
-  right: -125px;
-  animation-delay: 4s;
-}
-
-@keyframes float {
-  0%, 100% {
-    transform: translate(0, 0);
-  }
-  50% {
-    transform: translate(20px, 20px);
-  }
-}
-
-// 评分卡片
 .score-card {
-  position: relative;
   display: flex;
   align-items: center;
-  gap: 20px;
-  padding: 20px 24px;
-  margin-bottom: 24px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  animation: slideIn 0.6s ease-out;
-}
-
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  gap: 16px;
+  padding: 18px 20px;
+  margin-bottom: 16px;
+  background: var(--bg-white);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
 }
 
 .score-icon {
-  width: 48px;
-  height: 48px;
   display: flex;
+  flex: 0 0 36px;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #3182ce 0%, #4299e1 100%);
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(49, 130, 206, 0.3);
+  width: 36px;
+  height: 36px;
+  color: var(--primary-color);
+  background: var(--el-color-primary-light-9);
+  border-radius: 8px;
 
   svg {
-    width: 24px;
-    height: 24px;
-    color: #fff;
+    width: 20px;
+    height: 20px;
   }
 }
 
 .score-content {
+  display: flex;
   flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 24px;
+  min-width: 0;
 }
 
 .score-label {
-  font-size: 13px;
-  color: #6b7280;
-  margin-bottom: 6px;
+  color: var(--text-secondary);
+  font-size: 14px;
   font-weight: 500;
 }
 
 .score-value {
   display: flex;
   align-items: baseline;
-  gap: 4px;
-  margin-bottom: 6px;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
 
   .number {
+    color: var(--text-primary);
     font-size: 32px;
-    font-weight: 700;
-    background: linear-gradient(135deg, #3182ce 0%, #4299e1 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    line-height: 1.25;
+    font-weight: 650;
   }
 
   .unit {
-    font-size: 16px;
-    color: #9ca3af;
+    color: var(--text-secondary);
+    font-size: 13px;
   }
 }
 
 .score-status {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: 600;
+  flex-shrink: 0;
+  padding: 3px 9px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
 
   &.excellent {
-    background: rgba(49, 130, 206, 0.1);
-    color: #3182ce;
+    background: var(--el-color-primary-light-9);
+    color: var(--primary-color);
   }
 
   &.good {
-    background: rgba(16, 185, 129, 0.1);
-    color: #10b981;
+    background: var(--theme-success-soft, #edf6f0);
+    color: var(--success-color);
   }
 
   &.warning {
-    background: rgba(245, 158, 11, 0.1);
-    color: #f59e0b;
+    background: var(--theme-warning-soft, #fbf4e6);
+    color: var(--warning-color);
   }
 
   &.danger {
-    background: rgba(239, 68, 68, 0.1);
-    color: #ef4444;
+    background: var(--theme-danger-soft, #fbebee);
+    color: var(--danger-color);
   }
 }
 
-.score-ring {
-  width: 80px;
-  height: 80px;
-  position: relative;
-
-  svg {
-    transform: rotate(-90deg);
-  }
-
-  .ring-bg {
-    fill: none;
-    stroke: #e5e7eb;
-    stroke-width: 6;
-  }
-
-  .ring-progress {
-    fill: none;
-    stroke: url(#scoreGradient);
-    stroke-width: 6;
-    stroke-linecap: round;
-    stroke-dasharray: 283;
-    transition: stroke-dashoffset 1s ease;
-  }
-}
-
-// 资源监控网格
 .charts-container {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(240px, calc((100% - 48px) / 4))), 1fr));
   gap: 16px;
+  align-items: stretch;
 }
 
 .chart-item {
-  position: relative;
-  padding: 20px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  transition: all 0.3s ease;
-  animation: fadeInUp 0.6s ease-out backwards;
+  --metric-accent: var(--primary-color);
+  min-width: 0;
+  padding: 18px 20px;
+  background: var(--bg-white);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
 
-  &:hover {
-    transform: translateY(-4px);
-    border-color: #3182ce;
-    box-shadow: 0 8px 24px rgba(49, 130, 206, 0.15);
-  }
-}
+  // Reuse the existing threshold classifier; only map its colors to UI tokens.
+  &[data-progress-color='#f59e0b'] {
+    --metric-accent: var(--warning-color);
 
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
+    .chart-percentage { color: var(--warning-color); }
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+
+  &[data-progress-color='#ef4444'] {
+    --metric-accent: var(--danger-color);
+
+    .chart-percentage { color: var(--danger-color); }
+  }
+
+  &.is-unavailable {
+    --metric-accent: var(--text-muted);
+
+    .chart-percentage {
+      color: var(--text-secondary);
+      font-size: 18px;
+    }
   }
 }
 
 .chart-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
+  min-height: 22px;
+  margin-bottom: 12px;
 }
 
 .chart-title {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 14px;
+  gap: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 20px;
   font-weight: 600;
-  color: #1f2937;
+  overflow-wrap: anywhere;
+}
 
-  .title-icon {
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+.title-icon {
+  display: flex;
+  flex: 0 0 18px;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: var(--text-secondary);
 
-    svg {
-      width: 16px;
-      height: 16px;
-      color: #fff;
-    }
+  svg {
+    width: 18px;
+    height: 18px;
   }
 }
 
 .chart-percentage {
-  font-size: 20px;
-  font-weight: 700;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  min-height: 38px;
+  color: var(--text-primary);
+  font-size: 30px;
+  line-height: 38px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.percentage-unit {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .progress-wrapper {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  margin: 16px 0;
+  margin: 10px 0 16px;
 
-  :deep(.el-progress) {
-    .el-progress__circle {
-      filter: drop-shadow(0 0 8px currentColor);
-    }
-  }
-}
-
-.progress-center {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  text-align: center;
-
-  .center-value {
-    font-size: 28px;
-    font-weight: 700;
-    color: #1f2937;
-    line-height: 1;
-  }
-
-  .center-unit {
-    font-size: 12px;
-    color: #9ca3af;
-    margin-top: 2px;
+  :deep(.el-progress-bar__outer) {
+    background: var(--border-light);
   }
 }
 
 .usage-stats {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-light);
 }
 
 .stat-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 10px;
-  background: #f9fafb;
-  border-radius: 6px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
 .stat-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  color: var(--text-secondary);
   font-size: 12px;
-  color: #6b7280;
-}
-
-.stat-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  box-shadow: 0 0 6px currentColor;
-
-  &.stat-dot-gray {
-    background: #d1d5db;
-    box-shadow: none;
-  }
+  line-height: 18px;
+  overflow-wrap: anywhere;
 }
 
 .stat-value {
+  color: var(--text-primary);
   font-size: 13px;
-  font-weight: 600;
-
-  &.stat-value-gray {
-    color: #9ca3af;
-  }
-}
-
-// 响应式
-@media (max-width: 1200px) {
-  .charts-container {
-    grid-template-columns: repeat(2, 1fr);
-  }
+  line-height: 20px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 768px) {
-  .charts-container {
-    grid-template-columns: 1fr;
+  .score-card {
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 16px;
   }
 
-  .score-card {
-    flex-direction: column;
-    text-align: center;
-  }
+  .score-content { gap: 4px 16px; }
+  .chart-item { padding: 16px; }
 }
 </style>

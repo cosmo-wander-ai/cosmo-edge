@@ -1,5 +1,5 @@
 <template>
-  <el-dialog v-if="dialogVisible" class="dialogtype" :title="t('basePic.captureAddTitle')" v-model="dialogVisible" @close="handleClose" width="1046px" center>
+  <el-dialog v-if="dialogVisible" class="dialogtype ui-admin-dialog ui-scroll-dialog" :title="t('basePic.captureAddTitle')" v-model="dialogVisible" @close="handleClose" width="1046px" center>
     <div class="container">
       <div class="wrap-left">
         <div class="cardleft">
@@ -42,7 +42,7 @@
 
           <div class="video-body">
             <div v-if="openImgtable || !channelId" class="nodataImg">
-              <img src="@/assets/zanwu1.png" alt="">
+              <svg class="empty-camera-icon" viewBox="0 0 72 72" fill="none" aria-hidden="true"><rect x="15" y="20" width="42" height="30" rx="5" stroke="currentColor" stroke-width="2"/><path d="M27 57h18M36 50v7M29 31l14 10M43 31 29 41" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
               <p>{{ t('basePic.noCamera') }}</p>
             </div>
             <flv v-else :channelId="channelId" class="flv-body"></flv>
@@ -50,7 +50,7 @@
         </div>
 
         <div style="float: right; margin-top: 15px">
-          <el-button @click="captureFn" type="primary" size="small">{{ t('basePic.capture') }}</el-button>
+          <el-button @click="captureFn" type="primary" size="small" class="ui-secondary-button">{{ t('basePic.capture') }}</el-button>
         </div>
       </div>
       <div class="wrap-right">
@@ -63,10 +63,12 @@
         </div>
       </div>
     </div>
-    <div class="footer-btn">
-      <el-button type="primary" @click="save" size="small">{{ t('action.save') }}</el-button>
-      <el-button @click="handleClose" size="small">{{ t('action.cancel') }}</el-button>
-    </div>
+    <template #footer>
+      <div class="dialog-footer footer-btn">
+        <el-button @click="handleClose" size="small">{{ t('action.cancel') }}</el-button>
+        <el-button type="primary" @click="save" size="small">{{ t('action.save') }}</el-button>
+      </div>
+    </template>
   </el-dialog>
 </template>
 
@@ -232,7 +234,7 @@ const save = () => {
 
 <style lang="scss" scoped>
 .container {
-  margin-bottom: 50px;
+  margin-bottom: 16px;
   display: flex;
 }
 .footer-btn {
@@ -257,12 +259,17 @@ const save = () => {
     flex-wrap: wrap;
     .picture {
       position: relative;
-      width: 84px;
-      height: 100px;
+      width: 120px;
+      height: 90px;
+      max-width: 100%;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      background: var(--bg-primary);
       margin: 0 10px 16px 0;
       img {
         width: 100%;
         height: 100%;
+        object-fit: contain;
       }
       .close {
         position: absolute;
@@ -277,6 +284,7 @@ const save = () => {
 }
 
 // 预览
+.empty-camera-icon { width: 72px; height: 72px; color: var(--text-secondary); }
 .nodataImg {
   width: 684px;
   height: 389px;
@@ -290,7 +298,7 @@ const save = () => {
   }
   p {
     margin: 0 0;
-    color: #3598ff;
+    color: var(--text-secondary);
     font-size: 14px;
     letter-spacing: 2px;
     margin-top: 10px;
@@ -301,8 +309,8 @@ const save = () => {
   position: relative;
   width: 704px;
   height: 391px;
-  background: #fff;
-  border: 1px solid lightgray;
+  background: var(--theme-surface, #fff);
+  border: 1px solid var(--theme-border, lightgray);
   box-sizing: border-box;
 }
 
@@ -326,11 +334,12 @@ const save = () => {
   position: absolute;
   top: 0;
   height: 100%;
-  background: #101938;
+  background: var(--bg-subtle);
+  border-right: 1px solid var(--border-color);
   transition: width 0.3s ease;
   z-index: 200;
   padding: 10px;
-  color: white;
+  color: var(--secondary-color);
   box-sizing: border-box;
 
   &.expanded {
@@ -361,13 +370,13 @@ const save = () => {
       border-radius: 0;
       background: url(@/assets/big_screen_input_bg.png) center no-repeat;
       background-size: 100% 100%;
-      color: #94d0ff;
+      color: var(--theme-accent, #94d0ff);
       background-color: initial;
       border: none;
     }
     .el-input__suffix-inner,
     .el-input__inner::placeholder {
-      color: #94d0ff;
+      color: var(--theme-accent, #94d0ff);
     }
   }
 
@@ -381,7 +390,7 @@ const save = () => {
   :deep(.el-tree) {
     background: inherit;
     font-size: 14px;
-    color: #94d0ff;
+    color: var(--theme-accent, #94d0ff);
   }
 }
 

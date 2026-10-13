@@ -239,14 +239,14 @@
         <!-- modelSelect 定制化组件  -->
         <div class="select-table-body" v-if="item.type.includes('modelSelect') && !['modelSelect_dino','modelSelect_ocr','modelSelect_sam2','modelSelect_qwen3vl','modelSelect_qwen3_5'].includes(item.type)">
           <div class="select-table-title">{{ t('glossary.selectLabel') }}</div>
-          <el-table :data="labelList" border size="small">
-            <el-table-column type="index" :label="t('field.no')" align="center" width="70">
+          <el-table :data="labelList" class="model-label-table" border size="small">
+            <el-table-column type="index" :label="t('field.no')" align="center" width="44">
             </el-table-column>
-            <el-table-column prop="nameCN" :label="t('field.name')" align="center">
+            <el-table-column prop="nameCN" :label="t('field.name')" min-width="150" class-name="model-label-name" show-overflow-tooltip>
             </el-table-column>
-            <el-table-column prop="class_name" :label="t('glossary.classId')" align="center">
+            <el-table-column prop="class_name" :label="t('glossary.classId')" min-width="150" class-name="model-label-name" show-overflow-tooltip>
             </el-table-column>
-            <el-table-column prop="used" :label="t('glossary.isUsed')" align="center">
+            <el-table-column prop="used" :label="t('glossary.isUsed')" align="center" width="66">
               <template #default="scope">
                 <el-checkbox v-model="scope.row.used"></el-checkbox>
               </template>
@@ -1535,53 +1535,52 @@ defineExpose({
 <style lang="scss" scoped>
 /* 滚动条滑块以外区域 */
 ::-webkit-scrollbar-track-piece {
-  background-color: #f2f5f9; /* 设置滑块以外区域的背景颜色 */
+  background-color: var(--bg-secondary); /* 设置滑块以外区域的背景颜色 */
 }
 
 .form-body {
-  padding: 10px 0;
-  // height: 450px;
-  overflow-y: scroll;
+  padding: 4px 0;
+  min-width: 0;
 }
 
 .area-rule-overview {
   margin: 0 0 16px;
   padding: 12px;
-  border: 1px solid #dbeafe;
+  border: 1px solid var(--el-color-primary-light-9);
   border-radius: 8px;
-  background: #f8fbff;
+  background: var(--flow-info-bg);
 }
 
 .area-rule-overview__title {
   margin-bottom: 12px;
-  color: #1f2937;
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 600;
 }
 
 .area-rule-summary {
   padding: 10px 12px;
-  border-left: 3px solid #409eff;
+  border-left: 3px solid var(--primary-color);
   border-radius: 4px;
-  background: #ffffff;
-  color: #374151;
+  background: var(--bg-white);
+  color: var(--text-primary);
   font-size: 13px;
   line-height: 1.6;
 }
 
 .area-rule-summary.is-warning {
-  border-left-color: #e6a23c;
-  background: #fdf6ec;
+  border-left-color: var(--warning-color);
+  background: var(--flow-warning-bg);
 }
 
 .area-rule-summary__label {
-  color: #1f2937;
+  color: var(--text-primary);
   font-weight: 600;
 }
 
 .area-rule-summary__note {
   margin-top: 6px;
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 
 .el-form-item {
@@ -1597,7 +1596,7 @@ defineExpose({
 }
 
 .select-table-body {
-  color: #606266;
+  color: var(--text-secondary);
   font-size: 14px;
   margin-bottom: 15px;
 }
@@ -1606,8 +1605,26 @@ defineExpose({
   padding-bottom: 10px;
 }
 
+.model-label-table {
+  width: 100%;
+
+  :deep(.el-table__cell) {
+    padding: 7px 0;
+  }
+
+  :deep(.cell) {
+    padding: 0 8px;
+  }
+
+  :deep(td.model-label-name .cell) {
+    white-space: nowrap;
+    word-break: normal;
+    overflow-wrap: normal;
+  }
+}
+
 .collapse-body {
-  color: #606266;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
@@ -1618,14 +1635,14 @@ defineExpose({
 .plus-icon {
   font-size: 25px;
   margin-left: 10px;
-  color: #1890ff;
+  color: var(--primary-color);
   cursor: pointer;
 }
 
 .close-icon {
   font-size: 25px;
   margin-left: 5px;
-  color: red;
+  color: var(--danger-color);
   cursor: pointer;
 }
 
@@ -1664,7 +1681,7 @@ defineExpose({
 }
 
 .select-table-body {
-  color: #606266;
+  color: var(--text-secondary);
   font-size: 14px;
   margin-bottom: 15px;
 }

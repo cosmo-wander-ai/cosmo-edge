@@ -24,4 +24,4 @@ watch(() => props.params, value => { draft.value = readRoiQuestions(value) }, { 
 const invalid = computed(() => draft.value.mode === 'select' ? draft.value.selected.length < 1 || draft.value.selected.length > 8 || draft.value.selected.some(id => !props.questions.some(q => q.id === id)) : draft.value.mode === 'prompt' && !draft.value.prompt?.trim())
 defineExpose({ collect: () => ({ valid: !invalid.value, params: writeRoiQuestions(props.params, draft.value) }) })
 </script>
-<style scoped>.roi-questions { margin: 12px 20px; } .error { color: #f56c6c; }</style>
+<style scoped>.roi-questions { margin: 12px 20px; } .error { color: var(--theme-danger, #f56c6c); }</style>

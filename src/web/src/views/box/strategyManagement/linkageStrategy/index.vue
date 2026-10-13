@@ -1,5 +1,5 @@
 <template>
-  <div class="page-container">
+  <div class="page-container ui-admin-page flow-theme">
     <div class="toolbar">
       <div class="toolbar-left">
         <span class="page-title">{{ t('linkageStrategy.title') }}</span>
@@ -13,25 +13,25 @@
       <aside class="strategy-sidebar">
         <div class="sidebar-header">
           <span class="title">{{ t('linkageStrategy.allStrategies') }}</span>
-          <el-icon class="add-icon" @click="handleAddStrategy">
-            <Plus />
-          </el-icon>
+          <button type="button" class="sidebar-icon-button" :title="t('linkageStrategy.addStrategy')" :aria-label="t('linkageStrategy.addStrategy')" @click="handleAddStrategy">
+            <el-icon><Plus /></el-icon>
+          </button>
         </div>
         <div class="sidebar-list">
           <div v-for="(item, idx) in strategyList" :key="item.id || idx" class="sidebar-item" :class="{ active: activeStrategy?.id === item.id }" @click="handleSelectStrategy(item)">
             <div class="item-left">
-              <div class="item-name">
+              <div class="item-name" :title="item.name">
                 {{ item.name }}
               </div>
             </div>
             <div class="item-tools" @click.stop>
               <el-switch v-model="item.enabled" size="small" @change="handleSwitchStrategy(item)" />
-              <el-icon class="tool-icon" @click="handleEditStrategy(item)">
-                <EditPen />
-              </el-icon>
-              <el-icon class="tool-icon danger" @click="handleDeleteStrategy(item)">
-                <Delete />
-              </el-icon>
+              <button type="button" class="sidebar-icon-button" :title="t('action.edit')" :aria-label="`${t('action.edit')} ${item.name}`" @click="handleEditStrategy(item)">
+                <el-icon><EditPen /></el-icon>
+              </button>
+              <button type="button" class="sidebar-icon-button danger" :title="t('action.delete')" :aria-label="`${t('action.delete')} ${item.name}`" @click="handleDeleteStrategy(item)">
+                <el-icon><Delete /></el-icon>
+              </button>
             </div>
           </div>
         </div>
@@ -40,7 +40,7 @@
       <div class="flow-container" ref="containerRef">
         <ArrangeFlow ref="flowRef" :width="width" :height="height" :strategyId="currentStrategy.id" :workFlow="currentStrategy.workFlow" :actionList="actionList" :atomicCode="''" @onMetadata="onMetadata" />
       </div>
-      <el-dialog :title="strategyMode === 'edit' ? t('linkageStrategy.editStrategy') : t('linkageStrategy.addStrategy')" v-model="strategyDialogVisible" center width="420px" @close="onDialogClose">
+      <el-dialog :title="strategyMode === 'edit' ? t('linkageStrategy.editStrategy') : t('linkageStrategy.addStrategy')" v-model="strategyDialogVisible" center width="420px" @close="onDialogClose" class="ui-admin-dialog flow-theme">
         <el-form ref="strategyFormRef" :model="strategyForm" :rules="strategyRules" :label-width="currentLocale === 'en-US' ? '170px' : '120px'" label-position="right">
           <el-form-item :label="t('linkageStrategy.strategyName') + localeColon" prop="name">
             <el-input v-model="strategyForm.name" :placeholder="t('linkageStrategy.strategyNamePlaceholder')" />
@@ -275,7 +275,8 @@ const handleSave = () => {
 .page-container {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 84px);
+  height: 100%;
+  min-height: 520px;
   box-sizing: border-box;
 }
 
@@ -283,29 +284,35 @@ const handleSave = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
-  padding: 12px 16px;
-  background: var(--bg-white);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-sm);
+  margin-bottom: 16px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+
+  gap: 12px;
+  flex-wrap: wrap;
 
   .page-title {
-    font-size: 16px;
-    font-weight: 600;
+    font-size: 24px;
+    font-weight: 650;
     color: var(--text-primary);
   }
 }
 
 .editor-container {
   display: flex;
-  gap: 10px;
-  height: 100%;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
 }
 
 .strategy-sidebar {
-  width: 260px;
-  min-width: 240px;
+  width: 240px;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
   background: var(--bg-white);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
@@ -318,7 +325,7 @@ const handleSave = () => {
     align-items: center;
     padding: 10px 12px;
     border-bottom: 1px solid var(--border-color);
-    background: var(--bg-secondary);
+    background: var(--bg-subtle);
     .title {
       font-size: 14px;
       font-weight: 600;
@@ -331,39 +338,43 @@ const handleSave = () => {
 
   .sidebar-list {
     padding: 8px;
+    min-height: 0;
+    overflow-y: auto;
     .sidebar-item {
       display: flex;
       justify-content: space-between;
       align-items: center;
       padding: 8px 10px;
-      border-radius: 8px;
+      border-radius: 5px;
       transition: background 0.2s ease;
       cursor: pointer;
 
       &.active {
-        background: #f5f7fa;
+        background: var(--bg-primary);
       }
       &:hover {
-        background: #f8fafc;
+        background: var(--bg-primary);
       }
 
       .item-left {
         display: flex;
         align-items: center;
         gap: 8px;
+        min-width: 0;
         .item-index {
           width: 18px;
           height: 18px;
           border-radius: 50%;
-          background: #eef2ff;
-          color: #3182ce;
+          background: var(--theme-accent-soft, #eef2ff);
+          color: var(--primary-color);
           font-size: 12px;
           display: flex;
           align-items: center;
           justify-content: center;
         }
         .item-name {
-          max-width: 120px;
+          max-width: 112px;
+          font-size: 14px;
           overflow: hidden;
           white-space: nowrap;
           text-overflow: ellipsis;
@@ -374,7 +385,8 @@ const handleSave = () => {
       .item-tools {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 2px;
+        flex-shrink: 0;
         .tool-icon {
           cursor: pointer;
           &:hover {
@@ -391,11 +403,13 @@ const handleSave = () => {
 
 .flow-container {
   flex: 1 1 auto;
+  min-width: 0;
+  box-sizing: border-box;
   background: var(--bg-white);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  padding: 4px;
-  box-shadow: var(--shadow-sm);
+  padding: 0;
+  box-shadow: none;
   overflow: hidden;
 }
 
@@ -403,7 +417,25 @@ const handleSave = () => {
   display: flex;
   justify-content: center;
 }
-.strategy-sidebar .item-tools .tool-icon.danger {
-  color: var(--el-color-danger);
+.sidebar-icon-button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 5px;
+  color: var(--text-secondary);
+  background: transparent;
+  cursor: pointer;
 }
+
+.sidebar-icon-button:hover {
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+}
+
+.sidebar-icon-button.danger:hover { color: var(--danger-color); }
+.sidebar-icon-button:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 1px; }
 </style>

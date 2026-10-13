@@ -1,4 +1,15 @@
 export default {
+  appearance: {
+    switch: 'Appearance',
+    light: 'Light',
+    dark: 'Dark',
+    system: 'System',
+    mode: 'Display mode',
+    palette: 'Palette',
+    modern: 'Modern',
+    classicBlue: 'Classic blue',
+    selected: 'Selected'
+  },
   visualQuestions: {
     "decisionMode": "Result handling",
     "reviewOnly": "Record reviews only",
@@ -26,6 +37,8 @@ export default {
     "roiInvalid": "Select 1–8 valid questions or enter a region prompt."
 },
   visualReview: {
+    serviceStatus: 'Service status',
+    filterAction: 'Filter action',
   "decisionLabel": "Policy verdict",
   "actionLabel": "Action",
   "filtered": "Filtered",
@@ -117,6 +130,13 @@ export default {
   }
 },
   gbAccess: {
+    deviceCount: "{count} devices",
+    registerDevice: "Register device",
+    editDevice: "Edit device",
+    emptyDeviceList: "No registered devices",
+    channelCount: "{count} channels",
+    saveWarning: "Saving disconnects current GB registrations. Devices resume after registering again.",
+
     mediaTransport: 'Video transport', transportTip: 'Registration supports TCP and UDP automatically. Video defaults to TCP; choose UDP for UDP-only media devices. Changes require device re-registration.',
     udpMediaListenFailed: 'Cannot listen on the UDP video port. Check for a port conflict.',
     title: 'GB28181 access', platformTab: 'Platform', devicesTab: 'Devices & channels',
@@ -381,6 +401,27 @@ export default {
     }
   },
   glossary: {
+    taskConfiguration: "Configuration",
+    taskChannelSummary: "Linked channels",
+    taskChannelRunning: "Running",
+    taskChannelPaused: "Paused",
+    taskChannelError: "Error",
+    taskChannelStopped: "Stopped",
+    taskChannelUnknown: "Unknown",
+    taskChannelLoading: "Loading channel states",
+    taskChannelUnavailable: "Channel states could not be loaded; counts are unknown",
+    taskChannelPartial: "The channel or task list is incomplete. Counts are lower bounds from retrieved data; — means unknown.",
+    analysisUsage: 'Analysis use',
+    taskRunningChannels: 'Running channels',
+    flowZoomIn: 'Zoom in',
+    flowZoomOut: 'Zoom out',
+    flowActualSize: 'Actual size',
+    flowFitOverview: 'Fit overview',
+    flowDockPanel: 'Dock panel',
+    flowFloatPanel: 'Float panel',
+    sceneTasksSubtitle: 'Manage scene workflows and linked channels',
+    imageAnalysisSubtitle: 'Select a scene task and analyze images',
+    modelRepositorySubtitle: 'Manage algorithm models and their linked scene tasks',
     equals: 'Equals',
     licenseStatus: 'License Status',
     authorizationFailed: 'Authorization failed',
@@ -753,6 +794,8 @@ export default {
     username: 'Username',
     channelNo: 'Channel ID',
     channelName: 'Channel Name',
+    channelInfo: 'Channel Info',
+    videoParameters: 'Video Parameters',
     channelStatus: 'Channel Status',
     externalChannelNo: 'External Channel ID',
     resolution: 'Resolution',
@@ -1014,7 +1057,13 @@ export default {
     passwordChangedLoginAgain: 'Password changed. Please log in again.'
   },
   imageAnalysis: {
-    selectAlgorithmPlaceholder: 'Select image analysis algorithm',
+    workflow: 'Image analysis workflow',
+    selectTask: 'Select scene task',
+    viewResults: 'View results',
+    results: 'Analysis results',
+    failed: 'Analysis failed',
+    workflowHint: 'Select a scene task, upload images, then start analysis to view each result.',
+    selectAlgorithmPlaceholder: 'Select an image analysis scene task',
     uploadImage: 'Upload Image',
     analyzing: 'Analyzing...',
     startAnalysis: 'Start Analysis',
@@ -1024,7 +1073,7 @@ export default {
     pending: 'Pending',
     detectedTargets: 'Detected Targets',
     noTargetsDetected: 'No targets detected',
-    emptyDescription: 'Select an algorithm and upload images to analyze',
+    emptyDescription: 'Select a scene task and upload images to analyze.',
     imagePreview: 'Image Preview',
     detectionCount: 'Detection Count',
     detectionDetails: 'Detection Details',
@@ -1114,8 +1163,21 @@ export default {
     itemPacketDiscard: 'Packet Loss'
   },
   event: {
+    fitCover: "Crop to fill",
+    fitContain: "Full image",
+    fitCoverHint: "Switch to crop to fill; edges outside the window will be cropped",
+    fitContainHint: "Switch to the full image; preserve every edge with bars when proportions differ",
+
+    recordCount: '{n} records',
+    fullImageHint: 'Open an image to view full evidence',
+    uploadStatus: 'Upload status',
+    autoDismiss: 'Closes automatically',
+    allChannelEvents: 'All channels · Filter by scene task',
+    filterSceneTasks: 'Filter scene tasks',
     aiVideoAnalysis: 'AI Video Analysis',
     algorithmOverlay: 'Algorithm Overlay',
+    previewWindows: 'Window {windows}',
+    openChannelHint: 'Double-click a channel to open it in the selected window',
     alarmLocation: 'Alarm Location',
     alarmPopup: 'Alarm Popup',
     alarmRecordCsv: 'alarm-record.csv',

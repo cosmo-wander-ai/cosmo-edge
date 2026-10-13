@@ -1,5 +1,9 @@
 <template>
-  <div class="alarm-record">
+  <div class="alarm-record ui-admin-page event-console">
+    <header class="event-heading">
+      <h1>{{ t('nav.vehicleAnalysis') }}</h1>
+      <p>{{ t('nav.eventCenter') }}</p>
+    </header>
     <TopBar 
       ref="topBarRef" 
       :dataSouce="topBarData" 
@@ -17,7 +21,7 @@
             size="small" 
             @click="handleBatchDelete"
             :disabled="multipleSelections.length === 0"
-          >
+           class="ui-secondary-button">
             批量删除
           </el-button> -->
           <el-button 
@@ -25,7 +29,7 @@
             size="small" 
             @click="handleExport"
             :disabled="tableData.length === 0"
-          >
+           class="ui-secondary-button">
             {{ t('event.dataExport') }}
           </el-button>
         </div>
@@ -34,7 +38,7 @@
       <!-- 列表视图 -->
       <el-table 
         :data="tableData" 
-        :header-cell-style="{ background: '#fafafa' }" 
+        :header-cell-style="{ background: 'var(--theme-surface-soft, #fafafa)' }"
         style="width: 100%"
         @selection-change="handleSelectionChange"
       >
@@ -109,17 +113,17 @@
         </el-table-column>
         <el-table-column :label="t('field.status')" width="90">
           <template #default="{ row }">
-            <span :style="{ color: row.reportStatus === 1 ? '#67C23A' : '#F56C6C' }">
+            <span :style="{ color: row.reportStatus === 1 ? 'var(--theme-success, #67C23A)' : 'var(--theme-danger, #F56C6C)' }">
               {{ row.reportStatus === 1 ? t('event.uploaded') : t('event.notUploaded') }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column :label="t('field.actions')" fixed="right">
+        <el-table-column :label="t('field.actions')" fixed="right" min-width="220">
           <template #default="{ row }">
             <div class="operation-tools">
-              <el-button link class="primary-text" @click="handleDetail(row)">{{ t('action.details') }}</el-button>
-              <el-button link class="primary-text" v-if="row.video" @click="onCheckVideo(row, 1)">{{ t('event.videoPlayback') }}</el-button>
-              <el-button link class="danger-text" v-if="runMode != 1" @click="handleDelete(row)">{{ t('action.delete') }}</el-button>
+              <el-button link class="primary-text ui-action ui-action-view" @click="handleDetail(row)">{{ t('action.details') }}</el-button>
+              <el-button link class="primary-text ui-action ui-action-play" v-if="row.video" @click="onCheckVideo(row, 1)">{{ t('event.videoPlayback') }}</el-button>
+              <el-button link class="danger-text ui-action ui-action-delete" v-if="runMode != 1" @click="handleDelete(row)">{{ t('action.delete') }}</el-button>
             </div>
           </template>
         </el-table-column>
@@ -542,8 +546,9 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
+@use '../event-console.scss';
 .table-container {
-  background-color: #fff;
+  background-color: var(--theme-surface, #fff);
   padding: 0 15px;
   margin-top: 16px;
 
@@ -569,7 +574,7 @@ onMounted(() => {
   color: var(--el-color-primary) !important;
 
   &:hover {
-    color: #337ecc !important;
+    color: var(--primary-dark) !important;
   }
 }
 
@@ -577,7 +582,7 @@ onMounted(() => {
   color: var(--el-color-danger) !important;
 
   &:hover {
-    color: #f56c6c !important;
+    color: var(--danger-color) !important;
   }
 }
 </style>

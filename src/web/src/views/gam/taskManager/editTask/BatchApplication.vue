@@ -1,6 +1,6 @@
 <template>
   <div>
-    <el-dialog :title="t('glossary.batchApply')" v-model="showDialog" width="30%" center :before-close="close">
+    <el-dialog :title="t('glossary.batchApply')" v-model="showDialog" width="30%" center :before-close="close" class="ui-admin-dialog">
       <div class="BatchApplicationClass">
         <span>{{ t('field.description') }}{{ localeColon }}</span>
         <div style="text-align: center;margin:5px 0px 10px 3px; ">
@@ -121,6 +121,6 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .BatchApplicationClass {
-  color: #0000ff;
+  color: var(--theme-accent, #0000ff);
 }
 </style>

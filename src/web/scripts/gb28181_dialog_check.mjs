@@ -154,3 +154,45 @@ test('GB compatibility mode is explicit and closing clears unfinished credential
   await d.state.saveDevice(); assert.equal(d.calls.find(c => c.action === 'saveDevice').allowUnauthenticated, true)
   d.state.deviceForm.password = 'unsaved'; d.state.close(); assert.equal(d.state.deviceForm.password, ''); d.stop()
 })
+
+
+test('GB device expansion is explicit, survives polling, and resets on reopen', async () => {
+  const d = await dialog(); await d.state.open()
+  assert.deepEqual(Array.from(d.state.expandedDevices.value), [])
+  const row = d.state.devices.value[0]
+  d.state.rememberExpanded(row, [row])
+  await d.state.refresh()
+  assert.deepEqual(Array.from(d.state.expandedDevices.value), [device.id])
+  assert.notEqual(d.state.devices.value[0], row)
+  d.state.rememberExpanded(d.state.devices.value[0], [])
+  await d.state.refresh()
+  assert.deepEqual(Array.from(d.state.expandedDevices.value), [])
+  d.state.rememberExpanded(d.state.devices.value[0], [d.state.devices.value[0]])
+  d.state.close(); await d.state.open()
+  assert.deepEqual(Array.from(d.state.expandedDevices.value), [])
+  assert.ok(d.calls.every(call => call.action === 'list'))
+  d.state.close(); d.stop()
+})
+
+test('GB device editor opens on demand and cancels without saving credentials', async () => {
+  const d = await dialog(); await d.state.open()
+  assert.equal(d.state.deviceEditorVisible.value, false)
+  d.state.startDevice()
+  assert.equal(d.state.deviceEditorVisible.value, true)
+  assert.equal(d.state.editing.value, false)
+  d.state.deviceForm.password = 'unsaved-fixture-password'
+  d.state.deviceAdvanced.value = ['advanced']
+  d.state.resetDevice()
+  assert.equal(d.state.deviceEditorVisible.value, false)
+  assert.equal(d.state.deviceForm.password, '')
+  assert.deepEqual(Array.from(d.state.deviceAdvanced.value), [])
+  d.state.editDevice({ ...device, allowUnauthenticated: true })
+  assert.equal(d.state.deviceEditorVisible.value, true)
+  assert.equal(d.state.editing.value, true)
+  assert.deepEqual(Array.from(d.state.deviceAdvanced.value), ['advanced'])
+  assert.equal(d.state.deviceForm.id, device.id)
+  d.state.resetDevice()
+  assert.equal(d.state.deviceForm.id, '')
+  assert.deepEqual(d.calls.map(call => call.action), ['list'])
+  d.state.close(); d.stop()
+})

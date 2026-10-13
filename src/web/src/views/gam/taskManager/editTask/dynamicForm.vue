@@ -49,7 +49,7 @@
                 </el-tooltip>
               </span>
             </template>
-            <el-switch v-model="paramz[index].value" active-color="#13ce66" active-value="1" inactive-value="0"></el-switch>
+            <el-switch v-model="paramz[index].value" active-color="var(--theme-success, #13ce66)" active-value="1" inactive-value="0"></el-switch>
           </el-form-item>
 
           <!-- checkbox组 -->
@@ -221,7 +221,7 @@
             </template>
             <div class="confidence-div">
               <el-input v-model.trim="paramz[index].value" type="text"></el-input>
-              <el-button @click="openDistanceDialog(item)" type="primary" size="small">{{ t('action.measureDistance') }}</el-button>
+              <el-button @click="openDistanceDialog(item)" type="primary" size="small" class="ui-secondary-button">{{ t('action.measureDistance') }}</el-button>
             </div>
           </el-form-item>
 
@@ -317,7 +317,7 @@
                       </el-tooltip>
                     </span>
                   </template>
-                  <el-switch v-model="el.value" active-color="#13ce66" active-value="1" inactive-value="0"></el-switch>
+                  <el-switch v-model="el.value" active-color="var(--theme-success, #13ce66)" active-value="1" inactive-value="0"></el-switch>
                 </el-form-item>
                 <!-- checkbox组 -->
                 <el-form-item v-if="el.type == 'check' && el.isColumn == true && showForm(el.senior)">
@@ -456,7 +456,7 @@
                   </template>
                   <div class="confidence-div">
                     <el-input v-model.trim="el.value" type="text"></el-input>
-                    <el-button @click="openDistanceDialog(el)" type="primary" size="small">{{ t('action.measureDistance') }}</el-button>
+                    <el-button @click="openDistanceDialog(el)" type="primary" size="small" class="ui-secondary-button">{{ t('action.measureDistance') }}</el-button>
                   </div>
                 </el-form-item>
 
@@ -853,7 +853,7 @@ defineExpose({ validateAndCollect, collect })
 .model-tit {
   font-size: 16px;
   line-height: 16px;
-  color: #000;
+  color: var(--theme-text, #000);
   font-weight: normal;
   margin: 5px 0;
 }
@@ -873,7 +873,7 @@ defineExpose({ validateAndCollect, collect })
 }
 
 .slider {
-  width: 500px;
+  width: min(500px, 100%);
 }
 
 .btn-wrap {
@@ -886,8 +886,16 @@ defineExpose({ validateAndCollect, collect })
 }
 
 .form-model {
+  min-width: 0;
+  max-width: 100%;
+
+  :deep(.el-form-item__content) {
+    min-width: 0;
+  }
+
   :deep(.el-input__inner) {
-    width: 217px;
+    width: 100%;
+    min-width: 0;
   }
 }
 
@@ -897,10 +905,12 @@ defineExpose({ validateAndCollect, collect })
 
 :deep(.el-input) {
   width: 210px;
+  max-width: 100%;
 }
 
 :deep(.el-select) {
   width: 230px;
+  max-width: 100%;
 }
 
 button {
@@ -909,13 +919,17 @@ button {
 
 .confidence-div {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
+  width: 100%;
+  min-width: 0;
 }
 
 .confidence-select {
   width: 230px;
-  flex-shrink: 0;
+  max-width: 100%;
+  flex: 0 1 230px;
 }
 
 .confidence-span {
@@ -927,34 +941,41 @@ button {
 }
 
 .confidence-slider {
-  flex: 1;
-  min-width: 300px;
+  flex: 1 1 280px;
+  width: 100%;
+  min-width: 0;
   display: flex;
   align-items: center;
 
-  :deep(.el-slider) {
-    flex: 1;
-    margin-right: 12px;
+  :deep(.el-slider__runway) {
+    flex: 1 1 0;
+    width: auto;
+    min-width: 64px;
+    margin-left: 8px;
+    margin-right: 16px;
+    margin-bottom: 24px;
   }
 
-  :deep(.el-slider__runway) {
-    width: 100%;
-    min-width: 180px;
+  :deep(.el-slider__input) {
+    flex: 0 0 120px;
+    width: 120px;
+    margin-left: 0;
   }
 
   :deep(.el-input) {
-    width: 80px;
-    flex-shrink: 0;
+    width: 100%;
+    min-width: 0;
   }
 
   :deep(.el-input__inner) {
-    width: 68px;
+    width: 100%;
+    min-width: 0;
     text-align: center;
   }
 
   :deep(.el-slider__marks-text) {
     font-size: 12px;
-    color: var(--el-text-color-placeholder);
+    color: var(--text-secondary);
   }
 
   :deep(.el-slider__marks-text:last-child) {
@@ -965,7 +986,9 @@ button {
 
 <style>
 .my-slider .el-form-item__content {
-  width: 400px !important;
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .form-model .el-form-item__label {
