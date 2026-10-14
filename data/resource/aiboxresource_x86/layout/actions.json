@@ -88,6 +88,17 @@
     "remarkI18nKey": "resource.action.ba_00002.remark"
   },
   {
+    "id": "BA_10002",
+    "actionUsage": 1,
+    "actionType": 2,
+    "businessCategory": "2",
+    "actionName": "尺寸过滤",
+    "inputParamConfig": "[{\"type\":\"sizeFilterList\",\"defaultValue\":\"\",\"description\":\"为选中的目标类别分别设置最小尺寸\",\"failedTip\":\"请选择类别并设置尺寸\",\"key\":\"\",\"name\":\"尺寸过滤参数\",\"level\":\"1\",\"regexpr\":\"\",\"descriptionI18nKey\":\"resource.param.ba_10002.0.description\",\"failedTipI18nKey\":\"resource.param.ba_10002.0.failedtip\",\"nameI18nKey\":\"resource.param.ba_10002.0.name\"}]",
+    "remark": "按类别过滤尺寸不符合要求的目标",
+    "actionNameI18nKey": "resource.action.ba_10002.actionname",
+    "remarkI18nKey": "resource.action.ba_10002.remark"
+  },
+  {
     "id": "BA_00003",
     "actionUsage": 1,
     "actionType": 2,

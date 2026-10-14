@@ -63,6 +63,8 @@ inline constexpr std::string_view BAStreamChannel_Name = "业务流通道";
 inline constexpr std::string_view BAStreamChannel_Desc = "ChannelAction";
 inline constexpr std::string_view BAFilter_Code        = "BA_00002";
 inline constexpr std::string_view BAFilter_Name        = "业务过滤";
+inline constexpr std::string_view BASizeFilter_Code    = "BA_10002";
+inline constexpr std::string_view BASizeFilter_Name    = "尺寸过滤";
 
 inline constexpr std::string_view BALogicalJudgment_Code = "BA_90001";
 inline constexpr std::string_view BALogicalJudgment_Name = "逻辑判断";
