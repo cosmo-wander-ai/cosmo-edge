@@ -2,17 +2,20 @@
 
 #include "service/system/impl/SystemOperationServiceImpl.h"
 
+#include <chrono>
 #include <filesystem>
+#include <mutex>
 
 #include "service/detail/ServiceRegistry.h"
+#include "service/system/impl/LogArchive.h"
 #include "service/system/impl/PacketUpgrade.h"
 #include "service/system/impl/UpgradeStorage.h"
 #include "util/ErrorCode.h"
-#include "util/Exec.h"
 #include "util/Log.h"
 #include "util/PathUtil.h"
 #include "util/ThreadRegistry.h"
 #include "util/TimeUtil.h"
+#include "util/UuidUtil.h"
 
 namespace cosmo::service {
 
@@ -28,6 +31,11 @@ void SystemOperationServiceImpl::ResetDevice(const std::string& reason) {
 }
 
 cosmo::util::ErrorEnum SystemOperationServiceImpl::ExportLogs(std::string& fileName, std::string& fileUrl) {
+    // Limit peak snapshot storage when multiple users request an export.
+    static std::mutex export_mutex;
+    const std::lock_guard<std::mutex> lock(export_mutex);
+    fileName.clear();
+    fileUrl.clear();
     auto timestamp      = cosmo::util::GetMilliseconds();
     auto web_local_path = cosmo::path::GetWebLocalPath(timestamp);
     std::error_code filesystem_error;
@@ -35,6 +43,12 @@ cosmo::util::ErrorEnum SystemOperationServiceImpl::ExportLogs(std::string& fileN
          !filesystem_error && entry != end; entry.increment(filesystem_error)) {
         const auto& path = entry->path();
         if (path.filename().string().find("IedLog") == 0 && path.extension() == ".tar") {
+            // Allow time to download an earlier result before reclaiming it.
+            std::error_code time_error;
+            const auto modified = fs::last_write_time(path, time_error);
+            if (time_error || fs::file_time_type::clock::now() - modified < std::chrono::hours(1)) {
+                continue;
+            }
             LOG_INFO("remove {}", path);
             std::error_code remove_error;
             fs::remove(path, remove_error);
@@ -45,8 +59,9 @@ cosmo::util::ErrorEnum SystemOperationServiceImpl::ExportLogs(std::string& fileN
         return cosmo::util::ErrorEnum::SysErr;
     }
 
-    fileName               = "IedLog" + std::to_string(timestamp) + ".tar";
-    std::string save_path  = (fs::path(web_local_path) / fileName).string();
+    const auto archive_name =
+        "IedLog" + std::to_string(timestamp) + "_" + cosmo::util::GenerateUUID() + ".tar";
+    const auto save_path   = fs::path(web_local_path) / archive_name;
     const auto log_path    = fs::path(cosmo::path::GetLogPath()).lexically_normal();
     const auto config_path = fs::path(cosmo::path::GetCfgPath()).lexically_normal();
     if (!fs::is_directory(log_path, filesystem_error) || filesystem_error ||
@@ -55,17 +70,14 @@ cosmo::util::ErrorEnum SystemOperationServiceImpl::ExportLogs(std::string& fileN
         return cosmo::util::ErrorEnum::SysErr;
     }
 
-    std::string cmd_out;
-    const int ret = cosmo::util::Exec(
-        {"tar", "-cf", save_path, "-C", log_path.parent_path().string(), log_path.filename().string(), "-C",
-         config_path.parent_path().string(), config_path.filename().string()},
-        cmd_out);
-    if (ret != 0) {
-        LOG_ERRO("tar failed ({}): {}", ret, cmd_out);
+    std::string error;
+    if (!CreateLogArchive(log_path, config_path, cosmo::path::GetTemporaryDirPath(), save_path, error)) {
+        LOG_ERRO("Log export failed: {}", error);
         return cosmo::util::ErrorEnum::SysErr;
     }
 
-    fileUrl = (fs::path(cosmo::path::GetWebAcessPath(timestamp)) / fileName).string();
+    fileName = archive_name;
+    fileUrl  = (fs::path(cosmo::path::GetWebAcessPath(timestamp)) / fileName).string();
     return {};
 }
 

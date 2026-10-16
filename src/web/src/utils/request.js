@@ -4,6 +4,7 @@ import { currentLocale, t, translateApiMessage } from '@/i18n'
 import { formatActionableApiError, normalizeApiError } from '@/utils/apiError'
 
 const longTimeoutApi = [
+  '/gtw/cwai/System/ExportFile',
   '/gtw/cwai/System/Upgrade',
   '/gtw/cwai/System/CheckUpgradeSpace',
   '/gtw/cwai/File/ImportFile',

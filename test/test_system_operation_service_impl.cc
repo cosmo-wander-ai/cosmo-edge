@@ -1,4 +1,5 @@
 #include <array>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <limits>
@@ -14,6 +15,7 @@
 #include "util/Exec.h"
 #include "util/PathUtil.h"
 #include "util/ResourceBudget.h"
+#include "util/TimeUtil.h"
 
 namespace fs = std::filesystem;
 
@@ -82,12 +84,15 @@ TEST_CASE("SystemOperationServiceImpl: System operations", "[system][service]") 
         cosmo::test::ScopedPathOverride path_override(testRoot, testRoot);
 
         // Create directories that cosmo::path:: will return
-        auto webDir = cosmo::path::GetWebLocalPath();
+        auto webDir = cosmo::path::GetWebLocalPath(cosmo::util::GetMilliseconds());
         auto logDir = cosmo::path::GetLogPath();
         auto cfgDir = cosmo::path::GetCfgPath();
 
         // Create some dummy old logs to be cleaned up
         std::ofstream(webDir + "/IedLog_old.tar").put('a');
+        fs::last_write_time(webDir + "/IedLog_old.tar",
+                            fs::file_time_type::clock::now() - std::chrono::hours(2));
+        std::ofstream(webDir + "/IedLog_recent.tar").put('a');
         std::ofstream(logDir + "/dummy.log").put('b');
         std::ofstream(cfgDir + "/dummy.cfg").put('c');
 
@@ -104,6 +109,21 @@ TEST_CASE("SystemOperationServiceImpl: System operations", "[system][service]") 
         REQUIRE(cosmo::util::Exec({"tar", "-tf", archive.string()}, listing) == 0);
         REQUIRE(listing.find("dummy.log") != std::string::npos);
         REQUIRE(listing.find("dummy.cfg") != std::string::npos);
+        REQUIRE_FALSE(fs::exists(webDir + "/IedLog_old.tar"));
+        REQUIRE(fs::exists(webDir + "/IedLog_recent.tar"));
+        REQUIRE(fs::is_empty(cosmo::path::GetTemporaryDirPath()));
+
+        const auto first_name = fileName;
+        REQUIRE(sysOpSvc.ExportLogs(fileName, fileUrl) == cosmo::util::ErrorEnum::Success);
+        REQUIRE(fileName != first_name);
+        REQUIRE(fs::is_regular_file(archive));
+
+        // A failed request must not return an old download URL or archive name.
+        fs::remove_all(cfgDir);
+        std::ofstream(cfgDir).put('x');
+        REQUIRE(sysOpSvc.ExportLogs(fileName, fileUrl) == cosmo::util::ErrorEnum::SysErr);
+        REQUIRE(fileName.empty());
+        REQUIRE(fileUrl.empty());
 
         // Cleanup
         fs::remove_all(testRoot);

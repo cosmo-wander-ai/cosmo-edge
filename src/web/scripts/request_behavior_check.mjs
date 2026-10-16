@@ -101,7 +101,7 @@ for (const locale of ['zh-CN', 'en-US']) {
     for (const [url, explicitTimeout, expectedTimeout] of [
       ['/normal', undefined, 20000], ['/normal', 120000, 120000],
       ...[
-        '/gtw/cwai/System/Upgrade', '/gtw/cwai/System/CheckUpgradeSpace',
+        '/gtw/cwai/System/ExportFile', '/gtw/cwai/System/Upgrade', '/gtw/cwai/System/CheckUpgradeSpace',
         '/gtw/cwai/File/ImportFile', '/gtw/cwai/Camera/AddVideo',
         '/gtw/cwai/atomic/model/uploadTemp', '/gtw/cwai/atomic/model/upload',
         '/gtw/cwai/atomic/model/add', '/gtw/cwai/atomic/model/importModel',
