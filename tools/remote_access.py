@@ -102,7 +102,7 @@ def connect_remote(
         str(development_environment.get("os", "")).lower() != "linux"
     ):
         raise core.WorkflowError(
-            "connect.sh is limited to the Linux development environment declared by this task"
+            "remote_access.py is limited to the Linux development environment declared by this task"
         )
     host, user, port = _validate_connection_input(host, user, port)
     ssh = shutil.which("ssh")
@@ -150,7 +150,7 @@ def connect_remote(
 
 def connect_main(arguments: list[str]) -> int:
     parser = argparse.ArgumentParser(
-        prog="connect.sh",
+        prog="python3 tools/remote_access.py",
         description=(
             "Open a task-authorized SSH session. Password input is handled by the "
             "interactive OpenSSH prompt and is never accepted as a script argument."

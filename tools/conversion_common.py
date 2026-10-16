@@ -48,7 +48,7 @@ def _validate_shapes(value: Any, field: str) -> list[list[int]]:
 
 def conversion_parameters(contract: dict[str, Any], run_dir: Path) -> dict[str, Any]:
     if contract["task"] != "model-conversion":
-        raise core.WorkflowError("convert_model.sh only supports task=model-conversion")
+        raise core.WorkflowError("model conversion only supports task=model-conversion")
     params = contract.get("parameters", {})
     source_model = core.resolve_run_input(
         run_dir, _require_string(params.get("sourceModel"), "parameters.sourceModel")

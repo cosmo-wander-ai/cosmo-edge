@@ -197,15 +197,15 @@ candidate together.
 When delegating the task to a coding agent, first read
 [Agent-Assisted Development](/en/development/agent-assisted-development). An ordinary user states the target
 device, model materials, business preference, and expected deliverable. The agent generates the run-local
-contract through `scripts/agent/start.sh`, which copies named materials and selects a route. It reruns
-`assess.sh` after task or authority changes, then runs `doctor.sh` in the actual Linux execution
-environment. Once admitted, `convert_model.sh` and `verify.sh` record the toolchain, commands, hashes, and
+contract through `python3 tools/agent_workflow.py start`, which copies named materials and selects a route. It reruns
+`python3 tools/agent_workflow.py assess` after task or authority changes, then runs `python3 tools/agent_workflow.py doctor` in the actual Linux execution
+environment. Once admitted, `python3 tools/conversion_workflow_dispatch.py convert` and `python3 tools/conversion_workflow_dispatch.py verify` record the toolchain, commands, hashes, and
 layered evidence. Users do not hand-pick releases, images, or commands; the content below is an advanced
 manual and troubleshooting reference.
 
 When the user supplies an isolated Linux development host, account, and password and explicitly asks to
 connect, that already confirms this task's remote execution. The agent creates a sanitized record and uses
-the password only through `scripts/agent/connect.sh`'s interactive OpenSSH prompt; it does not ask again for
+the password only through `python3 tools/remote_access.py`'s interactive OpenSSH prompt; it does not ask again for
 an SSH key or authorization form. Installation, privilege elevation, and device writes remain separate
 decisions when they become necessary.
 
@@ -396,7 +396,7 @@ contract. Chip differences come from `config/rknn/platforms/<chip>.json`. A mode
 chip, but every conversion binds one platform profile, so the resulting `.rknn` remains target-specific and
 must not be copied between chips.
 
-The agent-assisted flow always enters through `scripts/agent/convert_model.sh` and `verify.sh`. It selects
+The agent-assisted flow always enters through `python3 tools/conversion_workflow_dispatch.py convert` and `python3 tools/conversion_workflow_dispatch.py verify`. It selects
 RKNN Toolkit2 from the task contract and freezes Python, wheel, platform profile, model spec, calibration
 set, and artifact hashes. RK3576 and RV1126B do not maintain separate conversion scripts. For manual
 diagnosis, follow the [RK3576 RKNN development guide](/en/guide/rk3576-rknn-development) and select the

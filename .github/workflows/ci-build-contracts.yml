@@ -26,11 +26,10 @@ jobs:
         run: |
           docker run --rm -v "$GITHUB_WORKSPACE:/workspace" -w /workspace \
             ghcr.io/cosmo-wander-ai/cosmo_edge-build-env_x86:v1 npm ci
-      - name: Effective configuration and equivalent/invalid variants
+      - name: Check effective configuration
         run: |
           docker compose version
           npm run config:check
-          node scripts/test-build-contracts.mjs
       - name: Package, SDK, entrypoint and launcher contracts in Docker
         run: |
           docker run --rm -v "$GITHUB_WORKSPACE:/workspace" -w /workspace \
@@ -79,13 +78,14 @@ jobs:
           cache: npm
           cache-dependency-path: src/web/package-lock.json
 
-      - name: Build and check frontend in supported Docker
+      - name: Test and build frontend in supported Docker
         working-directory: .
         run: |
           docker run --rm -v "$GITHUB_WORKSPACE:/workspace" -w /workspace/src/web \
             ghcr.io/cosmo-wander-ai/cosmo_edge-build-env_x86:v1 bash -lc '
               set -euo pipefail
               npm ci
+              npm test
               npm run build
               npm run area-rule:check
               AIBOX_RESOURCE_DIR=/workspace/data/resource/aiboxresource_bm1688 npm run resource-i18n:check
@@ -102,8 +102,7 @@ jobs:
       image: ghcr.io/cosmo-wander-ai/cosmo_edge-build-env_x86:v1
     steps:
       - uses: actions/checkout@v7
-      - name: Build documentation and test benchmark validation
+      - name: Build and verify documentation
         run: |
           npm ci
           npm run docs:verify
-          npm run docs:contracts

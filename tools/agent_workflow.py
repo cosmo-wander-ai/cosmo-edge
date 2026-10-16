@@ -2050,7 +2050,7 @@ def _print_report(report: dict[str, Any], output_format: str) -> None:
 
 def doctor_main(arguments: list[str]) -> int:
     parser = argparse.ArgumentParser(
-        prog="doctor.sh",
+        prog="python3 tools/agent_workflow.py doctor",
         description="Read-only CosmoEdge development-environment inventory and task admission.",
     )
     mode = parser.add_mutually_exclusive_group(required=True)
@@ -2076,7 +2076,7 @@ def doctor_main(arguments: list[str]) -> int:
 
 def assess_main(arguments: list[str]) -> int:
     parser = argparse.ArgumentParser(
-        prog="assess.sh",
+        prog="python3 tools/agent_workflow.py assess",
         description="Read-only intent, material, route, and authority assessment.",
     )
     parser.add_argument("--contract", required=True)
@@ -2091,7 +2091,7 @@ def assess_main(arguments: list[str]) -> int:
 
 def start_main(arguments: list[str]) -> int:
     parser = argparse.ArgumentParser(
-        prog="start.sh",
+        prog="python3 tools/agent_workflow.py start",
         description="Create a private task run from ordinary user intent and assess its route.",
     )
     parser.add_argument("--task", default="model-conversion")
@@ -2139,7 +2139,7 @@ def start_main(arguments: list[str]) -> int:
 
 def authorize_main(arguments: list[str]) -> int:
     parser = argparse.ArgumentParser(
-        prog="authorize.sh",
+        prog="python3 tools/agent_workflow.py authorize",
         description="Record task-scoped coarse authority after explicit user confirmation.",
     )
     parser.add_argument("--contract", required=True)

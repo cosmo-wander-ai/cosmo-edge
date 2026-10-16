@@ -916,7 +916,7 @@ def verify_conversion(
 
 
 def convert_main(arguments: list[str]) -> int:
-    parser = argparse.ArgumentParser(prog="convert_model.sh")
+    parser = argparse.ArgumentParser(prog="python3 tools/conversion_workflow_dispatch.py convert")
     parser.add_argument("--contract", required=True)
     options = parser.parse_args(arguments)
     contract_path, run_dir, contract = core.resolve_contract_context(options.contract)
@@ -931,7 +931,7 @@ def convert_main(arguments: list[str]) -> int:
 
 
 def verify_main(arguments: list[str]) -> int:
-    parser = argparse.ArgumentParser(prog="verify.sh")
+    parser = argparse.ArgumentParser(prog="python3 tools/conversion_workflow_dispatch.py verify")
     parser.add_argument("--contract", required=True)
     options = parser.parse_args(arguments)
     contract_path, run_dir, contract = core.resolve_contract_context(options.contract)

@@ -18,7 +18,7 @@ This page collects the quality-check entry points that already exist in the repo
 | Layer | Check | Suggested Trigger |
 | --- | --- | --- |
 | Documentation site | `npm ci`, `npm run docs:verify` | Pull request |
-| Frontend | `npm ci`, `npm run i18n:check`, `npm run build`, `npm run resource-i18n:check` | Pull request / push |
+| Frontend | `npm ci`, `npm test`, `npm run build`, `npm run resource-i18n:check` | Pull request / push |
 | C++ formatting | `scripts/format_check.sh --check` | Pull request / push |
 | C++ static analysis | `scripts/static_analysis.sh --cppcheck`, `scripts/static_analysis.sh --clang-tidy` | Periodic / manual / self-hosted |
 | CPU test build | `scripts/build_cpu_test.sh`, `build_cpu/cosmo-tests` | Pull request / manual |
@@ -58,7 +58,6 @@ Notes:
   enforces fixed section wording or forbidden terms.
 - Full benchmark validation already checks sources, so `--source-only` is not repeated before the build.
   The option remains available for checking benchmark sources independently.
-- The optional workflow runs benchmark validator regressions through `docs:contracts`.
 - Dependency auditing may currently report npm dependency vulnerabilities; these should be evaluated separately before public release and the resolution recorded.
 
 ## Frontend Checks
@@ -68,16 +67,17 @@ The frontend project is located under `src/web` and ships with its own independe
 ```bash
 cd src/web
 npm ci
-npm run i18n:check
+npm test
 npm run build
 npm run resource-i18n:check
 ```
 
 Notes:
 
-- `npm run build` runs `npm run i18n:check` automatically via `prebuild`.
-- `i18n:check` has two entry points: `i18n:check-glossary` checks glossary synchronization and short scopes;
-  `i18n:check-locales` checks bilingual key parity, short keys, and translation keys used in source files.
+- `npm test` explicitly runs API, request, parameter, flow, and component behavior checks; frontend CI runs it before building.
+- The `prebuild` hook for `npm run build` runs only `i18n:check`, without implicitly running behavior tests.
+- `i18n:check` calls `i18n:check-locales` to check bilingual key parity, short keys, and translation keys used in source files.
+  Glossary documentation is maintained manually; its tables are no longer required to match runtime configuration.
 - Dialog button wording is no longer restricted by a separate regex check. Component behavior and browser
   layout checks remain; the optional workflow no longer generates source or CSS variants to test those checks.
 - `resource-i18n:check` verifies that resource-side internationalization content is in sync.

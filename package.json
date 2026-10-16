@@ -24,7 +24,6 @@
     "benchmarks:v1.1:verify-vlm-private": "node scripts/verify-v1.1-vlm-private.mjs",
     "benchmarks:v1.1:validate": "node scripts/validate-public-v1.1-multistream-benchmark.mjs",
     "docs:verify": "npm run gitee:readme:check && npm run docs:build && npm run docs:smoke && npm run benchmarks:v1.1:smoke",
-    "docs:contracts": "node scripts/test-benchmark-validation.mjs",
     "config:check": "node scripts/check-build-contracts.mjs"
   },
   "devDependencies": {

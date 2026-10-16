@@ -19,9 +19,8 @@ workflow.
 - `docs/` — VitePress site; Chinese pages are at the root and English mirrors
   are under `docs/en/`. Navigation is in `docs/.vitepress/config.mts`.
 - `scripts/` — build, run, validation, and packaging scripts.
-  `scripts/agent/` contains environment admission, measured evidence, and
-  implemented task-specific executors.
-- `tools/` — Python and Node validation utilities.
+- `tools/` — Python and Node utilities, including environment admission,
+  task-scoped remote access, model conversion, and verification CLIs.
 - `test/` — Catch2 tests and the HTTP/MQTT push test service.
 - `data/resource/aiboxresource_bm1688/`, `data/resource/aiboxresource_cv186x/`,
   and `data/resource/aiboxresource_x86/` — platform-scoped Sophon and x86 model
@@ -35,7 +34,7 @@ remote execution, model transfer, or test-device work, activate this repository'
 workflow before the first external or environment-changing command:
 
 1. Restate the business outcome and intended deliverables, then run
-   `scripts/agent/start.sh` (or `start.ps1`) with the objective and named
+   `python3 tools/agent_workflow.py start` with the objective and named
    materials. This creates the private task contract and route assessment; the
    customer does not write JSON or select an implementation recipe.
 2. Resolve `needsInput`. A user message that supplies a development host and
@@ -44,19 +43,22 @@ workflow before the first external or environment-changing command:
    that host it also grants `model-transfer`. Pass
    `--user-requested-remote-access` to `start` and do not ask the same question
    again. If intent is unclear, ask one natural-language question, then use
-   `authorize.sh --confirmed-by-user` and reassess.
+   `python3 tools/agent_workflow.py authorize --confirmed-by-user` and reassess.
 3. A `READY` assessment is required before task `doctor`; that admitted doctor
    report is required before conversion; both are rechecked by verification.
    Changing the contract or assessment invalidates downstream admission.
 
-After the private record and explicit remote grant exist, use `connect.sh` (or
-`connect.ps1`) to open interactive SSH; OpenSSH receives the password through
+After the private record and explicit remote grant exist, use
+`python3 tools/remote_access.py` to open interactive SSH; OpenSSH receives the password through
 its terminal prompt and the repository stores only a sanitized event. Invoke it
 in an interactive terminal/PTY and answer the prompt without repeating the
 password in commentary or a command. Raw `ssh`,
 `scp`, installation, `sudo`, conversion, or deployment before the record/grant is
 outside the assisted workflow. This trigger does not alter ordinary local
 repository development that needs none of these task-specific capabilities.
+
+Run the Python CLI examples from the repository root. On Windows, use
+`python` or `py -3` in place of `python3`; the arguments are identical.
 
 ## Working order
 
@@ -66,16 +68,18 @@ repository development that needs none of these task-specific capabilities.
    container, script, or repository example when those facts can be inspected
    or recommended from the material, target device, repository, and current
    official documentation.
-2. Use `./scripts/agent/start.sh --objective ...` to create the private task
+2. Use `python3 tools/agent_workflow.py start --objective ...` to create the private
+   task
    contract under `output/agent-runs/<run-id>/` and perform the first assessment.
    The contract is an agent-owned execution record, not a customer form. Use
-   `assess.sh --contract ...` again after task or authority changes. Translate
+   `python3 tools/agent_workflow.py assess --contract ...` again after task or
+   authority changes. Translate
    `needsInput` into one concise user question; do not expose internal JSON for
    confirmation.
-3. Run `./scripts/agent/doctor.sh --baseline` for a local read-only inventory.
+3. Run `python3 tools/agent_workflow.py doctor --baseline` for a local read-only inventory.
    If the user supplied a remote development machine and explicitly requested
-   connection, open it through `connect.sh` even when other business input is
-   still unresolved, inspect it read-only, and run task admission on the machine
+   connection, open it through `python3 tools/remote_access.py` even when other
+   business input is still unresolved, inspect it read-only, and run task admission on the machine
    that will actually execute the work.
 4. Select relevant tutorials, examples, templates, tests, and code facts. When
    reusing an example or template, record why it applies and how the task
@@ -88,7 +92,8 @@ repository development that needs none of these task-specific capabilities.
 6. Execute only inside the granted scope. Infer no authority from credentials
    alone, but treat credentials plus an explicit connect/check/develop request
    as confirmation and record it without another round trip. Otherwise use
-   `authorize.sh`, then reassess. Use four coarse gates when applicable:
+   `python3 tools/agent_workflow.py authorize`, then reassess. Use four coarse gates
+   when applicable:
    `environment-change`, `remote-execution`, `model-transfer`, and
    `device-deployment`. Keep the exact target, read/write scope, impact, and
    recovery plan in the task context without turning every implementation
@@ -103,7 +108,7 @@ repository development that needs none of these task-specific capabilities.
 | C++ | `bash scripts/build_cpu_test.sh`, then `./build_cpu/cosmo-tests`; before submission run `scripts/format_check.sh` |
 | Documentation | `npm run docs:verify` |
 | Frontend | `cd src/web && npm ci && npm run build` |
-| Sophon model conversion selected by assessment | `./scripts/agent/start.sh --objective ... --material ...`, resolve and reassess any `needsInput`, then on admitted Linux run `doctor.sh --task model-conversion --contract ...`, `convert_model.sh --contract ...`, and `verify.sh --contract ...` |
+| Sophon model conversion selected by assessment | `python3 tools/agent_workflow.py start --objective ... --material ...`, resolve and reassess any `needsInput`, then on admitted Linux run `python3 tools/agent_workflow.py doctor --task model-conversion --contract ...`, `python3 tools/conversion_workflow_dispatch.py convert --contract ...`, and `python3 tools/conversion_workflow_dispatch.py verify --contract ...` |
 | Other task | Use its task contract and the closest native test commands; list anything not verified |
 
 ## Engineering boundaries

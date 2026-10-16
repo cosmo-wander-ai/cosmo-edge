@@ -98,18 +98,21 @@ production credentials.
 
 The agent turns this request into a private, run-local task record. Before execution, it restates the task
 and deliverables in one or two sentences; you confirm that language, not JSON. It then runs the unified
-`scripts/agent/start.sh` entry (`start.ps1` on Windows), safely copies the materials you named, creates the
+`python3 tools/agent_workflow.py start` entry, safely copies the materials you named, creates the
 record, and performs the first read-only route assessment. Only unresolved `needsInput` entries are
 translated into an ordinary-language question.
 When the user already requested connection and supplied credentials, the agent records sanitized remote
 authority at the same time; host, account, and password are not copied into task JSON. Connection data that
 accidentally appears in record text is redacted instead of blocking the task.
 
+Run these Python CLIs from the repository root. On Windows, replace `python3` with `python` or
+`py -3`; the arguments are identical.
+
 This is an illustrative command for the agent, not something the user must copy. If the target chip is
 unknown, the agent omits that option and lets assessment ask for target context:
 
 ```bash
-./scripts/agent/start.sh \
+python3 tools/agent_workflow.py start \
   --objective "Make this detector run on an isolated test device and return reviewable evidence" \
   --material /secure-input/person-detector.onnx \
   --target-chip bm1688 \
@@ -125,7 +128,7 @@ for different customers on a shared development machine.
 
 The unified entry first calls `assess` to inventory materials, the current host, repository facts, and
 authority, then compare credible routes. After task or authority changes, the agent refreshes it with
-`scripts/agent/assess.sh` (or `assess.ps1` on Windows). Coverage in
+`python3 tools/agent_workflow.py assess`. Coverage in
 current official upstream instructions makes a route eligible to assess; it does not prove that this
 machine is ready. After selecting a route, `doctor` checks only the architecture, resources, runtimes, and
 callable tools required by this task. This read-only phase does not install software, pull images, start
@@ -142,7 +145,7 @@ Remote connection is an environment-discovery action and does not wait for every
 declared the route unsupported, the agent can run:
 
 ```bash
-./scripts/agent/connect.sh \
+python3 tools/remote_access.py \
   --contract output/agent-runs/<run-id>/task-contract.json \
   --host <development-host> \
   --user <development-account>
@@ -199,17 +202,17 @@ once only when connection details are pasted without a requested action.
 After the user confirms in ordinary language, the agent records the coarse grant for this task, for example:
 
 ```bash
-./scripts/agent/authorize.sh \
+python3 tools/agent_workflow.py authorize \
   --contract output/agent-runs/<run-id>/task-contract.json \
   --grant remote-execution \
   --grant model-transfer \
   --confirmed-by-user \
   --target-reference "isolated Linux development environment"
-./scripts/agent/assess.sh --contract output/agent-runs/<run-id>/task-contract.json
+python3 tools/agent_workflow.py assess --contract output/agent-runs/<run-id>/task-contract.json
 ```
 
 `--confirmed-by-user` records a confirmation already obtained and does not let the agent invent authority.
-After the task record and grant exist, connect through `connect.sh`. Installing dependencies, pulling an
+After the task record and grant exist, connect through `python3 tools/remote_access.py`. Installing dependencies, pulling an
 image, using `sudo`, changing system configuration, and device deployment still require an impact statement
 and any additional authority when they actually become necessary.
 
@@ -259,22 +262,22 @@ and return an importable artifact and verification conclusion,” the agent shou
 1. Inventory the supplied model, training/export notes, test samples, and device information. Infer format,
    target mapping, I/O, and preprocessing from inspectable facts; ask only about an unresolved fact that
    changes the deliverable.
-2. Run `scripts/agent/start.sh` to copy named materials into the Git-ignored private run, create the task
+2. Run `python3 tools/agent_workflow.py start` to copy named materials into the Git-ignored private run, create the task
    record, compare credible local-Linux and remote-Linux routes, and identify any coarse-grained authority
    gap. A Windows host is not mislabeled as product unsupported.
 3. Select the closest tutorial, template, and example and record applicability and differences. Example
    parameters do not silently become user requirements.
 4. Consolidate unresolved business, environment, and authority questions. After user confirmation, record
    coarse authority and rerun `assess`; the user writes no Schema, authority JSON, or toolchain release.
-5. Run `scripts/agent/doctor.sh` in the Linux environment that will execute the conversion. It discovers
+5. Run `python3 tools/agent_workflow.py doctor` in the Linux environment that will execute the conversion. It discovers
    compatible capabilities and uses `compatibility-matrix` to compare the target chip, artifact, and
    repository facts. Explicit conflicts fail; missing facts remain unverified. It freezes actual releases,
    paths, and hashes after admission and never pulls an image or installs a dependency.
-6. Run `scripts/agent/convert_model.sh`. It calls `tools/check_onnx_model.py`, then invokes
+6. Run `python3 tools/conversion_workflow_dispatch.py convert`. It calls `tools/check_onnx_model.py`, then invokes
    `model_transform` and `model_deploy` through the admitted TPU-MLIR package, Python, and command identity.
    Docker participates only when the task selects a complete-toolchain image. Generated files do not
    overwrite existing model resources.
-7. Run `scripts/agent/verify.sh` to recheck source and artifact hashes and produce machine-readable
+7. Run `python3 tools/conversion_workflow_dispatch.py verify` to recheck source and artifact hashes and produce machine-readable
    `evidence.json` plus readable `evidence.md`. A complete evidence chain also produces `seal.json` and a
    short code. The summary always distinguishes conversion and tensor coverage from device runtime and
    business-accuracy acceptance. Reruns preserve earlier failures; only a new measured pass or an explicit

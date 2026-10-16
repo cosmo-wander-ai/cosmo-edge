@@ -192,13 +192,13 @@ PY
 
 如果把任务交给编码智能体，先阅读[智能体辅助二次开发](/development/agent-assisted-development)。
 普通用户只需说明目标设备、模型物料、业务偏好和期望交付。智能体应生成本次运行的任务契约，
-先执行 `scripts/agent/start.sh` 复制所指物料、生成任务记录并选择路径；任务或授权变化后重跑
-`assess.sh`，再在实际 Linux 执行环境运行 `doctor.sh`。环境满足后，
-通过 `convert_model.sh` 和 `verify.sh` 留下工具链、命令、哈希与分层证据。用户无需手工选择版本、
+先执行 `python3 tools/agent_workflow.py start` 复制所指物料、生成任务记录并选择路径；任务或授权变化后重跑
+`python3 tools/agent_workflow.py assess`，再在实际 Linux 执行环境运行 `python3 tools/agent_workflow.py doctor`。环境满足后，
+通过 `python3 tools/conversion_workflow_dispatch.py convert` 和 `python3 tools/conversion_workflow_dispatch.py verify` 留下工具链、命令、哈希与分层证据。用户无需手工选择版本、
 镜像或命令；下面的内容仅是高级人工执行和排障参考。
 
 如果用户给出隔离 Linux 开发机的地址、账户、密码并明确要求连接，这已经是本任务的远程执行
-确认。智能体应生成脱敏记录并通过 `scripts/agent/connect.sh` 的 OpenSSH 交互提示使用密码，不重复
+确认。智能体应生成脱敏记录并通过 `python3 tools/remote_access.py` 的 OpenSSH 交互提示使用密码，不重复
 要求 SSH Key 或授权表；安装、提权和设备写入仍在实际需要时单独确认。
 
 当前正式执行器从 ONNX 开始。`.pt`/`.pth` 可作为待评估物料，但训练框架导出 ONNX 必须作为独立
@@ -374,7 +374,7 @@ RK3576 与 RV1126B 共用同一套 CosmoEdge RKNN 推理实现、Rockchip 媒体
 芯片差异由 `config/rknn/platforms/<chip>.json` 平台 profile 提供。模型 spec 不写死芯片，
 但每次转换必须绑定一个 profile，因此输出的 `.rknn` 仍是目标专用产物，不能跨芯片复制使用。
 
-智能体辅助流程统一使用 `scripts/agent/convert_model.sh` 与 `verify.sh`。执行器按任务合同选择
+智能体辅助流程统一使用 `python3 tools/conversion_workflow_dispatch.py convert` 与 `python3 tools/conversion_workflow_dispatch.py verify`。执行器按任务合同选择
 RKNN Toolkit2，冻结 Python、wheel、平台 profile、模型 spec、校准集和产物哈希。RK3576 与
 RV1126B 不各自维护一套转换脚本。手工排障时可参考
 [RK3576 RKNN 开发说明](/guide/rk3576-rknn-development)，并把平台参数换成实际目标：

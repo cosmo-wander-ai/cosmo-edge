@@ -282,32 +282,27 @@ class BuildEntrypointTests(unittest.TestCase):
         self.assertIn('target chip mismatch', result.stderr)
         self.assertFalse((self.root / 'export').exists())
 
-    def test_package_wrappers_audit_dependency_output_before_export(self):
+    def test_rockchip_wrapper_audits_dependency_output_before_export(self):
         self.configure_rockchip()
-        for kind, chip, dependency, directory in (
-            ('sophon', 'bm1688', 'build.sh', 'build'),
-            ('rockchip', 'rk3576', 'build_rknn.sh', 'build_rknn'),
-        ):
-            # Replace only the called builder boundary, leaving the wrapper unchanged.
-            self.write_executable('scripts/' + dependency,
-                                  '#!/bin/bash\nset -euo pipefail\ncmake --build . --target package_all\n')
-            self.env['BUILD_DIRECTORY'] = directory
-            for mode in ('one', 'none', 'multiple', 'directory', 'symlink'):
-                with self.subTest(kind=kind, mode=mode):
-                    self.reset_outputs()
-                    self.fixture(chip)
-                    self.env['ARCHIVE_MODE'] = mode
-                    self.run_script('build_' + kind + '_package.sh', success=mode == 'one')
-                    if mode == 'one':
-                        self.assert_export(chip, 'public-runtime')
-                    else:
-                        self.assertFalse((self.root / 'export').exists())
-            self.env.pop('ARCHIVE_MODE')
-            self.reset_outputs()
-            self.fixture(chip, mismatch='cv186x' if kind == 'sophon' else 'rv1126b')
-            result = self.run_script('build_' + kind + '_package.sh', success=False)
-            self.assertIn('target chip mismatch', result.stderr)
-            self.assertFalse((self.root / 'export').exists())
+        # Rockchip audits in the wrapper; Sophon audits in build.sh, exercised above.
+        self.write_executable('scripts/build_rknn.sh',
+                              '#!/bin/bash\nset -euo pipefail\ncmake --build . --target package_all\n')
+        for mode in ('one', 'none', 'multiple', 'directory', 'symlink'):
+            with self.subTest(mode=mode):
+                self.reset_outputs()
+                self.fixture('rk3576')
+                self.env['ARCHIVE_MODE'] = mode
+                self.run_script('build_rockchip_package.sh', success=mode == 'one')
+                if mode == 'one':
+                    self.assert_export('rk3576', 'public-runtime')
+                else:
+                    self.assertFalse((self.root / 'export').exists())
+        self.env.pop('ARCHIVE_MODE')
+        self.reset_outputs()
+        self.fixture('rk3576', mismatch='rv1126b')
+        result = self.run_script('build_rockchip_package.sh', success=False)
+        self.assertIn('target chip mismatch', result.stderr)
+        self.assertFalse((self.root / 'export').exists())
 
     def test_invalid_arguments_fail_before_tools(self):
         for script, args in (

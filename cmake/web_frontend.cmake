@@ -16,15 +16,11 @@ endif()
 file(GLOB_RECURSE WEB_SRC_FILES CONFIGURE_DEPENDS
     ${WEB_SRC_DIR}/src/*
     ${WEB_SRC_DIR}/public/*
-    ${WEB_SRC_DIR}/scripts/*
 )
 list(APPEND WEB_SRC_FILES
     ${CMAKE_CURRENT_LIST_FILE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/docs/i18n/GLOSSARY.md
-    ${CMAKE_CURRENT_SOURCE_DIR}/docs/i18n/SHORT-SCOPES.md
-    ${CMAKE_CURRENT_SOURCE_DIR}/data/resource/aiboxresource_bm1688/model_template/yolov8_det.json
-    ${CMAKE_CURRENT_SOURCE_DIR}/data/resource/aiboxresource_cv186x/model_template/yolov8_det.json
-    ${CMAKE_CURRENT_SOURCE_DIR}/data/resource/aiboxresource_x86/model_template/yolov8_det.json
+    ${WEB_SRC_DIR}/scripts/i18n_check_locales.mjs
+    ${WEB_SRC_DIR}/scripts/resource_i18n_sync.mjs
     ${WEB_RESOURCE_DIR}/i18n/resource.en-US.json
     ${WEB_RESOURCE_DIR}/i18n/resource.zh-CN.json
     ${WEB_SRC_DIR}/.npmrc
@@ -44,7 +40,11 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E make_directory "${WEB_STAGE_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${WEB_SRC_DIR}/src" "${WEB_STAGE_DIR}/src"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${WEB_SRC_DIR}/public" "${WEB_STAGE_DIR}/public"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${WEB_SRC_DIR}/scripts" "${WEB_STAGE_DIR}/scripts"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${WEB_STAGE_DIR}/scripts"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${WEB_SRC_DIR}/scripts/i18n_check_locales.mjs"
+            "${WEB_SRC_DIR}/scripts/resource_i18n_sync.mjs"
+            "${WEB_STAGE_DIR}/scripts"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WEB_SRC_DIR}/.npmrc" "${WEB_STAGE_DIR}/.npmrc"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WEB_SRC_DIR}/index.html" "${WEB_STAGE_DIR}/index.html"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${WEB_SRC_DIR}/package-lock.json" "${WEB_STAGE_DIR}/package-lock.json"
@@ -57,7 +57,6 @@ add_custom_command(
             ${CMAKE_COMMAND} -E env "AIBOX_RESOURCE_DIR=${WEB_RESOURCE_DIR}"
             ${NPM_EXECUTABLE} run resource-i18n:check
     COMMAND ${CMAKE_COMMAND} -E chdir "${WEB_STAGE_DIR}"
-            ${CMAKE_COMMAND} -E env "COSMO_REPO_ROOT=${CMAKE_CURRENT_SOURCE_DIR}"
             ${NPM_EXECUTABLE} run build
     COMMENT "Building unified web frontend (Vue 3 + Vite)..."
     VERBATIM

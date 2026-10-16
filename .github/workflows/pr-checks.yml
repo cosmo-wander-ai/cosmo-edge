@@ -191,7 +191,7 @@ jobs:
             exit 1
           fi
 
-  # ── Vue 3 frontend build (includes i18n checks via prebuild hook) ──
+  # ── Vue 3 behavior tests and build (includes i18n via prebuild) ──
   frontend-build:
     needs: policy-audit
     if: needs.policy-audit.outputs.frontend_changed == 'true'
@@ -216,6 +216,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Test frontend behavior
+        run: npm test
 
       - name: Build frontend
         run: npm run build

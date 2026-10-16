@@ -18,7 +18,7 @@ next:
 | 层级 | 检查项 | 建议触发方式 |
 | --- | --- | --- |
 | 文档站 | `npm ci`、`npm run docs:verify` | Pull request |
-| 前端 | `npm ci`、`npm run i18n:check`、`npm run build`、`npm run resource-i18n:check` | Pull request / push |
+| 前端 | `npm ci`、`npm test`、`npm run build`、`npm run resource-i18n:check` | Pull request / push |
 | C++ 格式 | `scripts/format_check.sh --check` | Pull request / push |
 | C++ 静态分析 | `scripts/static_analysis.sh --cppcheck`、`scripts/static_analysis.sh --clang-tidy` | 定期 / 手动 / self-hosted |
 | CPU 测试构建 | `scripts/build_cpu_test.sh`、`build_cpu/cosmo-tests` | Pull request / 手动 |
@@ -56,7 +56,6 @@ npm run docs:preview
 - 教程结构和链接以构建结果为准，不再通过独立源码扫描强制固定章节措辞或禁用词。
 - 基准完整验证已经覆盖源码，因此不在构建前重复执行 `--source-only`；该参数仍可用于
   单独检查基准源码。
-- 可选工作流中的 `docs:contracts` 运行基准验证器的回归测试。
 - 当前依赖审计可能报告 npm dependency vulnerabilities，公开发布前应单独评估并记录处理结论。
 
 ## 前端检查
@@ -66,16 +65,17 @@ npm run docs:preview
 ```bash
 cd src/web
 npm ci
-npm run i18n:check
+npm test
 npm run build
 npm run resource-i18n:check
 ```
 
 说明：
 
-- `npm run build` 会先通过 `prebuild` 自动执行 `npm run i18n:check`。
-- `i18n:check` 包含两个入口：`i18n:check-glossary` 检查术语表同步与 short scope；
-  `i18n:check-locales` 检查双语键一致性、短译键及源码使用的翻译键。
+- `npm test` 显式执行 API、请求、参数、流程及组件等行为检查；前端 CI 在构建前执行它。
+- `npm run build` 的 `prebuild` 只执行 `i18n:check`，不再隐式运行行为测试。
+- `i18n:check` 调用 `i18n:check-locales`，检查双语键一致性、短译键及源码使用的翻译键。
+  术语文档用于人工维护，不再强制其表格与运行时配置同步。
 - 弹窗按钮措辞不再由独立正则校验强制限制；组件行为和浏览器布局检查继续保留，
   可选工作流不再生成源码或 CSS 变体来验证这些检查本身。
 - `resource-i18n:check` 用于检查资源类国际化内容是否同步。

@@ -49,11 +49,6 @@ if [ "${#package_artifacts[@]}" -ne 1 ] || [ ! -f "${package_artifacts[0]:-}" ] 
     exit 1
 fi
 
-python3 "${PROJECT_ROOT_PATH}/scripts/verify_package_contents.py" \
-    --archive "${package_artifacts[0]}" \
-    --build-profile "${COSMO_MODEL_GUARD_BUILD_PROFILE}" \
-    --target-chip "${chip}"
-
 rm -rf -- "${output_dir}"
 mkdir -p "${output_dir}"
 package_name="${package_artifacts[0]##*/}"

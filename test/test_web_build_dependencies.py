@@ -14,7 +14,7 @@ log = pathlib.Path(os.environ['NPM_TEST_LOG'])
 records = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
 args = sys.argv[1:]
 with log.open('a') as stream:
-    stream.write(json.dumps({'argv': args, 'cwd': os.getcwd(), 'resource': os.environ.get('AIBOX_RESOURCE_DIR'), 'root': os.environ.get('COSMO_REPO_ROOT')}) + '\n')
+    stream.write(json.dumps({'argv': args, 'cwd': os.getcwd(), 'resource': os.environ.get('AIBOX_RESOURCE_DIR')}) + '\n')
 mode = os.environ.get('NPM_TEST_MODE', 'hit')
 if args[0] == 'ci':
     previous = sum(item['argv'][0] == 'ci' for item in records)
@@ -88,7 +88,9 @@ class WebBuildDependencies(unittest.TestCase):
         web = project / 'src/web'
         for folder in ['src', 'public', 'scripts']:
             (web / folder).mkdir(parents=True)
-        for name in ['.npmrc', 'index.html', 'package.json', 'vite.config.js', 'src/app.js', 'public/asset.txt', 'scripts/check.js']:
+        for name in ['.npmrc', 'index.html', 'package.json', 'vite.config.js', 'src/app.js',
+                     'public/asset.txt', 'scripts/i18n_check_locales.mjs',
+                     'scripts/resource_i18n_sync.mjs', 'scripts/behavior_check.mjs']:
             (web / name).write_text('fixture')
         shutil.copy2(self.web / 'package-lock.json', web / 'package-lock.json')
         for name in ['GLOSSARY.md', 'SHORT-SCOPES.md']:
@@ -124,7 +126,6 @@ class WebBuildDependencies(unittest.TestCase):
         self.assertEqual(len(self.records()), 3)
         self.assertEqual(self.records()[1]['argv'], ['run', 'resource-i18n:check'])
         self.assertEqual(self.records()[1]['resource'], str(resources))
-        self.assertEqual(self.records()[2]['root'], str(project))
         self.assertEqual(self.build(build).returncode, 0)
         self.assertEqual(len(self.records()), 3, 'unchanged inputs must not rebuild')
         entry.unlink()
@@ -143,17 +144,31 @@ class WebBuildDependencies(unittest.TestCase):
         self.assertNotEqual(self.build(build, 'build-fail').returncode, 0)
         self.assertFalse((build / 'web/web_unified/dist/index.html').exists())
 
-    def test_changed_model_fixture_rechecks_frontend(self):
+    def test_changed_resource_translation_rechecks_frontend(self):
+        _, build, resources = self.cmake_fixture()
+        self.assertEqual(self.build(build).returncode, 0)
+        entry = build / 'web/web_unified/dist/index.html'
+        translation = resources / 'i18n/resource.en-US.json'
+        translation.write_text('{"title":"changed"}')
+        newer = entry.stat().st_mtime_ns + 2_000_000_000
+        os.utime(translation, ns=(newer, newer))
+        self.assertEqual(self.build(build).returncode, 0)
+        self.assertEqual(len(self.records()), 6, 'changed resource translation must rerun frontend checks')
+
+    def test_validation_only_inputs_do_not_rebuild_frontend(self):
         project, build, _ = self.cmake_fixture()
         self.assertEqual(self.build(build).returncode, 0)
         self.assertEqual(len(self.records()), 3)
         entry = build / 'web/web_unified/dist/index.html'
-        model = project / 'data/resource/aiboxresource_x86/model_template/yolov8_det.json'
-        model.write_text('{"models":[{"name":"changed"}]}')
         newer = entry.stat().st_mtime_ns + 2_000_000_000
-        os.utime(model, ns=(newer, newer))
+        for relative in ('data/resource/aiboxresource_x86/model_template/yolov8_det.json',
+                         'docs/i18n/GLOSSARY.md', 'docs/i18n/SHORT-SCOPES.md',
+                         'src/web/scripts/behavior_check.mjs'):
+            dependency = project / relative
+            dependency.write_text('changed validation input')
+            os.utime(dependency, ns=(newer, newer))
         self.assertEqual(self.build(build).returncode, 0)
-        self.assertEqual(len(self.records()), 6, 'changed model fixture must rerun frontend checks')
+        self.assertEqual(len(self.records()), 3, 'validation-only inputs must not rebuild the production bundle')
 
 
 if __name__ == '__main__':
