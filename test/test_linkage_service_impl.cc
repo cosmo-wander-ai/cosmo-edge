@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <nlohmann/json.hpp>
 
 #include "service/infra/impl/LinkageServiceImpl.h"
@@ -266,6 +267,34 @@ TEST_CASE("LinkageServiceImpl: CRUD and query operations", "[linkage-service]") 
         size_t total = 0;
         REQUIRE(sut.Query(1, 10, "unsupported", total).empty());
         REQUIRE(total == 0);
+    }
+
+    SECTION("Alarm output configuration uses a file path") {
+        const auto mapping = std::filesystem::path(env.baseDir) / "conf/linkAge/alarmOutputs.json";
+        REQUIRE_FALSE(std::filesystem::exists(mapping));
+        {
+            std::ofstream file(mapping);
+            file << R"({"outputs":[]})";
+        }
+        LinkageServiceImpl reloaded;
+        REQUIRE(std::filesystem::is_regular_file(mapping));
+    }
+
+    SECTION("Alarm output workflows persist and reload") {
+        auto workflow                         = nlohmann::json::parse(MakeValidWorkflow());
+        workflow[1]["actionId"]               = "LA_AlarmOutput_Code";
+        workflow[1]["configObject"]["params"] = nlohmann::json::array(
+            {{{"key", "outputChannel"}, {"value", "1"}}, {{"key", "duration"}, {"value", "5"}}});
+        std::string id;
+        REQUIRE(sut.Add("alarm-output", workflow.dump(), id) == ErrorEnum::Success);
+        LinkageServiceImpl reloaded;
+        size_t total          = 0;
+        const auto strategies = reloaded.Query(1, 10, "", total);
+        REQUIRE(total == 1);
+        REQUIRE(strategies[0].name == "alarm-output");
+        workflow[1]["configObject"]["params"][1]["value"] = "5seconds";
+        REQUIRE(sut.Update("invalid-output", id, workflow.dump()) == ErrorEnum::ParameterException);
+        REQUIRE(sut.Query(1, 10, "", total)[0].name == "alarm-output");
     }
 
     SECTION("Dangling workflow nodes are rejected without persistence") {

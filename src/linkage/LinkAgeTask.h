@@ -5,6 +5,8 @@
 
 namespace cosmo::linkage {
 
+class AlarmOutputController;
+
 struct LinkAgeTaskUnit {
     LinkAgeBasePtr task{nullptr};
     std::vector<LinkAgeTaskUnit> sons;
@@ -12,7 +14,8 @@ struct LinkAgeTaskUnit {
 
 class LinkAgeTask {
 public:
-    LinkAgeTask(const std::string& name, LinkageStrategyWorkflow& strategy);
+    LinkAgeTask(const std::string& name, LinkageStrategyWorkflow& strategy,
+                std::shared_ptr<AlarmOutputController> outputs = nullptr);
     ~LinkAgeTask();
 
     void DoAlarm(const std::string& channel_id, const std::string& alg_id);

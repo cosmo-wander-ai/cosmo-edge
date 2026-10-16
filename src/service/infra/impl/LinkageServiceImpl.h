@@ -82,6 +82,7 @@ private:
     mutable std::shared_mutex mtx_;
     std::string conf_file_path_{"linkAge"};
     std::string conf_file_name_{"linkAgeList.json"};
+    std::shared_ptr<cosmo::linkage::AlarmOutputController> alarm_outputs_;
     cosmo::LinkageStrategyConfig config_;
     std::vector<cosmo::StorageList> support_storages_;
 

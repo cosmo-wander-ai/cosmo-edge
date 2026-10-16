@@ -1,4 +1,6 @@
 add_library(cosmo_linkage OBJECT
+    AlarmOutputController.cc AlarmOutputController.h
+    LinkAgeAlarmOutput.cc LinkAgeAlarmOutput.h
     LinkAgeAlarm.cc       LinkAgeAlarm.h
     LinkAgeAudioDevice.cc LinkAgeAudioDevice.h
     LinkAgeBase.cc        LinkAgeBase.h
