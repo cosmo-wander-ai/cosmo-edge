@@ -76,6 +76,31 @@ or runtime code.
 - **Not promised from format alone**: other ONNX model families, other output layouts, and untested
   chip/quantization combinations.
 
+### 1.4 Minimal ONNX Porting Checklist
+
+Fill in this checklist before uploading a model or proposing a new parser or adapter. If an item cannot be
+answered from the export log, the model card, or a check such as `tools/check_onnx_model.py`, treat it as
+unknown rather than guessing. Section 2 shows each item filled in for YOLOv8n.
+
+- [ ] **Model file**: one `.onnx` file with its source, version, export command, opset, and SHA-256.
+- [ ] **License**: the weights, training data, and export tools permit the intended use and redistribution.
+- [ ] **Labels/classes**: the class count and the exact class-ID-to-name order, taken from the source model.
+- [ ] **Input dimensions**: input name, data type, and `N × C × H × W` shape; dynamic dimensions are fixed or
+      their test values are recorded.
+- [ ] **Preprocessing assumptions**: RGB or BGR, resize mode (stretch or keep aspect ratio), padding color,
+      normalization mean and scale.
+- [ ] **Output and postprocessing**: output names, shapes, and dimension order; coordinate format (`xyxy` or
+      `xywh`, pixels or normalized); whether NMS is built in; and which existing subtype, such as
+      `YOLOV8_DET`, matches it, or why a new parser is needed.
+- [ ] **Validation notes**: the `onnx.checker` and ONNX Runtime load result, the tested backend and CosmoEdge
+      version, positive and negative sample results, and anything not yet verified.
+
+::: warning Do Not Commit Model Weights or Private Links
+Do not commit large model weights (`.onnx`, `.pt`, `.bmodel`, `.rknn`, and similar files), private datasets,
+or private or signed download links to the repository unless maintainers explicitly approve it. In issues
+and pull requests, describe the model by its public source, version, license, and SHA-256 instead.
+:::
+
 ## 2. Reproducible Example: YOLOv8n Person Detection on x86
 
 This example exports the public YOLOv8n weights with fixed Ultralytics packages and detects COCO class
