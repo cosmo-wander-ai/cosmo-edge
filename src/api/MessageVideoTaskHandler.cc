@@ -227,8 +227,16 @@ VideoTask::MsgApplyParamsBatchSend MessageVideoTaskHandler::Handle(VideoTask::Ms
     VideoTask::MsgApplyParamsBatchSend retData{};
 
     for (const auto& channelId : data.targetChannelIds) {
-        std::error_condition ret =
-            task_config_.SaveOrUpdateTask(channelId, data.algorithmId, data.taskConfig, data.scheduleId);
+        // Batch application shares parameters and scheduling, not camera-specific geometry.
+        // Ignore source areas even for older clients that still include them in the request.
+        auto targetConfig = data.taskConfig;
+        targetConfig.areas.clear();
+        targetConfig.shieldedAreas.clear();
+        std::error_condition ret = task_config_.QueryTaskArea(channelId, data.algorithmId, targetConfig.areas,
+                                                              targetConfig.shieldedAreas);
+        if (util::ErrorEnum::Success == ret) {
+            ret = task_config_.SaveOrUpdateTask(channelId, data.algorithmId, targetConfig, data.scheduleId);
+        }
         if (util::ErrorEnum::Success != ret) {
             MsgResultInfo failedEl;
             failedEl.id      = channelId;

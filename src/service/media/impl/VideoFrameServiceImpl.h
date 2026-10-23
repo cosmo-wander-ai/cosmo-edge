@@ -50,7 +50,7 @@ public:
     VideoFramePtr Padding(VideoFramePtr src, size_t top, size_t bottom, size_t left, size_t right,
                           cosmo::media::Color color) override;
 
-    std::vector<u_char> EncodeJpeg(const VideoFramePtr srcPicture) override;
+    std::vector<u_char> EncodeJpeg(const VideoFramePtr srcPicture, int quality = 95) override;
 
     VideoFramePtr DecodeJpeg(const std::vector<u_int8_t>& data) override;
 

@@ -1,6 +1,7 @@
 // VideoFrameCodec.cc — JPEG encode/decode operations for VideoFrameProcSophon.
 // Split from VideoFrameProcSophon.cc to reduce file size (DEBT-007).
 
+#include <algorithm>
 #include <cstring>
 #include <memory>
 #include <vector>
@@ -26,9 +27,7 @@ namespace media {
         buffer->insert(buffer->end(), src, src + size);
     }
 
-    static constexpr int kImageDefaultSaveQuality = 95;
-
-    std::vector<u_char> VideoFrameProcSophon::EncodeJpeg(const VideoFramePtr src) {
+    std::vector<u_char> VideoFrameProcSophon::EncodeJpeg(const VideoFramePtr src, int quality) {
         if (!VideoFrameValid(src)) {
             return {};
         }
@@ -81,7 +80,7 @@ namespace media {
         auto success = stbi_write_jpg_to_func(CodecMemoryWriteFunc, &buffer, static_cast<int>(width),
                                               static_cast<int>(height), static_cast<int>(channel),
                                               reinterpret_cast<void*>(rgb_frame->GetHostData()),
-                                              kImageDefaultSaveQuality);
+                                              std::clamp(quality, 1, 100));
         if (!success) {
             return {};
         }

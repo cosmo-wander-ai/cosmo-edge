@@ -206,9 +206,9 @@ VideoFramePtr VideoFrameServiceImpl::Padding(VideoFramePtr src, size_t top, size
     return {};
 }
 
-std::vector<u_char> VideoFrameServiceImpl::EncodeJpeg(const VideoFramePtr src_picture) {
+std::vector<u_char> VideoFrameServiceImpl::EncodeJpeg(const VideoFramePtr src_picture, int quality) {
     if (proc_) {
-        return proc_->EncodeJpeg(src_picture);
+        return proc_->EncodeJpeg(src_picture, quality);
     }
     return {};
 }

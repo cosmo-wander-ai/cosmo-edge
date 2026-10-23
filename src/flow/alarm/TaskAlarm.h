@@ -127,7 +127,7 @@ private:
 
     void HandBestInfoPicture(CMsgOnEventsReq& msg, AlgDataPtr algData, DataAlarmUnit& alarmUnit,
                              const util::AlarmImagePrivacy& privacy,
-                             const std::vector<std::string>& expectedDetectors);
+                             const std::vector<std::string>& expectedDetectors, int pictureQuality);
     void HandPicture(CMsgOnEventsReq& msg, AlgDataPtr algData, DataAlarmUnit& alarmUnit);
     void HandPictureImpl(CMsgOnEventsReq& msg, AlgDataPtr algData, DataAlarmUnit& alarmUnit);
     void UploadImage(CMsgOnEventsReq& msg, std::vector<uint8_t>& data, const std::string& url,

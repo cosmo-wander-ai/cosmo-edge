@@ -528,9 +528,7 @@ namespace media {
         buffer->insert(buffer->end(), src, src + size);
     }
 
-    static constexpr int kCpuImageDefaultSaveQuality = 95;
-
-    std::vector<u_char> VideoFrameProcCpu::EncodeJpeg(const VideoFramePtr src) {
+    std::vector<u_char> VideoFrameProcCpu::EncodeJpeg(const VideoFramePtr src, int quality) {
         if (!VideoFrameValid(src)) {
             return {};
         }
@@ -589,7 +587,7 @@ namespace media {
 
         auto success = stbi_write_jpg_to_func(
             CpuCodecMemoryWriteFunc, &buffer, w, h, static_cast<int>(channel),
-            reinterpret_cast<void*>(rgb_frame->GetData()), kCpuImageDefaultSaveQuality);
+            reinterpret_cast<void*>(rgb_frame->GetData()), std::clamp(quality, 1, 100));
         if (!success) {
             return {};
         }

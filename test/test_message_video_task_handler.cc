@@ -487,6 +487,8 @@ TEST_CASE("VideoTaskHandler: ApplyParamsBatch all success", "[video-task-handler
     recv.algorithmId      = "alg1";
     recv.targetChannelIds = {"ch1"};
 
+    REQUIRE_CALL(f.mocks.cameraSvc, QueryTaskArea("ch1", "alg1", trompeloeil::_, trompeloeil::_))
+        .RETURN(cosmo::util::ErrorEnum::Success);
     REQUIRE_CALL(f.mocks.cameraSvc,
                  SaveOrUpdateTask(trompeloeil::_, trompeloeil::_, trompeloeil::_, trompeloeil::_))
         .RETURN(cosmo::util::ErrorEnum::Success);
@@ -503,6 +505,9 @@ TEST_CASE("VideoTaskHandler: ApplyParamsBatch partial failure", "[video-task-han
     recv.algorithmId      = "alg1";
     recv.targetChannelIds = {"ch1", "ch2"};
 
+    REQUIRE_CALL(f.mocks.cameraSvc, QueryTaskArea(trompeloeil::_, "alg1", trompeloeil::_, trompeloeil::_))
+        .TIMES(2)
+        .RETURN(cosmo::util::ErrorEnum::Success);
     // ch1 succeeds atomically
     REQUIRE_CALL(f.mocks.cameraSvc, SaveOrUpdateTask(trompeloeil::eq(std::string("ch1")), trompeloeil::_,
                                                      trompeloeil::_, trompeloeil::_))
@@ -517,6 +522,100 @@ TEST_CASE("VideoTaskHandler: ApplyParamsBatch partial failure", "[video-task-han
     REQUIRE(errc == cosmo::util::ErrorEnum::Success);
     REQUIRE(ret.resData.failedList.size() == 1);
     REQUIRE(ret.resData.failedList[0].id == "ch2");
+}
+
+TEST_CASE("VideoTaskHandler: ApplyParamsBatch preserves each target's complete regions",
+          "[video-task-handler][batch-regions]") {
+    TestFixture f;
+    std::error_condition errc;
+    cosmo::VideoTask::MsgApplyParamsBatchRecv recv;
+    recv.algorithmId      = "alg1";
+    recv.scheduleId       = "new-schedule";
+    recv.targetChannelIds = {"ch1", "ch2", "empty-channel"};
+
+    const auto makeArea = [](const std::string& id, double offset) {
+        cosmo::MsgTaskArea area;
+        area.areaId     = id;
+        area.name       = id + " name";
+        area.points     = {{offset, 0.1}, {0.8, 0.1}, {0.8, 0.9}};
+        area.linePoints = {{offset, 0.2}, {0.7, 0.6}};
+        cosmo::MsgDynamicKeyValue name;
+        name.key   = "name";
+        name.value = area.name;
+        area.params.push_back(name);
+        cosmo::MsgTaskArea associated;
+        associated.areaId = id + "-associated";
+        associated.points = {{offset, 0.3}, {0.6, 0.3}, {0.6, 0.7}};
+        area.associatedAreas.push_back(associated);
+        return area;
+    };
+    recv.taskConfig.areas         = {makeArea("source-area", 0.01)};
+    recv.taskConfig.shieldedAreas = {makeArea("source-shield", 0.02)};
+    cosmo::MsgDynamicKeyValue param;
+    param.key   = "param.sensitivity";
+    param.value = "7";
+    recv.taskConfig.params.push_back(param);
+
+    const std::vector<cosmo::MsgTaskArea> firstAreas{makeArea("first-area", 0.1),
+                                                     makeArea("second-area", 0.2)};
+    const std::vector<cosmo::MsgTaskArea> firstShields{makeArea("first-shield", 0.3)};
+    const std::vector<cosmo::MsgTaskArea> secondAreas{makeArea("other-area", 0.4)};
+    REQUIRE_CALL(f.mocks.cameraSvc, QueryTaskArea("ch1", "alg1", trompeloeil::_, trompeloeil::_))
+        .WITH(_3.empty() && _4.empty())
+        .SIDE_EFFECT(_3 = firstAreas; _4 = firstShields)
+        .RETURN(cosmo::util::ErrorEnum::Success);
+    REQUIRE_CALL(f.mocks.cameraSvc, QueryTaskArea("ch2", "alg1", trompeloeil::_, trompeloeil::_))
+        .WITH(_3.empty() && _4.empty())
+        .SIDE_EFFECT(_3 = secondAreas)
+        .RETURN(cosmo::util::ErrorEnum::Success);
+    REQUIRE_CALL(f.mocks.cameraSvc, QueryTaskArea("empty-channel", "alg1", trompeloeil::_, trompeloeil::_))
+        .WITH(_3.empty() && _4.empty())
+        .RETURN(cosmo::util::ErrorEnum::Success);
+
+    std::vector<cosmo::MsgTaskConfig> saved;
+    REQUIRE_CALL(f.mocks.cameraSvc, SaveOrUpdateTask(trompeloeil::_, "alg1", trompeloeil::_, "new-schedule"))
+        .TIMES(3)
+        .LR_SIDE_EFFECT(saved.push_back(_3))
+        .RETURN(cosmo::util::ErrorEnum::Success);
+    const auto response = f.handler.Handle(std::move(recv), errc);
+
+    REQUIRE(errc == cosmo::util::ErrorEnum::Success);
+    REQUIRE(response.resData.failedList.empty());
+    REQUIRE(saved.size() == 3);
+    REQUIRE(nlohmann::json(saved[0].areas) == nlohmann::json(firstAreas));
+    REQUIRE(nlohmann::json(saved[0].shieldedAreas) == nlohmann::json(firstShields));
+    REQUIRE(nlohmann::json(saved[1].areas) == nlohmann::json(secondAreas));
+    REQUIRE(saved[1].shieldedAreas.empty());
+    REQUIRE(saved[2].areas.empty());
+    REQUIRE(saved[2].shieldedAreas.empty());
+    for (const auto& config : saved) {
+        REQUIRE(config.params.size() == 1);
+        REQUIRE(config.params[0].key.ToString() == "param.sensitivity");
+        REQUIRE(config.params[0].value.ToString() == "7");
+    }
+}
+
+TEST_CASE("VideoTaskHandler: ApplyParamsBatch skips unreadable target without writing it",
+          "[video-task-handler][batch-regions]") {
+    TestFixture f;
+    std::error_condition errc;
+    cosmo::VideoTask::MsgApplyParamsBatchRecv recv;
+    recv.algorithmId      = "alg1";
+    recv.targetChannelIds = {"missing", "healthy"};
+    REQUIRE_CALL(f.mocks.cameraSvc, QueryTaskArea("missing", "alg1", trompeloeil::_, trompeloeil::_))
+        .RETURN(cosmo::util::ErrorEnum::TaskNotExist);
+    FORBID_CALL(f.mocks.cameraSvc,
+                SaveOrUpdateTask("missing", trompeloeil::_, trompeloeil::_, trompeloeil::_));
+    REQUIRE_CALL(f.mocks.cameraSvc, QueryTaskArea("healthy", "alg1", trompeloeil::_, trompeloeil::_))
+        .RETURN(cosmo::util::ErrorEnum::Success);
+    REQUIRE_CALL(f.mocks.cameraSvc, SaveOrUpdateTask("healthy", "alg1", trompeloeil::_, trompeloeil::_))
+        .RETURN(cosmo::util::ErrorEnum::Success);
+
+    const auto response = f.handler.Handle(std::move(recv), errc);
+    REQUIRE(errc == cosmo::util::ErrorEnum::Success);
+    REQUIRE(response.resData.failedList.size() == 1);
+    REQUIRE(response.resData.failedList[0].id == "missing");
+    REQUIRE(response.resData.failedList[0].resCode == static_cast<int>(cosmo::util::ErrorEnum::TaskNotExist));
 }
 
 // ============================================================================

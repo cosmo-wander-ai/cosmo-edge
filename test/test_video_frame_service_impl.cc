@@ -4,7 +4,7 @@
  *
  * Strategy: VideoFrameServiceImpl wraps VPU image processing (bmcv).
  * Construction creates VideoFrameProc which requires bmlib device init.
- * All tests tagged [.device].
+ * Device-only tests are tagged [.device]; CPU regressions run without hardware.
  */
 #include <memory>
 #include <stdexcept>
@@ -91,6 +91,62 @@ private:
 }  // namespace
 
 #ifdef COSMO_MEDIA_USE_CPU_BACKEND
+TEST_CASE("VideoFrameServiceImpl applies JPEG quality on every encoding",
+          "[VideoFrameService][jpeg-quality]") {
+    constexpr int width      = 128;
+    constexpr int height     = 96;
+    constexpr int frame_size = width * height * 3;
+    cosmo::mem::MemoryPoolMng memory_pool(std::make_unique<cosmo::mem::AllocatorCpu>(), {frame_size});
+    cosmo::mem::SetMemoryPoolContext(&memory_pool);
+    struct ContextReset {
+        ~ContextReset() {
+            cosmo::mem::SetMemoryPoolContext(nullptr);
+        }
+    } context_reset;
+    VideoFrameServiceFixture fixture;
+    auto& sut = fixture.Service();
+    auto frame =
+        std::make_shared<cosmo::media::VideoFrame>(width, height, cosmo::media::PixelFormat::PIXEL_RGB8);
+    REQUIRE(frame->Active());
+    auto* pixels = frame->GetData();
+    REQUIRE(pixels != nullptr);
+    // Deterministic color detail makes compression changes visible without image fixtures.
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            const int offset   = (y * width + x) * 3;
+            pixels[offset]     = static_cast<uint8_t>((x * 17 + y * 13) % 256);
+            pixels[offset + 1] = static_cast<uint8_t>((x * 7 + y * 29) % 256);
+            pixels[offset + 2] = static_cast<uint8_t>((x * 31 + y * 3) % 256);
+        }
+    }
+
+    const auto low_quality  = sut.EncodeJpeg(frame, 20);
+    const auto high_quality = sut.EncodeJpeg(frame, 95);
+    REQUIRE_FALSE(low_quality.empty());
+    REQUIRE_FALSE(high_quality.empty());
+    CHECK(low_quality != high_quality);
+    CHECK(low_quality.size() < high_quality.size());
+
+    for (const auto* jpeg : {&low_quality, &high_quality}) {
+        auto decoded = sut.DecodeJpeg(*jpeg);
+        REQUIRE(decoded);
+        REQUIRE(decoded->Active());
+        CHECK(decoded->GetWidth() == width);
+        CHECK(decoded->GetHeight() == height);
+    }
+
+    // Reuse the same service to catch cached quality and changed defaults at other call sites.
+    CHECK(sut.EncodeJpeg(frame, 20) == low_quality);
+    CHECK(sut.EncodeJpeg(frame) == high_quality);
+
+    const auto minimum_quality = sut.EncodeJpeg(frame, 1);
+    const auto maximum_quality = sut.EncodeJpeg(frame, 100);
+    REQUIRE_FALSE(minimum_quality.empty());
+    REQUIRE_FALSE(maximum_quality.empty());
+    CHECK(sut.EncodeJpeg(frame, 0) == minimum_quality);
+    CHECK(sut.EncodeJpeg(frame, 101) == maximum_quality);
+}
+
 TEST_CASE("CPU scalar preview resize preserves neutral I420 planes", "[VideoFrameService][.cpu-scalar]") {
     // Run in a fresh process with COSMO_FFMPEG_DISABLE_CPU_OPT=1.
     VideoFrameServiceFixture fixture;

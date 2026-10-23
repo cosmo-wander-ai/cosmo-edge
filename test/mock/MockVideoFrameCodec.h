@@ -12,7 +12,7 @@ namespace cosmo::test {
 
 class MockVideoFrameCodec : public cosmo::service::IVideoFrameCodec {
 public:
-    MAKE_MOCK1(EncodeJpeg, std::vector<u_char>(const VideoFramePtr), override);
+    MAKE_MOCK2(EncodeJpeg, std::vector<u_char>(const VideoFramePtr, int), override);
     MAKE_MOCK1(DecodeJpeg, VideoFramePtr(const std::vector<u_int8_t>&), override);
 };
 

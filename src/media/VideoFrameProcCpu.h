@@ -42,7 +42,7 @@ namespace media {
                               Color color) override;
 
         // JPEG codec
-        std::vector<u_char> EncodeJpeg(const VideoFramePtr srcPicture) override;
+        std::vector<u_char> EncodeJpeg(const VideoFramePtr srcPicture, int quality = 95) override;
         VideoFramePtr DecodeJpeg(const std::vector<u_int8_t>& data) override;
 
         // Drawing operations — CPU-native I420 pixel manipulation

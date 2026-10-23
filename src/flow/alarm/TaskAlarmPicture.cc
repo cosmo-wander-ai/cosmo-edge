@@ -27,7 +27,7 @@ namespace cosmo {
 
 void TaskAlarm::HandBestInfoPicture(CMsgOnEventsReq& msg, AlgDataPtr /*algData*/, DataAlarmUnit& alarmUnit,
                                     const util::AlarmImagePrivacy& privacy,
-                                    const std::vector<std::string>& expectedDetectors) {
+                                    const std::vector<std::string>& expectedDetectors, int pictureQuality) {
     media::Color box_color{0, 0, 0};
     int lineWidth = 2;
 
@@ -63,8 +63,8 @@ void TaskAlarm::HandBestInfoPicture(CMsgOnEventsReq& msg, AlgDataPtr /*algData*/
             auto boxLines = GetBoxLines(bestInfo.box, origImg->GetWidth(), origImg->GetHeight());
             service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().DrawLines(
                 origImg, boxLines, box_color, lineWidth);
-            auto fullJpeg =
-                service::ServiceRegistry::Instance().Get<service::IVideoFrameCodec>().EncodeJpeg(origImg);
+            auto fullJpeg = service::ServiceRegistry::Instance().Get<service::IVideoFrameCodec>().EncodeJpeg(
+                origImg, pictureQuality);
             if (fullJpeg.empty()) {
                 LOG_WARN("{}", "ImageEmpty");
                 msg.property.persons.push_back(person);
@@ -340,7 +340,8 @@ void TaskAlarm::HandPictureImpl(CMsgOnEventsReq& msg, AlgDataPtr algData, DataAl
 #ifdef DURATION_LOG
     auto timpointEncodeJpegFull = std::chrono::high_resolution_clock::now();
 #endif
-    auto fullJpeg = service::ServiceRegistry::Instance().Get<service::IVideoFrameCodec>().EncodeJpeg(origImg);
+    auto fullJpeg = service::ServiceRegistry::Instance().Get<service::IVideoFrameCodec>().EncodeJpeg(
+        origImg, overviewCfg.picQuality);
     if (!fullJpeg.empty())
         UploadImage(msg, fullJpeg, msg.fullPicture, "full");
 #ifdef DURATION_LOG
@@ -360,7 +361,7 @@ void TaskAlarm::HandPictureImpl(CMsgOnEventsReq& msg, AlgDataPtr algData, DataAl
             .count(),
         std::chrono::duration_cast<std::chrono::milliseconds>(timpointEnd - timpointEncodeJpegFull).count());
 #endif
-    HandBestInfoPicture(msg, algData, alarmUnit, privacy, expectedDetectors);
+    HandBestInfoPicture(msg, algData, alarmUnit, privacy, expectedDetectors, overviewCfg.picQuality);
 }
 
 // Image upload — moved to TaskAlarmUpload.cc

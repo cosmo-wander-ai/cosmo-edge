@@ -156,7 +156,7 @@ TEST_CASE("ThingsLibHandler: saved pictures have queryable image URLs", "[things
     // The codec mock needs only a frame handle, without allocating a pixel buffer.
     auto frame = std::make_shared<media::VideoFrame>(0, 0);
     REQUIRE_CALL(mocks.videoCodecSvc, DecodeJpeg(jpeg)).RETURN(frame);
-    REQUIRE_CALL(mocks.videoCodecSvc, EncodeJpeg(frame)).RETURN(jpeg);
+    REQUIRE_CALL(mocks.videoCodecSvc, EncodeJpeg(frame, 95)).RETURN(jpeg);
     REQUIRE_CALL(mocks.articlesReidDaoSvc, AddArticlesReid(_, "lib-1", _, _))
         .LR_RETURN(dao.AddArticlesReid(_1, _2, _3, _4));
     REQUIRE_CALL(mocks.articlesReidDaoSvc, QueryThings(_)).LR_RETURN(dao.QueryThings(_1));

@@ -17,8 +17,9 @@ public:
 
     /// Encode a VideoFrame to JPEG format.
     /// @param srcPicture Source frame.
+    /// @param quality JPEG quality, clamped to [1, 100]; defaults to 95.
     /// @return JPEG-encoded byte buffer.
-    virtual std::vector<u_char> EncodeJpeg(const VideoFramePtr srcPicture) = 0;
+    virtual std::vector<u_char> EncodeJpeg(const VideoFramePtr srcPicture, int quality = 95) = 0;
 
     /// Decode a JPEG byte buffer into a VideoFrame.
     /// @param data JPEG-encoded byte buffer.

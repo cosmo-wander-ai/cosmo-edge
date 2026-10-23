@@ -56,6 +56,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import ArrangeFlow from './flow/ArrangeFlow.vue'
 import Detection from './flow/Detection.vue'
+import { getShieldedRegionHeads } from '@/utils/shieldedRegion'
 import ParameterSetting from './flow/ParameterSetting.vue'
 import { updatePictureMatchDefaults, filterPictureLibraryParams } from './flow/nodeState.js'
 import { v4 } from 'uuid'
@@ -389,6 +390,10 @@ const handleDetcetionData = () => {
   algorithmMetadata.value.regionType = detection.areaType
   algorithmMetadata.value.scheduleSupport = detection.scheduleSupport
   algorithmMetadata.value.enableShieldedRegion = detection.enableShieldedRegion
+  algorithmMetadata.value.shieldedRegion = {
+    ...algorithmMetadata.value.shieldedRegion,
+    heads: getShieldedRegionHeads(algorithmMetadata.value, t) || []
+  }
   algorithmMetadata.value.maxAreaCount = detection.maxAreaCount
   algorithmMetadata.value.defaultFullScreen = detection.defaultFullScreen
   if (detection.associatedAreaChecked) {

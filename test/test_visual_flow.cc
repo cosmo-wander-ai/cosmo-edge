@@ -320,7 +320,7 @@ public:
             return frame;
         return VideoFrameServiceImpl::Crop(frame, box);
     }
-    std::vector<u_char> EncodeJpeg(VideoFramePtr frame) override {
+    std::vector<u_char> EncodeJpeg(VideoFramePtr frame, int /*quality*/ = 95) override {
         if (failure == 4)
             return {};
         return VideoFrameValid(frame) ? std::vector<u_char>{0xff, 0xd8, 0xff, 0xd9} : std::vector<u_char>{};

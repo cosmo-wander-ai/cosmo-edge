@@ -248,6 +248,8 @@ for (const scenario of [
 console.log('Component behavior checks passed')
 
 await import('./edge_behavior_check.mjs')
+await import('./batch_region_preservation_check.mjs')
+await import('./shielded_region.test.mjs')
 
 await import('./realtime_preview_behavior_check.mjs')
 

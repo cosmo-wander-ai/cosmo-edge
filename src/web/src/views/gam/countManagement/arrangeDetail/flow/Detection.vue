@@ -62,6 +62,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { t } from '@/i18n'
+import { isShieldedRegionEnabled } from '@/utils/shieldedRegion'
 
 const props = defineProps({
   algorithmMetadata: {
@@ -141,10 +142,7 @@ watch(
 const handleData = () => {
   areaType.value = props.algorithmMetadata?.regionType || 'hexagon'
   checked.value = props.algorithmMetadata.scheduleSupport
-  shieldAreaChecked.value =
-    props.algorithmMetadata.enableShieldedRegion !== undefined
-      ? props.algorithmMetadata.enableShieldedRegion
-      : false
+  shieldAreaChecked.value = isShieldedRegionEnabled(props.algorithmMetadata)
   fullScreenChecked.value =
     props.algorithmMetadata.defaultFullScreen !== undefined
       ? props.algorithmMetadata.defaultFullScreen

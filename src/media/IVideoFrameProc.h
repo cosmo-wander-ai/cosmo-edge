@@ -40,8 +40,8 @@ public:
                                   Color color)                                      = 0;
 
     // ── JPEG codec ──────────────────────────────────────────────────────
-    virtual std::vector<u_char> EncodeJpeg(const VideoFramePtr srcPicture) = 0;
-    virtual VideoFramePtr DecodeJpeg(const std::vector<u_int8_t>& data)    = 0;
+    virtual std::vector<u_char> EncodeJpeg(const VideoFramePtr srcPicture, int quality = 95) = 0;
+    virtual VideoFramePtr DecodeJpeg(const std::vector<u_int8_t>& data)                      = 0;
 
     // ── Drawing ─────────────────────────────────────────────────────────
     virtual VideoFramePtr DrawBox(VideoFramePtr srcImage, const util::Box imageRect, const Color& color,

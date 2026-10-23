@@ -144,6 +144,7 @@
 <script setup>
 import { ref, watch, onMounted, getCurrentInstance, nextTick, computed } from 'vue'
 import { t, currentLocale } from '@/i18n'
+import { getShieldedRegionHeads } from '@/utils/shieldedRegion'
 import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
 import { QuestionFilled, CircleCheckFilled } from '@element-plus/icons-vue'
 import areaSetting from './areaSetting2.vue'
@@ -681,7 +682,7 @@ const getSelectConfig = () => {
       config.value.visualQuestionParams = normalizedMetaParams.map(p => ({ ...p, value: isChannelEditableParam(p) && taskParamByKey.has(p.key) ? taskParamByKey.get(p.key) : resolveSceneParamValue(p) }))
       config.value.visualQuestionEditing = normalizedMetaParams.some(p => p.type === 'visualQuestions' || p.key.replace(/^param\./, '').startsWith('visual.'))
       config.value.taskAreaHeader = metaData.region?.heads
-      config.value.shieldAreaHeader = metaData.shieldedRegion?.heads
+      config.value.shieldAreaHeader = getShieldedRegionHeads(metaData, t)
       config.value.areasTitle = metaData.region?.areasTitle
 
       resData.taskConfig.areas.forEach((area) => {
@@ -1059,8 +1060,15 @@ const BatchConfirm = async (data) => {
   } catch (e) {
     return
   }
-  parameterData.value.targetChannelIds = data.targetChannelIds
-  proxy.$API.applyParamsBatch(parameterData.value).then((res) => {
+  const batchParams = {
+    ...parameterData.value,
+    taskConfig: { ...parameterData.value.taskConfig },
+    targetChannelIds: data.targetChannelIds
+  }
+  // Each target channel keeps its own detection and shielded regions.
+  delete batchParams.taskConfig.areas
+  delete batchParams.taskConfig.shieldedAreas
+  proxy.$API.applyParamsBatch(batchParams).then((res) => {
     loading.value = false
     if (res.resCode == 1) {
       proxy.$message.success(t('common.batchSaveSyncing'))
