@@ -128,6 +128,21 @@ foreach(attempt RANGE 1 2)
         message(FATAL_ERROR "GB audio patch is not idempotent")
     endif()
 endforeach()
+foreach(attempt RANGE 1 2)
+    execute_process(COMMAND "${CMAKE_COMMAND}" "-DSRS_SOURCE_DIR=${test_source_dir}"
+        -P "${TEST_PROJECT_ROOT}/cmake/patch_srs_gb28181_frames.cmake"
+        RESULT_VARIABLE result)
+    if(NOT result EQUAL 0)
+        message(FATAL_ERROR "GB access-unit patch failed")
+    endif()
+    file(SHA256 "${test_source_file}" source_hash)
+    file(SHA256 "${test_source_dir}/src/app/srs_app_gb28181.hpp" header_hash)
+    if(attempt EQUAL 1)
+        set(first_frames_hash "${source_hash}:${header_hash}")
+    elseif(NOT "${source_hash}:${header_hash}" STREQUAL first_frames_hash)
+        message(FATAL_ERROR "GB access-unit patch is not idempotent")
+    endif()
+endforeach()
 foreach(required "COSMO_MANAGED_GB_V1" "local POST required" "external media lease expired"
         "if (receiver_) receiver_->interrupt()" "if (sender_) sender_->interrupt()"
         "external SIP required" "stop_external()" "invalid SSRC")
