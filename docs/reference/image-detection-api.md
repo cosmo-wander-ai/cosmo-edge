@@ -1,6 +1,6 @@
 ---
 title: 图片检测 API 接入指南
-description: 通过 HTTP API 上传图片、执行无区域编排、底库比对和双图比对，解析业务结论、命中样本与相似度分数。
+description: 通过 HTTP API 上传图片、执行图片编排、底库比对和双图比对，解析业务结论、命中样本与相似度分数。
 prev:
   text: API 概览
   link: /reference/api
@@ -184,7 +184,7 @@ mtk: <MTK>
 | `algorithmUpdateTime` | 是 | 当前时间的 13 位毫秒时间戳兼容字段；当前任务实际按 `algorithmCode` 从本地算法库加载 |
 | `taskId` | 建议 | 调用方生成的全局唯一 ID；省略时默认等于 `algorithmCode` |
 | `mvDebug` | 建议 | 当前图片分析客户端使用 `Cosmo-Debug` |
-| `taskConfig` | 否 | 本次任务的参数与库绑定配置，不支持区域 |
+| `taskConfig` | 否 | 本次任务的参数、库绑定和受支持检测场景的 ROI 配置 |
 
 生产集成建议显式提供唯一的 `taskId`。如果多个客户端都省略该字段，它们会使用同一个默认任务；其中一个客户端取消任务可能影响其他客户端。
 
@@ -521,9 +521,24 @@ console.log('similarity score:', comparison.score)
 
 分数是模型标定后的相似度，不是身份概率。工服场景复用人体外观特征模型，其分数表示人体外观相似程度，不能解释为“穿同款工服”的概率。
 
+## 检测场景 ROI
+
+Management `Capabilities` 的 `features` 包含 `picture-target-roi-v1` 时，普通单图检测编排可使用 `taskConfig.areas` 和 `taskConfig.shieldedAreas`。旧设备未声明此能力时应拒绝区域请求，不可静默退化成整图分析。
+
+```json
+{"taskConfig":{"areas":[{"areaId":"left","name":"左半幅","points":[{"xRatio":0,"yRatio":0},{"xRatio":0.5,"yRatio":0},{"xRatio":0.5,"yRatio":1},{"xRatio":0,"yRatio":1}]}],"shieldedAreas":[]}}
+```
+
+- 坐标为原图归一化比例 `[0,1]`。调用方持有原图像素多边形时，按真实宽高分别转换；禁止猜测分辨率。
+- 使用目标框中心判断归属，边界算区域内；多个检测区取并集，屏蔽区优先。保留整图推理和原图坐标，在后续分类、特征提取、库比对和规则执行前剔除区域外目标，不是裁图放大推理。
+- 无检测区表示整图；只有屏蔽区也有效。请求非空区域覆盖任务同类区域，仅影响本次调用；省略或空数组继承任务配置。清空持久区域需重新配置任务，不能用空请求数组绕过任务限制。
+- 每类最多 100 个区域，每个 3–256 个顶点；ID 非空且在同类中唯一。坐标有限、不能越界，不能有重复相邻顶点、自交或零面积，不支持绊线和关联区域。
+- 支持检测 / DINO / SAM 产生目标的单图链路；分类等模型必须消费已有目标。整图分类、双图比对和没有检测目标来源的独立模型分支拒绝 ROI。现有 Laya 视觉节点保留其单独裁剪语义，不能把该语义当作普通检测筛选。
+- `business` 和 `legacy` 不返回被排除的目标。`debug` 保留其 `filtered=true` 和 `filterReason=outside_roi/shielded_roi`。一次请求的配置不修改任务或下一张图片。
+
 ## 6. 解析编排结果
 
-图片接口默认使用 `resultMode: "business"`，顺着配置的模型、筛选、判断和输出节点执行，返回 `schemaVersion: 2`。图片任务没有检测区域：不配置区域，不接受非空 `taskConfig.areas` 或 `shieldedAreas`，新响应没有 `areaList`。
+图片接口默认使用 `resultMode: "business"`，顺着配置的模型、筛选、判断和输出节点执行，返回 `schemaVersion: 2`。检测场景支持下面约定的 ROI；业务响应通过 `targetList` 与 `outputs` 返回结果，不增加 `areaList`。
 
 ```json
 {

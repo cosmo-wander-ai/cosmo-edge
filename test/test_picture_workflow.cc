@@ -6,6 +6,7 @@
 #include "flow/logical/PictureRule.h"
 #include "flow/recognizer/PPictureMatch.h"
 #include "flow/task/PTaskBase.h"
+#include "flow/task/PictureRoi.h"
 #include "util/dto/ActionCodes.h"
 #include "util/dto/PictureWorkflow.h"
 
@@ -440,4 +441,139 @@ TEST_CASE("Picture comparison reports the missing library instead of invalid par
     CHECK(response.resData.errorNodeId == "match");
     CHECK(response.resData.outputs.empty());
     CHECK(response.resData.targetList.empty());
+}
+
+namespace {
+MsgTaskArea Roi(const std::string& id, double left, double right) {
+    MsgTaskArea area;
+    area.areaId = id;
+    area.name   = id;
+    for (const auto& xy :
+         std::vector<std::pair<double, double>>{{left, 0}, {right, 0}, {right, 1}, {left, 1}}) {
+        MsgPoint point;
+        point.x = xy.first;
+        point.y = xy.second;
+        area.points.push_back(point);
+    }
+    return area;
+}
+
+PTaskElementPtr RoiTask(std::shared_ptr<FakePictureAction>& downstream) {
+    auto task     = Task();
+    auto detector = Node("det", PADetect_Code);
+    task->actions.push_back({detector, std::make_shared<FakePictureAction>(detector)});
+    auto classifier = Node("class", PAClassify_Code, "det");
+    downstream      = std::make_shared<FakePictureAction>(classifier);
+    task->actions.push_back({classifier, downstream});
+    AddRule(task, Node("out", PAOutput_Code, "class"));
+    return task;
+}
+}  // namespace
+
+TEST_CASE("Picture detection ROIs filter before downstream inference and preserve coordinates",
+          "[picture][roi]") {
+    PTaskBase runtime;
+    std::shared_ptr<FakePictureAction> downstream;
+    auto task                               = RoiTask(downstream);
+    auto input                              = Input();
+    input->chanDataDetect.detRet->picWidth  = 100;
+    input->chanDataDetect.detRet->picHeight = 100;
+    auto other                              = input->chanDataDetect.detRet->targets.front();
+    other.box                               = util::Box(65, 10, 20, 50);
+    input->chanDataDetect.detRet->targets.push_back(other);
+    MsgPTaskDetectPicRecv request;
+    request.resultMode       = "debug";
+    request.taskConfig.areas = {Roi("left", 0, 0.5)};
+    MsgPTaskDetectPicSend response;
+    AlgDataPtr rendered;
+    REQUIRE(runtime.ExecutePicture(task, input, request, response, rendered) == util::ErrorEnum::Success);
+    REQUIRE(downstream->seen == 1);
+    REQUIRE(response.resData.outputs.front().matchedCount == 1);
+    REQUIRE(rendered->chanDataDetect.detRet->targets.front().box.x == 5);
+    REQUIRE(response.resData.targetList.size() == 2);
+    REQUIRE(response.resData.targetList.back().filterReason == "outside_roi");
+    REQUIRE_FALSE(input->chanDataDetect.detRet->targets.back().bFilter);
+
+    SECTION("request region does not leak into next execution") {
+        request.taskConfig.areas.clear();
+        REQUIRE(runtime.ExecutePicture(task, input, request, response, rendered) == util::ErrorEnum::Success);
+        REQUIRE(downstream->seen == 2);
+        REQUIRE(response.resData.outputs.front().matchedCount == 2);
+        REQUIRE(task->params.areas.empty());
+    }
+    SECTION("shield wins over include and excludes boundary centers") {
+        request.taskConfig.areas         = {Roi("all", 0, 1)};
+        request.taskConfig.shieldedAreas = {Roi("shield", 0, 0.25)};
+        REQUIRE(runtime.ExecutePicture(task, input, request, response, rendered) == util::ErrorEnum::Success);
+        REQUIRE(downstream->seen == 1);
+        REQUIRE(response.resData.targetList.back().filterReason == "shielded_roi");
+    }
+    SECTION("stored regions inherited and request overrides only this call") {
+        task->params.areas = {Roi("right", 0.5, 1)};
+        request.taskConfig.areas.clear();
+        REQUIRE(runtime.ExecutePicture(task, input, request, response, rendered) == util::ErrorEnum::Success);
+        REQUIRE(rendered->chanDataDetect.detRet->targets.front().box.x == 65);
+        request.taskConfig.areas = {Roi("left", 0, 0.5)};
+        REQUIRE(runtime.ExecutePicture(task, input, request, response, rendered) == util::ErrorEnum::Success);
+        REQUIRE(rendered->chanDataDetect.detRet->targets.front().box.x == 5);
+        REQUIRE(task->params.areas.front().areaId == "right");
+    }
+    SECTION("missing dimensions fail closed") {
+        input->chanDataDetect.detRet->picWidth = 0;
+        REQUIRE(runtime.ExecutePicture(task, input, request, response, rendered) ==
+                util::ErrorEnum::InvalidParam);
+        REQUIRE(response.resData.targetList.empty());
+    }
+    SECTION("business mode does not expose excluded targets") {
+        request.resultMode = "business";
+        REQUIRE(runtime.ExecutePicture(task, input, request, response, rendered) == util::ErrorEnum::Success);
+        REQUIRE(response.resData.targetList.size() == 1);
+    }
+}
+
+TEST_CASE("Picture ROI polygons reject malformed geometry and unsupported workflow semantics",
+          "[picture][roi]") {
+    auto valid = Roi("left", 0, 0.5);
+    REQUIRE(picture_roi::Valid({valid}));
+    REQUIRE_FALSE(picture_roi::Valid({valid, valid}));
+    SECTION("out of bounds") {
+        valid.points[0].x = -0.1;
+    }
+    SECTION("not finite") {
+        valid.points[0].y = std::numeric_limits<double>::quiet_NaN();
+    }
+    SECTION("self crossing") {
+        std::swap(valid.points[1], valid.points[2]);
+    }
+    SECTION("degenerate") {
+        valid.points[1] = valid.points[0];
+    }
+    SECTION("tripwire") {
+        valid.linePoints = valid.points;
+    }
+    SECTION("too few vertices") {
+        valid.points.resize(2);
+    }
+    SECTION("nested") {
+        valid.associatedAreas.push_back(valid);
+    }
+    REQUIRE_FALSE(picture_roi::Valid({valid}));
+}
+
+TEST_CASE("Picture ROI is denied for whole image classifiers and image pairs", "[picture][roi]") {
+    std::shared_ptr<FakePictureAction> downstream;
+    auto task = RoiTask(downstream);
+    MsgTaskConfig config;
+    config.areas = {Roi("all", 0, 1)};
+    REQUIRE(PictureTaskSupportsAreas(task, config));
+    SECTION("whole image") {
+        config.params = {Param("inputType", "image")};
+    }
+    SECTION("pair") {
+        task->actions.back().action.actionId = PAPairMatch_Code;
+    }
+    SECTION("independent classifier branch") {
+        task->actions[1].action.preFlowActionId = "-1";
+    }
+    REQUIRE_FALSE(PictureTaskSupportsAreas(task, config));
 }

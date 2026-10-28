@@ -184,7 +184,7 @@ mtk: <MTK>
 | `algorithmUpdateTime` | Yes | Current 13-digit millisecond timestamp compatibility field; the current task loads the local algorithm by `algorithmCode` |
 | `taskId` | Recommended | Globally unique client-generated ID; defaults to `algorithmCode` when omitted |
 | `mvDebug` | Recommended | The current image-analysis client uses `Cosmo-Debug` |
-| `taskConfig` | No | Per-task parameters and library bindings; regions are unsupported |
+| `taskConfig` | No | Per-task parameters, library bindings and ROI for supported detection workflows |
 
 Production integrations should provide a unique `taskId`. If multiple clients omit it, they share the default task, and one client may affect another by cancelling that task.
 
@@ -523,7 +523,7 @@ Scores represent calibrated model similarity, not identity probability. The work
 
 ## 6. Parse Workflow Results
 
-The default `resultMode: "business"` executes the configured models, filters, rules and output nodes, returning `schemaVersion: 2`. Image tasks have no regions. Nonempty `taskConfig.areas` or `shieldedAreas` are rejected; the new response has no `areaList`.
+The default `resultMode: "business"` executes the configured models, filters, rules and output nodes, returning `schemaVersion: 2`. Supported detection workflows accept ROI as described below; business results use `targetList` and `outputs`, without `areaList`.
 
 ```json
 {
@@ -782,3 +782,13 @@ Branch primarily on `messageKey` and `recommendedAction`. For ordinary business 
 - Face images and detection results may be sensitive personal information. Apply the privacy, retention, and access-control requirements of the deployment jurisdiction.
 
 For common limits and field definitions, see [API Overview](api.md) and [API Fields](api-fields.md).
+
+## Detection workflow ROI
+
+Management `Capabilities.features` advertises `picture-target-roi-v1`. Require this feature before sending nonempty `taskConfig.areas` or `shieldedAreas` to a device.
+
+Polygons use original-image normalized `points: [{"xRatio": 0, "yRatio": 0}, ...]`. Convert pixel coordinates using measured image dimensions. Detection uses the box center, includes polygon boundaries, unions include polygons, and gives exclusion polygons priority. Inference keeps the full image and original coordinates; excluded targets are filtered before downstream classification, recognition and rules. This is target filtering, not crop-and-resize inference.
+
+An empty include list means the full frame; exclusion-only configurations work. Nonempty per-request arrays override the corresponding task arrays for that call. Omitted or empty request arrays inherit task settings; clear persistent regions by reconfiguring the task. Each list supports at most 100 polygons, each with 3–256 vertices and a nonempty unique ID. Nonfinite/out-of-range points, duplicate adjacent vertices, zero area, self-intersections, tripwires and associated areas are rejected.
+
+Single-image detector/DINO/SAM target workflows are supported. Whole-image classifiers, pairs and independent model branches without a detection source reject ROI. Existing Laya nodes retain their separate crop semantics. Business and legacy responses omit filtered targets; debug responses retain `filtered=true` with `filterReason=outside_roi` or `shielded_roi`. Request settings never mutate the saved task.

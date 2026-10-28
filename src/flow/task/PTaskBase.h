@@ -53,8 +53,8 @@ struct PTaskElement {
 };
 using PTaskElementPtr = std::shared_ptr<PTaskElement>;
 
-// Region overrides are implemented by typed visual picture nodes. Other picture
-// actions must not silently accept region or shielding configuration they ignore.
+// Detection workflows support center-in-polygon regions and exclusion polygons.
+// Typed visual nodes retain their separate ROI contract; unsupported workflows fail closed.
 bool PictureTaskSupportsAreas(const PTaskElementPtr& task, const MsgTaskConfig& config,
                               bool inheritTaskParams = true);
 

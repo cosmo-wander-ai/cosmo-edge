@@ -45,6 +45,7 @@ class PackageProfileTests(unittest.TestCase):
         rknn_terms: bytes | None = None,
         model_guard_runtime: bytes | None = None,
         model_file_name: str = "model.nn",
+        license_newline: bytes = b"\n",
     ) -> pathlib.Path:
         if include_model_guard is None:
             include_model_guard = profile == "production-release"
@@ -104,7 +105,7 @@ class PackageProfileTests(unittest.TestCase):
                         f"COSMO_PACKAGE_APP_DATA_DIR={runtime_app_data_dir}\n"
                     ).encode()
                 elif name in ("LICENSE", "share/licenses/cosmo-edge/LICENSE"):
-                    data = b"Apache License\nVersion 2.0\nfixture\n"
+                    data = license_newline.join((b"Apache License", b"Version 2.0", b"fixture", b""))
                 elif name in ("NOTICE", "share/licenses/cosmo-edge/NOTICE"):
                     data = b"CosmoEdge\nThird-party software\nfixture\n"
                 elif name.endswith("ffmpeg/COPYING.LGPLv2.1"):
@@ -308,6 +309,10 @@ class PackageProfileTests(unittest.TestCase):
             verifier.verify_package(
                 model_guard, "public-runtime", target_chip="bm1688"
             )
+
+    def test_windows_license_newlines_preserve_apache_identity(self) -> None:
+        package = self.make_package("public-runtime", license_newline=b"\r\n")
+        verifier.verify_package(package, "public-runtime")
 
     def test_rockchip_rejects_incomplete_rknn_sdk_terms(self) -> None:
         package = self.make_package(

@@ -227,7 +227,7 @@ namespace {
                     {"chip", NativeChip()},
                     {"runtimes", {NativeRuntime()}},
                     {"resourceKinds", {"model", "scene", "channel", "schedule", "task"}},
-                    {"nativeFeatures", {"model-configuration-v1"}}};
+                    {"nativeFeatures", {"model-configuration-v1", "picture-target-roi-v1"}}};
         }
 
         bool Exists(const std::string& kind, const std::string& id) override {

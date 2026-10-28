@@ -180,7 +180,7 @@ def verify_runtime_license_bundle(
         if not contents.get(filename, b"").strip():
             raise PackageAuditError(f"runtime license is empty: {filename}")
 
-    if b"Apache License\nVersion 2.0" not in contents["LICENSE"]:
+    if b"Apache License\nVersion 2.0" not in contents["LICENSE"].replace(b"\r\n", b"\n"):
         raise PackageAuditError("package root LICENSE is not Apache-2.0")
     if (
         b"CosmoEdge" not in contents["NOTICE"]

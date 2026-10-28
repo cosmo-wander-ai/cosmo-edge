@@ -6,6 +6,7 @@
 
 #include "flow/recognizer/PPicturePairMatch.h"
 #include "flow/task/PTaskBase.h"
+#include "flow/task/PictureRoi.h"
 #include "flow/task/TaskBaseParam.h"
 #include "util/StringUtil.h"
 #include "util/dto/ActionCodes.h"
@@ -76,25 +77,46 @@ namespace {
 
 bool PictureTaskSupportsAreas(const PTaskElementPtr& task, const MsgTaskConfig& config,
                               bool inheritTaskParams) {
-    if (!task || !config.shieldedAreas.empty())
+    if (!task)
         return false;
-    if (config.areas.empty())
-        return true;
     MsgTaskConfig stored;
     if (inheritTaskParams) {
         std::lock_guard<std::mutex> lock(task->configMutex);
         stored = task->params;
     }
+    const auto& areas   = config.areas.empty() ? stored.areas : config.areas;
+    const auto& shields = config.shieldedAreas.empty() ? stored.shieldedAreas : config.shieldedAreas;
+    if (areas.empty() && shields.empty())
+        return true;
     const auto scenario =
         task->action_alg ? task->action_alg->pictureDefaults : std::vector<MsgDynamicKeyValue>{};
+    bool detected = false;
+    bool visual   = false;
+    std::map<std::string, bool> targetBranches;
+    bool unsupportedBranch = false;
     for (const auto& entry : task->actions) {
-        if (entry.action.actionId != PDAQwen3VL_Code)
-            continue;
-        const auto params = EffectiveParams(entry.action, entry.modelParams, stored, config, scenario);
-        if (Param(params, "vlmProvider", Param(params, "provider", "local_model")) == "laya_v")
-            return true;
+        const auto params     = EffectiveParams(entry.action, entry.modelParams, stored, config, scenario);
+        const auto& id        = entry.action.actionId;
+        const bool detector   = id == PADetect_Code || id == PDADino_Code || id == PDASam_Code;
+        const bool hasTargets = detector || targetBranches[entry.action.preFlowActionId];
+        targetBranches[entry.action.flowActionId] = hasTargets;
+        if (IsPictureModelAction(id) && !hasTargets && id != PDAQwen3VL_Code)
+            unsupportedBranch = true;
+        if (id == PAPairMatch_Code ||
+            (id == PAClassify_Code && Param(params, "inputType", "targets") == "image"))
+            return false;
+        if (id == PDAQwen3VL_Code) {
+            if (Param(params, "vlmProvider", Param(params, "provider", "local_model")) != "laya_v")
+                return false;
+            visual = true;
+        }
+        if (id == PADetect_Code || id == PDADino_Code || id == PDASam_Code)
+            detected = true;
     }
-    return false;
+    // Preserve the typed visual node's existing region validation/cropping contract.
+    if (visual)
+        return shields.empty();
+    return detected && !unsupportedBranch && picture_roi::Valid(areas) && picture_roi::Valid(shields);
 }
 
 util::ErrorEnum PTaskBase::ExecutePicture(PTaskElementPtr task, AlgDataPtr input,
@@ -133,8 +155,13 @@ util::ErrorEnum PTaskBase::ExecutePictureImpl(PTaskElementPtr task, AlgDataPtr i
     auto areaConfig = storedConfig;
     if (!request.taskConfig.areas.empty())
         areaConfig.areas = request.taskConfig.areas;
+    if (!request.taskConfig.shieldedAreas.empty())
+        areaConfig.shieldedAreas = request.taskConfig.shieldedAreas;
     AreaToLocal(areaConfig);
-    const bool paired = std::any_of(task->actions.begin(), task->actions.end(), [](const auto& entry) {
+    const bool targetRoi = std::none_of(task->actions.begin(), task->actions.end(), [](const auto& entry) {
+        return entry.action.actionId == PDAQwen3VL_Code;
+    });
+    const bool paired    = std::any_of(task->actions.begin(), task->actions.end(), [](const auto& entry) {
         return entry.action.actionId == PAPairMatch_Code;
     });
     if (paired && request.resultMode == "legacy")
@@ -301,6 +328,8 @@ util::ErrorEnum PTaskBase::ExecutePictureImpl(PTaskElementPtr task, AlgDataPtr i
                 }
                 targets.insert(targets.end(), filtered.begin(), filtered.end());
             }
+            if (status == util::ErrorEnum::Success && targetRoi && !picture_roi::Apply(data, areaConfig))
+                status = util::ErrorEnum::InvalidParam;
             trace.status = "completed";
         }
         trace.outputCount = TargetCount(data);
