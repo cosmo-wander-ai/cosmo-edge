@@ -8,7 +8,7 @@ set(source_file "${SRS_SOURCE_DIR}/src/app/srs_app_gb28181.cpp")
 set(header_file "${SRS_SOURCE_DIR}/src/app/srs_app_gb28181.hpp")
 file(READ "${source_file}" source)
 file(READ "${header_file}" header)
-if(source MATCHES "COSMO_GB_ACCESS_UNIT_V1")
+if(source MATCHES "COSMO_GB_ACCESS_UNIT_V2")
     return()
 endif()
 
@@ -27,6 +27,18 @@ function(replace_once variable before after)
     string(REPLACE "${before}" "${after}" updated "${${variable}}")
     set(${variable} "${updated}" PARENT_SCOPE)
 endfunction()
+
+# Flush slices already collected when an unsupported trailing NAL ends the loop.
+# Apply this before the V1 upgrade check so existing build copies are repaired too.
+replace_once(source [=[            srs_warn("GB: Ignore NALU nt=%d, frame=[%s]", nt, bytes.c_str());
+            return err;]=] [=[            srs_warn("GB: Ignore NALU nt=%d, frame=[%s]", nt, bytes.c_str());
+            break;]=])
+if(source MATCHES "COSMO_GB_ACCESS_UNIT_V1")
+    string(REPLACE "COSMO_GB_ACCESS_UNIT_V1" "COSMO_GB_ACCESS_UNIT_V2" source "${source}")
+    file(WRITE "${source_file}" "${source}")
+    message(STATUS "Upgraded SRS GB28181 access-unit grouping to preserve slices before trailing NALs")
+    return()
+endif()
 
 # The upstream v7.0.186 fix groups every slice of one PS video message into
 # one FLV video message. Keep this focused backport on the 6.0 RTMP API.
@@ -47,7 +59,7 @@ replace_once(source [=[srs_error_t SrsGbMuxer::mux_h264(SrsTsMessage *msg, SrsBu
     uint32_t dts = (uint32_t)(msg->dts / 90);
     uint32_t pts = (uint32_t)(msg->dts / 90);
 
-    // COSMO_GB_ACCESS_UNIT_V1: one PS video message is one access unit.
+    // COSMO_GB_ACCESS_UNIT_V2: one PS video message is one access unit.
     std::string ibps;
     bool keyframe = false;
     while (!avs->empty()) {]=])

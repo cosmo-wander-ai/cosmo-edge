@@ -93,6 +93,10 @@ ExternalProject_Add(
     LOG_OUTPUT_ON_FAILURE ON
 )
 
+# Reapply the versioned frame fix when its script changes in an existing build.
+ExternalProject_Add_StepDependencies(srs_external patch
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181_frames.cmake)
+
 add_dependencies(third_build srs_external)
 
 # Install SRS binary

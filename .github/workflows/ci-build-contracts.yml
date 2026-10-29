@@ -46,6 +46,8 @@ jobs:
                 -P test/test_srs_gb28181_patch.cmake
               python3 test/test_srs_gb28181_audio.py \
                 "$audio_test_dir/srs-source/src/app/srs_app_gb28181.cpp"
+              python3 test/test_srs_gb28181_frames.py \
+                "$audio_test_dir/srs-source/src/app/srs_app_gb28181.cpp"
               python3 test/test_verify_model_guard_v2_sdk.py
               python3 test/test_verify_model_guard_rknn_v1_sdk.py
               python3 test/test_build_entrypoints.py
