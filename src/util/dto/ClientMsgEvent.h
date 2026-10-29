@@ -87,6 +87,7 @@ struct CMsgOnEventsTarget {
     std::string trackId;
     MsgRectReal box;
     std::optional<util::Quad> oriented_corners;
+    std::string sourceTargetId;  // Internal overlay identity; deliberately not serialized.
 
     friend void to_json(nlohmann::json& j, const CMsgOnEventsTarget& v);
     friend void from_json(const nlohmann::json& j, CMsgOnEventsTarget& v);

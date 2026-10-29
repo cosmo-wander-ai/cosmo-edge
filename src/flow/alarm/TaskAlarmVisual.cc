@@ -85,18 +85,21 @@ void TaskAlarm::CaptureVisualAlarmCandidates(const AlgDataPtr& data) {
         base.flowActionId = unit.flowActionId;
         base.areaId       = unit.areaId;
         base.trackId      = unit.strTrackId;
-        base.trackIndex   = unit.trackId;
-        base.box          = unit.box;
-        base.confidence   = unit.confidence;
-        base.attributes   = unit.attrRsts;
+        if (unit.targets.size() == 1)
+            base.sourceTargetId = unit.targets.front().sourceTargetId;
+        base.trackIndex = unit.trackId;
+        base.box        = unit.box;
+        base.confidence = unit.confidence;
+        base.attributes = unit.attrRsts;
         if (unit.targets.size() > 1) {
             for (const auto& target : unit.targets) {
-                auto candidate       = base;
-                candidate.roiId      = util::GenerateUUID();
-                candidate.trackId    = target.trackId;
-                candidate.trackIndex = -1;  // Scalar tracking belongs to the unit, not each target.
-                candidate.box        = {target.box.x, target.box.y, target.box.width, target.box.height};
-                candidate.confidence = {{target.label, "", target.confidence}};
+                auto candidate           = base;
+                candidate.roiId          = util::GenerateUUID();
+                candidate.trackId        = target.trackId;
+                candidate.sourceTargetId = target.sourceTargetId;
+                candidate.trackIndex     = -1;  // Scalar tracking belongs to the unit, not each target.
+                candidate.box            = {target.box.x, target.box.y, target.box.width, target.box.height};
+                candidate.confidence     = {{target.label, "", target.confidence}};
                 candidate.attributes.clear();
                 unit.visualCandidates.push_back(std::move(candidate));
             }

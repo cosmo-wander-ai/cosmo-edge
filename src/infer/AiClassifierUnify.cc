@@ -7,6 +7,7 @@
 #include <numeric>
 
 #include "util/Log.h"
+#include "util/UuidUtil.h"
 
 namespace cosmo {
 AiClassifierUnify::AiClassifierUnify(const std::string& atomic_code, const std::string& json_path,
@@ -83,9 +84,11 @@ void AiClassifierUnify::AppendClassifyResults(AiDetectRstEl& io_el,
     }
     for (const auto& info : obj.at(0).infos) {
         AiConfidence conf_el;
-        conf_el.atomic_code = atomic_code_;
-        conf_el.confidence  = info.confidence;
-        conf_el.label       = info.class_name;
+        conf_el.atomic_code   = atomic_code_;
+        conf_el.source        = AiAnnotationSource::Classification;
+        conf_el.measurementId = util::GenerateUUID();
+        conf_el.confidence    = info.confidence;
+        conf_el.label         = info.class_name;
         io_el.classifyRst.push_back(conf_el);
         if (io_el.relatedEl.bActive) {
             io_el.relatedEl.classifyRst.push_back(conf_el);
@@ -202,9 +205,11 @@ void AiClassifierUnify::DispatchBatchResults(const std::vector<std::vector<cosmo
             size_t box_index = indexes[out].second;
             for (const auto& info : outputEl.infos) {
                 AiConfidence conf_el;
-                conf_el.atomic_code = atomic_code_;
-                conf_el.confidence  = info.confidence;
-                conf_el.label       = info.class_name;
+                conf_el.atomic_code   = atomic_code_;
+                conf_el.source        = AiAnnotationSource::Classification;
+                conf_el.measurementId = util::GenerateUUID();
+                conf_el.confidence    = info.confidence;
+                conf_el.label         = info.class_name;
                 io_rst[img_index][box_index].classifyRst.push_back(conf_el);
                 if (io_rst[img_index][box_index].relatedEl.bActive) {
                     io_rst[img_index][box_index].relatedEl.classifyRst.push_back(conf_el);

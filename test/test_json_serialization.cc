@@ -266,13 +266,14 @@ TEST_CASE("HTTP event targets serialize and round-trip", "[json][event][targets]
     event.messageId = "event-1";
 
     cosmo::CMsgOnEventsTarget target;
-    target.label      = "category0";
-    target.confidence = 0.93F;
-    target.trackId    = "track-1";
-    target.box.x      = 120;
-    target.box.y      = 80;
-    target.box.width  = 240;
-    target.box.height = 360;
+    target.label          = "category0";
+    target.confidence     = 0.93F;
+    target.trackId        = "track-1";
+    target.sourceTargetId = "internal-target-only";
+    target.box.x          = 120;
+    target.box.y          = 80;
+    target.box.width      = 240;
+    target.box.height     = 360;
     event.targets.push_back(target);
     target.label      = "category1";
     target.confidence = 0.88F;
@@ -288,6 +289,9 @@ TEST_CASE("HTTP event targets serialize and round-trip", "[json][event][targets]
     CHECK(doc["targets"][0]["label"] == "category0");
     CHECK(doc["targets"][0]["confidence"].get<float>() == Catch::Approx(0.93F));
     CHECK(doc["targets"][0]["trackId"] == "track-1");
+    CHECK_FALSE(doc["targets"][0].contains("sourceTargetId"));
+    doc["targets"][0].get_to(target);
+    CHECK(target.sourceTargetId.empty());
     CHECK(doc["targets"][0]["box"]["width"] == 240);
     CHECK(doc["targets"][1]["label"] == "category1");
     CHECK(doc["targets"][1]["trackId"] == "track-2");

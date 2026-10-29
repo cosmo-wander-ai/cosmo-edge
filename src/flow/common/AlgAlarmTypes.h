@@ -70,6 +70,7 @@ inline CMsgOnEventsTarget MakeOnEventsTarget(const AiDetectRstEl& target) {
     result.box.width        = target.box.width;
     result.box.height       = target.box.height;
     result.oriented_corners = target.oriented_corners;
+    result.sourceTargetId   = target.targetId;
     return result;
 }
 
@@ -78,6 +79,8 @@ inline CMsgOnEventsTarget MakeOnEventsTarget(const AiDetectRstEl& target) {
 struct DataAlarmBox {
     util::Box box;
     std::optional<util::Quad> oriented_corners;
+    std::vector<AiTargetAnnotation> annotations;
+    std::string sourceTargetId;
 
     DataAlarmBox(util::Box value) : box(value) {}
     DataAlarmBox(util::Box value, std::optional<util::Quad> corners)
@@ -85,7 +88,24 @@ struct DataAlarmBox {
 };
 
 inline DataAlarmBox MakeAlarmBox(const AiDetectRstEl& target) {
-    return {target.box, target.oriented_corners};
+    DataAlarmBox result{target.box, target.oriented_corners};
+    result.sourceTargetId = target.targetId;
+    result.annotations    = target.alarmAnnotations;
+    if (result.annotations.empty()) {
+        if (auto annotation = MeasuredAnnotation(target.confidence))
+            result.annotations.push_back(std::move(*annotation));
+    }
+    return result;
+}
+
+inline DataAlarmBox MakeAlarmBox(const AiDetectRelatedEl& target) {
+    DataAlarmBox result{target.box};
+    result.annotations = target.alarmAnnotations;
+    if (result.annotations.empty()) {
+        if (auto annotation = MeasuredAnnotation(target.confidence))
+            result.annotations.push_back(std::move(*annotation));
+    }
+    return result;
 }
 
 struct DataAlarmPassFlow {
@@ -118,6 +138,7 @@ struct AlarmVisualCandidate {
     std::string flowActionId;
     std::string areaId;
     std::string trackId;
+    std::string sourceTargetId;
     int trackIndex{-1};
     util::Box box;
     std::vector<AiConfidence> confidence;

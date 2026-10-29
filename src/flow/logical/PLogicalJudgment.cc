@@ -176,7 +176,7 @@ util::ErrorEnum PLogicalJudgment::HandPic(AlgDataPtr algData) {
 
     for (auto& target : algData->chanDataDetect.detRet->targets) {
         if (!target.bFilter)
-            target.bLogicResult = calc_engine_.GetLogicResult(target, logic_);
+            target.bLogicResult = calc_engine_.ApplyLogicResult(target, logic_);
     }
 
     return util::ErrorEnum::Success;

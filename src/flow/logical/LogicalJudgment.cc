@@ -222,7 +222,7 @@ void LogicalJudgment::HandFrame(AlgDataPtr algData) {
 
     for (auto& target : input->targets) {
         if (!target.bFilter)
-            target.bLogicResult = calc_engine_.GetLogicResult(target, logic_);
+            target.bLogicResult = calc_engine_.ApplyLogicResult(target, logic_);
     }
     overview_rec_inst_.OverviewRecordFrame(input);
 

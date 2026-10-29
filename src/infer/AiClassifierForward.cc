@@ -3,6 +3,7 @@
 
 #include "infer/AiClassifierUnify.h"
 #include "util/Log.h"
+#include "util/UuidUtil.h"
 
 namespace cosmo {
 
@@ -38,12 +39,15 @@ util::ErrorEnum AiClassifierUnify::Classify(const VideoFramePtr& image_base, con
             io_rst.box =
                 util::Box(0, 0, static_cast<int>(image->GetWidth()), static_cast<int>(image->GetHeight()));
             io_rst.confidence.confidence = 1.0;
+            io_rst.confidence.source     = AiAnnotationSource::Unknown;
             auto classify_infos          = obj.at(0).infos;
             for (auto info : classify_infos) {
                 AiConfidence conf_el;
-                conf_el.atomic_code = atomic_code_;
-                conf_el.confidence  = info.confidence;
-                conf_el.label       = info.class_name;
+                conf_el.atomic_code   = atomic_code_;
+                conf_el.source        = AiAnnotationSource::Classification;
+                conf_el.measurementId = util::GenerateUUID();
+                conf_el.confidence    = info.confidence;
+                conf_el.label         = info.class_name;
                 io_rst.classifyRst.push_back(conf_el);
             }
         }
@@ -114,9 +118,11 @@ util::ErrorEnum AiClassifierUnify::Classify(const std::vector<VideoFramePtr>& im
         auto classify_infos = obj.at(0).infos;
         for (auto info : classify_infos) {
             AiConfidence conf_el;
-            conf_el.atomic_code = atomic_code_;
-            conf_el.confidence  = info.confidence;
-            conf_el.label       = info.class_name;
+            conf_el.atomic_code   = atomic_code_;
+            conf_el.source        = AiAnnotationSource::Classification;
+            conf_el.measurementId = util::GenerateUUID();
+            conf_el.confidence    = info.confidence;
+            conf_el.label         = info.class_name;
             rst_el.classifyRst.push_back(conf_el);
         }
         io_rst.push_back(rst_el);
@@ -183,10 +189,12 @@ util::ErrorEnum AiClassifierUnify::GetAttributeCategory(AiDetectRstEl& io_rst) {
         }
 
         AiAttribute attr;
-        attr.category    = info.class_name;
-        attr.label       = classifyRst.label;
-        attr.atomic_code = classifyRst.atomic_code;
-        attr.confidence  = classifyRst.confidence;
+        attr.category      = info.class_name;
+        attr.label         = classifyRst.label;
+        attr.atomic_code   = classifyRst.atomic_code;
+        attr.confidence    = classifyRst.confidence;
+        attr.source        = classifyRst.source;
+        attr.measurementId = classifyRst.measurementId;
         io_rst.attrRst.push_back(attr);
     }
     return util::ErrorEnum::Success;

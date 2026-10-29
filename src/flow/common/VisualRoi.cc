@@ -56,6 +56,7 @@ namespace {
                 cr.source_target_id   = target.targetId;
                 cr.source_track_id    = target.trackIdInfo;
                 cr.source_track_index = target.trackId;
+                cr.source_overlay     = MakeAlarmBox(target);
                 auto append           = [&] {
                     // Question regions select by target center. Overlapping
                     // regions yield independent results; outside all regions

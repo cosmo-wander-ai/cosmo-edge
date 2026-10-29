@@ -10,10 +10,11 @@
 namespace cosmo {
 
 struct AiDetectBestEl {
-    bool bActive{false};      // Whether a best snapshot exists
-    float bestQuality{-1.0};  // Best quality score
-    util::Box box;            // Best target position
-    VideoFramePtr bestFrame;  // Best snapshot frame
+    bool bActive{false};                          // Whether a best snapshot exists
+    float bestQuality{-1.0};                      // Best quality score
+    util::Box box;                                // Best target position
+    VideoFramePtr bestFrame;                      // Best snapshot frame
+    std::vector<AiTargetAnnotation> annotations;  // Frozen with bestFrame, never borrowed from a later frame.
 };
 
 struct AiDetectRelatedEl {
@@ -21,6 +22,7 @@ struct AiDetectRelatedEl {
     AiConfidence confidence;
     util::Box box;
     std::vector<AiConfidence> classifyRst;
+    std::vector<AiTargetAnnotation> alarmAnnotations;
     AiLandmarkData landmark;  // Landmark from box or relatedEl
     AiFeature feature;        // Feature vector for face matching
 };
@@ -53,8 +55,9 @@ struct AiDetectRstEl {
     std::string filterDesc{};
     AIFilterType filterType{AIFilterType::None};
     std::vector<AiConfidence> classifyRst;
-    std::vector<AiAttribute> attrRst;  // Attribute results
-    std::vector<AiOcrValue> ocrRst;    // OCR results
+    std::vector<AiTargetAnnotation> alarmAnnotations;  // Measured outputs of successful positive rule leaves.
+    std::vector<AiAttribute> attrRst;                  // Attribute results
+    std::vector<AiOcrValue> ocrRst;                    // OCR results
     TargetAreaSign areaSign;
     TargetPosition targetPos{TargetPosition::kBottom};
     std::vector<int> groupTargets;              // Group target trackIds
