@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import * as Vue from 'vue'
-import { mountComponent } from './helpers/mount_behavior_component.mjs'
+import { i18n, mountComponent } from './helpers/mount_behavior_component.mjs'
 
 const plain = (value) => JSON.parse(JSON.stringify(value))
 const repositoryRoot = process.env.COSMO_REPO_ROOT || fileURLToPath(new URL('../../../', import.meta.url))
@@ -74,6 +74,83 @@ for (const platform of ['bm1688', 'cv186x', 'x86']) {
   } finally { graph.unmount() }
 }
 
+// A localized preset title must not leak into saved configuration or exports.
+// The imported case intentionally reuses both the preset ID and its raw name.
+const namedConfig = {
+  algorithm_code: '1000001', chip_type: 'BM1688', model_type: 'yolov5_det', version: 'V1.0.0',
+  labels: [{ id: '0', name: 'Face', threshold: [0.5, 0.5] }],
+  models: [{ name: 'FaceRGBDetection', description: 'Original model description', params: {},
+    inputs: [{ name: 'images', shape: [1, 3, 640, 640] }],
+    outputs: [{ name: 'detections', shape: [1, 5, 8400] }] }]
+}
+const previousLocale = i18n.currentLocale.value
+i18n.currentLocale.value = 'zh-CN'
+try {
+  for (const isExportable of [false, true]) {
+    const saved = []
+    const exported = []
+    const downloads = []
+    const view = await mountComponent('views/gam/countManagement/modelConfig/index.vue', {
+      mocks: componentMocks,
+      globals: {
+        localStorage: { getItem: () => '' },
+        XMLHttpRequest: class {
+          open(method, url) { this.method = method; this.url = url }
+          setRequestHeader() {}
+          send(body) {
+            exported.push({ method: this.method, url: this.url, body: JSON.parse(body) })
+            this.status = 200
+            this.response = new Uint8Array()
+            this.onload()
+          }
+        },
+        document: { createElement: () => ({ click() { downloads.push(this.download) } }) },
+        window: { URL: { createObjectURL: () => 'blob:model-fixture', revokeObjectURL() {} } }
+      },
+      api: {
+        getModelConfig: async () => ({ resData: { configJson: JSON.stringify(namedConfig), isExportable } }),
+        saveModelConfig: async request => { saved.push(request) },
+        exportModelConfig: () => '/fixture/model/export'
+      }
+    })
+    try {
+      const title = () => text(view.all(n => n.type === 'h1')[0]).trim()
+      const subtitles = () => view.all(n => n.props.class === 'model-subtitle')
+      assert.equal(title(), isExportable ? 'FaceRGBDetection' : '人脸检测')
+      if (isExportable) {
+        assert.equal(subtitles().length, 0, 'matching imported ID/name must not acquire a preset alias')
+      } else {
+        assert.equal(text(subtitles()[0]).trim(), 'FaceRGBDetection')
+        i18n.currentLocale.value = 'en-US'
+        await view.settle()
+        assert.equal(title(), 'FaceRGBDetection')
+        i18n.currentLocale.value = 'zh-CN'
+        await view.settle()
+        assert.equal(title(), '人脸检测')
+      }
+      const button = action => view.all(n => n.type === 'el-button' && text(n).includes(action))[0]
+      button('action.save').props.onClick()
+      await view.settle()
+      assert.equal(saved.length, 1)
+      assert.deepEqual(JSON.parse(saved[0].configJson), namedConfig, 'saving preserves raw name, description and model contract')
+      assert.equal(button('action.export').props.disabled, !isExportable)
+      button('action.export').props.onClick()
+      await view.settle()
+      if (isExportable) {
+        assert.equal(saved.length, 2, 'export still saves the current original configuration first')
+        assert.deepEqual(JSON.parse(saved[1].configJson), namedConfig)
+        assert.deepEqual(exported, [{ method: 'post', url: '/fixture/model/export',
+          body: { modelCode: '1000001', modelName: 'FaceRGBDetection' } }])
+        assert.deepEqual(downloads, ['FaceRGBDetection_1000001.tar.gz'])
+      } else {
+        assert.equal(saved.length, 1)
+        assert.equal(exported.length, 0, 'preset export remains blocked after localized rendering')
+        assert.equal(downloads.length, 0)
+      }
+    } finally { view.unmount() }
+  }
+} finally { i18n.currentLocale.value = previousLocale }
+
 for (const configJson of ['', '{broken', 'null', '[]', '{}', '{"models":[]}', '{"models":[null]}']) {
   let saves = 0
   const view = await mountComponent('views/gam/countManagement/modelConfig/index.vue', {
@@ -96,4 +173,4 @@ for (const configJson of ['', '{broken', 'null', '[]', '{}', '{"models":[]}', '{
   } finally { view.unmount() }
 }
 
-console.log('Model configuration behavior passed: platform round-trip, graph inputs/outputs, preset export policy and invalid-data protection')
+console.log('Model configuration behavior passed: localized titles, raw save/export, platform round-trip, graph inputs/outputs, preset export policy and invalid-data protection')

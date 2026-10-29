@@ -51,7 +51,8 @@
         <div class="card-top">
           <div class="repo-model-icon" aria-hidden="true"><AlgorithmTypeIcon :type="getModelIconType(model)" /></div>
           <div class="card-info">
-            <div class="card-title" :title="model.modelName">{{ model.modelName }}</div>
+            <div class="card-title" :title="getModelDisplay(model).title">{{ getModelDisplay(model).title }}</div>
+            <div v-if="getModelDisplay(model).subtitle" class="card-subtitle" :title="getModelDisplay(model).subtitle">{{ getModelDisplay(model).subtitle }}</div>
             <div class="card-tags"><span class="model-type-tag">{{ getModelTypeLabel(model) }}</span></div>
           </div>
         </div>
@@ -193,7 +194,8 @@
       <div class="detail-header">
         <div class="detail-icon"><AlgorithmTypeIcon :type="getModelIconType(detailModel)" /></div>
         <div class="detail-title-area">
-          <h3>{{ detailModel.modelName }}</h3>
+          <h3>{{ detailModelDisplay.title }}</h3>
+          <div v-if="detailModelDisplay.subtitle" class="detail-subtitle">{{ detailModelDisplay.subtitle }}</div>
           <div class="detail-badges">
             <span class="model-type-tag">{{ getModelTypeLabel(detailModel) }}</span>
             <span class="alg-count-badge">{{ t('glossary.linkedSceneTasks', { n: getModelAlgCount(detailModel.modelCode) }) }}</span>
@@ -204,7 +206,7 @@
       <div class="detail-section">
         <div class="detail-row"><span class="detail-label">{{ t('field.modelId') }}</span><span>{{ detailModel.modelCode }}</span></div>
         <div class="detail-row"><span class="detail-label">{{ t('glossary.versionNo') }}</span><span>{{ detailModel.version }}</span></div>
-        <div class="detail-row"><span class="detail-label">{{ t('glossary.modelDesc') }}</span><span>{{ detailModel.description || '—' }}</span></div>
+        <div class="detail-row"><span class="detail-label">{{ t('glossary.modelDesc') }}</span><span>{{ detailModelDisplay.description || detailModel.description || '—' }}</span></div>
         <div class="detail-row"><span class="detail-label">{{ t('field.updateTime') }}</span><span>{{ detailModel.updateTime || '—' }}</span></div>
       </div>
 
@@ -315,6 +317,7 @@ import {
 import { useRouter } from 'vue-router'
 import { Search, Plus, Upload } from '@element-plus/icons-vue'
 import { t, localeColon, currentLocale } from '@/i18n'
+import { resolvePresetModelDisplay } from '@/utils/presetModelDisplay'
 import AlgorithmTypeIcon from './AlgorithmTypeIcon.vue'
 import {
   uploadFileInChunks,
@@ -325,6 +328,7 @@ const SearchIcon = Search
 
 const { proxy } = getCurrentInstance()
 const router = useRouter()
+const getModelDisplay = (model) => resolvePresetModelDisplay(model, currentLocale.value)
 
 // ── 搜索与筛选 ──
 const searchKeyword = ref('')
@@ -407,7 +411,7 @@ const getModelMainType = (model) => {
 const matchingModels = computed(() => {
   const keyword = searchKeyword.value.trim().toLowerCase()
   return allModels.value.filter(model => {
-    const matchesKeyword = !keyword || [model.modelName, model.modelCode]
+    const matchesKeyword = !keyword || [getModelDisplay(model).searchText, model.modelName, model.modelCode]
       .some(value => String(value || '').toLowerCase().includes(keyword))
     return matchesKeyword && (!activeTypeTab.value || getModelMainType(model) === activeTypeTab.value)
   })
@@ -505,6 +509,7 @@ const pageData = reactive({
 const uploadAlgorithmicVisible = ref(false)
 const modelDetailDialogVisible = ref(false)
 const detailModel = ref({})
+const detailModelDisplay = computed(() => getModelDisplay(detailModel.value))
 const modelLabelData = ref([])
 const isX86 = ref(false)
 const isRknn = ref(false)
@@ -1532,6 +1537,15 @@ onMounted(() => {
     overflow-wrap: anywhere;
   }
   .card-tags { margin-bottom: 0; }
+  .card-subtitle {
+    margin-bottom: 4px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 18px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .model-type-tag { padding: 0; background: transparent; color: var(--text-secondary); font-size: 12px; line-height: 18px; }
   .model-metadata {
     display: grid;
@@ -1601,7 +1615,15 @@ onMounted(() => {
   :deep(svg) { width: 28px; height: 28px; }
 }
 .detail-title-area {
+  min-width: 0;
   h3 { margin: 0 0 6px; font-size: 18px; color: var(--text-primary); }
+}
+.detail-subtitle {
+  margin-bottom: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
 }
 .detail-badges {
   display: flex;
