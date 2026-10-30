@@ -3,9 +3,10 @@
     <div class="header">
       <div class="title">
         <div class="title-row">
-          <h1 class="model-name">{{ modelName }}</h1>
+          <h1 class="model-name">{{ modelDisplay.title }}</h1>
           <span class="model-code">{{ t('field.modelId') }}{{ localeColon }}{{ modelCode }}</span>
         </div>
+        <div v-if="modelDisplay.subtitle" class="model-subtitle">{{ modelDisplay.subtitle }}</div>
         <div class="tags">
           <el-tag size="small" type="info">{{ modelType }}</el-tag>
           <el-tag size="small" type="info">{{ chipType }}</el-tag>
@@ -54,10 +55,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted, getCurrentInstance } from 'vue'
+import { ref, computed, onMounted, getCurrentInstance } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowDown } from '@element-plus/icons-vue'
-import { t, localeColon } from '@/i18n'
+import { t, localeColon, currentLocale } from '@/i18n'
+import { resolvePresetModelDisplay } from '@/utils/presetModelDisplay'
 import ConfigFLow from './configFLow.vue'
 import ParamsConfig from './ParamsConfig.vue'
 
@@ -72,6 +74,12 @@ const modelType = ref('')
 const chipType = ref('')
 const version = ref('')
 const isExportable = ref(true)
+const modelDisplay = computed(() => resolvePresetModelDisplay({
+  modelName: modelName.value,
+  modelCode: modelCode.value,
+  isExportable: isExportable.value,
+  description: raw.value?.models?.[0]?.description || ''
+}, currentLocale.value))
 const configReady = ref(false)
 const configError = ref(false)
 const defaultConfigJson = ref('')
@@ -301,6 +309,13 @@ onMounted(() => {
 .model-code {
   color: var(--text-secondary);
   font-size: 13px;
+}
+
+.model-subtitle {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
 }
 
 .tags {

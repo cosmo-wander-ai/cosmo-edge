@@ -69,15 +69,19 @@
             class="form-content"
           />
           <div v-else-if="item.type.includes('modelSelect')">
-            <el-select v-model="item.value" class="form-content" @change="modelSelectChange" :placeholder="t('validate.pleaseSelect', { name: '' })" filterable size="small">
-              <el-option v-for="obj in atomicModelList" :key="obj.atomicCode" :label="`${obj.atomicName}（${obj.atomicCode}）`" :value="obj.atomicCode">
+            <el-select v-model="item.value" class="form-content" @change="modelSelectChange" :placeholder="t('validate.pleaseSelect', { name: '' })" filterable :filter-method="filterModelOptions" @visible-change="handleModelSelectVisibility" size="small">
+              <el-option v-for="obj in filteredModelOptions" :key="obj.model.atomicCode" :label="obj.label" :value="obj.model.atomicCode" :title="obj.display.description" class="model-select-option">
+                <span class="model-option-title">{{ obj.label }}</span>
+                <span v-if="obj.display.subtitle" class="model-option-subtitle">{{ obj.display.subtitle }}</span>
               </el-option>
             </el-select>
           </div>
 
           <div v-else-if="item.type === 'trackSelect'">
-            <el-select v-model="item.value" class="form-content" @change="trackSelectChange" :placeholder="t('validate.pleaseSelect', { name: '' })" filterable size="small">
-              <el-option v-for="obj in options" :key="obj.value" :label="obj.name" :value="obj.value">
+            <el-select v-model="item.value" class="form-content" @change="trackSelectChange" :placeholder="t('validate.pleaseSelect', { name: '' })" filterable :filter-method="filterTrackOptions" @visible-change="handleModelSelectVisibility($event, true)" size="small">
+              <el-option v-for="obj in filteredTrackOptions" :key="obj.value" :label="obj.label" :value="obj.value" :title="obj.display.description" class="model-select-option">
+                <span class="model-option-title">{{ obj.label }}</span>
+                <span v-if="obj.display.subtitle" class="model-option-subtitle">{{ obj.display.subtitle }}</span>
               </el-option>
             </el-select>
           </div>
@@ -110,7 +114,7 @@
 
           <!-- 树选择器多选 -->
           <div v-else-if="item.type === 'labelsSelect'">
-            <tree-select-multiple v-model="item.value" :data="treeSelectData" :multiple="true"></tree-select-multiple>
+            <tree-select-multiple v-model="item.value" :data="displayTreeSelectData" :multiple="true"></tree-select-multiple>
           </div>
 
         </el-form-item>
@@ -138,7 +142,7 @@
                 <span class="target-label">{{ t('glossary.targetLabel') }}</span>
                 <el-select v-model="subItem.labelCode" class="collapse-select" size="small" @change="collapseSelectChange(subItem)">
                   <div v-for="obj in labelFilterList" :key="obj.atomicCode">
-                    <div class="group-span">{{ `${obj.atomicName}（${obj.atomicCode}）`}}</div>
+                    <div class="group-span">{{ modelDisplayLabel(obj) }}</div>
                     <div>
                       <el-option v-for="subObj in obj.labelList" :key="subObj.label" :label="`${subObj.nameCN}（${subObj.class_name}）`" :value="subObj.class_name">
                       </el-option>
@@ -185,7 +189,7 @@
 
           <el-select v-model="item.value" class="form-content" size="small">
             <div v-for="obj in labelFilterList" :key="obj.atomicCode">
-              <div class="group-span">{{ `${obj.atomicName}（${obj.atomicCode}）`}}</div>
+              <div class="group-span">{{ modelDisplayLabel(obj) }}</div>
               <div>
                 <el-option v-for="subObj in obj.labelList" :key="subObj.label" :label="`${subObj.nameCN}（${subObj.class_name}）`" :value="subObj.class_name">
                 </el-option>
@@ -217,7 +221,7 @@
                 <span class="target-label">{{ t('glossary.targetLabel') }}</span>
                 <el-select v-model="item.labelCode" class="collapse-select" size="small" @change="collapseSelectChange(item, 'labelTargetLimit')">
                   <div v-for="obj in atomicList" :key="obj.atomicCode">
-                    <div class="group-span">{{ `${obj.atomicName}（${obj.atomicCode}）`}}</div>
+                    <div class="group-span">{{ modelDisplayLabel(obj) }}</div>
                     <div>
                       <el-option v-for="subObj in obj.labelList" :key="subObj.label" :label="`${subObj.nameCN}（${subObj.class_name}）`" :value="subObj.class_name">
                       </el-option>
@@ -302,8 +306,10 @@ import {
   CirclePlus,
   CircleClose
 } from '@element-plus/icons-vue'
-import { t, localeColon } from '@/i18n'
+import { t, localeColon, currentLocale } from '@/i18n'
 import { resolveI18nText, resolveI18nOptionLabel } from '@/utils/i18nResource'
+import { resolvePresetModelDisplay } from '@/utils/presetModelDisplay'
+import { loadModelDisplaySources, withModelDisplaySource } from '@/utils/modelDisplaySources'
 import {
   AREA_RULE_UI_TYPES,
   applyAreaRuleUiType,
@@ -464,6 +470,63 @@ const labelListType = ref(false)
 const trackSelectType = ref(false)
 const conditionType = ref(false)
 const treeSelectData = ref([])
+const modelDisplaySources = ref(new Map())
+const modelFilterQuery = ref('')
+const trackFilterQuery = ref('')
+let modelDisplayRequest = 0
+let modelListRequest = 0
+let disposed = false
+
+const modelDisplay = (model) => resolvePresetModelDisplay(
+  withModelDisplaySource(model, modelDisplaySources.value), currentLocale.value
+)
+const modelDisplayLabel = (model) =>
+  `${modelDisplay(model).title}（${model.atomicCode ?? model.modelCode}）`
+const matchesModelSearch = (display, query) =>
+  !query || String(display.searchText || '').toLowerCase().includes(query)
+const filterModelOptions = (query) => { modelFilterQuery.value = String(query || '').trim().toLowerCase() }
+const filterTrackOptions = (query) => { trackFilterQuery.value = String(query || '').trim().toLowerCase() }
+const filteredModelOptions = computed(() => atomicModelList.value.map(model => {
+  const display = modelDisplay(model)
+  return { model, display, label: `${display.title}（${model.atomicCode}）` }
+}).filter(option => matchesModelSearch(option.display, modelFilterQuery.value)))
+const filteredTrackOptions = computed(() => options.value.map(option => {
+  const model = props.atomicList.find(item => item.atomicCode === option.value)
+  const display = modelDisplay(model || { atomicCode: option.value, atomicName: option.name })
+  return { ...option, display, label: model ? `${display.title}（${model.atomicCode}）` : option.name }
+}).filter(option => matchesModelSearch(option.display, trackFilterQuery.value)))
+const displayTreeSelectData = computed(() => treeSelectData.value.map(root => ({
+  ...root,
+  label: t('common.all'),
+  children: root.children.map(group => {
+    const model = props.atomicList.find(item => item.atomicCode === group.id)
+    return model ? { ...group, label: modelDisplayLabel(model) } : group
+  })
+})))
+const needsModelDisplaySources = computed(() => paramConfigs.value.some(item =>
+  item.type?.includes('modelSelect') || [
+    'trackSelect', 'labelFilterList', 'labelAdjust', 'labelList', 'labelTargetLimit', 'labelsSelect'
+  ].includes(item.type)
+))
+const refreshModelDisplaySources = async () => {
+  const request = ++modelDisplayRequest
+  modelDisplaySources.value = new Map()
+  const isCurrent = () => !disposed && request === modelDisplayRequest
+  const sources = await loadModelDisplaySources($API, isCurrent)
+  if (isCurrent()) modelDisplaySources.value = sources
+}
+const handleModelSelectVisibility = (visible, track = false) => {
+  if (visible) refreshModelDisplaySources()
+  else if (track) trackFilterQuery.value = ''
+  else modelFilterQuery.value = ''
+}
+// Refresh when referenced models change, not when only their selected labels do.
+watch(() => JSON.stringify([
+  props.actionDetail?.flowActionId,
+  props.atomicList.map(item => [item.atomicCode, item.atomicName])
+]), () => {
+  if (formReady.value && needsModelDisplaySources.value) refreshModelDisplaySources()
+})
 const labelTargetLimitType = ref(false)
 const warnConditions = computed(() => [
   {
@@ -707,6 +770,7 @@ onMounted(() => {
     getChannelList(taskList.value)
   }
   formReady.value = true
+  if (needsModelDisplaySources.value) refreshModelDisplaySources()
 })
 
 const atomicListRef = toRef(props, 'atomicList')
@@ -720,6 +784,9 @@ const emitConfigChange = _.debounce(() => {
 }, 100)
 
 onBeforeUnmount(() => {
+  disposed = true
+  modelDisplayRequest += 1
+  modelListRequest += 1
   emitConfigChange.cancel()
 })
 
@@ -867,6 +934,7 @@ const handleremove = () => {
 
 // Methods
 const getModelSelectList = (code, type) => {
+  const request = ++modelListRequest
   const arr = type.split('_')
   const params = {
     modelName: '',
@@ -892,6 +960,7 @@ const getModelSelectList = (code, type) => {
   }
 
   Promise.all(promises).then((results) => {
+    if (disposed || request !== modelListRequest) return
     const merged = results.flat()
     atomicModelList.value = merged
     console.log(atomicModelList.value, '-llllllll')
@@ -924,7 +993,7 @@ const getModelSelectList = (code, type) => {
     }
   }).finally(() => {
     // 算法清单加载完成（含未命中 atomic 的提前 return / 请求失败），解除 emit 门控
-    modelListLoaded.value = true
+    if (!disposed && request === modelListRequest) modelListLoaded.value = true
   })
 }
 
@@ -1648,6 +1717,25 @@ defineExpose({
 
 .form-content {
   width: 200px;
+}
+
+.model-select-option {
+  height: auto;
+  min-height: 34px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  line-height: 20px;
+}
+
+.model-option-title,
+.model-option-subtitle {
+  display: block;
+}
+
+.model-option-subtitle {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 400;
 }
 
 .select-table-body {
