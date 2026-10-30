@@ -9,6 +9,7 @@ set(MEDIA_COMMON_SRC
     IVideoFrameProc.h
     MosaicPixels.cc             MosaicPixels.h
     OsdTextRenderer.cc           OsdTextRenderer.h
+    OsdLineRasterizer.cc         OsdLineRasterizer.h
     PixelFormat.h
     PixelFormatUtils.cc          PixelFormatUtils.h
     PreviewPipelineMetrics.cc    PreviewPipelineMetrics.h

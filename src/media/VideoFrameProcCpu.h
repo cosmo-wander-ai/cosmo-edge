@@ -64,6 +64,15 @@ namespace media {
         bool BeginOSD(VideoFramePtr frame) override;
         void OSDDrawLines(std::vector<std::pair<util::Point, util::Point>> lines, const Color& color,
                           int lineWidth) override;
+        void OSDDrawLinesFine(std::vector<std::pair<util::Point, util::Point>> lines, const Color& color,
+                              int lineWidth) override;
+        void OSDDrawTextFine(int x, int y, const std::string& text, const Color& color,
+                             int pixelHeight) override;
+        void OSDDrawRoundedRect(const util::Box& rect, const Color& color, uint8_t opacity,
+                                int radius) override;
+        void OSDDrawRoundedRectOutline(const util::Box& rect, const Color& color, uint8_t opacity,
+                                       int radius) override;
+        void OSDDrawFilledRect(const util::Box& rect, const Color& color, uint8_t opacity) override;
         void OSDDrawText(int x, int y, const std::string& text, const Color& color,
                          int fontSize = 50) override;
         void OSDDrawTextEx(int x, int y, const std::string& text, const Color& color, int fontSize,

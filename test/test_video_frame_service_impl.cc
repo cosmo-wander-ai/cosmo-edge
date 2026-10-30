@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <string>
 
+#include "media/Color.h"
 #include "media/IOsdTextRenderer.h"
 #include "mem/DeviceContext.h"
 #include "mem/IDeviceContext.h"
@@ -287,5 +288,131 @@ TEST_CASE("VideoFrameServiceImpl serializes complete concurrent OSD sessions",
     sut.EndOSD();
     REQUIRE(competing_session.wait_for(2s) == std::future_status::ready);
     CHECK(competing_session.get());
+#endif
+}
+
+TEST_CASE("VideoFrameServiceImpl releases the session after a renderer throws",
+          "[VideoFrameService][osd][exceptions]") {
+#if !defined(COSMO_MEDIA_USE_CPU_BACKEND)
+    SKIP("host-backed frame processor required");
+#else
+    using namespace std::chrono_literals;
+    class ThrowingRenderer final : public cosmo::media::IOsdTextRenderer {
+    public:
+        bool Init(const std::string&) override {
+            return true;
+        }
+        bool IsReady() const override {
+            return true;
+        }
+        TextBitmap RenderString(const std::string&, float) const override {
+            throw std::bad_alloc();
+        }
+        OutlinedTextBitmap RenderStringWithOutline(const std::string&, float) const override {
+            throw std::bad_alloc();
+        }
+    } renderer;
+    ScopedDeviceContext device_context;
+    cosmo::test::ScopedServiceOverride<cosmo::media::IOsdTextRenderer> renderer_registration(renderer);
+    constexpr int width = 64, height = 64;
+    cosmo::mem::MemoryPoolMng pool(std::make_unique<cosmo::mem::AllocatorCpu>(), {width * height * 3 / 2});
+    cosmo::mem::SetMemoryPoolContext(&pool);
+    struct ContextReset {
+        ~ContextReset() {
+            cosmo::mem::SetMemoryPoolContext(nullptr);
+        }
+    } context_reset;
+    VideoFrameServiceImpl sut;
+    auto frame =
+        std::make_shared<cosmo::media::VideoFrame>(width, height, cosmo::media::PixelFormat::PIXEL_I420);
+    REQUIRE(frame->Active());
+    REQUIRE(sut.BeginOSD(frame));
+    CHECK_THROWS_AS(sut.OSDDrawTextEx(4, 4, "x", {255, 255, 255}, 16, {0, 0, 0}, 100, true), std::bad_alloc);
+    REQUIRE_NOTHROW(sut.EndOSD());
+    auto next = std::async(std::launch::async, [&] {
+        const bool started = sut.BeginOSD(frame);
+        if (started)
+            sut.EndOSD();
+        return started;
+    });
+    REQUIRE(next.wait_for(2s) == std::future_status::ready);
+    CHECK(next.get());
+#endif
+}
+
+TEST_CASE("VideoFrameServiceImpl routes fine labels in actual pixels only inside an OSD session",
+          "[VideoFrameService][osd][fine-text]") {
+#if !defined(COSMO_MEDIA_USE_CPU_BACKEND)
+    SKIP("host-backed frame processor required");
+#else
+    class FineRenderer final : public cosmo::media::IOsdTextRenderer {
+    public:
+        mutable float height{0};
+        mutable int fineCalls{0};
+        mutable int legacyCalls{0};
+        bool Init(const std::string&) override {
+            return true;
+        }
+        bool IsReady() const override {
+            return true;
+        }
+        TextBitmap RenderString(const std::string&, float) const override {
+            return {};
+        }
+        OutlinedTextBitmap RenderStringWithOutline(const std::string&, float) const override {
+            ++legacyCalls;
+            return {};
+        }
+        OutlinedTextBitmap RenderStringWithFineOutline(const std::string&, float pixels) const override {
+            height = pixels;
+            ++fineCalls;
+            OutlinedTextBitmap bitmap;
+            bitmap.width = bitmap.height = 3;
+            bitmap.bodyAlpha.assign(9, 0);
+            bitmap.bodyAlpha[4] = 255;
+            bitmap.outlineAlpha.assign(9, 0);
+            return bitmap;
+        }
+    } renderer;
+    ScopedDeviceContext device_context;
+    cosmo::test::ScopedServiceOverride<cosmo::media::IOsdTextRenderer> registration(renderer);
+    constexpr int width = 32, height = 32;
+    cosmo::mem::MemoryPoolMng pool(std::make_unique<cosmo::mem::AllocatorCpu>(), {width * height * 3});
+    cosmo::mem::SetMemoryPoolContext(&pool);
+    struct ContextReset {
+        ~ContextReset() {
+            cosmo::mem::SetMemoryPoolContext(nullptr);
+        }
+    } context_reset;
+    VideoFrameServiceImpl service;
+    service.OSDDrawTextFine(2, 2, "face", {255, 255, 255}, 16);
+    CHECK(renderer.fineCalls == 0);
+    for (const auto format : {cosmo::media::PixelFormat::PIXEL_I420, cosmo::media::PixelFormat::PIXEL_RGB8,
+                              cosmo::media::PixelFormat::PIXEL_BGR8}) {
+        auto frame = std::make_shared<cosmo::media::VideoFrame>(width, height, format);
+        REQUIRE(frame->Active());
+        const int bytes =
+            format == cosmo::media::PixelFormat::PIXEL_I420 ? width * height * 3 / 2 : width * height * 3;
+        std::fill(frame->GetData(), frame->GetData() + bytes, 128);
+        REQUIRE(service.BeginOSD(frame));
+        service.OSDDrawRoundedRect({8, 8, 8, 8}, {52, 50, 71}, 153, 3);
+        service.OSDDrawRoundedRectOutline({20, 20, 8, 8}, {255, 255, 255}, 128, 2);
+        service.OSDDrawTextFine(2, 2, "face", {255, 255, 255}, 16);
+        service.EndOSD();
+        CHECK(renderer.height == 16);
+        CHECK(renderer.legacyCalls == 0);
+        const int stride = format == cosmo::media::PixelFormat::PIXEL_I420 ? 1 : 3;
+        CHECK(frame->GetData()[(2 * width + 2) * stride] == 255);
+        CHECK(frame->GetData()[(8 * width + 8) * stride] == 128);
+        const auto pixel = frame->GetData()[(10 * width + 10) * stride];
+        CHECK(pixel != 128);
+        CHECK(frame->GetData()[(20 * width + 23) * stride] == 192);
+        CHECK(frame->GetData()[(23 * width + 23) * stride] == 128);
+        service.OSDDrawRoundedRectOutline({20, 20, 8, 8}, {0, 0, 0}, 255, 2);
+        CHECK(frame->GetData()[(20 * width + 23) * stride] == 192);  // No active session.
+        service.OSDDrawTextFine(2, 2, "face", {0, 0, 0}, 16);
+        CHECK(frame->GetData()[(2 * width + 2) * stride] == 255);
+    }
+    CHECK(renderer.fineCalls == 3);
 #endif
 }

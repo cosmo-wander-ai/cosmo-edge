@@ -8,12 +8,9 @@
 #include <utility>
 #include <vector>
 
+#include "media/Color.h"
 #include "service/media/dto/VideoFrameFwd.h"
 #include "util/Rect.h"
-
-namespace cosmo::media {
-struct Color;
-}
 
 namespace cosmo::service {
 
@@ -79,6 +76,15 @@ public:
     virtual void OSDDrawLines(std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> lines,
                               const cosmo::media::Color& color, int lineWidth) = 0;
 
+    /// Antialiased target strokes without the legacy dark outline.
+    virtual void OSDDrawLinesFine(std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> lines,
+                                  const cosmo::media::Color& color, int lineWidth) {
+        OSDDrawLines(std::move(lines), color, lineWidth);
+    }
+    /// Composite a filled source-pixel rectangle in the current session.
+    /// Implementations without filled-rectangle support may leave this as a no-op.
+    virtual void OSDDrawFilledRect(const cosmo::util::Box&, const cosmo::media::Color&, uint8_t) {}
+
     /// Draw text in the current OSD session.
     /// @param x        X coordinate.
     /// @param y        Y coordinate.
@@ -101,6 +107,20 @@ public:
     virtual void OSDDrawTextEx(int x, int y, const std::string& text, const cosmo::media::Color& color,
                                int fontSize, const cosmo::media::Color& bgColor, uint8_t bgAlpha,
                                bool outline = true, int bgPadding = 4) = 0;
+
+    /// Compact OSD label: actual pixel height, regular body and fine outline.
+    virtual void OSDDrawTextFine(int x, int y, const std::string& text, const cosmo::media::Color& color,
+                                 int pixelHeight) {
+        OSDDrawTextEx(x, y, text, color, pixelHeight, {0, 0, 0}, 0, true, 0);
+    }
+    virtual void OSDDrawRoundedRect(const cosmo::util::Box& rect, const cosmo::media::Color& color,
+                                    uint8_t opacity, int /*radius*/) {
+        OSDDrawFilledRect(rect, color, opacity);
+    }
+
+    /// Optional fine 1px outline; legacy implementations omit decoration without filling its interior.
+    virtual void OSDDrawRoundedRectOutline(const cosmo::util::Box&, const cosmo::media::Color&, uint8_t,
+                                           int) {}
 
     /// Finalize and commit the batched OSD drawing session.
     virtual void EndOSD() = 0;

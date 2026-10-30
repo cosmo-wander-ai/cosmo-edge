@@ -71,12 +71,14 @@ void from_json(const nlohmann::json& j, MsgApplyParamsBatchSend& v) {
 
 void to_json(nlohmann::json& j, const MsgRunningDetailRecv& v) {
     to_json(j, static_cast<const MsgRecvHead&>(v));
-    j["tasks"] = v.tasks;
+    j["tasks"]                  = v.tasks;
+    j["includeActionDurations"] = v.includeActionDurations;
 }
 
 void from_json(const nlohmann::json& j, MsgRunningDetailRecv& v) {
     from_json(j, static_cast<MsgRecvHead&>(v));
     JSON_OPT(j, v, tasks);
+    JSON_OPT(j, v, includeActionDurations);
 }
 
 void to_json(nlohmann::json& j, const MsgRunningDetailSend& v) {

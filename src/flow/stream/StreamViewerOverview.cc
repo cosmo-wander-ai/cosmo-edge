@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <exception>
 
 #include "flow/common/FlowTaskUtil.h"
 #include "flow/stream/StreamViewerOverviewTypes.h"
@@ -17,12 +18,27 @@
 
 namespace cosmo {
 
+namespace {
+    void ReportPreviewOsdFailure(const std::string& channelId, const std::string& algorithmId,
+                                 const char* stage, const char* detail) noexcept {
+        // An allocation failure may also make the logger allocate and throw.
+        // Never let error reporting turn a recoverable preview failure into
+        // std::terminate from an OSD session guard destructor.
+        try {
+            LOG_ERRO("OSD {} failed for channel:{} algorithm:{}; frame overlay may be incomplete: {}", stage,
+                     channelId, algorithmId, detail);
+        } catch (...) {
+        }
+    }
+}  // namespace
+
 StreamViewerOverview::~StreamViewerOverview() {
     LOG_INFO("{} Alg:{} Delete", channel_id_, alg_id_);
 }
 
-StreamViewerOverview::StreamViewerOverview(const std::string& channelId, const std::string& algId)
-    : channel_id_(std::move(channelId)), alg_id_(std::move(algId)) {
+StreamViewerOverview::StreamViewerOverview(const std::string& channelId, const std::string& algId,
+                                           uint64_t timedPreviewToken)
+    : channel_id_(std::move(channelId)), alg_id_(std::move(algId)), timed_preview_token_(timedPreviewToken) {
     task_id_         = ChannelAlgIdToTaskId(channel_id_, alg_id_);
     bool bLiveStream = false;
     int64_t index = 0, pts = 0, frameSize = 0;
@@ -83,15 +99,23 @@ VideoFramePtr StreamViewerOverview::HandFrame(VideoFramePtr frame) {
     osd_duration_.duration_ns += osd_nanoseconds;
     osd_duration_.count += 1;
     media::GetPreviewPipelineMetrics().RecordOsdFrame(static_cast<uint64_t>(osd_nanoseconds));
+    media::GetPreviewPipelineMetrics().RecordTimedOsd(timed_preview_token_,
+                                                      static_cast<uint64_t>(osd_nanoseconds));
     debug_info_.sendFrames += 1;
     return overViewFrame;
 }
 
 void StreamViewerOverview::HandOverview(VideoFramePtr frame) {
-    if (live_stream_) {
-        HandLiveOverview(frame);
-    } else {
-        HandVodOverview(frame);
+    try {
+        if (live_stream_) {
+            HandLiveOverview(frame);
+        } else {
+            HandVodOverview(frame);
+        }
+    } catch (const std::exception& error) {
+        ReportPreviewOsdFailure(channel_id_, alg_id_, "render", error.what());
+    } catch (...) {
+        ReportPreviewOsdFailure(channel_id_, alg_id_, "render", "unknown exception");
     }
     hand_data_count_++;
 }
@@ -175,12 +199,20 @@ void StreamViewerOverview::HandLiveOverview(VideoFramePtr frame) {
     }
     struct OsdSessionGuard {
         service::IVideoFrameOSD& osd;
-        ~OsdSessionGuard() {
-            osd.EndOSD();
+        const std::string& channelId;
+        const std::string& algorithmId;
+        ~OsdSessionGuard() noexcept {
+            try {
+                osd.EndOSD();
+            } catch (const std::exception& error) {
+                ReportPreviewOsdFailure(channelId, algorithmId, "flush", error.what());
+            } catch (...) {
+                ReportPreviewOsdFailure(channelId, algorithmId, "flush", "unknown exception");
+            }
         }
-    } osd_session{osd};
+    } osd_session{osd, channel_id_, alg_id_};
     FrameOverview(frame, info);
-    DrawActionDuration(frame);
+    UpdateActionDuration(frame);
 }
 
 void StreamViewerOverview::HandVodOverview(VideoFramePtr frame) {

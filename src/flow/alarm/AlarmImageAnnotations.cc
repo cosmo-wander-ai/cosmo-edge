@@ -19,7 +19,7 @@ namespace cosmo::alarm {
 namespace {
     constexpr int kPadding = 3;
     constexpr int kMargin  = kPadding + 2;  // Includes the renderer's one-pixel outline.
-    constexpr int kLineGap = 2;
+    constexpr int kLineGap = 0;
 
     std::string ResourceToken(const std::string& value) {
         std::string result;
@@ -172,6 +172,15 @@ float AlarmImageTextRenderScale() {
 #endif
 }
 
+int AlarmImageTopSafeMargin(int height) {
+    if (height <= 0)
+        return 0;
+    // Most camera timestamps are at the top edge, but their location and
+    // dimensions are not supplied to this renderer. Limit the heuristic on
+    // small images and never claim that it detects or avoids every camera OSD.
+    return std::min(std::clamp(height / 25, 16, 64), height / 4);
+}
+
 std::vector<AlarmImageText> BuildAlarmImageTextLayout(const std::vector<AlarmImageTargetText>& targets,
                                                       int width, int height, bool showSize,
                                                       const media::IOsdTextRenderer& renderer,
@@ -182,11 +191,16 @@ std::vector<AlarmImageText> BuildAlarmImageTextLayout(const std::vector<AlarmIma
     const int fontSize = std::max(1, static_cast<int>(std::clamp(height / 45, 18, 28) / renderScale));
     const int sizeFont = std::max(1, static_cast<int>(std::clamp(height / 54, 14, 24) / renderScale));
     const int maxWidth = width - 2 * kMargin;
-    int minY           = kMargin;
+    int minY           = kMargin + AlarmImageTopSafeMargin(height);
+    bool headingDrawn  = false;
     const auto heading = FitText(title, fontSize, maxWidth, renderer, renderScale);
     if (!heading.text.empty() && heading.height + 2 * kMargin <= height) {
-        result.push_back({heading.text, kMargin, kMargin, heading.fontSize});
-        minY += heading.height + 2 * kMargin + kLineGap;
+        // On short images keep the title in-bounds even if that leaves less
+        // than the preferred top strip. Preserve the existing title setting.
+        const int headingY = std::min(minY, height - heading.height - kMargin);
+        result.push_back({heading.text, kMargin, headingY, heading.fontSize});
+        headingDrawn = true;
+        minY         = headingY + heading.height + kMargin + kLineGap;
     }
     for (const auto& target : targets) {
         if (target.box.width <= 0 || target.box.height <= 0)
@@ -219,20 +233,32 @@ std::vector<AlarmImageText> BuildAlarmImageTextLayout(const std::vector<AlarmIma
             blockHeight += line.height + 2 * kPadding + kLineGap;
             blockWidth = std::max(blockWidth, line.width);
         }
-        if (blockHeight + minY + kMargin > height)
+        int labelMinY = minY;
+        if (blockHeight + labelMinY + kMargin > height && !headingDrawn) {
+            // On very short images, do not lose the only target annotation
+            // solely to reserve a heuristic camera OSD strip.
+            labelMinY = kMargin;
+        }
+        if (blockHeight + labelMinY + kMargin > height)
             continue;
         const int x       = std::clamp(target.box.x, kMargin, width - blockWidth - kMargin);
         const auto boxTop = static_cast<int64_t>(target.box.y);
         int64_t y         = boxTop - blockHeight - kPadding;
-        if (y < minY)
+        if (y < labelMinY)
             y = boxTop + kPadding + 1;  // Near the image top, use the inside edge.
-        y = std::clamp<int64_t>(y, minY, height - blockHeight - kMargin);
+        y = std::clamp<int64_t>(y, labelMinY, height - blockHeight - kMargin);
         for (const auto& line : lines) {
             result.push_back({line.text, x, static_cast<int>(y), line.fontSize});
             y += line.height + 2 * kPadding + kLineGap;
         }
     }
     return result;
+}
+
+void QueueAlarmImageText(service::IVideoFrameOSD& osd, const std::vector<AlarmImageText>& text) {
+    for (const auto& line : text)
+        osd.OSDDrawTextEx(line.x, line.y, line.text, {255, 255, 255}, line.fontSize, {5, 8, 22}, 199, true,
+                          kPadding);
 }
 
 bool DrawAlarmImageText(service::IVideoFrameOSD& osd, const VideoFramePtr& frame,
@@ -258,9 +284,7 @@ bool DrawAlarmImageText(service::IVideoFrameOSD& osd, const VideoFramePtr& frame
             osd.EndOSD();
         }
     } session{osd};
-    for (const auto& line : text)
-        osd.OSDDrawTextEx(line.x, line.y, line.text, {255, 255, 255}, line.fontSize, {0, 0, 0}, 180, true,
-                          kPadding);
+    QueueAlarmImageText(osd, text);
     session.Finish();
     return true;
 }

@@ -38,10 +38,17 @@ namespace alarm {
 
     // Sophon's session renderer currently scales the public font size by 1.5.
     float AlarmImageTextRenderScale();
+    // Reserve a modest strip at the top for common camera-supplied text. This
+    // is a layout heuristic, not detection of the camera's actual OSD position.
+    int AlarmImageTopSafeMargin(int height);
     std::vector<AlarmImageText> BuildAlarmImageTextLayout(const std::vector<AlarmImageTargetText>& targets,
                                                           int width, int height, bool showSize,
                                                           const media::IOsdTextRenderer& renderer,
                                                           float renderScale, const std::string& title = {});
+
+    // Queue styled labels in an existing service-owned session. The caller
+    // must have successfully entered BeginOSD and must finish with EndOSD.
+    void QueueAlarmImageText(service::IVideoFrameOSD& osd, const std::vector<AlarmImageText>& text);
 
     // Uses a complete service-owned session; commits before the caller encodes JPEG.
     bool DrawAlarmImageText(service::IVideoFrameOSD& osd, const VideoFramePtr& frame,

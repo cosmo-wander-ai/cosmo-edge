@@ -583,7 +583,7 @@ namespace media {
     }
 
     VideoFrameProcSophon::BmFrameImagePtr VideoFrameProcSophon::CreateBMImage(size_t width, size_t height,
-                                                                              PixelFormat pf) {
+                                                                              PixelFormat pf, int* stride) {
         if (width > static_cast<size_t>(std::numeric_limits<int>::max()) ||
             height > static_cast<size_t>(std::numeric_limits<int>::max())) {
             LOG_ERRO("CreateBMImage() - dimensions exceed SDK integer range: {}x{}", width, height);
@@ -607,7 +607,7 @@ namespace media {
         BmFrameImagePtr image(raw_mem);
 
         auto ret = bm_image_create(handle, static_cast<int>(height), static_cast<int>(width),
-                                   MapImageFormat(pf), DATA_TYPE_EXT_1N_BYTE, image.get(), nullptr);
+                                   MapImageFormat(pf), DATA_TYPE_EXT_1N_BYTE, image.get(), stride);
         if (ret != bm_status_t::BM_SUCCESS) {
             LOG_WARN("{}", "bm_image_create failed");
 

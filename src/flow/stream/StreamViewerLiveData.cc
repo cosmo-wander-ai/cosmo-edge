@@ -4,6 +4,7 @@
 // Alarm processing is in StreamViewerAlarm.cc.
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <map>
 
@@ -17,7 +18,8 @@
 namespace cosmo {
 
 void StreamViewerOverview::AddTextToLocal(int64_t streamIndex, uint64_t index, int64_t timestamp,
-                                          util::Point pos, StreamOverviewTextEl& text) {
+                                          util::Point pos, StreamOverviewTextEl& text,
+                                          std::optional<util::Box> targetBox) {
     // data is expired (VOD strictly aligns frame sequence; live preview does not discard by frame seq,
     // otherwise inference frame number lags behind OSD frame, boxes never enter cache)
     if (!live_stream_) {
@@ -42,7 +44,8 @@ void StreamViewerOverview::AddTextToLocal(int64_t streamIndex, uint64_t index, i
         info.index       = index;
         info.timestamp   = timestamp;
         StreamOverviewText posText;
-        posText.pos = pos;
+        posText.pos       = pos;
+        posText.targetBox = targetBox;
         posText.posTexts.push_back(text);
         info.texts.push_back(posText);
         infos_.overviews.push_back(info);
@@ -50,14 +53,21 @@ void StreamViewerOverview::AddTextToLocal(int64_t streamIndex, uint64_t index, i
     }
 
     auto& overview = *overviewIt;
-    auto textIt    = std::find_if(overview.texts.begin(), overview.texts.end(), [pos](const auto& localText) {
-        return (localText.pos.x == pos.x) && (localText.pos.y == pos.y);
-    });
+    auto textIt =
+        std::find_if(overview.texts.begin(), overview.texts.end(), [pos, &targetBox](const auto& localText) {
+            const bool sameBox = !targetBox ? !localText.targetBox
+                                            : localText.targetBox && localText.targetBox->x == targetBox->x &&
+                                                  localText.targetBox->y == targetBox->y &&
+                                                  localText.targetBox->width == targetBox->width &&
+                                                  localText.targetBox->height == targetBox->height;
+            return sameBox && (localText.pos.x == pos.x) && (localText.pos.y == pos.y);
+        });
 
     if (textIt == overview.texts.end()) {
         // found frame but no matching position - add text with new position
         StreamOverviewText posText;
-        posText.pos = pos;
+        posText.pos       = pos;
+        posText.targetBox = targetBox;
         posText.posTexts.push_back(text);
         overview.texts.push_back(posText);
         return;
@@ -65,6 +75,17 @@ void StreamViewerOverview::AddTextToLocal(int64_t streamIndex, uint64_t index, i
 
     auto& localText = *textIt;
     for (auto& posTextValue : localText.posTexts) {
+        if (text.targetLabel || posTextValue.targetLabel) {
+            // Raw model labels are not prefixes of a formatted confidence string.
+            // Keep separate results even when one label starts with another.
+            if (text.targetLabel && posTextValue.targetLabel &&
+                text.targetLabel->label == posTextValue.targetLabel->label &&
+                text.targetLabel->score == posTextValue.targetLabel->score &&
+                text.targetLabel->trackId == posTextValue.targetLabel->trackId) {
+                return;
+            }
+            continue;
+        }
         if (posTextValue.text == text.text) {
             // same position found same subtitle - update priority
             if (posTextValue.attrPriority > text.attrPriority) {
@@ -140,23 +161,9 @@ void StreamViewerOverview::LiveDataHandTarget(int64_t streamIndex, uint64_t inde
         return;
     }
 
-    // determine bounding box color by label
-    static const media::Color kBoxColorPalette[] = {
-        {34, 211, 238},   // cyan    — face/person
-        {249, 115, 22},   // orange  — car/vehicle
-        {167, 139, 250},  // purple  — pedestrian
-        {52, 211, 153},   // green   — bike/motor
-        {251, 113, 133},  // coral   — warning
-        {250, 204, 21},   // gold    — special
-        {148, 163, 184},  // slate   — other/unknown
-    };
-    static const size_t kPaletteSize = sizeof(kBoxColorPalette) / sizeof(kBoxColorPalette[0]);
-
-    media::Color boxColor{200, 200, 200};
-    if (!target.confidence.empty()) {
-        size_t hash = std::hash<std::string>{}(target.confidence[0].label) % kPaletteSize;
-        boxColor    = kBoxColorPalette[hash];
-    }
+    // A target's label or confidence is not an alarm state. Keep ordinary
+    // detections a consistent cyan rather than hashing classes into warning colors.
+    const media::Color boxColor{91, 205, 214};
 
     // ── update EMA smooth state (record only, does not change stored coordinates) ──
     if (target.trackId >= 0) {
@@ -217,32 +224,34 @@ void StreamViewerOverview::LiveDataHandTarget(int64_t streamIndex, uint64_t inde
         AddLineToLocal(streamIndex, index, timestamp, line4);
     } else {
         // corner bracket detection box — only draw L-shaped marks at 4 corners, cleaner look
-        int cornerLen = std::clamp(minSide / 4, 15, 50);
-
-        // top-left L
-        StreamOverviewLine ltH{attrPriority, {pointTL, {pointTL.x + cornerLen, pointTL.y}}, boxColor};
-        StreamOverviewLine ltV{attrPriority, {pointTL, {pointTL.x, pointTL.y + cornerLen}}, boxColor};
-        // top-right L
-        StreamOverviewLine rtH{attrPriority, {{pointTR.x - cornerLen, pointTR.y}, pointTR}, boxColor};
-        StreamOverviewLine rtV{attrPriority, {pointTR, {pointTR.x, pointTR.y + cornerLen}}, boxColor};
-        // bottom-right L
-        StreamOverviewLine rbH{attrPriority, {{pointBR.x - cornerLen, pointBR.y}, pointBR}, boxColor};
-        StreamOverviewLine rbV{attrPriority, {{pointBR.x, pointBR.y - cornerLen}, pointBR}, boxColor};
-        // bottom-left L
-        StreamOverviewLine lbH{attrPriority, {pointBL, {pointBL.x + cornerLen, pointBL.y}}, boxColor};
-        StreamOverviewLine lbV{attrPriority, {{pointBL.x, pointBL.y - cornerLen}, pointBL}, boxColor};
-
-        AddLineToLocal(streamIndex, index, timestamp, ltH);
-        AddLineToLocal(streamIndex, index, timestamp, ltV);
-        AddLineToLocal(streamIndex, index, timestamp, rtH);
-        AddLineToLocal(streamIndex, index, timestamp, rtV);
-        AddLineToLocal(streamIndex, index, timestamp, rbH);
-        AddLineToLocal(streamIndex, index, timestamp, rbV);
-        AddLineToLocal(streamIndex, index, timestamp, lbH);
-        AddLineToLocal(streamIndex, index, timestamp, lbV);
+        const int cornerLen = std::clamp(minSide / 6, 6, 18);
+        // The integer-coordinate line interface approximates a 3px quarter arc
+        // through its rounded 45-degree point (1,1). Two distinct segments keep
+        // the fine rasterizer's round caps without repeated or zero-length edges.
+        const int radius = 3;
+        auto corner      = [&](util::Point p, int dx, int dy) {
+            StreamOverviewLine horizontal{
+                attrPriority, {{p.x + dx * radius, p.y}, {p.x + dx * cornerLen, p.y}}, boxColor};
+            StreamOverviewLine bendStart{
+                attrPriority, {{p.x + dx * radius, p.y}, {p.x + dx, p.y + dy}}, boxColor};
+            StreamOverviewLine bendEnd{
+                attrPriority, {{p.x + dx, p.y + dy}, {p.x, p.y + dy * radius}}, boxColor};
+            StreamOverviewLine vertical{
+                attrPriority, {{p.x, p.y + dy * radius}, {p.x, p.y + dy * cornerLen}}, boxColor};
+            AddLineToLocal(streamIndex, index, timestamp, horizontal);
+            AddLineToLocal(streamIndex, index, timestamp, bendStart);
+            AddLineToLocal(streamIndex, index, timestamp, bendEnd);
+            AddLineToLocal(streamIndex, index, timestamp, vertical);
+        };
+        corner(pointTL, 1, 1);
+        corner(pointTR, -1, 1);
+        corner(pointBR, -1, -1);
+        corner(pointBL, 1, -1);
     }
 
     bool trackIdShown = false;
+    bool sizeShown    = false;
+    const util::Box displayBox{drawX, drawY, drawW, drawH};
     for (auto& confidence : target.confidence) {
         // skip invalid confidence entries
         if (confidence.confidence < 0) {
@@ -251,27 +260,40 @@ void StreamViewerOverview::LiveDataHandTarget(int64_t streamIndex, uint64_t inde
         util::Point pos(drawX, drawY);  // label position follows smoothed box
         StreamOverviewTextEl text;
         text.attrPriority = VideoOverviewAttrPriority::kConfidence;
-        text.bgColor      = {5, 8, 22};  // near-black blue bg #050816
-        text.hasBgColor   = true;
+        text.targetLabel  = StreamOverviewTextEl::TargetLabel{confidence.label, std::nullopt, -1};
 
-        // set text color by confidence
+        // Keep label and track ID without suggesting confidence is alarm severity.
         text.hasColor = true;
-        if (confidence.confidence >= 0.85f) {
-            text.color = {255, 209, 102};  // gold #FFD166 — high confidence
-        } else if (confidence.confidence >= 0.6f) {
-            text.color = {220, 231, 255};  // cool white-blue #DCE7FF — medium confidence
-        } else {
-            text.color = {138, 148, 184};  // slate #8A94B8 — low confidence
-        }
+        text.color    = {235, 240, 249};
 
-        if (!trackIdShown && target.trackId >= 0) {
-            text.text =
-                COSMO_FORMAT("{}:{:.2f} #{}", confidence.label, confidence.confidence, target.trackId);
-            trackIdShown = true;
-        } else {
-            text.text = COSMO_FORMAT("{}:{:.2f}", confidence.label, confidence.confidence);
+        text.text = confidence.label;
+        if (confidence.scoreMeasured && std::isfinite(confidence.confidence) &&
+            confidence.confidence >= 0.0F && confidence.confidence <= 1.0F) {
+            text.text               = COSMO_FORMAT("{} {:.1f}%", text.text, confidence.confidence * 100.0F);
+            text.targetLabel->score = confidence.confidence;
         }
-        AddTextToLocal(streamIndex, index, timestamp, pos, text);
+        if (!trackIdShown && target.trackId >= 0) {
+            text.text                 = COSMO_FORMAT("{} #{}", text.text, target.trackId);
+            text.targetLabel->trackId = target.trackId;
+            trackIdShown              = true;
+        }
+        AddTextToLocal(streamIndex, index, timestamp, pos, text, displayBox);
+
+        // Width and height are the actual source detection box, not EMA-smoothed
+        // display dimensions. For oriented geometry aiBox is its axis-aligned
+        // enclosing rectangle; label that explicitly rather than suggesting the
+        // dimensions belong to the rotated edges.
+        if (!sizeShown && target.aiBox.width > 0 && target.aiBox.height > 0) {
+            StreamOverviewTextEl size;
+            size.attrPriority = VideoOverviewAttrPriority::kBoxSize;
+            size.color        = {160, 174, 195};
+            size.hasColor     = true;
+            size.text         = target.oriented_corners
+                                    ? COSMO_FORMAT("AABB {}x{} px", target.aiBox.width, target.aiBox.height)
+                                    : COSMO_FORMAT("{}x{} px", target.aiBox.width, target.aiBox.height);
+            AddTextToLocal(streamIndex, index, timestamp, pos, size, displayBox);
+            sizeShown = true;
+        }
     }
 }
 
