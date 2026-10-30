@@ -19,7 +19,7 @@ namespace cosmo {
 
 void StreamViewerOverview::AddTextToLocal(int64_t streamIndex, uint64_t index, int64_t timestamp,
                                           util::Point pos, StreamOverviewTextEl& text,
-                                          std::optional<util::Box> targetBox) {
+                                          std::optional<util::Box> targetBox, int targetTrackId) {
     // data is expired (VOD strictly aligns frame sequence; live preview does not discard by frame seq,
     // otherwise inference frame number lags behind OSD frame, boxes never enter cache)
     if (!live_stream_) {
@@ -44,8 +44,9 @@ void StreamViewerOverview::AddTextToLocal(int64_t streamIndex, uint64_t index, i
         info.index       = index;
         info.timestamp   = timestamp;
         StreamOverviewText posText;
-        posText.pos       = pos;
-        posText.targetBox = targetBox;
+        posText.pos           = pos;
+        posText.targetBox     = targetBox;
+        posText.targetTrackId = targetTrackId;
         posText.posTexts.push_back(text);
         info.texts.push_back(posText);
         infos_.overviews.push_back(info);
@@ -53,10 +54,15 @@ void StreamViewerOverview::AddTextToLocal(int64_t streamIndex, uint64_t index, i
     }
 
     auto& overview = *overviewIt;
-    auto textIt =
-        std::find_if(overview.texts.begin(), overview.texts.end(), [pos, &targetBox](const auto& localText) {
+    auto textIt    = std::find_if(
+        overview.texts.begin(), overview.texts.end(),
+        [pos, &targetBox, targetTrackId](const auto& localText) {
+            // Replayed snapshots can produce different EMA geometry for the same
+            // source frame. Keep every tracked target in its original text group.
+            if (targetTrackId >= 0 || localText.targetTrackId >= 0)
+                return targetTrackId >= 0 && localText.targetTrackId == targetTrackId;
             const bool sameBox = !targetBox ? !localText.targetBox
-                                            : localText.targetBox && localText.targetBox->x == targetBox->x &&
+                                               : localText.targetBox && localText.targetBox->x == targetBox->x &&
                                                   localText.targetBox->y == targetBox->y &&
                                                   localText.targetBox->width == targetBox->width &&
                                                   localText.targetBox->height == targetBox->height;
@@ -66,14 +72,17 @@ void StreamViewerOverview::AddTextToLocal(int64_t streamIndex, uint64_t index, i
     if (textIt == overview.texts.end()) {
         // found frame but no matching position - add text with new position
         StreamOverviewText posText;
-        posText.pos       = pos;
-        posText.targetBox = targetBox;
+        posText.pos           = pos;
+        posText.targetBox     = targetBox;
+        posText.targetTrackId = targetTrackId;
         posText.posTexts.push_back(text);
         overview.texts.push_back(posText);
         return;
     }
 
-    auto& localText = *textIt;
+    auto& localText     = *textIt;
+    localText.pos       = pos;
+    localText.targetBox = targetBox;
     for (auto& posTextValue : localText.posTexts) {
         if (text.targetLabel || posTextValue.targetLabel) {
             // Raw model labels are not prefixes of a formatted confidence string.
@@ -277,7 +286,7 @@ void StreamViewerOverview::LiveDataHandTarget(int64_t streamIndex, uint64_t inde
             text.targetLabel->trackId = target.trackId;
             trackIdShown              = true;
         }
-        AddTextToLocal(streamIndex, index, timestamp, pos, text, displayBox);
+        AddTextToLocal(streamIndex, index, timestamp, pos, text, displayBox, target.trackId);
 
         // Width and height are the actual source detection box, not EMA-smoothed
         // display dimensions. For oriented geometry aiBox is its axis-aligned
@@ -291,7 +300,7 @@ void StreamViewerOverview::LiveDataHandTarget(int64_t streamIndex, uint64_t inde
             size.text         = target.oriented_corners
                                     ? COSMO_FORMAT("AABB {}x{} px", target.aiBox.width, target.aiBox.height)
                                     : COSMO_FORMAT("{}x{} px", target.aiBox.width, target.aiBox.height);
-            AddTextToLocal(streamIndex, index, timestamp, pos, size, displayBox);
+            AddTextToLocal(streamIndex, index, timestamp, pos, size, displayBox, target.trackId);
             sizeShown = true;
         }
     }

@@ -117,6 +117,14 @@ StreamViewer::StreamViewer(AlgChannelPtr channelInst, const std::string& channel
     if (!algId.empty()) {
         timed_preview_token_ = media::GetPreviewPipelineMetrics().BeginTimedPreview(channelId, algId);
     }
+    // A failed constructor does not call Stop(), so retain rollback ownership
+    // until the publisher, encoder and channel queues have been initialized.
+    struct TimedPreviewRollback {
+        uint64_t token;
+        ~TimedPreviewRollback() {
+            media::GetPreviewPipelineMetrics().EndTimedPreview(token);
+        }
+    } timed_preview_rollback{timed_preview_token_};
     std::string url;
     if (algId.empty()) {
         ctrl_fps_ = attr.fps;
@@ -208,6 +216,7 @@ StreamViewer::StreamViewer(AlgChannelPtr channelInst, const std::string& channel
                      channel_id_, alg_id_, attr.codec);
         }
     }
+    timed_preview_rollback.token = 0;
 }
 void StreamViewer::HeartBeat() {
     {

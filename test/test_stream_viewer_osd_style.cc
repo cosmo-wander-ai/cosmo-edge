@@ -912,6 +912,117 @@ TEST_CASE("Live OSD distinguishes oriented enclosing dimensions and measured box
     CHECK(orientedText[1].text == "AABB 140x220 px");
 }
 
+TEST_CASE("Replayed live snapshots retain one panel and accept later classification results",
+          "[stream][osd][snapshot-replay]") {
+    test::MockTaskService tasks;
+    ALLOW_CALL(tasks, GetTaskFrameInfo(trompeloeil::_, trompeloeil::_, trompeloeil::_, trompeloeil::_,
+                                       trompeloeil::_, trompeloeil::_))
+        .RETURN(true);
+    MsgTarget target{};
+    target.trackId    = 7;
+    target.aiBox      = {100, 90, 100, 160};
+    target.confidence = {{"person", 0.9F, true}};
+    MsgAiDetFrame first;
+    first.streamIndex = 1;
+    first.index       = 8;
+    first.timestamp   = 1000;
+    first.targets.push_back(target);
+    auto latest                   = first;
+    latest.index                  = 9;
+    latest.timestamp              = 1040;
+    latest.targets[0].aiBox.width = 200;
+    std::vector<MsgOverviewMem> snapshot(1);
+    snapshot[0].type     = MsgOverviewMemDataType::MsgOverviewMemDataTypeAIData;
+    snapshot[0].aiFrames = {first, latest};
+    ALLOW_CALL(tasks, GetTaskLiveOverviewInfo(trompeloeil::_, trompeloeil::_, trompeloeil::_, trompeloeil::_))
+        .LR_RETURN(snapshot);
+    test::ScopedServiceOverride<service::ITaskQuery> registration(tasks);
+    CapturingOSD osd;
+    test::ScopedServiceOverride<service::IVideoFrameOSD> osdRegistration(osd);
+    WidthRenderer renderer;
+    test::ScopedServiceOverride<media::IOsdTextRenderer> textRegistration(renderer);
+    StreamViewerOverview viewer("camera", "algorithm");
+    viewer.width_          = 640;
+    viewer.height_         = 480;
+    viewer.frame_identity_ = {1, 10, 1080};
+
+    viewer.LiveDataToLocal();
+    REQUIRE(viewer.infos_.overviews.size() == 2);
+    REQUIRE(viewer.infos_.overviews.back().texts.size() == 1);
+    REQUIRE(viewer.infos_.overviews.back().texts.front().targetBox);
+    const int initialWidth = viewer.infos_.overviews.back().texts.front().targetBox->width;
+    viewer.LiveDataToLocal();
+    for (const auto& frame : viewer.infos_.overviews) {
+        REQUIRE(frame.texts.size() == 1);
+        CHECK(frame.texts.front().posTexts.size() == 2);
+    }
+    // Replaying the window changes the EMA, but must not create another panel.
+    CHECK(viewer.infos_.overviews.back().texts.front().targetBox->width != initialWidth);
+
+    auto classified = latest;
+    classified.targets[0].confidence.push_back({"helmet", 0.8F, true});
+    MsgOverviewMem downstream;
+    downstream.type = MsgOverviewMemDataType::MsgOverviewMemDataTypeAIData;
+    downstream.aiFrames.push_back(classified);
+    snapshot.push_back(downstream);
+    viewer.LiveDataToLocal();
+    REQUIRE(viewer.infos_.overviews.back().texts.size() == 1);
+    CHECK(viewer.infos_.overviews.back().texts.front().posTexts.size() == 3);
+    StreamViewerOverview::OverviewInfo info;
+    info.texts = viewer.infos_.overviews.back().texts;
+    viewer.FrameOverview(nullptr, info);
+    CHECK(osd.roundedRects.size() == 1);
+    CHECK(std::count(osd.texts.begin(), osd.texts.end(), "#7") == 1);
+    CHECK(std::count(osd.texts.begin(), osd.texts.end(), "person") == 1);
+    CHECK(std::count(osd.texts.begin(), osd.texts.end(), "helmet") == 1);
+    CHECK(std::count(osd.texts.begin(), osd.texts.end(), "200x160 px") == 1);
+}
+
+TEST_CASE("Live target grouping keeps distinct targets at the same position separate",
+          "[stream][osd][snapshot-replay]") {
+    test::MockTaskService tasks;
+    ALLOW_CALL(tasks, GetTaskFrameInfo(trompeloeil::_, trompeloeil::_, trompeloeil::_, trompeloeil::_,
+                                       trompeloeil::_, trompeloeil::_))
+        .RETURN(true);
+    test::ScopedServiceOverride<service::ITaskQuery> registration(tasks);
+    CapturingOSD osd;
+    test::ScopedServiceOverride<service::IVideoFrameOSD> osdRegistration(osd);
+    WidthRenderer renderer;
+    test::ScopedServiceOverride<media::IOsdTextRenderer> textRegistration(renderer);
+    StreamViewerOverview viewer("camera", "algorithm");
+    viewer.width_          = 640;
+    viewer.height_         = 480;
+    viewer.frame_identity_ = {1, 8, 1000};
+    MsgTarget first{};
+    first.aiBox      = {100, 90, 100, 160};
+    first.confidence = {{"person", 0.9F, true}};
+    auto second      = first;
+    SECTION("Different track IDs remain distinct even with identical boxes and labels") {
+        first.trackId  = 7;
+        second.trackId = 8;
+    }
+    SECTION("Untracked targets retain their complete geometry as the grouping key") {
+        second.aiBox.width = 200;
+    }
+    for (int repeat = 0; repeat < 2; ++repeat) {
+        viewer.LiveDataHandTarget(1, 8, 1000, first);
+        viewer.LiveDataHandTarget(1, 8, 1000, second);
+    }
+    REQUIRE(viewer.infos_.overviews.size() == 1);
+    REQUIRE(viewer.infos_.overviews.front().texts.size() == 2);
+    for (const auto& text : viewer.infos_.overviews.front().texts)
+        CHECK(text.posTexts.size() == 2);
+    StreamViewerOverview::OverviewInfo info;
+    info.texts = viewer.infos_.overviews.front().texts;
+    viewer.FrameOverview(nullptr, info);
+    CHECK(osd.roundedRects.size() == 2);
+    CHECK(std::count(osd.texts.begin(), osd.texts.end(), "person") == 2);
+    if (first.trackId >= 0) {
+        CHECK(std::count(osd.texts.begin(), osd.texts.end(), "#7") == 1);
+        CHECK(std::count(osd.texts.begin(), osd.texts.end(), "#8") == 1);
+    }
+}
+
 TEST_CASE("Target IDs are independently styled and score columns do not resize with values",
           "[stream][osd][target-panel]") {
     test::MockTaskService tasks;

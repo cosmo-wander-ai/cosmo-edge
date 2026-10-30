@@ -67,6 +67,7 @@ struct StreamOverviewText {
     util::Point pos;  // position
     std::vector<StreamOverviewTextEl> posTexts;
     std::optional<util::Box> targetBox;  // display geometry; dimensions remain measured source values
+    int targetTrackId{-1};               // Stable grouping identity independent of smoothed display geometry.
 };
 struct StreamOverviewLine {
     VideoOverviewAttrPriority attrPriority{VideoOverviewAttrPriority::kOther};
@@ -137,7 +138,8 @@ private:
     void AddAlarmPassFlowTextToLocal(int64_t streamIndex, uint64_t index, int64_t timestamp,
                                      const StreamOverviewText& text);
     void AddTextToLocal(int64_t streamIndex, uint64_t index, int64_t timestamp, util::Point pos,
-                        StreamOverviewTextEl& text, std::optional<util::Box> targetBox = std::nullopt);
+                        StreamOverviewTextEl& text, std::optional<util::Box> targetBox = std::nullopt,
+                        int targetTrackId = -1);
     void AddLineToLocal(int64_t streamIndex, uint64_t index, int64_t timestamp, StreamOverviewLine& line);
     void LiveDataHandTarget(int64_t streamIndex, uint64_t index, int64_t timestamp, MsgTarget& target);
 
