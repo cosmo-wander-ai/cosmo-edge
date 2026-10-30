@@ -128,6 +128,39 @@ foreach(attempt RANGE 1 2)
         message(FATAL_ERROR "GB audio patch is not idempotent")
     endif()
 endforeach()
+foreach(attempt RANGE 1 2)
+    execute_process(COMMAND "${CMAKE_COMMAND}" "-DSRS_SOURCE_DIR=${test_source_dir}"
+        -P "${TEST_PROJECT_ROOT}/cmake/patch_srs_gb28181_frames.cmake"
+        RESULT_VARIABLE result)
+    if(NOT result EQUAL 0)
+        message(FATAL_ERROR "GB access-unit patch failed")
+    endif()
+    file(SHA256 "${test_source_file}" source_hash)
+    file(SHA256 "${test_source_dir}/src/app/srs_app_gb28181.hpp" header_hash)
+    if(attempt EQUAL 1)
+        set(first_frames_hash "${source_hash}:${header_hash}")
+    elseif(NOT "${source_hash}:${header_hash}" STREQUAL first_frames_hash)
+        message(FATAL_ERROR "GB access-unit patch is not idempotent")
+    endif()
+endforeach()
+# Simulate an existing build copy from PR #257 before the trailing-NAL fix.
+file(READ "${test_source_file}" frames_source)
+string(REPLACE "COSMO_GB_ACCESS_UNIT_V2" "COSMO_GB_ACCESS_UNIT_V1"
+    legacy_frames_source "${frames_source}")
+string(REPLACE [=[            srs_warn("GB: Ignore NALU nt=%d, frame=[%s]", nt, bytes.c_str());
+            break;]=] [=[            srs_warn("GB: Ignore NALU nt=%d, frame=[%s]", nt, bytes.c_str());
+            return err;]=] legacy_frames_source "${legacy_frames_source}")
+if(legacy_frames_source STREQUAL frames_source)
+    message(FATAL_ERROR "Failed to prepare the V1 access-unit patch upgrade fixture")
+endif()
+file(WRITE "${test_source_file}" "${legacy_frames_source}")
+execute_process(COMMAND "${CMAKE_COMMAND}" "-DSRS_SOURCE_DIR=${test_source_dir}"
+    -P "${TEST_PROJECT_ROOT}/cmake/patch_srs_gb28181_frames.cmake"
+    RESULT_VARIABLE result)
+file(READ "${test_source_file}" upgraded_frames_source)
+if(NOT result EQUAL 0 OR NOT upgraded_frames_source STREQUAL frames_source)
+    message(FATAL_ERROR "Failed to upgrade the V1 access-unit patch")
+endif()
 foreach(required "COSMO_MANAGED_GB_V1" "local POST required" "external media lease expired"
         "if (receiver_) receiver_->interrupt()" "if (sender_) sender_->interrupt()"
         "external SIP required" "stop_external()" "invalid SSRC")

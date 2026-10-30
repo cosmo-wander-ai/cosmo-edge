@@ -21,6 +21,9 @@ set(SRS_GB28181_PATCH_COMMAND
     COMMAND ${CMAKE_COMMAND}
         "-DSRS_SOURCE_DIR=<SOURCE_DIR>"
         -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181_audio.cmake
+    COMMAND ${CMAKE_COMMAND}
+        "-DSRS_SOURCE_DIR=<SOURCE_DIR>"
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181_frames.cmake
 )
 
 if(COSMO_TARGET_ARCH STREQUAL "aarch64")
@@ -89,6 +92,10 @@ ExternalProject_Add(
     LOG_INSTALL ON
     LOG_OUTPUT_ON_FAILURE ON
 )
+
+# Reapply the versioned frame fix when its script changes in an existing build.
+ExternalProject_Add_StepDependencies(srs_external patch
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181_frames.cmake)
 
 add_dependencies(third_build srs_external)
 
