@@ -5,6 +5,7 @@
 
 #include "flow/target/TargetChooseBest.h"
 
+#include "flow/common/AlgAlarmTypes.h"
 #include "util/Keys.h"
 #include "util/Log.h"
 #include "util/TimeUtil.h"
@@ -151,9 +152,11 @@ void TargetChooseBest::ChooseBest(VideoFramePtr frame, DataDetTrackClassifyPtr i
             target.bestEl.bActive     = true;
             target.bestEl.bestFrame   = frame;
             if (has_related) {
-                target.bestEl.box = target.relatedEl.box;
+                target.bestEl.box         = target.relatedEl.box;
+                target.bestEl.annotations = MakeAlarmBox(target.relatedEl).annotations;
             } else {
-                target.bestEl.box = target.box;
+                target.bestEl.box         = target.box;
+                target.bestEl.annotations = MakeAlarmBox(target).annotations;
             }
             id_data.best_el = target.bestEl;
         } else {

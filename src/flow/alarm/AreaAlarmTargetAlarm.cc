@@ -34,7 +34,7 @@ DataAlarmUnit AreaAlarm::BuildAlarmUnit(const TrackIdData& idData, const MsgTask
     unit.targets.push_back(MakeOnEventsTarget(idData.det_el));
 
     for (const auto& subEl : idData.det_el.subs) {
-        unit.boxs.push_back(subEl.box);
+        unit.boxs.push_back(MakeAlarmBox(subEl));
         CMsgOnEventsTarget subTarget;
         subTarget.label      = subEl.confidence.label;
         subTarget.confidence = subEl.confidence.confidence;
@@ -48,7 +48,7 @@ DataAlarmUnit AreaAlarm::BuildAlarmUnit(const TrackIdData& idData, const MsgTask
     if (unit.haveRelated) {
         unit.confidence = idData.det_el.relatedEl.classifyRst;
         if (idData.det_el.subs.empty()) {
-            unit.boxs.push_back(unit.relatedBox);
+            unit.boxs.push_back(MakeAlarmBox(idData.det_el.relatedEl));
         }
     } else {
         unit.confidence = idData.det_el.classifyRst;

@@ -33,7 +33,7 @@ namespace {
         detection.box.y            = 100;
         detection.box.width        = 40;
         detection.box.height       = 40;
-        detection.confidence       = {"vehicle", "obb", confidence};
+        detection.confidence       = {"vehicle", "obb", confidence, AiAnnotationSource::Detection};
         const float left           = static_cast<float>(x);
         detection.oriented_corners = util::Quad{{{left, 100.0f + inset},
                                                  {left + 40.0f - inset, 100.0f},
@@ -57,6 +57,9 @@ namespace {
 
     void RequireMeasurement(const AiDetectRstEl& output, const AiDetectRstEl& input) {
         REQUIRE(output.targetId == input.targetId);
+        REQUIRE(output.confidence.source == AiAnnotationSource::Detection);
+        REQUIRE(output.confidence.label == input.confidence.label);
+        REQUIRE(output.confidence.confidence == input.confidence.confidence);
         REQUIRE(output.box.x == input.box.x);
         REQUIRE(output.box.y == input.box.y);
         REQUIRE(output.box.width == input.box.width);
@@ -187,6 +190,7 @@ namespace {
         REQUIRE(lost.front().trackId == track_id);
         REQUIRE(lost.front().trackStatus == AITrackingStatus::LOSS);
         REQUIRE_FALSE(lost.front().oriented_corners.has_value());
+        REQUIRE(lost.front().confidence.source == AiAnnotationSource::Unknown);
         REQUIRE_FALSE(lost.front().targetId.empty());
         REQUIRE(lost.front().targetId != detection.targetId);
         REQUIRE(lost.front().targetId != rejected.targetId);

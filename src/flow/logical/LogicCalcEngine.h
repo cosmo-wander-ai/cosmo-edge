@@ -18,8 +18,10 @@ class LogicCalcEngine {
 public:
     LogicCalcEngine(const std::string& logTag, ParamLimitValueFn paramFn, ValueIsIncludeFn includeFn);
 
-    [[nodiscard]] bool GetLogicResult(const AiDetectRstEl& target, LogicCalc& logic,
-                                      bool bDebug = false) const;
+    [[nodiscard]] bool GetLogicResult(const AiDetectRstEl& target, LogicCalc& logic, bool bDebug = false,
+                                      std::vector<AiConfidence>* evidence = nullptr) const;
+    // Same evaluator and short-circuit behavior; attach only measured positive leaves of a true rule.
+    [[nodiscard]] bool ApplyLogicResult(AiDetectRstEl& target, LogicCalc& logic) const;
 
     // Pure function — independent of parameters
     [[nodiscard]] static bool GetAiOutValue(const AiDetectRstEl& target, const std::string& label,
@@ -32,9 +34,12 @@ private:
                                          float& rValue) const;
     [[nodiscard]] bool GetLeftRightValueAttr(const AiDetectRstEl& target, LogicCalc& logic,
                                              std::string& lValue, std::string& rValue) const;
-    [[nodiscard]] bool CalcArithmeticOperation(const AiDetectRstEl& target, LogicCalc& logic) const;
-    [[nodiscard]] bool CalcArithmeticOperationAttr(const AiDetectRstEl& target, LogicCalc& logic) const;
-    [[nodiscard]] bool CalcLogicOperation(const AiDetectRstEl& target, LogicCalc& logic) const;
+    [[nodiscard]] bool CalcArithmeticOperation(const AiDetectRstEl& target, LogicCalc& logic,
+                                               std::vector<AiConfidence>* evidence) const;
+    [[nodiscard]] bool CalcArithmeticOperationAttr(const AiDetectRstEl& target, LogicCalc& logic,
+                                                   std::vector<AiConfidence>* evidence) const;
+    [[nodiscard]] bool CalcLogicOperation(const AiDetectRstEl& target, LogicCalc& logic,
+                                          std::vector<AiConfidence>* evidence) const;
     [[nodiscard]] bool CalcIncludeOperation(LogicCalc& logic) const;
 
     std::string log_tag_;

@@ -3,7 +3,9 @@
 
 #pragma once
 
+#include <cmath>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -82,11 +84,32 @@ struct AiLabelParam {
     TargetPosition pos{TargetPosition::kBottom};  // Position entering the area
 };
 
+// Provenance is internal: a synthetic decision score must never become a measured OSD score.
+enum class AiAnnotationSource { Unknown, Detection, Classification };
+
+struct AiTargetAnnotation {
+    std::string label;
+    std::string atomic_code;
+    std::optional<float> score;
+    AiAnnotationSource source{AiAnnotationSource::Unknown};
+};
+
 struct AiConfidence {
     std::string label;
     std::string atomic_code;
     float confidence{0.0};
+    AiAnnotationSource source{AiAnnotationSource::Unknown};
+    std::string measurementId;  // Shared by copied classification results, not by unrelated target boxes.
 };
+
+inline std::optional<AiTargetAnnotation> MeasuredAnnotation(const AiConfidence& result) {
+    if (result.source == AiAnnotationSource::Unknown || result.label.empty())
+        return std::nullopt;
+    AiTargetAnnotation annotation{result.label, result.atomic_code, std::nullopt, result.source};
+    if (std::isfinite(result.confidence) && result.confidence >= 0.0F && result.confidence <= 1.0F)
+        annotation.score = result.confidence;
+    return annotation;
+}
 
 // Attribute result
 struct AiAttribute {
@@ -94,6 +117,8 @@ struct AiAttribute {
     std::string label;        // Label
     std::string atomic_code;  // Code
     float confidence{0.0};    // Label confidence
+    AiAnnotationSource source{AiAnnotationSource::Unknown};
+    std::string measurementId;
 };
 
 // OCR result attached to a detected target by the landmark-driven OCR action.

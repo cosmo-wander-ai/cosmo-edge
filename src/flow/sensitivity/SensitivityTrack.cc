@@ -369,7 +369,7 @@ void Sensitivity::FillAlarmDataTrackId(DataAlarmUnit& alarmUnit, TrackIdData& tr
 
     alarmUnit.matchInfo = trackIdData.target.matchInfo;
     for (auto& relatedEl : trackIdData.target.relatedEls) {
-        alarmUnit.boxs.push_back(relatedEl.box);
+        alarmUnit.boxs.push_back(MakeAlarmBox(relatedEl));
     }
 
     alarmUnit.trackId    = static_cast<int>(trackIdData.trackId);

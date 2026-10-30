@@ -14,6 +14,7 @@ struct VisualRoiInput {
     std::string source_target_id;
     std::string source_track_id;
     int source_track_index{-1};
+    std::optional<DataAlarmBox> source_overlay;
     bool is_full_frame{false};
 };
 

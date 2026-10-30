@@ -273,7 +273,10 @@ void Qwen3VLWorker::ProcessInferResults(std::vector<InferEntry>& entries,
                 unit.boxs.push_back(unit.box);
             } else {
                 unit.box = entry.crop_info.roi;
-                unit.boxs.push_back(entry.crop_info.roi);
+                if (entry.crop_info.source_overlay)
+                    unit.boxs.push_back(*entry.crop_info.source_overlay);
+                else
+                    unit.boxs.push_back(entry.crop_info.roi);
             }
             CMsgOnEventsTarget target;
             target.label      = kw;

@@ -210,8 +210,13 @@ std::vector<AiDetectRstEl> AiTrackerUnify::TrackEl2DetEl(const std::vector<cosmo
             det_box_el.motionStatus           = AIMotionStatusChange(el.motion_state);
             if (el.status != cosmo::nn::TrackingStatus::kLoss && el.source_detection_index >= 0 &&
                 static_cast<size_t>(el.source_detection_index) < detections.size()) {
-                const auto& detection       = detections[el.source_detection_index];
-                det_box_el.targetId         = detection.targetId;
+                const auto& detection = detections[el.source_detection_index];
+                det_box_el.targetId   = detection.targetId;
+                // Keep tracking/decision values unchanged; certify only the exact current measurement.
+                if (det_box_el.confidence.label == detection.confidence.label &&
+                    det_box_el.confidence.atomic_code == detection.confidence.atomic_code &&
+                    det_box_el.confidence.confidence == detection.confidence.confidence)
+                    det_box_el.confidence.source = detection.confidence.source;
                 det_box_el.oriented_corners = detection.oriented_corners;
             } else {
                 det_box_el.targetId = util::GenerateUUID();

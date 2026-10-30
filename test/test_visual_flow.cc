@@ -435,6 +435,7 @@ TEST_CASE("Visual ROI downscaling preserves valid even I420 dimensions", "[visua
     CHECK(rois[0].frame->GetFrameIndex() == 321);
     CHECK(rois[0].frame->GetTimestamp() == 654);
     CHECK(rois[0].input_roi == util::Box(0, 0, 960, 1080));
+    CHECK_FALSE(rois[0].source_overlay.has_value());
 }
 
 TEST_CASE("Typed alarm ROI preserves actual crop and rejects every full-frame substitution",
@@ -609,11 +610,13 @@ TEST_CASE("Laya target ROIs use each overlapping region and retain original targ
     AiDetectRstEl target;
     target.box         = {16, 8, 16, 24};
     target.targetId    = "original-target";
+    target.confidence  = {"fire", "detector", 0.82F, AiAnnotationSource::Detection};
     target.trackIdInfo = "original-track";
     target.trackId     = 42;
     data->chanDataDetect.detRet->targets.push_back(target);
-    target.box      = {52, 8, 8, 24};
-    target.targetId = "outside-target";
+    target.box        = {52, 8, 8, 24};
+    target.targetId   = "outside-target";
+    target.confidence = {"smoke", "detector", 0.91F, AiAnnotationSource::Detection};
     data->chanDataDetect.detRet->targets.push_back(target);
     REQUIRE(f.worker.Start());
     REQUIRE(f.worker.GetQueue()->Insert(data));
@@ -633,6 +636,15 @@ TEST_CASE("Laya target ROIs use each overlapping region and retain original targ
     CHECK(first["request"]["items"][0]["question_id"] != second["request"]["items"][0]["question_id"]);
     CHECK(alarms[2].visualJudgments[0]["source_target_id"] == "outside-target");
     CHECK(alarms[2].visualJudgments[0]["request"]["items"][0]["question_id"] == "legacy-default");
+    REQUIRE(alarms[0].boxs.size() == 1);
+    REQUIRE(alarms[0].boxs[0].annotations.size() == 1);
+    CHECK(alarms[0].boxs[0].sourceTargetId == "original-target");
+    CHECK(alarms[0].boxs[0].annotations[0].label == "fire");
+    CHECK(alarms[0].boxs[0].annotations[0].score == 0.82F);
+    REQUIRE(alarms[2].boxs[0].annotations.size() == 1);
+    CHECK(alarms[2].boxs[0].sourceTargetId == "outside-target");
+    CHECK(alarms[2].boxs[0].annotations[0].label == "smoke");
+    CHECK(alarms[2].boxs[0].annotations[0].score == 0.91F);
     f.worker.Stop();
     CHECK(f.llm.touched == 0);
 }

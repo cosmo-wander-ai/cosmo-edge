@@ -3,17 +3,23 @@
 
 #include <exception>
 #include <filesystem>
+#include <fstream>
+#include <unordered_map>
 
+#include "flow/alarm/AlarmImageAnnotations.h"
 #include "flow/alarm/AlarmImagePrivacy.h"
 #include "flow/alarm/TaskAlarm.h"
 #include "flow/alarm/TaskAlarmInternalTypes.h"
 #include "flow/common/AreaLineUtil.h"
 #include "media/Color.h"
+#include "media/IOsdTextRenderer.h"
 #include "media/VideoFrame.h"
+#include "nlohmann/json.hpp"
 #include "service/detail/ServiceRegistry.h"
 #include "service/media/IVideoFrameCodec.h"
 #include "service/media/IVideoFrameOSD.h"
 #include "service/media/IVideoFrameTransform.h"
+#include "service/model/IModelQuery.h"
 #include "service/path/IFileService.h"
 #include "service/system/IConfigReadService.h"
 #include "util/GeometricPos.h"
@@ -24,12 +30,88 @@
 static constexpr const char* kTag = "TaskAlarm ";
 
 namespace cosmo {
+namespace {
+    class PictureLabelDisplay {
+    public:
+        alarm::AlarmImageTargetText Target(const util::Box& box,
+                                           const std::vector<AiTargetAnnotation>& annotations) {
+            alarm::AlarmImageTargetText target{box, {}};
+            for (const auto& annotation : annotations) {
+                if (annotation.source == AiAnnotationSource::Unknown || annotation.label.empty())
+                    continue;
+                std::string label = annotation.label;
+                try {
+                    LoadResources();
+                    auto& registry = service::ServiceRegistry::Instance();
+                    if (!annotation.atomic_code.empty() && registry.Has<service::IModelQuery>()) {
+                        const auto [model, inserted] = models_.try_emplace(annotation.atomic_code);
+                        if (inserted)
+                            model->second =
+                                registry.Get<service::IModelQuery>().GetModelInfo(annotation.atomic_code);
+                        label = alarm::ResolveAlarmTargetLabel(annotation, model->second, presetRoot_,
+                                                               translations_);
+                    }
+                } catch (const std::exception&) {
+                    // Optional display metadata must never prevent the alarm picture from being saved.
+                    LOG_WARN("{}", "Alarm class display lookup failed; keeping the original class name");
+                }
+                target.labels.push_back(alarm::FormatAlarmTargetLabel(label, annotation.score));
+            }
+            return target;
+        }
+
+    private:
+        void LoadResources() {
+            if (loaded_)
+                return;
+            loaded_     = true;
+            presetRoot_ = cosmo::path::GetPresetModelPath();
+            std::ifstream resource(std::filesystem::path(cosmo::path::GetResourcePath()) / "i18n" /
+                                   "resource.zh-CN.json");
+            if (resource)
+                translations_ = nlohmann::json::parse(resource, nullptr, false);
+        }
+        bool loaded_{false};
+        std::string presetRoot_;
+        nlohmann::json translations_;
+        std::unordered_map<std::string, ModelInfo> models_;
+    };
+
+    void DrawPictureText(const VideoFramePtr& frame, const std::vector<alarm::AlarmImageTargetText>& targets,
+                         bool showSize, const std::string& title = {}) {
+        auto& registry = service::ServiceRegistry::Instance();
+        auto& osd      = registry.Get<service::IVideoFrameOSD>();
+        if (registry.Has<media::IOsdTextRenderer>() && registry.Get<media::IOsdTextRenderer>().IsReady()) {
+            const auto text = alarm::BuildAlarmImageTextLayout(
+                targets, static_cast<int>(frame->GetWidth()), static_cast<int>(frame->GetHeight()), showSize,
+                registry.Get<media::IOsdTextRenderer>(), alarm::AlarmImageTextRenderScale(), title);
+            if (!alarm::DrawAlarmImageText(osd, frame, text))
+                LOG_WARN("{}", "Alarm image text session rejected");
+            return;
+        }
+        // Preserve the existing size/title fallback if the optional Chinese font is absent.
+        if (showSize) {
+            for (const auto& target : targets) {
+                const auto& box = target.box;
+                osd.DrawText(frame, box.x, box.y < 30 ? box.y : box.y - 30,
+                             std::to_string(box.width) + "x" + std::to_string(box.height), {255, 0, 0}, 12);
+            }
+        }
+        if (!title.empty())
+            osd.DrawText(frame, 15, 15, title, {255, 0, 0}, 15);
+        if (!targets.empty())
+            LOG_WARN("{}", "Alarm target labels unavailable: OSD font is not loaded");
+    }
+}  // namespace
 
 void TaskAlarm::HandBestInfoPicture(CMsgOnEventsReq& msg, AlgDataPtr /*algData*/, DataAlarmUnit& alarmUnit,
                                     const util::AlarmImagePrivacy& privacy,
                                     const std::vector<std::string>& expectedDetectors, int pictureQuality) {
     media::Color box_color{0, 0, 0};
     int lineWidth = 2;
+    PictureLabelDisplay labelDisplay;
+    const auto overviewCfg =
+        service::ServiceRegistry::Instance().Get<service::IConfigReadService>().GetPictureQuality();
 
     for (auto& bestInfo : alarmUnit.bestInfos) {
         if (bestInfo.bActive) {
@@ -63,14 +145,6 @@ void TaskAlarm::HandBestInfoPicture(CMsgOnEventsReq& msg, AlgDataPtr /*algData*/
             auto boxLines = GetBoxLines(bestInfo.box, origImg->GetWidth(), origImg->GetHeight());
             service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().DrawLines(
                 origImg, boxLines, box_color, lineWidth);
-            auto fullJpeg = service::ServiceRegistry::Instance().Get<service::IVideoFrameCodec>().EncodeJpeg(
-                origImg, pictureQuality);
-            if (fullJpeg.empty()) {
-                LOG_WARN("{}", "ImageEmpty");
-                msg.property.persons.push_back(person);
-                continue;
-            }
-
             util::Box roi;
             TargetScalerParam scaleParam;
             scaleParam.scale_side = m_param.faceScaleParam;
@@ -84,6 +158,18 @@ void TaskAlarm::HandBestInfoPicture(CMsgOnEventsReq& msg, AlgDataPtr /*algData*/
                 if (!cutJpeg.empty()) {
                     UploadImage(msg, cutJpeg, person.targetPicture, "detect-best");
                 }
+            }
+
+            // Keep orig-best and the detection crop free of the new text annotations.
+            if (overviewCfg.targetBoxOverview)
+                DrawPictureText(origImg, {labelDisplay.Target(bestInfo.box, bestInfo.annotations)},
+                                overviewCfg.targetSizeOverview);
+            auto fullJpeg = service::ServiceRegistry::Instance().Get<service::IVideoFrameCodec>().EncodeJpeg(
+                origImg, pictureQuality);
+            if (fullJpeg.empty()) {
+                LOG_WARN("{}", "ImageEmpty");
+                msg.property.persons.push_back(person);
+                continue;
             }
 
             if (service::ServiceRegistry::Instance().Get<service::IConfigReadService>().IsNetworkModel()) {
@@ -260,23 +346,6 @@ void TaskAlarm::HandPictureImpl(CMsgOnEventsReq& msg, AlgDataPtr algData, DataAl
                     : GetBoxLines(box, origImg->GetWidth(), origImg->GetHeight());
             service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().DrawLines(
                 origImg, lines, box_color, lineWidth);
-
-            if (overviewCfg.targetSizeOverview) {
-                media::Color boxsize_color{0, 0, 0};
-                boxsize_color.red       = 255;
-                boxsize_color.green     = 0;
-                boxsize_color.blue      = 0;
-                std::string boxSizeText = std::to_string(box.width) + "x" + std::to_string(box.height);
-                int posy                = 0;
-                int diff                = 30;
-                if (box.y < diff) {
-                    posy = box.y;
-                } else {
-                    posy = box.y - diff;
-                }
-                service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().DrawText(
-                    origImg, box.x, posy, boxSizeText, boxsize_color, 12);
-            }
         }
     }
 
@@ -313,29 +382,15 @@ void TaskAlarm::HandPictureImpl(CMsgOnEventsReq& msg, AlgDataPtr algData, DataAl
             origImg, linesTrajectory, box_color, lineWidth);
     }
 
-    if (!skipVlmFullFrameDecor && overviewCfg.alarmTypeOverview) {
-        media::Color alarmType_color{0, 0, 0};
-        alarmType_color.red       = 255;
-        alarmType_color.green     = 0;
-        alarmType_color.blue      = 0;
-        std::string alarmTypeText = msg.algorithmName;
-
-        service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().DrawText(
-            origImg, 15, 15, alarmTypeText, alarmType_color, 15);
+    const auto title = !skipVlmFullFrameDecor && overviewCfg.alarmTypeOverview ? msg.algorithmName : "";
+    std::vector<alarm::AlarmImageTargetText> textTargets;
+    if (!skipVlmFullFrameDecor && overviewCfg.targetBoxOverview) {
+        PictureLabelDisplay labelDisplay;
+        for (const auto& overlay : alarmUnit.boxs)
+            textTargets.push_back(labelDisplay.Target(overlay.box, overlay.annotations));
     }
-
-    // VLM orchestration: overlay user keywords (stored in ocrString) onto the full-scene photo.
-    // Vehicle-plate alarms still use ocrString for the plate; do not overlay in that case.
-    if (!alarmUnit.ocrString.empty() && m_propertyType != OnEventsPropertyType::Vehicle) {
-        media::Color promptColor{0, 0, 0};
-        promptColor.red         = 0;
-        promptColor.green       = 220;
-        promptColor.blue        = 120;
-        const bool drawAlgoName = !skipVlmFullFrameDecor && overviewCfg.alarmTypeOverview;
-        int promptY             = drawAlgoName ? 42 : 15;
-        service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().DrawText(
-            origImg, 15, promptY, alarmUnit.ocrString, promptColor, 16);
-    }
+    DrawPictureText(origImg, textTargets, overviewCfg.targetSizeOverview, title);
+    // Prompt/OCR strings and VLM synthetic labels/scores remain event data, not image annotations.
 
 #ifdef DURATION_LOG
     auto timpointEncodeJpegFull = std::chrono::high_resolution_clock::now();

@@ -134,6 +134,7 @@ void to_json(nlohmann::json& j, const CMsgOnEventsTarget& v) {
 }
 
 void from_json(const nlohmann::json& j, CMsgOnEventsTarget& v) {
+    v.sourceTargetId.clear();
     JSON_OPT(j, v, label);
     JSON_OPT(j, v, confidence);
     JSON_OPT(j, v, trackId);

@@ -231,6 +231,7 @@ util::ErrorEnum AiDetectorUnify::Forward(const std::vector<VideoFramePtr>& image
             el.confidence.confidence  = obj.infos.at(0).confidence;
             el.confidence.label       = obj.infos.at(0).class_name;
             el.confidence.atomic_code = atomic_code_;
+            el.confidence.source      = AiAnnotationSource::Detection;
             el.classId                = obj.infos.at(0).class_id + 1;
             el.targetId               = util::GenerateUUID();
             result.push_back(el);
