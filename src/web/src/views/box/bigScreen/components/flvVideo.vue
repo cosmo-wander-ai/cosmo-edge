@@ -9,6 +9,7 @@
         <el-icon class="empty-camera-icon" aria-hidden="true"><VideoCamera /></el-icon>
         <span>{{ t('event.noVideoSignal') }}</span>
       </div>
+      <LiveDiagnosticsPanel v-if="showDiagnostics" :channel-id="channelId" :algorithm-id="runAlgorithmId" @close="showDiagnostics = false" />
     </div>
 
     <div class="video-top-control">
@@ -20,6 +21,10 @@
         </el-select>
       </div>
       <div class="player-actions">
+        <button type="button" class="video-diagnostics" :class="{ 'is-active': showDiagnostics }" :title="t('event.diagnostics')" :aria-label="t('event.diagnostics')" :aria-expanded="showDiagnostics" @click.stop="showDiagnostics = !showDiagnostics">
+          <svg class="diagnostics-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="11" rx="1.5" /><path d="M5.5 10l2-2 2 1.5 2.5-3 2.5 2M7 17h6" /></svg>
+          <span>{{ t('event.diagnostics') }}</span>
+        </button>
         <button type="button" class="video-fit" :title="t(fitMode === 'cover' ? 'event.fitContainHint' : 'event.fitCoverHint')" :aria-label="t(fitMode === 'cover' ? 'event.fitCover' : 'event.fitContain')" @click="emit('update:fitMode', fitMode === 'cover' ? 'contain' : 'cover')">
           <svg class="fit-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2" y="4" width="16" height="12" rx="1.5" /><path v-if="fitMode === 'contain'" d="M5 7h10v6H5z" /><path v-else d="M6 4v3H2m12-3v3h4M6 16v-3H2m12 3v-3h4" /></svg>
           <span>{{ t(fitMode === 'cover' ? 'event.fitCover' : 'event.fitContain') }}</span>
@@ -37,6 +42,7 @@ import { ref, shallowRef, nextTick, watch, onBeforeUnmount, onMounted, getCurren
 import flvjs from 'flv.js'
 import { FullScreen, ScaleToOriginal, Close, VideoCamera } from '@element-plus/icons-vue'
 import { createWhepPlayer } from '@/utils/whepPlayer'
+import LiveDiagnosticsPanel from './LiveDiagnosticsPanel.vue'
 import { t, localeColon } from '@/i18n'
 import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
 
@@ -63,6 +69,7 @@ const webRtcPlayer = shallowRef(null)
 const hideControl = ref(true)
 const isShowStopPreview = ref(false)
 const isShowVideo = ref(true)
+const showDiagnostics = ref(false)
 const timers = ref(null)
 const isShowLoading = ref(false)
 const restartInterval = ref(null)
@@ -1058,6 +1065,25 @@ onBeforeUnmount(() => {
 .algorithm-label { white-space: nowrap; }
 .overlay-select { width: 116px; min-width: 0; }
 .player-actions { display: flex; flex-shrink: 0; align-items: center; gap: 2px; }
+.video-diagnostics {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 26px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+
+  &:hover, &.is-active { color: var(--primary-color); background: var(--primary-soft-bg); }
+  &:focus-visible { outline: 2px solid var(--primary-color); outline-offset: -2px; }
+}
+.diagnostics-icon { width: 16px; height: 16px; stroke: currentColor; stroke-width: 1.4; flex-shrink: 0; }
 .video-fit {
   display: inline-flex;
   align-items: center;
@@ -1135,6 +1161,8 @@ onBeforeUnmount(() => {
   .overlay-select { width: 80px; }
   .video-fit { width: 24px; padding: 0; }
   .video-fit > span { display: none; }
+  .video-diagnostics { width: 24px; padding: 0; }
+  .video-diagnostics > span { display: none; }
 }
 
 @container (max-width: 240px) {

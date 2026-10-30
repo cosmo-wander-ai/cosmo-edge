@@ -37,6 +37,8 @@ namespace media {
         /// Avoids 4-pass traversal in FlushTextQueue
         OutlinedTextBitmap RenderStringWithOutline(const std::string& utf8Text,
                                                    float pixelHeight) const override;
+        OutlinedTextBitmap RenderStringWithFineOutline(const std::string& utf8Text,
+                                                       float pixelHeight) const override;
 
     private:
         struct Impl;

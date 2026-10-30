@@ -1,6 +1,7 @@
 // TaskAlarmPicture.cc — Alarm picture generation.
 // Implementation partition of TaskAlarm (declared in flow/alarm/TaskAlarm.h).
 
+#include <algorithm>
 #include <exception>
 #include <filesystem>
 #include <fstream>
@@ -77,30 +78,81 @@ namespace {
         std::unordered_map<std::string, ModelInfo> models_;
     };
 
-    void DrawPictureText(const VideoFramePtr& frame, const std::vector<alarm::AlarmImageTargetText>& targets,
-                         bool showSize, const std::string& title = {}) {
+    struct PictureLineGroup {
+        std::vector<std::pair<util::Point, util::Point>> lines;
+        media::Color color;
+        int width;
+    };
+
+    void DrawPictureOverlay(const VideoFramePtr& frame, std::vector<PictureLineGroup> groups,
+                            const std::vector<alarm::AlarmImageTargetText>& targets, bool showSize,
+                            const std::string& title = {}) {
         auto& registry = service::ServiceRegistry::Instance();
         auto& osd      = registry.Get<service::IVideoFrameOSD>();
-        if (registry.Has<media::IOsdTextRenderer>() && registry.Get<media::IOsdTextRenderer>().IsReady()) {
-            const auto text = alarm::BuildAlarmImageTextLayout(
+        const bool fontReady =
+            registry.Has<media::IOsdTextRenderer>() && registry.Get<media::IOsdTextRenderer>().IsReady();
+        std::vector<alarm::AlarmImageText> text;
+        if (fontReady) {
+            text = alarm::BuildAlarmImageTextLayout(
                 targets, static_cast<int>(frame->GetWidth()), static_cast<int>(frame->GetHeight()), showSize,
                 registry.Get<media::IOsdTextRenderer>(), alarm::AlarmImageTextRenderScale(), title);
-            if (!alarm::DrawAlarmImageText(osd, frame, text))
-                LOG_WARN("{}", "Alarm image text session rejected");
+        }
+        const bool hasLines        = std::any_of(groups.begin(), groups.end(),
+                                                 [](const PictureLineGroup& group) { return !group.lines.empty(); });
+        const bool hasFallbackText = !fontReady && ((showSize && !targets.empty()) || !title.empty());
+        if (!hasLines && text.empty() && !hasFallbackText)
+            return;
+
+        if (!osd.BeginOSD(frame)) {
+            LOG_WARN("{}", "Alarm image overlay session rejected");
             return;
         }
-        // Preserve the existing size/title fallback if the optional Chinese font is absent.
-        if (showSize) {
-            for (const auto& target : targets) {
-                const auto& box = target.box;
-                osd.DrawText(frame, box.x, box.y < 30 ? box.y : box.y - 30,
-                             std::to_string(box.width) + "x" + std::to_string(box.height), {255, 0, 0}, 12);
+        struct SessionGuard {
+            service::IVideoFrameOSD& osd;
+            bool active{true};
+            ~SessionGuard() {
+                if (active) {
+                    try {
+                        osd.EndOSD();
+                    } catch (...) {
+                        // EndOSD releases its lock even if a backend flush fails.
+                    }
+                }
             }
+            void Finish() {
+                active = false;
+                osd.EndOSD();
+            }
+        } session{osd};
+        for (auto& group : groups) {
+            if (!group.lines.empty())
+                osd.OSDDrawLines(std::move(group.lines), group.color, group.width);
         }
-        if (!title.empty())
-            osd.DrawText(frame, 15, 15, title, {255, 0, 0}, 15);
-        if (!targets.empty())
-            LOG_WARN("{}", "Alarm target labels unavailable: OSD font is not loaded");
+        if (fontReady) {
+            alarm::QueueAlarmImageText(osd, text);
+        } else {
+            // Keep the existing native size/title fallback if the optional
+            // Chinese font is absent. Do not invent target class labels.
+            if (showSize) {
+                for (const auto& target : targets) {
+                    const auto& box = target.box;
+                    const int maxX  = std::max(0, static_cast<int>(frame->GetWidth()) - 1);
+                    const int maxY  = std::max(0, static_cast<int>(frame->GetHeight()) - 1);
+                    const int x     = std::clamp(box.x, 0, maxX);
+                    const int y     = std::clamp(box.y < 30 ? box.y : box.y - 30, 0, maxY);
+                    osd.OSDDrawText(x, y, std::to_string(box.width) + "x" + std::to_string(box.height),
+                                    {255, 107, 107}, 12);
+                }
+            }
+            if (!title.empty()) {
+                const int height = static_cast<int>(frame->GetHeight());
+                const int y = std::min(15 + alarm::AlarmImageTopSafeMargin(height), std::max(0, height - 15));
+                osd.OSDDrawText(15, y, title, {255, 107, 107}, 15);
+            }
+            if (!targets.empty())
+                LOG_WARN("{}", "Alarm target labels unavailable: OSD font is not loaded");
+        }
+        session.Finish();
     }
 }  // namespace
 
@@ -143,8 +195,9 @@ void TaskAlarm::HandBestInfoPicture(CMsgOnEventsReq& msg, AlgDataPtr /*algData*/
             UploadImage(msg, origJpeg, person.orignalPicture, "orig-best");
 
             auto boxLines = GetBoxLines(bestInfo.box, origImg->GetWidth(), origImg->GetHeight());
-            service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().DrawLines(
-                origImg, boxLines, box_color, lineWidth);
+            // The historic best-target crop includes this black box, so its
+            // session must finish before the crop and later text annotation.
+            DrawPictureOverlay(origImg, {{std::move(boxLines), box_color, lineWidth}}, {}, false);
             util::Box roi;
             TargetScalerParam scaleParam;
             scaleParam.scale_side = m_param.faceScaleParam;
@@ -162,8 +215,8 @@ void TaskAlarm::HandBestInfoPicture(CMsgOnEventsReq& msg, AlgDataPtr /*algData*/
 
             // Keep orig-best and the detection crop free of the new text annotations.
             if (overviewCfg.targetBoxOverview)
-                DrawPictureText(origImg, {labelDisplay.Target(bestInfo.box, bestInfo.annotations)},
-                                overviewCfg.targetSizeOverview);
+                DrawPictureOverlay(origImg, {}, {labelDisplay.Target(bestInfo.box, bestInfo.annotations)},
+                                   overviewCfg.targetSizeOverview);
             auto fullJpeg = service::ServiceRegistry::Instance().Get<service::IVideoFrameCodec>().EncodeJpeg(
                 origImg, pictureQuality);
             if (fullJpeg.empty()) {
@@ -320,8 +373,8 @@ void TaskAlarm::HandPictureImpl(CMsgOnEventsReq& msg, AlgDataPtr algData, DataAl
     media::Color box_color{0, 0, 0};
     int lineWidth   = 2;
     box_color.red   = 0xff;
-    box_color.green = 0;
-    box_color.blue  = 0;
+    box_color.green = 107;
+    box_color.blue  = 107;
 
     // VLM full-frame alarm: When Qwen3VL produces a standalone alarm (no upstream detection boxes),
     // the entire image box + target-box/size/algo-name overlay produces a meaningless full-screen red box;
@@ -336,50 +389,40 @@ void TaskAlarm::HandPictureImpl(CMsgOnEventsReq& msg, AlgDataPtr algData, DataAl
 
     const auto overviewCfg =
         service::ServiceRegistry::Instance().Get<service::IConfigReadService>().GetPictureQuality();
+    std::vector<PictureLineGroup> lineGroups;
 
     if (!skipVlmFullFrameDecor && overviewCfg.targetBoxOverview) {
         for (const auto& overlay : alarmUnit.boxs) {  // Overlay all targets
             const auto& box = overlay.box;
-            const auto lines =
+            auto lines =
                 overlay.oriented_corners
                     ? GetQuadOsdLines(*overlay.oriented_corners, origImg->GetWidth(), origImg->GetHeight())
                     : GetBoxLines(box, origImg->GetWidth(), origImg->GetHeight());
-            service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().DrawLines(
-                origImg, lines, box_color, lineWidth);
+            lineGroups.push_back({std::move(lines), box_color, lineWidth});
         }
     }
-
-#ifdef DURATION_LOG
-    auto timpointDrawArea = std::chrono::high_resolution_clock::now();
-#endif
 
     if (overviewCfg.areaOverview) {
         // Overlay area
         auto area       = GetArea(msg.areaId);
         auto lines      = GetAreaLines(area, origImg->GetWidth(), origImg->GetHeight());
-        box_color.red   = 0;
-        box_color.green = 0;
+        box_color.red   = 168;
+        box_color.green = 164;
         box_color.blue  = 255;
 
         lineWidth = 2;
-        service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().DrawLines(origImg, lines,
-                                                                                      box_color, lineWidth);
+        lineGroups.push_back({std::move(lines), box_color, lineWidth});
     }
-
-#ifdef DURATION_LOG
-    auto timpointTrajectory = std::chrono::high_resolution_clock::now();
-#endif
 
     if (!skipVlmFullFrameDecor && overviewCfg.targetBoxOverview) {
         // Overlay trajectory
         auto linesTrajectory = GetTrajectory(alarmUnit);
         box_color.red        = 255;
-        box_color.green      = 0;
-        box_color.blue       = 0;
+        box_color.green      = 107;
+        box_color.blue       = 107;
 
         lineWidth = 2;
-        service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().DrawLines(
-            origImg, linesTrajectory, box_color, lineWidth);
+        lineGroups.push_back({std::move(linesTrajectory), box_color, lineWidth});
     }
 
     const auto title = !skipVlmFullFrameDecor && overviewCfg.alarmTypeOverview ? msg.algorithmName : "";
@@ -389,7 +432,7 @@ void TaskAlarm::HandPictureImpl(CMsgOnEventsReq& msg, AlgDataPtr algData, DataAl
         for (const auto& overlay : alarmUnit.boxs)
             textTargets.push_back(labelDisplay.Target(overlay.box, overlay.annotations));
     }
-    DrawPictureText(origImg, textTargets, overviewCfg.targetSizeOverview, title);
+    DrawPictureOverlay(origImg, std::move(lineGroups), textTargets, overviewCfg.targetSizeOverview, title);
     // Prompt/OCR strings and VLM synthetic labels/scores remain event data, not image annotations.
 
 #ifdef DURATION_LOG
@@ -402,7 +445,7 @@ void TaskAlarm::HandPictureImpl(CMsgOnEventsReq& msg, AlgDataPtr algData, DataAl
 #ifdef DURATION_LOG
     auto timpointEnd = std::chrono::high_resolution_clock::now();
     LOG_INFO(
-        "Duration: Copy:{} EncOrig:{} Calc:{} Crop:{} CutJpeg:{} DrawBox:{} DrawArea:{} Trajectory:{} "
+        "Duration: Copy:{} EncOrig:{} Calc:{} Crop:{} CutJpeg:{} DrawOSD:{} "
         "EncFull:{}",
         std::chrono::duration_cast<std::chrono::milliseconds>(timpointEncodeJpeg - timpointCopyFrame).count(),
         std::chrono::duration_cast<std::chrono::milliseconds>(timpointEncodeJpegEnd - timpointEncodeJpeg)
@@ -410,9 +453,7 @@ void TaskAlarm::HandPictureImpl(CMsgOnEventsReq& msg, AlgDataPtr algData, DataAl
         std::chrono::duration_cast<std::chrono::milliseconds>(timpointCrop - timpointEncodeJpegEnd).count(),
         std::chrono::duration_cast<std::chrono::milliseconds>(timpointcutJpeg - timpointCrop).count(),
         std::chrono::duration_cast<std::chrono::milliseconds>(timpointDrawBoxs - timpointcutJpeg).count(),
-        std::chrono::duration_cast<std::chrono::milliseconds>(timpointDrawArea - timpointDrawBoxs).count(),
-        std::chrono::duration_cast<std::chrono::milliseconds>(timpointTrajectory - timpointDrawArea).count(),
-        std::chrono::duration_cast<std::chrono::milliseconds>(timpointEncodeJpegFull - timpointTrajectory)
+        std::chrono::duration_cast<std::chrono::milliseconds>(timpointEncodeJpegFull - timpointDrawBoxs)
             .count(),
         std::chrono::duration_cast<std::chrono::milliseconds>(timpointEnd - timpointEncodeJpegFull).count());
 #endif

@@ -72,6 +72,9 @@ struct MsgTaskRunTime {
 struct MsgAiConfidence {
     std::string label;
     float confidence{0.0};
+    // Internal live-preview provenance; deliberately excluded from JSON.
+    // Scores decoded from older messages remain unverified.
+    bool scoreMeasured{false};
     friend void to_json(nlohmann::json& j, const MsgAiConfidence& v);
     friend void from_json(const nlohmann::json& j, MsgAiConfidence& v);
 };

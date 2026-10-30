@@ -41,6 +41,15 @@ namespace media {
         bool BeginOSD(VideoFramePtr frame) override;
         void OSDDrawLines(std::vector<std::pair<util::Point, util::Point>> lines, const Color& color,
                           int lineWidth) override;
+        void OSDDrawLinesFine(std::vector<std::pair<util::Point, util::Point>> lines, const Color& color,
+                              int lineWidth) override;
+        void OSDDrawTextFine(int x, int y, const std::string& text, const Color& color,
+                             int pixelHeight) override;
+        void OSDDrawRoundedRect(const util::Box& rect, const Color& color, uint8_t opacity,
+                                int radius) override;
+        void OSDDrawRoundedRectOutline(const util::Box& rect, const Color& color, uint8_t opacity,
+                                       int radius) override;
+        void OSDDrawFilledRect(const util::Box& rect, const Color& color, uint8_t opacity) override;
         void OSDDrawText(int x, int y, const std::string& text, const Color& color,
                          int fontSize = 50) override;
         /// Draw text with semi-transparent background + outline
@@ -106,7 +115,7 @@ namespace media {
 
         BmFrameImagePtr VideoFrameToBMImage(VideoFramePtr frame);
 
-        BmFrameImagePtr CreateBMImage(size_t width, size_t height, PixelFormat pf);
+        BmFrameImagePtr CreateBMImage(size_t width, size_t height, PixelFormat pf, int* stride = nullptr);
 
         bm_image_format_ext MapImageFormat(PixelFormat pf);
 
@@ -115,8 +124,8 @@ namespace media {
                                          const char* caller);
 
     private:
-        /// Batch-render queued text entries onto the frame during BeginOSD~EndOSD session
-        void FlushTextQueue();
+        /// Composite queued lines and text onto one host copy during an OSD session.
+        void FlushOsdQueue();
 
         bm_handle_t handle;
         IOsdTextRenderer& osd_service_;  ///< Injected OSD text renderer

@@ -3,6 +3,7 @@
 #include "flow/stream/StreamViewerEncoder.h"
 
 #include "media/PixelFormat.h"
+#include "media/PreviewPipelineMetrics.h"
 #include "mem/IDeviceContext.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/media/IVideoFrameTransform.h"
@@ -19,11 +20,12 @@ StreamViewerEncoder::~StreamViewerEncoder() {
 }
 
 StreamViewerEncoder::StreamViewerEncoder(media::VideoCodecType videoType, int width, int height,
-                                         RtmpStreamPusherPtr videoPusher)
+                                         RtmpStreamPusherPtr videoPusher, uint64_t timedPreviewToken)
     : video_type_(videoType),
       width_(width),
       height_(height),
       video_pusher_(videoPusher),
+      timed_preview_token_(timedPreviewToken),
       async_queue_("StreamViewerEncoderQueue", 8),
       duration_stat_("Encode") {
     if (!OpenEncoder()) {
@@ -76,8 +78,14 @@ void StreamViewerEncoder::ProcFrame(VideoFramePtr frame) {
             }
         }
         duration_stat_.BeginSample();
-        auto packet = encoder_->Encode(frame);
+        const auto encodeStart       = std::chrono::steady_clock::now();
+        auto packet                  = encoder_->Encode(frame);
+        const auto encodeNanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                           std::chrono::steady_clock::now() - encodeStart)
+                                           .count();
         duration_stat_.EndSample();
+        media::GetPreviewPipelineMetrics().RecordTimedEncode(timed_preview_token_,
+                                                             static_cast<uint64_t>(encodeNanoseconds));
         if (!packet) {
             return;
         }
