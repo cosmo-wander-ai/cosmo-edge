@@ -3,11 +3,14 @@
 #include "api/MessageVideoTaskHandler.h"
 
 #include <algorithm>
+#include <nlohmann/json.hpp>
 
 #include "media/PreviewPipelineMetrics.h"
 #include "service/algorithm/IAlgorithmQuery.h"
 #include "service/camera/ICameraDeviceCrud.h"
 #include "service/camera/ICameraTaskConfig.h"
+#include "service/detail/ServiceRegistry.h"
+#include "service/model/IModelService.h"
 #include "service/task/ITaskQuery.h"
 #include "util/ErrorCode.h"
 
@@ -122,6 +125,32 @@ VideoTask::MsgSelectConfigByAlgorithmIdSend MessageVideoTaskHandler::Handle(
     VideoTask::MsgSelectConfigByAlgorithmIdSend retData{};
 
     retData.resData.algorithmMetadata = algorithm_query_.GetMetaData(data.algorithmId);
+
+    // Display model defaults without persisting an explicit task override.
+    auto metadata  = nlohmann::json::parse(retData.resData.algorithmMetadata, nullptr, false);
+    auto algorithm = !metadata.is_discarded() && metadata.contains("params") &&
+                             metadata["params"].is_array() && !metadata["params"].empty()
+                         ? algorithm_query_.GetAlgorithm(data.algorithmId)
+                         : nullptr;
+    if (!metadata.is_discarded() && metadata.contains("params") && algorithm) {
+        for (const auto& workflow : algorithm->workFlow) {
+            if (workflow.atomicCode.empty())
+                continue;
+            const auto model =
+                service::ServiceRegistry::Instance().Get<service::IModelService>().GetModelInfo(
+                    workflow.atomicCode);
+            for (const auto& label : model.labels) {
+                for (auto& param : metadata["params"]) {
+                    if (param.value("key", "") == "aiParam." + label.code + ".confidence" &&
+                        !param.contains("modelConfidenceHigh")) {
+                        param["modelConfidenceHigh"] = label.confidenceHigh;
+                        param["modelConfidence"]     = label.confidence;
+                    }
+                }
+            }
+        }
+        retData.resData.algorithmMetadata = metadata.dump();
+    }
 
     task_config_.QueryTaskParam(data.channelId, data.algorithmId, retData.resData.taskConfig.params);
     task_config_.QueryTaskArea(data.channelId, data.algorithmId, retData.resData.taskConfig.areas,
