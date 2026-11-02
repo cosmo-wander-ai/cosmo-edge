@@ -4,6 +4,7 @@
 #pragma once
 
 #include <map>
+#include <utility>
 #include <vector>
 
 #include "flow/stream/StreamViewerOverview.h"
@@ -12,6 +13,7 @@
 struct cosmo::StreamViewerOverview::AttrLines {
     cosmo::media::Color color{200, 200, 200};
     int lineWidth{2};
+    bool fine{false};  // target geometry omits the legacy dark halo
     std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> lines;
 };
 

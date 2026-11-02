@@ -201,16 +201,20 @@ MsgAiDetFrame OverviewRecordAiRst::SrcData2MsgData(const DataDetTrackClassifyPtr
         // Detection confidence is available only when there is no combination info
         if (rec_target.groupEls.empty()) {
             MsgAiConfidence confidence_det;
-            confidence_det.label      = target.confidence.label;
-            confidence_det.confidence = target.confidence.confidence;
+            confidence_det.label         = target.confidence.label;
+            confidence_det.confidence    = target.confidence.confidence;
+            const auto annotation        = MeasuredAnnotation(target.confidence);
+            confidence_det.scoreMeasured = annotation && annotation->score.has_value();
             if (!confidence_det.label.empty() && confidence_det.confidence >= 0)
                 rec_target.confidence.push_back(confidence_det);
         }
 
         for (const auto& target_history : target.classifyRst) {
             MsgAiConfidence confidence;
-            confidence.label      = target_history.label;
-            confidence.confidence = target_history.confidence;
+            confidence.label         = target_history.label;
+            confidence.confidence    = target_history.confidence;
+            const auto annotation    = MeasuredAnnotation(target_history);
+            confidence.scoreMeasured = annotation && annotation->score.has_value();
             if (!confidence.label.empty())
                 rec_target.confidence.push_back(confidence);
         }

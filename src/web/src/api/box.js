@@ -107,11 +107,12 @@ const system = {
     })
   },
   // 任务运行详情
-  queryRunningDetail(data) {
+  queryRunningDetail(data, options = {}) {
     return request({
       url: '/gtw/cwai/Task/runningDetail',
       method: 'post',
       data,
+      silentError: options.silentError === true,
     })
   },
   // 日志下载

@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <list>
 #include <memory>
 #include <mutex>
@@ -89,6 +90,7 @@ private:
 
     std::string channel_id_;
     std::string alg_id_;
+    uint64_t timed_preview_token_{0};
     AlgChannelPtr channel_inst_;
     bool data_packet_{false};    // Whether to use async_packet_queue_ queue
     bool data_overview_{false};  // Whether overlay is needed

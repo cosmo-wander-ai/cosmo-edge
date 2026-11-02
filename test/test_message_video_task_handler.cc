@@ -5,7 +5,10 @@
 #include "catch_amalgamated.hpp"
 #include "catch2/trompeloeil.hpp"
 // clang-format on
+#include <nlohmann/json.hpp>
+
 #include "api/MessageVideoTaskHandler.h"
+#include "media/PreviewPipelineMetrics.h"
 #include "mock/MockAlgorithmService.h"
 #include "mock/MockCameraService.h"
 #include "mock/MockTaskService.h"
@@ -712,6 +715,123 @@ TEST_CASE("VideoTaskHandler: RunningDetail with tasks", "[video-task-handler]") 
     REQUIRE(ret.resData.status.size() == 1);
     REQUIRE(ret.resData.status[0].taskId == "task1");
     REQUIRE(ret.resData.status[0].actionStatus.size() == 3);
+}
+
+TEST_CASE("RunningDetail returns legacy action timings only for explicitly requested tasks",
+          "[video-task-handler][metrics]") {
+    TestFixture f;
+    cosmo::TaskStatus selected;
+    selected.channelId      = "channel1";
+    selected.algorithmId    = "algorithm1";
+    selected.taskId         = "task1";
+    selected.queStatus      = {cosmo::AlgActionDataQueueStatusDto{}, cosmo::AlgActionDataQueueStatusDto{},
+                               cosmo::AlgActionDataQueueStatusDto{}};
+    cosmo::TaskStatus other = selected;
+    other.taskId            = "task2";
+    other.channelId         = "channel2";
+    REQUIRE_CALL(f.mocks.taskSvc, GetTaskStatus(trompeloeil::_, trompeloeil::_))
+        .RETURN(std::vector<cosmo::TaskStatus>{selected, other});
+
+    cosmo::util::DurationStatInfo alarm;
+    alarm.name        = "internal-node-name";
+    alarm.duration_ns = 24'000'000;
+    alarm.count       = 3;
+    cosmo::util::DurationStatInfo empty;
+    empty.name           = "internal-empty";
+    using NamedDurations = std::vector<std::pair<std::string, cosmo::util::DurationStatInfo>>;
+    REQUIRE_CALL(f.mocks.taskSvc, GetTaskActionDurations("task1", 5000))
+        .RETURN(NamedDurations{{"Alarm", alarm}, {"AreaAlarm", empty}});
+
+    cosmo::VideoTask::MsgRunningDetailRecv recv;
+    recv.tasks                  = {"task1"};
+    recv.includeActionDurations = true;
+    nlohmann::json request      = recv;
+    CHECK(request.get<cosmo::VideoTask::MsgRunningDetailRecv>().includeActionDurations);
+    request.erase("includeActionDurations");
+    CHECK_FALSE(request.get<cosmo::VideoTask::MsgRunningDetailRecv>().includeActionDurations);
+
+    std::error_condition errc;
+    auto ret = f.handler.Handle(std::move(recv), errc);
+    REQUIRE(ret.resData.status.size() == 2);
+    const auto& timings = ret.resData.status[0].actionDurationInfos;
+    REQUIRE(timings.size() == 2);
+    CHECK(timings[0].name == "Alarm");
+    CHECK(timings[0].durationCount == 3);
+    CHECK(timings[0].durationAvgUs == 8000);
+    CHECK(timings[1].name == "AreaAlarm");
+    CHECK(timings[1].durationCount == 0);
+    CHECK(ret.resData.status[1].actionDurationInfos.empty());
+
+    nlohmann::json response = ret.resData.status[0];
+    REQUIRE(response["actionDurationInfos"].size() == 2);
+    CHECK(response.get<cosmo::MsgTaskStatus>().actionDurationInfos[0].name == "Alarm");
+    response.erase("actionDurationInfos");
+    CHECK(response.get<cosmo::MsgTaskStatus>().actionDurationInfos.empty());
+}
+
+TEST_CASE("RunningDetail does not request action timings for unfiltered discovery",
+          "[video-task-handler][metrics]") {
+    TestFixture f;
+    cosmo::TaskStatus task;
+    task.taskId    = "task1";
+    task.queStatus = {cosmo::AlgActionDataQueueStatusDto{}, cosmo::AlgActionDataQueueStatusDto{},
+                      cosmo::AlgActionDataQueueStatusDto{}};
+    REQUIRE_CALL(f.mocks.taskSvc, GetTaskStatus(trompeloeil::_, trompeloeil::_))
+        .RETURN(std::vector<cosmo::TaskStatus>{task});
+    FORBID_CALL(f.mocks.taskSvc, GetTaskActionDurations(trompeloeil::_, trompeloeil::_));
+    cosmo::VideoTask::MsgRunningDetailRecv recv;
+    recv.includeActionDurations = true;
+    std::error_condition errc;
+    auto ret = f.handler.Handle(std::move(recv), errc);
+    REQUIRE(ret.resData.status.size() == 1);
+    CHECK(ret.resData.status[0].actionDurationInfos.empty());
+}
+
+TEST_CASE(
+    "RunningDetail returns separate current-preview timings and optional DTO remains backwards compatible",
+    "[video-task-handler][preview][metrics]") {
+    TestFixture f;
+    auto& metrics      = cosmo::media::GetPreviewPipelineMetrics();
+    const auto preview = metrics.BeginTimedPreview("diag-camera", "diag-algorithm");
+    metrics.MarkTimedPreviewReady(preview);
+    struct PreviewGuard {
+        cosmo::media::PreviewPipelineMetrics& metrics;
+        cosmo::media::PreviewPipelineMetrics::PreviewToken token;
+        ~PreviewGuard() {
+            metrics.EndTimedPreview(token);
+        }
+    } guard{metrics, preview};
+    metrics.RecordTimedOsd(preview, 2'000'000);
+    metrics.RecordTimedEncode(preview, 7'000'000);
+    // Another stream must never leak into this task's result.
+    const auto other = metrics.BeginTimedPreview("other-camera", "diag-algorithm");
+    metrics.MarkTimedPreviewReady(other);
+    PreviewGuard otherGuard{metrics, other};
+    metrics.RecordTimedOsd(other, 99'000'000);
+
+    cosmo::TaskStatus ts;
+    ts.channelId   = "diag-camera";
+    ts.algorithmId = "diag-algorithm";
+    ts.taskId      = "diag-task";
+    ts.queStatus   = {cosmo::AlgActionDataQueueStatusDto{}, cosmo::AlgActionDataQueueStatusDto{},
+                      cosmo::AlgActionDataQueueStatusDto{}};
+    REQUIRE_CALL(f.mocks.taskSvc, GetTaskStatus(trompeloeil::_, trompeloeil::_))
+        .RETURN(std::vector<cosmo::TaskStatus>{ts});
+
+    std::error_condition errc;
+    auto ret = f.handler.Handle(cosmo::VideoTask::MsgRunningDetailRecv{}, errc);
+    REQUIRE(ret.resData.status.size() == 1);
+    const auto& status = ret.resData.status.front();
+    REQUIRE(status.previewDurationInfos.size() == 2);
+    CHECK(status.previewDurationInfos[0].name == "OSD");
+    CHECK(status.previewDurationInfos[0].durationAvgUs == 2000);
+    CHECK(status.previewDurationInfos[1].name == "Encode");
+    CHECK(status.previewDurationInfos[1].durationAvgUs == 7000);
+    nlohmann::json json = status;
+    REQUIRE(json["previewDurationInfos"].size() == 2);
+    CHECK(json.get<cosmo::MsgTaskStatus>().previewDurationInfos.size() == 2);
+    json.erase("previewDurationInfos");
+    CHECK(json.get<cosmo::MsgTaskStatus>().previewDurationInfos.empty());
 }
 
 TEST_CASE("VideoTaskHandler: RunningDetail filters tasks with few actions", "[video-task-handler]") {

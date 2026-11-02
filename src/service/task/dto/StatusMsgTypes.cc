@@ -102,17 +102,21 @@ void from_json(const nlohmann::json& j, MsgTaskStatus& v) {
     JSON_OPT(j, v, algorithmVersion);
     JSON_OPT(j, v, actionStatus);
     JSON_OPT(j, v, nodeDurationInfos);
+    JSON_OPT(j, v, actionDurationInfos);
+    JSON_OPT(j, v, previewDurationInfos);
 }
 
 void to_json(nlohmann::json& j, const MsgTaskStatus& v) {
-    j["channelId"]         = v.channelId;
-    j["taskId"]            = v.taskId;
-    j["streamUrl"]         = v.streamUrl;
-    j["algorithmId"]       = v.algorithmId;
-    j["algorithmName"]     = v.algorithmName;
-    j["algorithmVersion"]  = v.algorithmVersion;
-    j["actionStatus"]      = v.actionStatus;
-    j["nodeDurationInfos"] = v.nodeDurationInfos;
+    j["channelId"]            = v.channelId;
+    j["taskId"]               = v.taskId;
+    j["streamUrl"]            = v.streamUrl;
+    j["algorithmId"]          = v.algorithmId;
+    j["algorithmName"]        = v.algorithmName;
+    j["algorithmVersion"]     = v.algorithmVersion;
+    j["actionStatus"]         = v.actionStatus;
+    j["nodeDurationInfos"]    = v.nodeDurationInfos;
+    j["actionDurationInfos"]  = v.actionDurationInfos;
+    j["previewDurationInfos"] = v.previewDurationInfos;
 }
 
 void from_json(const nlohmann::json& j, DeviceMemStatus& v) {

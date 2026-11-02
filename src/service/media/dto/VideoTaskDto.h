@@ -304,6 +304,8 @@ namespace VideoTask {
 
     struct MsgRunningDetailRecv : public MsgRecvHead {
         std::vector<std::string> tasks;
+        // Optional short-window action timings for explicitly selected tasks.
+        bool includeActionDurations{false};
     };
 
     void to_json(nlohmann::json& j, const MsgRunningDetailRecv& v);

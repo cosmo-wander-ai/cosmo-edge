@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <list>
 #include <memory>
 #include <shared_mutex>
@@ -20,7 +21,7 @@ namespace cosmo {
 class StreamViewerEncoder {
 public:
     StreamViewerEncoder(media::VideoCodecType videoType, int width, int height,
-                        RtmpStreamPusherPtr videoPusher);
+                        RtmpStreamPusherPtr videoPusher, uint64_t timedPreviewToken = 0);
     ~StreamViewerEncoder();
 
     bool HandFrame(VideoFramePtr frame);
@@ -45,6 +46,7 @@ private:
     int height_{0};
     std::shared_ptr<media::VideoEncoder> encoder_ = nullptr;
     RtmpStreamPusherPtr video_pusher_{nullptr};
+    uint64_t timed_preview_token_{0};
     AsyncQueue<VideoFramePtr> async_queue_;
     util::DurationStat duration_stat_;
 };

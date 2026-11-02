@@ -3,6 +3,7 @@
 #include "media/OsdTextRenderer.h"
 
 #include <cmath>
+#include <cstddef>
 #include <cstring>
 #include <fstream>
 #include <mutex>
@@ -42,14 +43,16 @@ namespace media {
     struct OutlinedKey {
         std::string text;
         int pixelHeightX10;
+        bool fine{false};
         bool operator==(const OutlinedKey& o) const {
-            return pixelHeightX10 == o.pixelHeightX10 && text == o.text;
+            return pixelHeightX10 == o.pixelHeightX10 && fine == o.fine && text == o.text;
         }
     };
     struct OutlinedKeyHash {
         size_t operator()(const OutlinedKey& k) const {
             size_t h = std::hash<std::string>{}(k.text);
             h ^= std::hash<int>{}(k.pixelHeightX10) + 0x9e3779b9 + (h << 6) + (h >> 2);
+            h ^= std::hash<bool>{}(k.fine) + 0x9e3779b9 + (h << 6) + (h >> 2);
             return h;
         }
     };
@@ -304,6 +307,8 @@ namespace media {
 
     OsdTextRenderer::OutlinedTextBitmap OsdTextRenderer::RenderStringWithOutline(const std::string& utf8Text,
                                                                                  float pixelHeight) const {
+        if (!ready_ || !impl_)
+            return {};
         // ── lookup cache ──
         OutlinedKey cacheKey{utf8Text, static_cast<int>(pixelHeight * 10)};
         {
@@ -375,6 +380,54 @@ namespace media {
             impl_->outlineCache.emplace(cacheKey, result);
         }
 
+        return result;
+    }
+
+    OsdTextRenderer::OutlinedTextBitmap OsdTextRenderer::RenderStringWithFineOutline(
+        const std::string& utf8Text, float pixelHeight) const {
+        if (!ready_ || !impl_ || !std::isfinite(pixelHeight) || pixelHeight <= 0)
+            return {};
+        const OutlinedKey key{utf8Text, static_cast<int>(pixelHeight * 10), true};
+        {
+            std::lock_guard<std::mutex> lock(impl_->outlineCacheMutex);
+            const auto found = impl_->outlineCache.find(key);
+            if (found != impl_->outlineCache.end())
+                return found->second;
+        }
+        const auto inner = RenderString(utf8Text, pixelHeight);
+        if (inner.alpha.empty())
+            return {};
+        OutlinedTextBitmap result;
+        result.width   = inner.width + 2;
+        result.height  = inner.height + 2;
+        result.offsetX = result.offsetY = 1;
+        result.bodyAlpha.assign(static_cast<size_t>(result.width) * result.height, 0);
+        result.outlineAlpha.assign(result.bodyAlpha.size(), 0);
+        // Preserve the original glyph coverage: only the surrounding outline is
+        // dilated, never the body. Keep AA coverage rather than a binary halo.
+        for (int y = 0; y < inner.height; ++y) {
+            for (int x = 0; x < inner.width; ++x) {
+                const auto a          = inner.alpha[static_cast<size_t>(y) * inner.width + x];
+                const size_t pos      = static_cast<size_t>(y + 1) * result.width + x + 1;
+                result.bodyAlpha[pos] = a;
+                for (const int delta : {-result.width, -1, 1, result.width}) {
+                    auto& edge =
+                        result.outlineAlpha[static_cast<size_t>(static_cast<ptrdiff_t>(pos) + delta)];
+                    edge = std::max(edge, a);
+                }
+            }
+        }
+        for (size_t i = 0; i < result.outlineAlpha.size(); ++i) {
+            const int edge = std::max(0, int(result.outlineAlpha[i]) - int(result.bodyAlpha[i]));
+            // Strengthen contrast after video scaling without widening the 1px edge.
+            result.outlineAlpha[i] = static_cast<uint8_t>((edge * 204 + 127) / 255);
+        }
+        {
+            std::lock_guard<std::mutex> lock(impl_->outlineCacheMutex);
+            if (impl_->outlineCache.size() >= Impl::kMaxOutlineCacheSize)
+                impl_->outlineCache.clear();
+            impl_->outlineCache.emplace(key, result);
+        }
         return result;
     }
 
