@@ -37,6 +37,8 @@ public:
 
     void RemoveItems(const std::vector<std::string>& list) override;
 
+    AlarmDeleteResult DeleteEvents(const std::vector<std::string>& ids) override;
+
     bool InsertPassFlow(const std::string& camera_id, const std::string& algorithm_id, uint64_t hour,
                         int enter_num, int leave_num) override;
 

@@ -10,8 +10,11 @@
 #include <set>
 #include <thread>
 
+#include "db/TransactionGuard.h"
 #include "service/detail/ServiceRegistry.h"
+#include "service/event/AlarmAttachmentCleaner.h"
 #include "service/event/AlarmExport.h"
+#include "service/event/AlarmMediaActivity.h"
 #include "service/infra/IDbService.h"
 #include "util/Exec.h"
 #include "util/JsonStructUtil.h"
@@ -372,6 +375,103 @@ std::vector<cosmo::MsgEventUnit> AlarmRecordServiceImpl::QueryFace(cosmo::MsgCon
 
 void AlarmRecordServiceImpl::RemoveItems(const std::vector<std::string>& list) {
     db_event_->RemoveItems(list);
+}
+
+AlarmDeleteResult AlarmRecordServiceImpl::DeleteEvents(const std::vector<std::string>& ids) {
+    struct Pending {
+        cosmo::db::TaskEventData record;
+        std::unique_ptr<AlarmMediaLease> lease;
+    };
+    AlarmDeleteResult result;
+    std::vector<Pending> pending;
+    const auto find = [this](const std::string& id) {
+        cosmo::db::QueryTaskEventCondition condition;
+        condition.id                    = id;
+        condition.page_size             = 1;
+        condition.is_export_total_count = false;
+        return db_event_writer_->Query(condition).behavior_list;
+    };
+    const auto fail = [&result](const std::string& id, const std::string& reason) {
+        result.failedItems.push_back({id, reason});
+    };
+    const auto categorySupported = [](const std::string& category) {
+        return category == "1" || category == "2" || category == "3" || category == "10";
+    };
+    const auto reasonFor = [](AlarmAttachmentStatus status) {
+        switch (status) {
+            case AlarmAttachmentStatus::AccessFailed:
+                return "FILE_ACCESS_FAILED";
+            case AlarmAttachmentStatus::DeleteFailed:
+                return "FILE_DELETE_FAILED";
+            case AlarmAttachmentStatus::Invalid:
+                return "INVALID_ATTACHMENT";
+            case AlarmAttachmentStatus::Ok:
+                break;
+        }
+        return "FILE_ACCESS_FAILED";
+    };
+
+    // Acquire all leases before scanning dates: the record exists only after
+    // its feature was written, and an active recorder must not finalize later.
+    for (const auto& id : ids) {
+        try {
+            auto rows = find(id);
+            if (rows.empty()) {
+                result.missingIds.push_back(id);
+            } else if (!categorySupported(rows.front().category)) {
+                fail(id, "UNSUPPORTED_CATEGORY");
+            } else {
+                auto lease = AlarmMediaLease::TryDelete(id);
+                if (!lease)
+                    fail(id, "RECORDING");
+                else
+                    pending.push_back({std::move(rows.front()), std::move(lease)});
+            }
+        } catch (const SQLite::Exception& error) {
+            LOG_WARN("Alarm delete query failed: {}", error.what());
+            fail(id, "DATABASE_FAILED");
+        }
+    }
+    if (pending.empty())
+        return result;
+
+    AlarmAttachmentCleaner cleaner;
+    for (auto& item : pending) {
+        const auto& id = item.record.id;
+        std::vector<AlarmAttachment> attachments;
+        const auto collected = cleaner.Collect(id, item.record.extra_files, attachments);
+        if (collected != AlarmAttachmentStatus::Ok) {
+            fail(id, reasonFor(collected));
+            item.lease.reset();
+            continue;
+        }
+        try {
+            cosmo::db::TransactionGuard<cosmo::db::TaskEventDao> transaction(*db_event_writer_);
+            auto rows = find(id);
+            if (rows.empty()) {
+                result.missingIds.push_back(id);
+                continue;
+            }
+            if (rows.front().category != item.record.category ||
+                rows.front().extra_files != item.record.extra_files) {
+                fail(id, "INVALID_ATTACHMENT");
+                continue;
+            }
+            db_event_writer_->RemoveItems({id});
+            const auto removed = cleaner.Remove(attachments);
+            if (removed != AlarmAttachmentStatus::Ok) {
+                fail(id, reasonFor(removed));
+                continue;
+            }
+            transaction.Commit();
+            result.deletedIds.push_back(id);
+        } catch (const SQLite::Exception& error) {
+            LOG_WARN("Alarm delete transaction failed: {}", error.what());
+            fail(id, "DATABASE_FAILED");
+        }
+        item.lease.reset();
+    }
+    return result;
 }
 
 bool AlarmRecordServiceImpl::UpdateAlarmReportStatus(const std::string& record_id, bool reported) {

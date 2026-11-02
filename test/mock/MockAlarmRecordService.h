@@ -22,6 +22,7 @@ public:
     MAKE_MOCK1(InsertFace, bool(cosmo::AlarmRecordUnit&), override);
     MAKE_MOCK2(QueryFace, std::vector<cosmo::MsgEventUnit>(cosmo::MsgConditionEvent&, int64_t&), override);
     MAKE_MOCK1(RemoveItems, void(const std::vector<std::string>&), override);
+    MAKE_MOCK1(DeleteEvents, cosmo::service::AlarmDeleteResult(const std::vector<std::string>&), override);
     MAKE_MOCK5(InsertPassFlow, bool(const std::string&, const std::string&, uint64_t, int, int), override);
 };
 

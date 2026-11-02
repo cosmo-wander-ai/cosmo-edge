@@ -12,6 +12,10 @@ typedef uint32_t MP4TrackId;
 
 namespace cosmo {
 
+namespace service {
+    class AlarmMediaLease;
+}
+
 class AlgMp4Record {
 public:
     AlgMp4Record(media::VideoCodecType streamType, const RecordParam& recordParam, float fps, int width,
@@ -31,6 +35,7 @@ public:
     int64_t GetEventTime();
     int64_t GetTaskStartFrameSeq();
     std::string GetEventName();
+    [[nodiscard]] bool IsReady() const;
 
 private:
     // NALU-type handlers extracted from RecodeFrame (DEBT-011)
@@ -48,7 +53,8 @@ private:
     void UploadOverviewFile();
 
 private:
-    MP4FileHandle mp4_handle_;
+    std::unique_ptr<service::AlarmMediaLease> recording_lease_;
+    MP4FileHandle mp4_handle_{nullptr};
     MP4TrackId track_id_;
     bool write_failed_{false};
     bool is_vps_ready_{false};

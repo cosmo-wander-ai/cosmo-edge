@@ -15,15 +15,17 @@
     <div class="table-container">
       <div class="table-header">
         <div class="table-tools">
-          <!-- <el-button 
+          <el-button
             v-if="runMode != 1" 
             type="primary" 
             size="small" 
             @click="handleBatchDelete"
-            :disabled="multipleSelections.length === 0"
+            :loading="deleting"
+            :disabled="multipleSelections.length === 0 || deleting"
            class="ui-secondary-button">
-            批量删除
-          </el-button> -->
+            {{ t('action.bulkDelete') }}
+          </el-button>
+          <span v-if="multipleSelections.length">{{ t('event.selectedCount', { n: multipleSelections.length }) }}</span>
           <el-button 
             type="primary" 
             size="small" 
@@ -37,12 +39,14 @@
 
       <!-- 列表视图 -->
       <el-table 
+        ref="eventTableRef"
         :data="tableData" 
+        row-key="id"
         :header-cell-style="{ background: 'var(--theme-surface-soft, #fafafa)' }"
         style="width: 100%"
         @selection-change="handleSelectionChange"
       >
-        <el-table-column type="selection" min-width="55" />
+        <el-table-column type="selection" min-width="55" :selectable="() => !deleting" />
         <el-table-column type="index" :index="getIndex" :label="t('field.no')" width="80" />
         <el-table-column prop="plateNumber" :label="t('event.vehiclePlateNumber')" min-width="100px">
           <template #default="{ row }">
@@ -123,7 +127,7 @@
             <div class="operation-tools">
               <el-button link class="primary-text ui-action ui-action-view" @click="handleDetail(row)">{{ t('action.details') }}</el-button>
               <el-button link class="primary-text ui-action ui-action-play" v-if="row.video" @click="onCheckVideo(row, 1)">{{ t('event.videoPlayback') }}</el-button>
-              <el-button link class="danger-text ui-action ui-action-delete" v-if="runMode != 1" @click="handleDelete(row)">{{ t('action.delete') }}</el-button>
+              <el-button link class="danger-text ui-action ui-action-delete" v-if="runMode != 1" :disabled="deleting" @click="handleDelete(row)">{{ t('action.delete') }}</el-button>
             </div>
           </template>
         </el-table-column>
@@ -134,6 +138,7 @@
         <el-pagination 
           @size-change="handleSizeChange" 
           @current-change="handleCurrentChange"
+          :disabled="deleting"
           :current-page="pageData.pageNum" 
           :page-sizes="[10, 20, 50, 100]" 
           :page-size="pageData.pageSize"
@@ -168,13 +173,13 @@ import moment from 'moment'
 import videoFrequency from '@/components/videoPlaying265.vue'
 import CarDetailDialog from '../components/carDetailDialog.vue'
 import { t, currentLocale } from '@/i18n'
+import { useEventRecordPage } from '../useEventRecordPage'
 
 const { proxy } = getCurrentInstance()
 
 const runMode = ref(0)
 const topBarRef = ref(null)
 const tableData = ref([])
-const multipleSelections = ref([])
 const detailDialogVisible = ref(false)
 const detailData = ref({})
 const videoDialogVisiable = ref(false)
@@ -328,8 +333,12 @@ const getChannelList = () => {
   })
 }
 
-const init = () => {
-  const params = {
+const { eventTableRef, selectedIds: multipleSelections, deleting, init, handleSelectionChange,
+  handleSizeChange, handleCurrentChange, searchList, handleDelete, handleBatchDelete, getIndex } = useEventRecordPage({
+  proxy,
+  pageData,
+  tableData,
+  buildQuery: () => ({
     timeBegin: moment(formData.times[0]).valueOf(),
     timeEnd: moment(formData.times[1]).valueOf(),
     pageNum: pageData.pageNum,
@@ -343,57 +352,16 @@ const init = () => {
     propRelatedColor: formData.propRelatedColor,
     propType: formData.propType,
     propDirection: formData.propDirection
+  }),
+  onRemoved: ids => {
+    if (ids.includes(detailData.value?.id)) { detailDialogVisible.value = false; detailData.value = {} }
+    if (ids.includes(currentEvent.value?.id)) { videoDialogVisiable.value = false; currentEvent.value = null }
   }
-  proxy.$API.boxQueryEvent(params).then((res) => {
-    const { resData } = res
-    tableData.value = resData.rows || []
-    pageData.total = resData.total || 0
-  })
-}
-
-const handleSizeChange = (val) => {
-  pageData.pageSize = val
-  init()
-}
-
-const handleCurrentChange = (val) => {
-  pageData.pageNum = val
-  init()
-}
-
-const getIndex = (index) => {
-  return (pageData.pageNum - 1) * pageData.pageSize + index + 1
-}
-
-const searchList = () => {
-  init()
-}
-
-const handleSelectionChange = (val) => {
-  multipleSelections.value = val
-}
+})
 
 const handleDetail = (row) => {
   detailData.value = row
   detailDialogVisible.value = true
-}
-
-const handleDelete = (row) => {
-  proxy.$confirm(t('validate.deleteConfirm'), t('common.notice'), {
-    type: 'warning'
-  }).then(() => {
-    const params = { ids: [row.id] }
-    console.log('======删除', params)
-  })
-}
-
-const handleBatchDelete = () => {
-  proxy.$confirm(t('validate.deleteConfirm'), t('common.notice'), {
-    type: 'warning'
-  }).then(() => {
-    const params = { ids: multipleSelections.value.map(item => item.id) }
-    console.log('======批量删除', params)
-  })
 }
 
 const handleExport = () => {

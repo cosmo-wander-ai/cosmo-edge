@@ -4,6 +4,7 @@
 
 #include <chrono>
 #include <fstream>
+#include <unordered_set>
 
 #include "service/ai/IVisualDecisionService.h"
 #include "service/ai/IVisualQuestionService.h"
@@ -15,6 +16,7 @@
 #include "service/network/INetworkConfig.h"
 #include "util/DateTimeFormat.h"
 #include "util/ErrorCode.h"
+#include "util/PathUtil.h"
 #include "util/TimeUtil.h"
 
 namespace cosmo {
@@ -36,6 +38,27 @@ Event::MsgPageSend MessageEventHandler::Handle(Event::MsgPageRecv&& data,
         event.algorithmName = algorithm_query_.GetAlgorithmName(event.algorithmCode);
     }
     return retData;
+}
+
+Event::MsgDeleteSend MessageEventHandler::Handle(Event::MsgDeleteRecv&& data,
+                                                 std::error_condition& errc) const {
+    Event::MsgDeleteSend response;
+    if (data.ids.empty() || data.ids.size() > 100) {
+        errc = util::ErrorEnum::InvalidParam;
+        return response;
+    }
+    std::vector<std::string> ids;
+    std::unordered_set<std::string> unique;
+    for (const auto& id : data.ids) {
+        if (!path::IsSafePathComponent(id)) {
+            errc = util::ErrorEnum::InvalidParam;
+            return response;
+        }
+        if (unique.insert(id).second)
+            ids.push_back(id);
+    }
+    response.resData = alarm_service_.DeleteEvents(ids);
+    return response;
 }
 
 Event::MsgLayaReviewPageSend MessageEventHandler::Handle(Event::MsgLayaReviewPageRecv&& data,

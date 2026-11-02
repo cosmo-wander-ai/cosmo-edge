@@ -52,6 +52,7 @@ TEST_CASE("ApiRouter: Route registration completeness", "[ApiRouter][routes]") {
 
     SECTION("Event routes registered") {
         REQUIRE(router.InterfaceSupport("/gtw/cwai/Event/Page"));
+        REQUIRE(router.InterfaceSupport("/gtw/cwai/Event/Delete"));
         REQUIRE(router.InterfaceSupport("/gtw/cwai/Event/ExportAlarm"));
     }
 

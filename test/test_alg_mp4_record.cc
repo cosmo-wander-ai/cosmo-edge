@@ -1,8 +1,11 @@
+#include <SQLiteCpp/SQLiteCpp.h>
+
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <memory>
 #include <mutex>
 #include <stdexcept>
@@ -18,9 +21,12 @@ extern "C" {
 #include "flow/channel/AlgChannelMp4.h"
 #include "flow/channel/AlgMp4Record.h"
 #include "mock/MockConfigReadService.h"
+#include "mock/MockDbService.h"
 #include "mock/MockTaskService.h"
 #include "mp4v2/mp4v2.h"
 #include "nlohmann/json.hpp"
+#include "service/event/AlarmMediaActivity.h"
+#include "service/event/impl/AlarmRecordServiceImpl.h"
 #include "support/ScopedPathOverride.h"
 #include "support/ScopedServiceOverride.h"
 #include "util/FileUtil.h"
@@ -300,6 +306,65 @@ TEST_CASE("MP4 recording reuses one buffer and preserves long short long samples
     for (size_t i = 0; i < nalus.size(); ++i)
         reader.Check(i + 1, Expected({nalus[i]}), i != 1);
     reader.Check(4, Expected({nalus[1]}), false);
+}
+
+TEST_CASE("MP4 recording keeps its event busy until finalization", "[mp4-record][alarm-delete]") {
+    Environment env;
+    const auto param = env.Param("busy-event");
+    {
+        cosmo::AlgMp4Record recording(Codec::kH264, param, 25, 640, 480);
+        REQUIRE(recording.IsReady());
+        CHECK_FALSE(cosmo::service::AlarmMediaLease::TryDelete(param.recordId));
+    }
+    auto deletion = cosmo::service::AlarmMediaLease::TryDelete(param.recordId);
+    REQUIRE(deletion);
+    {
+        cosmo::AlgMp4Record recording(Codec::kH264, param, 25, 640, 480);
+        CHECK_FALSE(recording.IsReady());
+        CHECK_FALSE(fs::exists(env.File("_video.tmp", param.recordId)));
+    }
+    deletion.reset();
+    CHECK(cosmo::service::AlarmMediaLease::StartRecording(param.recordId));
+}
+
+TEST_CASE("Alarm deletion waits for the real MP4 recorder to finalize", "[mp4-record][alarm-delete]") {
+    Environment env;
+    auto database = std::make_shared<SQLite::Database>(
+        ":memory:", SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE | SQLite::OPEN_FULLMUTEX);
+    cosmo::test::MockDbService dbService;
+    cosmo::test::ScopedServiceOverride<cosmo::service::IDbService> registration{dbService};
+    ALLOW_CALL(dbService, GetDb()).RETURN(database);
+    cosmo::service::AlarmRecordServiceImpl alarms;
+    const auto param   = env.Param("live-event");
+    const auto feature = fs::path(cosmo::path::GetRecordRootPath(false)) / "2001/01/02/live-event.feature";
+    fs::create_directories(feature.parent_path());
+    std::ofstream(feature) << "synthetic feature";
+    {
+        cosmo::AlgMp4Record recording(Codec::kH264, param, 25, 640, 480);
+        REQUIRE(recording.IsReady());
+        Configure(recording, Codec::kH264);
+        REQUIRE(recording.RecodeFrame(Packet(Annex({Nalu(Codec::kH264, true)}), Codec::kH264, 1)));
+        cosmo::AlarmRecordUnit event;
+        event.id         = param.recordId;
+        event.category   = "2";
+        event.timestamp  = param.frameTimestamp;
+        event.extraFiles = "[]";
+        event.property   = "{}";
+        REQUIRE(alarms.Insert(event));
+        const auto busy = alarms.DeleteEvents({param.recordId});
+        REQUIRE(busy.failedItems.size() == 1);
+        CHECK(busy.failedItems[0].reason == "RECORDING");
+        CHECK(fs::exists(env.File("_video.tmp", param.recordId)));
+        CHECK(fs::exists(feature));
+    }
+    REQUIRE(fs::exists(env.File("_video.mp4", param.recordId)));
+    REQUIRE(fs::exists(env.File("_overview.json", param.recordId)));
+    const auto removed = alarms.DeleteEvents({param.recordId});
+    CHECK(removed.deletedIds == std::vector<std::string>{param.recordId});
+    CHECK_FALSE(fs::exists(env.File("_video.mp4", param.recordId)));
+    CHECK_FALSE(fs::exists(env.File(".json", param.recordId)));
+    CHECK_FALSE(fs::exists(env.File("_overview.json", param.recordId)));
+    CHECK_FALSE(fs::exists(feature));
 }
 
 TEST_CASE("MP4 recording frames every NALU and strips parameters at every position", "[mp4-record]") {

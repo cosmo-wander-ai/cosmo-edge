@@ -8,17 +8,18 @@
     <div class="table-container" ref="tableContainerRef">
       <div class="table-header">
         <div class="table-tools">
-          <!-- <el-button v-if="runMode != 1" type="primary" size="small" @click="handleBatchDelete"
-            :disabled="multipleSelections.length === 0" class="ui-secondary-button">批量删除</el-button> -->
+          <el-button v-if="runMode != 1" type="primary" size="small" @click="handleBatchDelete"
+            :loading="deleting" :disabled="multipleSelections.length === 0 || deleting" class="ui-secondary-button">{{ t('action.bulkDelete') }}</el-button>
+          <span v-if="multipleSelections.length">{{ t('event.selectedCount', { n: multipleSelections.length }) }}</span>
           <el-button type="primary" size="small" @click="handleExport"
             :disabled="tableData.length === 0" class="ui-secondary-button">{{ t('event.dataExport') }}</el-button>
         </div>
       </div>
 
       <!-- 列表视图 -->
-      <el-table :data="tableData" :header-cell-style="{ background: 'var(--theme-surface-soft, #fafafa)' }" style="width: 100%" :height="tableHeight"
+      <el-table ref="eventTableRef" :data="tableData" row-key="id" :header-cell-style="{ background: 'var(--theme-surface-soft, #fafafa)' }" style="width: 100%" :height="tableHeight"
         @selection-change="handleSelectionChange">
-        <el-table-column type="selection" min-width="55"></el-table-column>
+        <el-table-column type="selection" min-width="55" :selectable="() => !deleting"></el-table-column>
         <el-table-column type="index" :index="getIndex" :label="t('field.no')" width="80"></el-table-column>
         <el-table-column :label="t('event.eventType')" min-width="110">
           <template #default="{ row }">
@@ -100,12 +101,12 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column :label="t('field.actions')" fixed="right" :width="currentLocale === 'en-US' ? '160' : '100'">
+        <el-table-column :label="t('field.actions')" fixed="right" :width="currentLocale === 'en-US' ? '220' : '160'">
           <template #default="scope">
             <div class="operation-tools">
               <el-button link class="primary-text ui-action ui-action-view" @click="handleDetail(scope.row)">{{ t('action.details') }}</el-button>
               <el-button link class="primary-text ui-action ui-action-play" v-if="scope.row.video" @click="onCheckVideo(scope.row, 1)">{{ t('event.videoPlayback') }}</el-button>
-              <!-- <el-button link class="danger-text" v-if="runMode != 1" @click="handleDelete(scope.row)">删除</el-button> -->
+              <el-button link class="danger-text ui-action ui-action-delete" v-if="runMode != 1" :disabled="deleting" @click="handleDelete(scope.row)">{{ t('action.delete') }}</el-button>
             </div>
           </template>
         </el-table-column>
@@ -114,7 +115,7 @@
       <!-- 分页 -->
       <div class="pagination-container">
         <el-pagination @size-change="handleSizeChange" @current-change="handleCurrentChange"
-          :current-page="pageData.pageNum" :page-sizes="[10, 20, 50, 100]" :page-size="pageData.pageSize"
+          :disabled="deleting" :current-page="pageData.pageNum" :page-sizes="[10, 20, 50, 100]" :page-size="pageData.pageSize"
           :total="pageData.total" layout="total, sizes, prev, pager, next, jumper">
         </el-pagination>
       </div>
@@ -139,6 +140,7 @@ import videoFrequency from '@/components/videoPlaying265.vue'
 import { t, currentLocale } from '@/i18n'
 import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
 import { formatSimilarity } from '@/utils/format'
+import { useEventRecordPage } from '../useEventRecordPage'
 
 const { proxy } = getCurrentInstance()
 
@@ -246,9 +248,7 @@ const pageData = reactive({
   total: 0
 })
 
-const viewType = ref('grid')
 const tableData = ref([])
-const multipleSelections = ref([])
 const detailDialogVisible = ref(false)
 const detailData = ref({})
 const videoDialogVisiable = ref(false)
@@ -270,11 +270,6 @@ const dateFormat = (value) => {
   if (!value) return ''
   return moment(value).format('YYYY-MM-DD HH:mm:ss')
 }
-
-// Watch viewType
-watch(viewType, () => {
-  multipleSelections.value = []
-})
 
 // Methods
 // 更新算法下拉列表选项
@@ -356,8 +351,12 @@ const queryFaceLib = () => {
   })
 }
 
-const init = () => {
-  const params = {
+const { eventTableRef, selectedIds: multipleSelections, deleting, init, handleSelectionChange,
+  handleSizeChange, handleCurrentChange, searchList, handleDelete, handleBatchDelete, getIndex } = useEventRecordPage({
+  proxy,
+  pageData,
+  tableData,
+  buildQuery: () => ({
     timeBegin: moment(formData.times[0]).valueOf(),
     timeEnd: moment(formData.times[1]).valueOf(),
     pageNum: pageData.pageNum,
@@ -367,76 +366,20 @@ const init = () => {
       : [],
     categorys: ['1'],
     videoChannelName: formData.videoChannelName || null,
-    reportStatus: formData.reportStatus || null,
+    reportStatus: formData.reportStatus === '' ? null : formData.reportStatus,
     personName: formData.personName,
     personCode: formData.personCode,
     matchLibName: formData.matchLibName
+  }),
+  onRemoved: ids => {
+    if (ids.includes(detailData.value?.id)) { detailDialogVisible.value = false; detailData.value = {} }
+    if (ids.includes(currentEvent.value?.id)) { videoDialogVisiable.value = false; currentEvent.value = null }
   }
-  proxy.$API.boxQueryEvent(params).then((res) => {
-    const { resData } = res
-    tableData.value = resData.rows || []
-    pageData.total = resData.total || 0
-  })
-}
-
-// 新增分页方法
-const handleSizeChange = (val) => {
-  pageData.pageSize = val
-  init()
-}
-
-const handleCurrentChange = (val) => {
-  pageData.pageNum = val
-  init()
-}
-
-const getIndex = (index) => {
-  return (pageData.pageNum - 1) * pageData.pageSize + index + 1
-}
-
-const searchList = () => {
-  init()
-}
-
-const handleSelectionChange = (val) => {
-  multipleSelections.value = val
-}
+})
 
 const handleDetail = (row) => {
   detailData.value = row
   detailDialogVisible.value = true
-}
-
-const handleDelete = (row) => {
-  proxy.$confirm(t('validate.deleteConfirm'), t('common.notice'), {
-    type: 'warning'
-  }).then(() => {
-    const params = {
-      ids: []
-    }
-    params.ids.push(row.id)
-    // proxy.$API.boxDeleteEvent(params).then((res) => {
-    //   proxy.$message.success('操作成功')
-    //   init()
-    // })
-    console.log('======删除', params)
-  })
-}
-
-const handleBatchDelete = () => {
-  proxy.$confirm(t('validate.deleteConfirm'), t('common.notice'), {
-    type: 'warning'
-  }).then(() => {
-    const params = {
-      ids: []
-    }
-    // params.ids.push(row.id)
-    // proxy.$API.boxDeleteEvent(params).then((res) => {
-    //   proxy.$message.success('操作成功')
-    //   init()
-    // })
-    console.log('======批量删除', params)
-  })
 }
 
 const handleExport = () => {
