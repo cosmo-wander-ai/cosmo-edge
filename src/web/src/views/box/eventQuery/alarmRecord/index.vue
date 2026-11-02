@@ -7,6 +7,8 @@
       </div>
       <div class="event-heading-actions">
         <el-button @click="layaEventId = ''; layaVisible = true">{{ t('visualReview.title') }}</el-button>
+        <el-button v-if="runMode != 1" class="ui-secondary-button" :loading="deleting"
+          :disabled="!multipleSelections.length || deleting" @click="handleBatchDelete">{{ t('action.bulkDelete') }}</el-button>
         <el-button @click="handleExport" :disabled="tableData.length === 0">{{ t('event.dataExport') }}</el-button>
       </div>
     </header>
@@ -16,12 +18,16 @@
     <div class="table-container">
       <div class="table-header">
         <span class="event-count">{{ t('event.recordCount', { n: pageData.total }) }}</span>
+        <el-checkbox v-if="viewType === 'grid' && runMode != 1" :model-value="allGridSelected"
+          :indeterminate="someGridSelected" :disabled="!tableData.length || deleting"
+          @change="handleGridSelectAll">{{ t('event.selectCurrentPage') }}</el-checkbox>
+        <span v-if="multipleSelections.length">{{ t('event.selectedCount', { n: multipleSelections.length }) }}</span>
         <span v-if="viewType === 'grid'" class="event-evidence-hint">{{ t('event.fullImageHint') }}</span>
       </div>
 
       <!-- 列表视图 -->
-      <el-table v-show="viewType === 'list'" :data="tableData" :header-cell-style="{background:'var(--theme-surface-soft, #fafafa)'}" style="width: 100%" @selection-change="handleSelectionChange">
-        <el-table-column type="selection" width="55" />
+      <el-table v-show="viewType === 'list'" ref="eventTableRef" :data="tableData" row-key="id" :header-cell-style="{background:'var(--theme-surface-soft, #fafafa)'}" style="width: 100%" @selection-change="handleSelectionChange">
+        <el-table-column type="selection" width="55" :selectable="() => !deleting" />
         <el-table-column type="index" :index="getIndex" :label="t('field.no')" width="80" />
         <el-table-column :label="t('event.fullImage')" width="120">
           <template #default="{ row }">
@@ -61,7 +67,7 @@
               <el-button link @click="handleDetail(row)" class="ui-action ui-action-view">{{ t('action.details') }}</el-button>
               <el-button link class="ui-action ui-action-upload" v-if="runMode != 1 && checkRuku(row)" @click="handleRuku(row)">{{ t('event.captureImageStorage') }}</el-button>
               <el-button v-if="row.video" link class="ui-action ui-action-play" @click="onCheckVideo(row, 1)">{{ t('event.videoPlayback') }}</el-button>
-              <el-button v-if="runMode != 1" link style="color:red;" @click="handleDelete(row)" class="ui-action ui-action-delete">{{ t('action.delete') }}</el-button>
+              <el-button v-if="runMode != 1" link style="color:red;" :disabled="deleting" @click="handleDelete(row)" class="ui-action ui-action-delete">{{ t('action.delete') }}</el-button>
             </div>
           </template>
         </el-table-column>
@@ -72,6 +78,10 @@
         <template v-if="tableData.length">
           <el-card v-for="item in tableData" :key="item.id" class="grid-item" :class="{'grid-item-selected': multipleSelections.includes(item.id)}">
             <div class="grid-content">
+              <div v-if="runMode != 1" class="grid-selection">
+                <el-checkbox :model-value="multipleSelections.includes(item.id)" :aria-label="t('event.selectRecord')"
+                  :disabled="deleting" @change="checked => handleGridSelect(checked, item)" />
+              </div>
               <button v-if="item.fullPicture" class="event-image-button" type="button" :aria-label="t('event.fullImage')" @click="handleImageView([item.fullPicture])">
                 <el-image :src="item.fullPicture" fit="contain" class="grid-image" />
               </button>
@@ -94,7 +104,7 @@
                 <el-button link class="primary-text ui-action ui-action-view" @click="handleDetail(item)">{{ t('action.details') }}</el-button>
                 <el-button link class="ui-action ui-action-upload" v-if="checkRuku(item)" @click="handleRuku(item)">{{ t('event.captureImageStorage') }}</el-button>
                 <el-button link class="ui-action ui-action-play" v-if="item.video" @click="onCheckVideo(item, 1)">{{ t('event.videoPlayback') }}</el-button>
-                <!-- <el-button v-if="runMode != 1" link class="danger-text" @click="handleDelete(item)">删除</el-button> -->
+                <el-button v-if="runMode != 1" link class="danger-text ui-action ui-action-delete" :disabled="deleting" @click="handleDelete(item)">{{ t('action.delete') }}</el-button>
               </div>
             </div>
           </el-card>
@@ -107,7 +117,7 @@
 
     <!-- 分页 -->
     <div class="pagination-container">
-      <el-pagination @size-change="handleSizeChange" @current-change="handleCurrentChange" :current-page="pageData.pageNum" :page-sizes="[10, 20, 50, 100]" :page-size="pageData.pageSize" :total="pageData.total" layout="total, sizes, prev, pager, next, jumper" />
+      <el-pagination @size-change="handleSizeChange" @current-change="handleCurrentChange" :disabled="deleting" :current-page="pageData.pageNum" :page-sizes="[10, 20, 50, 100]" :page-size="pageData.pageSize" :total="pageData.total" layout="total, sizes, prev, pager, next, jumper" />
     </div>
 
     <ruku-dialog v-model:visible="rukuDialogVisible" :rukuData="rukuData" />
@@ -126,6 +136,7 @@ import videoFrequency from '@/components/videoPlaying265.vue'
 import rukuDialog from '../components/rukuDialog.vue'
 import { t, localeColon, currentLocale } from '@/i18n'
 import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
+import { useEventRecordPage } from '../useEventRecordPage'
 
 const { proxy } = getCurrentInstance()
 
@@ -134,7 +145,6 @@ const topBarRef = ref(null)
 const rawAlgorithmList = ref([])
 const viewType = ref('grid')
 const tableData = ref([])
-const multipleSelections = ref([])
 const detailDialogVisible = ref(false)
 const detailData = ref({})
 const videoDialogVisiable = ref(false)
@@ -284,9 +294,14 @@ const getChannelList = () => {
   })
 }
 
-// 初始化数据
-const init = () => {
-  const params = {
+const { eventTableRef, selectedIds: multipleSelections, deleting, allGridSelected, someGridSelected,
+  clearSelection, init, handleSelectionChange, handleGridSelect, handleGridSelectAll, handleSizeChange,
+  handleCurrentChange, searchList, handleDelete, handleBatchDelete, getIndex } = useEventRecordPage({
+  proxy,
+  pageData,
+  tableData,
+  isGrid: () => viewType.value === 'grid',
+  buildQuery: () => ({
     timeBegin: moment(formData.times[0]).valueOf(),
     timeEnd: moment(formData.times[1]).valueOf(),
     pageNum: pageData.pageNum,
@@ -296,85 +311,18 @@ const init = () => {
     videoChannelName: formData.videoChannelName || undefined,
     reportStatus:
       formData.reportStatus === '' ? undefined : formData.reportStatus
+  }),
+  onRemoved: ids => {
+    if (ids.includes(detailData.value?.id)) { detailDialogVisible.value = false; detailData.value = {} }
+    if (ids.includes(currentEvent.value?.id)) { videoDialogVisiable.value = false; currentEvent.value = null }
+    if (ids.includes(rukuData.value?.id)) { rukuDialogVisible.value = false; rukuData.value = {} }
+    if (ids.includes(layaEventId.value)) { layaVisible.value = false; layaEventId.value = '' }
   }
-  proxy.$API.boxQueryEvent(params).then((res) => {
-    const { resData } = res
-    tableData.value = resData.rows || []
-    pageData.total = resData.total || 0
-  })
-}
-
-// 分页方法
-const handleSizeChange = (val) => {
-  pageData.pageSize = val
-  init()
-}
-
-const handleCurrentChange = (val) => {
-  pageData.pageNum = val
-  init()
-}
-
-const getIndex = (index) => {
-  return (pageData.pageNum - 1) * pageData.pageSize + index + 1
-}
-
-const searchList = () => {
-  init()
-}
-
-const handleSelectionChange = (val) => {
-  multipleSelections.value = val
-}
+})
 
 const handleDetail = (row) => {
   detailData.value = row
   detailDialogVisible.value = true
-}
-
-const handleDelete = (row) => {
-  proxy
-    .$confirm(t('validate.deleteConfirm'), t('common.notice'), {
-      type: 'warning'
-    })
-    .then(() => {
-      const params = {
-        ids: [row.id]
-      }
-      // proxy.$API.boxDeleteEvent(params).then((res) => {
-      //   proxy.$message.success('操作成功')
-      //   init()
-      // })
-      console.log('======删除', params)
-    })
-}
-
-const handleGridSelect = (checked, item) => {
-  if (checked) {
-    multipleSelections.value.push(item.id)
-  } else {
-    const index = multipleSelections.value.indexOf(item.id)
-    if (index !== -1) {
-      multipleSelections.value.splice(index, 1)
-    }
-  }
-}
-
-const handleBatchDelete = () => {
-  proxy
-    .$confirm(t('validate.deleteConfirm'), t('common.notice'), {
-      type: 'warning'
-    })
-    .then(() => {
-      const params = {
-        ids: multipleSelections.value
-      }
-      // proxy.$API.boxDeleteEvent(params).then((res) => {
-      //   proxy.$message.success('操作成功')
-      //   init()
-      // })
-      console.log('======批量删除', params)
-    })
 }
 
 const handleExport = () => {
@@ -480,8 +428,7 @@ const handleImageView = (images) => {
 
 // 监听视图类型变化
 watch(viewType, () => {
-  // 切换视图时清空选中状态
-  multipleSelections.value = []
+  clearSelection()
 })
 
 // 组件挂载
@@ -594,6 +541,12 @@ onMounted(() => {
   flex-direction: column;
   height: 100%;
   font-size: 13px;
+}
+
+.grid-selection {
+  display: flex;
+  justify-content: flex-end;
+  height: 26px;
 }
 
 .grid-image {

@@ -481,7 +481,8 @@ export default {
     return request({
       url: '/gtw/cwai/event/delete',
       method: 'post',
-      data
+      data,
+      silentError: true
     })
   },
 

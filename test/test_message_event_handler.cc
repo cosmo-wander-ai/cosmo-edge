@@ -65,6 +65,40 @@ TEST_CASE("EventHandler: QueryAlarmEvent empty result", "[event-handler]") {
     REQUIRE(ret.resData.rows.empty());
 }
 
+TEST_CASE("EventHandler: deletion validates the entire request and deduplicates IDs",
+          "[event-handler][alarm-delete]") {
+    EventHandlerMocks mocks;
+    auto handler = MakeHandler(mocks);
+    SECTION("Valid IDs are deduplicated and preserve result details") {
+        service::AlarmDeleteResult result;
+        result.deletedIds  = {"a"};
+        result.failedItems = {{"b", "RECORDING"}};
+        REQUIRE_CALL(mocks.alarmRecordSvc, DeleteEvents(std::vector<std::string>{"a", "b"})).RETURN(result);
+        Event::MsgDeleteRecv request;
+        request.ids                = {"a", "a", "b"};
+        std::error_condition error = util::ErrorEnum::Success;
+        const auto response        = handler.Handle(std::move(request), error);
+        CHECK(error == util::ErrorEnum::Success);
+        CHECK(response.resData.deletedIds == std::vector<std::string>{"a"});
+        REQUIRE(response.resData.failedItems.size() == 1);
+        CHECK(response.resData.failedItems[0].reason == "RECORDING");
+    }
+    SECTION("Empty, unsafe and oversized lists cause no service call") {
+        for (const auto& ids : {std::vector<std::string>{}, std::vector<std::string>{"good", "../bad"},
+                                std::vector<std::string>(101, "event")}) {
+            Event::MsgDeleteRecv request;
+            request.ids = ids;
+            std::error_condition error;
+            (void)handler.Handle(std::move(request), error);
+            CHECK(error == util::ErrorEnum::InvalidParam);
+        }
+    }
+    SECTION("Malformed JSON cannot become a valid empty request") {
+        CHECK_THROWS(nlohmann::json::parse(R"({})").get<Event::MsgDeleteRecv>());
+        CHECK_THROWS(nlohmann::json::parse(R"({"ids":[1]})").get<Event::MsgDeleteRecv>());
+    }
+}
+
 TEST_CASE("EventHandler: QueryPassengerFlow", "[event-handler]") {
     EventHandlerMocks mocks;
     ALLOW_CALL(mocks.algSvc, GetAlgorithmName(trompeloeil::_)).RETURN("");

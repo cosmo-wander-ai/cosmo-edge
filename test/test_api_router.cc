@@ -327,3 +327,33 @@ TEST_CASE("ApiRouter: Authentication Scenarios", "[ApiRouter]") {
         REQUIRE(router.InspectRequest(context, false) == RequestAdmission::kUnauthorized);
     }
 }
+
+TEST_CASE("ApiRouter: alarm deletion is authenticated and returns per-event results",
+          "[ApiRouter][alarm-delete]") {
+    cosmo::test::ApiRouterTestDependencies mocks;
+    ApiRouter router(cosmo::MessageFromType::MessageFromHttp);
+    ALLOW_CALL(mocks.authSvc, IsValidToken("valid")).RETURN(true);
+    ALLOW_CALL(mocks.authSvc, IsValidToken("invalid")).RETURN(false);
+    std::string response;
+    SECTION("The protected route rejects invalid credentials") {
+        REQUIRE_FALSE(
+            router.DispatchRequest("/gtw/cwai/event/delete", "invalid", R"({"ids":["a"]})", response));
+        CHECK(response.find("Auth Failed") != std::string::npos);
+    }
+    SECTION("Valid request carries the structured deletion result") {
+        service::AlarmDeleteResult result;
+        result.deletedIds  = {"a"};
+        result.failedItems = {{"b", "RECORDING"}};
+        REQUIRE_CALL(mocks.alarmRecordSvc, DeleteEvents(std::vector<std::string>{"a", "b"})).RETURN(result);
+        REQUIRE(router.DispatchRequest("/gtw/cwai/event/delete", "valid", R"({"ids":["a","b"]})", response));
+        const auto body = nlohmann::json::parse(response);
+        CHECK(body["resCode"] == kServerRspSuccess);
+        CHECK(body["resData"]["deletedIds"] == nlohmann::json::array({"a"}));
+        CHECK(body["resData"]["failedItems"][0]["reason"] == "RECORDING");
+    }
+    SECTION("Malformed JSON cannot invoke deletion") {
+        REQUIRE(router.DispatchRequest("/gtw/cwai/event/delete", "valid", R"({"ids":[1]})", response));
+        const auto body = nlohmann::json::parse(response);
+        CHECK(body["resCode"] == kServerRspFailed);
+    }
+}

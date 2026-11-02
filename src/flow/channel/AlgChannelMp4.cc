@@ -88,6 +88,8 @@ bool AlgChannelMp4::RecordMp4(RecordParam& record_param) {
     record_param.startFrameSeq = task_start_frame_seq.first;
     record_param.startframeTimestamp = task_start_frame_seq.second;
     auto task = std::make_shared<AlgMp4Record>(video_encode_type_, record_param, fps_, width_, height_);
+    if (!task->IsReady())
+        return false;
     record_tasks_.push_back(task);
     if (record_tasks_.size() > 5) {
         LOG_INFO(

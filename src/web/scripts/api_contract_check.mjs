@@ -17,6 +17,7 @@ const cases = [
   ['boxAlgorithmUpload', '/gtw/cwai/algorithm/Upload'],
   ['boxSwitchTask', '/gtw/cwai/Task/SwitchTask'],
   ['boxDeleteTask', '/gtw/cwai/task/delete'],
+  ['boxDeleteEvent', '/gtw/cwai/event/delete', { silentError: true }],
   ['queryTimeTemplatePage', '/gtw/cwai/schedule/Page'],
   ['boxRecaptureImage', '/gtw/cwai/Camera/GetPicture'],
   ['queryThingsLibInfo', '/gtw/cwai/ThingsLibrary/QueryThingsLibInfo'],
