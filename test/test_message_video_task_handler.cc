@@ -11,7 +11,9 @@
 #include "media/PreviewPipelineMetrics.h"
 #include "mock/MockAlgorithmService.h"
 #include "mock/MockCameraService.h"
+#include "mock/MockModelService.h"
 #include "mock/MockTaskService.h"
+#include "support/ScopedServiceOverride.h"
 #include "util/ErrorCode.h"
 
 namespace {
@@ -852,4 +854,53 @@ TEST_CASE("VideoTaskHandler: RunningDetail filters tasks with few actions", "[vi
 
     auto ret = f.handler.Handle(std::move(recv), errc);
     REQUIRE(ret.resData.status.empty());
+}
+
+TEST_CASE("VideoTaskHandler: model confidence defaults preserve task overrides",
+          "[video-task-handler][model-confidence]") {
+    TestFixture f;
+    cosmo::test::MockModelService models;
+    cosmo::test::ScopedServiceOverride<cosmo::service::IModelService> registration(models);
+    auto algorithm = std::make_shared<cosmo::ActionAlg>();
+    cosmo::ActionNode node;
+    node.atomicCode = "model1";
+    algorithm->workFlow.push_back(node);
+    cosmo::ModelInfo model;
+    cosmo::ModelLabel label;
+    label.code           = "pedestrian";
+    label.confidenceHigh = 0.82F;
+    label.confidence     = 0.45F;
+    model.labels.push_back(label);
+    std::string value;
+    SECTION("Empty task confidence keeps automatic model selection") {
+        value = "";
+    }
+    SECTION("Explicit task confidence remains unchanged") {
+        value = "0.3";
+    }
+    nlohmann::json metadata = {
+        {"params", {{{"key", "aiParam.pedestrian.confidence"}, {"value", value}, {"defaultValue", ""}}}}};
+    const auto encoded = metadata.dump();
+    REQUIRE_CALL(f.mocks.algSvc, GetMetaData(trompeloeil::_)).RETURN(encoded);
+    REQUIRE_CALL(f.mocks.algSvc, GetAlgorithm(trompeloeil::_)).RETURN(algorithm);
+    REQUIRE_CALL(models, GetModelInfo("model1")).RETURN(model);
+    REQUIRE_CALL(f.mocks.cameraSvc, QueryTaskParam(trompeloeil::_, trompeloeil::_, trompeloeil::_))
+        .RETURN(cosmo::util::ErrorEnum::Success);
+    REQUIRE_CALL(f.mocks.cameraSvc,
+                 QueryTaskArea(trompeloeil::_, trompeloeil::_, trompeloeil::_, trompeloeil::_))
+        .RETURN(cosmo::util::ErrorEnum::Success);
+    REQUIRE_CALL(f.mocks.cameraSvc, QueryTaskStrategy(trompeloeil::_, trompeloeil::_, trompeloeil::_))
+        .RETURN(cosmo::util::ErrorEnum::Success);
+    REQUIRE_CALL(f.mocks.cameraSvc, QuerySwitch(trompeloeil::_, trompeloeil::_, trompeloeil::_))
+        .RETURN(cosmo::util::ErrorEnum::Success);
+    cosmo::VideoTask::MsgSelectConfigByAlgorithmIdRecv recv;
+    recv.channelId   = "channel1";
+    recv.algorithmId = "algorithm1";
+    std::error_condition error;
+    const auto result = f.handler.Handle(std::move(recv), error);
+    const auto param  = nlohmann::json::parse(result.resData.algorithmMetadata)["params"][0];
+    CHECK(param["value"] == value);
+    CHECK(param["defaultValue"] == "");
+    CHECK(param["modelConfidenceHigh"].get<float>() == Catch::Approx(0.82F));
+    CHECK(param["modelConfidence"].get<float>() == Catch::Approx(0.45F));
 }

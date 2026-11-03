@@ -154,7 +154,7 @@
                   </el-tooltip>
                 </span>
               </template>
-              <el-input v-model.trim="paramz[index].value" type="text"></el-input>
+              <el-input v-model.trim="paramz[index].value" type="text" :placeholder="confidencePlaceholder(item)"></el-input>
             </el-form-item>
 
             <el-form-item
@@ -174,7 +174,7 @@
                   </el-tooltip>
                 </span>
               </template>
-              <el-input v-model.trim="paramz[index].value" type="text"></el-input>
+              <el-input v-model.trim="paramz[index].value" type="text" :placeholder="confidencePlaceholder(item)"></el-input>
             </el-form-item>
           </el-form>
 
@@ -220,7 +220,7 @@
               </span>
             </template>
             <div class="confidence-div">
-              <el-input v-model.trim="paramz[index].value" type="text"></el-input>
+              <el-input v-model.trim="paramz[index].value" type="text" :placeholder="confidencePlaceholder(item)"></el-input>
               <el-button @click="openDistanceDialog(item)" type="primary" size="small" class="ui-secondary-button">{{ t('action.measureDistance') }}</el-button>
             </div>
           </el-form-item>
@@ -412,7 +412,7 @@
                       </el-tooltip>
                     </span>
                   </template>
-                  <el-input v-model.trim="el.value" type="text"></el-input>
+                  <el-input v-model.trim="el.value" type="text" :placeholder="confidencePlaceholder(el)"></el-input>
                 </el-form-item>
                 <!-- confidenceConfig -->
                 <el-form-item v-if="el.type == 'confidenceConfig' && el.isColumn == true && showForm(el.senior)">
@@ -455,7 +455,7 @@
                     </span>
                   </template>
                   <div class="confidence-div">
-                    <el-input v-model.trim="el.value" type="text"></el-input>
+                    <el-input v-model.trim="el.value" type="text" :placeholder="confidencePlaceholder(el)"></el-input>
                     <el-button @click="openDistanceDialog(el)" type="primary" size="small" class="ui-secondary-button">{{ t('action.measureDistance') }}</el-button>
                   </div>
                 </el-form-item>
@@ -526,7 +526,7 @@
                   </el-tooltip>
                 </span>
               </template>
-              <el-input v-model.trim="paramz[index].value" type="text"
+              <el-input v-model.trim="paramz[index].value" type="text" :placeholder="confidencePlaceholder(item)"
                 style="width:120px;"></el-input>
               <el-input style="margin-left:20px;width:120px;" v-model.trim="item.correlation.value" type="text"></el-input>
             </el-form-item>
@@ -594,6 +594,12 @@ const FaceSets = ref([])
 const transferList = ref([])
 const transferData = ref([])
 const MachineryWarehouse = ref([])
+const confidencePlaceholder = (item) => {
+  const value = item.modelConfidenceHigh
+  if (value == null || !Number.isFinite(Number(value)) || value < 0 || value > 1) return ''
+  return `${t('glossary.defaultValue')}: ${Number(Number(value).toFixed(3))}`
+}
+
 const confidenceList = computed(() => [
   { label: t('glossary.strictThreshold'), value: 0 },
   { label: t('glossary.recommendedThreshold'), value: 1 }
