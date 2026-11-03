@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstdlib>
 #include <filesystem>
 #include <limits>
 #include <numeric>
@@ -10,8 +11,12 @@ TEST_CASE("Fine OSD glyphs preserve original antialiasing without bold expansion
           "[media][osd][fine-text]") {
     cosmo::media::OsdTextRenderer renderer;
     CHECK(renderer.RenderStringWithFineOutline("face", 16).bodyAlpha.empty());
-    const auto font = std::filesystem::path(__FILE__).parent_path().parent_path() /
-                      "3rd/fmt-7.1.2/doc/_static/fonts/glyphicons-halflings-regular.ttf";
+    const char* fixture_font = std::getenv("COSMO_TEST_OSD_FONT");
+    const auto font          = fixture_font && *fixture_font
+                                   ? std::filesystem::path(fixture_font)
+                                   : std::filesystem::path(__FILE__).parent_path().parent_path() /
+                                "3rd/fmt-7.1.2/doc/_static/fonts/glyphicons-halflings-regular.ttf";
+    INFO("OSD fixture font: " << font.string());
     REQUIRE(renderer.Init(font.string()));
     // Use a real glyph from the bundled fixture font, without a host font dependency.
     const std::string text = "\xee\x80\x81";

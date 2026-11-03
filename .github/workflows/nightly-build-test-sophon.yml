@@ -84,6 +84,15 @@ jobs:
           overwrite: true
           retention-days: 1
 
+      - name: Upload OSD Test Font
+        uses: actions/upload-artifact@v7
+        with:
+          name: sophon-osd-test-font
+          path: 3rd/fmt-7.1.2/doc/_static/fonts/glyphicons-halflings-regular.ttf
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 1
+
       - name: Record Candidate Guard Runtime
         id: candidate_guard_runtime
         run: |
@@ -127,6 +136,7 @@ jobs:
       COSMO_CANDIDATE_RUNTIME_DIR: ${{ github.workspace }}/candidate-runtime
       COSMO_CANDIDATE_GUARD_SHA256: ${{ needs.build-sophon.outputs.candidate_guard_sha256 }}
       COSMO_CANDIDATE_TESTS_SHA256: ${{ needs.build-sophon.outputs.candidate_tests_sha256 }}
+      COSMO_TEST_OSD_FONT: ${{ github.workspace }}/test-fixtures/glyphicons-halflings-regular.ttf
 
     steps:
       # The test binary may be restored from the persistent device cache, but
@@ -292,6 +302,13 @@ jobs:
             exit 1
           fi
           echo "cosmo-tests resolves Candidate Guard runtime: $resolved_real"
+
+      # Fetch the current build's fixture even when the test binary is cached.
+      - name: Download OSD Test Font
+        uses: actions/download-artifact@v8
+        with:
+          name: sophon-osd-test-font
+          path: test-fixtures
 
       - name: Run Catch2 Tests
         id: catch2
