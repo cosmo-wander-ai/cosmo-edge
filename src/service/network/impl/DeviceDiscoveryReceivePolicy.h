@@ -2,6 +2,10 @@
 #pragma once
 
 #include <string_view>
+#include <utility>
+#include <vector>
+
+#include "platform/WifiPlatform.h"
 
 namespace cosmo::service::detail {
 
@@ -11,6 +15,9 @@ enum class MulticastReceiveAction {
 };
 
 MulticastReceiveAction ClassifyMulticastReceiveError(int error_code);
+
+std::vector<std::pair<std::string, std::string>> DiscoveryMembershipAddresses(
+    const std::vector<platform::NetworkInterfaceState>& interfaces);
 
 bool IsProductionDiscoveryCommandAllowed(std::string_view command);
 

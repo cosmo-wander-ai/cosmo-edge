@@ -46,12 +46,13 @@ public:
     bool IsIpAccessible(const std::string& ip) override;
 
 private:
+    bool ApplyCardInfo(const cosmo::platform::NetCardInfo& info);
     void SetToDefault();
     void LoadCfg();
     void GetMacs();
     cosmo::platform::NetCardInfo GetCardInfo(bool main = true);
     void UpdateNetCardCfg(const cosmo::platform::NetCardInfo& info);
-    void UpdateNetDnsCfg(std::vector<std::string> dnss);
+    bool UpdateNetDnsCfg(std::vector<std::string> dnss);
 
 private:
     std::thread apply_thread_;
