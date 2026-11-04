@@ -37,6 +37,9 @@ the v1.1 benchmark results do not qualify later builds or newly added features.
 - Alarm-output linkage with configurable logical channels and hold times; repeated alarms
   extend the active output until it resets. Physical output requires the board's GPIO mapping,
   initialization, and write access. See [Configuration](docs/en/guide/configuration.md).
+- Single-record and current-page batch deletion for detection, face/body, and vehicle alarms,
+  including associated media cleanup and protection for events still being recorded.
+  ([#262](https://github.com/cosmo-wander-ai/cosmo-edge/pull/262))
 - Image workflows without region configuration, structured business results, target and library
   match details, face/workwear library identification, and pair comparison. Pair comparison
   requires exactly one valid target per image and returns a similarity score or threshold
@@ -62,6 +65,8 @@ the v1.1 benchmark results do not qualify later builds or newly added features.
 - Refreshed console layouts for management pages, channel tasks, event details, live views,
   and the flow editor, with persistent light, dark, and system appearance settings and a
   classic blue color scheme.
+- Added live overlay diagnostics and displayed alarm-target class labels with measured
+  confidence in preview and event views.
 - Expanded RKNN device operations with reboot, factory reset, hardware watchdog support in
   production builds, and network configuration through NetworkManager.
 - Clarified scene/channel ownership of visible task parameters and synchronized saved
@@ -81,6 +86,8 @@ the v1.1 benchmark results do not qualify later builds or newly added features.
   boxes, and enabled Guard-backed Qwen vision loading and host-backed image inputs.
 - Preserved CPU fallback after failed Rockchip RGA operations, concealed recoverable
   decoder errors, and improved GB28181 media cleanup and recovery.
+- Corrected GB28181 H.265 multi-slice preview and frame-rate handling, preset-model display
+  names, and the default model confidence shown in task configuration.
 - Corrected recording-buffer reuse and MP4/H.265 sample handling, CPU resize borders,
   and macOS Docker runtime/build compatibility.
 - Bounded system-log retention, reclaimed log space at boot, and integrated retention and
