@@ -263,6 +263,47 @@ whose SHA-256 was recorded, and restore its data root from the pre-upgrade backu
 Do not delete `/data/cwaiuserdata`, `/userdata/cwaiuserdata`, or the backup before
 recovery is complete.
 
+## Upgrade from 1.1.0 to 1.2.0
+
+Public Open packages are built separately for BM1688, CV186X, RK3576, and RV1126B.
+Use the package matching the device chip. This release run checks installation,
+upgrade, and rollback on a BM1688 test device only. Build and package audits for
+the other chips do not establish a device-upgrade result; consult the release
+manifest for the recorded scope.
+
+Keep the old installation package and a data-recovery path. Before upgrading:
+
+1. Check `TARGET_CHIP` and `SHA256SUMS` in the selected 1.2.0 chip directory, and
+   verify that the MD5 in the archive name matches its contents. Do not mix chips
+   or Open and Protected package profiles.
+2. Record the old `bin/version.txt`, service status, actual persistent-data root,
+   and an inventory of configuration, database records, user models, and resources.
+   Complete or cancel uploads in progress.
+3. Stop the service, back up persistent data to a separate filesystem, and verify
+   that the backup is readable. Keep the old package. Back up custom models or
+   templates that share paths with the new package: by default, the new files
+   replace old files at the same paths. `CLEAN_RESOURCE=1` instead keeps only
+   packaged resources.
+
+On BM1688, use the Web upgrade flow described above or the SSH installation
+path below. After installation, check the version, `cosmo.service`, access to the
+management endpoint, and preservation of configuration, database records, and
+persistent files. Recheck after another reboot. The Web page's 15-minute wait
+ending does not stop an upgrade already running on the device; inspect the
+service and logs before taking recovery action.
+
+If the new service cannot start after installation returns, retain its logs,
+reinstall the verified old package through SSH, and restore the matching
+pre-upgrade data snapshot. Check the restored version, service, and data. Do not
+assume the old program can read data newly created by 1.2.0. Bind any upgrade
+or rollback result to the candidate commit, package SHA-256, and target device.
+
+For x86 Linux/Windows, update the Compose service while retaining both user-data
+and application-resource volumes; do not use `down -v`. An existing resource
+volume does not update automatically with the image. Save the corresponding
+volume snapshots before updating or restoring the separate Apple Silicon
+macOS Docker Preview environment.
+
 ## SSH Installation Path
 
 In addition to web upgrade, packaged `scripts/install.sh` is the SSH entry point
