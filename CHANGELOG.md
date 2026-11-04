@@ -6,11 +6,13 @@ This project follows a release-note style inspired by Keep a Changelog.
 
 ## [Unreleased]
 
-Target: **1.2.0** — release preparation in progress; not yet released.
+No public changes have been assigned to the next release yet.
 
-These changes are on `main` after v1.1.0 and are not included in the published v1.1.0
-binaries. Validation remains specific to the recorded candidate, platform, and workload;
-the v1.1 benchmark results do not qualify later builds or newly added features.
+## [1.2.0] - 2026-11-04
+
+CosmoEdge 1.2.0 packages the changes merged after v1.1.0. Validation remains specific
+to the recorded candidate, platform, and workload; the v1.1 benchmark results do not
+qualify this release or newly added features.
 
 ### Added
 
@@ -96,6 +98,8 @@ the v1.1 benchmark results do not qualify later builds or newly added features.
   CSV exports, and streamed model exports without buffering complete archives in memory.
 - Validated tensor inputs before allocation, tightened network/MQTT configuration checks,
   and repaired task, graph, listener, and memory-pool lifecycle handling.
+- Shipped the Python runtime modules required by the x86 Docker startup supervisor
+  without adding GNU Readline to the runtime image.
 
 ## [1.1.0] - 2026-08-24
 
@@ -288,13 +292,15 @@ Initial public open-source baseline.
 - Sample camera credentials and device serial values scrubbed from examples.
 - Sophon build environment Dockerfile made self-contained.
 
-[Unreleased]: https://github.com/cosmo-wander-ai/cosmo-edge/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/cosmo-wander-ai/cosmo-edge/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.2.0
 [1.1.0]: https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.1.0
 [1.0.0]: https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.0.0
 [0.1.0]: https://github.com/cosmo-wander-ai/cosmo-edge/releases
 
 <!-- Gitee mirrors -->
-[Unreleased (Gitee)]: https://gitee.com/cosmo-wander-ai/cosmo-edge/compare/v1.1.0...master
+[Unreleased (Gitee)]: https://gitee.com/cosmo-wander-ai/cosmo-edge/compare/v1.2.0...master
+[1.2.0 (Gitee)]: https://gitee.com/cosmo-wander-ai/cosmo-edge/releases
 [1.1.0 (Gitee)]: https://gitee.com/cosmo-wander-ai/cosmo-edge/releases
 [1.0.0 (Gitee)]: https://gitee.com/cosmo-wander-ai/cosmo-edge/releases
 [0.1.0 (Gitee)]: https://gitee.com/cosmo-wander-ai/cosmo-edge/releases

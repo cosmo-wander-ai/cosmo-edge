@@ -11,7 +11,7 @@ Build and operate video analytics, VLM, and event workflows through a consistent
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)](LICENSE)
 [![Runtime](https://img.shields.io/badge/runtime-C%2B%2B17-orange?style=flat-square)](#core-capabilities)
-[![Release](https://img.shields.io/badge/release-v1.1.0-2ea44f?style=flat-square)](https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.1.0)
+[![Release](https://img.shields.io/badge/release-v1.2.0-2ea44f?style=flat-square)](https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.2.0)
 
 [![Website](https://img.shields.io/badge/website-cosmowander.ai-3B82F6?style=flat-square)](https://www.cosmowander.ai/)
 [![Docs](https://img.shields.io/badge/docs-online-2563EB?style=flat-square)](https://www.cosmowander.ai/docs/)
@@ -35,7 +35,7 @@ CosmoEdge goes beyond model serving with a complete application layer for model 
 
 | Your task | Start here | Project and version |
 | --- | --- | --- |
-| Deploy video AI applications, configure models, scenes, and alarms | [Quick Start](#quick-start) · [Platforms](#choose-a-platform) | Engine and console in this repository; stable **v1.1.0** |
+| Deploy video AI applications, configure models, scenes, and alarms | [Quick Start](#quick-start) · [Platforms](#choose-a-platform) | Engine and console in this repository; stable **v1.2.0** |
 | Customize an object detector from your data | [CosmoEdge Training Skill](https://github.com/cosmo-wander-ai/cosmoedge-training-skill) | Independent project; published **v0.1.0-preview.1**, with later revisions on its `main` |
 | Let an AI assistant query alarms, retrieve images, and request confirmed detection start/stop | [CosmoEdge Connect](https://github.com/cosmo-wander-ai/cosmoedge-connect) | Independent local MCP / WorkBuddy integration; **v0.1.0-alpha.1 source preview** |
 
@@ -43,32 +43,40 @@ The training Skill and Connect are installed and released separately. See [Compa
 
 ## Releases and Recent Development
 
-**Stable release: v1.1.0.** Covers BM1688, CV186X, RK3576, RV1126B, and x86, with an Apple Silicon macOS Docker Preview. See the [v1.1 report](docs/benchmarks/scenario-bench/v1.1/README.md) for multi-platform measurements and controlled 72-hour fixed-profile results, and the [GitHub Release](https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.1.0) for installation packages.
+**Stable release: v1.2.0.** Provides separate Open packages for BM1688, CV186X,
+RK3576, and RV1126B, plus the x86 Docker development path and Apple Silicon macOS
+Docker Preview. Download packages from the [GitHub Release](https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.2.0)
+and check the [1.2 release notes](.github/release-notes/v1.2.0.md) for the platform
+boundaries and validation results.
 
-**Current `main`: development since v1.1.0.** Merged changes include:
+**Changes since v1.1.0** include:
 
 - **Video access:** [ONVIF discovery and authenticated access](docs/en/guide/onvif-access.md), plus [GB28181 device management with TCP/UDP signaling and video access](docs/en/guide/gb28181-access.md).
 - **Models and visual workflows:** YOLO26 and oriented bounding-box (OBB) handling; native BM1688 Laya-V model integration, alarm review, and multi-ROI question configuration for images and video. Implementation and completed validation are described in [PR #219](https://github.com/cosmo-wander-ai/cosmo-edge/pull/219).
 - **Platform integration:** [Management APIs](docs/en/reference/management.md) for versioned resource delivery, resumable uploads, task start/stop, and state readback.
-- **Deployment and engineering quality:** RK3576 protected-model handling, model-package validation, video-sample event measurement and VLM evaluation tools, and fixes to task recovery, media handling, and log retention. See the [Unreleased changelog](CHANGELOG.md#unreleased).
+- **Alarms and console:** Alarm-record deletion, target labels and measured confidence,
+  live overlay diagnostics, and refreshed console layouts and themes.
+- **Deployment and engineering quality:** RK3576 protected-model handling, model-package validation, video-sample event measurement and VLM evaluation tools, and fixes to task recovery, media handling, log retention, and x86 Docker startup. See the [1.2.0 changelog](CHANGELOG.md).
 
-These main-branch changes are not included in v1.1.0 installation packages. Consult each feature's documentation for required models, target platforms, and validation scope. The v1.1 benchmarks remain evidence for their recorded candidates and conditions, not performance measurements of later main builds or new models.
+Consult each feature's documentation for required models and target platforms.
+The [v1.1 report](docs/benchmarks/scenario-bench/v1.1/README.md) remains historical
+evidence for its recorded candidates and workloads; it does not measure v1.2.0.
 
 ## Choose a Platform
 
-CosmoEdge provides one engine architecture and orchestration experience, but each build selects one inference backend and uses models generated for that target platform. The table describes the v1.1.0 release scope and its associated evidence.
+CosmoEdge provides one engine architecture and orchestration experience, but each build selects one inference backend and uses models generated for that target platform. The table distinguishes the v1.2.0 package scope from device validation in this release run.
 
 | Platform | Status | Runtime / model artifact | Current scope and evidence |
 | --- | --- | --- | --- |
-| Sophon BM1688 | v1.1 supported / primary; VLM supported | BMRT / `.nn` | Validated VLM at 0.1 FPS/ch through 6 channels, plus [v1.1 workload evidence](docs/benchmarks/scenario-bench/v1.1/README.md) |
-| Rockchip RK3576 / RV1126B | v1.1 supported; RK3576 VLM supported | RKNN / target-specific `.rknn`; RKLLM on RK3576 | RK3576 validates VLM at 0.1 FPS/ch through 4 channels; RV1126B VLM is outside this release claim. Other platform-specific results remain separate in the [v1.1 report](docs/benchmarks/scenario-bench/v1.1/README.md) |
-| Sophon CV186X | v1.1 supported; VLM supported | BMRT / target-specific `.nn` | Validated VLM at 0.1 FPS/ch through 6 channels, plus model-import and workload evidence in the [v1.1 benchmark](docs/benchmarks/scenario-bench/v1.1/README.md) |
-| x86 Linux / Windows; Apple Silicon macOS | Linux / Windows supported; macOS Preview | ONNX Runtime / `.onnx` | Mac uses amd64 emulation for one local-video developer workflow, not native performance evidence |
+| Sophon BM1688 | v1.2 Open package; device installation, upgrade, and rollback checked | BMRT / `.nn` | The package-bound device result is recorded in the 1.2 release manifest; prior VLM and workload measurements remain in the [v1.1 report](docs/benchmarks/scenario-bench/v1.1/README.md) |
+| Rockchip RK3576 / RV1126B | Separate v1.2 Open packages built and audited | RKNN / target-specific `.rknn`; RKLLM on RK3576 | No device validation in this release run; RV1126B does not claim VLM support |
+| Sophon CV186X | v1.2 Open package built and audited | BMRT / target-specific `.nn` | No CV186X device validation in this release run |
+| x86 Linux / Windows; Apple Silicon macOS | x86 Docker development path; macOS Preview | ONNX Runtime / `.onnx` | Host-specific results are recorded in the 1.2 release manifest; macOS uses amd64 emulation, not native arm64 performance |
 | Sophon BM1684X | Planned | — | Not part of the current release scope |
 
 ## Quick Start
 
-The commands below clone and build current `main`. For the stable release, use the [v1.1.0 packages](https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.1.0), or check out the `v1.1.0` tag before building and follow that version's documentation.
+The commands below clone and build current `main`. For the stable release, use the [v1.2.0 packages](https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.2.0), or check out the `v1.2.0` tag before building and follow that version's documentation.
 
 ### Try locally on x86
 
@@ -257,7 +265,7 @@ The capacity values are exact short-run gate boundaries under the recorded condi
 +--------------------+----------------------+----------------------+
 ```
 
-One build selects one inference backend. Model artifacts are generated for the target platform, and feature/model coverage and capacity remain platform-specific. The v1.1.0 Model Guard Protected distribution notes apply to Sophon packages; current main also includes RK3576 protected-model handling, described in [PR #151](https://github.com/cosmo-wander-ai/cosmo-edge/pull/151).
+One build selects one inference backend. Model artifacts are generated for the target platform, and feature/model coverage and capacity remain platform-specific. The public v1.2.0 packages use the Open profile; Model Guard Protected distribution remains a separate path, including the RK3576 source implementation described in [PR #151](https://github.com/cosmo-wander-ai/cosmo-edge/pull/151).
 
 ## Documentation, Devices, and Community
 
@@ -278,7 +286,7 @@ Certified devices add preconfigured acceleration, validated commercial model pac
 
 Contributions are welcome through scoped bug reports, documentation improvements, scenarios, and integration notes. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
-[GitHub Discussions](https://github.com/cosmo-wander-ai/cosmo-edge/discussions) is the official searchable English Q&A and community-support channel for v1.1, and general reproducible defects belong in [GitHub Issues](https://github.com/cosmo-wander-ai/cosmo-edge/issues). Users in mainland China can use [Gitee Issues](https://gitee.com/cosmo-wander-ai/cosmo-edge/issues) for repository access, installation, usage, release downloads, and device-adaptation questions. Code changes and pull requests remain on GitHub; report vulnerabilities privately through [SECURITY.md](SECURITY.md). No Discord channel is operated for this release.
+[GitHub Discussions](https://github.com/cosmo-wander-ai/cosmo-edge/discussions) is the official searchable English Q&A and community-support channel for v1.2, and general reproducible defects belong in [GitHub Issues](https://github.com/cosmo-wander-ai/cosmo-edge/issues). Users in mainland China can use [Gitee Issues](https://gitee.com/cosmo-wander-ai/cosmo-edge/issues) for repository access, installation, usage, release downloads, and device-adaptation questions. Code changes and pull requests remain on GitHub; report vulnerabilities privately through [SECURITY.md](SECURITY.md). No Discord channel is operated for this release.
 
 ## FAQ
 
@@ -306,7 +314,7 @@ Yes. For training from data, use the independent [Training Skill](https://github
 <details>
 <summary><b>How production-ready is CosmoEdge?</b></summary>
 
-`v1.1.0` is the multi-platform release line for BM1688, CV186X, RK3576, RV1126B, and x86, with VLM support validated on BM1688, CV186X, and RK3576 plus a scoped macOS Docker Preview. The linked report records measured workload boundaries, validated VLM performance, and controlled 72-hour fixed-profile results. Production sizing still requires validation with your own models, streams, accuracy requirements, and deployment conditions.
+`v1.2.0` provides Open packages for BM1688, CV186X, RK3576, and RV1126B, with a scoped x86 Docker path and macOS Preview. This release run checked BM1688 installation, upgrade, rollback, and data preservation; other chips received build and package audits. The [v1.1 report](docs/benchmarks/scenario-bench/v1.1/README.md) records earlier measured workloads and does not qualify v1.2.0 capacity. Production sizing still requires validation with your own models, streams, accuracy requirements, and deployment conditions.
 
 </details>
 
