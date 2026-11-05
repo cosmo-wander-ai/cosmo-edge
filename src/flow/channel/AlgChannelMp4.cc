@@ -79,7 +79,14 @@ void AlgChannelMp4::HandleFrame(VideoPacketPtr frame) {
 }
 
 bool AlgChannelMp4::TaskFrame(VideoPacketPtr frame) {
-    return async_queue_.Insert(frame);
+    // A terminal marker must not be silently dropped behind a full queue:
+    // it closes outstanding recordings. Bound the queue by evicting one old
+    // packet, which is preferable to leaving a recording open indefinitely.
+    const bool terminal = frame && frame->GetSequence() == -1;
+    const bool accepted = async_queue_.Insert(frame, terminal);
+    if (terminal && !accepted)
+        LOG_ERRO("[MP4 CHANNEL] {} terminal marker was not queued", channel_id_);
+    return accepted;
 }
 bool AlgChannelMp4::RecordMp4(RecordParam& record_param) {
     LOG_INFO("{}", "BEBUG_ALARM");

@@ -8,6 +8,8 @@ set(MEDIA_COMMON_SRC
     NetworkDemuxStrategy.cc      NetworkDemuxStrategy.h
     IOsdTextRenderer.h
     IVideoFrameProc.h
+    LocalLoopCodecGuard.cc       LocalLoopCodecGuard.h
+    LocalLoopTimeline.cc         LocalLoopTimeline.h
     MosaicPixels.cc             MosaicPixels.h
     OsdTextRenderer.cc           OsdTextRenderer.h
     OsdLineRasterizer.cc         OsdLineRasterizer.h
@@ -16,6 +18,7 @@ set(MEDIA_COMMON_SRC
     PacketTime.cc                PacketTime.h
     PreviewPipelineMetrics.cc    PreviewPipelineMetrics.h
     RtspDemuxStrategy.cc         RtspDemuxStrategy.h
+    TimestampMath.h
     UsbDemuxStrategy.cc          UsbDemuxStrategy.h
     VideoCodecType.h
     VideoDecoder.cc              VideoDecoder.h

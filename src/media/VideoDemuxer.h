@@ -11,6 +11,8 @@
 #include <vector>
 
 #include "media/IDemuxStrategy.h"
+#include "media/LocalLoopCodecGuard.h"
+#include "media/LocalLoopTimeline.h"
 #include "media/VideoPacket.h"
 #include "util/ErrorCode.h"
 
@@ -33,12 +35,13 @@ namespace media {
     constexpr int kH265NalSps = 33;
 
     enum class ReadFrameStatus {
-        Success = 0,       // Success
-        StreamNotOpen,     // Stream not open
-        StreamEnd,         // Stream end reached
-        EmptyFrame,        // Empty frame, need to read next frame
-        NotGetIFrame,      // I-Frame not obtained after opening stream
-        ResolutionChange,  // Stream resolution changed
+        Success = 0,            // Success
+        StreamNotOpen,          // Stream not open
+        StreamEnd,              // Stream end reached
+        EmptyFrame,             // Empty frame, need to read next frame
+        NotGetIFrame,           // I-Frame not obtained after opening stream
+        ResolutionChange,       // Stream resolution changed
+        UnsafeLocalContinuity,  // Local input cannot safely continue this generation.
     };
 
     class VideoDemuxer {
@@ -87,6 +90,10 @@ namespace media {
         util::ErrorEnum OpenStream(bool repeat = false, int pullTimeoutSec = 5, int delayMs = 200);
         util::ErrorEnum FindStream(bool repeat = false);  // Get stream
         ReadFrameStatus Demux(VideoPacketPtr pkt);
+
+        // Only an admitted, still-open local file may carry recordings across
+        // a repeat. A failed seek/new stream retains the normal boundary.
+        bool CanContinueLocalLoop() const;
 
     private:
         // Frame rate control for local files
@@ -145,6 +152,16 @@ namespace media {
         bool opened_{false};
         bool ready_{false};
         bool end_{false};
+
+        LocalLoopCodecGuard local_codec_guard_;
+        LocalLoopTimeline local_timeline_;
+        bool local_file_source_{false};
+        bool local_loop_candidate_{false};
+        bool local_timeline_started_{false};
+        bool local_loop_first_packet_{false};
+        bool local_clean_eof_{false};
+        float local_rate_setting_{-1.0f};
+        int64_t local_logical_stream_{0};
 
         bool key_frame_detected_;
         std::atomic<bool> stop_requested_{false};

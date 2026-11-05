@@ -11,6 +11,7 @@
 #include <memory>
 #include <mutex>
 #include <stdexcept>
+#include <thread>
 #include <type_traits>
 #include <vector>
 
@@ -48,7 +49,7 @@ using Bytes  = std::vector<uint8_t>;
 using Codec  = cosmo::media::VideoCodecType;
 namespace fs = std::filesystem;
 
-enum class Fault { None, False, Exception, NoSample };
+enum class Fault { None, False, Exception, NoSample, Block };
 struct WriterState {
     std::mutex mutex;
     std::condition_variable changed;
@@ -73,6 +74,7 @@ struct ScopedWriter {
     void SetFault(Fault fault) {
         std::lock_guard<std::mutex> lock(writer_state.mutex);
         writer_state.fault = fault;
+        writer_state.changed.notify_all();
     }
     std::vector<const uint8_t*> Addresses() {
         std::lock_guard<std::mutex> lock(writer_state.mutex);
@@ -299,10 +301,14 @@ extern "C" bool __wrap_MP4WriteSample(MP4FileHandle file, MP4TrackId track, cons
                                       uint32_t size, MP4Duration duration, MP4Duration offset, bool sync) {
     Fault fault;
     {
-        std::lock_guard<std::mutex> lock(writer_state.mutex);
+        std::unique_lock<std::mutex> lock(writer_state.mutex);
         writer_state.addresses.push_back(bytes);
         fault = writer_state.fault;
         writer_state.changed.notify_all();
+        if (fault == Fault::Block) {
+            writer_state.changed.wait(lock, [] { return writer_state.fault != Fault::Block; });
+            fault = writer_state.fault;
+        }
     }
     if (fault == Fault::False)
         return false;
@@ -1206,4 +1212,218 @@ TEST_CASE("MP4 writer failure leaves another live instance operational", "[mp4-r
     REQUIRE(MP4GetTrackNumberOfSamples(reader.handle, reader.track) == 2);
     reader.Check(1, Expected({Nalu(codec, true)}), true);
     reader.Check(2, Expected({Nalu(codec, false)}), false);
+}
+
+TEST_CASE("Local B-frame repeat keeps one raw publisher and MP4 timeline", "[mp4-record][rtmp][local-loop]") {
+    Environment env;
+    const auto source = fs::path(env.root) / "loop-source.mp4";
+    fs::create_directories(source.parent_path());
+    {
+        std::ofstream output(source, std::ios::binary);
+        output.write(reinterpret_cast<const char*>(kBFramesMp4), sizeof(kBFramesMp4));
+        REQUIRE(output.good());
+    }
+    cosmo::media::VideoDemuxer demux;
+    demux.SetFile(source.string());
+    REQUIRE(demux.OpenStream() == cosmo::util::ErrorEnum::Success);
+    REQUIRE(demux.FindStream() == cosmo::util::ErrorEnum::Success);
+    auto packet = std::make_shared<cosmo::media::VideoPacket>();
+    REQUIRE(demux.Demux(packet) == cosmo::media::ReadFrameStatus::Success);
+    auto param          = env.Param();
+    param.streamIndex   = packet->stream_idx;
+    const auto stream   = packet->stream_idx;
+    const auto raw_path = fs::path(env.root) / "loop-preview.flv";
+    int64_t last_dts    = std::numeric_limits<int64_t>::min();
+    std::vector<int64_t> offsets;
+    std::vector<Bytes> source_packets;
+    {
+        cosmo::AlgMp4Record record(Codec::kH264, param, 25, 64, 64);
+        cosmo::RtmpStreamPusher raw(Codec::kH264, raw_path.string(), 64, 64, 25);
+        for (int loop = 0; loop < 3; ++loop) {
+            for (int i = 0; i < 24; ++i) {
+                if (loop != 0 || i != 0) {
+                    packet = std::make_shared<cosmo::media::VideoPacket>();
+                    REQUIRE(demux.Demux(packet) == cosmo::media::ReadFrameStatus::Success);
+                }
+                CHECK(packet->stream_idx == stream);
+                CHECK(packet->index == loop * 24 + i + 1);
+                REQUIRE(packet->dts > last_dts);
+                last_dts = packet->dts;
+                if (loop == 0) {
+                    offsets.push_back(packet->pts - packet->dts);
+                    source_packets.push_back(packet->data);
+                } else {
+                    CHECK(packet->pts - packet->dts == offsets[static_cast<size_t>(i)]);
+                    CHECK(packet->data == source_packets[static_cast<size_t>(i)]);
+                }
+                raw.PushPacket(*packet);
+                REQUIRE(raw.IsReady());
+                record.RecodeFrame(packet);
+            }
+            if (loop != 2) {
+                REQUIRE(demux.Demux(std::make_shared<cosmo::media::VideoPacket>()) ==
+                        cosmo::media::ReadFrameStatus::StreamEnd);
+                REQUIRE(demux.CanContinueLocalLoop());
+                demux.CloseStream(true);
+                REQUIRE(demux.OpenStream(true) == cosmo::util::ErrorEnum::Success);
+                REQUIRE(demux.FindStream(true) == cosmo::util::ErrorEnum::Success);
+            }
+        }
+        CHECK(raw.GetProcInfo().sendFrames == 72);
+        CHECK(record.GetRecordFrames() == 71);  // last sample is pending until close
+        raw.Stop();
+    }
+    for (const auto& path : {raw_path, env.File("_video.mp4")}) {
+        AVFormatContext* input = nullptr;
+        REQUIRE(avformat_open_input(&input, path.c_str(), nullptr, nullptr) == 0);
+        REQUIRE(avformat_find_stream_info(input, nullptr) >= 0);
+        const int index = av_find_best_stream(input, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+        REQUIRE(index >= 0);
+        auto* decoder = avcodec_alloc_context3(avcodec_find_decoder(AV_CODEC_ID_H264));
+        REQUIRE(decoder != nullptr);
+        REQUIRE(avcodec_parameters_to_context(decoder, input->streams[index]->codecpar) == 0);
+        decoder->thread_count = 1;
+        REQUIRE(avcodec_open2(decoder, decoder->codec, nullptr) == 0);
+        auto* frame   = av_frame_alloc();
+        auto* encoded = av_packet_alloc();
+        REQUIRE(frame != nullptr);
+        REQUIRE(encoded != nullptr);
+        int frames = 0, packets = 0;
+        int64_t prior_dts = std::numeric_limits<int64_t>::min();
+        int64_t prior_pts = std::numeric_limits<int64_t>::min();
+        const auto drain  = [&] {
+            int ret;
+            while ((ret = avcodec_receive_frame(decoder, frame)) == 0) {
+                REQUIRE(frame->best_effort_timestamp != AV_NOPTS_VALUE);
+                CHECK(frame->best_effort_timestamp > prior_pts);
+                prior_pts = frame->best_effort_timestamp;
+                ++frames;
+                av_frame_unref(frame);
+            }
+            REQUIRE((ret == AVERROR(EAGAIN) || ret == AVERROR_EOF));
+        };
+        while (av_read_frame(input, encoded) == 0) {
+            if (encoded->stream_index == index) {
+                REQUIRE(encoded->dts != AV_NOPTS_VALUE);
+                CHECK(encoded->dts > prior_dts);
+                prior_dts = encoded->dts;
+                ++packets;
+                REQUIRE(avcodec_send_packet(decoder, encoded) == 0);
+                drain();
+            }
+            av_packet_unref(encoded);
+        }
+        REQUIRE(avcodec_send_packet(decoder, nullptr) == 0);
+        drain();
+        CHECK(packets == 72);
+        CHECK(frames == 72);
+        av_packet_free(&encoded);
+        av_frame_free(&frame);
+        avcodec_free_context(&decoder);
+        avformat_close_input(&input);
+    }
+}
+
+TEST_CASE("MP4 channel preserves a recording across local B-frame replay", "[mp4-record][local-loop]") {
+    Environment env;
+    const auto source = fs::path(env.root) / "loop-channel-source.mp4";
+    fs::create_directories(source.parent_path());
+    {
+        std::ofstream output(source, std::ios::binary);
+        output.write(reinterpret_cast<const char*>(kBFramesMp4), sizeof(kBFramesMp4));
+        REQUIRE(output.good());
+    }
+    cosmo::media::VideoDemuxer demux;
+    demux.SetFile(source.string());
+    REQUIRE(demux.OpenStream() == cosmo::util::ErrorEnum::Success);
+    REQUIRE(demux.FindStream() == cosmo::util::ErrorEnum::Success);
+    std::vector<VideoPacketPtr> packets;
+    constexpr int64_t base = 1700000000000;
+    for (int loop = 0; loop < 3; ++loop) {
+        for (int i = 0; i < 24; ++i) {
+            auto packet = std::make_shared<cosmo::media::VideoPacket>();
+            REQUIRE(demux.Demux(packet) == cosmo::media::ReadFrameStatus::Success);
+            packet->timestamp = base + packet->index * 40;
+            packets.push_back(packet);
+        }
+        if (loop != 2) {
+            REQUIRE(demux.Demux(std::make_shared<cosmo::media::VideoPacket>()) ==
+                    cosmo::media::ReadFrameStatus::StreamEnd);
+            REQUIRE(demux.CanContinueLocalLoop());
+            demux.CloseStream(true);
+            REQUIRE(demux.OpenStream(true) == cosmo::util::ErrorEnum::Success);
+            REQUIRE(demux.FindStream(true) == cosmo::util::ErrorEnum::Success);
+        }
+    }
+    cosmo::CfgAlarmParamVideoRecordInfo duration{};
+    duration.preDuration   = 5;
+    duration.aftreDuration = 10;
+    std::mutex mutex;
+    std::condition_variable changed;
+    bool first_processed = false;
+    auto expectation     = NAMED_ALLOW_CALL(env.config, GetAlarmVideoDuration())
+                           .LR_SIDE_EFFECT({
+                               std::lock_guard<std::mutex> lock(mutex);
+                               first_processed = true;
+                               changed.notify_all();
+                           })
+                           .RETURN(duration);
+    {
+        cosmo::AlgChannelMp4 channel("channel");
+        channel.SetSize(64, 64);
+        channel.SetFps(25);
+        REQUIRE(channel.TaskFrame(packets[0]));
+        REQUIRE(channel.TaskFrame(packets[1]));
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            REQUIRE(changed.wait_for(lock, std::chrono::seconds(5), [&] { return first_processed; }));
+        }
+        auto param           = env.Param();
+        param.streamIndex    = packets[1]->stream_idx;
+        param.frameTimestamp = packets[1]->timestamp;
+        param.frameSeq       = packets[1]->index;
+        REQUIRE(channel.RecordMp4(param));
+        for (size_t i = 2; i < packets.size(); ++i)
+            REQUIRE(channel.TaskFrame(packets[i]));
+        REQUIRE(env.writer.WaitForCalls(70));
+    }
+    Reader reader(env.File("_video.mp4"));
+    CHECK(MP4GetTrackNumberOfSamples(reader.handle, reader.track) == 72);
+}
+
+TEST_CASE("MP4 terminal marker survives a saturated recording queue", "[mp4-record][local-loop]") {
+    Environment env;
+    cosmo::CfgAlarmParamVideoRecordInfo duration{};
+    duration.preDuration   = 5;
+    duration.aftreDuration = 5;
+    auto expectation       = NAMED_ALLOW_CALL(env.config, GetAlarmVideoDuration()).RETURN(duration);
+    {
+        cosmo::AlgChannelMp4 channel("channel");
+        struct ReleaseBlock {
+            ScopedWriter& writer;
+            ~ReleaseBlock() {
+                writer.SetFault(Fault::None);
+            }
+        } release{env.writer};
+        channel.SetSize(640, 480);
+        channel.SetFps(25);
+        auto param = env.Param();
+        REQUIRE(channel.RecordMp4(param));
+        auto parameters = Parameters(Codec::kH264);
+        parameters.push_back(Nalu(Codec::kH264, true));
+        env.writer.SetFault(Fault::Block);
+        REQUIRE(channel.TaskFrame(Packet(Annex(parameters), Codec::kH264, 1)));
+        REQUIRE(env.writer.WaitForCalls(1));
+        for (int64_t i = 2; i <= 301; ++i)
+            REQUIRE(channel.TaskFrame(Packet(Annex({Nalu(Codec::kH264, false)}), Codec::kH264, i)));
+        REQUIRE_FALSE(channel.TaskFrame(Packet(Annex({Nalu(Codec::kH264, false)}), Codec::kH264, 302)));
+        auto end   = std::make_shared<cosmo::media::VideoPacket>();
+        end->index = -1;
+        REQUIRE(channel.TaskFrame(end));
+        env.writer.SetFault(Fault::None);
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        while (!fs::exists(env.File("_video.mp4")) && std::chrono::steady_clock::now() < deadline)
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        REQUIRE(fs::exists(env.File("_video.mp4")));
+    }
 }

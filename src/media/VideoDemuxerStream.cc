@@ -2,8 +2,11 @@
 // Split from VideoDemuxer.cc to reduce file size (DEBT-007).
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 #include <thread>
 
+#include "media/TimestampMath.h"
 #include "media/VideoDemuxer.h"
 #include "util/Log.h"
 #include "util/RtspUrlUtil.h"
@@ -196,8 +199,14 @@ namespace media {
         if ((fps_calc_frame_ + 25) >= packet_index_)
             return;
 
-        auto now     = std::chrono::steady_clock::now();
-        auto ptsDiff = packet->pts - start_pts_;
+        auto now        = std::chrono::steady_clock::now();
+        int64_t ptsDiff = 0;
+        if (!TryTimestampDifference(packet->pts, start_pts_, ptsDiff)) {
+            start_pts_        = packet->pts;
+            start_time_point_ = now;
+            fps_calc_frame_   = packet_index_;
+            return;
+        }
 
         // 2025-07-16 Added ptsDiff > 0 to prevent positive result
         // on overflow of (packet->pts - m_startPts). A Hikvision camera may output 0x8000000000000000
@@ -208,15 +217,19 @@ namespace media {
                 static_cast<float>(ptsCount) * 1000000.0f /
                 static_cast<float>(
                     std::chrono::duration_cast<std::chrono::microseconds>(now - start_time_point_).count());
-            int64_t avrageDur = ptsDiff / ptsCount;
-            auto timeBase     = fmt_ctx_->streams[video_stream_idx_]->time_base;
-            float fpsNewf = static_cast<float>(timeBase.den) / static_cast<float>(avrageDur * timeBase.num);
-            auto c_fps    = fps_.load(std::memory_order_relaxed);
+            int64_t avrageDur           = ptsDiff / ptsCount;
+            auto timeBase               = fmt_ctx_->streams[video_stream_idx_]->time_base;
+            const bool validDenominator = avrageDur > 0 && timeBase.num > 0 && timeBase.den > 0 &&
+                                          avrageDur <= std::numeric_limits<int64_t>::max() / timeBase.num;
+            const int64_t denominator = validDenominator ? avrageDur * timeBase.num : 0;
+            float fpsNewf =
+                validDenominator ? static_cast<float>(timeBase.den) / static_cast<float>(denominator) : 0.0f;
+            auto c_fps = fps_.load(std::memory_order_relaxed);
             // Use real-time frame rate if timestamp is incorrect
             if (start_pts_ > packet->pts) {
                 fpsNewf = fpsReceive;
             }
-            if (fpsNewf <= 200 && std::fabs(fpsNewf - c_fps) > 1.0f) {
+            if (fpsNewf > 0 && fpsNewf <= 200 && std::fabs(fpsNewf - c_fps) > 1.0f) {
                 LOG_INFO(
                     "{}{} {}x{} fps_: {} -> {}({}) avrageDur:{} num:{} den:{} fpsReceive:[{}] "
                     "ptsCount:{}, duration:{}, packet.pts:{}, startPts:{}",
@@ -239,6 +252,8 @@ namespace media {
     }
 
     void VideoDemuxer::CalcFrameIndex(AVPacket* packet) {
+        if (packet->pts == AV_NOPTS_VALUE)
+            return;
         if (0 == packet->pts) {
             frame_index_ += 1;
             return;
@@ -255,7 +270,11 @@ namespace media {
             return;
         }
 
-        auto ptsDiff = packet->pts - pts_;
+        int64_t ptsDiff = 0;
+        if (!TryTimestampDifference(packet->pts, pts_, ptsDiff)) {
+            pts_ = packet->pts;
+            return;
+        }
 
         if (ptsDiff == duration_real_time_) {
             duration_active_count_ += 1;
@@ -275,9 +294,18 @@ namespace media {
             return;
 
         // If timestamp difference is too large. Too small is considered 1 frame
+        if (frame_index_ == std::numeric_limits<int64_t>::max() || duration_active_ <= 0)
+            return;
         int64_t frame_number = frame_index_ + 1;
-        if (ptsDiff > (duration_active_ + (duration_active_ >> 1))) {
-            frame_number = frame_index_ + ptsDiff / duration_active_;
+        const auto half      = duration_active_ >> 1;
+        const auto threshold = duration_active_ > std::numeric_limits<int64_t>::max() - half
+                                   ? std::numeric_limits<int64_t>::max()
+                                   : duration_active_ + half;
+        if (ptsDiff > threshold) {
+            const auto increment = ptsDiff / duration_active_;
+            if (increment > std::numeric_limits<int64_t>::max() - frame_index_)
+                return;
+            frame_number = frame_index_ + increment;
             if (0 == time_diff_count_ % 250) {
                 LOG_INFO(
                     "Read frame_number:{} Last frame_number:{} FrameDIFF:{}  pts_:{} ptsDiff:{} "
@@ -308,8 +336,9 @@ namespace media {
         if (0 != ret) {
             LOG_INFO("{}{} get frame error: {} Maybe It's Finished", kTag, util::RedactRtspUrl(filename_),
                      GetAvErr(ret));  // Reached end_ of playback
-            end_            = true;
-            pkt->stream_idx = stream_opened_cnt_;
+            end_             = true;
+            local_clean_eof_ = ret == AVERROR_EOF;
+            pkt->stream_idx  = stream_opened_cnt_;
             av_packet_unref(&packet);
             return ReadFrameStatus::StreamEnd;
         }
@@ -344,6 +373,30 @@ namespace media {
         int64_t saved_duration      = packet.duration;
         AVRational saved_time_base  = fmt_ctx_->streams[video_stream_idx_]->time_base;
         const bool saved_is_i_frame = static_cast<bool>(packet.flags & AV_PKT_FLAG_KEY);
+
+        // The bitstream filter was initialized with this generation's codec
+        // parameters. Do not pass a changed side-data configuration through
+        // that old filter or splice its output into an existing publisher.
+        if (local_file_source_) {
+            for (int i = 0; i < packet.side_data_elems; ++i) {
+                const auto& side = packet.side_data[i];
+                if (side.type != AV_PKT_DATA_NEW_EXTRADATA)
+                    continue;
+                bool unchanged = false;
+                {
+                    std::lock_guard<std::mutex> lock(metadata_mtx_);
+                    unchanged = LocalLoopCodecGuard::UnchangedExtradata(extradata_.get(), side.data,
+                                                                        static_cast<size_t>(side.size));
+                }
+                if (!unchanged) {
+                    LOG_WARN("{}Local codec side-data changed; ending the current generation", kTag);
+                    local_clean_eof_ = false;
+                    end_             = true;
+                    av_packet_unref(&packet);
+                    return ReadFrameStatus::UnsafeLocalContinuity;
+                }
+            }
+        }
 
         // Video files convert to 0x00000001, rtsp does not
         if (strategy_ && strategy_->NeedsBsf(enc_type_)) {
@@ -393,22 +446,72 @@ namespace media {
             pkt->data = std::vector<uint8_t>(packet.data, packet.data + packet.size);
         }
 
-        packet_index_++;
-        abs_packet_index_++;
-        pkt->pts      = saved_pts;
-        pkt->dts      = saved_dts;
-        pkt->duration = saved_duration;
         // Forced read rate changes playback speed. Keep the existing CFR
         // playback clock instead of falsely reporting the original clock.
         const bool forced_file_rate = strategy_ && strategy_->NeedsBsf(enc_type_) && video_force_fps_ > 0.0f;
-        pkt->time_base_num          = forced_file_rate ? 0 : saved_time_base.num;
-        pkt->time_base_den          = forced_file_rate ? 0 : saved_time_base.den;
-        pkt->timestamp              = timestamp;
+        if (local_loop_candidate_) {
+            const bool boundary = !local_timeline_started_ || local_loop_first_packet_;
+            const bool codec_ok =
+                video_force_fps_ == local_rate_setting_ &&
+                local_codec_guard_.Observe(enc_type_, pkt->data.data(), pkt->data.size(), boundary);
+            if (!codec_ok && local_timeline_started_) {
+                LOG_WARN("{}Local codec or playback configuration changed; ending the generation", kTag);
+                local_clean_eof_ = false;
+                end_             = true;
+                av_packet_unref(&packet);
+                return ReadFrameStatus::UnsafeLocalContinuity;
+            }
+            LocalLoopTimeline::Prepared prepared;
+            std::string reason;
+            const LocalLoopInput input{saved_pts,
+                                       saved_dts,
+                                       saved_duration,
+                                       forced_file_rate ? 0 : saved_time_base.num,
+                                       forced_file_rate ? 0 : saved_time_base.den,
+                                       local_loop_first_packet_,
+                                       codec_ok,
+                                       forced_file_rate && std::isfinite(fps_.load()) && fps_.load() > 0.0f};
+            if (codec_ok && local_timeline_.Prepare(input, prepared, reason) &&
+                local_timeline_.Commit(prepared, reason)) {
+                saved_pts               = prepared.pts;
+                saved_dts               = prepared.dts;
+                saved_duration          = prepared.duration;
+                saved_time_base         = {prepared.timeBaseNum, prepared.timeBaseDen};
+                local_timeline_started_ = true;
+                if (prepared.usedDurationFallback)
+                    LOG_WARN("{}Local loop seam estimated from preceding DTS interval", kTag);
+                local_loop_first_packet_ = false;
+            } else {
+                // A changed/unknown parameter set or invalid source clock may
+                // not be spliced into existing FLV/MP4 output. Publish a new
+                // generation and let existing reconnect/finalization handle it.
+                if (local_timeline_started_) {
+                    LOG_WARN("{}Local timeline cannot continue: {}", kTag, reason);
+                    local_clean_eof_ = false;
+                    end_             = true;
+                    av_packet_unref(&packet);
+                    return ReadFrameStatus::UnsafeLocalContinuity;
+                }
+                local_logical_stream_    = stream_opened_cnt_;
+                local_loop_candidate_    = false;
+                local_loop_first_packet_ = false;
+                LOG_WARN("{}Local loop continuity unavailable: {}", kTag,
+                         codec_ok ? reason : "codec parameters or random access not proven");
+            }
+        }
+        packet_index_++;
+        abs_packet_index_++;
+        pkt->pts           = saved_pts;
+        pkt->dts           = saved_dts;
+        pkt->duration      = saved_duration;
+        pkt->time_base_num = forced_file_rate ? 0 : saved_time_base.num;
+        pkt->time_base_den = forced_file_rate ? 0 : saved_time_base.den;
+        pkt->timestamp     = timestamp;
         pkt->timestamp_epoch =
             std::chrono::duration_cast<std::chrono::milliseconds>(timePoint.time_since_epoch()).count();
         pkt->time_point = timePoint;
-        pkt->stream_idx = stream_opened_cnt_;
-        pkt->index      = packet_index_;
+        pkt->stream_idx = local_loop_candidate_ ? local_logical_stream_ : stream_opened_cnt_;
+        pkt->index      = local_loop_candidate_ ? abs_packet_index_ : packet_index_;
         pkt->abs_idx    = abs_packet_index_;
         pkt->is_i_frame = saved_is_i_frame;
         {
