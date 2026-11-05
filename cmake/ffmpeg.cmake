@@ -1,4 +1,4 @@
-# FFmpeg prebuilt binary integration
+# FFmpeg prebuilt or explicitly supplied external dependency integration
 #
 # All libraries are prebuilt, including the legacy FLV HEVC libavformat backport.
 # Normal project builds never download or compile FFmpeg sources.
@@ -13,7 +13,16 @@
 # Keep the existing codec libraries and their ABI. The libavformat artifacts
 # and their build provenance are recorded in prebuild/ffmpeg/manifest.json.
 
-if(COSMO_TARGET_ARCH STREQUAL "aarch64")
+set(COSMO_FFMPEG_ROOT "$ENV{COSMO_FFMPEG_ROOT}" CACHE PATH
+    "External FFmpeg prefix with include/, lib/ and share/cosmo/ffmpeg-manifest.json")
+if(COSMO_FFMPEG_ROOT)
+    get_filename_component(FFMPEG_PREBUILD_DIR "${COSMO_FFMPEG_ROOT}" ABSOLUTE)
+    set(_cosmo_ffmpeg_manifest "${FFMPEG_PREBUILD_DIR}/share/cosmo/ffmpeg-manifest.json")
+    if(NOT EXISTS "${_cosmo_ffmpeg_manifest}" OR
+       NOT IS_DIRECTORY "${FFMPEG_PREBUILD_DIR}/share/licenses/ffmpeg")
+        message(FATAL_ERROR "External FFmpeg requires its own build manifest and license directory: ${FFMPEG_PREBUILD_DIR}")
+    endif()
+elseif(COSMO_TARGET_ARCH STREQUAL "aarch64")
     set(FFMPEG_PREBUILD_DIR ${CMAKE_CURRENT_SOURCE_DIR}/prebuild/ffmpeg/aarch64)
 elseif(COSMO_TARGET_ARCH STREQUAL "x86_64")
     set(FFMPEG_PREBUILD_DIR ${CMAKE_CURRENT_SOURCE_DIR}/prebuild/ffmpeg/x86_64)
@@ -21,7 +30,13 @@ else()
     message(FATAL_ERROR "Unsupported architecture for FFmpeg prebuilt: ${COSMO_TARGET_ARCH}")
 endif()
 
+if(NOT COSMO_FFMPEG_ROOT)
+    set(_cosmo_ffmpeg_manifest "${CMAKE_CURRENT_SOURCE_DIR}/prebuild/ffmpeg/manifest.json")
+endif()
 set(FFMPEG_HEADERS         ${FFMPEG_PREBUILD_DIR}/include)
+if(NOT EXISTS "${FFMPEG_HEADERS}/libavcodec/avcodec.h")
+    message(FATAL_ERROR "Missing FFmpeg headers: ${FFMPEG_HEADERS}")
+endif()
 set(FFMPEG_AVCODEC_LIB     ${FFMPEG_PREBUILD_DIR}/lib/libavcodec.so)
 set(FFMPEG_AVDEVICE_LIB    ${FFMPEG_PREBUILD_DIR}/lib/libavdevice.so)
 set(FFMPEG_AVFILTER_LIB    ${FFMPEG_PREBUILD_DIR}/lib/libavfilter.so)
@@ -117,5 +132,17 @@ install(DIRECTORY ${FFMPEG_PREBUILD_DIR}/lib/
 )
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_ffmpeg_flv_hevc.cmake"
     DESTINATION licenses/ffmpeg)
-install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/prebuild/ffmpeg/manifest.json"
-    DESTINATION licenses/ffmpeg)
+install(FILES "${_cosmo_ffmpeg_manifest}"
+    DESTINATION licenses/ffmpeg RENAME manifest.json)
+if(COSMO_FFMPEG_ROOT)
+    # The external build owns its native dependency closure and provenance.
+    # Never label those libraries with the repository prebuild hashes.
+    install(DIRECTORY "${FFMPEG_PREBUILD_DIR}/share/licenses/ffmpeg/"
+        DESTINATION licenses/ffmpeg)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        foreach(component avcodec avdevice avfilter avformat avutil swresample swscale)
+            set_property(TARGET ffmpeg_${component} APPEND PROPERTY
+                INTERFACE_LINK_OPTIONS "LINKER:-rpath-link,${FFMPEG_PREBUILD_DIR}/lib")
+        endforeach()
+    endif()
+endif()

@@ -13,7 +13,7 @@ import {
 } from '../src/accuracy/doctor.js';
 import { sanitizeSummary } from '../src/accuracy/evidence.js';
 
-function fixture() {
+function fixture({ targetPlatforms = ['bm1688'] } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'accuracy-doctor-'));
   const suiteDir = path.join(root, 'suite');
   const dataRoot = path.join(root, 'data');
@@ -48,7 +48,7 @@ function fixture() {
     schemaVersion: 3,
     id: 'doctor-suite',
     sourceMode: 'local',
-    targetPlatforms: ['bm1688'],
+    targetPlatforms,
     tasks: [{
       id: 'task', kind: 'cv', algorithmId: 'internal-15', algorithmCode: '15',
       scheduleId: 'always', taskConfig: 'task-configs/task.json',
@@ -81,6 +81,7 @@ async function mediaProbe(cases) {
 }
 
 function client({
+  deviceType = 'BM1688 test device',
   algorithms = ['internal-15'],
   cameras = [],
   tasks = [],
@@ -93,7 +94,7 @@ function client({
     async queryDeviceInfo() {
       calls.push('queryDeviceInfo');
       return { devInfoList: [
-        { key: 'deviceType', value: 'BM1688 test device' },
+        { key: 'deviceType', value: deviceType },
         { key: 'softwareVersion', value: 'V1' },
         { key: 'deviceSn', value: 'private-sn' },
       ] };
@@ -154,6 +155,66 @@ test('device doctor performs only read-side admission checks and sanitizes devic
     assert.equal(admission.selection.count, 4);
     assert.equal(JSON.stringify(admission).includes('device.invalid'), false);
     assert.equal(JSON.stringify(admission).includes('/private/'), false);
+  } finally {
+    fs.rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
+for (const targetChip of ['bm1688', 'cv186x', 'rk3576', 'rk3588', 'rv1126b']) {
+  test(`device doctor independently identifies ${targetChip}`, async () => {
+    const f = fixture({ targetPlatforms: [targetChip] });
+    try {
+      const fake = client({ deviceType: `${targetChip.toUpperCase()} test device` });
+      const result = await runAccuracyDoctor({
+        suitePath: f.suitePath, dataRoot: f.dataRoot, targetChip,
+        device: 'http://device', auth: { token: 'token' }, mediaProbe,
+        clientFactory: () => fake,
+      });
+      assert.equal(result.status, 'PASS');
+      assert.equal(check(result, 'target-chip').status, 'PASS');
+      assert.equal(check(result, 'device-chip').status, 'PASS');
+      assert.equal(check(result, 'device-chip').detail, targetChip);
+      assert.equal(result.warnings.some((warning) => /chip could not be independently derived/.test(warning)), false);
+      assert.equal(fake.calls.some((name) => /add|save|delete|switch/iu.test(name)), false);
+    } finally {
+      fs.rmSync(f.root, { recursive: true, force: true });
+    }
+  });
+}
+
+for (const [targetChip, reportedChip] of [
+  ['rk3588', 'rk3576'], ['rk3576', 'rk3588'],
+  ['rk3588', 'rv1126b'], ['rv1126b', 'rk3588'],
+]) {
+  test(`device doctor rejects ${reportedChip} when the requested target is ${targetChip}`, async () => {
+    const f = fixture({ targetPlatforms: [targetChip] });
+    try {
+      const result = await runAccuracyDoctor({
+        suitePath: f.suitePath, dataRoot: f.dataRoot, targetChip,
+        device: 'http://device', auth: { token: 'token' }, mediaProbe,
+        clientFactory: () => client({ deviceType: `${reportedChip.toUpperCase()} test device` }),
+      });
+      assert.equal(result.status, 'FAIL');
+      assert.equal(check(result, 'target-chip').status, 'PASS');
+      assert.equal(check(result, 'device-chip').status, 'FAIL');
+      assert.match(check(result, 'device-chip').detail, new RegExp(`reports ${reportedChip}, expected ${targetChip}`));
+    } finally {
+      fs.rmSync(f.root, { recursive: true, force: true });
+    }
+  });
+}
+
+test('RK3588 device recognition does not bypass the selected suite target restriction', async () => {
+  const f = fixture();
+  try {
+    const result = await runAccuracyDoctor({
+      suitePath: f.suitePath, dataRoot: f.dataRoot, targetChip: 'rk3588',
+      device: 'http://device', auth: { token: 'token' }, mediaProbe,
+      clientFactory: () => client({ deviceType: 'RK3588 test device' }),
+    });
+    assert.equal(result.status, 'FAIL');
+    assert.equal(check(result, 'target-chip').status, 'FAIL');
+    assert.equal(check(result, 'device-chip').status, 'PASS');
   } finally {
     fs.rmSync(f.root, { recursive: true, force: true });
   }

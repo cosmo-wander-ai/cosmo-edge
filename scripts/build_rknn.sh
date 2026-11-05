@@ -29,7 +29,7 @@ while getopts "c:m:r:p:tTE" opt; do
         t) DEV_MODE=ON ;;
         T) BUILD_TESTS_FLAG=ON ;;
         E) BUILD_VLM_EVAL_FLAG=ON; RKLLM_REQUIRED=ON ;;
-        *) echo "Usage: $0 -r <rknn-runtime-root> [-c rk3576|rv1126b] [-p <rockchip-media-root>] [-m <resource-dir>] [-t] [-T] [-E]"; exit 1 ;;
+        *) echo "Usage: $0 -r <rknn-runtime-root> [-c rk3576|rk3588|rv1126b] [-p <rockchip-media-root>] [-m <resource-dir>] [-t] [-T] [-E]"; exit 1 ;;
     esac
 done
 
@@ -150,7 +150,16 @@ INSTALL_DIR="${BUILD_DIR}/install"
 mkdir -p "${BUILD_DIR}"
 rm -rf "${INSTALL_DIR}"
 
+PLATFORM_CMAKE_ARGS=()
+for variable in COSMO_FFMPEG_ROOT COSMO_TOOLCHAIN_ROOT COSMO_TARGET_SYSROOT; do
+    value="${!variable:-}"
+    if [ -n "${value}" ]; then
+        PLATFORM_CMAKE_ARGS+=("-D${variable}=${value}")
+    fi
+done
+
 cmake -S "${PROJECT_ROOT_PATH}" -B "${BUILD_DIR}" \
+    "${PLATFORM_CMAKE_ARGS[@]}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
     -DCOSMO_TARGET_ARCH=aarch64 \

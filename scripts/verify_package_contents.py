@@ -17,7 +17,8 @@ class PackageAuditError(RuntimeError):
 
 
 PROFILES = ("public-runtime", "production-release")
-TARGET_CHIPS = ("bm1688", "cv186x", "rk3576", "rv1126b", "unspecified")
+ROCKCHIP_CHIPS = ("rk3576", "rk3588", "rv1126b")
+TARGET_CHIPS = ("bm1688", "cv186x", *ROCKCHIP_CHIPS, "unspecified")
 REQUIRED_DIRS = {"bin", "files", "font", "lib", "resource", "scripts", "web"}
 REQUIRED_EXECUTABLES = {
     "bin/cosmo-engine",
@@ -171,7 +172,7 @@ def verify_runtime_license_bundle(
     contents: dict[str, bytes], target_chip: str | None, profile: str
 ) -> None:
     required = set(REQUIRED_LICENSE_FILES)
-    if target_chip in ("rk3576", "rv1126b"):
+    if target_chip in ROCKCHIP_CHIPS:
         required.update(RKNN_LICENSE_FILES)
     if MODEL_GUARD_RUNTIME_FILE in contents or MODEL_GUARD_RKNN_RUNTIME_FILE in contents:
         required.add(MODEL_GUARD_TERMS_FILE)
@@ -209,7 +210,7 @@ def verify_runtime_license_bundle(
         raise PackageAuditError(
             "packaged FFmpeg runtime is not identified as LGPL-2.1-or-later"
         )
-    if target_chip in ("rk3576", "rv1126b"):
+    if target_chip in ROCKCHIP_CHIPS:
         rknn_terms = contents[
             "share/licenses/third-party/rknn-runtime/LICENSE"
         ]
@@ -333,9 +334,9 @@ def verify_model_bundle(
         if name.startswith("resource/models/") and name.endswith(".rknn")
     }
     if bundle_name not in contents:
-        if target_chip == "rv1126b" and package_rknn_models:
+        if target_chip in ("rv1126b", "rk3588") and package_rknn_models:
             raise PackageAuditError(
-                "RV1126B models require a packaged model-bundle manifest"
+                f"{target_chip.upper()} models require a packaged model-bundle manifest"
             )
         return
 
@@ -505,10 +506,15 @@ def verify_package(
             )
 
     effective_chip = target_chip or actual_chip
+    if effective_chip == "rk3588":
+        if profile == "production-release":
+            raise PackageAuditError("Protected RK3588 packages are unsupported")
+        if any(name.startswith("lib/libcosmo_model_guard") for name in entries):
+            raise PackageAuditError("RK3588 public runtime must not contain Model Guard")
     if effective_chip is not None:
         expected_data_dir = (
             RUNTIME_DATA_DIRS["rockchip"]
-            if effective_chip in ("rk3576", "rv1126b")
+            if effective_chip in ROCKCHIP_CHIPS
             else RUNTIME_DATA_DIRS["default"]
         )
         if runtime_paths["COSMO_PACKAGE_DATA_DIR"] != expected_data_dir:
@@ -523,8 +529,8 @@ def verify_package(
 
     verify_model_bundle(entries, contents, effective_chip)
 
-    if target_chip is not None:
-        if target_chip in ("rk3576", "rv1126b"):
+    if effective_chip is not None:
+        if effective_chip in ROCKCHIP_CHIPS:
             platform_name = "share/cosmo/platform-profile.json"
             platform_entry = entries.get(platform_name)
             if platform_entry is None or not platform_entry.isreg():
@@ -537,9 +543,9 @@ def verify_package(
                 raise PackageAuditError(
                     "Rockchip platform profile is not valid UTF-8 JSON"
                 ) from error
-            if not isinstance(platform, dict) or platform.get("chip") != target_chip:
+            if not isinstance(platform, dict) or platform.get("chip") != effective_chip:
                 raise PackageAuditError(
-                    f"Rockchip platform profile does not match {target_chip}"
+                    f"Rockchip platform profile does not match {effective_chip}"
                 )
             if platform.get("backend") != "rknn":
                 raise PackageAuditError("Rockchip platform profile must use RKNN")

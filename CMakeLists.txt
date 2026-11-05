@@ -141,7 +141,7 @@ endif()
 set(COSMO_TARGET_CHIP "" CACHE STRING "Target accelerator chip recorded in release packages")
 if(COSMO_TARGET_CHIP)
     string(TOLOWER "${COSMO_TARGET_CHIP}" COSMO_TARGET_CHIP_NORMALIZED)
-    if(NOT COSMO_TARGET_CHIP_NORMALIZED MATCHES "^(bm1688|cv186x|rk3576|rv1126b|unspecified)$")
+    if(NOT COSMO_TARGET_CHIP_NORMALIZED MATCHES "^(bm1688|cv186x|rk3576|rk3588|rv1126b|unspecified)$")
         message(FATAL_ERROR "Unsupported COSMO_TARGET_CHIP: ${COSMO_TARGET_CHIP}")
     endif()
 endif()
@@ -153,9 +153,9 @@ cosmo_configure_runtime_paths(
 message(STATUS "Cosmo mutable data root: ${COSMO_DEFAULT_DATA_DIR}")
 
 if(COSMO_NN_USE_RKNN_BACKEND)
-    if(NOT COSMO_TARGET_CHIP_NORMALIZED MATCHES "^(rk3576|rv1126b)$")
+    if(NOT COSMO_TARGET_CHIP_NORMALIZED MATCHES "^(rk3576|rk3588|rv1126b)$")
         message(FATAL_ERROR
-            "RKNN builds require COSMO_TARGET_CHIP=rk3576 or rv1126b")
+            "RKNN builds require COSMO_TARGET_CHIP=rk3576, rk3588, or rv1126b")
     endif()
     string(TOUPPER "${COSMO_TARGET_CHIP_NORMALIZED}" COSMO_TARGET_CHIP_LABEL)
     set(COSMO_PLATFORM_PROFILE
@@ -894,6 +894,11 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/data/SOURCEHANSANSCN-REGULAR.OTF
 # Resource (models, algorithm, layout, etc. from external repository)
 if(DEFINED RESOURCE_DIR AND IS_DIRECTORY "${RESOURCE_DIR}")
     message(STATUS "Resource directory: ${RESOURCE_DIR}")
+    set(COSMO_RESOURCE_MODEL_BUNDLE_ARGS)
+    if(COSMO_PACKAGE_MODELS STREQUAL "preserve")
+        list(APPEND COSMO_RESOURCE_MODEL_BUNDLE_ARGS
+            PATTERN "model-bundle.json" EXCLUDE)
+    endif()
     install(DIRECTORY ${RESOURCE_DIR}/
         DESTINATION resource
         FILE_PERMISSIONS OWNER_WRITE OWNER_READ GROUP_WRITE GROUP_READ
@@ -901,11 +906,12 @@ if(DEFINED RESOURCE_DIR AND IS_DIRECTORY "${RESOURCE_DIR}")
         PATTERN "models" EXCLUDE
         PATTERN "model-artifacts" EXCLUDE
         PATTERN "laya_runtime" EXCLUDE
+        ${COSMO_RESOURCE_MODEL_BUNDLE_ARGS}
         PATTERN "__pycache__" EXCLUDE PATTERN "*.pyc" EXCLUDE PATTERN "*.pyo" EXCLUDE
     )
     if(DEFINED RESOURCE_OVERLAY_DIR AND IS_DIRECTORY "${RESOURCE_OVERLAY_DIR}")
         message(STATUS "Resource overlay directory: ${RESOURCE_OVERLAY_DIR}")
-        set(COSMO_RESOURCE_OVERLAY_MODEL_BUNDLE_ARGS)
+        set(COSMO_RESOURCE_OVERLAY_MODEL_BUNDLE_ARGS ${COSMO_RESOURCE_MODEL_BUNDLE_ARGS})
         if(COSMO_MODEL_GUARD_BUILD_PROFILE STREQUAL "production-release")
             list(APPEND COSMO_RESOURCE_OVERLAY_MODEL_BUNDLE_ARGS
                 PATTERN "model-bundle.json" EXCLUDE)

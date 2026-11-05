@@ -4,7 +4,7 @@ function(cosmo_configure_runtime_paths target_chip output_dir)
     string(TOLOWER "${target_chip}" normalized_target_chip)
 
     set(COSMO_DEFAULT_DATA_DIR "/data/cwaiuserdata")
-    if(normalized_target_chip MATCHES "^(rk3576|rv1126b)$")
+    if(normalized_target_chip MATCHES "^(rk3576|rk3588|rv1126b)$")
         set(COSMO_DEFAULT_DATA_DIR "/userdata/cwaiuserdata")
     endif()
     set(COSMO_DEFAULT_APP_DATA_DIR "/appfs/cosmo_wander/cwai_data")

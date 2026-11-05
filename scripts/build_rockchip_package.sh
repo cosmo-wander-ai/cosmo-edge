@@ -9,7 +9,7 @@ while (($#)); do
     case "$1" in
         --chip)
             if (($# < 2)); then
-                echo "ERROR: --chip requires rk3576 or rv1126b" >&2
+                echo "ERROR: --chip requires rk3576, rk3588 or rv1126b" >&2
                 exit 2
             fi
             chip="$2"
@@ -24,7 +24,7 @@ while (($#)); do
             shift 2
             ;;
         -h|--help)
-            echo "Usage: $0 [--chip <rk3576|rv1126b>] [--models <include|preserve>]"
+            echo "Usage: $0 [--chip <rk3576|rk3588|rv1126b>] [--models <include|preserve>]"
             exit 0
             ;;
         *)
@@ -35,9 +35,9 @@ while (($#)); do
 done
 
 case "${chip}" in
-    rk3576|rv1126b) ;;
+    rk3576|rk3588|rv1126b) ;;
     *)
-        echo "ERROR: unsupported Rockchip target '${chip}'; expected rk3576 or rv1126b" >&2
+        echo "ERROR: unsupported Rockchip target '${chip}'; expected rk3576, rk3588 or rv1126b" >&2
         exit 2
         ;;
 esac
@@ -60,6 +60,13 @@ if [ -z "${PROJECT_ROOT_PATH:-}" ]; then
     PROJECT_ROOT_PATH=$(cd "$(dirname "$0")/.." && pwd -P)
 fi
 builder_lock="${PROJECT_ROOT_PATH}/config/rockchip-build/builder-lock.json"
+if [ "${chip}" = "rk3588" ]; then
+    if [ "${build_profile}" != "public-runtime" ]; then
+        echo "ERROR: RK3588 currently supports only the public-runtime CV candidate profile" >&2
+        exit 2
+    fi
+    builder_lock="${PROJECT_ROOT_PATH}/config/rockchip-build/builder-lock.rk3588-glibc231.json"
+fi
 image_lock="${COSMO_ROCKCHIP_BUILDER_LOCK:-/opt/cosmo/rockchip-builder-lock.json}"
 if [ ! -f "${builder_lock}" ]; then
     echo "ERROR: Rockchip builder lock is missing: ${builder_lock}" >&2
@@ -111,6 +118,17 @@ else
     rkllm_root="${rknn_root}"
 fi
 
+if [ "${chip}" = "rk3588" ]; then
+    if [ -z "${COSMO_ABI_TARGET_SYSROOT:-}" ]; then
+        echo "ERROR: RK3588 package admission requires COSMO_ABI_TARGET_SYSROOT" >&2
+        exit 1
+    fi
+    if [ ! -d "${COSMO_ABI_TARGET_SYSROOT}" ]; then
+        echo "ERROR: ABI target sysroot is not a directory: ${COSMO_ABI_TARGET_SYSROOT}" >&2
+        exit 1
+    fi
+fi
+
 rm -rf "${PROJECT_ROOT_PATH}/build_rknn"
 COSMO_PACKAGE_MODELS="${package_models}" \
 COSMO_MODEL_GUARD_BUILD_PROFILE="${build_profile}" \
@@ -134,6 +152,22 @@ python3 "${PROJECT_ROOT_PATH}/scripts/verify_package_contents.py" \
     --target-chip "${chip}" \
     --target-policy-lock "${builder_lock}"
 
+if [ "${chip}" = "rk3588" ]; then
+    abi_root="$(mktemp -d "${PROJECT_ROOT_PATH}/build_rknn/abi-audit.XXXXXX")"
+    trap 'rm -rf -- "${abi_root}"' EXIT
+    tar --no-same-owner -xzf "${package}" -C "${abi_root}"
+    abi_package_roots=("${abi_root}"/*)
+    if ((${#abi_package_roots[@]} != 1)) || [ ! -d "${abi_package_roots[0]}" ]; then
+        echo "ERROR: ABI audit requires exactly one extracted package root" >&2
+        exit 1
+    fi
+    python3 "${PROJECT_ROOT_PATH}/tools/package/elf_abi_gate.py" \
+        --package-root "${abi_package_roots[0]}" \
+        --target-arch aarch64 --max-glibc 2.31 \
+        --target-sysroot "${COSMO_ABI_TARGET_SYSROOT}" \
+        --report "${PROJECT_ROOT_PATH}/build_rknn/elf-abi-report.json"
+fi
+
 output_root="${COSMO_BUILD_OUTPUT_ROOT:-/build_output}"
 if [ "${build_profile}" = "production-release" ]; then
     output_dir="${output_root}/${build_profile}/${chip}"
@@ -143,6 +177,9 @@ fi
 rm -rf "${output_dir}"
 mkdir -p "${output_dir}"
 cp -f -- "${package}" "${output_dir}/"
+if [ "${chip}" = "rk3588" ]; then
+    cp -- "${PROJECT_ROOT_PATH}/build_rknn/elf-abi-report.json" "${output_dir}/"
+fi
 printf '%s\n' "${chip}" > "${output_dir}/TARGET_CHIP"
 printf '%s\n' "${media_runtime}" > "${output_dir}/MEDIA_RUNTIME_PROFILE"
 (

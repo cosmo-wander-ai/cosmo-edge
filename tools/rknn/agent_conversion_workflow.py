@@ -908,7 +908,7 @@ def verify_conversion(
             for item in deliverables
         ],
         "",
-        "Conversion completion does not imply RV1126B device or production acceptance.",
+        "Conversion completion does not imply target-device or production acceptance.",
         "",
     ]
     common._write_private_text(run_dir / "evidence.md", "\n".join(lines))

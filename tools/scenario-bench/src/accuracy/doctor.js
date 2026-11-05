@@ -113,7 +113,7 @@ export async function runAccuracyDoctor({
     deviceIdentity = sanitizedDeviceIdentity(info);
     checks.push(ok('device-info', `${deviceIdentity.model ?? 'unknown'} / ${deviceIdentity.softwareVersion ?? 'unknown'}`));
     const chipText = JSON.stringify(info).toLowerCase();
-    const knownChips = ['bm1688', 'cv186x', 'rk3576', 'rv1126b'].filter((chip) => chipText.includes(chip));
+    const knownChips = ['bm1688', 'cv186x', 'rk3576', 'rk3588', 'rv1126b'].filter((chip) => chipText.includes(chip));
     if (knownChips.length && !knownChips.includes(String(targetChip).toLowerCase())) {
       checks.push(fail('device-chip', `device reports ${knownChips.join(', ')}, expected ${targetChip}`));
     } else if (!knownChips.length) {

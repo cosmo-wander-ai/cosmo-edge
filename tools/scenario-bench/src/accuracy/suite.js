@@ -22,7 +22,7 @@ import {
 export { ACCURACY_PROTOCOL_VERSION, ACCURACY_SUITE_SCHEMA_VERSION } from './protocol.js';
 const SOURCE_MODES = new Set(['local', 'rtsp-deterministic']);
 const TASK_KINDS = new Set(['cv', 'vlm']);
-const TARGET_PLATFORMS = new Set(['bm1688', 'cv186x', 'rk3576', 'rv1126b']);
+const TARGET_PLATFORMS = new Set(['bm1688', 'cv186x', 'rk3576', 'rk3588', 'rv1126b']);
 
 export function loadAccuracySuite({
   suitePath,
