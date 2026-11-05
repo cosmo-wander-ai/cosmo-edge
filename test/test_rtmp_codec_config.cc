@@ -1,6 +1,7 @@
 #include <climits>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 #include "catch_amalgamated.hpp"
@@ -131,7 +132,99 @@ namespace {
         }
         return nal_units;
     }
+
+    std::vector<uint8_t> ConfiguredExtradata(const RtmpCodecConfig& config) {
+        std::unique_ptr<AVFormatContext, decltype(&avformat_free_context)> context(avformat_alloc_context(),
+                                                                                   avformat_free_context);
+        REQUIRE(context != nullptr);
+        auto* stream = avformat_new_stream(context.get(), nullptr);
+        REQUIRE(stream != nullptr);
+        config.ConfigureStream(stream);
+        REQUIRE(stream->codecpar->extradata != nullptr);
+        return {stream->codecpar->extradata, stream->codecpar->extradata + stream->codecpar->extradata_size};
+    }
 }  // namespace
+
+TEST_CASE("RTMP codec config accepts SDP Annex-B parameter sets", "[media][preview][rtmp][codec-headers]") {
+    const auto codec = GENERATE(media::VideoCodecType::kH264, media::VideoCodecType::kH265);
+    const bool hevc  = codec == media::VideoCodecType::kH265;
+    // Mixed start-code sizes and legal leading/trailing zero padding. The
+    // emulation-prevention byte inside the SPS must remain unchanged.
+    const std::vector<uint8_t> extradata =
+        hevc ? std::vector<uint8_t>{0, 0, 0,    0, 1, 0x40, 1, 0x0c, 0, 0,    1, 0x42, 1, 0, 0,
+                                    3, 1, 0x80, 0, 0, 0,    0, 0,    1, 0x44, 1, 0xc0, 0, 0}
+             : std::vector<uint8_t>{0, 0, 0, 0, 1, 0x67, 0x42, 0,    0,    3, 1, 0x80,
+                                    0, 0, 0, 0, 0, 1,    0x68, 0xce, 0x80, 0, 0};
+    const auto original_extradata = extradata;
+    RtmpCodecConfig config(codec, 640, 480, 25.0F);
+    config.SetParameters(extradata);
+    REQUIRE(config.HasParameters());
+    CHECK(extradata == original_extradata);
+    const auto headers     = ConfiguredExtradata(config);
+    const auto header_nals = ParseCanonicalAnnexB(headers.data(), headers.size());
+    REQUIRE(header_nals.size() == (hevc ? 3 : 2));
+    CHECK(header_nals[hevc ? 1 : 0] == (hevc ? std::vector<uint8_t>{0x42, 1, 0, 0, 3, 1, 0x80}
+                                             : std::vector<uint8_t>{0x67, 0x42, 0, 0, 3, 1, 0x80}));
+
+    const std::vector<uint8_t> idr =
+        hevc ? std::vector<uint8_t>{0, 0, 1, 0x26, 1, 0xaf} : std::vector<uint8_t>{0, 0, 1, 0x65, 0x88};
+    const auto original_idr = idr;
+    const uint8_t* output   = nullptr;
+    size_t output_size      = 0;
+    media::HFrameType main_type{}, lead_type{};
+    REQUIRE(config.ParseAndPrepare(idr.data(), idr.size(), output, output_size, main_type, lead_type));
+    CHECK(main_type == media::HFrameType::I);
+    const auto nals = ParseCanonicalAnnexB(output, output_size);
+    REQUIRE(nals.size() == header_nals.size() + 1);
+    for (size_t i = 0; i < header_nals.size(); ++i)
+        CHECK(nals[i] == header_nals[i]);
+    CHECK(nals.back() == std::vector<uint8_t>(idr.begin() + 3, idr.end()));
+    CHECK(idr == original_idr);
+}
+
+TEST_CASE("RTMP Annex-B extradata rejects incomplete updates atomically",
+          "[media][preview][rtmp][codec-headers][security]") {
+    const auto codec = GENERATE(media::VideoCodecType::kH264, media::VideoCodecType::kH265);
+    const bool hevc  = codec == media::VideoCodecType::kH265;
+    const std::vector<uint8_t> valid =
+        hevc ? std::vector<uint8_t>{0,    0, 0,    1, 0x40, 1, 0x0c, 0,    0, 0,   1,
+                                    0x42, 1, 0x80, 0, 0,    0, 1,    0x44, 1, 0xc0}
+             : std::vector<uint8_t>{0, 0, 0, 1, 0x67, 0x42, 0, 0, 0, 1, 0x68, 0xce};
+    RtmpCodecConfig config(codec, 640, 480, 25.0F);
+    config.SetParameters(valid);
+    REQUIRE(config.HasParameters());
+    const auto before = ConfiguredExtradata(config);
+    std::vector<std::vector<uint8_t>> malformed{
+        {0, 0, 1}, {0, 0, 0, 1, 0x67, 0x42}, {0, 0, 1, 0x40, 1, 0x0c}};
+    auto bad = valid;
+    bad.insert(bad.begin(), 0x55);  // Nonzero garbage before the first start code.
+    malformed.push_back(bad);
+    bad = valid;
+    bad[4] |= 0x80;  // forbidden_zero_bit
+    malformed.push_back(bad);
+    bad = valid;
+    bad.insert(bad.end(), {0, 0, 1});  // Empty final NAL.
+    malformed.push_back(bad);
+    bad = valid;
+    bad.insert(bad.begin(), {0, 0, 1});  // Empty NAL before complete parameters.
+    malformed.push_back(bad);
+    bad = valid;
+    if (hevc)
+        bad[5] = 0;  // nuh_temporal_id_plus1 must be nonzero.
+    else
+        bad[4] = 0x6d;  // SPS extension without the actual SPS is incomplete.
+    malformed.push_back(bad);
+    malformed.emplace_back(4 * 1024 * 1024 + 1, 0);
+    for (const auto& extra : malformed) {
+        CAPTURE(codec, extra.size());
+        RtmpCodecConfig empty(codec, 640, 480, 25.0F);
+        empty.SetParameters(extra);
+        CHECK_FALSE(empty.HasParameters());
+        config.SetParameters(extra);
+        CHECK(config.HasParameters());
+        CHECK(ConfiguredExtradata(config) == before);
+    }
+}
 
 TEST_CASE("RTMP codec config removes padded Annex-B separators", "[media][preview][rtmp]") {
     const std::vector<uint8_t> packet{

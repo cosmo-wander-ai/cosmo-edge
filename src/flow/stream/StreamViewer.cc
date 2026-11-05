@@ -149,19 +149,6 @@ StreamViewer::StreamViewer(AlgChannelPtr channelInst, const std::string& channel
             std::make_shared<RtmpStreamPusher>(pushCodecType, url, attr.width, attr.height, ctrl_fps_);
     }
 
-    // Pre-populate codec config from demuxer extradata so SPS/PPS are
-    // available immediately — avoids "I-frame before codec parameters"
-    // when the viewer joins mid-loop and misses the first keyframe.
-    // Only for raw H.264 path (no encoder); encoder generates its own SPS/PPS.
-    if (!shouldEncodeForPreview && channelInst->GetCodecType() == media::VideoCodecType::kH264) {
-        auto extradata = channelInst->GetCodecExtradata();
-        if (!extradata.empty() && video_pusher_) {
-            video_pusher_->SetCodecParamsFromExtradata(extradata);
-            LOG_INFO("{}/{} Inject extradata {} bytes to RTMP codec config", channel_id_, alg_id_,
-                     extradata.size());
-        }
-    }
-
     if (shouldEncodeForPreview) {
         if ((attr.width * attr.height) > (media::kVideoDefaultWidth * media::kVideoDefaultHeight)) {
             encoder_ = std::make_shared<StreamViewerEncoder>(
@@ -270,11 +257,10 @@ bool StreamViewer::HeartBeatCheck() {
 }
 
 void StreamViewer::HandlePacket(VideoPacketPtr frame) {
-    if (stopped_.load() || !video_pusher_) {
+    if (stopped_.load() || !video_pusher_ || !frame) {
         return;
     }
-    video_pusher_->SetVideoAttr(frame->GetWidth(), frame->GetHeight(), frame->GetFPS());
-    video_pusher_->PushFrame(frame->GetData(), frame->GetSize());
+    video_pusher_->PushPacket(*frame);
 }
 
 void StreamViewer::UpdateCtrlFps() {
