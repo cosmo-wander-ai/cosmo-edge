@@ -21,6 +21,7 @@
 #include "nn/core/inference_pipeline_metrics.h"
 #include "nn/device/rknn/rknn_yolov8_adapter.h"
 #include "nn/node/node_type_utils.h"
+#include "nn/utils/rknn_bound_input_padding.h"
 #include "util/Log.h"
 
 namespace cosmo::nn {
@@ -626,6 +627,43 @@ bool RknnNetNode::EnsureRgaBoundInput(int height, int width, std::string& reason
         RknnRgaBoundRequantizeImplementation(), bound_input_memory_->size, bound_input_memory_->fd,
         bound_input_attr_.w_stride);
     return true;
+}
+
+bool RknnNetNode::FillRgaBoundInput(uint64_t generation, const std::array<uint8_t, 3>& color,
+                                    std::string& reason) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (context_ == 0 || !bound_input_memory_ || bound_input_mode_ != BoundInputMode::RgaNativeInt8 ||
+        !shared_resource) {
+        reason = "RKNN RGB padding requires an active RGA-bound input";
+        return false;
+    }
+    auto& target = shared_resource->rknn_bound_input_target;
+    if (target.owner == this)
+        target.frame_ready = false;
+    const auto expected_stride = static_cast<int>(
+        bound_input_attr_.w_stride == 0 ? bound_input_attr_.dims[2] : bound_input_attr_.w_stride);
+    if (target.virtual_address != bound_input_memory_->virt_addr || target.fd != bound_input_memory_->fd ||
+        target.bytes != bound_input_memory_->size || target.width_stride != expected_stride ||
+        !target.Matches(static_cast<int>(bound_input_attr_.dims[1]),
+                        static_cast<int>(bound_input_attr_.dims[2]))) {
+        reason = "RKNN RGB padding target differs from the bound allocation";
+        return false;
+    }
+    const auto sync = [&](bool from_device, std::string& sync_reason) {
+        const auto started = MetricsClock::now();
+        const int result =
+            rknn_mem_sync(context_, bound_input_memory_,
+                          from_device ? RKNN_MEMORY_SYNC_FROM_DEVICE : RKNN_MEMORY_SYNC_TO_DEVICE);
+        GetInferencePipelineMetrics().RecordRknnBoundInputSync(ElapsedNanoseconds(started),
+                                                               result == RKNN_SUCC);
+        if (result != RKNN_SUCC) {
+            sync_reason = std::string("RKNN RGB padding sync ") + (from_device ? "from" : "to") +
+                          " device failed with RKNN code " + std::to_string(result);
+            return false;
+        }
+        return true;
+    };
+    return FillRknnBoundRgbPadding(target, this, generation, color, sync, reason);
 }
 
 size_t RknnNetNode::TensorElementCount(const rknn_tensor_attr& attr) const {
