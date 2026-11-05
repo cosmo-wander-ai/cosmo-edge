@@ -1427,3 +1427,189 @@ TEST_CASE("MP4 terminal marker survives a saturated recording queue", "[mp4-reco
         REQUIRE(fs::exists(env.File("_video.mp4")));
     }
 }
+
+TEST_CASE("Private local source repeats through raw and MP4 without presentation overlap",
+          "[mp4-record][rtmp][local-loop][.private-local-source]") {
+    const char* source = std::getenv("COSMO_LOCAL_LOOP_TEST_SOURCE");
+    if (!source || !*source)
+        SKIP("Set COSMO_LOCAL_LOOP_TEST_SOURCE to an absolute, private H264 source");
+    REQUIRE(fs::path(source).is_absolute());
+    Environment env;
+    cosmo::media::VideoDemuxer demux;
+    demux.SetFile(source);
+    REQUIRE(demux.OpenStream() == cosmo::util::ErrorEnum::Success);
+    REQUIRE(demux.FindStream() == cosmo::util::ErrorEnum::Success);
+    auto packet = std::make_shared<cosmo::media::VideoPacket>();
+    REQUIRE(demux.Demux(packet) == cosmo::media::ReadFrameStatus::Success);
+    auto param          = env.Param();
+    param.streamIndex   = packet->stream_idx;
+    const auto stream   = packet->stream_idx;
+    const auto raw_path = fs::path(env.root) / "private-loop.flv";
+    std::vector<Bytes> source_packets;
+    std::vector<int64_t> source_cts;
+    std::vector<int64_t> adjusted_cts;
+    int64_t last_dts               = std::numeric_limits<int64_t>::min();
+    int64_t prior_presentation_end = std::numeric_limits<int64_t>::min();
+    int64_t source_tail_duration   = 0;
+    const AVRational source_time_base{packet->time_base_num, packet->time_base_den};
+    size_t packets_per_loop = 0;
+    {
+        cosmo::AlgMp4Record record(Codec::kH264, param, demux.GetFPS(), demux.GetWidth(), demux.GetHeight());
+        cosmo::RtmpStreamPusher raw(Codec::kH264, raw_path.string(), demux.GetWidth(), demux.GetHeight(),
+                                    demux.GetFPS());
+        for (int loop = 0; loop < 3; ++loop) {
+            size_t index           = 0;
+            int64_t loop_cts_delta = 0;
+            int64_t loop_min_pts   = std::numeric_limits<int64_t>::max();
+            int64_t loop_max_end   = std::numeric_limits<int64_t>::min();
+            for (;;) {
+                if (loop != 0 || index != 0) {
+                    packet            = std::make_shared<cosmo::media::VideoPacket>();
+                    const auto result = demux.Demux(packet);
+                    if (result == cosmo::media::ReadFrameStatus::StreamEnd)
+                        break;
+                    REQUIRE(result == cosmo::media::ReadFrameStatus::Success);
+                }
+                REQUIRE(packet->stream_idx == stream);
+                REQUIRE(packet->dts > last_dts);
+                REQUIRE(packet->duration > 0);
+                REQUIRE(packet->pts >= prior_presentation_end);
+                last_dts = packet->dts;
+                if (loop == 0)
+                    source_tail_duration = packet->duration;
+                loop_min_pts = std::min(loop_min_pts, packet->pts);
+                loop_max_end = std::max(loop_max_end, packet->pts + packet->duration);
+                if (loop == 0) {
+                    source_packets.push_back(packet->data);
+                    source_cts.push_back(packet->pts - packet->dts);
+                } else {
+                    REQUIRE(index < source_packets.size());
+                    CHECK(packet->data == source_packets[index]);
+                    const auto delta = packet->pts - packet->dts - source_cts[index];
+                    if (index == 0)
+                        loop_cts_delta = delta;
+                    CHECK(loop_cts_delta == 0);
+                    CHECK(delta == loop_cts_delta);
+                }
+                adjusted_cts.push_back(packet->pts - packet->dts);
+                raw.PushPacket(*packet);
+                REQUIRE(raw.IsReady());
+                const bool written = record.RecodeFrame(packet);
+                if (loop == 0 && index == 0)
+                    REQUIRE(record.HasStarted());  // First timed sample is pending until the next packet.
+                else
+                    REQUIRE(written);
+                ++index;
+            }
+            if (loop == 0) {
+                packets_per_loop = index;
+                REQUIRE(packets_per_loop > 1);
+            } else {
+                CHECK(index == packets_per_loop);
+                CHECK(loop_min_pts >= prior_presentation_end);
+            }
+            prior_presentation_end = loop_max_end;
+            if (loop != 2) {
+                REQUIRE(demux.CanContinueLocalLoop());
+                demux.CloseStream(true);
+                REQUIRE(demux.OpenStream(true) == cosmo::util::ErrorEnum::Success);
+                REQUIRE(demux.FindStream(true) == cosmo::util::ErrorEnum::Success);
+            }
+        }
+        CHECK(raw.GetProcInfo().sendFrames == packets_per_loop * 3);
+        raw.Stop();
+    }
+    for (const auto& path : {raw_path, env.File("_video.mp4")}) {
+        AVFormatContext* input = nullptr;
+        REQUIRE(avformat_open_input(&input, path.c_str(), nullptr, nullptr) == 0);
+        REQUIRE(avformat_find_stream_info(input, nullptr) >= 0);
+        const int video = av_find_best_stream(input, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+        REQUIRE(video >= 0);
+        auto* decoder = avcodec_alloc_context3(avcodec_find_decoder(AV_CODEC_ID_H264));
+        REQUIRE(decoder != nullptr);
+        REQUIRE(avcodec_parameters_to_context(decoder, input->streams[video]->codecpar) == 0);
+        decoder->thread_count = 1;
+        REQUIRE(avcodec_open2(decoder, decoder->codec, nullptr) == 0);
+        auto* frame   = av_frame_alloc();
+        auto* encoded = av_packet_alloc();
+        REQUIRE(frame != nullptr);
+        REQUIRE(encoded != nullptr);
+        size_t frames = 0, packets = 0;
+        int64_t previous_dts = std::numeric_limits<int64_t>::min();
+        int64_t previous_pts = std::numeric_limits<int64_t>::min();
+        const auto drain     = [&] {
+            int ret;
+            while ((ret = avcodec_receive_frame(decoder, frame)) == 0) {
+                REQUIRE(frame->best_effort_timestamp != AV_NOPTS_VALUE);
+                CHECK(frame->best_effort_timestamp > previous_pts);
+                previous_pts = frame->best_effort_timestamp;
+                ++frames;
+                av_frame_unref(frame);
+            }
+            REQUIRE((ret == AVERROR(EAGAIN) || ret == AVERROR_EOF));
+        };
+        while (av_read_frame(input, encoded) == 0) {
+            if (encoded->stream_index == video) {
+                REQUIRE(encoded->dts != AV_NOPTS_VALUE);
+                CHECK(encoded->dts > previous_dts);
+                previous_dts = encoded->dts;
+                REQUIRE(packets < adjusted_cts.size());
+                REQUIRE(encoded->pts != AV_NOPTS_VALUE);
+                const int64_t expected_cts =
+                    av_rescale_q(adjusted_cts[packets], source_time_base, input->streams[video]->time_base);
+                const int64_t output_cts = encoded->pts - encoded->dts;
+                INFO("packet=" << packets << " output CTS=" << output_cts << " expected=" << expected_cts);
+                CHECK(output_cts >= expected_cts - 1);
+                CHECK(output_cts <= expected_cts + 1);
+                if (path == env.File("_video.mp4") && (packets + 1) % packets_per_loop == 0) {
+                    const int64_t expected_duration = av_rescale_q(source_tail_duration, source_time_base,
+                                                                   input->streams[video]->time_base);
+                    INFO("MP4 tail sample=" << packets << " actual duration=" << encoded->duration
+                                            << " expected=" << expected_duration);
+                    CHECK(encoded->duration >= expected_duration - 1);
+                    CHECK(encoded->duration <= expected_duration + 1);
+                }
+                ++packets;
+                REQUIRE(avcodec_send_packet(decoder, encoded) == 0);
+                drain();
+            }
+            av_packet_unref(encoded);
+        }
+        REQUIRE(avcodec_send_packet(decoder, nullptr) == 0);
+        drain();
+        CHECK(packets == packets_per_loop * 3);
+        CHECK(frames == packets_per_loop * 3);
+        av_packet_free(&encoded);
+        av_frame_free(&frame);
+        avcodec_free_context(&decoder);
+        avformat_close_input(&input);
+    }
+}
+
+TEST_CASE("Private local source rejects a seam that would accumulate composition drift",
+          "[media][local-loop][.private-local-reject]") {
+    const char* source = std::getenv("COSMO_LOCAL_LOOP_TEST_SOURCE");
+    if (!source || !*source)
+        SKIP("Set COSMO_LOCAL_LOOP_TEST_SOURCE to an absolute private H264 source");
+    REQUIRE(fs::path(source).is_absolute());
+    cosmo::media::VideoDemuxer demux;
+    demux.SetFile(source);
+    REQUIRE(demux.OpenStream() == cosmo::util::ErrorEnum::Success);
+    REQUIRE(demux.FindStream() == cosmo::util::ErrorEnum::Success);
+    size_t count = 0;
+    for (;;) {
+        auto packet       = std::make_shared<cosmo::media::VideoPacket>();
+        const auto result = demux.Demux(packet);
+        if (result == cosmo::media::ReadFrameStatus::StreamEnd)
+            break;
+        REQUIRE(result == cosmo::media::ReadFrameStatus::Success);
+        ++count;
+    }
+    REQUIRE(count > 1);
+    REQUIRE(demux.CanContinueLocalLoop());
+    demux.CloseStream(true);
+    REQUIRE(demux.OpenStream(true) == cosmo::util::ErrorEnum::Success);
+    REQUIRE(demux.FindStream(true) == cosmo::util::ErrorEnum::Success);
+    auto packet = std::make_shared<cosmo::media::VideoPacket>();
+    CHECK(demux.Demux(packet) == cosmo::media::ReadFrameStatus::UnsafeLocalContinuity);
+}

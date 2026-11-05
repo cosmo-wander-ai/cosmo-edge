@@ -42,7 +42,7 @@ TEST_CASE("Local replay rejects unsafe clocks and boundaries without mutating st
     REQUIRE(clock.Commit(out, reason));
     REQUIRE_FALSE(clock.Prepare({missing, 1, 1, 1, 25, false, false, false}, out, reason));
     REQUIRE_FALSE(clock.Prepare({3, 1, 1, 1, 30, false, false, false}, out, reason));
-    REQUIRE_FALSE(clock.Prepare({0, 0, 1, 1, 25, true, true, false}, out, reason));
+    REQUIRE_FALSE(clock.Prepare({0, 0, 1, 1, 25, true, false, false}, out, reason));
     REQUIRE(clock.Prepare({3, 1, 1, 1, 25, false, false, false}, out, reason));
     REQUIRE(clock.Commit(out, reason));
     REQUIRE(clock.Prepare({2, 0, 1, 1, 25, true, true, false}, out, reason));
@@ -56,6 +56,103 @@ TEST_CASE("Local replay rejects unsafe clocks and boundaries without mutating st
     LocalLoopTimeline extreme;
     REQUIRE_FALSE(extreme.Prepare({std::numeric_limits<int64_t>::max(), -2, 1, 1, 25, false, true, false},
                                   out, reason));
+}
+
+TEST_CASE("Local replay refuses a seam requiring unbounded composition drift", "[media][local-loop]") {
+    LocalLoopTimeline clock;
+    LocalLoopTimeline::Prepared out;
+    std::string reason;
+    for (int i = 0; i < 242; ++i) {
+        const LocalLoopInput input{
+            i == 241 ? 124928 : i * 512, i * 512 - 1024, 512, 1, 12288, false, i == 0, false};
+        REQUIRE(clock.Prepare(input, out, reason));
+        REQUIRE(clock.Commit(out, reason));
+    }
+    LocalLoopInput repeated{0, -1024, 512, 1, 12288, true, true, false};
+    CHECK_FALSE(clock.Prepare(repeated, out, reason));
+    CHECK(reason == "loop composition drift requires a new generation");
+}
+
+TEST_CASE("Local replay rejects unrepresentable presentation end and unknown seam duration",
+          "[media][local-loop]") {
+    const auto max = std::numeric_limits<int64_t>::max();
+    LocalLoopTimeline clock;
+    LocalLoopTimeline::Prepared out;
+    std::string reason;
+    CHECK_FALSE(clock.Prepare({max, max - 1, 1, 1, 25, false, true, false}, out, reason));
+    REQUIRE(clock.Prepare({2, 0, 0, 1, 25, false, true, false}, out, reason));
+    REQUIRE(clock.Commit(out, reason));
+    CHECK_FALSE(clock.Prepare({2, 0, 1, 1, 25, true, true, false}, out, reason));
+
+    LocalLoopTimeline offset_overflow;
+    REQUIRE(offset_overflow.Prepare({max - 5, max - 20, 1, 1, 25, false, true, false}, out, reason));
+    REQUIRE(offset_overflow.Commit(out, reason));
+    CHECK_FALSE(offset_overflow.Prepare({-10, -10, 1, 1, 25, true, true, false}, out, reason));
+    CHECK(reason == "loop presentation offset overflows");
+    CHECK(offset_overflow.Prepare({max - 4, max - 19, 1, 1, 25, false, false, false}, out, reason));
+
+    LocalLoopTimeline estimate_overflow;
+    REQUIRE(estimate_overflow.Prepare({max - 1, max - 10, 0, 1, 25, false, true, false}, out, reason));
+    REQUIRE(estimate_overflow.Commit(out, reason));
+    REQUIRE(estimate_overflow.Prepare({max - 3, max - 8, 1, 1, 25, false, false, false}, out, reason));
+    REQUIRE(estimate_overflow.Commit(out, reason));
+    CHECK_FALSE(estimate_overflow.Prepare({0, 0, 1, 1, 25, true, true, false}, out, reason));
+    CHECK(reason == "loop presentation end overflows");
+}
+
+TEST_CASE("Local replay rejects later B picture overlapping previous presentation duration",
+          "[media][local-loop]") {
+    LocalLoopTimeline clock;
+    LocalLoopTimeline::Prepared out;
+    std::string reason;
+    REQUIRE(clock.Prepare({100, 90, 10, 1, 1000, false, true, false}, out, reason));
+    REQUIRE(clock.Commit(out, reason));
+    REQUIRE(clock.Prepare({100, 90, 10, 1, 1000, true, true, false}, out, reason));
+    CHECK(out.pts == 110);
+    REQUIRE(clock.Commit(out, reason));
+    // Decode order advances while this B picture has a presentation time
+    // after the old PTS but before its known presentation end.
+    REQUIRE_FALSE(clock.Prepare({95, 91, 10, 1, 1000, false, false, false}, out, reason));
+}
+
+TEST_CASE("Local replay marks estimates for any missing presentation duration", "[media][local-loop]") {
+    LocalLoopTimeline clock;
+    LocalLoopTimeline::Prepared out;
+    std::string reason;
+    REQUIRE(clock.Prepare({100, 90, 0, 1, 1000, false, true, false}, out, reason));
+    REQUIRE(clock.Commit(out, reason));
+    REQUIRE(clock.Prepare({105, 100, 1, 1, 1000, false, false, false}, out, reason));
+    REQUIRE(clock.Commit(out, reason));
+    REQUIRE(clock.Prepare({100, 90, 10, 1, 1000, true, true, false}, out, reason));
+    CHECK(out.usedDurationFallback);
+    REQUIRE(clock.Commit(out, reason));
+    REQUIRE(clock.Prepare({105, 100, 1, 1, 1000, false, false, false}, out, reason));
+    REQUIRE(clock.Commit(out, reason));
+    REQUIRE(clock.Prepare({100, 90, 1, 1, 1000, true, true, false}, out, reason));
+    CHECK_FALSE(out.usedDurationFallback);
+}
+
+TEST_CASE("Local replay rejects a known decode duration mismatch at the seam", "[media][local-loop]") {
+    LocalLoopTimeline clock;
+    LocalLoopTimeline::Prepared out;
+    std::string reason;
+    REQUIRE(clock.Prepare({0, 0, 10, 1, 1000, false, true, false}, out, reason));
+    REQUIRE(clock.Commit(out, reason));
+    REQUIRE(clock.Prepare({12, 12, 10, 1, 1000, false, false, false}, out, reason));
+    REQUIRE(clock.Commit(out, reason));
+    CHECK_FALSE(clock.Prepare({0, 0, 10, 1, 1000, true, true, false}, out, reason));
+    CHECK(reason == "source duration differs from decode interval; new generation required");
+}
+
+TEST_CASE("Local replay bounds composition offsets for both muxers", "[media][local-loop]") {
+    LocalLoopTimeline clock;
+    LocalLoopTimeline::Prepared out;
+    std::string reason;
+    REQUIRE(clock.Prepare({0x7ffffe, 0, 1, 1, 1000, false, true, false}, out, reason));
+    REQUIRE(clock.Commit(out, reason));
+    CHECK(clock.Prepare({0x7fffff, 1, 1, 1, 1000, false, false, false}, out, reason));
+    CHECK_FALSE(clock.Prepare({0x800000, 1, 1, 1, 1000, false, false, false}, out, reason));
+    CHECK(reason == "adjusted composition offset exceeds FLV or MP4 limits");
 }
 
 TEST_CASE("Local replay tail duration fallback and explicit forced CFR", "[media][local-loop]") {

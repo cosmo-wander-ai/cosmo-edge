@@ -2,6 +2,10 @@
 
 #include <limits>
 
+extern "C" {
+#include "libavutil/mathematics.h"
+}
+
 namespace cosmo::media {
 namespace {
     constexpr auto kMin = std::numeric_limits<int64_t>::min();
@@ -77,24 +81,56 @@ bool LocalLoopTimeline::Prepare(const LocalLoopInput& in, Prepared& output, std:
     if (!Subtract(in.pts, in.dts, composition))
         return fail("composition offset overflows");
 
-    int64_t offset = initialized_ ? offset_ : 0;
+    int64_t dts_offset            = initialized_ ? dts_offset_ : 0;
+    int64_t pts_offset            = initialized_ ? pts_offset_ : 0;
+    int64_t seam_presentation_end = 0;
     if (in.newLoop) {
+        if (!duration_consistent_)
+            return fail("source duration differs from decode interval; new generation required");
         const int64_t seam_duration = last_duration_ > 0 ? last_duration_ : last_delta_;
         if (seam_duration <= 0)
             return fail("cannot determine previous loop's final duration");
-        int64_t next_dts{};
-        if (!Add(last_dts_, seam_duration, next_dts) || !Subtract(next_dts, in.dts, offset))
+        int64_t next_dts{}, presentation_end = max_presentation_end_, presentation_offset{};
+        if (!Add(last_dts_, seam_duration, next_dts) || !Subtract(next_dts, in.dts, dts_offset))
             return fail("loop timestamp offset overflows");
-        next.usedDurationFallback = last_duration_ == 0;
+        if (has_unknown_duration_) {
+            int64_t estimated_end{};
+            if (last_delta_ <= 0)
+                return fail("cannot determine previous loop's presentation duration");
+            if (!Add(max_unknown_duration_pts_, last_delta_, estimated_end))
+                return fail("loop presentation end overflows");
+            if (estimated_end > presentation_end)
+                presentation_end = estimated_end;
+        }
+        if (!Subtract(presentation_end, in.pts, presentation_offset))
+            return fail("loop presentation offset overflows");
+        seam_presentation_end = presentation_end;
+        // Shifting PTS further than DTS each loop would grow CTS without
+        // bound and eventually increase playback delay or overflow FLV/MP4.
+        if (presentation_offset > dts_offset)
+            return fail("loop composition drift requires a new generation");
+        pts_offset                = dts_offset;
+        next.usedDurationFallback = last_duration_ == 0 || has_unknown_duration_;
     }
-    int64_t pts{}, dts{}, end{};
-    if (!Add(in.pts, offset, pts) || !Add(in.dts, offset, dts) || !Add(dts, in.duration, end))
+    int64_t pts{}, dts{}, end{}, presentation_end{};
+    if (!Add(in.pts, pts_offset, pts) || !Add(in.dts, dts_offset, dts) || !Add(dts, in.duration, end) ||
+        !Add(pts, in.duration, presentation_end))
         return fail("adjusted packet timestamp overflows");
     if (pts == kMin || dts == kMin || end == kMin)
         return fail("adjusted timestamp collides with missing timestamp sentinel");
+    int64_t adjusted_cts{};
+    if (!Subtract(pts, dts, adjusted_cts) || adjusted_cts < 0)
+        return fail("adjusted composition offset is invalid");
+    const AVRational base{in.timeBaseNum, in.timeBaseDen};
+    const int64_t flv_cts = av_rescale_q(adjusted_cts, base, AVRational{1, 1000});
+    const int64_t mp4_cts = av_rescale_q(adjusted_cts, base, AVRational{1, 90000});
+    // Leave one output tick for independent PTS/DTS rounding by the muxers.
+    if (flv_cts < 0 || flv_cts >= 0x7fffff || mp4_cts < 0 ||
+        mp4_cts >= static_cast<int64_t>(std::numeric_limits<uint32_t>::max()))
+        return fail("adjusted composition offset exceeds FLV or MP4 limits");
     const bool has_floor = in.newLoop || has_presentation_floor_;
-    const int64_t floor  = in.newLoop ? max_pts_ : presentation_floor_;
-    if (has_floor && pts <= floor)
+    const int64_t floor  = in.newLoop ? seam_presentation_end : presentation_floor_;
+    if (has_floor && pts < floor)
         return fail("loop presentation timestamp overlaps the preceding loop");
     int64_t delta = 0;
     if (initialized_) {
@@ -103,15 +139,27 @@ bool LocalLoopTimeline::Prepare(const LocalLoopInput& in, Prepared& output, std:
         if (!in.newLoop && !Subtract(dts, last_dts_, delta))
             return fail("decode timestamp delta overflows");
     }
-    next.pts                       = pts;
-    next.dts                       = dts;
-    next.timeBaseNum               = in.timeBaseNum;
-    next.timeBaseDen               = in.timeBaseDen;
-    next.nextOffset_               = offset;
-    next.nextDts_                  = dts;
-    next.nextDuration_             = in.duration;
-    next.nextDelta_                = delta;
-    next.nextMaxPts_               = initialized_ && max_pts_ > pts ? max_pts_ : pts;
+    next.pts                   = pts;
+    next.dts                   = dts;
+    next.timeBaseNum           = in.timeBaseNum;
+    next.timeBaseDen           = in.timeBaseDen;
+    next.nextDtsOffset_        = dts_offset;
+    next.nextPtsOffset_        = pts_offset;
+    next.nextDts_              = dts;
+    next.nextDuration_         = in.duration;
+    next.nextDelta_            = delta;
+    const bool continuing_loop = initialized_ && !in.newLoop;
+    next.nextDurationConsistent_ =
+        !continuing_loop || (duration_consistent_ && (last_duration_ == 0 || last_duration_ == delta));
+    next.nextMaxPresentationEnd_ = continuing_loop && max_presentation_end_ > presentation_end
+                                       ? max_presentation_end_
+                                       : presentation_end;
+    next.nextHasUnknownDuration_ = (continuing_loop && has_unknown_duration_) || in.duration == 0;
+    next.nextMaxUnknownDurationPts_ =
+        in.duration == 0 ? (continuing_loop && has_unknown_duration_ && max_unknown_duration_pts_ > pts
+                                ? max_unknown_duration_pts_
+                                : pts)
+                         : (continuing_loop ? max_unknown_duration_pts_ : 0);
     next.nextHasPresentationFloor_ = has_floor;
     next.nextPresentationFloor_    = floor;
     next.nextNum_                  = in.timeBaseNum;
@@ -130,17 +178,21 @@ bool LocalLoopTimeline::Commit(const Prepared& prepared, std::string& reason) {
         reason = "timeline revision exhausted";
         return false;
     }
-    initialized_            = true;
-    synthetic_              = prepared.nextSynthetic_;
-    offset_                 = prepared.nextOffset_;
-    last_dts_               = prepared.nextDts_;
-    last_duration_          = prepared.nextDuration_;
-    last_delta_             = prepared.nextDelta_;
-    max_pts_                = prepared.nextMaxPts_;
-    has_presentation_floor_ = prepared.nextHasPresentationFloor_;
-    presentation_floor_     = prepared.nextPresentationFloor_;
-    num_                    = prepared.nextNum_;
-    den_                    = prepared.nextDen_;
+    initialized_              = true;
+    synthetic_                = prepared.nextSynthetic_;
+    dts_offset_               = prepared.nextDtsOffset_;
+    pts_offset_               = prepared.nextPtsOffset_;
+    last_dts_                 = prepared.nextDts_;
+    last_duration_            = prepared.nextDuration_;
+    last_delta_               = prepared.nextDelta_;
+    max_presentation_end_     = prepared.nextMaxPresentationEnd_;
+    max_unknown_duration_pts_ = prepared.nextMaxUnknownDurationPts_;
+    has_unknown_duration_     = prepared.nextHasUnknownDuration_;
+    duration_consistent_      = prepared.nextDurationConsistent_;
+    has_presentation_floor_   = prepared.nextHasPresentationFloor_;
+    presentation_floor_       = prepared.nextPresentationFloor_;
+    num_                      = prepared.nextNum_;
+    den_                      = prepared.nextDen_;
     ++revision_;
     return true;
 }
@@ -148,9 +200,13 @@ bool LocalLoopTimeline::Commit(const Prepared& prepared, std::string& reason) {
 void LocalLoopTimeline::Reset() {
     initialized_ = false;
     synthetic_   = false;
-    offset_      = 0;
+    dts_offset_  = 0;
+    pts_offset_  = 0;
     last_dts_ = last_duration_ = last_delta_ = 0;
-    max_pts_                                 = 0;
+    max_presentation_end_                    = 0;
+    max_unknown_duration_pts_                = 0;
+    has_unknown_duration_                    = false;
+    duration_consistent_                     = true;
     presentation_floor_                      = 0;
     has_presentation_floor_                  = false;
     num_ = den_ = 0;

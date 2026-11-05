@@ -30,8 +30,8 @@ public:
         int timeBaseNum{0};
         int timeBaseDen{0};
         bool syntheticCfr{false};
-        // Previous packet had no duration; a previous same-loop DTS delta was
-        // used at this seam. This is an estimate for VFR, not source evidence.
+        // A duration was missing and the final same-loop DTS delta was used
+        // as an estimate; this is not proof of VFR presentation duration.
         bool usedDurationFallback{false};
 
     private:
@@ -39,11 +39,15 @@ public:
         uint64_t revision_{0};
         bool valid_{false};
         bool nextSynthetic_{false};
-        int64_t nextOffset_{0};
+        int64_t nextDtsOffset_{0};
+        int64_t nextPtsOffset_{0};
         int64_t nextDts_{0};
         int64_t nextDuration_{0};
         int64_t nextDelta_{0};
-        int64_t nextMaxPts_{0};
+        int64_t nextMaxPresentationEnd_{0};
+        int64_t nextMaxUnknownDurationPts_{0};
+        bool nextHasUnknownDuration_{false};
+        bool nextDurationConsistent_{true};
         int64_t nextPresentationFloor_{0};
         bool nextHasPresentationFloor_{false};
         int nextNum_{0};
@@ -61,11 +65,15 @@ private:
     uint64_t revision_{0};
     bool initialized_{false};
     bool synthetic_{false};
-    int64_t offset_{0};
+    int64_t dts_offset_{0};
+    int64_t pts_offset_{0};
     int64_t last_dts_{0};
     int64_t last_duration_{0};
     int64_t last_delta_{0};
-    int64_t max_pts_{0};
+    int64_t max_presentation_end_{0};
+    int64_t max_unknown_duration_pts_{0};
+    bool has_unknown_duration_{false};
+    bool duration_consistent_{true};
     int64_t presentation_floor_{0};
     bool has_presentation_floor_{false};
     int num_{0};
