@@ -20,6 +20,7 @@ extern "C" {
 #include "catch_amalgamated.hpp"
 #include "flow/channel/AlgChannelMp4.h"
 #include "flow/channel/AlgMp4Record.h"
+#include "media/VideoDemuxer.h"
 #include "mock/MockConfigReadService.h"
 #include "mock/MockDbService.h"
 #include "mock/MockTaskService.h"
@@ -105,6 +106,32 @@ Bytes Annex(const std::vector<Bytes>& nalus, bool short_first = false) {
             result.push_back(0);
         result.insert(result.end(), {0, 0, 1});
         result.insert(result.end(), nalus[i].begin(), nalus[i].end());
+    }
+    return result;
+}
+Bytes Configuration(Codec codec, const std::vector<Bytes>& parameters) {
+    Bytes result;
+    const auto append = [&](const Bytes& nalu) {
+        REQUIRE(nalu.size() <= 65535);
+        result.push_back(static_cast<uint8_t>(nalu.size() >> 8));
+        result.push_back(static_cast<uint8_t>(nalu.size()));
+        result.insert(result.end(), nalu.begin(), nalu.end());
+    };
+    if (codec == Codec::kH264) {
+        result = {1, parameters[0][1], parameters[0][2], parameters[0][3], 0xff, 0xe1};
+        append(parameters[0]);
+        result.push_back(1);
+        append(parameters[1]);
+    } else {
+        result.resize(23);
+        result[0]  = 1;
+        result[21] = 3;
+        result[22] = 3;
+        for (size_t index = 0; index < parameters.size(); ++index) {
+            result.push_back(static_cast<uint8_t>(32 + index));
+            result.insert(result.end(), {0, 1});
+            append(parameters[index]);
+        }
     }
     return result;
 }
@@ -306,6 +333,150 @@ TEST_CASE("MP4 recording reuses one buffer and preserves long short long samples
     for (size_t i = 0; i < nalus.size(); ++i)
         reader.Check(i + 1, Expected({nalus[i]}), i != 1);
     reader.Check(4, Expected({nalus[1]}), false);
+}
+
+TEST_CASE("MP4 recording seeds SDP-only AVC and HEVC parameters for every event",
+          "[mp4-record][codec-headers]") {
+    const auto codec       = GENERATE(Codec::kH264, Codec::kH265);
+    const bool config_form = GENERATE(false, true);
+    Environment env;
+    const auto parameters = Parameters(codec);
+    const auto headers =
+        std::make_shared<const Bytes>(config_form ? Configuration(codec, parameters) : Annex(parameters));
+    const auto idr = Annex({Nalu(codec, true)});
+    const auto p   = Annex({Nalu(codec, false)});
+    for (const auto* id : {"first", "later"}) {
+        {
+            cosmo::AlgMp4Record record(codec, env.Param(id), 25, 640, 480);
+            auto before             = Packet(p, codec, 0);
+            before->codec_extradata = headers;
+            REQUIRE_FALSE(record.RecodeFrame(before));
+            REQUIRE(record.GetRecordFrames() == 0);
+            auto first             = Packet(idr, codec, 1);
+            first->codec_extradata = headers;
+            REQUIRE(record.RecodeFrame(first));
+            CHECK(first->data == idr);  // Other packet consumers still see the original bytes.
+            auto second             = Packet(p, codec, 2);
+            second->codec_extradata = headers;
+            REQUIRE(record.RecodeFrame(second));
+            REQUIRE(record.GetRecordFrames() == 2);
+        }
+        Reader reader(env.File("_video.mp4", id));
+        reader.CheckParameters(codec);
+        REQUIRE(MP4GetTrackNumberOfSamples(reader.handle, reader.track) == 2);
+        reader.Check(1, Expected({Nalu(codec, true)}), true);
+        reader.Check(2, Expected({Nalu(codec, false)}), false);
+    }
+}
+
+TEST_CASE("MP4 recording preserves complete in-band parameters with extradata attached",
+          "[mp4-record][codec-headers]") {
+    const auto codec = GENERATE(Codec::kH264, Codec::kH265);
+    Environment env;
+    auto input = Parameters(codec);
+    input.push_back(Nalu(codec, true));
+    {
+        cosmo::AlgMp4Record record(codec, env.Param(), 25, 640, 480);
+        auto packet             = Packet(Annex(input), codec, 1);
+        packet->codec_extradata = std::make_shared<const Bytes>(Configuration(codec, Parameters(codec)));
+        REQUIRE(record.RecodeFrame(packet));
+        CHECK(record.GetRecordFrames() == 1);
+    }
+    Reader reader(env.File("_video.mp4"));
+    reader.CheckParameters(codec);
+    reader.Check(1, Expected({Nalu(codec, true)}), true);
+}
+
+TEST_CASE("MP4 recording rejects invalid SDP and ignores another stream's configuration",
+          "[mp4-record][codec-headers]") {
+    const auto codec = GENERATE(Codec::kH264, Codec::kH265);
+    Environment env;
+    const auto bad_headers = std::make_shared<const Bytes>(Bytes{1, 0xff});
+    SECTION("invalid configuration cannot publish an apparently successful video") {
+        {
+            cosmo::AlgMp4Record record(codec, env.Param(), 25, 640, 480);
+            auto packet             = Packet(Annex({Nalu(codec, true)}), codec, 1);
+            packet->codec_extradata = bad_headers;
+            CHECK_FALSE(record.RecodeFrame(packet));
+            CHECK(record.GetRecordFrames() == 0);
+            auto valid = Parameters(codec);
+            valid.push_back(Nalu(codec, true));
+            CHECK_FALSE(record.RecodeFrame(Packet(Annex(valid), codec, 2)));
+        }
+        CHECK(fs::exists(env.File("_video.tmp")));
+        CHECK_FALSE(fs::exists(env.File("_video.mp4")));
+    }
+    SECTION("a queued packet from another generation cannot seed the recorder") {
+        {
+            cosmo::AlgMp4Record record(codec, env.Param(), 25, 640, 480);
+            auto wrong             = Packet(Annex({Nalu(codec, true)}), codec, 1);
+            wrong->stream_idx      = 1;
+            wrong->codec_extradata = bad_headers;
+            CHECK_FALSE(record.RecodeFrame(wrong));
+            auto own             = Packet(Annex({Nalu(codec, true)}), codec, 1);
+            own->codec_extradata = std::make_shared<const Bytes>(Annex(Parameters(codec)));
+            REQUIRE(record.RecodeFrame(own));
+        }
+        Reader reader(env.File("_video.mp4"));
+        reader.CheckParameters(codec);
+        reader.Check(1, Expected({Nalu(codec, true)}), true);
+    }
+}
+
+TEST_CASE("MP4 recording does not publish a failed SDP-seeded first sample", "[mp4-record][codec-headers]") {
+    const auto codec = GENERATE(Codec::kH264, Codec::kH265);
+    const auto fault = GENERATE(Fault::False, Fault::NoSample);
+    Environment env;
+    {
+        cosmo::AlgMp4Record record(codec, env.Param(), 25, 640, 480);
+        auto packet             = Packet(Annex({Nalu(codec, true)}), codec, 1);
+        packet->codec_extradata = std::make_shared<const Bytes>(Annex(Parameters(codec)));
+        env.writer.SetFault(fault);
+        REQUIRE_FALSE(record.RecodeFrame(packet));
+        CHECK(record.GetRecordFrames() == 0);
+        const auto calls = env.writer.Addresses().size();
+        env.writer.SetFault(Fault::None);
+        CHECK_FALSE(record.RecodeFrame(packet));
+        CHECK(env.writer.Addresses().size() == calls);
+    }
+    CHECK(fs::exists(env.File("_video.tmp")));
+    CHECK_FALSE(fs::exists(env.File("_video.mp4")));
+}
+
+TEST_CASE("Demuxed recording packets retain their codec configuration after reopen",
+          "[mp4-record][codec-headers][demux][reopen]") {
+    Environment env;
+    {
+        cosmo::AlgMp4Record record(Codec::kH264, env.Param(), 25, 640, 480);
+        Configure(record, Codec::kH264);
+        REQUIRE(record.RecodeFrame(Packet(Annex({Nalu(Codec::kH264, true)}), Codec::kH264, 1)));
+        REQUIRE(record.RecodeFrame(Packet(Annex({Nalu(Codec::kH264, false)}), Codec::kH264, 2)));
+    }
+    cosmo::media::VideoDemuxer demux;
+    demux.SetFile(env.File("_video.mp4").string());
+    REQUIRE(demux.OpenStream() == cosmo::util::ErrorEnum::Success);
+    REQUIRE(demux.FindStream() == cosmo::util::ErrorEnum::Success);
+    const auto headers = demux.GetCodecExtradata();
+    REQUIRE_FALSE(headers.empty());
+    auto old_packet = std::make_shared<cosmo::media::VideoPacket>();
+    REQUIRE(demux.Demux(old_packet) == cosmo::media::ReadFrameStatus::Success);
+    REQUIRE(old_packet->codec_extradata);
+    CHECK(*old_packet->codec_extradata == headers);
+    auto same_stream = std::make_shared<cosmo::media::VideoPacket>();
+    REQUIRE(demux.Demux(same_stream) == cosmo::media::ReadFrameStatus::Success);
+    CHECK(same_stream->codec_extradata == old_packet->codec_extradata);
+    demux.CloseStream();
+    CHECK(demux.GetCodecExtradata().empty());
+    CHECK(*old_packet->codec_extradata == headers);
+    REQUIRE(demux.OpenStream() == cosmo::util::ErrorEnum::Success);
+    REQUIRE(demux.FindStream() == cosmo::util::ErrorEnum::Success);
+    auto new_packet = std::make_shared<cosmo::media::VideoPacket>();
+    REQUIRE(demux.Demux(new_packet) == cosmo::media::ReadFrameStatus::Success);
+    REQUIRE(new_packet->codec_extradata);
+    CHECK(new_packet->stream_idx != old_packet->stream_idx);
+    CHECK(new_packet->codec_extradata != old_packet->codec_extradata);
+    CHECK(*new_packet->codec_extradata == headers);
+    CHECK(*old_packet->codec_extradata == headers);
 }
 
 TEST_CASE("MP4 recording keeps its event busy until finalization", "[mp4-record][alarm-delete]") {

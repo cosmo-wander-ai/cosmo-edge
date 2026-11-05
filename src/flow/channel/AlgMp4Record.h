@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "flow/common/AlgDataUnit.h"
+#include "media/DecoderParameterSets.h"
 
 typedef void* MP4FileHandle;
 typedef uint32_t MP4TrackId;
@@ -60,6 +61,8 @@ private:
     bool is_vps_ready_{false};
     bool is_sps_ready_{false};
     bool is_pps_ready_{false};
+    bool parameter_sets_configured_{false};
+    media::DecoderParameterSets parameter_sets_;
 
     media::VideoCodecType source_type_;
     std::string channel_id_;

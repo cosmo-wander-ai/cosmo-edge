@@ -46,6 +46,9 @@ struct VideoPacket {
     bool is_i_frame = false;
 
     VideoCodecType codec_type = VideoCodecType::kH264;
+    // Immutable configuration of this stream generation. Keep it with queued
+    // packets so a reconnect cannot replace the headers used by a recorder.
+    std::shared_ptr<const std::vector<uint8_t>> codec_extradata;
 
     size_t width  = 0;
     size_t height = 0;

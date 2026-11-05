@@ -99,7 +99,7 @@ namespace media {
         opened_filename_.clear();
         {
             std::lock_guard<std::mutex> lock(metadata_mtx_);
-            extradata_.clear();
+            extradata_.reset();
         }
         width_.store(0, std::memory_order_relaxed);
         height_.store(0, std::memory_order_relaxed);

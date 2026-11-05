@@ -83,17 +83,18 @@ namespace media {
         AVStream* stream            = fmt_ctx_->streams[video_stream_idx_];
         AVCodecParameters* codecpar = stream->codecpar;
 
-        // Cache extradata so new RTMP viewers can get SPS/PPS
-        // without waiting for in-band parameters in the stream.
+        // Preserve one immutable configuration per stream generation for
+        // viewers, decoders and queued recording packets.
         {
             // Preview startup can read headers while this worker reconnects.
             // Publish/copy snapshots rather than returning a mutable reference.
             std::lock_guard<std::mutex> lock(metadata_mtx_);
             enc_type_ = next_codec;
             if (codecpar->extradata && codecpar->extradata_size > 0) {
-                extradata_.assign(codecpar->extradata, codecpar->extradata + codecpar->extradata_size);
+                extradata_ = std::make_shared<const std::vector<uint8_t>>(
+                    codecpar->extradata, codecpar->extradata + codecpar->extradata_size);
             } else {
-                extradata_.clear();
+                extradata_.reset();
             }
         }
 
@@ -395,10 +396,14 @@ namespace media {
         pkt->index      = packet_index_;
         pkt->abs_idx    = abs_packet_index_;
         pkt->is_i_frame = saved_is_i_frame;
-        pkt->codec_type = enc_type_;
-        pkt->width      = static_cast<size_t>(width_.load());
-        pkt->height     = static_cast<size_t>(height_.load());
-        pkt->fps        = fps_;
+        {
+            std::lock_guard<std::mutex> lock(metadata_mtx_);
+            pkt->codec_type      = enc_type_;
+            pkt->codec_extradata = extradata_;
+        }
+        pkt->width  = static_cast<size_t>(width_.load());
+        pkt->height = static_cast<size_t>(height_.load());
+        pkt->fps    = fps_;
 
         // NOTE: Intentionally ignoring dynamic resolution changes here to prevent pipeline crashes.
 

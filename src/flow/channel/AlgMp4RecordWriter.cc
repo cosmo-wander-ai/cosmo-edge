@@ -241,9 +241,26 @@ bool AlgMp4Record::RecodeFrame(VideoPacketPtr frame) {
         return false;
     }
     data_size_ += static_cast<int64_t>(frame->GetSize());
+    std::string header_error;
+    if (!parameter_sets_configured_) {
+        const std::vector<uint8_t> empty;
+        if (!parameter_sets_.Configure(source_type_, frame->codec_extradata ? *frame->codec_extradata : empty,
+                                       header_error)) {
+            LOG_ERRO("[MP4 TASK] {} {} invalid codec configuration: {}", task_id_, event_name_, header_error);
+            write_failed_ = true;
+            return false;
+        }
+        parameter_sets_configured_ = true;
+    }
+    const uint8_t* input = nullptr;
+    size_t input_size    = 0;
+    if (!parameter_sets_.Prepare(frame->GetData(), frame->GetSize(), input, input_size, header_error)) {
+        LOG_WARN("[MP4 TASK] {} {} Frame:{} cannot prepare headers: {}", task_id_, event_name_,
+                 frame->GetSequence(), header_error);
+        return false;
+    }
     FrameScan scan;
-    if (!ScanFrame(frame->GetData(), frame->GetSize(), &scan) ||
-        !TransformFrame(frame->GetData(), frame->GetSize(), scan)) {
+    if (!ScanFrame(input, input_size, &scan) || !TransformFrame(input, input_size, scan)) {
         LOG_WARN("[MP4 TASK] {} {} Frame:{} invalid Annex-B input", task_id_, event_name_,
                  frame->GetSequence());
         return false;
@@ -270,7 +287,14 @@ bool AlgMp4Record::RecodeFrame(VideoPacketPtr frame) {
         sample_buffer_.clear();
         return false;
     }
-    return WriteVideoSample(seq, scan.is_sync);
+    if (!WriteVideoSample(seq, scan.is_sync))
+        return false;
+    if (input != frame->GetData()) {
+        LOG_INFO("[MP4 TASK] {} {} seeded out-of-band parameter sets: bytes={} Frame:{}", task_id_,
+                 event_name_, parameter_sets_.HeaderBytes(), seq);
+    }
+    parameter_sets_.Commit();
+    return true;
 }
 
 int64_t AlgMp4Record::GetLastIndex() {

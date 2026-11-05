@@ -76,7 +76,7 @@ namespace media {
 
         std::vector<uint8_t> GetCodecExtradata() const {
             std::lock_guard<std::mutex> lock(metadata_mtx_);
-            return extradata_;
+            return extradata_ ? *extradata_ : std::vector<uint8_t>{};
         }
 
         bool IsLiveStream() const {
@@ -140,8 +140,8 @@ namespace media {
         int64_t start_pts_{0};                                    // For calculating frame rate
 
         std::unique_ptr<IDemuxStrategy> strategy_;
-        std::atomic<bool> is_live_{false};  // Read by status queries during reconnect.
-        std::vector<uint8_t> extradata_;    // Cached codec extradata (avcC/hevcC) from FindStream
+        std::atomic<bool> is_live_{false};                       // Read by status queries during reconnect.
+        std::shared_ptr<const std::vector<uint8_t>> extradata_;  // Annex B/avcC/hvcC snapshot from FindStream
         bool opened_{false};
         bool ready_{false};
         bool end_{false};
