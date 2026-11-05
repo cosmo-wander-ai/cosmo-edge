@@ -355,6 +355,12 @@ void AlgChannelDecode::HandFrame(AlgDataPtr demux_data) {
     auto frame_data = decoded_frame.Materialize();
     duration_stat_.EndSample();
     if (!frame_data || !frame_data->Active()) {
+        // DecodeFrame can successfully consume the current input while its
+        // returned (possibly reordered) output fails host materialization.
+        // Keep validating subsequent packets against the consumed input, not
+        // the older output frame that could not be distributed.
+        if (video_frame->codec_type != media::VideoCodecType::kMjpeg && is_decode_ret)
+            frame_index_ = video_frame->index;
         action_status_ = util::ErrorEnum::DecoderFrameFailed;
         LOG_WARN("{} decoded frame materialization failed at frame:{} stream:{}", name_, video_frame->index,
                  video_frame->stream_idx);
