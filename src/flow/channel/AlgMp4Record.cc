@@ -78,6 +78,10 @@ bool AlgMp4Record::IsReady() const {
     return static_cast<bool>(recording_lease_);
 }
 
+void AlgMp4Record::MarkIncomplete() {
+    write_failed_ = true;
+}
+
 AlgMp4Record::~AlgMp4Record() {
     if (mp4_handle_) {
         if (timed_ && !pending_sample_.empty() && !write_failed_) {

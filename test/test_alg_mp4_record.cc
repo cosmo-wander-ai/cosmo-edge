@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -1080,6 +1081,121 @@ TEST_CASE("MP4 channel continues after a parameter-only packet", "[mp4-record][c
     reader.Check(2, Expected({p}), false);
 }
 
+TEST_CASE("MP4 channel destruction drains accepted frames and terminal", "[mp4-record][drain]") {
+    Environment env;
+    cosmo::CfgAlarmParamVideoRecordInfo duration{};
+    duration.preDuration   = 5;
+    duration.aftreDuration = 5;
+    auto expectation       = NAMED_ALLOW_CALL(env.config, GetAlarmVideoDuration()).RETURN(duration);
+    const auto codec       = Codec::kH264;
+    auto initial           = Parameters(codec);
+    const auto idr         = Nalu(codec, true);
+    const auto p           = Nalu(codec, false, 20, 0xbb);
+    initial.push_back(idr);
+    {
+        cosmo::AlgChannelMp4 channel("channel");
+        auto param = env.Param();
+        REQUIRE(channel.RecordMp4(param));
+        auto first        = Packet(Annex(initial), codec, 1);
+        first->is_i_frame = true;
+        REQUIRE(channel.TaskFrame(first));
+        REQUIRE(channel.TaskFrame(Packet(Annex({p}), codec, 2)));
+        REQUIRE(channel.TaskFrame(Packet(Annex({p}), codec, 3)));
+        auto end   = std::make_shared<cosmo::media::VideoPacket>();
+        end->index = -1;
+        REQUIRE(channel.TaskFrame(end));
+    }
+    Reader reader(env.File("_video.mp4"));
+    REQUIRE(MP4GetTrackNumberOfSamples(reader.handle, reader.track) == 3);
+    reader.Check(1, Expected({idr}), true);
+    reader.Check(2, Expected({p}), false);
+    reader.Check(3, Expected({p}), false);
+}
+
+TEST_CASE("MP4 drain timeout retains incomplete temporary video", "[mp4-record][drain]") {
+    Environment env;
+    cosmo::CfgAlarmParamVideoRecordInfo duration{};
+    duration.preDuration   = 5;
+    duration.aftreDuration = 5;
+    auto expectation       = NAMED_ALLOW_CALL(env.config, GetAlarmVideoDuration()).RETURN(duration);
+    auto channel           = std::make_unique<cosmo::AlgChannelMp4>("channel", std::chrono::milliseconds(30));
+    struct ReleaseWriter {
+        ScopedWriter& writer;
+        ~ReleaseWriter() {
+            writer.SetFault(Fault::None);
+        }
+    } release_writer{env.writer};
+    auto param = env.Param();
+    REQUIRE(channel->RecordMp4(param));
+    auto initial = Parameters(Codec::kH264);
+    initial.push_back(Nalu(Codec::kH264, true));
+    env.writer.SetFault(Fault::Block);
+    REQUIRE(channel->TaskFrame(Packet(Annex(initial), Codec::kH264, 1)));
+    REQUIRE(env.writer.WaitForCalls(1));
+    REQUIRE(channel->TaskFrame(Packet(Annex({Nalu(Codec::kH264, false)}), Codec::kH264, 2)));
+    auto end   = std::make_shared<cosmo::media::VideoPacket>();
+    end->index = -1;
+    REQUIRE(channel->TaskFrame(end));
+    auto destroyed =
+        std::async(std::launch::async, [owned = std::move(channel)]() mutable { owned.reset(); });
+    const bool waited = destroyed.wait_for(std::chrono::milliseconds(150)) != std::future_status::ready;
+    env.writer.SetFault(Fault::None);
+    destroyed.get();
+    CHECK(waited);
+    CHECK(fs::exists(env.File("_video.tmp")));
+    CHECK_FALSE(fs::exists(env.File("_video.mp4")));
+    CHECK_FALSE(fs::exists(env.File("_overview.json")));
+}
+
+TEST_CASE("MP4 drain preserves writer failure as temporary video", "[mp4-record][drain]") {
+    Environment env;
+    cosmo::CfgAlarmParamVideoRecordInfo duration{};
+    duration.preDuration   = 5;
+    duration.aftreDuration = 5;
+    auto expectation       = NAMED_ALLOW_CALL(env.config, GetAlarmVideoDuration()).RETURN(duration);
+    env.writer.SetFault(Fault::False);
+    {
+        cosmo::AlgChannelMp4 channel("channel");
+        auto param = env.Param();
+        REQUIRE(channel.RecordMp4(param));
+        auto initial = Parameters(Codec::kH264);
+        initial.push_back(Nalu(Codec::kH264, true));
+        REQUIRE(channel.TaskFrame(Packet(Annex(initial), Codec::kH264, 1)));
+    }
+    env.writer.SetFault(Fault::None);
+    CHECK(fs::exists(env.File("_video.tmp")));
+    CHECK_FALSE(fs::exists(env.File("_video.mp4")));
+}
+
+TEST_CASE("MP4 callback exception prevents later terminal from publishing", "[mp4-record][drain]") {
+    Environment env;
+    cosmo::CfgAlarmParamVideoRecordInfo duration{};
+    duration.preDuration   = 5;
+    duration.aftreDuration = 5;
+    std::atomic<int> calls{0};
+    auto expectation = NAMED_ALLOW_CALL(env.config, GetAlarmVideoDuration())
+                           .LR_SIDE_EFFECT({
+                               if (++calls == 2)
+                                   throw std::runtime_error("injected callback failure");
+                           })
+                           .RETURN(duration);
+    {
+        cosmo::AlgChannelMp4 channel("channel");
+        auto param = env.Param();
+        REQUIRE(channel.RecordMp4(param));
+        auto initial = Parameters(Codec::kH264);
+        initial.push_back(Nalu(Codec::kH264, true));
+        REQUIRE(channel.TaskFrame(Packet(Annex(initial), Codec::kH264, 1)));
+        REQUIRE(channel.TaskFrame(Packet(Annex({Nalu(Codec::kH264, false)}), Codec::kH264, 2)));
+        auto end   = std::make_shared<cosmo::media::VideoPacket>();
+        end->index = -1;
+        REQUIRE(channel.TaskFrame(end));
+    }
+    CHECK(calls.load() >= 2);
+    CHECK(fs::exists(env.File("_video.tmp")));
+    CHECK_FALSE(fs::exists(env.File("_video.mp4")));
+}
+
 TEST_CASE("MP4 channel does not replay a buffered first timed IDR",
           "[mp4-record][packet-time][concurrency]") {
     Environment env;
@@ -1325,6 +1441,7 @@ TEST_CASE("Local B-frame repeat keeps one raw publisher and MP4 timeline", "[mp4
 }
 
 TEST_CASE("MP4 channel preserves a recording across local B-frame replay", "[mp4-record][local-loop]") {
+    const bool terminal_before_destruction = GENERATE(false, true);
     Environment env;
     const auto source = fs::path(env.root) / "loop-channel-source.mp4";
     fs::create_directories(source.parent_path());
@@ -1386,6 +1503,17 @@ TEST_CASE("MP4 channel preserves a recording across local B-frame replay", "[mp4
         for (size_t i = 2; i < packets.size(); ++i)
             REQUIRE(channel.TaskFrame(packets[i]));
         REQUIRE(env.writer.WaitForCalls(70));
+        if (terminal_before_destruction) {
+            auto end   = std::make_shared<cosmo::media::VideoPacket>();
+            end->index = -1;
+            REQUIRE(channel.TaskFrame(end));
+            const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+            while (!fs::exists(env.File("_video.mp4")) && std::chrono::steady_clock::now() < deadline)
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            REQUIRE(fs::exists(env.File("_video.mp4")));
+            Reader complete(env.File("_video.mp4"));
+            REQUIRE(MP4GetTrackNumberOfSamples(complete.handle, complete.track) == 72);
+        }
     }
     Reader reader(env.File("_video.mp4"));
     CHECK(MP4GetTrackNumberOfSamples(reader.handle, reader.track) == 72);
@@ -1425,6 +1553,8 @@ TEST_CASE("MP4 terminal marker survives a saturated recording queue", "[mp4-reco
         while (!fs::exists(env.File("_video.mp4")) && std::chrono::steady_clock::now() < deadline)
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         REQUIRE(fs::exists(env.File("_video.mp4")));
+        Reader reader(env.File("_video.mp4"));
+        CHECK(MP4GetTrackNumberOfSamples(reader.handle, reader.track) == 301);
     }
 }
 

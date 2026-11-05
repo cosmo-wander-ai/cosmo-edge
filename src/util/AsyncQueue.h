@@ -54,6 +54,12 @@ public:
 
     void Stop();
 
+    // Close input, drain already accepted items in FIFO order, and report
+    // whether the worker completed before the deadline. On timeout, no new
+    // item is taken, but an in-flight callback is not interrupted. The owner
+    // must still call stop() to join before destroying callback state.
+    bool StopAndDrainFor(std::chrono::milliseconds timeout);
+
     AsyncQueue& SetProcessor(std::function<void(DataType&&)> func);
     AsyncQueue& SetProcessor(std::function<void(DataType&&, size_t)> func);
     AsyncQueue& SetChecker(std::function<bool(const DataType&, const std::string&)>
@@ -61,6 +67,9 @@ public:
 
     template <typename T>
     bool Insert(T&& data, bool force = false);
+    // One extra slot for an ordered control marker, without evicting data.
+    template <typename T>
+    bool InsertReserved(T&& data);
     void SetMaxSize(size_t max_queue_size);
 
     bool IsRunning() const;
@@ -86,6 +95,8 @@ private:
     std::string name_;
     size_t max_size_;
     std::atomic<bool> is_running_{false};
+    bool draining_{false};
+    bool worker_finished_{false};
     AsyncQueueStatus status_;
     std::chrono::steady_clock::time_point time_point_;
 
@@ -185,6 +196,39 @@ bool AsyncQueue<DataType, QueueType>::Insert(T&& data, bool force) {
 }
 
 template <typename DataType, typename QueueType>
+template <typename T>
+bool AsyncQueue<DataType, QueueType>::InsertReserved(T&& data) {
+    {
+        std::lock_guard<std::mutex> lock(queue_mtx_);
+        if (!is_running_ || queue_.size() > max_size_)
+            return false;
+        ++status_.insertCount;
+        ++status_.insertCountPeriod;
+        queue_.push_back(std::forward<T>(data));
+        status_.holdCount    = static_cast<uint32_t>(queue_.size());
+        status_.holdCountMax = std::max(status_.holdCountMax, status_.holdCount);
+    }
+    cond_.notify_one();
+    return true;
+}
+
+template <typename DataType, typename QueueType>
+bool AsyncQueue<DataType, QueueType>::StopAndDrainFor(std::chrono::milliseconds timeout) {
+    std::unique_lock<std::mutex> lock(queue_mtx_);
+    if (!is_running_)
+        return false;
+    is_running_ = false;
+    draining_   = true;
+    cond_.notify_all();
+    if (!cond_.wait_for(lock, timeout, [this]() { return worker_finished_; })) {
+        draining_ = false;
+        cond_.notify_all();
+        return false;
+    }
+    return true;
+}
+
+template <typename DataType, typename QueueType>
 void AsyncQueue<DataType, QueueType>::Stop() {
     {
         std::lock_guard<std::mutex> lock(queue_mtx_);
@@ -265,9 +309,9 @@ template <typename DataType, typename QueueType>
 void AsyncQueue<DataType, QueueType>::run() {
     LOG_INFO("thread {} maxsize:{} starting.", name_, max_size_);
     std::unique_lock<std::mutex> lock(queue_mtx_);
-    while (is_running_) {
+    while (is_running_ || draining_) {
         cond_.wait(lock, [this]() { return !queue_.empty() || !is_running_; });
-        if (is_running_ && !queue_.empty()) {
+        if ((is_running_ || draining_) && !queue_.empty()) {
             auto data = std::move(queue_.front());
             queue_.pop_front();
             size_t remaining = queue_.size();
@@ -287,8 +331,12 @@ void AsyncQueue<DataType, QueueType>::run() {
             status_.processCount += 1;
             status_.processCountPeriod += 1;
             status_.continuousDiscardCount = 0;
+        } else if (draining_ && queue_.empty()) {
+            draining_ = false;
         }
     }
+    worker_finished_ = true;
+    cond_.notify_all();
     LOG_INFO(
         "thread {} stop. Total Insert {} Nodes, Discard {} Nodes, continuousDiscardCountMax:{} Nodes, hold "
         "Max:{} Nodes, remaining:{} Nodes",

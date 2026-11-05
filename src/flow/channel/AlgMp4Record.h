@@ -39,6 +39,9 @@ public:
     int64_t GetTaskStartFrameSeq();
     std::string GetEventName();
     [[nodiscard]] bool IsReady() const;
+    // Called only after the queue worker has joined. The temporary file is
+    // retained and will not be published when shutdown dropped pending data.
+    void MarkIncomplete();
 
 private:
     // NALU-type handlers extracted from RecodeFrame (DEBT-011)

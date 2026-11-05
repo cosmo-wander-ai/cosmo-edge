@@ -9,7 +9,8 @@
 #include "util/TimeUtil.h"
 
 namespace cosmo {
-AlgChannelMp4::AlgChannelMp4(const std::string& channel) : async_queue_("RedordQueue", 300) {
+AlgChannelMp4::AlgChannelMp4(const std::string& channel, std::chrono::milliseconds drain_timeout)
+    : drain_timeout_(drain_timeout), async_queue_("RedordQueue", 300) {
     if (channel.empty()) {
         channel_id_ = " ";
     } else {
@@ -19,15 +20,47 @@ AlgChannelMp4::AlgChannelMp4(const std::string& channel) : async_queue_("RedordQ
     video_frames_.reserve(500);  // Reserve capacity for up to 500 frames to avoid reallocation on erase.
     record_tasks_.reserve(100);
 
-    async_queue_.SetProcessor([this](VideoPacketPtr&& data) { HandleFrame(std::move(data)); });
+    async_queue_.SetProcessor([this](VideoPacketPtr&& data) {
+        try {
+            HandleFrame(std::move(data));
+        } catch (const std::exception& e) {
+            callback_failed_.store(true);
+            std::lock_guard<std::mutex> lock(mtx_frame_que_);
+            for (const auto& task : record_tasks_)
+                task->MarkIncomplete();
+            LOG_ERRO("[MP4 CHANNEL] {} recording callback failed: {}", channel_id_, e.what());
+        } catch (...) {
+            callback_failed_.store(true);
+            std::lock_guard<std::mutex> lock(mtx_frame_que_);
+            for (const auto& task : record_tasks_)
+                task->MarkIncomplete();
+            LOG_ERRO("[MP4 CHANNEL] {} recording callback failed", channel_id_);
+        }
+    });
 }
 
 AlgChannelMp4::~AlgChannelMp4() {
-    // Finish the active callback before releasing any state it can access.
-    // Stop/join must run without mtx_frame_que_, which the callback also takes.
-    async_queue_.Stop();
+    // Retain active tasks across drain: a terminal callback can remove them,
+    // but cannot publish them before the shutdown result is known.
+    std::vector<AlgMp4RecordPtr> held_tasks;
+    {
+        std::lock_guard<std::mutex> lock(mtx_frame_que_);
+        closing_   = true;
+        held_tasks = record_tasks_;
+    }
+    const bool drained = async_queue_.StopAndDrainFor(drain_timeout_);
+    if (!drained)
+        LOG_ERRO("[MP4 CHANNEL] {} recording drain deadline exceeded; waiting for active callback",
+                 channel_id_);
+    // The deadline cannot interrupt a blocked callback. Joining without the
+    // frame mutex is required before marking tasks or releasing this object.
     async_queue_.stop();
+    if (!drained || callback_failed_.load()) {
+        for (const auto& task : held_tasks)
+            task->MarkIncomplete();
+    }
     record_tasks_.clear();
+    held_tasks.clear();
     video_frames_.clear();
     LOG_INFO("[MP4 CHANNEL] {} Mp4 Record Stop. ", channel_id_);
 }
@@ -79,11 +112,10 @@ void AlgChannelMp4::HandleFrame(VideoPacketPtr frame) {
 }
 
 bool AlgChannelMp4::TaskFrame(VideoPacketPtr frame) {
-    // A terminal marker must not be silently dropped behind a full queue:
-    // it closes outstanding recordings. Bound the queue by evicting one old
-    // packet, which is preferable to leaving a recording open indefinitely.
+    // Reserve one bounded extra slot so a terminal marker never evicts an
+    // already accepted media packet.
     const bool terminal = frame && frame->GetSequence() == -1;
-    const bool accepted = async_queue_.Insert(frame, terminal);
+    const bool accepted = terminal ? async_queue_.InsertReserved(frame) : async_queue_.Insert(frame);
     if (terminal && !accepted)
         LOG_ERRO("[MP4 CHANNEL] {} terminal marker was not queued", channel_id_);
     return accepted;
@@ -91,6 +123,8 @@ bool AlgChannelMp4::TaskFrame(VideoPacketPtr frame) {
 bool AlgChannelMp4::RecordMp4(RecordParam& record_param) {
     LOG_INFO("{}", "BEBUG_ALARM");
     std::unique_lock<std::mutex> lock(mtx_frame_que_);
+    if (closing_ || callback_failed_.load())
+        return false;
     auto task_start_frame_seq  = GetStartFrameIndex(record_param.streamIndex, record_param.frameTimestamp);
     record_param.startFrameSeq = task_start_frame_seq.first;
     record_param.startframeTimestamp = task_start_frame_seq.second;
