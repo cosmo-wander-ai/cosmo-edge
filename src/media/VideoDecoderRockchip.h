@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "media/DecoderParameterSets.h"
 #include "media/VideoDecoder.h"
 
 namespace cosmo::media {
@@ -24,6 +25,7 @@ public:
     bool Open() override;
     bool Close() override;
     bool IsOpened() override;
+    void SetCodecExtradata(const std::vector<uint8_t>& extradata) override;
     bool ReuseForStreamRestart(VideoCodecType type, int width, int height) override;
 
     bool SendPacket(const uint8_t* pkt, size_t len, int64_t frame_idx) override;
@@ -40,6 +42,8 @@ private:
 
     std::unique_ptr<RockchipDecoderState> state_;
     std::unique_ptr<VideoDecoderCpu> fallback_;
+    std::vector<uint8_t> codec_extradata_;
+    DecoderParameterSets parameter_sets_;
 };
 
 }  // namespace cosmo::media

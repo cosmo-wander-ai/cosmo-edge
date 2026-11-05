@@ -173,6 +173,9 @@ void AlgChannelDecode::PrepareDecoder(VideoPacketPtr& video_frame) {
     const int decoder_height =
         needs_resize ? media::kVideoDefaultHeight : static_cast<int>(video_frame->height);
     const bool stream_restarted = stream_index_ != video_frame->stream_idx;
+    if (stream_restarted || codec_reset_sign_ || !decoder_->IsOpened()) {
+        decoder_->SetCodecExtradata(channel_inst_.GetCodecExtradata());
+    }
 
     // A backend may retain a compatible hardware context across a clean
     // keyframe boundary. CPU/Sophon keep their existing Close/Open behavior.
