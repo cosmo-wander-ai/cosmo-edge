@@ -129,6 +129,13 @@ Status CpuCropResizeNode::PrepareRect(std::shared_ptr<Blob> host_rect, int image
 
 void CpuCropResizeNode::BilinearResize(const uint8_t* src, int src_w, int src_h, int channels, uint8_t* dst,
                                        int dst_w, int dst_h) {
+    BilinearResizeStrided(src, src_w, src_h, channels, static_cast<size_t>(src_w) * channels, dst, dst_w,
+                          dst_h, static_cast<size_t>(dst_w) * channels);
+}
+
+void CpuCropResizeNode::BilinearResizeStrided(const uint8_t* src, int src_w, int src_h, int channels,
+                                              size_t src_stride, uint8_t* dst, int dst_w, int dst_h,
+                                              size_t dst_stride) {
     const float x_ratio = static_cast<float>(src_w) / dst_w;
     const float y_ratio = static_cast<float>(src_h) / dst_h;
 
@@ -147,15 +154,15 @@ void CpuCropResizeNode::BilinearResize(const uint8_t* src, int src_w, int src_h,
             int sx1      = std::min(sx + 1, src_w - 1);
 
             for (int c = 0; c < channels; c++) {
-                float v00 = src[(sy * src_w + sx) * channels + c];
-                float v01 = src[(sy * src_w + sx1) * channels + c];
-                float v10 = src[(sy1 * src_w + sx) * channels + c];
-                float v11 = src[(sy1 * src_w + sx1) * channels + c];
+                float v00 = src[static_cast<size_t>(sy) * src_stride + sx * channels + c];
+                float v01 = src[static_cast<size_t>(sy) * src_stride + sx1 * channels + c];
+                float v10 = src[static_cast<size_t>(sy1) * src_stride + sx * channels + c];
+                float v11 = src[static_cast<size_t>(sy1) * src_stride + sx1 * channels + c];
 
                 float val = v00 * (1 - frac_x) * (1 - frac_y) + v01 * frac_x * (1 - frac_y) +
                             v10 * (1 - frac_x) * frac_y + v11 * frac_x * frac_y;
 
-                dst[(dy * dst_w + dx) * channels + c] =
+                dst[static_cast<size_t>(dy) * dst_stride + dx * channels + c] =
                     static_cast<uint8_t>(std::min(255.0f, std::max(0.0f, val + 0.5f)));
             }
         }
@@ -210,18 +217,20 @@ Status CpuCropResizeNode::Forward(std::vector<std::shared_ptr<Blob>>& image_blob
             int rw = calculated_rects.at(4 * j + 2);
             int rh = calculated_rects.at(4 * j + 3);
 
-            // Extract crop from source
-            std::vector<uint8_t> crop(rw * rh * channels);
-            for (int y = 0; y < rh; y++) {
-                std::memcpy(crop.data() + y * rw * channels, src_data + ((ry + y) * src_w + rx) * channels,
-                            rw * channels);
-            }
+            if (rw <= 0 || rh <= 0 || rx < 0 || ry < 0 || rx > src_w - rw || ry > src_h - rh)
+                return Status(COSMO_NN_ERR_INVALID_INPUT, "crop region is outside the image");
+            // Read the exact crop from the original packed image using its
+            // row stride. This preserves sampling and rounding while avoiding
+            // a crop allocation and copy for every detected object.
+            const size_t source_stride = static_cast<size_t>(src_w) * channels;
+            const auto* crop           = src_data + static_cast<size_t>(ry) * source_stride + rx * channels;
 
             // Resize crop to destination
             uint8_t* dst_ptr = top_data + processed * single_size;
 
             if (gravity == 0) {
-                BilinearResize(crop.data(), rw, rh, channels, dst_ptr, dst_width, dst_height);
+                BilinearResizeStrided(crop, rw, rh, channels, source_stride, dst_ptr, dst_width, dst_height,
+                                      static_cast<size_t>(dst_width) * channels);
             } else {
                 // Letterbox: keep aspect ratio
                 float scale =
@@ -232,15 +241,12 @@ Status CpuCropResizeNode::Forward(std::vector<std::shared_ptr<Blob>>& image_blob
                 uint8_t pad_val = color.empty() ? 114 : static_cast<uint8_t>(color.at(0));
                 std::memset(dst_ptr, pad_val, single_size);
 
-                std::vector<uint8_t> tmp(new_w * new_h * channels);
-                BilinearResize(crop.data(), rw, rh, channels, tmp.data(), new_w, new_h);
-
                 int pad_x = (gravity == 1) ? (dst_width - new_w) / 2 : 0;
                 int pad_y = (gravity == 1) ? (dst_height - new_h) / 2 : 0;
-
-                for (int y = 0; y < new_h; y++) {
-                    std::memcpy(dst_ptr + ((pad_y + y) * dst_width + pad_x) * channels,
-                                tmp.data() + y * new_w * channels, new_w * channels);
+                if (new_w > 0 && new_h > 0) {
+                    auto* image_out = dst_ptr + (static_cast<size_t>(pad_y) * dst_width + pad_x) * channels;
+                    BilinearResizeStrided(crop, rw, rh, channels, source_stride, image_out, new_w, new_h,
+                                          static_cast<size_t>(dst_width) * channels);
                 }
             }
             processed++;
