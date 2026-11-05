@@ -9,6 +9,14 @@
 
 namespace cosmo::mem {
 
+// Resolve the opt-in RK3588 1080p I420 pool budget without consulting global state.
+// Invalid values retain the historical limit and are flagged for the caller.
+struct I420PoolLimit {
+    size_t blocks;
+    bool invalid;
+};
+I420PoolLimit ResolveI420PoolLimit(const char* chip, const char* setting);
+
 class FixedBlockPool {
 public:
     explicit FixedBlockPool(size_t size);
