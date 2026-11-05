@@ -8,7 +8,7 @@ This project follows a release-note style inspired by Keep a Changelog.
 
 No public changes have been assigned to the next release yet.
 
-## [1.2.0] - 2026-11-04
+## [1.2.0] - 2026-11-05
 
 CosmoEdge 1.2.0 packages the changes merged after v1.1.0. Validation remains specific
 to the recorded candidate, platform, and workload; the v1.1 benchmark results do not
