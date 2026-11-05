@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <vector>
 
@@ -32,7 +33,13 @@ struct VideoPacket {
 
     [[nodiscard]] bool IsIFrame() const;
     std::vector<uint8_t> data;
-    int64_t pts             = 0;
+    int64_t pts = 0;
+    // Source decode/presentation timestamps, independent of wall-clock event
+    // timestamps. A zero time base denotes legacy producers without this metadata.
+    int64_t dts             = std::numeric_limits<int64_t>::min();
+    int64_t duration        = 0;
+    int time_base_num       = 0;
+    int time_base_den       = 0;
     int64_t timestamp       = 0;
     int64_t timestamp_epoch = 0;
 

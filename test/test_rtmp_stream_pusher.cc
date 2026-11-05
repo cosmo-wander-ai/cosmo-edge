@@ -1,3 +1,4 @@
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -130,6 +131,49 @@ TEST_CASE("Raw RTMP preview seeds SDP headers and waits through initial P frames
     CHECK(*idr.codec_extradata == headers);
     pusher.Stop();
     CheckDecodableRawFlv(output.path, 0x0a);
+}
+
+TEST_CASE("Raw FLV preserves presentation offsets with monotonically increasing decode time",
+          "[rtmp][packet-time]") {
+    TempFlv output;
+    {
+        cosmo::RtmpStreamPusher pusher(cosmo::media::VideoCodecType::kH264, output.path.string(), 640, 480,
+                                       25);
+        const std::array<int64_t, 3> dts{0, 3600, 7200};
+        const std::array<int64_t, 3> pts{7200, 14400, 7200};
+        for (size_t i = 0; i < dts.size(); ++i) {
+            auto packet          = RawPacket(1, kRawHeaders, kRawIdr);
+            packet.pts           = pts[i];
+            packet.dts           = dts[i];
+            packet.duration      = 3600;
+            packet.time_base_num = 1;
+            packet.time_base_den = 90000;
+            pusher.PushPacket(packet);
+        }
+        CHECK(pusher.GetProcInfo().sendFrames == 3);
+        pusher.Stop();
+    }
+    AVFormatContext* input = nullptr;
+    REQUIRE(avformat_open_input(&input, output.path.c_str(), nullptr, nullptr) == 0);
+    const auto close_input = [](AVFormatContext* ctx) { avformat_close_input(&ctx); };
+    std::unique_ptr<AVFormatContext, decltype(close_input)> owner(input, close_input);
+    REQUIRE(avformat_find_stream_info(input, nullptr) >= 0);
+    const int stream_index = av_find_best_stream(input, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+    REQUIRE(stream_index >= 0);
+    AVPacket* packet = av_packet_alloc();
+    REQUIRE(packet != nullptr);
+    std::vector<int64_t> seen_dts, seen_pts;
+    while (av_read_frame(input, packet) == 0) {
+        if (packet->stream_index == stream_index) {
+            const auto tb = input->streams[stream_index]->time_base;
+            seen_dts.push_back(av_rescale_q(packet->dts, tb, AVRational{1, 1000}));
+            seen_pts.push_back(av_rescale_q(packet->pts, tb, AVRational{1, 1000}));
+        }
+        av_packet_unref(packet);
+    }
+    av_packet_free(&packet);
+    CHECK((seen_dts == std::vector<int64_t>{0, 40, 80}));
+    CHECK((seen_pts == std::vector<int64_t>{80, 160, 80}));
 }
 
 TEST_CASE("Raw RTMP preview replaces codec parameters after source reconnect",

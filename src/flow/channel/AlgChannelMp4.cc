@@ -268,7 +268,7 @@ void AlgChannelMp4::RecodeFrame(VideoPacketPtr& frame) {
     }
 
     for (auto& task : task_snapshot) {
-        if (task->GetRecordFrames() > 0) {
+        if (task->HasStarted()) {
             // Already recording; continue with current frame.
             if (task->GetLastIndex() + 1 == frame->GetSequence()) {
                 // Frame sequence is continuous; record current frame.

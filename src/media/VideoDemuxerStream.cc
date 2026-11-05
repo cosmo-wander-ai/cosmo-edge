@@ -337,8 +337,12 @@ namespace media {
         auto timestamp = util::GetMilliseconds();
         auto timePoint = std::chrono::steady_clock::now();
 
-        // Save pts and keyframe flags before sending packet to bitstream filter (which resets/clears it)
-        const int64_t saved_pts     = packet.pts;
+        // The bitstream filter consumes its input. Preserve both timestamps and
+        // their time base: B-frame display order is not packet/decode order.
+        int64_t saved_pts           = packet.pts;
+        int64_t saved_dts           = packet.dts;
+        int64_t saved_duration      = packet.duration;
+        AVRational saved_time_base  = fmt_ctx_->streams[video_stream_idx_]->time_base;
         const bool saved_is_i_frame = static_cast<bool>(packet.flags & AV_PKT_FLAG_KEY);
 
         // Video files convert to 0x00000001, rtsp does not
@@ -376,6 +380,10 @@ namespace media {
                 }
 
                 pkt->data = std::vector<uint8_t>(filtered_pkt.data, filtered_pkt.data + filtered_pkt.size);
+                saved_pts = filtered_pkt.pts;
+                saved_dts = filtered_pkt.dts;
+                saved_duration  = filtered_pkt.duration;
+                saved_time_base = bsf_ctx_->time_base_out;
                 av_packet_unref(&filtered_pkt);
             } else {
                 LOG_WARN("{}{} bsf_ctx_ is NULL, skipping BSF", kTag, util::RedactRtspUrl(filename_));
@@ -387,8 +395,15 @@ namespace media {
 
         packet_index_++;
         abs_packet_index_++;
-        pkt->pts       = saved_pts;
-        pkt->timestamp = timestamp;
+        pkt->pts      = saved_pts;
+        pkt->dts      = saved_dts;
+        pkt->duration = saved_duration;
+        // Forced read rate changes playback speed. Keep the existing CFR
+        // playback clock instead of falsely reporting the original clock.
+        const bool forced_file_rate = strategy_ && strategy_->NeedsBsf(enc_type_) && video_force_fps_ > 0.0f;
+        pkt->time_base_num          = forced_file_rate ? 0 : saved_time_base.num;
+        pkt->time_base_den          = forced_file_rate ? 0 : saved_time_base.den;
+        pkt->timestamp              = timestamp;
         pkt->timestamp_epoch =
             std::chrono::duration_cast<std::chrono::milliseconds>(timePoint.time_since_epoch()).count();
         pkt->time_point = timePoint;
@@ -454,7 +469,8 @@ namespace media {
             return false;
         }
 
-        ret = av_bsf_init(bsf_ctx_);
+        bsf_ctx_->time_base_in = fmt_ctx_->streams[video_stream_idx_]->time_base;
+        ret                    = av_bsf_init(bsf_ctx_);
         if (ret < 0) {
             LOG_WARN("{}{} av_bsf_init failed: {}", kTag, util::RedactRtspUrl(filename_), GetAvErr(ret));
             av_bsf_free(&bsf_ctx_);

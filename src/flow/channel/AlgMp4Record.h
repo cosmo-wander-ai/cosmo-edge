@@ -31,6 +31,8 @@ public:
     bool RecodeFrame(VideoPacketPtr frame);
 
     int64_t GetRecordFrames();
+    // A timed first sample is buffered until the next DTS fixes its duration.
+    [[nodiscard]] bool HasStarted() const;
     // Input cursor, including valid parameter-only packets.
     int64_t GetLastIndex();
     int64_t GetEventTime();
@@ -46,7 +48,8 @@ private:
     struct FrameScan;
     bool ScanFrame(const uint8_t* data, size_t size, FrameScan* scan) const;
     bool TransformFrame(const uint8_t* data, size_t size, const FrameScan& scan);
-    bool WriteVideoSample(int64_t seq, bool is_sync);
+    bool WriteVideoSample(int64_t seq, bool is_sync, uint64_t duration, uint64_t offset);
+    bool FlushTimedSample(uint64_t duration);
 
     void SetTrack(const uint8_t* sps, size_t size);
     std::string GetPath();
@@ -97,6 +100,18 @@ private:
     MsgAlarmVideoOverviewInfo overview_info_;                 // Region data for UploadOverviewFile
     RetroDirect retro_direct_{RetroDirect::RetroDirectNone};  // No direction
     std::vector<uint8_t> sample_buffer_;  // Reused after each synchronous MP4WriteSample call
+    std::vector<uint8_t> pending_sample_;
+    bool timing_mode_set_{false};
+    bool timed_{false};
+    bool pending_sync_{false};
+    int source_time_base_num_{0};
+    int source_time_base_den_{0};
+    int64_t timing_origin_dts_{0};
+    int64_t pending_seq_{0};
+    int64_t pending_dts_{0};
+    uint64_t pending_offset_{0};
+    uint64_t pending_duration_{0};
+    uint64_t last_duration_{0};
 };
 
 }  // namespace cosmo

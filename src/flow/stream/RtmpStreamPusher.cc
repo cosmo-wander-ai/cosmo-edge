@@ -265,10 +265,10 @@ void RtmpStreamPusher::PushPacket(const media::VideoPacket& packet) {
         LOG_INFO("Raw preview stream generation={} reconnect={} codecParameters={}", packet.stream_idx,
                  reconnect, codec_config_->HasParameters());
     }
-    PushFrameLocked(packet.data.data(), packet.data.size());
+    PushFrameLocked(packet.data.data(), packet.data.size(), &packet);
 }
 
-void RtmpStreamPusher::PushFrameLocked(const uint8_t* data, size_t size) {
+void RtmpStreamPusher::PushFrameLocked(const uint8_t* data, size_t size, const media::VideoPacket* source) {
     const auto publish_started_at = std::chrono::steady_clock::now();
     debug_info_.recvFrames += 1;
 
@@ -331,7 +331,8 @@ void RtmpStreamPusher::PushFrameLocked(const uint8_t* data, size_t size) {
     if (main_type == media::HFrameType::I || main_type == media::HFrameType::P) {
         if (header_written_) {
             bool is_key_frame = (main_type == media::HFrameType::I);
-            int ret = packet_writer_->WriteFrame(outctx_, outindex_, out_data, out_size, is_key_frame);
+            int ret =
+                packet_writer_->WriteFrame(outctx_, outindex_, out_data, out_size, is_key_frame, source);
             if (ret < 0) {
                 RecordFailure("write-frame", ret);
                 output_failed_.store(true);

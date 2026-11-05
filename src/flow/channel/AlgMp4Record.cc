@@ -80,6 +80,12 @@ bool AlgMp4Record::IsReady() const {
 
 AlgMp4Record::~AlgMp4Record() {
     if (mp4_handle_) {
+        if (timed_ && !pending_sample_.empty() && !write_failed_) {
+            const auto duration = pending_duration_ != 0 ? pending_duration_ : last_duration_;
+            if (duration == 0 || !FlushTimedSample(duration)) {
+                write_failed_ = true;
+            }
+        }
         LOG_INFO(
             "[MP4 TASK] {} {} stop. Frame Start/Event/End at {}/{}/{} Duration Pre/After: {}/{} ms "
             "recordFrame:{} DataSize:{} WriteSize:{}",

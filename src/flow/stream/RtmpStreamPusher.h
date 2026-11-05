@@ -66,7 +66,7 @@ public:
     void SetCodecParamsFromExtradata(const std::vector<uint8_t>& extradata);
 
 private:
-    void PushFrameLocked(const uint8_t* data, size_t size);
+    void PushFrameLocked(const uint8_t* data, size_t size, const media::VideoPacket* source = nullptr);
     void SetVideoAttrLocked(int width, int height, float fps);
     int InitOutput();
     void CloseOutput();

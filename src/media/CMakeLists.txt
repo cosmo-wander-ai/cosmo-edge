@@ -13,6 +13,7 @@ set(MEDIA_COMMON_SRC
     OsdLineRasterizer.cc         OsdLineRasterizer.h
     PixelFormat.h
     PixelFormatUtils.cc          PixelFormatUtils.h
+    PacketTime.cc                PacketTime.h
     PreviewPipelineMetrics.cc    PreviewPipelineMetrics.h
     RtspDemuxStrategy.cc         RtspDemuxStrategy.h
     UsbDemuxStrategy.cc          UsbDemuxStrategy.h
