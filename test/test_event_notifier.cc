@@ -10,6 +10,7 @@
 
 #include "catch_amalgamated.hpp"
 #include "service/event/impl/EventNotifierImpl.h"
+#include "util/RuntimeIsolation.h"
 
 using namespace cosmo::service;
 
@@ -156,4 +157,37 @@ TEST_CASE("EventNotifierImpl: ordinary HTTP probe is rejected without aborting",
     REQUIRE(response.find("404 Not Found") != std::string::npos);
     REQUIRE(response.find("Not Found") != std::string::npos);
     REQUIRE_NOTHROW(notifier.ShutdownWebSocket());
+}
+
+TEST_CASE("Isolated WebSocket startup reports actual bind failure", "[EventNotifier][runtime-isolation]") {
+    const cosmo::runtime::RuntimeIsolationScope isolated(true);
+    const int reserved = socket(AF_INET, SOCK_STREAM, 0);
+    REQUIRE(reserved >= 0);
+    struct SocketCleanup {
+        int fd;
+        ~SocketCleanup() {
+            close(fd);
+        }
+    } cleanup{reserved};
+    sockaddr_in address{};
+    address.sin_family      = AF_INET;
+    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    address.sin_port        = 0;
+    REQUIRE(bind(reserved, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) == 0);
+    REQUIRE(listen(reserved, 1) == 0);
+    socklen_t length = sizeof(address);
+    REQUIRE(getsockname(reserved, reinterpret_cast<sockaddr*>(&address), &length) == 0);
+    EventNotifierImpl notifier;
+    CHECK_FALSE(notifier.InitializeWebSocket("127.0.0.1", ntohs(address.sin_port)));
+    REQUIRE_NOTHROW(notifier.ShutdownWebSocket());
+}
+
+TEST_CASE("Isolated WebSocket startup waits for a usable loopback listener",
+          "[EventNotifier][runtime-isolation]") {
+    const cosmo::runtime::RuntimeIsolationScope isolated(true);
+    EventNotifierImpl notifier;
+    const int port = ReserveLoopbackPort();
+    REQUIRE(notifier.InitializeWebSocket("127.0.0.1", port));
+    CHECK(GetOrdinaryHttpResponse(port).find("404 Not Found") != std::string::npos);
+    notifier.ShutdownWebSocket();
 }

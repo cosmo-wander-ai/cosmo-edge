@@ -14,6 +14,7 @@
 #include "util/JsonStructUtil.h"
 #include "util/Log.h"
 #include "util/PathUtil.h"
+#include "util/RuntimeIsolation.h"
 #include "util/SafeParse.h"
 #include "util/TimingConstants.h"
 
@@ -264,6 +265,9 @@ void NetworkConfigServiceImpl::UpdateNetDnsCfg(std::vector<std::string> dnss) {
 }
 
 bool NetworkConfigServiceImpl::SetCardInfo(const platform::NetCardInfo& info) {
+    if (runtime::IsIsolatedRuntime()) {
+        return false;
+    }
     int ret_code = 1;
 #ifdef DO_NETCARD_ALL
     LOG_INFO("Set {}/{} ", info.eth_name, info.ip_addr);
@@ -296,6 +300,9 @@ bool NetworkConfigServiceImpl::SetCardInfo(const platform::NetCardInfo& info) {
 }
 
 void NetworkConfigServiceImpl::ApplyCardInfoAsync(const platform::NetCardInfo& info) {
+    if (runtime::IsIsolatedRuntime()) {
+        return;
+    }
     std::lock_guard<std::mutex> lifecycle_lock(apply_lifecycle_mtx_);
     if (stop_async_apply_.load(std::memory_order_acquire)) {
         LOG_WARN("{}", "Reject async network configuration while service is stopping");
@@ -321,12 +328,18 @@ void NetworkConfigServiceImpl::ApplyCardInfoAsync(const platform::NetCardInfo& i
 }
 
 bool NetworkConfigServiceImpl::SetDnss(std::vector<std::string> dnss) {
+    if (runtime::IsIsolatedRuntime()) {
+        return false;
+    }
     platform::DnsEffect(dnss);
     UpdateNetDnsCfg(dnss);
     return true;
 }
 
 void NetworkConfigServiceImpl::Init() {
+    if (runtime::IsIsolatedRuntime()) {
+        return;
+    }
     GetMacs();
 #ifdef SOPHON_SHARED_NETWORK
     LOG_INFO("{}", "SOPHON_SHARED_NETWORK enabled, skip local network configuration.");

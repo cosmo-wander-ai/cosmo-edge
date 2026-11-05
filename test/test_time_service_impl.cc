@@ -23,6 +23,7 @@
 #include "service/system/impl/TimeServiceImpl.h"
 #include "support/ScopedPathOverride.h"
 #include "util/PathUtil.h"
+#include "util/RuntimeIsolation.h"
 #include "util/TimeUtil.h"
 
 namespace fs = std::filesystem;
@@ -391,4 +392,21 @@ TEST_CASE("TimeServiceImpl: Thread safety of GetTimeStatus", "[time][service][th
 
         REQUIRE_FALSE(hasError);
     }
+}
+
+TEST_CASE("Isolated time service disables persisted NTP and refuses time writes",
+          "[time][service][runtime-isolation]") {
+    TimeServiceTestConfig cfg("/tmp/cosmo_time_isolated_test");
+    WriteJsonFile(cfg.dir + "/conf/NTPStatusConfig.json",
+                  R"({"enable":1,"ntpServer":"127.0.0.1","NTPPort":123,"interval":60})");
+    const cosmo::runtime::RuntimeIsolationScope isolated(true);
+    cosmo::service::TimeServiceImpl service;
+    std::vector<cosmo::service::TimeZoneItem> zones;
+    CHECK(service.GetTimeStatus(zones).ntp.enable == 0);
+    cosmo::service::NtpConfig request;
+    request.enable = 0;
+    CHECK(service.SyncNtp(request, 75) == cosmo::util::ErrorEnum::OperationNotSupport);
+    // Timestamp 0 is invalid in ordinary mode: a broken guard cannot set time.
+    CHECK(service.SetTime(0, 75) == cosmo::util::ErrorEnum::OperationNotSupport);
+    CHECK(service.GetTimeStatus(zones).timestamp > 0);
 }

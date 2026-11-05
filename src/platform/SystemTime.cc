@@ -9,9 +9,14 @@
 
 #include "util/Exec.h"
 #include "util/Log.h"
+#include "util/RuntimeIsolation.h"
 
 namespace cosmo::platform {
 cosmo::util::ErrorEnum SetSystemTime(int64_t timestamp_ms) {
+    if (cosmo::runtime::IsIsolatedRuntime()) {
+        LOG_WARN("{}", "Setting system time is disabled in isolated runtime");
+        return cosmo::util::ErrorEnum::OperationNotSupport;
+    }
 #ifndef COSMO_NN_USE_SOPHON_BACKEND
     LOG_WARN("Setting system time is disabled on x86 platform. Target timestamp: {}", timestamp_ms);
     return cosmo::util::ErrorEnum::OperationNotSupport;

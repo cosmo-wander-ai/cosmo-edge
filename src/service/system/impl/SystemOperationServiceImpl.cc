@@ -13,6 +13,7 @@
 #include "util/ErrorCode.h"
 #include "util/Log.h"
 #include "util/PathUtil.h"
+#include "util/RuntimeIsolation.h"
 #include "util/ThreadRegistry.h"
 #include "util/TimeUtil.h"
 #include "util/UuidUtil.h"
@@ -22,10 +23,18 @@ namespace cosmo::service {
 namespace fs = std::filesystem;
 
 void SystemOperationServiceImpl::RebootDevice(const std::string& reason) {
+    if (cosmo::runtime::IsIsolatedRuntime()) {
+        LOG_WARN("{}", "Device reboot is disabled in isolated runtime");
+        return;
+    }
     reboot_mgr_.Reboot(reason);
 }
 
 void SystemOperationServiceImpl::ResetDevice(const std::string& reason) {
+    if (cosmo::runtime::IsIsolatedRuntime()) {
+        LOG_WARN("{}", "Device reset is disabled in isolated runtime");
+        return;
+    }
     auto base_dir = cosmo::path::GetBaseDir();
     reboot_mgr_.Reset(reason, base_dir);
 }
@@ -82,6 +91,10 @@ cosmo::util::ErrorEnum SystemOperationServiceImpl::ExportLogs(std::string& fileN
 }
 
 cosmo::util::ErrorEnum SystemOperationServiceImpl::Upgrade(const std::string& filePath) {
+    if (cosmo::runtime::IsIsolatedRuntime()) {
+        LOG_WARN("{}", "Device upgrade is disabled in isolated runtime");
+        return cosmo::util::ErrorEnum::OperationNotSupport;
+    }
     auto result = cosmo::PacketUpgrade(filePath);
     if (result == cosmo::util::ErrorEnum::Success) {
         reboot_mgr_.Reboot("upgrade Reboot");
