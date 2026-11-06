@@ -26,7 +26,7 @@ Check container status:
 - **Linux**:
 
   ```bash
-  docker compose -f docker-compose.x86.yml ps
+  ./scripts/docker-compose.sh -f docker-compose.x86.yml ps
   ```
 
 - **Windows (PowerShell/CMD)**:
@@ -46,7 +46,7 @@ View logs:
 - **Linux**:
 
   ```bash
-  docker compose -f docker-compose.x86.yml logs -f
+  ./scripts/docker-compose.sh -f docker-compose.x86.yml logs -f
   ```
 
 - **Windows (PowerShell/CMD)**:
@@ -138,7 +138,7 @@ Use the full run command:
 - **Linux**:
 
   ```bash
-  docker compose -f docker-compose.x86.yml up -d --build
+  ./scripts/docker-compose.sh -f docker-compose.x86.yml up -d --build
   ```
 
 - **Windows (PowerShell/CMD)**:
@@ -152,7 +152,8 @@ the Sophon entry point, profiles, and output contract. For example, after the
 default BM1688 Open build, inspect the chip-scoped directory directly:
 
 ```bash
-./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package
+./scripts/docker-compose.sh -f docker-compose.sophon.yml \
+  run --rm cosmo-sophon-package --chip bm1688
 cat build_output/public-runtime/bm1688/TARGET_CHIP
 (cd build_output/public-runtime/bm1688 && sha256sum -c SHA256SUMS)
 ```
@@ -175,10 +176,11 @@ for the current image and build chain.
 If the build fails, rerun the same entry point and inspect the final log lines:
 
 ```bash
-./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package --chip cv186x 2>&1 | tail -50
+./scripts/docker-compose.sh -f docker-compose.sophon.yml \
+  run --rm cosmo-sophon-package --chip cv186x 2>&1 | tail -50
 ```
 
-For BM1688, replace the final argument with `bm1688` or omit it.
+For BM1688, replace the final argument with `bm1688` to match the original failing command.
 
 Common causes:
 
@@ -188,10 +190,10 @@ Common causes:
   `public-runtime` and `production-release` are accepted.
 - An unsupported chip model — only `bm1688` and `cv186x` are accepted; omitting
   it defaults to `bm1688`.
-- Selecting `production-release` outside the controlled release environment —
-  missing production SDK, provisioning, release-public-key, or bootstrap inputs is
-  rejected by design. Use the default Open profile (internal name `public-runtime`)
-  for ordinary source-code builds; do not bypass the formal release checks.
+- Selecting `production-release` without the matching SDK or with plaintext preset models —
+  check the target SDK, model policy, and output directory against
+  [advanced build options](./build.md#advanced-build-options). Device authorization is a
+  prerequisite for using protected models, not a requirement to connect a device during compilation.
 
 ## Protected Presets Do Not Load
 

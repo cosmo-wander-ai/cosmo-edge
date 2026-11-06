@@ -78,86 +78,136 @@ CosmoEdge provides one engine architecture and orchestration experience, but eac
 
 The commands below clone and build current `main`. For the stable release, use the [v1.2.0 packages](https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.2.0), or check out the `v1.2.0` tag before building and follow that version's documentation.
 
-### Try locally on x86
+### Get the Source
 
-No edge hardware is required. The x86 mode uses the same UI and workflow with lower throughput than an NPU deployment.
+The host needs Git and working Docker; Windows uses Docker Desktop's Linux container mode.
+For a new checkout, run the following. For an existing checkout, enter its root instead:
 
-```bash
-# 1. Clone
+```sh
 git clone https://github.com/cosmo-wander-ai/cosmo-edge.git
 cd cosmo-edge
-
-# 2. Start on Linux
-sudo docker compose -f docker-compose.x86.yml up -d --build
-# Windows: docker compose -f docker-compose.x86.windows.yml up -d --build
-
-# 3. Open http://localhost:8080
 ```
 
-Apple Silicon macOS uses a separate amd64-emulation Preview path:
+Run all commands below at the repository root on the host. Select one group for your host
+and target chip. Edge-device builds default to Open packages and export artifacts without
+starting the application on the build host. See the [Build Guide](docs/en/guide/build.md) for preparation and full steps.
+
+### Try locally on x86
+
+No edge hardware is required. The x86 mode uses the same UI and workflow as edge deployments;
+throughput depends on the CPU.
+
+**Linux x86_64 / Bash:**
 
 ```bash
-./scripts/macos-docker-preview.sh doctor
-./scripts/macos-docker-preview.sh up
-./scripts/macos-docker-preview.sh status
-# Open http://127.0.0.1:8080
+./scripts/docker-compose.sh -f docker-compose.x86.yml up -d --build
 ```
 
-The Mac Preview provides a local, single-video workflow under `linux/amd64`
-emulation on Apple Silicon. Read the full
-[macOS Docker Preview](docs/en/guide/macos-docker-preview.md) scope first.
+**Windows x86_64 / PowerShell:**
 
-After startup, use the [Scenario Configuration tutorial](https://www.cosmowander.ai/docs/tutorials/02-scenario-config/scenario-config) to create your first AI detection task. Docker Compose V1 users can replace `docker compose` with `docker-compose`.
+```powershell
+docker compose -f docker-compose.x86.windows.yml up -d --build
+```
+
+Open `http://localhost:8080` after startup. Artifacts are exported to `build_output/`.
+Use the [Scenario Configuration tutorial](https://www.cosmowander.ai/docs/tutorials/02-scenario-config/scenario-config) to create your first AI detection task.
+
+### Apple Silicon macOS Preview
+
+Read the [Mac Preview](docs/en/guide/macos-docker-preview.md) requirements and scope first, then run in the Mac terminal:
+
+```bash
+./scripts/macos-docker-preview.sh doctor && ./scripts/macos-docker-preview.sh up
+./scripts/macos-docker-preview.sh status
+```
+
+Open `http://127.0.0.1:8080` locally. Artifacts are in `build_output/macos-x86/`.
+This path uses amd64 emulation for a local, single-video trial.
 
 ### Build for Sophon
 
-```bash
-git clone https://github.com/cosmo-wander-ai/cosmo-edge.git
-cd cosmo-edge
-# BM1688 (default when the chip model is omitted)
-./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package --chip bm1688
+Select the chip, then the host. The script selects the model resource directory automatically.
+The Linux wrapper selects Compose V2/V1 and requests elevation only when Docker access requires
+it. The Windows PowerShell entry requires Docker Desktop and Compose V2.
 
-# CV186X
-./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package --chip cv186x
+#### BM1688
+
+Linux x86_64 / Bash:
+
+```bash
+./scripts/docker-compose.sh -f docker-compose.sophon.yml \
+  run --rm cosmo-sophon-package --chip bm1688
 ```
 
-The wrapper selects the available Compose implementation and requests elevated
-Docker access only when required. The build selects the matching model resources
-without a model-path argument and exports each target independently under
-`build_output/public-runtime/<chip>/`, together with `TARGET_CHIP` and
-`SHA256SUMS`.
+Windows x86_64 / PowerShell:
 
-The default Open package contains plaintext models and requires no device
-authorization. Verify the chip marker and checksum before deployment. The
-[Build Guide](https://www.cosmowander.ai/docs/guide/build) is the authoritative
-build reference; follow the [Deployment Guide](https://www.cosmowander.ai/docs/guide/deployment)
-for SSH installation, web upgrade, recovery, and post-reboot acceptance.
+```powershell
+.\scripts\build_sophon_package.ps1 -Chip bm1688
+```
+
+Output: `build_output/public-runtime/bm1688/`.
+
+#### CV186X
+
+Linux x86_64 / Bash:
+
+```bash
+./scripts/docker-compose.sh -f docker-compose.sophon.yml \
+  run --rm cosmo-sophon-package --chip cv186x
+```
+
+Windows x86_64 / PowerShell:
+
+```powershell
+.\scripts\build_sophon_package.ps1 -Chip cv186x
+```
+
+Output: `build_output/public-runtime/cv186x/`.
+
+Each target directory contains one package, `TARGET_CHIP`, and `SHA256SUMS`. Default Open
+packages use plaintext models without device authorization. Verify through the
+[Build Guide](docs/en/guide/build.md#hand-a-sophon-build-to-the-deployment-workflow), then install through the
+[Deployment Guide](docs/en/guide/deployment.md#ssh-installation-path).
 
 ### Build for Rockchip
 
+On a **Linux x86_64 host in Bash**, first pull the shared builder:
+
 ```bash
 ./scripts/docker-compose.sh -f docker-compose.rockchip.yml pull cosmo-rockchip-package
-
-# RK3576 (uses the tracked RK3576 model resources)
-COSMO_TARGET_CHIP=rk3576 ./scripts/docker-compose.sh \
-  -f docker-compose.rockchip.yml run --rm cosmo-rockchip-package
-ls -lh build_output/rk3576/
-
-# RV1126B (requires a prepared target model overlay)
-COSMO_TARGET_CHIP=rv1126b ./scripts/docker-compose.sh \
-  -f docker-compose.rockchip.yml run --rm cosmo-rockchip-package
-ls -lh build_output/rv1126b/
 ```
 
-One digest-pinned Rockchip builder shares the compiler and RKNN SDK while
-selecting an isolated MPP/RGA profile for each chip. RKLLM v1.3.0 is required
-and packaged only for RK3576. Target markers, media-profile identities, and
-checksums are exported under `build_output/<chip>/`. See the
-[Build Guide](docs/en/guide/build.md#rockchip-artifacts) and
-[RK3576 integration guide](docs/en/guide/rk3576-rknn-development.md) for model
-and device-validation boundaries.
+Then select one target chip.
 
-For CV186X, follow the [CV186X Quick Start](docs/en/guide/cv186x-quick-start.md) for package installation, model import, first-event verification, upgrade, and recovery boundaries.
+#### RK3576
+
+```bash
+COSMO_TARGET_CHIP=rk3576 ./scripts/docker-compose.sh \
+  -f docker-compose.rockchip.yml run --rm cosmo-rockchip-package
+```
+
+Output: `build_output/rk3576/`, using the tracked RK3576 model resources.
+
+#### RV1126B
+
+```bash
+COSMO_TARGET_CHIP=rv1126b ./scripts/docker-compose.sh \
+  -f docker-compose.rockchip.yml run --rm cosmo-rockchip-package
+```
+
+Output: `build_output/rv1126b/`. Default `include` automatically generates and verifies the
+model overlay from the platform manifest; no manual preparation is needed. See the
+[Build Guide](docs/en/guide/build.md#rv1126b) for default community-model licenses and usage restrictions.
+
+The shared image selects isolated MPP/RGA configurations by chip; only RK3576 packages include
+RKLLM v1.3.0. Both targets export chip markers, media-runtime markers, and checksums.
+Verify through the [Build Guide](docs/en/guide/build.md#rockchip-artifacts), then use the
+[shared installation entry](docs/en/guide/deployment.md#ssh-installation-path).
+
+Controlled Protected builds support BM1688, CV186X, and RK3576; RV1126B is currently unsupported.
+See [advanced build options](docs/en/guide/build.md#advanced-build-options) for commands and prerequisites.
+Use [CV186X Quick Start](docs/en/guide/cv186x-quick-start.md) for identity checks and first detection,
+and [RK3576 Integration](docs/en/guide/rk3576-rknn-development.md) for RKNN model and device boundaries.
 
 ## What You Can Build
 

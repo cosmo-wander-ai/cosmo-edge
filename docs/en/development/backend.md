@@ -206,10 +206,9 @@ Tests use [Catch2](https://github.com/catchorg/Catch2) with [Trompeloeil](https:
 
 ### Build and Run
 
-```bash
-bash scripts/build_cpu_test.sh
-./build_cpu/cosmo-tests
-```
+Follow the [CPU test path](../guide/build.md#cpu-test-build) on a Linux x86_64 host.
+Build the test binary in the supported container, then run it. That section maintains the
+image, runtime libraries, and result checks.
 
 ### Mocking
 

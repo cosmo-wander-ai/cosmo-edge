@@ -79,68 +79,131 @@ CosmoEdge 提供统一的引擎架构与编排体验，但每次构建只选择�
 
 以下命令克隆并构建当前 `main`。需要正式发布版本时，请使用 [v1.2.0 安装包](https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.2.0)，或在构建前切换到 `v1.2.0` 标签并按该版本文档操作。
 
-### 在 x86 本地试用
+### 获取源码
 
-无需边缘硬件即可体验。x86 模式使用与边缘部署一致的 UI 和工作流，但吞吐低于 NPU 部署。
+宿主机需要 Git 和可用的 Docker；Windows 使用 Docker Desktop 的 Linux 容器模式。
+首次获取源码，已有工作副本时直接进入其根目录：
 
-```bash
-# 1. 克隆
+```sh
 git clone https://gitee.com/cosmo-wander-ai/cosmo-edge.git
 cd cosmo-edge
-
-# 2. 在 Linux 启动
-sudo docker compose -f docker-compose.x86.yml up -d --build
-# Windows：docker compose -f docker-compose.x86.windows.yml up -d --build
-# Apple Silicon macOS（Preview）：./scripts/macos-docker-preview.sh up
-
-# 3. 打开 http://localhost:8080
 ```
 
-启动后，按照[场景配置教程](https://www.cosmowander.ai/zh/docs/tutorials/02-scenario-config/scenario-config)创建第一个 AI 检测任务。Mac 用户先阅读 [macOS Docker Preview](docs/guide/macos-docker-preview.md) 的许可、环境和能力边界。使用 Docker Compose V1 时，可将 `docker compose` 替换为 `docker-compose`。
+以下命令均在宿主机的仓库根目录执行。按宿主环境和目标芯片选择一组；边缘设备构建默认
+生成 Open 包，只导出产物，不在构建机启动应用。环境准备和完整步骤见[构建指南](docs/guide/build.md)。
+
+### 在 x86 本地试用
+
+无需边缘硬件即可体验。x86 模式使用与边缘部署一致的 UI 和工作流，吞吐取决于 CPU。
+
+**Linux x86_64 / Bash：**
+
+```bash
+./scripts/docker-compose.sh -f docker-compose.x86.yml up -d --build
+```
+
+**Windows x86_64 / PowerShell：**
+
+```powershell
+docker compose -f docker-compose.x86.windows.yml up -d --build
+```
+
+启动后打开 `http://localhost:8080`，产物导出到 `build_output/`。
+按照[场景配置教程](https://www.cosmowander.ai/zh/docs/tutorials/02-scenario-config/scenario-config)创建第一个 AI 检测任务。
+
+### Apple Silicon macOS Preview
+
+先阅读 [Mac Preview](docs/guide/macos-docker-preview.md) 的环境要求和能力边界，在 Mac 终端运行：
+
+```bash
+./scripts/macos-docker-preview.sh doctor && ./scripts/macos-docker-preview.sh up
+./scripts/macos-docker-preview.sh status
+```
+
+从本机打开 `http://127.0.0.1:8080`，产物位于 `build_output/macos-x86/`。
+该路径使用 amd64 仿真，面向单路本地视频体验。
 
 ### 为 Sophon 构建
 
-```bash
-git clone https://gitee.com/cosmo-wander-ai/cosmo-edge.git
-cd cosmo-edge
-# BM1688（省略芯片型号时的默认值）
-./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package --chip bm1688
+选择目标芯片后，再选择宿主环境；模型资源目录由脚本自动选择。
+Linux 包装器自动选择 Compose V2/V1，并仅在 Docker 权限不足时请求提权。
+Windows PowerShell 入口需要 Docker Desktop 和 Compose V2。
 
-# CV186X
-./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package --chip cv186x
+#### BM1688
+
+Linux x86_64 / Bash：
+
+```bash
+./scripts/docker-compose.sh -f docker-compose.sophon.yml \
+  run --rm cosmo-sophon-package --chip bm1688
 ```
 
-包装脚本会自动选择当前环境可用的 Compose 实现，并仅在 Docker 权限不足时请求提权。
-构建脚本会根据芯片型号选择对应模型资源，无需填写模型路径；不同目标分别导出到
-`build_output/public-runtime/<chip>/`，目录内同时包含 `TARGET_CHIP` 和 `SHA256SUMS`。
+Windows x86_64 / PowerShell：
 
-默认 Open 包包含明文模型，不需要设备授权。部署前必须核对芯片标记和校验和。
-[构建指南](https://www.cosmowander.ai/zh/docs/guide/build)是构建事实的权威入口；SSH 安装、
-页面升级、恢复与重启后验收统一参阅[部署指南](https://www.cosmowander.ai/zh/docs/guide/deployment)。
+```powershell
+.\scripts\build_sophon_package.ps1 -Chip bm1688
+```
+
+产物：`build_output/public-runtime/bm1688/`。
+
+#### CV186X
+
+Linux x86_64 / Bash：
+
+```bash
+./scripts/docker-compose.sh -f docker-compose.sophon.yml \
+  run --rm cosmo-sophon-package --chip cv186x
+```
+
+Windows x86_64 / PowerShell：
+
+```powershell
+.\scripts\build_sophon_package.ps1 -Chip cv186x
+```
+
+产物：`build_output/public-runtime/cv186x/`。
+
+目标目录均包含唯一安装包、`TARGET_CHIP` 和 `SHA256SUMS`。默认 Open 包包含明文模型，
+无需设备授权。按[构建指南](docs/guide/build.md#将-sophon-构建包交给部署流程)校验后，
+使用[部署指南](docs/guide/deployment.md#ssh-安装路径)安装。
 
 ### 为 Rockchip 构建
 
+在 **Linux x86_64 宿主机的 Bash** 中先拉取共享构建镜像：
+
 ```bash
 ./scripts/docker-compose.sh -f docker-compose.rockchip.yml pull cosmo-rockchip-package
-
-# RK3576（使用仓库内已有的 RK3576 模型资源）
-COSMO_TARGET_CHIP=rk3576 ./scripts/docker-compose.sh \
-  -f docker-compose.rockchip.yml run --rm cosmo-rockchip-package
-ls -lh build_output/rk3576/
-
-# RV1126B（需先准备该芯片的模型 overlay）
-COSMO_TARGET_CHIP=rv1126b ./scripts/docker-compose.sh \
-  -f docker-compose.rockchip.yml run --rm cosmo-rockchip-package
-ls -lh build_output/rv1126b/
 ```
 
-一个固定 digest 的 Rockchip 构建镜像共享编译器与 RKNN SDK，并按芯片选择相互隔离的
-MPP/RGA 配置；RKLLM v1.3.0 仅在 RK3576 包中强制包含。目标芯片标记、媒体运行时配置和
-校验和统一输出到 `build_output/<chip>/`。模型和设备验证边界参阅
-[构建指南](docs/guide/build.md#rockchip-构建产物)与
-[RK3576 集成指南](docs/guide/rk3576-rknn-development.md)。
+再选择一个目标芯片。
 
-CV186X 请按照 [CV186X 快速开始](docs/guide/cv186x-quick-start.md)完成安装、模型导入、首个事件验证，以及升级和恢复检查。
+#### RK3576
+
+```bash
+COSMO_TARGET_CHIP=rk3576 ./scripts/docker-compose.sh \
+  -f docker-compose.rockchip.yml run --rm cosmo-rockchip-package
+```
+
+产物：`build_output/rk3576/`，使用仓库内的 RK3576 模型资源。
+
+#### RV1126B
+
+```bash
+COSMO_TARGET_CHIP=rv1126b ./scripts/docker-compose.sh \
+  -f docker-compose.rockchip.yml run --rm cosmo-rockchip-package
+```
+
+产物：`build_output/rv1126b/`。默认 `include` 按平台清单自动生成并验证模型 overlay，
+无需手动准备；默认社区示例模型的许可证和用途限制见[构建指南](docs/guide/build.md#rv1126b)。
+
+共享镜像按芯片选择隔离的 MPP/RGA 配置；RKLLM v1.3.0 仅进入 RK3576 包。两个目标均输出
+芯片标记、媒体运行时标记和校验和。按[构建指南](docs/guide/build.md#rockchip-构建产物)
+核验后，使用[统一安装入口](docs/guide/deployment.md#ssh-安装路径)部署。
+
+受控 Protected 构建支持 BM1688、CV186X 和 RK3576，RV1126B 当前不支持；命令和前提见
+[高级构建选项](docs/guide/build.md#高级构建选项)。CV186X 的身份核对和首次检测见
+[CV186X 快速开始](docs/guide/cv186x-quick-start.md)；RKNN 模型与设备边界见
+[RK3576 集成指南](docs/guide/rk3576-rknn-development.md)。
 
 ## 你可以构建什么
 

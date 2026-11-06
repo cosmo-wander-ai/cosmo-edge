@@ -97,15 +97,19 @@ ${INSTALLPATH}/scripts/run_start.sh start /data/cwaiuserdata/log/logs/INTE_RUN_c
 | 变量 / 参数 | 默认值 | 说明 |
 | --- | --- | --- |
 | `COSMO_TARGET_CHIP` | `rk3576` | `rk3576` 或 `rv1126b`；Compose 将它传给 `--chip` |
-| `COSMO_PACKAGE_MODELS` | `include` | `include` 或仅用于代码/结构验证的 `preserve` |
+| `COSMO_MODEL_GUARD_BUILD_PROFILE` | `public-runtime` | Open；`production-release` 仅支持 RK3576 Protected |
+| `COSMO_MODEL_GUARD_SDK_ROOT` | 未覆盖时使用仓库 RKNN SDK | Protected 使用 `prebuild/model-guard-v2-rknn-abi1/`；覆盖路径须在容器内可访问 |
+| `COSMO_PACKAGE_MODELS` | `include` | `include` 携带模型；`preserve` 保留设备已有模型，不用于空白设备初始化 |
 | `COSMO_BUILD_JOBS` | `4` | 交叉构建并行度 |
 | `COSMO_ROCKCHIP_BUILDER_IMAGE` | 仓库固定 digest 的 GHCR 镜像 | 受控覆盖构建镜像 |
 | `COSMO_RKNN_ARTIFACT_MANIFEST` | 平台 profile 中的清单 | 选择带来源、哈希、用途和许可证的模型 bundle；商业/专有输入应指向 ignored 任务目录中的独立清单 |
 
 构建器还使用与 Sophon 相同的 npm 缓存/重试变量。RV1126B 的 `include` 构建会从
 选定 artifact manifest 生成并校验 `output/platform-artifacts/rv1126b/resource-overlay`；
-`preserve` 只验证代码和包结构，不能替代设备验收。仓库默认清单是 AGPL-3.0
+`preserve` 不携带模型，构建结果不能替代模型交付或设备验收。仓库默认清单是 AGPL-3.0
 社区示例，不属于商业模型交付；商业/专有模型必须使用独立清单和许可记录。
+
+Protected 命令和各芯片支持范围见[高级构建选项](./build.md#高级构建选项)。
 
 ## 资源目录
 
@@ -126,10 +130,11 @@ ${INSTALLPATH}/scripts/run_start.sh start /data/cwaiuserdata/log/logs/INTE_RUN_c
 | 路径 | 说明 |
 | --- | --- |
 | `/appfs/cosmo_wander/cwai_data` | 默认应用安装目录 |
-| `/data/cwaiuserdata` | 默认用户数据根目录 |
-| `/data/cwaiuserdata/log/logs` | 应用日志 |
-| `/data/cwaiuserdata/upgrade` | 升级暂存目录 |
-| `/data/cwaiuserdata/tmp/*` | nginx 临时目录 |
+| `/data/cwaiuserdata` | Sophon 和 x86 默认用户数据根；x86 挂载命名卷 |
+| `/userdata/cwaiuserdata` | RK3576 / RV1126B 默认用户数据根 |
+| `<数据根>/log/logs` | 应用日志 |
+| `<数据根>/upgrade` | 升级暂存目录 |
+| `<数据根>/tmp/*` | nginx 临时目录 |
 
 设备部署可以通过 `COSMO_APP_DATA_DIR` 和 `COSMO_DATA_DIR` 覆盖应用/数据根目录；覆盖值必须是
 受控的绝对路径，并与服务配置和持久化策略一致。

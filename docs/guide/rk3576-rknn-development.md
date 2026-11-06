@@ -154,16 +154,15 @@ python tools/rknn/convert_model.py \
 RK3576 使用独立的 MPP/RGA profile。RKLLM Runtime v1.3.0 来自 Rockchip 官方仓库的
 固定 commit。基础资源目录提供通用动作、布局和字体；RKNN 资源目录提供 RK3576 算法与模型。
 
-```bash
-./scripts/docker-compose.sh -f docker-compose.rockchip.yml pull cosmo-rockchip-package
-COSMO_TARGET_CHIP=rk3576 ./scripts/docker-compose.sh \
-  -f docker-compose.rockchip.yml run --rm cosmo-rockchip-package
-sha256sum build_output/rk3576/cosmo-*.tar.gz
-```
+Open 构建命令、目标校验和产物位置统一见[构建指南的 RK3576 入口](./build.md#rk3576)，
+在 Linux x86_64 宿主机的 Bash 中执行。默认产物位于 `build_output/rk3576/`。
+RK3576 也支持 Protected，SDK、加密模型前提和命令见
+[RK3576 Protected 构建](./build.md#rk3576-protected-构建)，对应产物位于
+`build_output/production-release/rk3576/`。RV1126B 当前不支持 Protected。
 
-共享镜像和 RKLLM 官方文件均可公开获取，无需 `docker login`。辅助脚本会自动选择
-Docker Compose V2/V1。该命令使用 Rockchip 媒体后端构建 Release 包，并在
-`build_rknn/cosmo-tests` 保留 aarch64 测试程序；不会启用 `COSMO_DEV_MODE`。
+核验包后，按[部署指南的 SSH 入口](./deployment.md#ssh-安装路径)安装；该入口维护
+主机传输、设备安装、备份、重启和恢复步骤。构建生成 `build_rknn/cosmo-tests` 等
+aarch64 程序，但不执行测试；也不启用 `COSMO_DEV_MODE`。
 
 RKLLM 是正式 RK3576 包的强制依赖：头文件、`librkllmrt.so` 或许可证任一缺失都会让
 配置阶段失败，不能用缺少 Qwen3.5 的降级包作为发布候选。

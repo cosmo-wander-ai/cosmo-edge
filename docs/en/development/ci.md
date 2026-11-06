@@ -22,9 +22,9 @@ This page collects the quality-check entry points that already exist in the repo
 | C++ formatting | `scripts/format_check.sh --check` | Pull request / push |
 | C++ static analysis | `scripts/static_analysis.sh --cppcheck`, `scripts/static_analysis.sh --clang-tidy` | Periodic / manual / self-hosted |
 | CPU test build | `scripts/build_cpu_test.sh`, `build_cpu/cosmo-tests` | Pull request / manual |
-| x86 Docker | `docker compose -f docker-compose.x86.yml up -d --build` (use `docker-compose.x86.windows.yml` on Windows) | Manual / before release |
-| Sophon release package | `./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package [--chip <model>]`; supports `bm1688` / `cv186x` (defaults to `bm1688`) | Manual / self-hosted |
-| Rockchip release package | `COSMO_TARGET_CHIP=<rk3576|rv1126b> docker compose -f docker-compose.rockchip.yml run --rm cosmo-rockchip-package` | Daily at 02:12 Beijing Time / manual |
+| x86 Docker | [Build and start for the host environment](../guide/build.md#x86-docker-development-runtime) | Manual / before release |
+| Sophon release package | [Select BM1688 / CV186X and the host entry](../guide/build.md#sophon-artifacts) | Manual / self-hosted |
+| Rockchip release package | [Select RK3576 / RV1126B](../guide/build.md#rockchip-artifacts) | Daily at 02:12 Beijing Time / manual |
 
 ## Documentation Site Checks
 
@@ -78,7 +78,7 @@ npm run resource-i18n:check
 
 Notes:
 
-- `npm test` uses Node's native test runner to run 19 explicitly listed test entrypoints serially,
+- `npm test` uses Node's native test runner to run explicitly listed test entrypoints serially,
   covering API, request, parameter, flow, and component behavior. Frontend CI runs it before building.
   Run an individual file with `node --experimental-vm-modules --test scripts/<test-file>.mjs`.
 - The `prebuild` hook for `npm run build` runs only `i18n:check`, without implicitly running behavior tests.
@@ -135,29 +135,11 @@ Notes:
 
 ## CPU Test Build
 
-CPU test build script:
-
-```bash
-bash scripts/build_cpu_test.sh
-```
-
-The script configures `build_cpu`, enables `BUILD_TESTS=ON`, and builds:
-
-```text
-build_cpu/cosmo-tests
-```
-
-After the build completes you can run:
-
-```bash
-./build_cpu/cosmo-tests
-```
-
-Notes:
-
-- This path uses the x86 CPU backend and ONNX Runtime.
-- The script generates or links `compile_commands.json` for IDE and static-analysis tooling.
-- The script currently reports that `pkg-config` and the OpenH264 development package are required.
+Follow the [CPU test path](../guide/build.md#cpu-test-build) on a Linux x86_64 host using the
+repository build container. Build `build_cpu/cosmo-tests`, then execute it separately and inspect
+the result. This entry uses the CPU backend and ONNX Runtime and creates or links
+`compile_commands.json`. Producing a binary is not a passing test result; builder and runtime
+library settings are maintained in the Build Guide.
 
 ## x86 Docker Validation
 
@@ -165,9 +147,9 @@ The x86 development mode can be used for integration-level validation:
 
 - **Linux**:
   ```bash
-  docker compose -f docker-compose.x86.yml up -d --build
-  docker compose -f docker-compose.x86.yml logs -f
-  docker compose -f docker-compose.x86.yml down
+  ./scripts/docker-compose.sh -f docker-compose.x86.yml up -d --build
+  ./scripts/docker-compose.sh -f docker-compose.x86.yml logs -f
+  ./scripts/docker-compose.sh -f docker-compose.x86.yml down
   ```
 - **Windows (PowerShell/CMD)**:
   ```powershell
@@ -185,27 +167,10 @@ Before a release, confirm at minimum:
 
 ## Sophon Release Package Validation
 
-Sophon/aarch64 release package build entry point:
-
-```bash
-# Defaults to bm1688 when the chip model is omitted
-./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package
-./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package --chip cv186x
-```
-
-Windows PowerShell:
-
-```powershell
-# Defaults to bm1688 when the chip model is omitted
-.\scripts\build_sophon_package.ps1
-.\scripts\build_sophon_package.ps1 -Chip cv186x
-```
-
-The Sophon release package build depends on the cross-compilation environment and
-the Sophon SDK. The chip model selects both the internal resource directory and
-the chip-scoped output. Each `build_output/<profile>/<chip>/` directory contains
-`TARGET_CHIP`, `SHA256SUMS`, and one
-`cosmo-V<major>.<minor>.<patch>-<md5>.tar.gz` archive.
+Select BM1688 / CV186X and the host environment in the [Build Guide](../guide/build.md#sophon-artifacts).
+Each `build_output/<profile>/<chip>/` directory must contain one package, `TARGET_CHIP`, and
+`SHA256SUMS`. The build produces an aarch64 test binary; executing it requires a matching
+device and runtime libraries. Package auditing does not replace device acceptance.
 
 ## Rockchip Cross-Build Matrix
 
@@ -214,13 +179,8 @@ for separate RK3576 and RV1126B matrix jobs. It runs on manual dispatches and
 every day at 02:12 Beijing Time (18:12 UTC on the previous day). A schedule is
 active only on the GitHub default branch.
 
-Local builds use the public digest-pinned GHCR image without registry login:
-
-```bash
-docker compose -f docker-compose.rockchip.yml pull cosmo-rockchip-package
-COSMO_TARGET_CHIP=rk3576 docker compose -f docker-compose.rockchip.yml \
-  run --rm cosmo-rockchip-package
-```
+For a local build, select one chip through the [Rockchip Build Guide](../guide/build.md#rockchip-artifacts).
+Run in Bash on a Linux x86_64 host, then verify the selected target's package and checksums.
 
 The workflow applies these checks:
 

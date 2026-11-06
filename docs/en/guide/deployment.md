@@ -18,13 +18,34 @@ This page is organized according to the current runtime scripts, mainly covering
 - `scripts/run_start.sh`
 - `scripts/install.sh`
 
+Packaged `scripts/install.sh` is generated from `scripts/legacy_migration_install.sh`.
+First obtain the matching artifact through the [Build Guide](./build.md), then select an entry below.
+
+| Target platform | Default Open package directory | Default persistent-data root | Deployment entry |
+| --- | --- | --- | --- |
+| x86 Linux / Windows | `build_output/` (exported at runtime) | `/data/cwaiuserdata` in the container, mounted from a named volume | Rebuild the corresponding Compose service |
+| Apple Silicon macOS Preview | `build_output/macos-x86/` | `/data/cwaiuserdata` in the container, with separate named volumes | Mac Preview script |
+| Sophon BM1688 | `build_output/public-runtime/bm1688/` | `/data/cwaiuserdata` | SSH installation below or device web upgrade |
+| Sophon CV186X | `build_output/public-runtime/cv186x/` | `/data/cwaiuserdata` | SSH installation below or device web upgrade |
+| Rockchip RK3576 | `build_output/rk3576/` | `/userdata/cwaiuserdata` | SSH installation below |
+| Rockchip RV1126B | `build_output/rv1126b/` | `/userdata/cwaiuserdata` | SSH installation below |
+
+Protected is supported only for BM1688, CV186X, and RK3576, with output under
+`build_output/production-release/<chip>/`. See [advanced build options](./build.md#advanced-build-options)
+for SDK, model, and authorization prerequisites. The default application directory is
+`/appfs/cosmo_wander/cwai_data`. Select by chip and profile, not by similar filenames.
+An installation method does not establish device acceptance for every platform; consult the release record.
+
 ## x86 Docker Runtime
+
+Run these commands at the repository root on the host. For initial preparation, see the
+[Build Guide](./build.md#x86-docker-development-runtime).
 
 Start:
 
 - **Linux**:
   ```bash
-  docker compose -f docker-compose.x86.yml up -d --build
+  ./scripts/docker-compose.sh -f docker-compose.x86.yml up -d --build
   ```
 - **Windows (PowerShell/CMD)**:
   ```powershell
@@ -39,7 +60,7 @@ Stop:
 
 - **Linux**:
   ```bash
-  docker compose -f docker-compose.x86.yml down
+  ./scripts/docker-compose.sh -f docker-compose.x86.yml down
   ```
 - **Windows (PowerShell/CMD)**:
   ```powershell
@@ -54,7 +75,7 @@ View logs:
 
 - **Linux**:
   ```bash
-  docker compose -f docker-compose.x86.yml logs -f
+  ./scripts/docker-compose.sh -f docker-compose.x86.yml logs -f
   ```
 - **Windows (PowerShell/CMD)**:
   ```powershell
@@ -64,6 +85,15 @@ View logs:
   ```bash
   ./scripts/macos-docker-preview.sh logs --follow
   ```
+
+To update Linux/Windows, run `up -d --build` again from the same working directory and Compose
+project. On Mac, use `./scripts/macos-docker-preview.sh up --build`. Save snapshots of both the
+user-data and resource volumes before updating. Retain both volumes and do not run `down -v`.
+Existing resource volumes do not update automatically with a new image.
+
+Confirm the container is running, the management page responds, the software version matches
+the build, and existing users, tasks, and models remain readable. Recreating a container does
+not require a changed host `bootId`; the container does not use `cosmo.service`.
 
 ## Runtime Directories
 
@@ -120,18 +150,14 @@ COSMO_STREAM_HTTP_PORT=18088
 
 ## Release Package Structure
 
-The install/upgrade scripts expect the release package to contain:
+The web upgrade entry and boot-time upgrade script require `bin`, `files`, `font`, `lib`,
+`scripts`, and `web` under the package root. `lib` is mandatory. The upgrade entry's directory
+check does not require `resource`.
 
-- `bin`
-- `files`
-- `font`
-- `scripts`
-- `web`
-
-Optional or handled by presence:
-
-- `lib`
-- `resource`
+Release builds also undergo `scripts/verify_package_contents.py` auditing: they must retain
+`resource` in addition to those directories. The audit checks executables, runtime-path
+declarations, licenses, target chip, and Open/Protected policy. `COSMO_PACKAGE_MODELS=preserve`
+omits model weights, not the required release-package directories.
 
 The upgrade package filename must match this pattern:
 
@@ -171,6 +197,10 @@ commit, package SHA-256, device identity, and upgrade result in one evidence
 record before releasing an artifact.
 
 ### Pre-upgrade checks
+
+The package, `bootId`, and systemd steps below apply to edge devices. For x86, back up and
+rebuild through the [Docker runtime path](#x86-docker-runtime), then perform the container
+and business checks below.
 
 1. Obtain the archive from the target chip directory together with `TARGET_CHIP`
    and `SHA256SUMS`. Verify both the chip marker and SHA-256; never reuse a full
@@ -232,20 +262,22 @@ the file transaction, not post-start service health.
 
 ### Installation and post-upgrade acceptance
 
-BM1688 can use the web flow above or the SSH entry below. x86 rebuilds through
-the corresponding Compose file while keeping its named volumes. After upgrade,
-complete at least these checks:
+**Edge devices:** BM1688 can use the web flow above or SSH installation below. For other chips,
+use SSH with the matching package directory. After reboot, confirm a changed `bootId`,
+`cosmo.service` in the `active` state, and the version matching the target package.
+Inspect the service with `systemctl status cosmo.service --no-pager`.
 
-1. `bootId` changed, `cosmo.service` is `active`, and the software version matches
-   the target package.
-2. Existing users, cameras, tasks, parameters, user models, and event history are
-   readable.
-3. Run one real video task and confirm inference, preview, and at least one alarm
-   with media.
-4. Create a staged upload, recover the session after restart, verify cleanup after
-   successful consumption, and verify the cancel cleanup path.
-5. Reboot once more and repeat sign-in, task, model, history, and upload-state checks.
-6. Retain before/after data inventories, service logs, and explicit PASS/FAIL results.
+**x86 Docker:** Retain the original user-data and resource volumes and rebuild through the
+matching Compose entry. Use that entry's `ps` command to inspect the container, then verify
+management-page responses, software version, and retained data. Device bootId/systemd checks do not apply.
+
+Both environments need business checks:
+
+1. Existing users, cameras, tasks, parameters, user models, and event history remain readable.
+2. Run one real video task and confirm inference, preview, and at least one alarm with media.
+3. Create a staged upload, recover the session after a service restart, and verify cleanup after consumption or cancellation.
+4. Reboot the device or restart the x86 container, then recheck sign-in, tasks, models, history, and upload state.
+5. Retain before/after data inventories, service logs, and explicit PASS/FAIL results.
 
 `bash test/test_legacy_migration_installer.sh` covers data copying, transient
 exclusions, idempotence, conflict rejection, and transaction rollback. It is a
@@ -306,26 +338,78 @@ macOS Docker Preview environment.
 
 ## SSH Installation Path
 
-In addition to web upgrade, packaged `scripts/install.sh` is the SSH entry point
-for migration from main and later compatible installations. It installs the
-application, replaces and enables `cosmo.service`, and relies on reboot to start
-the service:
+Use this entry for Sophon / Rockchip devices with a prepared Linux base system, systemd,
+nginx, Python 3, pgrep, and the target platform's runtime dependencies. Rockchip requires
+`/userdata` to be a writable persistent mount. The application package does not install an
+operating system or automatically prepare device runtime dependencies.
+
+Record the current version, service state, and recovery plan first. Back up the actual data
+root and custom resources that must be retained. Follow the
+[upgrade and recovery boundaries](#upgrade-from-1-1-0-to-1-2-0) above. The installer replaces
+the application and creates or replaces and enables `cosmo.service`. Reboot after installation succeeds.
+
+### 1. Build Host: Verify and Transfer
+
+This Bash example selects **BM1688 Open**. For another target, change `package_dir` to the
+matching directory in the table above. Replace `device` with the actual SSH account and
+address. First match `TARGET_CHIP` to the device identity, then transfer. Do not execute an
+unverified downloaded package.
 
 ```bash
-scp build_output/public-runtime/<chip>/<package>.tar.gz root@<device_ip>:/tmp/
-ssh root@<device_ip>
-cd /tmp
-install_dir=$(mktemp -d /tmp/cosmo-install.XXXXXX)
-tar -xzf <package>.tar.gz -C "$install_dir"
-cd "$install_dir"/cosmo-V*/
-sudo ./scripts/install.sh
-sudo reboot
+package_dir='build_output/public-runtime/bm1688'
+device='root@<device_ip>'
+(
+  set -e
+  cd "$package_dir"
+  cat TARGET_CHIP
+  sha256sum -c SHA256SUMS
+  package_name=$(awk 'NR == 1 {print $2}' SHA256SUMS)
+  printf 'Package: %s\n' "$package_name"
+  scp "$package_name" TARGET_CHIP SHA256SUMS "${device}:/tmp/"
+)
 ```
 
-This path assumes that the Sophon Linux base system and runtime dependencies are
-already prepared. It is not an OS-image installation procedure for arbitrary
-blank hardware. Record the current version and recovery plan first; the
-installer replaces the active application tree.
+For a Windows Sophon build, first complete the
+[PowerShell verification](./build.md#hand-a-sophon-build-to-the-deployment-workflow).
+In that same terminal, reuse the verified `$outputDir` and `$packageName`:
+
+```powershell
+$device = 'root@<device_ip>'
+scp (Join-Path $outputDir $packageName) (Join-Path $outputDir 'TARGET_CHIP') (Join-Path $outputDir 'SHA256SUMS') "${device}:/tmp/"
+if ($LASTEXITCODE -ne 0) { throw 'Package transfer failed' }
+```
+
+After a successful transfer, connect from the build host (Bash or PowerShell):
+
+```sh
+ssh "$device"
+```
+
+### 2. Device: Install and Reboot
+
+Run this block in the **device root session** opened above. Confirm `TARGET_CHIP` again.
+Use the transferred manifest's single actual filename, not an old-version wildcard.
+Any failed step exits the block without proceeding to reboot.
+
+```bash
+(
+  set -e
+  cd /tmp
+  cat TARGET_CHIP
+  sha256sum -c SHA256SUMS
+  package_name=$(awk 'NR == 1 {print $2}' SHA256SUMS)
+  install_dir=$(mktemp -d /tmp/cosmo-install.XXXXXX)
+  tar -xzf "$package_name" -C "$install_dir"
+  cd "$install_dir"/cosmo-V*/
+  ./scripts/install.sh
+  reboot
+)
+```
+
+Reconnect after reboot, verify the version and service, and complete
+[post-upgrade acceptance](#installation-and-post-upgrade-acceptance).
+Installer success confirms the file transaction only. If service or business acceptance fails,
+follow this page's recovery procedure.
 
 ## systemd Service
 
@@ -335,9 +419,10 @@ The configured device uses this service start command:
 ExecStart=/appfs/cosmo_wander/cwai_data/scripts/inte_run_start.sh
 ```
 
-`scripts/install.sh` implements the upgrade transaction; it does not create the
-systemd unit for a blank device. The service runs as `root` with
-`Restart=on-failure`.
+Packaged `scripts/install.sh` creates or replaces and enables `cosmo.service` during both
+fresh installation and upgrade, and installs the log-cleanup service. The application service
+runs as `root` with `Restart=on-failure` and starts on reboot after installation. The device's
+base system and runtime dependencies must already exist; the installer does not prepare an OS.
 
 Some Sophon images restore the persistent data tree to the appliance administrator at boot. The upload staging service therefore allows `sessions` to inherit the owner of an immediate parent that is not writable by group/other, while still requiring:
 
