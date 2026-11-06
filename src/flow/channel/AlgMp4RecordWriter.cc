@@ -200,6 +200,14 @@ bool AlgMp4Record::HandlePps(const uint8_t* frame_data, size_t frame_size, int64
 }
 
 bool AlgMp4Record::WriteVideoSample(int64_t seq, bool is_sync, uint64_t duration, uint64_t offset) {
+    // MP4 stts remains the decode timeline; track the composition end separately.
+    constexpr auto limit = std::numeric_limits<uint64_t>::max();
+    if (duration == 0 || offset > limit - decode_duration_ ||
+        duration > limit - (decode_duration_ + offset) || duration > limit - decode_duration_) {
+        write_failed_ = true;
+        return false;
+    }
+    const uint64_t end = decode_duration_ + offset + duration;
     try {
         const bool written = MP4WriteSample(mp4_handle_, track_id_, sample_buffer_.data(),
                                             static_cast<uint32_t>(sample_buffer_.size()),
@@ -210,6 +218,9 @@ bool AlgMp4Record::WriteVideoSample(int64_t seq, bool is_sync, uint64_t duration
         if (written && static_cast<int64_t>(samples) == record_frames_ + 1 &&
             (offset == 0 || MP4SetSampleRenderingOffset(mp4_handle_, track_id_, samples, offset))) {
             ++record_frames_;
+            decode_duration_ += duration;
+            presentation_end_   = std::max(presentation_end_, end);
+            presentation_start_ = std::min(presentation_start_, decode_duration_ - duration + offset);
             total_size_ += static_cast<int64_t>(sample_buffer_.size());
             return true;
         }

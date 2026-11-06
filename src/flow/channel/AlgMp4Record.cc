@@ -4,6 +4,7 @@
 
 #include <filesystem>
 
+#include "media/Mp4Presentation.h"
 #include "media/VideoUtil.h"
 #include "mp4v2/mp4v2.h"
 #include "mp4v2/track.h"
@@ -82,6 +83,11 @@ void AlgMp4Record::MarkIncomplete() {
     write_failed_ = true;
 }
 
+bool AlgMp4Record::FinalizePresentationDuration() {
+    return media::FinalizeMp4Presentation(mp4_handle_, track_id_, decode_duration_, presentation_start_,
+                                          presentation_end_);
+}
+
 AlgMp4Record::~AlgMp4Record() {
     if (mp4_handle_) {
         if (timed_ && !pending_sample_.empty() && !write_failed_) {
@@ -89,6 +95,10 @@ AlgMp4Record::~AlgMp4Record() {
             if (duration == 0 || !FlushTimedSample(duration)) {
                 write_failed_ = true;
             }
+        }
+        if (!write_failed_ && record_frames_ > 0 && !FinalizePresentationDuration()) {
+            write_failed_ = true;
+            LOG_ERRO("[MP4 TASK] {} {} cannot finalize presentation duration", task_id_, event_name_);
         }
         LOG_INFO(
             "[MP4 TASK] {} {} stop. Frame Start/Event/End at {}/{}/{} Duration Pre/After: {}/{} ms "

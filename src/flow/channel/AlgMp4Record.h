@@ -1,6 +1,7 @@
 // AlgMp4Record — single MP4 recording task with NALU parsing and file upload.
 
 #pragma once
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -53,6 +54,7 @@ private:
     bool TransformFrame(const uint8_t* data, size_t size, const FrameScan& scan);
     bool WriteVideoSample(int64_t seq, bool is_sync, uint64_t duration, uint64_t offset);
     bool FlushTimedSample(uint64_t duration);
+    bool FinalizePresentationDuration();
 
     void SetTrack(const uint8_t* sps, size_t size);
     std::string GetPath();
@@ -115,6 +117,9 @@ private:
     uint64_t pending_offset_{0};
     uint64_t pending_duration_{0};
     uint64_t last_duration_{0};
+    uint64_t decode_duration_{0};
+    uint64_t presentation_end_{0};
+    uint64_t presentation_start_{std::numeric_limits<uint64_t>::max()};
 };
 
 }  // namespace cosmo
