@@ -17,6 +17,7 @@ extern "C" {
 #endif
 
 #include "media/EncodedImageInfo.h"
+#include "media/I420PackedCpu.h"
 #include "media/MosaicPixels.h"
 #include "media/OsdLineRasterizer.h"
 #include "media/PixelFormatUtils.h"
@@ -34,10 +35,6 @@ extern "C" {
 namespace cosmo {
 namespace media {
     namespace {
-        inline uint8_t ClampToByte(int value) {
-            return static_cast<uint8_t>(std::clamp(value, 0, 255));
-        }
-
         VideoFramePtr ConvertI420ToPacked(VideoFramePtr frame, PixelFormat dst_fmt, const char* caller) {
             if (!VideoFrameValid(frame)) {
                 LOG_ERRO("{}() - invalid frame", caller);
@@ -67,37 +64,11 @@ namespace media {
                 return nullptr;
             }
 
-            const uint8_t* y_plane = yuv;
-            const uint8_t* u_plane = yuv + w * h;
-            const uint8_t* v_plane = u_plane + (w / 2) * (h / 2);
-            const bool dst_bgr     = (dst_fmt == PixelFormat::PIXEL_BGR8);
-
-            for (int py = 0; py < h; py++) {
-                for (int px = 0; px < w; px++) {
-                    int yv = y_plane[py * w + px];
-                    int uv = u_plane[(py / 2) * (w / 2) + (px / 2)];
-                    int vv = v_plane[(py / 2) * (w / 2) + (px / 2)];
-
-                    int c = yv - 16;
-                    int d = uv - 128;
-                    int e = vv - 128;
-
-                    uint8_t r = ClampToByte((298 * c + 409 * e + 128) >> 8);
-                    uint8_t g = ClampToByte((298 * c - 100 * d - 208 * e + 128) >> 8);
-                    uint8_t b = ClampToByte((298 * c + 516 * d + 128) >> 8);
-
-                    int idx = (py * w + px) * 3;
-                    if (dst_bgr) {
-                        out[idx + 0] = b;
-                        out[idx + 1] = g;
-                        out[idx + 2] = r;
-                    } else {
-                        out[idx + 0] = r;
-                        out[idx + 1] = g;
-                        out[idx + 2] = b;
-                    }
-                }
-            }
+            const bool dst_bgr   = (dst_fmt == PixelFormat::PIXEL_BGR8);
+            const bool converted = dst_bgr ? detail::I420ToPacked<true>(yuv, out, w, h)
+                                           : detail::I420ToPacked<false>(yuv, out, w, h);
+            if (!converted)
+                return nullptr;
 
             return dst;
         }

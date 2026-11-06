@@ -3,6 +3,7 @@
 #include "nn/device/cpu/cpu_crop_resize_node.h"
 
 #include <algorithm>
+#include <array>
 #include <cstring>
 
 #include "nn/node/node_type_utils.h"
@@ -138,6 +139,23 @@ void CpuCropResizeNode::BilinearResizeStrided(const uint8_t* src, int src_w, int
                                               size_t dst_stride) {
     const float x_ratio = static_cast<float>(src_w) / dst_w;
     const float y_ratio = static_cast<float>(src_h) / dst_h;
+    struct HorizontalSample {
+        int x0;
+        int x1;
+        float fraction;
+    };
+    // The classifier's fixed target width avoids heap allocation, shared state,
+    // and unbounded per-thread caches. Other dimensions retain the original path.
+    std::array<HorizontalSample, 224> horizontal{};
+    const bool use_precomputed = dst_w == static_cast<int>(horizontal.size());
+    if (use_precomputed) {
+        for (int dx = 0; dx < dst_w; ++dx) {
+            const float fx = std::clamp((dx + 0.5f) * x_ratio - 0.5f, 0.0f, static_cast<float>(src_w - 1));
+            const int sx   = static_cast<int>(fx);
+            const float fraction = fx - sx;
+            horizontal[dx] = {std::max(0, std::min(sx, src_w - 1)), std::min(sx + 1, src_w - 1), fraction};
+        }
+    }
 
     for (int dy = 0; dy < dst_h; dy++) {
         float fy     = std::clamp((dy + 0.5f) * y_ratio - 0.5f, 0.0f, static_cast<float>(src_h - 1));
@@ -147,11 +165,20 @@ void CpuCropResizeNode::BilinearResizeStrided(const uint8_t* src, int src_w, int
         int sy1      = std::min(sy + 1, src_h - 1);
 
         for (int dx = 0; dx < dst_w; dx++) {
-            float fx     = std::clamp((dx + 0.5f) * x_ratio - 0.5f, 0.0f, static_cast<float>(src_w - 1));
-            int sx       = static_cast<int>(fx);
-            float frac_x = fx - sx;
-            sx           = std::max(0, std::min(sx, src_w - 1));
-            int sx1      = std::min(sx + 1, src_w - 1);
+            int sx, sx1;
+            float frac_x;
+            if (use_precomputed) {
+                const auto& sample = horizontal[dx];
+                sx                 = sample.x0;
+                sx1                = sample.x1;
+                frac_x             = sample.fraction;
+            } else {
+                float fx = std::clamp((dx + 0.5f) * x_ratio - 0.5f, 0.0f, static_cast<float>(src_w - 1));
+                sx       = static_cast<int>(fx);
+                frac_x   = fx - sx;
+                sx       = std::max(0, std::min(sx, src_w - 1));
+                sx1      = std::min(sx + 1, src_w - 1);
+            }
 
             for (int c = 0; c < channels; c++) {
                 float v00 = src[static_cast<size_t>(sy) * src_stride + sx * channels + c];
