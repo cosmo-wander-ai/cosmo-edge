@@ -39,6 +39,11 @@ public:
     // Repeated alarms extend the current pulse; callers never sleep for the pulse duration.
     bool Pulse(int channel, std::chrono::milliseconds duration);
     void Stop();
+    // Readiness probes open the exported pin but never write or change GPIO mode.
+    std::string Status(int channel);
+    const std::vector<AlarmOutputChannel>& Channels() const {
+        return channels_;
+    }
 
 private:
     struct Output {

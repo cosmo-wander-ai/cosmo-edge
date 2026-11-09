@@ -13,6 +13,18 @@ next:
 
 This page distills field-level details from the current DTO and route implementations, focusing on the common responses, event queries, event records, HTTP push parameters, and MQTT parameters that are most commonly used by public integrations. A complete OpenAPI schema can be generated from these DTOs later.
 
+## Alarm Output Readiness
+
+`/gtw/cwai/AlarmStrage/Storages` adds `resData.alarmOutputs` alongside `resData.strages`.
+Each entry has an integer logical `channel` and a `status` of `ready`, `gpioUnavailable`, or `stopped`.
+Only locally mapped channels are listed. An empty array means no mapped channels; probes do not
+actuate outputs or expose GPIO addresses. Older servers omit this field; retain their existing form behavior.
+
+Each strategy in `/gtw/cwai/AlarmStrage/Page` adds `outputStatus`: `ready`, `unmapped`,
+`gpioUnavailable`, `stopped`, or `invalid`. Existing `status` still represents the persisted enable
+setting, not physical contact state. Strategies without output nodes return `ready`.
+Saving or enabling an unavailable output strategy returns `AlarmOutputUnavailable` (error enum value `0x2100`).
+
 ## Common Response
 
 | Field | Type | Description |

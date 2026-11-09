@@ -67,6 +67,11 @@ public:
     /// @return true on success.
     virtual bool ReadSupportedStorage(int& total_size, std::vector<cosmo::StorageList>& vec_data) = 0;
 
+    /// Board-configured output channels and current non-actuating readiness.
+    virtual std::vector<cosmo::AlarmOutputStatus> GetAlarmOutputs() {
+        return {};
+    }
+
     /// Check whether an audio device is currently in use by any strategy.
     /// @param audioDeviceId Audio device identifier.
     /// @return true if in use.

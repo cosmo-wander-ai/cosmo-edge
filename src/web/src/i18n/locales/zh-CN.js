@@ -1905,6 +1905,8 @@ export default {
     speechRateFailedTip: '请输入0-100的整数'
   },
   linkageStrategy: {
+    outputUnavailable: "告警输出暂不可用，请联系设备管理员完成板卡配置并检查输出接口。",
+    outputStatus: {"unmapped": "此策略的告警输出通道未配置，暂不能输出信号。", "gpioUnavailable": "此策略的告警输出接口不可用，请检查接口初始化和访问权限。", "stopped": "告警输出服务已停止。", "invalid": "告警输出参数无效。"},
     title: '联动策略编排',
     allStrategies: '所有联动策略',
     addStrategy: '新增策略',
@@ -2026,6 +2028,7 @@ export default {
       PersonPicSizeIllegal: '工服照片像素不合格',
       DecodeFailed: '图像解码失败',
       EncodeFailed: '编码路数超过上限',
+      AlarmOutputUnavailable: "告警输出不可用，请检查板卡映射和 GPIO 初始化",
       UnknownOperation: '操作类型错误',
       AuthFailed: '鉴权失败',
       LoginFailed: '登录失败',

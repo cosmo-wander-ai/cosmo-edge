@@ -1005,6 +1005,7 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/scripts/cosmo-log-cleanup.service
     PERMISSIONS OWNER_WRITE OWNER_READ GROUP_READ WORLD_READ)
 install(PROGRAMS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/system-log-retention.py
     ${CMAKE_CURRENT_SOURCE_DIR}/scripts/runtime_supervisor.py
+    ${CMAKE_CURRENT_SOURCE_DIR}/scripts/prepare_alarm_outputs.py
     DESTINATION scripts
     PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 

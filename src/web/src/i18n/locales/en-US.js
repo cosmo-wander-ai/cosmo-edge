@@ -1905,6 +1905,8 @@ export default {
     speechRateFailedTip: 'Please enter an integer between 0 and 100'
   },
   linkageStrategy: {
+    outputUnavailable: "Alarm outputs are unavailable. Ask your device administrator to configure the board and check the output ports.",
+    outputStatus: {"unmapped": "This strategy uses an unconfigured alarm output channel. No output can be triggered.", "gpioUnavailable": "This strategy’s alarm output port is unavailable. Check port initialization and permissions.", "stopped": "The alarm output service is stopped.", "invalid": "Invalid alarm output parameters."},
     title: 'Linkage Strategy',
     allStrategies: 'All Strategies',
     addStrategy: 'Add Strategy',
@@ -2026,6 +2028,7 @@ export default {
       PersonPicSizeIllegal: 'Work clothes photo resolution insufficient',
       DecodeFailed: 'Decoding failed',
       EncodeFailed: 'Encoding channel limit exceeded',
+      AlarmOutputUnavailable: "Alarm output unavailable. Check board mapping and GPIO initialization",
       UnknownOperation: 'Unknown operation',
       AuthFailed: 'Authentication failed',
       LoginFailed: 'Login failed',
