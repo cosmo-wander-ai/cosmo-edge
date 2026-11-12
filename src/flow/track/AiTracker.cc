@@ -36,7 +36,13 @@ AiTracker::AiTracker(const std::string& taskId, ActionNode& action)
     data_queue->SetMaxSize(6);
 
     for (auto& actionParams : action.configObject.params) {
-        if (key::MOTION_STATUS == actionParams.key.ToString()) {
+        if (key::CLASS_MATCH_MODE == actionParams.key.ToString()) {
+            if (actionParams.value.ToString() == "ignoreClass") {
+                class_match_mode_ = nn::ClassMatchMode::kIgnoreClass;
+            } else if (actionParams.value.ToString() == "sameClassOnly") {
+                class_match_mode_ = nn::ClassMatchMode::kSameClassOnly;
+            }
+        } else if (key::MOTION_STATUS == actionParams.key.ToString()) {
             motion_status_ = static_cast<TrackMotionStatusFilter>(util::ParseInt(actionParams.value));
             LOG_INFO(
                 "ModifyParam "

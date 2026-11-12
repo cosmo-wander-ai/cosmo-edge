@@ -20,6 +20,7 @@ inline constexpr std::string_view CONFIDENCE{"confidence"};
 inline constexpr std::string_view CONFIDENCE_CONFIG{"confidenceConfig"};
 inline constexpr std::string_view DET_POSITION{"detPostion"};
 inline constexpr std::string_view MOTION_STATUS{"motionStatus"};
+inline constexpr std::string_view CLASS_MATCH_MODE{"classMatchMode"};
 inline constexpr std::string_view SHAPE_CHANGE_STATUS{"shapeChangeStatus"};
 inline constexpr std::string_view MOTION{"motion"};
 inline constexpr std::string_view FRAMES{"frames"};

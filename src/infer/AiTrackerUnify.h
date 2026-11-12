@@ -15,7 +15,8 @@ struct TrackLabel {
 class AiTrackerUnify {
 public:
     AiTrackerUnify(const std::string& atomic_code, std::vector<std::string> labels,
-                   std::vector<AiConfidence> confidence, int max_width = 1920, int max_height = 1080);
+                   std::vector<AiConfidence> confidence, int max_width = 1920, int max_height = 1080,
+                   nn::ClassMatchMode class_match_mode = nn::ClassMatchMode::kLegacy);
     ~AiTrackerUnify();
 
     util::ErrorEnum Trace(std::vector<AiDetectRstEl>& input, std::vector<AiDetectRstEl>& rst);

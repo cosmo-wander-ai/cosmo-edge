@@ -40,7 +40,8 @@ bool AiTracker::AiSdkInit(const std::string& atomicCode, const std::vector<std::
         return false;
     }
 
-    tracker_ = std::make_shared<AiTrackerUnify>(atomicCode, labels, GetConfidence(), maxWidth, maxHeight);
+    tracker_ = std::make_shared<AiTrackerUnify>(atomicCode, labels, GetConfidence(), maxWidth, maxHeight,
+                                                class_match_mode_);
     LOG_INFO("{}[{} {}] Init Sdk targetCount:{} {}x{}", kTag, name_, uuid, labels.size(), maxWidth,
              maxHeight);
     action_status = util::ErrorEnum::AI_INST_CREATED;
