@@ -36,6 +36,16 @@ public:
     bool BeginOSD(VideoFramePtr frame) override;
     void OSDDrawLines(std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> lines,
                       const cosmo::media::Color& color, int lineWidth) override;
+    void OSDDrawLinesFine(std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> lines,
+                          const cosmo::media::Color& color, int lineWidth) override;
+    void OSDDrawTextFine(int x, int y, const std::string& text, const cosmo::media::Color& color,
+                         int pixelHeight) override;
+    void OSDDrawRoundedRect(const cosmo::util::Box& rect, const cosmo::media::Color& color, uint8_t opacity,
+                            int radius) override;
+    void OSDDrawRoundedRectOutline(const cosmo::util::Box& rect, const cosmo::media::Color& color,
+                                   uint8_t opacity, int radius) override;
+    void OSDDrawFilledRect(const cosmo::util::Box& rect, const cosmo::media::Color& color,
+                           uint8_t opacity) override;
     void OSDDrawText(int x, int y, const std::string& text, const cosmo::media::Color& color,
                      int fontSize = 50) override;
     void OSDDrawTextEx(int x, int y, const std::string& text, const cosmo::media::Color& color, int fontSize,

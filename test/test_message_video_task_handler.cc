@@ -5,10 +5,15 @@
 #include "catch_amalgamated.hpp"
 #include "catch2/trompeloeil.hpp"
 // clang-format on
+#include <nlohmann/json.hpp>
+
 #include "api/MessageVideoTaskHandler.h"
+#include "media/PreviewPipelineMetrics.h"
 #include "mock/MockAlgorithmService.h"
 #include "mock/MockCameraService.h"
+#include "mock/MockModelService.h"
 #include "mock/MockTaskService.h"
+#include "support/ScopedServiceOverride.h"
 #include "util/ErrorCode.h"
 
 namespace {
@@ -714,6 +719,123 @@ TEST_CASE("VideoTaskHandler: RunningDetail with tasks", "[video-task-handler]") 
     REQUIRE(ret.resData.status[0].actionStatus.size() == 3);
 }
 
+TEST_CASE("RunningDetail returns legacy action timings only for explicitly requested tasks",
+          "[video-task-handler][metrics]") {
+    TestFixture f;
+    cosmo::TaskStatus selected;
+    selected.channelId      = "channel1";
+    selected.algorithmId    = "algorithm1";
+    selected.taskId         = "task1";
+    selected.queStatus      = {cosmo::AlgActionDataQueueStatusDto{}, cosmo::AlgActionDataQueueStatusDto{},
+                               cosmo::AlgActionDataQueueStatusDto{}};
+    cosmo::TaskStatus other = selected;
+    other.taskId            = "task2";
+    other.channelId         = "channel2";
+    REQUIRE_CALL(f.mocks.taskSvc, GetTaskStatus(trompeloeil::_, trompeloeil::_))
+        .RETURN(std::vector<cosmo::TaskStatus>{selected, other});
+
+    cosmo::util::DurationStatInfo alarm;
+    alarm.name        = "internal-node-name";
+    alarm.duration_ns = 24'000'000;
+    alarm.count       = 3;
+    cosmo::util::DurationStatInfo empty;
+    empty.name           = "internal-empty";
+    using NamedDurations = std::vector<std::pair<std::string, cosmo::util::DurationStatInfo>>;
+    REQUIRE_CALL(f.mocks.taskSvc, GetTaskActionDurations("task1", 5000))
+        .RETURN(NamedDurations{{"Alarm", alarm}, {"AreaAlarm", empty}});
+
+    cosmo::VideoTask::MsgRunningDetailRecv recv;
+    recv.tasks                  = {"task1"};
+    recv.includeActionDurations = true;
+    nlohmann::json request      = recv;
+    CHECK(request.get<cosmo::VideoTask::MsgRunningDetailRecv>().includeActionDurations);
+    request.erase("includeActionDurations");
+    CHECK_FALSE(request.get<cosmo::VideoTask::MsgRunningDetailRecv>().includeActionDurations);
+
+    std::error_condition errc;
+    auto ret = f.handler.Handle(std::move(recv), errc);
+    REQUIRE(ret.resData.status.size() == 2);
+    const auto& timings = ret.resData.status[0].actionDurationInfos;
+    REQUIRE(timings.size() == 2);
+    CHECK(timings[0].name == "Alarm");
+    CHECK(timings[0].durationCount == 3);
+    CHECK(timings[0].durationAvgUs == 8000);
+    CHECK(timings[1].name == "AreaAlarm");
+    CHECK(timings[1].durationCount == 0);
+    CHECK(ret.resData.status[1].actionDurationInfos.empty());
+
+    nlohmann::json response = ret.resData.status[0];
+    REQUIRE(response["actionDurationInfos"].size() == 2);
+    CHECK(response.get<cosmo::MsgTaskStatus>().actionDurationInfos[0].name == "Alarm");
+    response.erase("actionDurationInfos");
+    CHECK(response.get<cosmo::MsgTaskStatus>().actionDurationInfos.empty());
+}
+
+TEST_CASE("RunningDetail does not request action timings for unfiltered discovery",
+          "[video-task-handler][metrics]") {
+    TestFixture f;
+    cosmo::TaskStatus task;
+    task.taskId    = "task1";
+    task.queStatus = {cosmo::AlgActionDataQueueStatusDto{}, cosmo::AlgActionDataQueueStatusDto{},
+                      cosmo::AlgActionDataQueueStatusDto{}};
+    REQUIRE_CALL(f.mocks.taskSvc, GetTaskStatus(trompeloeil::_, trompeloeil::_))
+        .RETURN(std::vector<cosmo::TaskStatus>{task});
+    FORBID_CALL(f.mocks.taskSvc, GetTaskActionDurations(trompeloeil::_, trompeloeil::_));
+    cosmo::VideoTask::MsgRunningDetailRecv recv;
+    recv.includeActionDurations = true;
+    std::error_condition errc;
+    auto ret = f.handler.Handle(std::move(recv), errc);
+    REQUIRE(ret.resData.status.size() == 1);
+    CHECK(ret.resData.status[0].actionDurationInfos.empty());
+}
+
+TEST_CASE(
+    "RunningDetail returns separate current-preview timings and optional DTO remains backwards compatible",
+    "[video-task-handler][preview][metrics]") {
+    TestFixture f;
+    auto& metrics      = cosmo::media::GetPreviewPipelineMetrics();
+    const auto preview = metrics.BeginTimedPreview("diag-camera", "diag-algorithm");
+    metrics.MarkTimedPreviewReady(preview);
+    struct PreviewGuard {
+        cosmo::media::PreviewPipelineMetrics& metrics;
+        cosmo::media::PreviewPipelineMetrics::PreviewToken token;
+        ~PreviewGuard() {
+            metrics.EndTimedPreview(token);
+        }
+    } guard{metrics, preview};
+    metrics.RecordTimedOsd(preview, 2'000'000);
+    metrics.RecordTimedEncode(preview, 7'000'000);
+    // Another stream must never leak into this task's result.
+    const auto other = metrics.BeginTimedPreview("other-camera", "diag-algorithm");
+    metrics.MarkTimedPreviewReady(other);
+    PreviewGuard otherGuard{metrics, other};
+    metrics.RecordTimedOsd(other, 99'000'000);
+
+    cosmo::TaskStatus ts;
+    ts.channelId   = "diag-camera";
+    ts.algorithmId = "diag-algorithm";
+    ts.taskId      = "diag-task";
+    ts.queStatus   = {cosmo::AlgActionDataQueueStatusDto{}, cosmo::AlgActionDataQueueStatusDto{},
+                      cosmo::AlgActionDataQueueStatusDto{}};
+    REQUIRE_CALL(f.mocks.taskSvc, GetTaskStatus(trompeloeil::_, trompeloeil::_))
+        .RETURN(std::vector<cosmo::TaskStatus>{ts});
+
+    std::error_condition errc;
+    auto ret = f.handler.Handle(cosmo::VideoTask::MsgRunningDetailRecv{}, errc);
+    REQUIRE(ret.resData.status.size() == 1);
+    const auto& status = ret.resData.status.front();
+    REQUIRE(status.previewDurationInfos.size() == 2);
+    CHECK(status.previewDurationInfos[0].name == "OSD");
+    CHECK(status.previewDurationInfos[0].durationAvgUs == 2000);
+    CHECK(status.previewDurationInfos[1].name == "Encode");
+    CHECK(status.previewDurationInfos[1].durationAvgUs == 7000);
+    nlohmann::json json = status;
+    REQUIRE(json["previewDurationInfos"].size() == 2);
+    CHECK(json.get<cosmo::MsgTaskStatus>().previewDurationInfos.size() == 2);
+    json.erase("previewDurationInfos");
+    CHECK(json.get<cosmo::MsgTaskStatus>().previewDurationInfos.empty());
+}
+
 TEST_CASE("VideoTaskHandler: RunningDetail filters tasks with few actions", "[video-task-handler]") {
     TestFixture f;
     std::error_condition errc;
@@ -732,4 +854,53 @@ TEST_CASE("VideoTaskHandler: RunningDetail filters tasks with few actions", "[vi
 
     auto ret = f.handler.Handle(std::move(recv), errc);
     REQUIRE(ret.resData.status.empty());
+}
+
+TEST_CASE("VideoTaskHandler: model confidence defaults preserve task overrides",
+          "[video-task-handler][model-confidence]") {
+    TestFixture f;
+    cosmo::test::MockModelService models;
+    cosmo::test::ScopedServiceOverride<cosmo::service::IModelService> registration(models);
+    auto algorithm = std::make_shared<cosmo::ActionAlg>();
+    cosmo::ActionNode node;
+    node.atomicCode = "model1";
+    algorithm->workFlow.push_back(node);
+    cosmo::ModelInfo model;
+    cosmo::ModelLabel label;
+    label.code           = "pedestrian";
+    label.confidenceHigh = 0.82F;
+    label.confidence     = 0.45F;
+    model.labels.push_back(label);
+    std::string value;
+    SECTION("Empty task confidence keeps automatic model selection") {
+        value = "";
+    }
+    SECTION("Explicit task confidence remains unchanged") {
+        value = "0.3";
+    }
+    nlohmann::json metadata = {
+        {"params", {{{"key", "aiParam.pedestrian.confidence"}, {"value", value}, {"defaultValue", ""}}}}};
+    const auto encoded = metadata.dump();
+    REQUIRE_CALL(f.mocks.algSvc, GetMetaData(trompeloeil::_)).RETURN(encoded);
+    REQUIRE_CALL(f.mocks.algSvc, GetAlgorithm(trompeloeil::_)).RETURN(algorithm);
+    REQUIRE_CALL(models, GetModelInfo("model1")).RETURN(model);
+    REQUIRE_CALL(f.mocks.cameraSvc, QueryTaskParam(trompeloeil::_, trompeloeil::_, trompeloeil::_))
+        .RETURN(cosmo::util::ErrorEnum::Success);
+    REQUIRE_CALL(f.mocks.cameraSvc,
+                 QueryTaskArea(trompeloeil::_, trompeloeil::_, trompeloeil::_, trompeloeil::_))
+        .RETURN(cosmo::util::ErrorEnum::Success);
+    REQUIRE_CALL(f.mocks.cameraSvc, QueryTaskStrategy(trompeloeil::_, trompeloeil::_, trompeloeil::_))
+        .RETURN(cosmo::util::ErrorEnum::Success);
+    REQUIRE_CALL(f.mocks.cameraSvc, QuerySwitch(trompeloeil::_, trompeloeil::_, trompeloeil::_))
+        .RETURN(cosmo::util::ErrorEnum::Success);
+    cosmo::VideoTask::MsgSelectConfigByAlgorithmIdRecv recv;
+    recv.channelId   = "channel1";
+    recv.algorithmId = "algorithm1";
+    std::error_condition error;
+    const auto result = f.handler.Handle(std::move(recv), error);
+    const auto param  = nlohmann::json::parse(result.resData.algorithmMetadata)["params"][0];
+    CHECK(param["value"] == value);
+    CHECK(param["defaultValue"] == "");
+    CHECK(param["modelConfidenceHigh"].get<float>() == Catch::Approx(0.82F));
+    CHECK(param["modelConfidence"].get<float>() == Catch::Approx(0.45F));
 }

@@ -84,43 +84,44 @@ npm run dev
 
 ### 生产构建
 
+在仓库支持的 x86 构建容器内，从仓库根目录进入前端工程：
+
 ```bash
 cd src/web
 npm ci
+npm test
 npm run build
 ```
 
-`prebuild` 会执行 API/请求契约、组件行为、图片场景和其他功能检查，最后执行 `npm run i18n:check`；任一检查失败都会阻止 Vite 打包。`Component behavior checks passed` 仅表示其中一个检查阶段完成。
+`npm test` 独立执行 API/请求契约和组件行为等测试。`npm run build` 的 `prebuild`
+只执行 `npm run i18n:check`，随后由 Vite 打包；构建成功不表示行为测试已经运行。
 
 ### CMake 复制目录中的资源检查
 
-`cmake/web_frontend.cmake` 将前端复制到 `<build>/web/web_unified`，安装锁定依赖后执行完整构建，并通过 `COSMO_REPO_ROOT` 传入仓库源码根目录。访问 `data/resource/` 等源码资源的检查脚本必须优先使用此变量；从 `src/web` 直接运行时才回退到脚本相对路径。例如图片库节点和双图组件检查均采用：
+`cmake/web_frontend.cmake` 将前端复制到 `<build>/web/web_unified`，安装锁定依赖后，
+先执行 `resource-i18n:check`，再执行 `npm run build`（包含 prebuild 的 `i18n:check`）。
+资源检查通过 `AIBOX_RESOURCE_DIR` 选择本次构建的资源目录，不在复制目录中运行行为测试。
+行为测试应在源码工程中单独执行 `npm test`。
 
-```js
-const repositoryRoot = process.env.COSMO_REPO_ROOT || fileURLToPath(new URL('../../../', import.meta.url))
-const actionsPath = path.join(repositoryRoot, 'data/resource/aiboxresource_bm1688/layout/actions.json')
-```
-
-其中 `path` 来自 `node:path`，`fileURLToPath` 来自 `node:url`。若日志在 `Dual-image comparison UI checks passed` 后报 `<build>/data/resource/.../actions.json` 不存在，检查脚本是否仍按复制后的位置解析资源。仅验证源码目录的 `npm run build` 不能覆盖该路径；在已配置的构建环境中验证实际目标：
+在已配置的目标构建容器内验证实际目标（示例使用 Sophon 的 `build/`）：
 
 ```bash
 cmake --build build --target web_frontend -j6
 ```
 
-该目标包含安装依赖、构建前检查和 Vite 打包；它依赖引擎目标，因此可能先完成 C++ 构建。资源目录由源码根目录定位，无需手工向 `build/data` 复制资源。
+该目标依赖引擎，可能先完成 C++ 构建。无需手工向 `build/data` 复制资源。
 
 ## 常用脚本
 
-| 脚本                        | 用途                                                    |
-| --------------------------- | ------------------------------------------------------- |
-| `npm run dev`               | 启动 Vite 开发服务器                                    |
-| `npm run build`             | 生产构建（完整 `prebuild` 功能和 i18n 检查后打包）                 |
-| `npm run preview`           | 本地预览生产构建结果                                    |
-| `npm run i18n:check`        | 运行全部 5 个 i18n 校验脚本                             |
-| `npm run resource-i18n:check` | 检查资源 i18n 同步状态                               |
-| `npm run resource-i18n:sync`  | 从 aiboxResource 源同步资源 i18n key（提交前检查 diff） |
-
-i18n 校验覆盖：短词 scope 正确性、locale key 一致性、glossary 同步、弹窗操作按钮标签、未使用 key 检测。
+| 脚本 | 用途 |
+| --- | --- |
+| `npm run dev` | 启动 Vite 开发服务器 |
+| `npm test` | 独立执行行为与契约测试 |
+| `npm run build` | 先检查 i18n，再生产打包 |
+| `npm run preview` | 本地预览生产构建结果 |
+| `npm run i18n:check` | 检查双语键一致性、短译键及源码使用的翻译键 |
+| `npm run resource-i18n:check` | 检查资源 i18n 同步状态 |
+| `npm run resource-i18n:sync` | 同步资源 i18n key，提交前复查 diff |
 
 ## 新增页面
 

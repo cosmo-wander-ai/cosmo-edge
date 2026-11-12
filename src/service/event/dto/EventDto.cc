@@ -9,6 +9,25 @@
 
 // Auto-generated JSON serialization
 namespace cosmo::Event {
+void from_json(const nlohmann::json& j, MsgDeleteRecv& v) {
+    from_json(j, static_cast<MsgRecvHead&>(v));
+    j.at("ids").get_to(v.ids);
+}
+
+void to_json(nlohmann::json& j, const MsgDeleteRecv& v) {
+    to_json(j, static_cast<const MsgRecvHead&>(v));
+    j["ids"] = v.ids;
+}
+
+void to_json(nlohmann::json& j, const MsgDeleteSend& v) {
+    to_json(j, static_cast<const MsgSendHead&>(v));
+    nlohmann::json failed = nlohmann::json::array();
+    for (const auto& item : v.resData.failedItems)
+        failed.push_back({{"id", item.id}, {"reason", item.reason}});
+    j["resData"] = {{"deletedIds", v.resData.deletedIds},
+                    {"missingIds", v.resData.missingIds},
+                    {"failedItems", std::move(failed)}};
+}
 void from_json(const nlohmann::json& j, MsgLayaReviewPageRecv& v) {
     from_json(j, static_cast<MsgRecvHead&>(v));
     JSON_OPT(j, v, eventId);

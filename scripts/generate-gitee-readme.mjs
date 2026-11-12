@@ -9,8 +9,8 @@ const sourcePath = path.join(repositoryRoot, 'README.zh-CN.md');
 const targetPath = path.join(repositoryRoot, 'Readme.osc.md');
 const checkMode = process.argv.includes('--check');
 const generatedHeader = '<!-- Generated from README.zh-CN.md by scripts/generate-gitee-readme.mjs. Do not edit directly. -->\n\n';
-const githubReleaseBadge = '[![Release](https://img.shields.io/badge/release-v1.1.0-2ea44f?style=flat-square)](https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.1.0)';
-const giteeReleaseBadge = '[![Release](https://img.shields.io/badge/release-v1.1.0-2ea44f?style=flat-square)](https://gitee.com/cosmo-wander-ai/cosmo-edge/releases)';
+const githubReleaseBadge = '[![Release](https://img.shields.io/badge/release-v1.2.0-2ea44f?style=flat-square)](https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.2.0)';
+const giteeReleaseBadge = '[![Release](https://img.shields.io/badge/release-v1.2.0-2ea44f?style=flat-square)](https://gitee.com/cosmo-wander-ai/cosmo-edge/releases)';
 const githubCloneCommand = 'git clone https://github.com/cosmo-wander-ai/cosmo-edge.git';
 const giteeCloneCommand = 'git clone https://gitee.com/cosmo-wander-ai/cosmo-edge.git';
 
@@ -46,7 +46,7 @@ const replacements = [
   {
     source: githubCloneCommand,
     target: giteeCloneCommand,
-    expectedOccurrences: 2
+    expectedOccurrences: 1
   }
 ];
 

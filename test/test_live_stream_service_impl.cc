@@ -2,20 +2,27 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdlib>
+#include <deque>
 #include <list>
+#include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <shared_mutex>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 #include "catch_amalgamated.hpp"
+#include "util/Exception.h"
 #include "util/ProcessShutdown.h"
 #include "util/TimeUtil.h"
 
 #define private public
 #include "flow/stream/StreamViewer.h"
+#include "media/PreviewPipelineMetrics.h"
 #include "service/media/impl/LiveStreamServiceImpl.h"
 #undef private
 
@@ -44,6 +51,58 @@ struct LiveStreamDependencies {
 };
 
 }  // namespace
+
+TEST_CASE("StreamViewer construction failure releases preview timing registration",
+          "[live-stream][preview][metrics][lifecycle]") {
+    LiveStreamDependencies mocks;
+    const char* previous_base = std::getenv("COSMO_STREAM_RTMP_BASE");
+    struct RestoreRtmpBase {
+        std::optional<std::string> previous;
+        ~RestoreRtmpBase() {
+            if (previous)
+                setenv("COSMO_STREAM_RTMP_BASE", previous->c_str(), 1);
+            else
+                unsetenv("COSMO_STREAM_RTMP_BASE");
+        }
+    } restore_base{previous_base ? std::optional<std::string>(previous_base) : std::nullopt};
+    // An unsupported protocol fails synchronously without a server or timeout.
+    REQUIRE(setenv("COSMO_STREAM_RTMP_BASE", "cosmo-invalid-protocol://preview", 1) == 0);
+
+    const std::string channel_id = "timed-construction-failure";
+    cosmo::ActionNode action;
+    auto channel                      = std::make_shared<cosmo::AlgChannel>(channel_id, "timed-task", action);
+    channel->demuxer_.status_.status  = cosmo::service::camera::AlgDemuxStatus::AlgDemuxReading;
+    channel->demuxer_.demuxer_.width_ = 1280;
+    channel->demuxer_.demuxer_.height_ = 720;
+    channel->demuxer_.demuxer_.fps_    = 25.0F;
+
+    auto& metrics = cosmo::media::GetPreviewPipelineMetrics();
+    for (const std::string algorithm_id : {"timed-algorithm-a", "timed-algorithm-b"}) {
+        size_t key_count;
+        size_t preview_count;
+        uint64_t previous_token;
+        {
+            std::lock_guard<std::mutex> lock(metrics.timed_mutex_);
+            key_count      = metrics.timed_keys_.size();
+            preview_count  = metrics.timed_previews_.size();
+            previous_token = metrics.next_timed_token_;
+        }
+
+        CHECK_THROWS_AS(cosmo::StreamViewer(channel, channel_id, algorithm_id), cosmo::util::ErrorMessage);
+
+        uint64_t failed_token;
+        {
+            std::lock_guard<std::mutex> lock(metrics.timed_mutex_);
+            failed_token = metrics.next_timed_token_;
+            CHECK(failed_token != previous_token);
+            CHECK(metrics.timed_keys_.count({channel_id, algorithm_id}) == 0);
+            CHECK(metrics.timed_keys_.size() == key_count);
+            CHECK(metrics.timed_previews_.size() == preview_count);
+        }
+        // Keep the test isolated even when it detects the original leak.
+        metrics.EndTimedPreview(failed_token);
+    }
+}
 
 TEST_CASE("LiveStreamServiceImpl: 视频流管理核心逻辑", "[live-stream]") {
     LiveStreamDependencies mocks;

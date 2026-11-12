@@ -67,6 +67,9 @@ public:
     /// @param list Record IDs to delete.
     virtual void RemoveItems(const std::vector<std::string>& list) = 0;
 
+    /// Delete selected events and their local attachments, reporting each result.
+    virtual AlarmDeleteResult DeleteEvents(const std::vector<std::string>& ids) = 0;
+
     /// Insert a passenger flow data point.
     /// @param cameraId   Camera identifier.
     /// @param algorithmId Algorithm identifier.

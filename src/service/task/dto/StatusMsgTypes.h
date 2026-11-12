@@ -20,6 +20,12 @@ struct MsgTaskStatus {
     std::string algorithmVersion;  // Algorithm version
     std::vector<ActionStatus> actionStatus;
     std::vector<AlgActionNodeDurationInfo> nodeDurationInfos;
+    // Legacy OSD action timings, requested separately over a five-second
+    // window. These are not queue-node or preview-stream measurements.
+    std::vector<AlgActionNodeDurationInfo> actionDurationInfos;
+    // Preview-only measurements for this exact channel and algorithm; never
+    // mixed with inference task nodes or aggregate system metrics.
+    std::vector<AlgActionNodeDurationInfo> previewDurationInfos;
     friend void to_json(nlohmann::json& j, const MsgTaskStatus& v);
     friend void from_json(const nlohmann::json& j, MsgTaskStatus& v);
 };

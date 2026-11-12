@@ -22,9 +22,9 @@ next:
 | C++ 格式 | `scripts/format_check.sh --check` | Pull request / push |
 | C++ 静态分析 | `scripts/static_analysis.sh --cppcheck`、`scripts/static_analysis.sh --clang-tidy` | 定期 / 手动 / self-hosted |
 | CPU 测试构建 | `scripts/build_cpu_test.sh`、`build_cpu/cosmo-tests` | Pull request / 手动 |
-| x86 Docker | `docker compose -f docker-compose.x86.yml up -d --build` (Windows 下为 `docker-compose.x86.windows.yml`) | 手动 / release 前 |
-| Sophon 发布包 | `./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package [--chip <型号>]`，支持 `bm1688` / `cv186x`（默认 `bm1688`） | 手动 / self-hosted |
-| Rockchip 发布包 | `COSMO_TARGET_CHIP=<rk3576|rv1126b> docker compose -f docker-compose.rockchip.yml run --rm cosmo-rockchip-package` | 每日 02:12（北京时间）/ 手动 |
+| x86 Docker | [按宿主环境构建并启动](../guide/build.md#x86-docker-开发运行环境) | 手动 / release 前 |
+| Sophon 发布包 | [选择 BM1688 / CV186X 和宿主入口](../guide/build.md#sophon-构建产物) | 手动 / self-hosted |
+| Rockchip 发布包 | [选择 RK3576 / RV1126B](../guide/build.md#rockchip-构建产物) | 每日 02:12（北京时间）/ 手动 |
 
 ## 文档站检查
 
@@ -75,7 +75,7 @@ npm run resource-i18n:check
 
 说明：
 
-- `npm test` 使用 Node 原生测试运行器串行执行显式列出的 19 个测试入口，覆盖 API、
+- `npm test` 使用 Node 原生测试运行器串行执行显式列出的测试入口，覆盖 API、
   请求、参数、流程及组件行为；前端 CI 在构建前执行它。单项测试可直接运行
   `node --experimental-vm-modules --test scripts/<测试文件>.mjs`。
 - `npm run build` 的 `prebuild` 只执行 `i18n:check`，不再隐式运行行为测试。
@@ -132,29 +132,10 @@ bash scripts/static_analysis.sh --all
 
 ## CPU 测试构建
 
-CPU 测试构建脚本：
-
-```bash
-bash scripts/build_cpu_test.sh
-```
-
-脚本会配置 `build_cpu`，启用 `BUILD_TESTS=ON`，并构建：
-
-```text
-build_cpu/cosmo-tests
-```
-
-构建完成后可运行：
-
-```bash
-./build_cpu/cosmo-tests
-```
-
-说明：
-
-- 该路径使用 x86 CPU backend 和 ONNX Runtime。
-- 脚本会生成或链接 `compile_commands.json`，方便 IDE 和静态分析工具使用。
-- 当前脚本提示需要 `pkg-config` 和 OpenH264 development package。
+按[构建指南的 CPU 测试路径](../guide/build.md#cpu-测试构建)，在 Linux x86_64 宿主机
+使用仓库构建容器，先构建 `build_cpu/cosmo-tests`，再单独执行测试并检查结果。
+该入口使用 CPU 后端和 ONNX Runtime，并生成或链接 `compile_commands.json`。
+生成二进制不代表测试已通过；构建镜像和运行库路径在构建指南统一维护。
 
 ## x86 Docker 验证
 
@@ -162,9 +143,9 @@ x86 开发模式可用于集成级验证：
 
 - **Linux**:
   ```bash
-  docker compose -f docker-compose.x86.yml up -d --build
-  docker compose -f docker-compose.x86.yml logs -f
-  docker compose -f docker-compose.x86.yml down
+  ./scripts/docker-compose.sh -f docker-compose.x86.yml up -d --build
+  ./scripts/docker-compose.sh -f docker-compose.x86.yml logs -f
+  ./scripts/docker-compose.sh -f docker-compose.x86.yml down
   ```
 - **Windows (PowerShell/CMD)**:
   ```powershell
@@ -182,25 +163,9 @@ x86 开发模式可用于集成级验证：
 
 ## Sophon 发布包验证
 
-Sophon/aarch64 发布包构建入口：
-
-```bash
-# 省略型号时默认 bm1688
-./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package
-./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package --chip cv186x
-```
-
-Windows PowerShell：
-
-```powershell
-# 省略型号时默认 bm1688
-.\scripts\build_sophon_package.ps1
-.\scripts\build_sophon_package.ps1 -Chip cv186x
-```
-
-Sophon 发布包构建依赖交叉编译环境和 Sophon SDK。型号决定内部资源目录和芯片隔离的
-输出目录；`build_output/<profile>/<chip>/` 同时包含 `TARGET_CHIP`、`SHA256SUMS` 和
-`cosmo-V<major>.<minor>.<patch>-<md5>.tar.gz`。
+按[构建指南](../guide/build.md#sophon-构建产物)选择 BM1688 / CV186X 和宿主环境。
+每个 `build_output/<profile>/<chip>/` 目录应包含唯一安装包、`TARGET_CHIP` 和 `SHA256SUMS`。
+构建会生成 aarch64 测试程序，但其执行需要匹配的设备与运行库；包审计不替代设备验收。
 
 ## Rockchip 交叉编译矩阵
 
@@ -208,13 +173,8 @@ Sophon 发布包构建依赖交叉编译环境和 Sophon SDK。型号决定内�
 RK3576 和 RV1126B 分别运行矩阵任务。它会在手动触发及每日北京时间 02:12
 （UTC 前一日 18:12）运行。定时工作流只有进入 GitHub 默认分支后才会生效。
 
-本地使用固定 digest 的公开 GHCR 镜像，无需 registry 登录：
-
-```bash
-docker compose -f docker-compose.rockchip.yml pull cosmo-rockchip-package
-COSMO_TARGET_CHIP=rk3576 docker compose -f docker-compose.rockchip.yml \
-  run --rm cosmo-rockchip-package
-```
+本地构建按[Rockchip 构建指南](../guide/build.md#rockchip-构建产物)选择一个目标芯片，
+在 Linux x86_64 宿主机的 Bash 中执行，再核对该目标的包与校验和。
 
 工作流执行以下检查：
 

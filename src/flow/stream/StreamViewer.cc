@@ -45,6 +45,7 @@ void StreamViewer::MarkReady(std::chrono::nanoseconds first_frame_latency) {
     }
     bool expected = false;
     if (preview_ready_.compare_exchange_strong(expected, true)) {
+        media::GetPreviewPipelineMetrics().MarkTimedPreviewReady(timed_preview_token_);
         media::GetPreviewPipelineMetrics().PreviewStarted(!alg_id_.empty(),
                                                           static_cast<uint64_t>(first_frame_latency.count()));
     }
@@ -54,6 +55,10 @@ void StreamViewer::Stop() {
     if (stopped_.exchange(true)) {
         return;
     }
+
+    // In-flight callbacks may still finish while queues drain; invalidate their
+    // token first so a stopped/replaced stream never publishes stale samples.
+    media::GetPreviewPipelineMetrics().EndTimedPreview(timed_preview_token_);
 
     LOG_INFO("{}/{} viewer stopping: viewers={} packet={} frame={}", channel_id_, alg_id_, viewer_num_.load(),
              packet_queue_attached_, frame_queue_attached_);
@@ -109,6 +114,17 @@ StreamViewer::StreamViewer(AlgChannelPtr channelInst, const std::string& channel
         LOG_WARN("{}/{} Init, But Channel fps {} Not Support", channel_id_, alg_id_, attr.fps);
         return;
     }
+    if (!algId.empty()) {
+        timed_preview_token_ = media::GetPreviewPipelineMetrics().BeginTimedPreview(channelId, algId);
+    }
+    // A failed constructor does not call Stop(), so retain rollback ownership
+    // until the publisher, encoder and channel queues have been initialized.
+    struct TimedPreviewRollback {
+        uint64_t token;
+        ~TimedPreviewRollback() {
+            media::GetPreviewPipelineMetrics().EndTimedPreview(token);
+        }
+    } timed_preview_rollback{timed_preview_token_};
     std::string url;
     if (algId.empty()) {
         ctrl_fps_ = attr.fps;
@@ -148,12 +164,12 @@ StreamViewer::StreamViewer(AlgChannelPtr channelInst, const std::string& channel
 
     if (shouldEncodeForPreview) {
         if ((attr.width * attr.height) > (media::kVideoDefaultWidth * media::kVideoDefaultHeight)) {
-            encoder_ =
-                std::make_shared<StreamViewerEncoder>(media::VideoCodecType::kH264, media::kVideoDefaultWidth,
-                                                      media::kVideoDefaultHeight, video_pusher_);
+            encoder_ = std::make_shared<StreamViewerEncoder>(
+                media::VideoCodecType::kH264, media::kVideoDefaultWidth, media::kVideoDefaultHeight,
+                video_pusher_, timed_preview_token_);
         } else {
-            encoder_ = std::make_shared<StreamViewerEncoder>(media::VideoCodecType::kH264, attr.width,
-                                                             attr.height, video_pusher_);
+            encoder_ = std::make_shared<StreamViewerEncoder>(
+                media::VideoCodecType::kH264, attr.width, attr.height, video_pusher_, timed_preview_token_);
         }
     }
     async_packet_queue_->SetProcessor([this](VideoPacketPtr&& data) { HandlePacket(std::move(data)); });
@@ -179,7 +195,7 @@ StreamViewer::StreamViewer(AlgChannelPtr channelInst, const std::string& channel
     {
         if (EncoderReady()) {
             data_overview_ = true;
-            overviewer_    = std::make_shared<StreamViewerOverview>(channel_id_, alg_id_);
+            overviewer_ = std::make_shared<StreamViewerOverview>(channel_id_, alg_id_, timed_preview_token_);
 #ifdef COSMO_MEDIA_USE_ROCKCHIP_BACKEND
             channelInst->AddViewerFrameQueue(alg_id_, async_frame_queue_,
                                              [this]() { return PrepareFrameForDecode(); });
@@ -200,6 +216,7 @@ StreamViewer::StreamViewer(AlgChannelPtr channelInst, const std::string& channel
                      channel_id_, alg_id_, attr.codec);
         }
     }
+    timed_preview_rollback.token = 0;
 }
 void StreamViewer::HeartBeat() {
     {

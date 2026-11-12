@@ -1,6 +1,6 @@
 # Security Policy
 
-CosmoEdge `v1.1.x` is the current public stable line and receives security fixes. Security maintenance for `v1.0.x` ended when `v1.1.0` was published on 2026-08-25; users should upgrade to `v1.1.x`. Please avoid disclosing security-sensitive details publicly before maintainers have had time to review them. This policy describes how to report vulnerabilities privately and what to expect.
+CosmoEdge `v1.2.x` is the current public stable line and receives security fixes. Security maintenance for `v1.1.x` ended with publication of `v1.2.0`; users should upgrade to `v1.2.x`. Please avoid disclosing security-sensitive details publicly before maintainers have had time to review them. This policy describes how to report vulnerabilities privately and what to expect.
 
 ## Reporting a Vulnerability
 
@@ -49,8 +49,9 @@ The table below shows the versions that receive security fixes. Builds made dire
 
 | Version | Supported          | Notes                                                                                   |
 | ------- | ------------------ | --------------------------------------------------------------------------------------- |
-| 1.1.x   | :white_check_mark: | Current public stable line; receives security fixes                                     |
-| 1.0.x   | :x:                | Security maintenance ended on 2026-08-25 with `v1.1.0` publication; upgrade to `v1.1.x` |
+| 1.2.x   | :white_check_mark: | Current public stable line; receives security fixes                                     |
+| 1.1.x   | :x:                | Security maintenance ended with `v1.2.0` publication; upgrade to `v1.2.x`               |
+| 1.0.x   | :x:                | Security maintenance ended on 2026-08-25 with `v1.1.0` publication; upgrade to `v1.2.x` |
 | 0.1.x   | :x:                | Superseded by v1.0.0; only critical fixes on request                                    |
 | < 0.1   | :x:                | Not publicly released                                                                   |
 

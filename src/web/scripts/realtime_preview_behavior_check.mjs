@@ -74,12 +74,22 @@ for (const protocol of ['httpflv', 'webrtc']) {
   const flush = async () => { for (let step = 0; step < 12; step++) await view.settle() }
   const media = () => view.all(node => node.type === 'video')
   const fitButtons = () => view.all(node => hasClass(node, 'video-fit'))
+  const diagnosticButtons = () => view.all(node => hasClass(node, 'video-diagnostics'))
   try {
     await flush()
     const originalVideo = media()
     assert.equal(originalVideo.length, 2)
     assert.equal(calls.request.length, 2)
     assert.equal(transports.length, 2)
+    diagnosticButtons()[0].props.onClick({ stopPropagation() {} })
+    await flush()
+    assert.equal(view.all(node => hasClass(node, 'live-diagnostics')).length, 1, 'diagnostics opens only in the selected player')
+    assert.equal(diagnosticButtons()[0].props['aria-expanded'], true)
+    assert.equal(diagnosticButtons()[1].props['aria-expanded'], false)
+    assert.ok(media().every((node, index) => node === originalVideo[index]), 'opening diagnostics retains live video elements')
+    diagnosticButtons()[0].props.onClick({ stopPropagation() {} })
+    await flush()
+    assert.equal(view.all(node => hasClass(node, 'live-diagnostics')).length, 0, 'diagnostics closes without touching another player')
     const heartbeatCount = calls.heartbeat.length
     assert.deepEqual(media().map(node => node.props.style.objectFit), ['contain', 'contain'], 'an omitted fitMode and an explicit full-frame choice both retain the entire image')
     assert.ok(fitButtons().every(button => button.props['aria-label'] === 'event.fitContain'))

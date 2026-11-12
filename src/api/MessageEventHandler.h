@@ -24,6 +24,8 @@ public:
     /// Query alarm events with pagination.
     [[nodiscard]] Event::MsgPageSend Handle(Event::MsgPageRecv&& data, std::error_condition& errc) const;
 
+    [[nodiscard]] Event::MsgDeleteSend Handle(Event::MsgDeleteRecv&& data, std::error_condition& errc) const;
+
     [[nodiscard]] Event::MsgLayaReviewPageSend Handle(Event::MsgLayaReviewPageRecv&& data,
                                                       std::error_condition& errc) const;
 

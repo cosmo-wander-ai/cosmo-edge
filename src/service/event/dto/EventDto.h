@@ -5,6 +5,7 @@
 #include <nlohmann/json.hpp>
 #include <system_error>
 
+#include "service/event/dto/AlarmRecordTypes.h"
 #include "util/dto/EventMsgTypes.h"
 #include "util/dto/ServerMsgTypes.h"
 
@@ -27,6 +28,16 @@ namespace Event {
     void from_json(const nlohmann::json&, MsgLayaReviewPageSend&);
     void to_json(nlohmann::json&, const MsgLayaReviewPageSend&);
     struct MsgPageRecv : public MsgRecvHead, public MsgConditionEvent {};
+
+    struct MsgDeleteRecv : public MsgRecvHead {
+        std::vector<std::string> ids;
+    };
+    struct MsgDeleteSend : public MsgSendHead {
+        service::AlarmDeleteResult resData;
+    };
+    void from_json(const nlohmann::json& j, MsgDeleteRecv& v);
+    void to_json(nlohmann::json& j, const MsgDeleteRecv& v);
+    void to_json(nlohmann::json& j, const MsgDeleteSend& v);
 
     void to_json(nlohmann::json& j, const MsgPageRecv& v);
     void from_json(const nlohmann::json& j, MsgPageRecv& v);

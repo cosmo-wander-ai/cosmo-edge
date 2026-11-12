@@ -13,7 +13,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)](LICENSE)
 [![Runtime](https://img.shields.io/badge/runtime-C%2B%2B17-orange?style=flat-square)](#核心能力)
-[![Release](https://img.shields.io/badge/release-v1.1.0-2ea44f?style=flat-square)](https://gitee.com/cosmo-wander-ai/cosmo-edge/releases)
+[![Release](https://img.shields.io/badge/release-v1.2.0-2ea44f?style=flat-square)](https://gitee.com/cosmo-wander-ai/cosmo-edge/releases)
 
 [![Website](https://img.shields.io/badge/website-cosmowander.ai-3B82F6?style=flat-square)](https://www.cosmowander.ai/)
 [![Docs](https://img.shields.io/badge/docs-online-2563EB?style=flat-square)](https://www.cosmowander.ai/zh/docs/)
@@ -39,7 +39,7 @@ CosmoEdge 不只是模型推理服务：它提供从模型导入、可视化编�
 
 | 你要完成的事 | 从哪里开始 | 工程与版本 |
 | --- | --- | --- |
-| 部署视频 AI 应用，配置模型、场景与告警 | [快速开始](#快速开始) · [选择平台](#选择平台) | 本仓库的引擎与控制台；正式版 **v1.1.0** |
+| 部署视频 AI 应用，配置模型、场景与告警 | [快速开始](#快速开始) · [选择平台](#选择平台) | 本仓库的引擎与控制台；正式版 **v1.2.0** |
 | 从数据开始定制目标检测模型 | [CosmoEdge 辅助训练 Skill](https://github.com/cosmo-wander-ai/cosmoedge-training-skill) | 独立工程；已发布 **v0.1.0-preview.1**，后续修订见其 `main` |
 | 让 AI 助手查询告警、按需看图并确认后启停检测 | [CosmoEdge Connect](https://github.com/cosmo-wander-ai/cosmoedge-connect) | 独立的本地 MCP / WorkBuddy 接入工程；**v0.1.0-alpha.1 源码预览** |
 
@@ -47,95 +47,163 @@ CosmoEdge 不只是模型推理服务：它提供从模型导入、可视化编�
 
 ## 版本与近期进展
 
-**正式发布：v1.1.0。** 面向 BM1688、CV186X、RK3576、RV1126B 与 x86，包含 Apple Silicon macOS Docker Preview；多平台性能与受控 72 小时固定配置结果见 [v1.1 报告](docs/benchmarks/scenario-bench/v1.1/README.zh-CN.md)。安装包见 [GitHub Release](https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.1.0)。
+**正式发布：v1.2.0。** 分别提供 BM1688、CV186X、RK3576、RV1126B 的 Open 安装包，
+沿用 x86 Docker 开发路径与 Apple Silicon macOS Docker Preview。安装包见
+[GitHub Release](https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.2.0)，
+平台边界和本轮验证结果见 [1.2 发布说明](.github/release-notes/v1.2.0.zh-CN.md)。
 
-**当前 `main`：v1.1.0 之后的开发进展。** 已合入的主要更新包括：
+**相对 v1.1.0 的主要变化**包括：
 
 - **视频接入**：[ONVIF 发现与认证接入](docs/guide/onvif-access.md)、[GB28181 设备管理及 TCP/UDP 信令与视频接入](docs/guide/gb28181-access.md)。
 - **模型与视觉流程**：YOLO26 与旋转框 OBB 处理；BM1688 原生 Laya-V 模型接入、告警复核及图片/视频的多 ROI 问题配置。实现与已完成验证见 [PR #219](https://github.com/cosmo-wander-ai/cosmo-edge/pull/219)。
 - **平台集成**：[平台管理接口](docs/reference/management.md)支持版本化资源下发、断点续传、任务启停与状态回读。
-- **部署与工程质量**：RK3576 受保护模型路径、模型包装校验、视频样本级事件测量与 VLM 评估工具，以及任务恢复、媒体处理和日志管理修复。详见 [Unreleased 更新记录](CHANGELOG.md#unreleased)。
+- **告警与控制台**：告警记录删除、目标类别和实测置信度、实时叠加诊断，以及控制台布局与主题更新。
+- **部署与工程质量**：RK3576 受保护模型路径、模型包装校验、视频样本级事件测量与 VLM 评估工具，以及任务恢复、媒体处理、日志管理和 x86 Docker 启动修复。详见 [1.2.0 更新记录](CHANGELOG.md)。
 
-上述主干更新未包含在 v1.1.0 安装包中；所需模型、目标平台和验证范围以对应说明为准。v1.1 benchmark 仍只描述其固定候选与测试条件，不能用于证明后续主干或新模型的性能。
+各功能所需模型与目标平台以对应文档为准。[v1.1 报告](docs/benchmarks/scenario-bench/v1.1/README.zh-CN.md)
+仍只记录其历史候选和工作负载，不代表 v1.2.0 的性能测量。
 
 ## 选择平台
 
-CosmoEdge 提供统一的引擎架构与编排体验，但每次构建只选择一个推理后端，并使用面向目标平台生成的模型产物。下表说明 v1.1.0 发布范围及其对应证据。
+CosmoEdge 提供统一的引擎架构与编排体验，但每次构建只选择一个推理后端，并使用面向目标平台生成的模型产物。下表区分 v1.2.0 的包范围与本轮设备验证范围。
 
 | 平台 | 状态 | 运行时 / 模型产物 | 当前范围与证据 |
 | --- | --- | --- | --- |
-| Sophon BM1688 | v1.1 已支持 / 主力平台；支持 VLM | BMRT / `.nn` | 已验证 VLM 在 0.1 FPS/路下支持 6 路，并包含 [v1.1 工作负载证据](docs/benchmarks/scenario-bench/v1.1/README.zh-CN.md) |
-| Rockchip RK3576 / RV1126B | v1.1 已支持；RK3576 支持 VLM | RKNN / 目标平台专用 `.rknn`；RK3576 使用 RKLLM | RK3576 已验证 VLM 在 0.1 FPS/路下支持 4 路；RV1126B VLM 不在本次发布声明中。其他平台实测结果仍在 [v1.1 报告](docs/benchmarks/scenario-bench/v1.1/README.zh-CN.md)中分别列出 |
-| Sophon CV186X | v1.1 已支持；支持 VLM | BMRT / 目标芯片专用 `.nn` | 已验证 VLM 在 0.1 FPS/路下支持 6 路，并包含模型导入与设备工作负载证据 [v1.1 benchmark](docs/benchmarks/scenario-bench/v1.1/README.zh-CN.md) |
-| x86 Linux / Windows；Apple Silicon macOS | Linux / Windows 已支持；macOS Preview | ONNX Runtime / `.onnx` | Mac 通过 amd64 仿真覆盖单路本地视频开发体验，不代表原生性能 |
+| Sophon BM1688 | v1.2 Open 包；已检查设备安装、升级与回滚 | BMRT / `.nn` | 候选包绑定的设备结果见 1.2 发布清单；原有 VLM 与工作负载测量见 [v1.1 历史报告](docs/benchmarks/scenario-bench/v1.1/README.zh-CN.md) |
+| Rockchip RK3576 / RV1126B | 各自的 v1.2 Open 包已构建并审计 | RKNN / 目标平台专用 `.rknn`；RK3576 使用 RKLLM | 本轮未做设备实测；RV1126B 不声明 VLM 支持 |
+| Sophon CV186X | v1.2 Open 包已构建并审计 | BMRT / 目标芯片专用 `.nn` | 本轮未做 CV186X 设备实测 |
+| x86 Linux / Windows；Apple Silicon macOS | x86 Docker 开发路径；macOS Preview | ONNX Runtime / `.onnx` | 宿主验证结果见 1.2 发布清单；macOS 使用 amd64 仿真，不代表原生 arm64 性能 |
 | Sophon BM1684X | 规划中 | — | 不属于当前发布范围 |
 
 ## 快速开始
 
-以下命令克隆并构建当前 `main`。需要正式发布版本时，请使用 [v1.1.0 安装包](https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.1.0)，或在构建前切换到 `v1.1.0` 标签并按该版本文档操作。
+以下命令克隆并构建当前 `main`。需要正式发布版本时，请使用 [v1.2.0 安装包](https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.2.0)，或在构建前切换到 `v1.2.0` 标签并按该版本文档操作。
+
+### 获取源码
+
+宿主机需要 Git 和可用的 Docker；Windows 使用 Docker Desktop 的 Linux 容器模式。
+首次获取源码，已有工作副本时直接进入其根目录：
+
+```sh
+git clone https://gitee.com/cosmo-wander-ai/cosmo-edge.git
+cd cosmo-edge
+```
+
+以下命令均在宿主机的仓库根目录执行。按宿主环境和目标芯片选择一组；边缘设备构建默认
+生成 Open 包，只导出产物，不在构建机启动应用。环境准备和完整步骤见[构建指南](docs/guide/build.md)。
 
 ### 在 x86 本地试用
 
-无需边缘硬件即可体验。x86 模式使用与边缘部署一致的 UI 和工作流，但吞吐低于 NPU 部署。
+无需边缘硬件即可体验。x86 模式使用与边缘部署一致的 UI 和工作流，吞吐取决于 CPU。
+
+**Linux x86_64 / Bash：**
 
 ```bash
-# 1. 克隆
-git clone https://gitee.com/cosmo-wander-ai/cosmo-edge.git
-cd cosmo-edge
-
-# 2. 在 Linux 启动
-sudo docker compose -f docker-compose.x86.yml up -d --build
-# Windows：docker compose -f docker-compose.x86.windows.yml up -d --build
-# Apple Silicon macOS（Preview）：./scripts/macos-docker-preview.sh up
-
-# 3. 打开 http://localhost:8080
+./scripts/docker-compose.sh -f docker-compose.x86.yml up -d --build
 ```
 
-启动后，按照[场景配置教程](https://www.cosmowander.ai/zh/docs/tutorials/02-scenario-config/scenario-config)创建第一个 AI 检测任务。Mac 用户先阅读 [macOS Docker Preview](docs/guide/macos-docker-preview.md) 的许可、环境和能力边界。使用 Docker Compose V1 时，可将 `docker compose` 替换为 `docker-compose`。
+**Windows x86_64 / PowerShell：**
+
+```powershell
+docker compose -f docker-compose.x86.windows.yml up -d --build
+```
+
+启动后打开 `http://localhost:8080`，产物导出到 `build_output/`。
+按照[场景配置教程](https://www.cosmowander.ai/zh/docs/tutorials/02-scenario-config/scenario-config)创建第一个 AI 检测任务。
+
+### Apple Silicon macOS Preview
+
+先阅读 [Mac Preview](docs/guide/macos-docker-preview.md) 的环境要求和能力边界，在 Mac 终端运行：
+
+```bash
+./scripts/macos-docker-preview.sh doctor && ./scripts/macos-docker-preview.sh up
+./scripts/macos-docker-preview.sh status
+```
+
+从本机打开 `http://127.0.0.1:8080`，产物位于 `build_output/macos-x86/`。
+该路径使用 amd64 仿真，面向单路本地视频体验。
 
 ### 为 Sophon 构建
 
-```bash
-git clone https://gitee.com/cosmo-wander-ai/cosmo-edge.git
-cd cosmo-edge
-# BM1688（省略芯片型号时的默认值）
-./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package --chip bm1688
+选择目标芯片后，再选择宿主环境；模型资源目录由脚本自动选择。
+Linux 包装器自动选择 Compose V2/V1，并仅在 Docker 权限不足时请求提权。
+Windows PowerShell 入口需要 Docker Desktop 和 Compose V2。
 
-# CV186X
-./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package --chip cv186x
+#### BM1688
+
+Linux x86_64 / Bash：
+
+```bash
+./scripts/docker-compose.sh -f docker-compose.sophon.yml \
+  run --rm cosmo-sophon-package --chip bm1688
 ```
 
-包装脚本会自动选择当前环境可用的 Compose 实现，并仅在 Docker 权限不足时请求提权。
-构建脚本会根据芯片型号选择对应模型资源，无需填写模型路径；不同目标分别导出到
-`build_output/public-runtime/<chip>/`，目录内同时包含 `TARGET_CHIP` 和 `SHA256SUMS`。
+Windows x86_64 / PowerShell：
 
-默认 Open 包包含明文模型，不需要设备授权。部署前必须核对芯片标记和校验和。
-[构建指南](https://www.cosmowander.ai/zh/docs/guide/build)是构建事实的权威入口；SSH 安装、
-页面升级、恢复与重启后验收统一参阅[部署指南](https://www.cosmowander.ai/zh/docs/guide/deployment)。
+```powershell
+.\scripts\build_sophon_package.ps1 -Chip bm1688
+```
+
+产物：`build_output/public-runtime/bm1688/`。
+
+#### CV186X
+
+Linux x86_64 / Bash：
+
+```bash
+./scripts/docker-compose.sh -f docker-compose.sophon.yml \
+  run --rm cosmo-sophon-package --chip cv186x
+```
+
+Windows x86_64 / PowerShell：
+
+```powershell
+.\scripts\build_sophon_package.ps1 -Chip cv186x
+```
+
+产物：`build_output/public-runtime/cv186x/`。
+
+目标目录均包含唯一安装包、`TARGET_CHIP` 和 `SHA256SUMS`。默认 Open 包包含明文模型，
+无需设备授权。按[构建指南](docs/guide/build.md#将-sophon-构建包交给部署流程)校验后，
+使用[部署指南](docs/guide/deployment.md#ssh-安装路径)安装。
 
 ### 为 Rockchip 构建
 
+在 **Linux x86_64 宿主机的 Bash** 中先拉取共享构建镜像：
+
 ```bash
 ./scripts/docker-compose.sh -f docker-compose.rockchip.yml pull cosmo-rockchip-package
-
-# RK3576（使用仓库内已有的 RK3576 模型资源）
-COSMO_TARGET_CHIP=rk3576 ./scripts/docker-compose.sh \
-  -f docker-compose.rockchip.yml run --rm cosmo-rockchip-package
-ls -lh build_output/rk3576/
-
-# RV1126B（需先准备该芯片的模型 overlay）
-COSMO_TARGET_CHIP=rv1126b ./scripts/docker-compose.sh \
-  -f docker-compose.rockchip.yml run --rm cosmo-rockchip-package
-ls -lh build_output/rv1126b/
 ```
 
-一个固定 digest 的 Rockchip 构建镜像共享编译器与 RKNN SDK，并按芯片选择相互隔离的
-MPP/RGA 配置；RKLLM v1.3.0 仅在 RK3576 包中强制包含。目标芯片标记、媒体运行时配置和
-校验和统一输出到 `build_output/<chip>/`。模型和设备验证边界参阅
-[构建指南](docs/guide/build.md#rockchip-构建产物)与
-[RK3576 集成指南](docs/guide/rk3576-rknn-development.md)。
+再选择一个目标芯片。
 
-CV186X 请按照 [CV186X 快速开始](docs/guide/cv186x-quick-start.md)完成安装、模型导入、首个事件验证，以及升级和恢复检查。
+#### RK3576
+
+```bash
+COSMO_TARGET_CHIP=rk3576 ./scripts/docker-compose.sh \
+  -f docker-compose.rockchip.yml run --rm cosmo-rockchip-package
+```
+
+产物：`build_output/rk3576/`，使用仓库内的 RK3576 模型资源。
+
+#### RV1126B
+
+```bash
+COSMO_TARGET_CHIP=rv1126b ./scripts/docker-compose.sh \
+  -f docker-compose.rockchip.yml run --rm cosmo-rockchip-package
+```
+
+产物：`build_output/rv1126b/`。默认 `include` 按平台清单自动生成并验证模型 overlay，
+无需手动准备；默认社区示例模型的许可证和用途限制见[构建指南](docs/guide/build.md#rv1126b)。
+
+共享镜像按芯片选择隔离的 MPP/RGA 配置；RKLLM v1.3.0 仅进入 RK3576 包。两个目标均输出
+芯片标记、媒体运行时标记和校验和。按[构建指南](docs/guide/build.md#rockchip-构建产物)
+核验后，使用[统一安装入口](docs/guide/deployment.md#ssh-安装路径)部署。
+
+受控 Protected 构建支持 BM1688、CV186X 和 RK3576，RV1126B 当前不支持；命令和前提见
+[高级构建选项](docs/guide/build.md#高级构建选项)。CV186X 的身份核对和首次检测见
+[CV186X 快速开始](docs/guide/cv186x-quick-start.md)；RKNN 模型与设备边界见
+[RK3576 集成指南](docs/guide/rk3576-rknn-development.md)。
 
 ## 你可以构建什么
 
@@ -247,7 +315,7 @@ v1.1 报告覆盖 BM1688、CV186X、RK3576 与 RV1126B。报告包含人员检�
 +--------------------+----------------------+----------------------+
 ```
 
-每次构建只选择一个推理后端，模型产物面向目标平台生成；功能、模型覆盖和容量仍具有平台差异。v1.1.0 的 Model Guard Protected 分发说明针对 Sophon 包；当前主干另有 RK3576 受保护模型实现，见 [PR #151](https://github.com/cosmo-wander-ai/cosmo-edge/pull/151)。
+每次构建只选择一个推理后端，模型产物面向目标平台生成；功能、模型覆盖和容量仍具有平台差异。v1.2.0 公开安装包采用 Open 配置；Model Guard Protected 保持独立分发路径，RK3576 对应源码实现见 [PR #151](https://github.com/cosmo-wander-ai/cosmo-edge/pull/151)。
 
 ## 文档、设备与社区
 
@@ -268,7 +336,7 @@ v1.1 报告覆盖 BM1688、CV186X、RK3576 与 RV1126B。报告包含人员检�
 
 欢迎提交范围明确的 bug 报告、文档改进、场景示例和集成说明。提交 pull request 前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-中国大陆用户遇到代码访问、安装、使用、版本获取或设备适配问题，可提交到 [Gitee Issues](https://gitee.com/cosmo-wander-ai/cosmo-edge/issues)；[GitHub Discussions](https://github.com/cosmo-wander-ai/cosmo-edge/discussions) 是 v1.1 官方、可检索的英文问答与社区支持渠道，通用可复现缺陷可提交到 [GitHub Issues](https://github.com/cosmo-wander-ai/cosmo-edge/issues)。代码变更与 Pull Request 仍统一在 GitHub 处理；安全问题请按 [SECURITY.md](SECURITY.md) 私密报告。本次发布不运营 Discord。
+中国大陆用户遇到代码访问、安装、使用、版本获取或设备适配问题，可提交到 [Gitee Issues](https://gitee.com/cosmo-wander-ai/cosmo-edge/issues)；[GitHub Discussions](https://github.com/cosmo-wander-ai/cosmo-edge/discussions) 是 v1.2 官方、可检索的英文问答与社区支持渠道，通用可复现缺陷可提交到 [GitHub Issues](https://github.com/cosmo-wander-ai/cosmo-edge/issues)。代码变更与 Pull Request 仍统一在 GitHub 处理；安全问题请按 [SECURITY.md](SECURITY.md) 私密报告。本次发布不运营 Discord。
 
 中文实时交流可扫描[本页底部的二维码](#微信开发者交流群)，加入 CosmoEdge 微信开发者交流 4 群；微信群用于开发者交流，群内形成的可复现问题和可复用结论请继续沉淀到 GitHub Discussions 或 Issues。
 
@@ -298,7 +366,7 @@ v1.1 报告覆盖 BM1688、CV186X、RK3576 与 RV1126B。报告包含人员检�
 <details>
 <summary><b>CosmoEdge 的生产就绪程度如何？</b></summary>
 
-`v1.1.0` 是 BM1688、CV186X、RK3576、RV1126B 与 x86 的多平台发布线，其中 BM1688、CV186X 与 RK3576 已验证支持 VLM，并包含范围受限的 macOS Docker Preview。关联报告记录了实测工作负载边界、已验证 VLM 性能和受控 72 小时固定配置结果。生产容量仍需结合自有模型、视频流、精度要求和部署条件完成验证。
+`v1.2.0` 提供 BM1688、CV186X、RK3576、RV1126B 的 Open 包，以及范围明确的 x86 Docker 路径和 macOS Preview。本轮在 BM1688 上检查了安装、升级、回滚和数据保留；其他芯片完成构建与包审计。[v1.1 历史报告](docs/benchmarks/scenario-bench/v1.1/README.zh-CN.md)中的工作负载结果不能作为 v1.2.0 容量结论。生产容量仍需结合自有模型、视频流、精度要求和部署条件完成验证。
 
 </details>
 
@@ -321,7 +389,7 @@ Turn video AI models into deployable edge applications.
 ## 微信开发者交流群
 
 <p align="center">
-  <img src="docs/assets/community/wechat-group-4-20261023.png" width="430" alt="CosmoEdge 微信开发者交流 4 群二维码（2026 年 10 月 30 日前有效）">
+  <img src="docs/assets/community/wechat-group-4-20261106.png" width="430" alt="CosmoEdge 微信开发者交流 4 群二维码（2026 年 11 月 13 日前有效）">
 </p>
 
-二维码于 **2026 年 10 月 23 日**更新，**7 天内（2026 年 10 月 30 日前）有效**。如二维码失效，请在[微信群公告](https://github.com/cosmo-wander-ai/cosmo-edge/discussions/112)下留言。
+二维码于 **2026 年 11 月 6 日**更新，**7 天内（2026 年 11 月 13 日前）有效**。如二维码失效，请在[微信群公告](https://github.com/cosmo-wander-ai/cosmo-edge/discussions/112)下留言。

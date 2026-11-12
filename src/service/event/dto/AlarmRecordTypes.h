@@ -81,6 +81,17 @@ struct AlarmQueryResult {
     std::vector<AlarmEventRecord> behaviorList;
 };
 
+struct AlarmDeleteFailure {
+    std::string id;
+    std::string reason;
+};
+
+struct AlarmDeleteResult {
+    std::vector<std::string> deletedIds;
+    std::vector<std::string> missingIds;
+    std::vector<AlarmDeleteFailure> failedItems;
+};
+
 // ─── Passenger Flow Query Types ─────────────────────────────────────
 
 /// Time granularity for passenger flow queries.

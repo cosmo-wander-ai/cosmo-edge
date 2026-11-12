@@ -8,6 +8,7 @@
 #include <filesystem>
 
 #include "service/detail/ServiceRegistry.h"
+#include "service/event/AlarmMediaActivity.h"
 #include "service/event/IAlarmRecordService.h"
 #include "util/DateTimeFormat.h"
 #include "util/FormatString.h"
@@ -160,12 +161,22 @@ void StorageSpace::DelSpaceLmtStgy(size_t del_size) {
 
     // Delete database records
     std::vector<std::string> idGroup;
-    std::for_each(event_rsts.behaviorList.begin(), event_rsts.behaviorList.end(),
-                  [&idGroup](const service::AlarmEventRecord& item) { idGroup.push_back(item.id); });
+    std::vector<service::AlarmEventRecord> selected;
+    std::vector<std::unique_ptr<service::AlarmMediaLease>> leases;
+    for (const auto& item : event_rsts.behaviorList) {
+        auto lease = service::AlarmMediaLease::TryDelete(item.id);
+        if (!lease)
+            continue;
+        idGroup.push_back(item.id);
+        selected.push_back(item);
+        leases.push_back(std::move(lease));
+    }
+    if (idGroup.empty())
+        return;
     service::ServiceRegistry::Instance().Get<service::IAlarmRecordService>().RemoveItems(idGroup);
     std::error_code ec;
     // Delete alarm files
-    for (auto& event : event_rsts.behaviorList) {
+    for (auto& event : selected) {
         removed_timestamp_ = event.timestamp;
         std::vector<std::string> extraFiles;
         (void)util::DecodeJson(event.extraFiles, extraFiles);

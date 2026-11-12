@@ -145,6 +145,44 @@ void VideoFrameServiceImpl::OSDDrawLines(std::vector<std::pair<cosmo::util::Poin
     }
 }
 
+void VideoFrameServiceImpl::OSDDrawLinesFine(
+    std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> lines, const cosmo::media::Color& color,
+    int lineWidth) {
+    std::lock_guard<std::recursive_mutex> lock(osd_session_mtx_);
+    if (proc_ && osd_session_active_ && osd_session_owner_ == std::this_thread::get_id())
+        proc_->OSDDrawLinesFine(std::move(lines), color, lineWidth);
+}
+
+void VideoFrameServiceImpl::OSDDrawTextFine(int x, int y, const std::string& text,
+                                            const cosmo::media::Color& color, int pixelHeight) {
+    std::lock_guard<std::recursive_mutex> lock(osd_session_mtx_);
+    if (proc_ && osd_session_active_ && osd_session_owner_ == std::this_thread::get_id())
+        proc_->OSDDrawTextFine(x, y, text, color, pixelHeight);
+}
+
+void VideoFrameServiceImpl::OSDDrawRoundedRect(const cosmo::util::Box& rect, const cosmo::media::Color& color,
+                                               uint8_t opacity, int radius) {
+    std::lock_guard<std::recursive_mutex> lock(osd_session_mtx_);
+    if (proc_ && osd_session_active_ && osd_session_owner_ == std::this_thread::get_id())
+        proc_->OSDDrawRoundedRect(rect, color, opacity, radius);
+}
+
+void VideoFrameServiceImpl::OSDDrawRoundedRectOutline(const cosmo::util::Box& rect,
+                                                      const cosmo::media::Color& color, uint8_t opacity,
+                                                      int radius) {
+    std::lock_guard<std::recursive_mutex> lock(osd_session_mtx_);
+    if (proc_ && osd_session_active_ && osd_session_owner_ == std::this_thread::get_id())
+        proc_->OSDDrawRoundedRectOutline(rect, color, opacity, radius);
+}
+
+void VideoFrameServiceImpl::OSDDrawFilledRect(const cosmo::util::Box& rect, const cosmo::media::Color& color,
+                                              uint8_t opacity) {
+    std::lock_guard<std::recursive_mutex> lock(osd_session_mtx_);
+    if (proc_ && osd_session_active_ && osd_session_owner_ == std::this_thread::get_id()) {
+        proc_->OSDDrawFilledRect(rect, color, opacity);
+    }
+}
+
 void VideoFrameServiceImpl::OSDDrawText(int x, int y, const std::string& text,
                                         const cosmo::media::Color& color, int font_size) {
     std::lock_guard<std::recursive_mutex> lock(osd_session_mtx_);

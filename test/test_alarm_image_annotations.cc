@@ -79,12 +79,16 @@ namespace {
         bool active{false};
         const media::VideoFrame* currentFrame{nullptr};
         std::vector<std::string> drawn;
+        std::vector<std::string> fallbackDrawn;
+        std::vector<std::string> operations;
+        int immediateLines{0};
         std::map<const media::VideoFrame*, std::vector<std::string>> frameText;
         VideoFramePtr CopyJpegSrcFrame(VideoFramePtr frame) override {
             return frame;
         }
         VideoFramePtr DrawLines(VideoFramePtr frame, std::vector<std::pair<util::Point, util::Point>>,
                                 const media::Color&, int) override {
+            ++immediateLines;
             return frame;
         }
         VideoFramePtr DrawRects(VideoFramePtr frame, const std::vector<util::Box>&, const media::Color&,
@@ -100,21 +104,32 @@ namespace {
             ++begins;
             active       = accept;
             currentFrame = frame.get();
+            operations.push_back("begin");
             return accept;
         }
         void OSDDrawLines(std::vector<std::pair<util::Point, util::Point>>, const media::Color&,
-                          int) override {}
-        void OSDDrawText(int, int, const std::string&, const media::Color&, int) override {}
+                          int) override {
+            CHECK(active);
+            operations.push_back("lines");
+        }
+        void OSDDrawText(int, int, const std::string& text, const media::Color&, int) override {
+            CHECK(active);
+            fallbackDrawn.push_back(text);
+            operations.push_back("fallback-text");
+        }
         void OSDDrawTextEx(int, int, const std::string& text, const media::Color&, int, const media::Color&,
                            uint8_t, bool, int) override {
             if (throwDraw)
                 throw std::runtime_error("draw failed");
+            CHECK(active);
             drawn.push_back(text);
             frameText[currentFrame].push_back(text);
+            operations.push_back("text");
         }
         void EndOSD() override {
             ++ends;
             active = false;
+            operations.push_back("end");
         }
     };
 }  // namespace
@@ -205,6 +220,39 @@ TEST_CASE("Alarm layout bounds long UTF-8 labels and preserves their score suffi
     CHECK(alarm::BuildAlarmImageTextLayout(targets, 180, 160, true, renderer, 1.0F).empty());
 }
 
+TEST_CASE("Alarm heading reserves a bounded top margin without dropping the title on small images",
+          "[alarm][annotations][layout]") {
+    AnnotationMetrics renderer;
+    for (const float scale : {1.0F, 1.5F}) {
+        const std::vector<alarm::AlarmImageTargetText> targets = {{{20, 0, 120, 120}, {"火焰 92.3%"}}};
+        const auto text =
+            alarm::BuildAlarmImageTextLayout(targets, 1920, 1080, true, renderer, scale, "火焰烟雾");
+        REQUIRE(text.size() == 3);
+        CHECK(text[0].text == "火焰烟雾");
+        // The reviewed 1080p camera places its timestamp in the top 32 px.
+        // Include background/outline padding when checking for overlap.
+        CHECK(text[0].y - 5 > 32);
+        CHECK(text[1].y > text[0].y);
+        CHECK(text[2].text == "120x120");
+
+        // When there is not enough space for the preferred margin, keep the
+        // title visible and clipped to neither top nor bottom edge.
+        const auto small = alarm::BuildAlarmImageTextLayout({}, 64, 32, false, renderer, scale, "A");
+        REQUIRE(small.size() == 1);
+        const auto bitmap = renderer.RenderString(small[0].text, small[0].fontSize * scale);
+        CHECK(small[0].y >= 5);
+        CHECK(small[0].y + bitmap.height + 5 <= 32);
+
+        // A preferred top margin must not discard an otherwise legible target
+        // when there is no title and the image is very short.
+        const std::vector<alarm::AlarmImageTargetText> shortTarget = {{{5, 5, 10, 10}, {"person"}}};
+        const auto shortLayout =
+            alarm::BuildAlarmImageTextLayout(shortTarget, 160, 40, false, renderer, scale);
+        REQUIRE(shortLayout.size() == 1);
+        CHECK(shortLayout.front().text == "person");
+    }
+}
+
 TEST_CASE("Alarm text byte bounds and narrow images preserve the measured score",
           "[alarm][annotations][layout]") {
     AnnotationMetrics renderer;
@@ -267,6 +315,7 @@ namespace {
         std::vector<Encoded> encoded;
         std::vector<u_char> EncodeJpeg(const VideoFramePtr frame, int quality) override {
             CHECK_FALSE(osd.active);  // Text must be flushed before JPEG encoding.
+            osd.operations.push_back("encode");
             encoded.push_back({quality, osd.frameText[frame.get()]});
             // Bytes are a test sentinel, not a rendered JPEG; device tests cover real encoding.
             return emitBytes ? std::vector<u_char>{0xff, 0xd8, 0xff, 0xd9} : std::vector<u_char>{};
@@ -347,6 +396,32 @@ TEST_CASE("TaskAlarm pictures retain dimensions and JPEG settings without burnin
         CHECK(fixture.codec.encoded[0].quality == 95);
         CHECK(fixture.codec.encoded[1].quality == 95);
         CHECK(fixture.codec.encoded[2].quality == 77);
+        CHECK(fixture.osd.immediateLines == 0);
+        CHECK(fixture.osd.operations == std::vector<std::string>{"encode", "encode", "begin", "lines", "text",
+                                                                 "text", "end", "encode"});
+    }
+    SECTION("Multiple targets, area and trajectory are committed together after the original and crop") {
+        fixture.settings.areaOverview = true;
+        MsgTaskArea area;
+        area.areaId = "area";
+        area.points = {{0.1, 0.1}, {0.8, 0.1}, {0.8, 0.8}};
+        task.m_taskArea.areas.push_back(area);
+        event.areaId                   = "area";
+        task.m_param.overlayTrajectory = true;
+        DataAlarmTargetConfidence previous;
+        previous.box = {20, 20, 10, 10};
+        DataAlarmTargetConfidence current;
+        current.box        = {30, 30, 10, 10};
+        unit.targetHistory = {previous, current};
+        unit.boxs.emplace_back(util::Box{150, 80, 30, 40});
+        unit.boxs.back().annotations.push_back({"烟雾", "", 0.81F, AiAnnotationSource::Detection});
+        task.HandPicture(event, frame, unit);
+        CHECK(fixture.osd.immediateLines == 0);
+        CHECK(fixture.osd.begins == 1);
+        CHECK(fixture.osd.ends == 1);
+        CHECK(fixture.osd.operations == std::vector<std::string>{"encode", "encode", "begin", "lines",
+                                                                 "lines", "lines", "lines", "text", "text",
+                                                                 "text", "text", "end", "encode"});
     }
     SECTION("Size switch hides only dimensions") {
         fixture.settings.targetSizeOverview = false;
@@ -368,6 +443,26 @@ TEST_CASE("TaskAlarm pictures retain dimensions and JPEG settings without burnin
         task.HandPicture(event, frame, unit);
         CHECK(fixture.osd.drawn.empty());
     }
+    SECTION("Full-frame VLM still renders the configured area without target or title decorations") {
+        unit.bLlmPrejudged = true;
+        unit.box           = {0, 0, 320, 180};
+        unit.boxs.clear();
+        unit.boxs.emplace_back(unit.box);
+        fixture.settings.alarmTypeOverview = true;
+        fixture.settings.areaOverview      = true;
+        MsgTaskArea area;
+        area.areaId = "area";
+        area.points = {{0.1, 0.1}, {0.8, 0.1}, {0.8, 0.8}};
+        task.m_taskArea.areas.push_back(area);
+        event.areaId = "area";
+        task.HandPicture(event, frame, unit);
+        CHECK(fixture.osd.immediateLines == 0);
+        CHECK(fixture.osd.begins == 1);
+        CHECK(fixture.osd.ends == 1);
+        CHECK(fixture.osd.drawn.empty());
+        CHECK(fixture.osd.operations ==
+              std::vector<std::string>{"encode", "encode", "begin", "lines", "end", "encode"});
+    }
     SECTION("ROI VLM keeps the box dimensions without a synthetic label or confidence") {
         unit.bLlmPrejudged = true;
         unit.boxs[0].annotations.clear();
@@ -387,6 +482,16 @@ TEST_CASE("TaskAlarm pictures retain dimensions and JPEG settings without burnin
         task.HandPicture(event, frame, unit);
         REQUIRE(fixture.codec.encoded.size() == 3);
         CHECK(fixture.codec.encoded.back().text == std::vector<std::string>{"火焰 92.3%", "40x50"});
+    }
+    SECTION("A missing font keeps native title and size fallback inside the line session") {
+        fixture.renderer.ready             = false;
+        fixture.settings.alarmTypeOverview = true;
+        task.HandPicture(event, frame, unit);
+        CHECK(fixture.osd.immediateLines == 0);
+        CHECK(fixture.osd.begins == 1);
+        CHECK(fixture.osd.ends == 1);
+        CHECK(fixture.osd.fallbackDrawn == std::vector<std::string>{"40x50", "测试任务"});
+        CHECK(fixture.osd.drawn.empty());
     }
     SECTION("Best snapshots use their frozen annotation after their original and crop are encoded") {
         const auto root = std::filesystem::temp_directory_path() /
@@ -413,6 +518,9 @@ TEST_CASE("TaskAlarm pictures retain dimensions and JPEG settings without burnin
         CHECK(fixture.codec.encoded[1].text.empty());
         CHECK(fixture.codec.encoded[2].text == std::vector<std::string>{"人员 81.2%", "30x60"});
         CHECK(fixture.codec.encoded[2].quality == 77);
+        CHECK(fixture.osd.immediateLines == 0);
+        CHECK(fixture.osd.operations == std::vector<std::string>{"encode", "begin", "lines", "end", "encode",
+                                                                 "begin", "text", "text", "end", "encode"});
     }
     for (const auto& line : fixture.osd.drawn)
         CHECK(line.find(unit.ocrString) == std::string::npos);

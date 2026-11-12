@@ -1,6 +1,6 @@
 ---
 title: CV186X 快速开始
-description: 在已准备好的 CV186X Linux 设备上安装 CosmoEdge 1.1，并完成首次检测。
+description: 在已准备好的 CV186X Linux 设备上安装匹配版本的 CosmoEdge，并完成首次检测。
 prev:
   text: 构建指南
   link: /guide/build
@@ -11,9 +11,9 @@ next:
 
 # CV186X 快速开始
 
-本指南适用于已经配置好 Sophon 运行依赖和网络的 CV186X Linux 设备。CosmoEdge 1.1
-的 CV186X 路径使用 BMRT 与已在 CV186X 上验证的 `.nn` 模型。本版本公开压测使用的两份
-Sophon 模型与 BM1688 压测产物字节一致；其他模型是否可复用仍须按模型合同逐项验证。
+本指南适用于已经配置好 Sophon 运行依赖和网络的 CV186X Linux 设备，使用 BMRT 与
+匹配 CV186X 的 `.nn` 模型。v1.1 历史公开压测中的两份 Sophon 模型与 BM1688 压测产物
+字节一致；其他模型是否可复用仍须按模型合同逐项验证。历史结果不代表当前新包已完成设备验收。
 
 安装前必须先核对硬件身份，不能用设备 IP 或旧模型目录名代替平台证据：
 
@@ -35,43 +35,28 @@ tr -d '\0' </proc/device-tree/model; echo
 
 ## 1. 获取并核对安装包
 
-可以从源码构建 CV186X 包：
+在构建主机按[构建指南的 CV186X 入口](./build.md#cv186x)选择 Linux Bash 或 Windows
+PowerShell。默认 Open 产物位于 `build_output/public-runtime/cv186x/`，目录同时包含
+唯一安装包、`TARGET_CHIP` 和 `SHA256SUMS`。
 
-```bash
-./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package --chip cv186x
-cat build_output/public-runtime/cv186x/TARGET_CHIP
-(cd build_output/public-runtime/cv186x && sha256sum -c SHA256SUMS)
-```
-
-型号参数让构建脚本选择 CV186X 资源目录，并把产物隔离到
-`build_output/public-runtime/cv186x/`。包仍使用 `cosmo-V<version>-<md5>.tar.gz` 命名，
-但必须连同同目录的 `TARGET_CHIP` 与 `SHA256SUMS` 一起验收。
-
-也可以从 [GitHub Release](https://github.com/cosmo-wander-ai/cosmo-edge/releases) 获取明确标注
-适用于 CV186X 的 CosmoEdge 1.1 Sophon Open 包和发布页列出的 SHA-256，然后在构建机上核对：
-
-```bash
-sha256sum cosmo-V1.1.0-*.tar.gz
-scp cosmo-V1.1.0-*.tar.gz root@<device_ip>:/tmp/
-```
+也可以从 [GitHub Release](https://github.com/cosmo-wander-ai/cosmo-edge/releases) 获取所需
+版本中明确标注为 CV186X 的包及校验信息。按[构建产物校验步骤](./build.md#将-sophon-构建包交给部署流程)
+确认芯片为 `cv186x`、SHA-256 与清单或发布记录一致，并记录实际完整包名。
+源码版本与发布包版本可以不同，后续安装不能使用固定旧版本的通配符选包。
 
 ## 2. 安装并启动
 
-```bash
-ssh root@<device_ip>
-install_dir=$(mktemp -d /tmp/cosmo-install.XXXXXX)
-tar -xzf /tmp/cosmo-V1.1.0-*.tar.gz -C "$install_dir"
-cd "$install_dir"/cosmo-V*/
-./scripts/install.sh
-reboot
-```
+按[部署指南：SSH 安装路径](./deployment.md#ssh-安装路径)操作，将取包目录选为
+`build_output/public-runtime/cv186x/`。该章节区分构建主机传输与设备安装，并统一维护
+备份、校验、安装、重启和恢复步骤；使用上一步已核验的实际包名。
 
-设备恢复后确认 `cosmo.service` 为 active，并从设备管理页面核对软件版本为 1.1。
-已有 CosmoEdge 的设备也可以在 **系统管理 → 系统维护 → 软件升级** 上传同一安装包。
+设备恢复后确认 `cosmo.service` 为 active，管理页面中的软件版本与目标包一致，再完成
+[安装和升级后验收](./deployment.md#安装和升级后验收)。已有 CosmoEdge 的设备也可在
+**系统管理 → 系统维护 → 软件升级** 上传同一个包。
 
 ## 3. 使用内置开源模型创建首个事件
 
-CV186X Sophon Open 包由构建脚本根据 `cv186x` 型号自动选择对应资源目录，已包含本次公开压测
+CV186X Sophon Open 包由构建脚本根据 `cv186x` 型号自动选择对应资源目录，默认 `include` 包含 v1.1 历史公开压测
 使用的两份模型；用户无需传入资源路径：
 
 - `YOLOV8n V1.0.0`：人员检测，`1x3x640x640`，模型文件 7,023,600 B；
@@ -100,5 +85,5 @@ CV186X Sophon Open 包由构建脚本根据 `cv186x` 型号自动选择对应资
 - 若服务未恢复，先检查 `systemctl status cosmo.service` 与服务日志；不要重复上传同一
   包掩盖首次失败。
 - 完整目录、端口、持久化、失败恢复和回滚边界见[部署指南](/guide/deployment)。
-- 当前公开容量结果见 [ScenarioBench v1.1](https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/report.zh-CN.html)；短时最高点
+- 历史公开容量结果见 [ScenarioBench v1.1](https://www.cosmowander.ai/zh/docs/benchmarks/scenario-bench/v1.1/report.zh-CN.html)；短时最高点
   不是官方推荐配置，生产容量需按实际模型、视频和精度要求复验。

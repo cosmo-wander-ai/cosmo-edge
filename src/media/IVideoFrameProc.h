@@ -57,15 +57,32 @@ public:
                                    const Color& color, int fontSize = 50)  = 0;
 
     // ── Session-based OSD ───────────────────────────────────────────────
-    virtual bool BeginOSD(VideoFramePtr frame)    = 0;
+    virtual bool BeginOSD(VideoFramePtr frame) = 0;
     virtual void OSDDrawLines(std::vector<std::pair<util::Point, util::Point>> lines, const Color& color,
-                              int lineWidth)      = 0;
+                              int lineWidth)   = 0;
+    virtual void OSDDrawLinesFine(std::vector<std::pair<util::Point, util::Point>> lines, const Color& color,
+                                  int lineWidth) {
+        OSDDrawLines(std::move(lines), color, lineWidth);
+    }
+    virtual void OSDDrawFilledRect(const util::Box&, const Color&, uint8_t) {}
     virtual void OSDDrawText(int x, int y, const std::string& text, const Color& color,
                              int fontSize = 50)   = 0;
     virtual void OSDDrawTextEx(int x, int y, const std::string& text, const Color& color, int fontSize,
                                const Color& bgColor, uint8_t bgAlpha, bool outline = true,
                                int bgPadding = 4) = 0;
-    virtual void EndOSD()                         = 0;
+    /// Compact OSD label: actual pixel height, regular body and fine outline.
+    virtual void OSDDrawTextFine(int x, int y, const std::string& text, const Color& color, int pixelHeight) {
+        OSDDrawTextEx(x, y, text, color, pixelHeight, {0, 0, 0}, 0, true, 0);
+    }
+    virtual void OSDDrawRoundedRect(const util::Box& rect, const Color& color, uint8_t opacity,
+                                    int /*radius*/) {
+        OSDDrawFilledRect(rect, color, opacity);
+    }
+
+    /// Optional fine 1px outline; legacy backends may omit decoration, never fill its interior.
+    virtual void OSDDrawRoundedRectOutline(const util::Box&, const Color&, uint8_t, int) {}
+
+    virtual void EndOSD() = 0;
 };
 
 }  // namespace cosmo::media

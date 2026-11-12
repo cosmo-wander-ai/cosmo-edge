@@ -44,6 +44,12 @@ public:
     /// Avoids 4-pass traversal in FlushTextQueue.
     virtual OutlinedTextBitmap RenderStringWithOutline(const std::string& utf8Text,
                                                        float pixelHeight) const = 0;
+
+    /// Regular-weight antialiased text with a subtle 1px outline, at actual pixel height.
+    virtual OutlinedTextBitmap RenderStringWithFineOutline(const std::string& utf8Text,
+                                                           float pixelHeight) const {
+        return RenderStringWithOutline(utf8Text, pixelHeight);
+    }
 };
 
 }  // namespace cosmo::media

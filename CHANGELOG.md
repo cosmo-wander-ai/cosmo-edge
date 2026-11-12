@@ -6,11 +6,13 @@ This project follows a release-note style inspired by Keep a Changelog.
 
 ## [Unreleased]
 
-Target: **1.2.0** — release preparation in progress; not yet released.
+No public changes have been assigned to the next release yet.
 
-These changes are on `main` after v1.1.0 and are not included in the published v1.1.0
-binaries. Validation remains specific to the recorded candidate, platform, and workload;
-the v1.1 benchmark results do not qualify later builds or newly added features.
+## [1.2.0] - 2026-11-05
+
+CosmoEdge 1.2.0 packages the changes merged after v1.1.0. Validation remains specific
+to the recorded candidate, platform, and workload; the v1.1 benchmark results do not
+qualify this release or newly added features.
 
 ### Added
 
@@ -37,6 +39,9 @@ the v1.1 benchmark results do not qualify later builds or newly added features.
 - Alarm-output linkage with configurable logical channels and hold times; repeated alarms
   extend the active output until it resets. Physical output requires the board's GPIO mapping,
   initialization, and write access. See [Configuration](docs/en/guide/configuration.md).
+- Single-record and current-page batch deletion for detection, face/body, and vehicle alarms,
+  including associated media cleanup and protection for events still being recorded.
+  ([#262](https://github.com/cosmo-wander-ai/cosmo-edge/pull/262))
 - Image workflows without region configuration, structured business results, target and library
   match details, face/workwear library identification, and pair comparison. Pair comparison
   requires exactly one valid target per image and returns a similarity score or threshold
@@ -62,6 +67,8 @@ the v1.1 benchmark results do not qualify later builds or newly added features.
 - Refreshed console layouts for management pages, channel tasks, event details, live views,
   and the flow editor, with persistent light, dark, and system appearance settings and a
   classic blue color scheme.
+- Added live overlay diagnostics and displayed alarm-target class labels with measured
+  confidence in preview and event views.
 - Expanded RKNN device operations with reboot, factory reset, hardware watchdog support in
   production builds, and network configuration through NetworkManager.
 - Clarified scene/channel ownership of visible task parameters and synchronized saved
@@ -81,6 +88,8 @@ the v1.1 benchmark results do not qualify later builds or newly added features.
   boxes, and enabled Guard-backed Qwen vision loading and host-backed image inputs.
 - Preserved CPU fallback after failed Rockchip RGA operations, concealed recoverable
   decoder errors, and improved GB28181 media cleanup and recovery.
+- Corrected GB28181 H.265 multi-slice preview and frame-rate handling, preset-model display
+  names, and the default model confidence shown in task configuration.
 - Corrected recording-buffer reuse and MP4/H.265 sample handling, CPU resize borders,
   and macOS Docker runtime/build compatibility.
 - Bounded system-log retention, reclaimed log space at boot, and integrated retention and
@@ -89,6 +98,8 @@ the v1.1 benchmark results do not qualify later builds or newly added features.
   CSV exports, and streamed model exports without buffering complete archives in memory.
 - Validated tensor inputs before allocation, tightened network/MQTT configuration checks,
   and repaired task, graph, listener, and memory-pool lifecycle handling.
+- Shipped the Python runtime modules required by the x86 Docker startup supervisor
+  without adding GNU Readline to the runtime image.
 
 ## [1.1.0] - 2026-08-24
 
@@ -281,13 +292,15 @@ Initial public open-source baseline.
 - Sample camera credentials and device serial values scrubbed from examples.
 - Sophon build environment Dockerfile made self-contained.
 
-[Unreleased]: https://github.com/cosmo-wander-ai/cosmo-edge/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/cosmo-wander-ai/cosmo-edge/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.2.0
 [1.1.0]: https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.1.0
 [1.0.0]: https://github.com/cosmo-wander-ai/cosmo-edge/releases/tag/v1.0.0
 [0.1.0]: https://github.com/cosmo-wander-ai/cosmo-edge/releases
 
 <!-- Gitee mirrors -->
-[Unreleased (Gitee)]: https://gitee.com/cosmo-wander-ai/cosmo-edge/compare/v1.1.0...master
+[Unreleased (Gitee)]: https://gitee.com/cosmo-wander-ai/cosmo-edge/compare/v1.2.0...master
+[1.2.0 (Gitee)]: https://gitee.com/cosmo-wander-ai/cosmo-edge/releases
 [1.1.0 (Gitee)]: https://gitee.com/cosmo-wander-ai/cosmo-edge/releases
 [1.0.0 (Gitee)]: https://gitee.com/cosmo-wander-ai/cosmo-edge/releases
 [0.1.0 (Gitee)]: https://gitee.com/cosmo-wander-ai/cosmo-edge/releases

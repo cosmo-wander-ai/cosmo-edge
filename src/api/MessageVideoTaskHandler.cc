@@ -3,10 +3,14 @@
 #include "api/MessageVideoTaskHandler.h"
 
 #include <algorithm>
+#include <nlohmann/json.hpp>
 
+#include "media/PreviewPipelineMetrics.h"
 #include "service/algorithm/IAlgorithmQuery.h"
 #include "service/camera/ICameraDeviceCrud.h"
 #include "service/camera/ICameraTaskConfig.h"
+#include "service/detail/ServiceRegistry.h"
+#include "service/model/IModelService.h"
 #include "service/task/ITaskQuery.h"
 #include "util/ErrorCode.h"
 
@@ -18,6 +22,9 @@ static constexpr size_t kMinActionStatusCount = 2;
 
 // Default time window (seconds) for throughput statistics in RunningDetail.
 static constexpr unsigned int kRunningDetailDurationSec = 60;
+
+// Match the window previously displayed by the video OSD.
+static constexpr int kActionDurationWindowMs = 5000;
 
 // Maximum page size for camera query when listing channels.
 static constexpr int kMaxChannelQueryPageSize = 10000;
@@ -118,6 +125,32 @@ VideoTask::MsgSelectConfigByAlgorithmIdSend MessageVideoTaskHandler::Handle(
     VideoTask::MsgSelectConfigByAlgorithmIdSend retData{};
 
     retData.resData.algorithmMetadata = algorithm_query_.GetMetaData(data.algorithmId);
+
+    // Display model defaults without persisting an explicit task override.
+    auto metadata  = nlohmann::json::parse(retData.resData.algorithmMetadata, nullptr, false);
+    auto algorithm = !metadata.is_discarded() && metadata.contains("params") &&
+                             metadata["params"].is_array() && !metadata["params"].empty()
+                         ? algorithm_query_.GetAlgorithm(data.algorithmId)
+                         : nullptr;
+    if (!metadata.is_discarded() && metadata.contains("params") && algorithm) {
+        for (const auto& workflow : algorithm->workFlow) {
+            if (workflow.atomicCode.empty())
+                continue;
+            const auto model =
+                service::ServiceRegistry::Instance().Get<service::IModelService>().GetModelInfo(
+                    workflow.atomicCode);
+            for (const auto& label : model.labels) {
+                for (auto& param : metadata["params"]) {
+                    if (param.value("key", "") == "aiParam." + label.code + ".confidence" &&
+                        !param.contains("modelConfidenceHigh")) {
+                        param["modelConfidenceHigh"] = label.confidenceHigh;
+                        param["modelConfidence"]     = label.confidence;
+                    }
+                }
+            }
+        }
+        retData.resData.algorithmMetadata = metadata.dump();
+    }
 
     task_config_.QueryTaskParam(data.channelId, data.algorithmId, retData.resData.taskConfig.params);
     task_config_.QueryTaskArea(data.channelId, data.algorithmId, retData.resData.taskConfig.areas,
@@ -265,6 +298,20 @@ namespace {
         return info;
     }
 
+    void AppendPreviewDuration(std::vector<AlgActionNodeDurationInfo>& dest, const std::string& name,
+                               const media::PreviewDurationAggregate& src) {
+        if (src.count == 0)
+            return;
+        AlgActionNodeDurationInfo info;
+        info.name          = name;
+        info.durationUs    = static_cast<int64_t>(src.total_nanoseconds / 1000);
+        info.durationAvgUs = static_cast<int64_t>((src.total_nanoseconds / src.count) / 1000);
+        info.durationCount = static_cast<int64_t>(src.count);
+        info.durationMinUs = static_cast<int64_t>(src.min_nanoseconds / 1000);
+        info.durationMaxUs = static_cast<int64_t>(src.max_nanoseconds / 1000);
+        dest.push_back(std::move(info));
+    }
+
     /// Convert flow-layer TaskStatus to API-layer MsgTaskStatus.
     MsgTaskStatus ConvertTaskStatus(const TaskStatus& src) {
         MsgTaskStatus dst;
@@ -311,6 +358,23 @@ VideoTask::MsgRunningDetailSend MessageVideoTaskHandler::Handle(VideoTask::MsgRu
     for (auto& status_el : task_statuses) {
         auto task_status = ConvertTaskStatus(status_el);
         if (task_status.actionStatus.size() > kMinActionStatusCount) {
+            // Only fetch short-window timings for explicit task selections:
+            // unfiltered discovery and existing callers must remain cheap.
+            if (data.includeActionDurations &&
+                std::find(data.tasks.begin(), data.tasks.end(), task_status.taskId) != data.tasks.end()) {
+                for (const auto& [name, duration] :
+                     task_query_.GetTaskActionDurations(task_status.taskId, kActionDurationWindowMs)) {
+                    auto info = ConvertDurationInfo(duration);
+                    // The pair's name is the stable action mapping used by the
+                    // old OSD; duration.name may be an internal instance name.
+                    info.name = name;
+                    task_status.actionDurationInfos.push_back(std::move(info));
+                }
+            }
+            const auto preview = media::GetPreviewPipelineMetrics().TimedPreview(task_status.channelId,
+                                                                                 task_status.algorithmId);
+            AppendPreviewDuration(task_status.previewDurationInfos, "OSD", preview.osd);
+            AppendPreviewDuration(task_status.previewDurationInfos, "Encode", preview.encode);
             retData.resData.status.push_back(std::move(task_status));
         }
     }

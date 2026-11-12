@@ -1,11 +1,14 @@
 #pragma once
 
+#include <cstdint>
 #include <deque>
 #include <list>
 #include <memory>
+#include <optional>
 #include <shared_mutex>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "media/Color.h"
@@ -13,6 +16,7 @@
 #include "util/DurationStat.h"
 #include "util/MsgBaseTypes.h"
 #include "util/Point.h"
+#include "util/Rect.h"
 #include "util/Thread.h"
 #include "util/dto/AlgDataQueueTypes.h"
 #include "util/dto/FilterTypes.h"
@@ -24,8 +28,8 @@ namespace cosmo {
 enum class VideoOverviewAttrPriority {
     kAlarmReport = 0,  // alarm         red/large font   display 3s or update
     kAlarmFilter,      // alarm filtered blue/large font  display 3s or update
-    kArea,             // area           blue/2px line    permanent display
-    kBox,              // target box     yellow/1px line  display until next update
+    kArea,             // area           lavender line    permanent display
+    kBox,              // target box     cyan line        display until next update
     kTrackId,          // track ID       white/small font display until next update
     kConfidence,       // confidence     white/small font display until next update
     kBoxSize,          // box size       white/small font display until next update
@@ -43,17 +47,27 @@ struct StreamOverviewAttr {
 };
 
 struct StreamOverviewTextEl {
+    struct TargetLabel {
+        std::string label;
+        std::optional<float> score;
+        int trackId{-1};
+    };
     VideoOverviewAttrPriority attrPriority{VideoOverviewAttrPriority::kOther};
     std::string text;
     media::Color bgColor{0, 0, 0};
     bool hasBgColor{false};
     cosmo::media::Color color{0, 0, 0};  // text color override (only effective when hasColor=true)
     bool hasColor{false};
+    // Keep values separate from their legacy text projection. A model label may
+    // itself contain spaces, percentages or '#' and must never be parsed as UI.
+    std::optional<TargetLabel> targetLabel;
 };
 
 struct StreamOverviewText {
     util::Point pos;  // position
     std::vector<StreamOverviewTextEl> posTexts;
+    std::optional<util::Box> targetBox;  // display geometry; dimensions remain measured source values
+    int targetTrackId{-1};               // Stable grouping identity independent of smoothed display geometry.
 };
 struct StreamOverviewLine {
     VideoOverviewAttrPriority attrPriority{VideoOverviewAttrPriority::kOther};
@@ -97,7 +111,8 @@ struct StreamOverviewPassFlowRecord {
 
 class StreamViewerOverview {
 public:
-    StreamViewerOverview(const std::string& channelId, const std::string& algId);
+    StreamViewerOverview(const std::string& channelId, const std::string& algId,
+                         uint64_t timedPreviewToken = 0);
     ~StreamViewerOverview();
 
     VideoFramePtr HandFrame(VideoFramePtr frame);
@@ -112,7 +127,7 @@ private:
     class AttrLines;
     class OverviewInfo;
     void HandOverview(VideoFramePtr frame);
-    void DrawActionDuration(VideoFramePtr frame);
+    void UpdateActionDuration(VideoFramePtr frame);
 
     void AttrToColor(VideoOverviewAttrPriority attrPriority, StreamOverviewAttr& attr);
 
@@ -123,7 +138,8 @@ private:
     void AddAlarmPassFlowTextToLocal(int64_t streamIndex, uint64_t index, int64_t timestamp,
                                      const StreamOverviewText& text);
     void AddTextToLocal(int64_t streamIndex, uint64_t index, int64_t timestamp, util::Point pos,
-                        StreamOverviewTextEl& text);
+                        StreamOverviewTextEl& text, std::optional<util::Box> targetBox = std::nullopt,
+                        int targetTrackId = -1);
     void AddLineToLocal(int64_t streamIndex, uint64_t index, int64_t timestamp, StreamOverviewLine& line);
     void LiveDataHandTarget(int64_t streamIndex, uint64_t index, int64_t timestamp, MsgTarget& target);
 
@@ -149,11 +165,35 @@ private:
     void ShowText(StreamOverviewEl& overviewText);
     void ShowOverviews(const std::string& tag);
 
-    int GetMaxTextLength(const std::vector<StreamOverviewTextEl>& posTexts);
+    int GetTextWidth(const StreamOverviewTextEl& text);
+    std::string FitTextToWidth(const StreamOverviewTextEl& text, int maxWidth);
+    int GetFineTextWidth(const std::string& text, int pixelHeight);
+    std::string FitFineTextToWidth(const std::string& text, int pixelHeight, int maxWidth);
+    void DrawTargetPanel(const StreamOverviewText& text, const std::vector<util::Box>& targetBoxes,
+                         std::vector<util::Box>& occupiedLabels);
+
+    void PrepareTargetLayoutState();
+    util::Box StabilizeTargetPanel(int trackId, const util::Box& preferred, const util::Box& target,
+                                   const std::vector<util::Box>& targetBoxes,
+                                   const std::vector<util::Box>& occupiedLabels);
+    struct TargetPanelState {
+        int offsetX{0}, offsetY{0};
+        int targetWidth{0};
+        int panelWidth{0}, panelHeight{0};
+        int64_t lastSeen{0};
+        std::optional<int64_t> blockedSince;
+    };
+    std::unordered_map<int, TargetPanelState> target_panel_states_;
+    int64_t target_panel_stream_{0};
+    int64_t target_panel_timestamp_{0};
+    int target_panel_frame_width_{0}, target_panel_frame_height_{0};
+    static constexpr size_t kMaxTargetPanelStates = 256;
+    static constexpr int64_t kPanelSwitchDelayMs  = 200;
 
     std::shared_mutex mtx_;
     std::string channel_id_;
     std::string alg_id_;  // algorithm ID
+    uint64_t timed_preview_token_{0};
     std::string task_id_;
     MsgOverviewDebugInfo debug_info_;
     // Overlay data retention window (FrameCache removed; affects GetOverviewDataFromLocal fallback and
@@ -171,7 +211,7 @@ private:
     MsgTaskConfig params_;
     std::deque<VideoFramePtr> frames_;
 
-    // Action duration OSD
+    // Duration statistics also drive the adaptive overlay matching window.
     int64_t last_duration_update_ms_{0};
     std::vector<std::pair<std::string, util::DurationStatInfo>> cache_durations_;
     util::DurationStatInfo encode_duration_;
@@ -185,6 +225,9 @@ private:
         int64_t lastSeenTimestamp{0};  // last updated timestamp (ms)
     };
     std::unordered_map<int, SmoothedBox> smoothed_boxes_;  // key: trackId
+    // Avoid re-rasterizing the same text solely to measure its width every frame.
+    // The cache is capped and cleared in GetTextWidth.
+    std::unordered_map<std::string, int> text_width_cache_;
     static constexpr float kEmaAlpha =
         0.85f;  // responsive: Kalman already smooths, EMA just suppresses jitter
     static constexpr int64_t kSmoothExpireMs = 3000;  // expire after 3s unseen (frame-rate independent)

@@ -18,6 +18,7 @@ extern "C" {
 
 #include "media/EncodedImageInfo.h"
 #include "media/MosaicPixels.h"
+#include "media/OsdLineRasterizer.h"
 #include "media/PixelFormatUtils.h"
 #include "util/Log.h"
 #include "util/VideoInfo.h"
@@ -950,6 +951,131 @@ namespace media {
                                         int fontSize) {
         if (osd_frame_)
             DrawText(osd_frame_, x, y, text, color, fontSize);
+    }
+
+    void VideoFrameProcCpu::OSDDrawRoundedRect(const util::Box& rect, const Color& color, uint8_t opacity,
+                                               int radius) {
+        if (!osd_frame_)
+            return;
+        const int width   = static_cast<int>(osd_frame_->GetWidth());
+        const int height  = static_cast<int>(osd_frame_->GetHeight());
+        auto* data        = osd_frame_->GetData();
+        const auto format = osd_frame_->GetPixelFormat();
+        if (format == PixelFormat::PIXEL_I420) {
+            const size_t ySize  = static_cast<size_t>(width) * height;
+            const size_t uvSize = static_cast<size_t>(width / 2) * (height / 2);
+            RasterizeOsdRoundedRectI420(data, data + ySize, data + ySize + uvSize, width, height, rect, color,
+                                        opacity, radius);
+        } else if (IsPackedRgbFormat(format)) {
+            RasterizeOsdRoundedRectRgb(data, width, height, format == PixelFormat::PIXEL_BGR8, rect, color,
+                                       opacity, radius);
+        }
+    }
+
+    void VideoFrameProcCpu::OSDDrawRoundedRectOutline(const util::Box& rect, const Color& color,
+                                                      uint8_t opacity, int radius) {
+        if (!osd_frame_)
+            return;
+        const int width   = static_cast<int>(osd_frame_->GetWidth());
+        const int height  = static_cast<int>(osd_frame_->GetHeight());
+        auto* data        = osd_frame_->GetData();
+        const auto format = osd_frame_->GetPixelFormat();
+        if (format == PixelFormat::PIXEL_I420) {
+            const size_t ySize  = static_cast<size_t>(width) * height;
+            const size_t uvSize = static_cast<size_t>(width / 2) * (height / 2);
+            RasterizeOsdRoundedRectOutlineI420(data, data + ySize, data + ySize + uvSize, width, height, rect,
+                                               color, opacity, radius);
+        } else if (IsPackedRgbFormat(format)) {
+            RasterizeOsdRoundedRectOutlineRgb(data, width, height, format == PixelFormat::PIXEL_BGR8, rect,
+                                              color, opacity, radius);
+        }
+    }
+
+    void VideoFrameProcCpu::OSDDrawLinesFine(std::vector<std::pair<util::Point, util::Point>> lines,
+                                             const Color& color, int lineWidth) {
+        if (!osd_frame_ || lineWidth <= 0 || lines.empty())
+            return;
+        const int width   = static_cast<int>(osd_frame_->GetWidth());
+        const int height  = static_cast<int>(osd_frame_->GetHeight());
+        const auto format = osd_frame_->GetPixelFormat();
+        auto* data        = osd_frame_->GetData();
+        const std::vector<OsdLineGroup> groups{{std::move(lines), color, lineWidth, true}};
+        if (format == PixelFormat::PIXEL_I420) {
+            const size_t ySize  = static_cast<size_t>(width) * height;
+            const size_t uvSize = static_cast<size_t>(width / 2) * (height / 2);
+            RasterizeOsdLinesI420(data, data + ySize, data + ySize + uvSize, width, height, groups);
+        } else if (IsPackedRgbFormat(format)) {
+            RasterizeOsdLinesRgb(data, width, height, format == PixelFormat::PIXEL_BGR8, groups);
+        }
+    }
+
+    void VideoFrameProcCpu::OSDDrawTextFine(int x, int y, const std::string& text, const Color& color,
+                                            int pixelHeight) {
+        if (!osd_frame_ || !osd_service_.IsReady() || pixelHeight <= 0)
+            return;
+        const auto bitmap = osd_service_.RenderStringWithFineOutline(text, static_cast<float>(pixelHeight));
+        if (bitmap.bodyAlpha.empty())
+            return;
+        const int width   = static_cast<int>(osd_frame_->GetWidth());
+        const int height  = static_cast<int>(osd_frame_->GetHeight());
+        auto* data        = osd_frame_->GetData();
+        const auto format = osd_frame_->GetPixelFormat();
+        if (format == PixelFormat::PIXEL_I420) {
+            const size_t ySize  = static_cast<size_t>(width) * height;
+            const size_t uvSize = static_cast<size_t>(width / 2) * (height / 2);
+            RasterizeOsdTextI420(data, data + ySize, data + ySize + uvSize, width, height, x, y, bitmap,
+                                 color);
+            return;
+        }
+        if (!IsPackedRgbFormat(format) || !data)
+            return;
+        const bool bgr            = format == PixelFormat::PIXEL_BGR8;
+        const uint8_t channels[3] = {bgr ? color.blue : color.red, color.green, bgr ? color.red : color.blue};
+        for (int row = 0; row < bitmap.height; ++row) {
+            const int64_t py = int64_t(y) - bitmap.offsetY + row;
+            if (py < 0 || py >= height)
+                continue;
+            for (int col = 0; col < bitmap.width; ++col) {
+                const int64_t px = int64_t(x) - bitmap.offsetX + col;
+                if (px < 0 || px >= width)
+                    continue;
+                const size_t index = static_cast<size_t>(row) * bitmap.width + col;
+                const auto oa = bitmap.outlineAlpha[index], ba = bitmap.bodyAlpha[index];
+                for (int channel = 0; channel < 3; ++channel) {
+                    auto& dst = data[(static_cast<size_t>(py) * width + px) * 3 + channel];
+                    dst       = static_cast<uint8_t>((oa * 16 + (255 - oa) * dst + 127) / 255);
+                    dst       = static_cast<uint8_t>((ba * channels[channel] + (255 - ba) * dst + 127) / 255);
+                }
+            }
+        }
+    }
+
+    void VideoFrameProcCpu::OSDDrawFilledRect(const util::Box& rect, const Color& color, uint8_t opacity) {
+        if (!osd_frame_ || rect.width <= 0 || rect.height <= 0 || opacity == 0)
+            return;
+        const int width  = static_cast<int>(osd_frame_->GetWidth());
+        const int height = static_cast<int>(osd_frame_->GetHeight());
+        auto* data       = osd_frame_->GetData();
+        if (osd_frame_->GetPixelFormat() == PixelFormat::PIXEL_I420) {
+            const size_t ySize = static_cast<size_t>(width) * height;
+            RasterizeOsdRectI420(data, data + ySize, data + ySize + ySize / 4, width, height, rect, color,
+                                 opacity);
+            return;
+        }
+        if (!IsPackedRgbFormat(osd_frame_->GetPixelFormat()))
+            return;
+        const int x0       = static_cast<int>(std::clamp<int64_t>(rect.x, 0, width));
+        const int y0       = static_cast<int>(std::clamp<int64_t>(rect.y, 0, height));
+        const int x1       = static_cast<int>(std::clamp<int64_t>(int64_t(rect.x) + rect.width, 0, width));
+        const int y1       = static_cast<int>(std::clamp<int64_t>(int64_t(rect.y) + rect.height, 0, height));
+        const bool bgr     = osd_frame_->GetPixelFormat() == PixelFormat::PIXEL_BGR8;
+        const uint8_t c[3] = {bgr ? color.blue : color.red, color.green, bgr ? color.red : color.blue};
+        for (int y = y0; y < y1; ++y)
+            for (int x = x0; x < x1; ++x)
+                for (int n = 0; n < 3; ++n) {
+                    auto& dst = data[(static_cast<size_t>(y) * width + x) * 3 + n];
+                    dst       = static_cast<uint8_t>((opacity * c[n] + (255 - opacity) * dst + 127) / 255);
+                }
     }
 
     void VideoFrameProcCpu::OSDDrawTextEx(int x, int y, const std::string& text, const Color& color,

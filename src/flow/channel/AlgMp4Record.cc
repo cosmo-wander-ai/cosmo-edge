@@ -8,6 +8,7 @@
 #include "mp4v2/mp4v2.h"
 #include "mp4v2/track.h"
 #include "service/detail/ServiceRegistry.h"
+#include "service/event/AlarmMediaActivity.h"
 #include "service/path/IFileService.h"
 #include "service/system/IConfigReadService.h"
 #include "service/task/ITaskQuery.h"
@@ -27,6 +28,11 @@ namespace fs                   = std::filesystem;
 
 AlgMp4Record::AlgMp4Record(media::VideoCodecType streamType, const RecordParam& recordParam, float fps,
                            int width, int height) {
+    recording_lease_ = service::AlarmMediaLease::StartRecording(recordParam.recordId);
+    if (!recording_lease_) {
+        LOG_WARN("[MP4 TASK] Event is being deleted; recording was not started");
+        return;
+    }
     track_id_  = MP4_INVALID_TRACK_ID;
     target_id_ = recordParam.targetId;
     VALUE_SET_IN_RANGE(fps_, fps, 0.1f, 120.0f);
@@ -55,6 +61,7 @@ AlgMp4Record::AlgMp4Record(media::VideoCodecType streamType, const RecordParam& 
     mp4_handle_ = MP4Create(file_name_.c_str());
     if (!mp4_handle_) {
         LOG_ERRO("[MP4 TASK] {} {} Create {} Failed.", task_id_, event_name_, file_name_);
+        recording_lease_.reset();
         return;
     }
     MP4SetVideoProfileLevel(mp4_handle_, 1);
@@ -65,6 +72,10 @@ AlgMp4Record::AlgMp4Record(media::VideoCodecType streamType, const RecordParam& 
         "StartFrame:{} Ok.",
         task_id_, event_name_, file_name_, streamType, fps, width, height, event_time_, event_index_,
         task_start_frame_seq_);
+}
+
+bool AlgMp4Record::IsReady() const {
+    return static_cast<bool>(recording_lease_);
 }
 
 AlgMp4Record::~AlgMp4Record() {

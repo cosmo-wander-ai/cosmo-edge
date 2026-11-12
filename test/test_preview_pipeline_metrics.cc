@@ -1,3 +1,7 @@
+#include <atomic>
+#include <thread>
+#include <vector>
+
 #include "catch_amalgamated.hpp"
 #include "media/PreviewPipelineMetrics.h"
 
@@ -73,4 +77,91 @@ TEST_CASE("Preview pipeline metrics expose lifecycle and stage timings", "[media
     CHECK(after.active_raw_preview_streams == 0);
     CHECK(after.active_algorithm_preview_streams == 0);
     CHECK(after.preview_stream_stops == 2);
+}
+
+TEST_CASE("Preview timings isolate streams, expire samples and reject obsolete generations",
+          "[media][preview][metrics]") {
+    using namespace std::chrono_literals;
+    cosmo::media::PreviewPipelineMetrics metrics;
+    const auto start = std::chrono::steady_clock::time_point{} + 100s;
+    const auto a     = metrics.BeginTimedPreview("camera-a", "algo-a");
+    const auto b     = metrics.BeginTimedPreview("camera-b", "algo-a");
+    const auto c     = metrics.BeginTimedPreview("camera-a", "algo-b");
+    REQUIRE(a != 0);
+    REQUIRE(b != 0);
+    REQUIRE(c != 0);
+    CHECK(metrics.BeginTimedPreview("", "algo-a") == 0);
+
+    metrics.RecordTimedOsd(a, 2'000'000, start);
+    metrics.RecordTimedOsd(a, 4'000'000, start + 1s);
+    metrics.RecordTimedEncode(a, 7'000'000, start + 2s);
+    metrics.RecordTimedOsd(b, 9'000'000, start);
+    metrics.RecordTimedEncode(c, 11'000'000, start);
+    // Startup measurements are hidden until the shared publisher is ready.
+    CHECK(metrics.TimedPreview("camera-a", "algo-a", start + 3s).osd.count == 0);
+    metrics.MarkTimedPreviewReady(a);
+    metrics.MarkTimedPreviewReady(b);
+    metrics.MarkTimedPreviewReady(c);
+    auto snap = metrics.TimedPreview("camera-a", "algo-a", start + 3s);
+    CHECK(snap.osd.count == 2);
+    CHECK(snap.osd.total_nanoseconds == 6'000'000);
+    CHECK(snap.encode.count == 1);
+    CHECK(snap.encode.total_nanoseconds == 7'000'000);
+    CHECK(metrics.TimedPreview("camera-b", "algo-a", start + 3s).osd.total_nanoseconds == 9'000'000);
+    CHECK(metrics.TimedPreview("camera-b", "algo-a", start + 3s).encode.count == 0);
+    CHECK(metrics.TimedPreview("camera-a", "algo-b", start + 3s).encode.total_nanoseconds == 11'000'000);
+    CHECK(metrics.TimedPreview("camera-a", "algo-b", start + 3s).osd.count == 0);
+    CHECK(metrics.TimedPreview("camera-b", "algo-b", start + 3s).osd.count == 0);
+
+    snap = metrics.TimedPreview("camera-a", "algo-a", start + 5s);
+    CHECK(snap.osd.count == 1);
+    CHECK(snap.osd.total_nanoseconds == 4'000'000);
+    CHECK(metrics.TimedPreview("camera-a", "algo-a", start + 8s).encode.count == 0);
+
+    const auto replacement = metrics.BeginTimedPreview("camera-a", "algo-a");
+    REQUIRE(replacement != a);
+    CHECK(metrics.TimedPreview("camera-a", "algo-a", start + 3s).osd.count == 0);
+    metrics.RecordTimedOsd(replacement, 5'000'000, start + 3s);
+    metrics.RecordTimedOsd(a, 99'000'000, start + 3s);
+    metrics.EndTimedPreview(a);
+    metrics.MarkTimedPreviewReady(a);
+    CHECK(metrics.TimedPreview("camera-a", "algo-a", start + 4s).osd.count == 0);
+    metrics.MarkTimedPreviewReady(replacement);
+    CHECK(metrics.TimedPreview("camera-a", "algo-a", start + 4s).osd.total_nanoseconds == 5'000'000);
+    metrics.EndTimedPreview(replacement);
+    CHECK(metrics.TimedPreview("camera-a", "algo-a", start + 4s).osd.count == 0);
+    CHECK(metrics.TimedPreview("camera-b", "algo-a", start + 4s).osd.count == 1);
+    metrics.EndTimedPreview(b);
+    metrics.EndTimedPreview(c);
+}
+
+TEST_CASE("Preview timing snapshots remain consistent under concurrent samples and reads",
+          "[media][preview][metrics]") {
+    cosmo::media::PreviewPipelineMetrics metrics;
+    const auto token = metrics.BeginTimedPreview("camera", "algorithm");
+    metrics.MarkTimedPreviewReady(token);
+    const auto at = std::chrono::steady_clock::now();
+    std::atomic<bool> consistent{true};
+    std::vector<std::thread> threads;
+    for (int worker = 0; worker < 4; ++worker) {
+        threads.emplace_back([&, worker] {
+            for (int i = 0; i < 100; ++i) {
+                if (worker < 2)
+                    metrics.RecordTimedOsd(token, 1'000'000, at);
+                else
+                    metrics.RecordTimedEncode(token, 2'000'000, at);
+                const auto snap = metrics.TimedPreview("camera", "algorithm", at);
+                if (snap.osd.total_nanoseconds != snap.osd.count * 1'000'000 ||
+                    snap.encode.total_nanoseconds != snap.encode.count * 2'000'000)
+                    consistent.store(false);
+            }
+        });
+    }
+    for (auto& thread : threads)
+        thread.join();
+    CHECK(consistent.load());
+    const auto snap = metrics.TimedPreview("camera", "algorithm", at);
+    CHECK(snap.osd.count == 200);
+    CHECK(snap.encode.count == 200);
+    metrics.EndTimedPreview(token);
 }
