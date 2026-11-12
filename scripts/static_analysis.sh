@@ -176,11 +176,13 @@ run_cppcheck() (
             fi
             # Keep assertions enabled and model their evaluated expressions.
             # Catch2's own analysis mode preserves mutually exclusive sections.
+            # Define the compiler attribute probe for cppcheck's preprocessor.
             TEST_ARGS+=(
                 -I "$PROJECT_ROOT/test"
                 -UCATCH_CONFIG_DISABLE
                 -UCATCH_CONFIG_PREFIX_ALL
                 -DCATCH_CONFIG_EXPERIMENTAL_STATIC_ANALYSIS_SUPPORT
+                '-D__has_cpp_attribute(x)=0'
                 "--include=$PROJECT_ROOT/tools/cppcheck/Catch2Model.h"
             )
             break
