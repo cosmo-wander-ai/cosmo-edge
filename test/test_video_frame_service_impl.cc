@@ -184,10 +184,6 @@ TEST_CASE("CPU scalar preview resize preserves neutral I420 planes", "[VideoFram
 }
 #endif
 
-TEST_CASE("VideoFrameServiceImpl: construction and destruction", "[VideoFrameService][.device]") {
-    REQUIRE_NOTHROW([]() { VideoFrameServiceFixture fixture; }());
-}
-
 TEST_CASE("VideoFrameServiceImpl: EncodeJpeg with null frame returns empty", "[VideoFrameService][.device]") {
     VideoFrameServiceFixture fixture;
     auto& sut = fixture.Service();

@@ -166,26 +166,6 @@ bool FileContainsOnly(const std::filesystem::path& path, char expected) {
 
 }  // namespace
 
-TEST_CASE("FileServiceImpl: construction and destruction", "[FileService]") {
-    REQUIRE_NOTHROW([]() {
-        FileServiceImpl sut;
-        // destructor runs Shutdown internally
-    }());
-}
-
-TEST_CASE("FileServiceImpl: GetFileUrl returns empty when not initialized", "[FileService]") {
-    FileServiceImpl sut;
-    auto url = sut.GetFileUrl(FileType::Image);
-    REQUIRE(url.empty());
-}
-
-TEST_CASE("FileServiceImpl: double destruction is safe", "[FileService]") {
-    REQUIRE_NOTHROW([]() {
-        FileServiceImpl sut;
-        // destructor calls Shutdown — verify no crash on double destroy
-    }());
-}
-
 TEST_CASE("FileServiceImpl: GetFileUrl for different types", "[FileService]") {
     FileServiceImpl sut;
 
@@ -196,13 +176,6 @@ TEST_CASE("FileServiceImpl: GetFileUrl for different types", "[FileService]") {
     SECTION("Video type returns empty when not initialized") {
         REQUIRE(sut.GetFileUrl(FileType::Video).empty());
     }
-}
-
-TEST_CASE("FileServiceImpl: multiple instances do not interfere", "[FileService]") {
-    REQUIRE_NOTHROW([]() {
-        FileServiceImpl sut1;
-        FileServiceImpl sut2;
-    }());
 }
 
 TEST_CASE("FileServiceImpl: platform upload boundary rejects unmanaged files", "[FileService][consistency]") {

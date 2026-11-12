@@ -21,11 +21,6 @@ struct ImportFileHandlerMocks {
 };
 }  // namespace
 
-TEST_CASE("ImportFileHandler: construction", "[import-file-handler]") {
-    // MessageImportFileHandler has default constructor
-    REQUIRE_NOTHROW([]() { MessageImportFileHandler handler; }());
-}
-
 TEST_CASE("ImportFileHandler: QueryImportStatus", "[import-file-handler]") {
     ImportFileHandlerMocks mocks;
     MessageImportFileHandler handler;

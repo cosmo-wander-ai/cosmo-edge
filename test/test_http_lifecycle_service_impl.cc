@@ -31,11 +31,6 @@ public:
 
 }  // namespace
 
-TEST_CASE("HttpLifecycleServiceImpl: construction and destruction", "[http-lifecycle]") {
-    REQUIRE_NOTHROW(
-        []() { HttpLifecycleServiceImpl sut([]() { return std::make_unique<StubDispatcher>(); }); }());
-}
-
 TEST_CASE("HttpLifecycleServiceImpl: StopHttpServer without Init is safe", "[http-lifecycle]") {
     HttpLifecycleServiceImpl sut([]() { return std::make_unique<StubDispatcher>(); });
     REQUIRE_NOTHROW(sut.RequestHttpStop());

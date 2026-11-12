@@ -72,16 +72,6 @@ TEST_CASE("DeviceDiscoveryService: lifecycle safety", "[device-discovery]") {
     }
 }
 
-TEST_CASE("DeviceDiscoveryService: construction with params", "[device-discovery]") {
-    SECTION("Multicast address and port") {
-        REQUIRE_NOTHROW([]() { cosmo::service::DeviceDiscoveryServiceImpl sut("239.255.0.0", 46000); }());
-    }
-
-    SECTION("Different port") {
-        REQUIRE_NOTHROW([]() { cosmo::service::DeviceDiscoveryServiceImpl sut("239.255.0.0", 12345); }());
-    }
-}
-
 TEST_CASE("DeviceDiscoveryService: Start then Stop", "[device-discovery]") {
     cosmo::test::MockNetworkConfig networkSvc;
     cosmo::test::ScopedServiceOverride<cosmo::service::INetworkConfig> registration(networkSvc);

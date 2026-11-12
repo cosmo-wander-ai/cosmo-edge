@@ -64,13 +64,6 @@ public:
 
 }  // namespace
 
-TEST_CASE("AudioServiceImpl: construction and destruction", "[AudioService]") {
-    AudioTestFixture fix;
-    REQUIRE_NOTHROW([]() {
-        // May warn about missing files, but should not crash
-    }());
-}
-
 TEST_CASE("AudioServiceImpl: speaker health check uses GET", "[AudioService][HttpClient]") {
     AudioTestFixture fix;
     RecordingHttpClient http_client;

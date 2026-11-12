@@ -19,7 +19,7 @@ public:
     Thread& operator=(Thread&&)      = delete;
 
     // Start the worker thread. Returns false if a previous run is still joinable.
-    bool start();
+    virtual bool start();
 
     // Block until the worker thread finishes (joins).
     void stop();
