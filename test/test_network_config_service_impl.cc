@@ -33,19 +33,6 @@ struct NetworkConfigDependencies {
 
 }  // namespace
 
-TEST_CASE("NetworkConfigServiceImpl: construction and destruction", "[network-config]") {
-    std::string testDir = "/tmp/cosmo_netcfg_test_" +
-                          std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
-    std::filesystem::create_directories(testDir);
-
-    cosmo::test::ScopedPathOverride path_override(testDir, testDir);
-    NetworkConfigDependencies mocks;
-
-    REQUIRE_NOTHROW([&]() { NetworkConfigServiceImpl sut; }());
-
-    std::filesystem::remove_all(testDir);
-}
-
 TEST_CASE("NetworkConfigServiceImpl: GetCfgDns returns default DNS", "[network-config]") {
     std::string testDir = "/tmp/cosmo_netcfg_test_" +
                           std::to_string(std::chrono::system_clock::now().time_since_epoch().count());

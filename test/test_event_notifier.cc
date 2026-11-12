@@ -71,10 +71,6 @@ std::string GetOrdinaryHttpResponse(int port) {
 
 }  // namespace
 
-TEST_CASE("EventNotifierImpl: construction and destruction", "[EventNotifier]") {
-    REQUIRE_NOTHROW([]() { EventNotifierImpl notifier; }());
-}
-
 TEST_CASE("EventNotifierImpl: SetEventPostQue and push without processor", "[EventNotifier]") {
     EventNotifierImpl notifier;
     cosmo::AsyncQueue<cosmo::CMsgOnEventsReq> eventQue("test_no_proc", 100);

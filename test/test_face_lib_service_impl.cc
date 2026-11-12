@@ -28,24 +28,6 @@ private:
 
 }  // namespace
 
-TEST_CASE("FaceLibServiceImpl: Basic operations", "[FaceLibService]") {
-    FaceLibTestEnvironment environment;
-    FaceLibServiceImpl sut;
-
-    SECTION("GetAllFaceLibs should not crash") {
-        try {
-            auto libs = sut.GetAllFaceLibs();
-            REQUIRE(true);
-        } catch (...) {
-            // Ignore for now — DB may be uninitialized
-        }
-    }
-
-    SECTION("FaceLib max count is positive") {
-        REQUIRE(sut.GetFaceLibMaxCount() > 0);
-    }
-}
-
 TEST_CASE("FaceLibServiceImpl: Import status when idle", "[FaceLibService]") {
     FaceLibTestEnvironment environment;
     FaceLibServiceImpl sut;

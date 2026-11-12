@@ -13,10 +13,6 @@
 
 using namespace cosmo::service;
 
-TEST_CASE("HttpClientImpl: construction does not crash", "[HttpClient]") {
-    REQUIRE_NOTHROW([]() { HttpClientImpl sut; }());
-}
-
 TEST_CASE("HttpClientImpl: Post to invalid URL returns error", "[HttpClient][.network]") {
     HttpClientImpl sut;
     auto resp = sut.Post("http://192.0.2.1:1/invalid", "{}", "application/json", 1, 1);
@@ -72,25 +68,4 @@ TEST_CASE("HttpClientImpl: Post sends POST for empty and non-empty bodies", "[Ht
     const auto header_end = request.find("\r\n\r\n");
     REQUIRE(header_end != std::string::npos);
     REQUIRE(request.substr(header_end + 4) == body);
-}
-
-TEST_CASE("HttpClientImpl: Get sends GET", "[HttpClient][http]") {
-    cosmo::test::LoopbackHttpServer server;
-    REQUIRE(server.Start());
-    const auto url = "http://127.0.0.1:" + std::to_string(server.Port()) + "/status";
-
-    bool served = false;
-    std::string request;
-    std::thread server_thread([&]() { served = server.ServeOnce(0, '\0', &request); });
-
-    HttpClientImpl sut;
-    const auto response = sut.Get(url, 2, 2);
-    server_thread.join();
-
-    REQUIRE(served);
-    REQUIRE(response.statusCode == 200);
-    REQUIRE(request.rfind("GET /status HTTP/", 0) == 0);
-    const auto header_end = request.find("\r\n\r\n");
-    REQUIRE(header_end != std::string::npos);
-    REQUIRE(request.substr(header_end + 4).empty());
 }

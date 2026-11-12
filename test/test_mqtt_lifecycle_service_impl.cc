@@ -187,11 +187,6 @@ TEST_CASE("MqttLifecycleServiceImpl: cancelled DNS callback is drained before te
     CHECK(result.addresses == nullptr);
 }
 
-TEST_CASE("MqttLifecycleServiceImpl: construction and destruction", "[mqtt-lifecycle]") {
-    REQUIRE_NOTHROW(
-        []() { MqttLifecycleServiceImpl sut([]() { return std::make_unique<StubDispatcher>(); }); }());
-}
-
 TEST_CASE("MqttLifecycleServiceImpl: initial state", "[mqtt-lifecycle]") {
     MqttLifecycleServiceImpl sut([]() { return std::make_unique<StubDispatcher>(); });
 

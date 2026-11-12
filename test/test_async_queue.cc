@@ -35,19 +35,6 @@ TEST_CASE("AsyncQueue Insert and processor callback", "[AsyncQueue]") {
     }
 }
 
-TEST_CASE("AsyncQueue full queue discard (non-force)", "[AsyncQueue]") {
-    AsyncQueue<int> queue("full_async", 3);
-    // Don't set processor, so items accumulate
-    // Note: AsyncQueue's run() loop processes items, so we need to be careful
-    // Insert rapidly to fill
-    queue.Insert(1);
-    queue.Insert(2);
-    queue.Insert(3);
-    // This may succeed or fail depending on timing — just verify no crash
-    queue.Insert(4);
-    REQUIRE(true);
-}
-
 TEST_CASE("AsyncQueue Stop", "[AsyncQueue]") {
     AsyncQueue<int> queue("stop_async", 5);
 
@@ -137,17 +124,4 @@ TEST_CASE("AsyncQueue Status", "[AsyncQueue]") {
     REQUIRE(info.name == "status_async");
     REQUIRE(info.status.insertCount == 2);
     REQUIRE(info.queSize == 10);
-}
-
-TEST_CASE("AsyncQueue KeyInQueue", "[AsyncQueue]") {
-    AsyncQueue<std::string> queue("key_async", 10);
-    // Don't set processor so items stay in queue
-    queue.SetChecker([](const std::string& item, const std::string& key) { return item == key; });
-
-    queue.Insert(std::string("hello"));
-
-    // Item might already be processed, so just check no crash
-    std::string key = "hello";
-    queue.KeyInQueue(key);  // May or may not find it
-    REQUIRE(true);
 }

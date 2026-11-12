@@ -18,10 +18,6 @@
 using namespace cosmo::service;
 using trompeloeil::_;
 
-TEST_CASE("DeviceInfoServiceImpl: construction and destruction", "[DeviceInfoService][.device]") {
-    REQUIRE_NOTHROW([]() { DeviceInfoServiceImpl sut; }());
-}
-
 TEST_CASE("DeviceInfoServiceImpl: GetDeviceInfo returns populated struct", "[DeviceInfoService][.device]") {
     cosmo::test::MockAppInfoService appInfoSvc;
     cosmo::test::ScopedServiceOverride<IAppInfoService> registration(appInfoSvc);
