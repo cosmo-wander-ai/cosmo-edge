@@ -38,6 +38,14 @@
     } while (false)
 #undef CHECK_THROWS
 #define CHECK_THROWS(...) REQUIRE_THROWS(__VA_ARGS__)
+#undef REQUIRE_THROWS_WITH
+#define REQUIRE_THROWS_WITH(expr, matcher)                                                                   \
+    do {                                                                                                     \
+        REQUIRE_THROWS(expr);                                                                                \
+        (void)(matcher);                                                                                     \
+    } while (false)
+#undef CHECK_THROWS_WITH
+#define CHECK_THROWS_WITH(expr, matcher) REQUIRE_THROWS_WITH(expr, matcher)
 #undef REQUIRE_THROWS_AS
 #define REQUIRE_THROWS_AS(expr, type)                                                                        \
     do {                                                                                                     \

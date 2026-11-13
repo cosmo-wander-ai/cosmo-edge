@@ -115,6 +115,7 @@ class StaticAnalysisTests(unittest.TestCase):
                 args = self.assert_files(included)
                 self.assertIn("--enable=" + enabled, args)
                 self.assertIn("--error-exitcode=1", args)
+                self.assertIn("-DCOSMO_NN_USE_CPU_BACKEND", args)
                 self.assertIn("--suppressions-list=" + str(self.root / ".cppcheck-suppressions"), args)
 
     def test_staged_scope_spaces_and_deleted_files(self):
@@ -276,6 +277,8 @@ class StaticAnalysisTests(unittest.TestCase):
                 CHECK_THROWS(MayThrow());
                 REQUIRE_THROWS_AS(MayThrow(), std::runtime_error);
                 CHECK_THROWS_AS(MayThrow(), std::runtime_error);
+                REQUIRE_THROWS_WITH(MayThrow(), "message");
+                CHECK_THROWS_WITH(MayThrow(), "message");
                 SECTION("first") { CHECK(used); }
                 SECTION("second") { CHECK_FALSE(!used); }
             }
@@ -288,7 +291,11 @@ class StaticAnalysisTests(unittest.TestCase):
                            "CHECK_NOTHROW", "REQUIRE_THROWS", "CHECK_THROWS")]
         bad_assertions += [f"{name}(1 / zero, int);" for name in
                            ("REQUIRE_THROWS_AS", "CHECK_THROWS_AS")]
-        bad_source = '#include "catch_amalgamated.hpp"\nbool Ready();\n'
+        bad_assertions += [f'{name}(1 / zero, "message");' for name in
+                           ("REQUIRE_THROWS_WITH", "CHECK_THROWS_WITH")]
+        bad_assertions += [f'{name}(MayThrow(), 1 / zero);' for name in
+                           ("REQUIRE_THROWS_WITH", "CHECK_THROWS_WITH")]
+        bad_source = '#include "catch_amalgamated.hpp"\nbool Ready();\nvoid MayThrow();\n'
         for index, assertion in enumerate(bad_assertions):
             bad_source += f'void bad_{index}() {{ int zero = 0; {assertion} }}\n'
         bad_source += textwrap.dedent('''\

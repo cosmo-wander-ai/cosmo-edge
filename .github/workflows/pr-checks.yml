@@ -162,11 +162,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y clang-format-18
-          sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-18 100
 
       - name: Check C++ formatting (changed files only)
         run: |
-          clang-format --version
+          clang-format-18 --version
           BASE=$(git merge-base HEAD origin/main)
           echo "merge-base: $BASE"
           CHANGED=$(git diff --name-only --diff-filter=ACMR "$BASE" HEAD -- \
@@ -178,7 +177,7 @@ jobs:
           echo "Checking $(echo "$CHANGED" | wc -l) changed file(s)..."
           FAIL=0
           for f in $CHANGED; do
-            if ! diff <(clang-format "$f") "$f" > /dev/null 2>&1; then
+            if ! diff <(clang-format-18 "$f") "$f" > /dev/null 2>&1; then
               echo "  ❌ $f"
               FAIL=1
             fi
