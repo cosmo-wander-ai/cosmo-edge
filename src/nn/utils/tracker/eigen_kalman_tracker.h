@@ -11,7 +11,7 @@ class EigenKalmanTracker {
 public:
     EigenKalmanTracker(Rect2f r, TrackerConfig cfg, unsigned int assigned_id);
 
-    void Update(Rect2f stateMat, double score);
+    void Update(Rect2f stateMat, double score, const TrackerConfig& active_config);
 
     MotionState MotionEval();
 
