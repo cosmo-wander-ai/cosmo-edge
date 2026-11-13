@@ -71,6 +71,11 @@ endif()
 # External SIP has separate lifecycle and local-control requirements.
 configure_file("${TEST_PROJECT_ROOT}/3rd/srs-6.0-r0/trunk/src/app/srs_app_gb28181.hpp"
     "${test_source_dir}/src/app/srs_app_gb28181.hpp" COPYONLY)
+foreach(name srs_protocol_rtmp_conn.cpp srs_protocol_rtmp_conn.hpp
+        srs_protocol_rtmp_stack.cpp srs_protocol_rtmp_stack.hpp)
+    configure_file("${TEST_PROJECT_ROOT}/3rd/srs-6.0-r0/trunk/src/protocol/${name}"
+        "${test_source_dir}/src/protocol/${name}" COPYONLY)
+endforeach()
 foreach(attempt RANGE 1 2)
     execute_process(COMMAND "${CMAKE_COMMAND}" "-DSRS_SOURCE_DIR=${test_source_dir}"
         -P "${TEST_PROJECT_ROOT}/cmake/patch_srs_gb28181_managed.cmake"
@@ -167,5 +172,31 @@ foreach(required "COSMO_MANAGED_GB_V1" "local POST required" "external media lea
     string(FIND "${managed_source}" "${required}" position)
     if(position EQUAL -1)
         message(FATAL_ERROR "Managed GB28181 safety guard missing: ${required}")
+    endif()
+endforeach()
+
+foreach(attempt RANGE 1 2)
+    execute_process(COMMAND "${CMAKE_COMMAND}" "-DSRS_SOURCE_DIR=${test_source_dir}"
+        -P "${TEST_PROJECT_ROOT}/cmake/patch_srs_gb28181_rtmp_control.cmake"
+        RESULT_VARIABLE result)
+    if(NOT result EQUAL 0)
+        message(FATAL_ERROR "GB RTMP control patch failed")
+    endif()
+    set(control_hashes "")
+    foreach(name src/app/srs_app_gb28181.cpp src/app/srs_app_gb28181.hpp
+            src/protocol/srs_protocol_rtmp_conn.cpp src/protocol/srs_protocol_rtmp_conn.hpp
+            src/protocol/srs_protocol_rtmp_stack.cpp src/protocol/srs_protocol_rtmp_stack.hpp)
+        file(READ "${test_source_dir}/${name}" control_part)
+        if(NOT control_part MATCHES "COSMO_GB_RTMP_CONTROL_V2" OR
+                control_part MATCHES "COSMO_GB_RTMP_CONTROL_V1")
+            message(FATAL_ERROR "GB RTMP control V2 patch missing/incomplete: ${name}")
+        endif()
+        file(SHA256 "${test_source_dir}/${name}" part_hash)
+        string(APPEND control_hashes "${part_hash}:")
+    endforeach()
+    if(attempt EQUAL 1)
+        set(first_control_hashes "${control_hashes}")
+    elseif(NOT control_hashes STREQUAL first_control_hashes)
+        message(FATAL_ERROR "GB RTMP control patch is not idempotent")
     endif()
 endforeach()
