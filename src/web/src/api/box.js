@@ -209,6 +209,27 @@ const system = {
   },
 
   // 网络设置
+  queryNetworkStatus(data = {}) {
+    return request({ url: '/gtw/cwai/network/queryNetworkStatus', method: 'post', data, silentError: true })
+  },
+  scanWifi(data = {}) {
+    return request({ url: '/gtw/cwai/network/scanWifi', method: 'post', data, silentError: true })
+  },
+  connectWifi(data = {}) {
+    return request({ url: '/gtw/cwai/network/connectWifi', method: 'post', data, silentError: true })
+  },
+  queryWifiOperation(data = {}) {
+    return request({ url: '/gtw/cwai/network/queryWifiOperation', method: 'post', data, silentError: true })
+  },
+  confirmWifiConfig(data = {}) {
+    return request({ url: '/gtw/cwai/network/confirmWifiConfig', method: 'post', data, silentError: true })
+  },
+  disconnectWifi(data = {}) {
+    return request({ url: '/gtw/cwai/network/disconnectWifi', method: 'post', data, silentError: true })
+  },
+  forgetWifi(data = {}) {
+    return request({ url: '/gtw/cwai/network/forgetWifi', method: 'post', data, silentError: true })
+  },
   // 网卡查询
   queryNetCard() {
     return request({

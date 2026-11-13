@@ -2,14 +2,20 @@
 
 #include "service/network/impl/NetworkConfigServiceImpl.h"
 
+#include <sys/stat.h>
+
 #include <algorithm>
 #include <filesystem>
 #include <sstream>
 
 #include "platform/NetCardOp.h"
+#include "platform/NetCardOpInternal.h"
+#include "platform/WifiPlatform.h"
 #include "service/detail/ServiceRegistry.h"
+#include "service/network/NetworkMutation.h"
 #include "service/system/IDeviceHardware.h"
 #include "service/system/ISystemOperationService.h"
+#include "util/Exception.h"
 #include "util/Exec.h"
 #include "util/JsonStructUtil.h"
 #include "util/Log.h"
@@ -20,6 +26,51 @@
 #define DO_NETCARD_ALL
 
 namespace cosmo::service {
+namespace {
+    constexpr const char* kWiredDnsFile = "/etc/systemd/network/10-netplan-eth0.network.d/90-cosmo-dns.conf";
+
+    bool ConfigureWiredDns(const std::vector<std::string>& dns) {
+        std::string config = "[Network]\nDNS=\n";
+        for (const auto& address : dns) {
+            if (!platform::internal::IsValidIpAddress(address)) {
+                return false;
+            }
+            config += "DNS=" + address + "\n";
+        }
+        config += dns.empty() ? "[DHCPv4]\nUseDNS=yes\n" : "[DHCPv4]\nUseDNS=no\n";
+        const bool existed = std::filesystem::exists(kWiredDnsFile);
+        std::string previous;
+        try {
+            if (existed) {
+                previous = platform::ReadPrivateFile(kWiredDnsFile);
+            }
+            platform::WritePrivateFile(kWiredDnsFile, config);
+            if (chmod(kWiredDnsFile, 0644) != 0) {
+                throw std::runtime_error("DNS file permissions failed");
+            }
+            std::string output;
+            if (util::Exec({"networkctl", "reload"}, output) != 0 ||
+                !platform::SetResolvedDns(platform::kNetworkMainEthName, dns)) {
+                throw std::runtime_error("DNS application failed");
+            }
+            return true;
+        } catch (...) {
+            try {
+                if (existed) {
+                    platform::WritePrivateFile(kWiredDnsFile, previous);
+                    chmod(kWiredDnsFile, 0644);
+                } else {
+                    std::filesystem::remove(kWiredDnsFile);
+                }
+                std::string output;
+                util::Exec({"networkctl", "reload"}, output);
+                util::Exec({"resolvectl", "revert", platform::kNetworkMainEthName}, output);
+            } catch (...) {
+            }
+            return false;
+        }
+    }
+}  // namespace
 
 NetworkConfigServiceImpl::NetworkConfigServiceImpl() = default;
 
@@ -53,6 +104,10 @@ void NetworkConfigServiceImpl::GetMacs() {
 
 bool NetworkConfigServiceImpl::SearchSetNewInfo(platform::NetCardInfo& netCard, const std::string& dns1,
                                                 const std::string& dns2) {
+    auto lease = NetworkMutationLease::TryAcquire();
+    if (!lease) {
+        return false;
+    }
     NetWorkInfo networkInfoSearch;
     auto search_cfg_path =
         (std::filesystem::path(cosmo::path::GetCfgPath()) / conf_search_file_name_).string();
@@ -111,6 +166,20 @@ void NetworkConfigServiceImpl::LoadCfg() {
     // Both failed, use default config
     if ((!ret) && (!ret_search)) {
         SetToDefault();
+        if (platform::HasWirelessInterface()) {
+            // Existing system networking remains authoritative on first launch.
+            auto main = platform::GetIpInfo(platform::kNetworkMainEthName);
+            auto sub  = platform::GetIpInfo(platform::kNetworkSubEthName);
+            std::lock_guard<std::shared_mutex> lock(mtx_);
+            if (!main.ip_addr.empty()) {
+                net_card_info_.main = main;
+            }
+            if (!sub.ip_addr.empty()) {
+                net_card_info_.sub = sub;
+            }
+            net_card_info_.dns1.clear();
+            net_card_info_.dns2.clear();
+        }
 
         auto path = (std::filesystem::path(cosmo::path::GetCfgPath()) / conf_file_name_).string();
         if (!util::SaveStructToJsonFile(path, net_card_info_)) {
@@ -244,8 +313,9 @@ void NetworkConfigServiceImpl::UpdateNetCardCfg(const platform::NetCardInfo& inf
     }
 }
 
-void NetworkConfigServiceImpl::UpdateNetDnsCfg(std::vector<std::string> dnss) {
+bool NetworkConfigServiceImpl::UpdateNetDnsCfg(std::vector<std::string> dnss) {
     std::lock_guard<std::shared_mutex> lock(mtx_);
+    const auto previous = net_card_info_;
     if (dnss.empty()) {
         net_card_info_.dns1 = "";
         net_card_info_.dns2 = "";
@@ -260,10 +330,18 @@ void NetworkConfigServiceImpl::UpdateNetDnsCfg(std::vector<std::string> dnss) {
     auto path = (std::filesystem::path(cosmo::path::GetCfgPath()) / conf_file_name_).string();
     if (!util::SaveStructToJsonFile(path, net_card_info_)) {
         LOG_ERRO("Failed to save DNS config to {}", path);
+        net_card_info_ = previous;
+        return false;
     }
+    return true;
 }
 
 bool NetworkConfigServiceImpl::SetCardInfo(const platform::NetCardInfo& info) {
+    auto lease = NetworkMutationLease::TryAcquire();
+    return lease && ApplyCardInfo(info);
+}
+
+bool NetworkConfigServiceImpl::ApplyCardInfo(const platform::NetCardInfo& info) {
     int ret_code = 1;
 #ifdef DO_NETCARD_ALL
     LOG_INFO("Set {}/{} ", info.eth_name, info.ip_addr);
@@ -296,6 +374,10 @@ bool NetworkConfigServiceImpl::SetCardInfo(const platform::NetCardInfo& info) {
 }
 
 void NetworkConfigServiceImpl::ApplyCardInfoAsync(const platform::NetCardInfo& info) {
+    auto lease = NetworkMutationLease::TryAcquire();
+    if (!lease) {
+        throw util::ErrorMessage(util::ErrorEnum::Failed, "Network configuration is in progress");
+    }
     std::lock_guard<std::mutex> lifecycle_lock(apply_lifecycle_mtx_);
     if (stop_async_apply_.load(std::memory_order_acquire)) {
         LOG_WARN("{}", "Reject async network configuration while service is stopping");
@@ -304,12 +386,12 @@ void NetworkConfigServiceImpl::ApplyCardInfoAsync(const platform::NetCardInfo& i
     if (apply_thread_.joinable()) {
         apply_thread_.join();
     }
-    apply_thread_ = std::thread([this, info]() {
+    apply_thread_ = std::thread([this, info, lease = std::move(lease)]() {
         std::this_thread::sleep_for(timing::kOneSecondInterval);
         if (stop_async_apply_.load(std::memory_order_acquire)) {
             return;
         }
-        if (SetCardInfo(info)) {
+        if (ApplyCardInfo(info)) {
             if (stop_async_apply_.load(std::memory_order_acquire)) {
                 return;
             }
@@ -321,8 +403,24 @@ void NetworkConfigServiceImpl::ApplyCardInfoAsync(const platform::NetCardInfo& i
 }
 
 bool NetworkConfigServiceImpl::SetDnss(std::vector<std::string> dnss) {
-    platform::DnsEffect(dnss);
-    UpdateNetDnsCfg(dnss);
+    auto lease = NetworkMutationLease::TryAcquire();
+    if (!lease) {
+        throw util::ErrorMessage(util::ErrorEnum::Failed, "Network configuration is in progress");
+    }
+    const auto previous = GetCfgDns();
+    if (platform::HasWirelessInterface()) {
+        if (!ConfigureWiredDns(dnss)) {
+            return false;
+        }
+    } else {
+        platform::DnsEffect(dnss);
+    }
+    if (!UpdateNetDnsCfg(dnss)) {
+        if (platform::HasWirelessInterface()) {
+            ConfigureWiredDns(previous);
+        }
+        return false;
+    }
     return true;
 }
 
@@ -333,6 +431,14 @@ void NetworkConfigServiceImpl::Init() {
     return;
 #endif
     LoadCfg();
+    if (platform::HasWirelessInterface()) {
+        // Reapplying Netplan here would interrupt a connection managed by networkd.
+        const auto dns = GetCfgDns();
+        if (!dns.empty() && !ConfigureWiredDns(dns)) {
+            LOG_ERRO("{}", "Failed to apply wired DNS through systemd-resolved");
+        }
+        return;
+    }
     platform::DnsEffect(GetCfgDns());
     int ret_code = 0;
 
@@ -365,12 +471,7 @@ std::vector<NetCardView> NetworkConfigServiceImpl::GetNetCards() {
 }
 
 std::string NetworkConfigServiceImpl::GetHostIpAddress() {
-    auto cards = GetNetCards();
-    auto it    = std::find_if(cards.begin(), cards.end(), [](const auto& card) { return card.isMain; });
-    if (it != cards.end()) {
-        return it->ipAddr;
-    }
-    return cards.empty() ? "" : cards[0].ipAddr;
+    return platform::CurrentHostAddress();
 }
 
 INetworkConfig::PingQualityResult NetworkConfigServiceImpl::ProbeNetworkQuality(const std::string& ip,

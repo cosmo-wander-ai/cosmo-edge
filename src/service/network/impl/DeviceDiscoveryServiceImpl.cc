@@ -4,6 +4,7 @@
 #include "service/network/impl/DeviceDiscoveryServiceImpl.h"
 
 #include <arpa/inet.h>
+#include <net/if.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/time.h>
@@ -15,8 +16,8 @@
 #include <cstring>
 #include <nlohmann/json.hpp>
 
-#include "service/detail/ServiceRegistry.h"
-#include "service/network/INetworkConfig.h"
+#include "platform/NetCardOp.h"
+#include "platform/WifiPlatform.h"
 #include "service/network/impl/DeviceDiscoveryReceivePolicy.h"
 #include "util/ErrorCode.h"
 #include "util/TimingConstants.h"
@@ -144,6 +145,11 @@ int DeviceDiscoveryServiceImpl::InitMulticast() {
         return fail(DiscoveryError::Socket_SetoptFailed);
     }
 
+    if (setsockopt(socket_fd_, IPPROTO_IP, IP_PKTINFO, &reuse, sizeof(reuse)) < 0) {
+        LOG_WARN("setsockopt IP_PKTINFO failed, errno {}", errno);
+        return fail(DiscoveryError::Socket_SetoptFailed);
+    }
+
     // Disable multicast loopback
     unsigned char loop = 0;
     if (setsockopt(socket_fd_, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop)) < 0) {
@@ -188,57 +194,55 @@ int DeviceDiscoveryServiceImpl::InitMulticast() {
 }
 
 bool DeviceDiscoveryServiceImpl::JoinMulticastGroup() {
-    struct in_addr group_address;
-    if (inet_pton(AF_INET, multicast_ip_.c_str(), &group_address) != 1) {
+    in_addr group_address{};
+    if (inet_pton(AF_INET, multicast_ip_.c_str(), &group_address) != 1 ||
+        !IN_MULTICAST(ntohl(group_address.s_addr))) {
         LOG_WARN("invalid multicast address {}", multicast_ip_);
         return false;
     }
-
-    if (AddMulticastMembership(group_address.s_addr, htonl(INADDR_ANY))) {
-        return true;
-    }
-
-    const int default_interface_error = errno;
-    LOG_WARN("IP_ADD_MEMBERSHIP with default interface failed, errno {}, errorMsg {}; trying main interface",
-             default_interface_error, strerror(default_interface_error));
-
-    auto net_card_list = ServiceRegistry::Instance().Get<INetworkConfig>().GetCardRealInfos();
-    for (const auto& net_card : net_card_list) {
-        if (!net_card.is_main) {
-            continue;
-        }
-
-        struct in_addr interface_address;
-        if (inet_pton(AF_INET, net_card.ip_addr.c_str(), &interface_address) != 1) {
-            LOG_WARN("invalid main interface address {}", net_card.ip_addr);
-            return false;
-        }
-
-        LOG_INFO("IP_ADD_MEMBERSHIP with main interface {}", net_card.ip_addr);
-        if (!AddMulticastMembership(group_address.s_addr, interface_address.s_addr)) {
-            const int interface_error = errno;
-            LOG_WARN("IP_ADD_MEMBERSHIP with main interface failed, errno {}, errorMsg {}", interface_error,
-                     strerror(interface_error));
-            return false;
-        }
-        return true;
-    }
-
-    LOG_WARN("{}", "cannot find main network interface for multicast membership");
-    return false;
+    multicast_group_address_ = group_address.s_addr;
+    return UpdateMulticastMemberships();
 }
 
-bool DeviceDiscoveryServiceImpl::AddMulticastMembership(uint32_t group_address, uint32_t interface_address) {
-    struct ip_mreq request;
-    request.imr_multiaddr.s_addr = group_address;
-    request.imr_interface.s_addr = interface_address;
-    if (setsockopt(socket_fd_, IPPROTO_IP, IP_ADD_MEMBERSHIP, &request, sizeof(request)) < 0) {
-        return false;
+bool DeviceDiscoveryServiceImpl::UpdateMulticastMemberships() {
+    std::map<unsigned, uint32_t> desired;
+    for (const auto& [name, address] :
+         detail::DiscoveryMembershipAddresses(platform::ReadNetworkInterfaces())) {
+        const auto index = if_nametoindex(name.c_str());
+        in_addr interface_address{};
+        if (index != 0 && inet_pton(AF_INET, address.c_str(), &interface_address) == 1) {
+            desired[index] = interface_address.s_addr;
+        }
     }
-
-    multicast_group_address_     = group_address;
-    multicast_interface_address_ = interface_address;
-    multicast_joined_            = true;
+    for (auto it = multicast_memberships_.begin(); it != multicast_memberships_.end();) {
+        const auto desired_it = desired.find(it->first);
+        if (desired_it != desired.end() && desired_it->second == it->second) {
+            ++it;
+            continue;
+        }
+        ip_mreqn request{};
+        request.imr_multiaddr.s_addr = multicast_group_address_;
+        request.imr_address.s_addr   = it->second;
+        request.imr_ifindex          = static_cast<int>(it->first);
+        // A removed interface may already have lost its kernel membership.
+        setsockopt(socket_fd_, IPPROTO_IP, IP_DROP_MEMBERSHIP, &request, sizeof(request));
+        it = multicast_memberships_.erase(it);
+    }
+    for (const auto& [index, address] : desired) {
+        if (multicast_memberships_.count(index) != 0) {
+            continue;
+        }
+        ip_mreqn request{};
+        request.imr_multiaddr.s_addr = multicast_group_address_;
+        request.imr_address.s_addr   = address;
+        request.imr_ifindex          = static_cast<int>(index);
+        if (setsockopt(socket_fd_, IPPROTO_IP, IP_ADD_MEMBERSHIP, &request, sizeof(request)) < 0) {
+            LOG_WARN("IP_ADD_MEMBERSHIP failed on interface {}, errno {}", index, errno);
+            continue;
+        }
+        multicast_memberships_[index] = address;
+    }
+    // Stay alive without an address so link/address recovery can add memberships.
     return true;
 }
 
@@ -250,25 +254,21 @@ void DeviceDiscoveryServiceImpl::CloseSocket() {
 void DeviceDiscoveryServiceImpl::CloseSocketLocked() {
     if (socket_fd_ >= 0) {
         LOG_INFO("closing multicast socket fd {}", socket_fd_);
-        if (multicast_joined_) {
-            struct ip_mreq request;
+        for (const auto& [index, address] : multicast_memberships_) {
+            ip_mreqn request{};
             request.imr_multiaddr.s_addr = multicast_group_address_;
-            request.imr_interface.s_addr = multicast_interface_address_;
-
-            if (setsockopt(socket_fd_, IPPROTO_IP, IP_DROP_MEMBERSHIP, &request, sizeof(request)) < 0) {
-                LOG_WARN("setsockopt {} IP_DROP_MEMBERSHIP failed, errno {}, errorMsg {}", socket_fd_, errno,
-                         strerror(errno));
-            }
+            request.imr_address.s_addr   = address;
+            request.imr_ifindex          = static_cast<int>(index);
+            setsockopt(socket_fd_, IPPROTO_IP, IP_DROP_MEMBERSHIP, &request, sizeof(request));
         }
         if (close(socket_fd_) < 0) {
             LOG_WARN("close {} failed, errno {}, errorMsg {}", socket_fd_, errno, strerror(errno));
         }
     }
 
-    socket_fd_                   = -1;
-    multicast_group_address_     = 0;
-    multicast_interface_address_ = 0;
-    multicast_joined_            = false;
+    socket_fd_               = -1;
+    multicast_group_address_ = 0;
+    multicast_memberships_.clear();
     inited_.store(false, std::memory_order_release);
 }
 
@@ -285,19 +285,26 @@ DeviceDiscoveryServiceImpl::ReceiveLoopExit DeviceDiscoveryServiceImpl::RecvLoop
         return ReceiveLoopExit::kRestartSocket;
     }
 
-    struct sockaddr_in peeraddr;
-    memset(&peeraddr, 0, sizeof(peeraddr));
-    peeraddr.sin_family      = AF_INET;
-    peeraddr.sin_addr.s_addr = inet_addr(multicast_ip_.c_str());
-    peeraddr.sin_port        = htons(multicast_port_);
-
-    // Receive multicast data
     std::array<char, 4096> message_buffer{};
+    auto last_membership_check = std::chrono::steady_clock::now();
     while (!stop_.load(std::memory_order_acquire)) {
-        message_buffer.fill('\0');
-        socklen_t address_length = sizeof(peeraddr);
-        auto bytes               = recvfrom(receive_fd, message_buffer.data(), message_buffer.size() - 1, 0,
-                                            reinterpret_cast<struct sockaddr*>(&peeraddr), &address_length);
+        const auto now = std::chrono::steady_clock::now();
+        if (now - last_membership_check >= timing::kOneSecondInterval) {
+            std::lock_guard<std::mutex> lock(socket_mtx_);
+            UpdateMulticastMemberships();
+            last_membership_check = now;
+        }
+        sockaddr_in peeraddr{};
+        alignas(cmsghdr) std::array<char, CMSG_SPACE(sizeof(in_pktinfo))> control{};
+        iovec payload{message_buffer.data(), message_buffer.size()};
+        msghdr received{};
+        received.msg_name       = &peeraddr;
+        received.msg_namelen    = sizeof(peeraddr);
+        received.msg_iov        = &payload;
+        received.msg_iovlen     = 1;
+        received.msg_control    = control.data();
+        received.msg_controllen = control.size();
+        const auto bytes        = recvmsg(receive_fd, &received, 0);
         if (bytes < 0) {
             if (stop_.load(std::memory_order_acquire)) {
                 return ReceiveLoopExit::kStopped;
@@ -309,11 +316,11 @@ DeviceDiscoveryServiceImpl::ReceiveLoopExit DeviceDiscoveryServiceImpl::RecvLoop
                 continue;
             }
 
-            LOG_WARN("recvfrom multicast failed, errno {}, errorMsg {}; restarting socket", receive_error,
+            LOG_WARN("recvmsg multicast failed, errno {}, errorMsg {}; restarting socket", receive_error,
                      strerror(receive_error));
             return ReceiveLoopExit::kRestartSocket;
         }
-        if (bytes == 0) {
+        if (bytes == 0 || (received.msg_flags & (MSG_TRUNC | MSG_CTRUNC)) != 0) {
             continue;
         }
 
@@ -327,6 +334,21 @@ DeviceDiscoveryServiceImpl::ReceiveLoopExit DeviceDiscoveryServiceImpl::RecvLoop
             };
         } catch (const std::exception& e) {
             LOG_WARN("loadjson error, msg {}, len: {}, catch {}", message, bytes, e.what());
+            continue;
+        }
+
+        for (auto* header = CMSG_FIRSTHDR(&received); header != nullptr;
+             header       = CMSG_NXTHDR(&received, header)) {
+            if (header->cmsg_level == IPPROTO_IP && header->cmsg_type == IP_PKTINFO &&
+                header->cmsg_len >= CMSG_LEN(sizeof(in_pktinfo))) {
+                in_pktinfo packet_info{};
+                std::memcpy(&packet_info, CMSG_DATA(header), sizeof(packet_info));
+                vagueMsg.receive_interface_index = static_cast<unsigned>(packet_info.ipi_ifindex);
+                vagueMsg.receive_local_address   = packet_info.ipi_spec_dst.s_addr;
+            }
+        }
+        if (vagueMsg.receive_interface_index == 0 || vagueMsg.receive_local_address == 0) {
+            LOG_WARN("{}", "ignore discovery packet without receiving interface metadata");
             continue;
         }
 
@@ -345,7 +367,8 @@ DeviceDiscoveryServiceImpl::ReceiveLoopExit DeviceDiscoveryServiceImpl::RecvLoop
                                     {"reqId", vagueMsg.reqId},
                                     {"resCode", static_cast<int>(util::ErrorEnum::AuthFailed)},
                                     {"resMsg", "authentication_required"}};
-            SendMessage(response.dump(), platform::GetIPString(peeraddr.sin_addr.s_addr));
+            SendMessage(response.dump(), platform::GetIPString(peeraddr.sin_addr.s_addr),
+                        vagueMsg.receive_interface_index, vagueMsg.receive_local_address);
         } else if ("req" == vagueMsg.type) {
             LOG_WARN("Ignore unknown production discovery command: {}", vagueMsg.cmd);
         }
@@ -353,31 +376,41 @@ DeviceDiscoveryServiceImpl::ReceiveLoopExit DeviceDiscoveryServiceImpl::RecvLoop
     return ReceiveLoopExit::kStopped;
 }
 
-void DeviceDiscoveryServiceImpl::SendMessage(std::string&& msg, const std::string& from) {
+void DeviceDiscoveryServiceImpl::SendMessage(std::string&& msg, const std::string& from,
+                                             unsigned interface_index, uint32_t local_address) {
     std::lock_guard<std::mutex> lock(socket_mtx_);
-    if (socket_fd_ < 0) {
-        LOG_WARN("{}", "cannot send multicast response: socket is not initialized");
+    if (socket_fd_ < 0 || interface_index == 0 || local_address == 0) {
+        LOG_WARN("{}", "cannot send discovery response without socket and receiving interface");
         return;
     }
 
-    struct sockaddr_in sendAddr;
-    memset(&sendAddr, 0, sizeof(sendAddr));
-    sendAddr.sin_family      = AF_INET;
-    sendAddr.sin_addr.s_addr = inet_addr(multicast_ip_.c_str());
-    sendAddr.sin_port        = htons(multicast_port_);
-    auto ret = sendto(socket_fd_, msg.c_str(), msg.size(), 0, reinterpret_cast<const sockaddr*>(&sendAddr),
-                      sizeof(sendAddr));
+    sockaddr_in destination{};
+    destination.sin_family = AF_INET;
+    destination.sin_port   = htons(multicast_port_);
+    inet_pton(AF_INET, multicast_ip_.c_str(), &destination.sin_addr);
+    alignas(cmsghdr) std::array<char, CMSG_SPACE(sizeof(in_pktinfo))> control{};
+    iovec payload{msg.data(), msg.size()};
+    msghdr outgoing{};
+    outgoing.msg_name       = &destination;
+    outgoing.msg_namelen    = sizeof(destination);
+    outgoing.msg_iov        = &payload;
+    outgoing.msg_iovlen     = 1;
+    outgoing.msg_control    = control.data();
+    outgoing.msg_controllen = control.size();
+    auto* header            = CMSG_FIRSTHDR(&outgoing);
+    header->cmsg_level      = IPPROTO_IP;
+    header->cmsg_type       = IP_PKTINFO;
+    header->cmsg_len        = CMSG_LEN(sizeof(in_pktinfo));
+    in_pktinfo packet_info{};
+    packet_info.ipi_ifindex         = static_cast<int>(interface_index);
+    packet_info.ipi_spec_dst.s_addr = local_address;
+    std::memcpy(CMSG_DATA(header), &packet_info, sizeof(packet_info));
 
-    if ((ret < 0) && (from.size() > 0)) {
-        LOG_WARN("{}", "send ack to multicastIp Fail, Current is DHCP mode? Need send to Peer");
-        memset(&sendAddr, 0, sizeof(sendAddr));
-        sendAddr.sin_family      = AF_INET;
-        sendAddr.sin_addr.s_addr = inet_addr(from.c_str());
-        sendAddr.sin_port        = htons(multicast_port_);
-        ret = sendto(socket_fd_, msg.c_str(), msg.size(), 0, reinterpret_cast<const sockaddr*>(&sendAddr),
-                     sizeof(sendAddr));
+    auto ret = sendmsg(socket_fd_, &outgoing, 0);
+    if (ret < 0 && inet_pton(AF_INET, from.c_str(), &destination.sin_addr) == 1) {
+        ret = sendmsg(socket_fd_, &outgoing, 0);
     }
-    LOG_INFO("send ack: {}, return: {}, sendMsg: {}", ret < 0 ? "failed" : "success", ret, msg);
+    LOG_INFO("send discovery ack: {}, return: {}", ret < 0 ? "failed" : "success", ret);
 }
 
 }  // namespace cosmo::service

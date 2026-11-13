@@ -6,10 +6,11 @@
 #include <fstream>
 #include <nlohmann/json.hpp>
 
+#include "platform/NetCardOp.h"
+#include "platform/WifiPlatform.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/media/impl/AudioServiceImpl.h"
 #include "service/network/IHttpClient.h"
-#include "service/network/INetworkConfig.h"
 #include "util/LimitedTypeJson.h"
 #include "util/Log.h"
 #include "util/TimeUtil.h"
@@ -293,17 +294,12 @@ bool AudioServiceImpl::PlayAudioDevice(cosmo::AudioDevicePlay& info) {
         LOG_WARN("Cant Get DevId:{}", info.devId);
         return false;
     }
-    bool b_main_card = false;
-    if ((devInfo.ethName == cosmo::service::kMainCardName) ||
-        (devInfo.ethName == cosmo::service::kMainEthName)) {
-        b_main_card = true;
-    }
-    auto net_cards = service::ServiceRegistry::Instance().Get<service::INetworkConfig>().GetNetCards();
     std::string ip;
-    auto it = std::find_if(net_cards.begin(), net_cards.end(),
-                           [b_main_card](const auto& netCard) { return netCard.isMain == b_main_card; });
-    if (it != net_cards.end()) {
-        ip = it->ipAddr;
+    if (devInfo.ethName == platform::kNetworkSubCardName || devInfo.ethName == platform::kNetworkSubEthName) {
+        // Explicit LAN remains a local callback contract, independent of WAN failover.
+        ip = platform::GetIpInfo(platform::kNetworkSubEthName).ip_addr;
+    } else {
+        ip = platform::AddressForPeer(devInfo.ip);
     }
     // 1.1.1.1  size = 7
     if (ip.size() < kMinIpLength) {

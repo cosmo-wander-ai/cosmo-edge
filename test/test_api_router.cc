@@ -357,3 +357,38 @@ TEST_CASE("ApiRouter: alarm deletion is authenticated and returns per-event resu
         CHECK(body["resCode"] == kServerRspFailed);
     }
 }
+
+TEST_CASE("ApiRouter: Wi-Fi management requires the HTTP session", "[ApiRouter][wifi-handler]") {
+    cosmo::test::ApiRouterTestDependencies mocks;
+    ApiRouter http_router(MessageFromType::MessageFromHttp);
+    ApiRouter mqtt_router(MessageFromType::MessageFromMqtt);
+    ALLOW_CALL(mocks.authSvc, IsValidToken("invalid-wifi-token")).RETURN(false);
+
+    for (const std::string action : {"queryNetworkStatus", "scanWifi", "connectWifi", "queryWifiOperation",
+                                     "confirmWifiConfig", "disconnectWifi", "forgetWifi"}) {
+        CAPTURE(action);
+        const auto uri = "/gtw/cwai/network/" + action;
+        CHECK(http_router.SupportsRoute(uri));
+        CHECK_FALSE(mqtt_router.SupportsRoute(uri));
+
+        RequestDispatchContext context;
+        context.uri         = uri;
+        context.transport   = RequestTransport::kHttp;
+        context.http_method = "POST";
+        context.credential  = "invalid-wifi-token";
+        context.principal   = "forged-admin";
+        CHECK(http_router.InspectRequest(context, true) == RequestAdmission::kUnauthorized);
+        CHECK(context.principal.empty());
+        std::string response;
+        CHECK_FALSE(http_router.DispatchRequest(
+            context, R"({"messageFrom":0,"mtk":"forged-body-token","password":"write-only-secret"})",
+            response));
+        CHECK(response.find("Auth Failed") != std::string::npos);
+        CHECK(response.find("write-only-secret") == std::string::npos);
+
+        context.transport  = RequestTransport::kMqtt;
+        context.credential = "forged-body-token";
+        CHECK(http_router.InspectRequest(context, true) == RequestAdmission::kUnauthorized);
+        CHECK(mqtt_router.InspectRequest(context, true) == RequestAdmission::kRouteNotFound);
+    }
+}

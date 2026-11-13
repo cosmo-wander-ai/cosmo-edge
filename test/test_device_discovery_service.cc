@@ -3,11 +3,9 @@
 #include <vector>
 
 #include "catch_amalgamated.hpp"
-#include "mock/MockNetworkConfig.h"
 #include "service/network/DeviceDiscoveryTypes.h"
 #include "service/network/impl/DeviceDiscoveryReceivePolicy.h"
 #include "service/network/impl/DeviceDiscoveryServiceImpl.h"
-#include "support/ScopedServiceOverride.h"
 
 TEST_CASE("DeviceDiscoveryService: response envelopes survive JSON round trip", "[device-discovery]") {
     SECTION("probe response") {
@@ -73,14 +71,62 @@ TEST_CASE("DeviceDiscoveryService: lifecycle safety", "[device-discovery]") {
 }
 
 TEST_CASE("DeviceDiscoveryService: Start then Stop", "[device-discovery]") {
-    cosmo::test::MockNetworkConfig networkSvc;
-    cosmo::test::ScopedServiceOverride<cosmo::service::INetworkConfig> registration(networkSvc);
-    // Some test hosts cannot join multicast through INADDR_ANY. The service
-    // then asks the network service for a main-interface fallback; keep that
-    // environment-dependent branch inside the mock contract.
-    ALLOW_CALL(networkSvc, GetCardRealInfos()).RETURN(std::vector<cosmo::platform::NetCardInfo>{});
-
     cosmo::service::DeviceDiscoveryServiceImpl sut("239.255.0.0", 46000);
     REQUIRE_NOTHROW(sut.Start());
     REQUIRE_NOTHROW(sut.Stop());
+}
+
+TEST_CASE("DeviceDiscoveryService: memberships follow live addresses on both links", "[device-discovery]") {
+    using cosmo::platform::NetworkInterfaceState;
+    using cosmo::service::detail::DiscoveryMembershipAddresses;
+    NetworkInterfaceState wired;
+    wired.interface_name    = "eth0";
+    wired.type              = "ethernet";
+    wired.link_up           = true;
+    wired.ip_addr           = "192.168.0.20";
+    wired.is_default        = true;
+    auto wireless           = wired;
+    wireless.interface_name = "wlP1p1s0";
+    wireless.type           = "wifi";
+    wireless.ip_addr        = "192.168.0.21";
+    wireless.is_default     = false;
+
+    auto memberships = DiscoveryMembershipAddresses({wired, wireless});
+    REQUIRE(memberships.size() == 2);
+    REQUIRE(memberships[1].first == "wlP1p1s0");
+    REQUIRE(memberships[1].second == "192.168.0.21");
+
+    wired.link_up       = false;
+    wireless.is_default = true;
+    wireless.ip_addr    = "192.168.0.22";
+    memberships         = DiscoveryMembershipAddresses({wired, wireless});
+    REQUIRE(memberships.size() == 1);
+    REQUIRE(memberships[0].second == "192.168.0.22");
+
+    wireless.ip_addr.clear();
+    REQUIRE(DiscoveryMembershipAddresses({wired, wireless}).empty());
+    wireless.ip_addr = "invalid";
+    REQUIRE(DiscoveryMembershipAddresses({wireless}).empty());
+    wireless.ip_addr = "127.0.0.1";
+    REQUIRE(DiscoveryMembershipAddresses({wireless}).empty());
+    wireless.ip_addr = "239.255.0.0";
+    REQUIRE(DiscoveryMembershipAddresses({wireless}).empty());
+}
+
+TEST_CASE("DeviceDiscoveryService: receive interface cannot be supplied by a packet", "[device-discovery]") {
+    const nlohmann::json packet{{"cmd", "probe"},
+                                {"type", "req"},
+                                {"reqId", "interface-spoof"},
+                                {"from", "192.0.2.1"},
+                                {"receive_interface_index", 42},
+                                {"receive_local_address", 1234}};
+    auto request = packet.get<cosmo::service::DiscoveryBaseMsg>();
+    REQUIRE(request.from.empty());
+    REQUIRE(request.receive_interface_index == 0);
+    REQUIRE(request.receive_local_address == 0);
+    request.receive_interface_index = 42;
+    request.receive_local_address   = 1234;
+    const nlohmann::json encoded    = request;
+    REQUIRE_FALSE(encoded.contains("receive_interface_index"));
+    REQUIRE_FALSE(encoded.contains("receive_local_address"));
 }

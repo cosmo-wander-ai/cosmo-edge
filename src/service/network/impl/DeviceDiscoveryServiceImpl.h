@@ -4,6 +4,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <map>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -35,7 +36,7 @@ private:
     // Multicast initialization (returns 0 on success).
     int InitMulticast();
     bool JoinMulticastGroup();
-    bool AddMulticastMembership(uint32_t group_address, uint32_t interface_address);
+    bool UpdateMulticastMemberships();
     void CloseSocket();
     void CloseSocketLocked();
 
@@ -44,7 +45,8 @@ private:
     ReceiveLoopExit RecvLoop();  // Receive multicast messages.
 
     // Message sending.
-    void SendMessage(std::string&& msg, const std::string& peer_ip);
+    void SendMessage(std::string&& msg, const std::string& peer_ip, unsigned interface_index,
+                     uint32_t local_address);
 
     // Message handlers.
     void HandleProbe(DiscoveryProbeRecv&& data);
@@ -55,8 +57,7 @@ private:
     int multicast_port_;
     int socket_fd_{-1};
     uint32_t multicast_group_address_{0};
-    uint32_t multicast_interface_address_{0};
-    bool multicast_joined_{false};
+    std::map<unsigned, uint32_t> multicast_memberships_;
     std::mutex thread_mtx_;
     std::mutex socket_mtx_;
     std::thread init_thread_;

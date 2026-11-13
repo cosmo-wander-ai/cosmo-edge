@@ -191,9 +191,11 @@ run_cppcheck() (
     local JOBS
     JOBS=$(nproc) || return $?
     local EXIT_CODE=0
+    # Standalone host analysis has no CMake compile definitions; select the CPU backend.
     cppcheck \
         --std=c++17 \
         --language=c++ \
+        -DCOSMO_NN_USE_CPU_BACKEND \
         --enable="$ENABLE" \
         --error-exitcode=1 \
         --inline-suppr \
