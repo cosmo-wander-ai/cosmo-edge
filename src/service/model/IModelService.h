@@ -24,8 +24,8 @@ namespace cosmo::service {
 class IModelService : public IModelQuery, public IModelPathMapping {
 public:
     // Reconcile a platform-reserved model ID; never allocate a second native model.
-    virtual cosmo::util::ErrorEnum AddManagedModel(const std::string& code,
-                                                   const cosmo::Model::MsgAddRecv& request) {
+    virtual cosmo::util::ErrorEnum AddManagedModel(const std::string& /*code*/,
+                                                   const cosmo::Model::MsgAddRecv& /*request*/) {
         return cosmo::util::ErrorEnum::InvalidParam;
     }
 

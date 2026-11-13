@@ -30,7 +30,7 @@ AlgMp4Record::AlgMp4Record(media::VideoCodecType streamType, const RecordParam& 
                            int width, int height) {
     recording_lease_ = service::AlarmMediaLease::StartRecording(recordParam.recordId);
     if (!recording_lease_) {
-        LOG_WARN("[MP4 TASK] Event is being deleted; recording was not started");
+        LOG_WARN("{}", "[MP4 TASK] Event is being deleted; recording was not started");
         return;
     }
     track_id_  = MP4_INVALID_TRACK_ID;

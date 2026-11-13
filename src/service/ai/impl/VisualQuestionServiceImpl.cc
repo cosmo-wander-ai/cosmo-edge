@@ -242,9 +242,15 @@ VisualQuestionPreparation VisualQuestionServiceImpl::Compile(const Job& job, boo
                 ref.at("question_version").is_number_integer() && ref.at("qtype").is_number_integer() &&
                 ref.at("question_version") == spec.question.at("version") &&
                 ref.at("bindings") == options_.binding.at("assets"));
-        VisualQuestionRef question{
-            spec.itemId,     ref.at("question_id"),     ref.at("question_version"), ref.at("compiled_sha256"),
-            ref.at("qtype"), ref.at("ordered_options"), ref.at("temperature")};
+        VisualQuestionRef question{spec.itemId,
+                                   ref.at("question_id"),
+                                   ref.at("question_version"),
+                                   ref.at("compiled_sha256"),
+                                   ref.at("qtype"),
+                                   ref.at("ordered_options"),
+                                   ref.at("temperature"),
+                                   {},
+                                   {}};
         Require(visual::ValidQuestion(question));
         if (spec.question.at("type") == "choice") {
             std::vector<std::string> labels;

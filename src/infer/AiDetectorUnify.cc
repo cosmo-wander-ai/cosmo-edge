@@ -202,7 +202,8 @@ util::ErrorEnum AiDetectorUnify::Forward(const std::vector<VideoFramePtr>& image
             if (obj.oriented_corners) {
                 const double max_x = dims.at(2) - 1.0;
                 const double max_y = dims.at(1) - 1.0;
-                if (max_x < 0 || max_y < 0 || obj.x2 < 0 || obj.y2 < 0 || obj.x1 > max_x || obj.y1 > max_y ||
+                if (max_x < 0 || max_y < 0 || obj.x2 < 0 || obj.y2 < 0 ||
+                    static_cast<double>(obj.x1) > max_x || static_cast<double>(obj.y1) > max_y ||
                     !std::isfinite(obj.x1) || !std::isfinite(obj.y1) || !std::isfinite(obj.x2) ||
                     !std::isfinite(obj.y2))
                     continue;

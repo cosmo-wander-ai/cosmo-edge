@@ -48,7 +48,7 @@ bool TaskAlarm::ReviewLayaEvent(const CMsgOnEventsReq& event, const DataAlarmUni
             },
             review);
     } catch (...) {
-        LOG_WARN("Laya review submission failed; alarm retained");
+        LOG_WARN("{}", "Laya review submission failed; alarm retained");
         return true;
     }
 }
