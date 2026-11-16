@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "nlohmann/json.hpp"
+#include "nn/utils/yolo26_output_layout.h"
 #include "util/Log.h"
 #include "util/NnBackendConstants.h"
 
@@ -54,12 +55,11 @@ namespace {
 
         // End-to-end decoded output [1, top_k, 6/7] carries no class-count info;
         // labels must be provided explicitly at import time.
-        if ((modelType == "yolo26_det" || modelType == "yolo26_obb_det") && shape.size() == 3 &&
-            (shape[2] == 6 || shape[2] == 7))
+        if (modelType == "yolo26_obb_det" && shape.size() == 3 && (shape[2] == 6 || shape[2] == 7))
             return 0;
 
         const auto class_field_count = [&]() {
-            if (modelType == "yolov5_det" || modelType == "yolo26_det")
+            if (modelType == "yolov5_det")
                 return 5;
             if (modelType == "yolo26_obb_det")
                 return 6;  // 4 box + 1 score + 1 angle
@@ -100,6 +100,25 @@ namespace {
         const auto& modelObj = doc["models"][0];
         if (!modelObj.contains("outputs") || !modelObj["outputs"].is_array() || modelObj["outputs"].empty())
             return 0;
+
+        if (modelType == "yolo26_det") {
+            std::optional<bool> raw_output;
+            if (modelObj.contains("params") && modelObj["params"].is_object()) {
+                const auto& params = modelObj["params"];
+                if (params.contains("raw_output")) {
+                    if (!params["raw_output"].is_boolean())
+                        return 0;
+                    raw_output = params["raw_output"].get<bool>();
+                }
+            }
+            const auto& outputs = modelObj["outputs"];
+            if (outputs.size() != 1)
+                return 0;
+            const auto shape = ReadShape(outputs[0]);
+            return nn::ResolveYolo26OutputLayout(shape, raw_output) == nn::Yolo26OutputLayout::kRaw
+                       ? shape[1] - 4
+                       : 0;
+        }
 
         for (const auto& output : modelObj["outputs"]) {
             const int class_count = InferClassCountFromShape(modelType, ReadShape(output));

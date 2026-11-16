@@ -527,6 +527,67 @@ TEST_CASE("ModelImportExporter Tests", "[model]") {
     fs::remove_all(testRoot);
 }
 
+TEST_CASE("YOLO26 import infers classes from raw channels without adding params", "[model][yolo26]") {
+    const int classes    = GENERATE(1, 2, 80);
+    const int candidates = GENERATE(1, 3, 8400);
+    cosmo::BmodelInfo info;
+    info.valid = true;
+    cosmo::BmodelNetworkInfo network;
+    network.max_batch = 1;
+    network.inputs.push_back({"images", {1, 3, 640, 640}, 0});
+    network.outputs.push_back({"raw_output", {1, 4 + classes, candidates}, 0});
+    info.networks.push_back(network);
+    nlohmann::json doc = {{"model_type", "yolo26_det"},
+                          {"models",
+                           {{{"inputs", {{{"name", "images"}, {"shape", {1, 3, 640, 640}}}}},
+                             {"outputs", {{{"name", "output0"}, {"shape", {1, 300, 6}}}}},
+                             {"params", {{"top_k", 300}}}}}}};
+    ModelImportExporter importer;
+    importer.UpdateTemplateConfig(doc, "test", "V1.0.0", "det", "yolo26_det", "", {info}, false, "", "");
+    REQUIRE(doc["labels"].size() == classes);
+    CHECK(doc["labels"].back()["id"] == std::to_string(classes - 1));
+    CHECK(doc["models"][0]["outputs"][0]["shape"] == nlohmann::json::array({1, 4 + classes, candidates}));
+    CHECK(doc["models"][0]["outputs"][0]["name"] == "raw_output");
+    CHECK_FALSE(doc["models"][0]["params"].contains("raw_output"));
+    const auto reloaded = nlohmann::json::parse(doc.dump());
+    CHECK(reloaded == doc);
+}
+
+TEST_CASE("YOLO26 import retains decoded and unresolved labels and honors overrides", "[model][yolo26]") {
+    const auto labels =
+        nlohmann::json::array({{{"id", "0"}, {"name", "existing"}, {"threshold", {0.4, 0.4}}}});
+    ModelImportExporter importer;
+    for (const auto& shape : std::vector<std::vector<int>>{
+             {1, 300, 6}, {1, 6, 6}, {1, 84, -1}, {1, -1, 8400}, {1, 4, 8400}, {1, 84}}) {
+        nlohmann::json doc = {{"labels", labels}, {"models", {{{"outputs", {{{"shape", shape}}}}}}}};
+        importer.UpdateTemplateConfig(doc, "test", "V1.0.0", "det", "yolo26_det", "", {}, false, "", "");
+        CHECK(doc["labels"] == labels);
+    }
+    for (bool raw : {false, true}) {
+        nlohmann::json doc = {
+            {"labels", labels},
+            {"models", {{{"outputs", {{{"shape", {1, 6, 6}}}}}, {"params", {{"raw_output", raw}}}}}}};
+        importer.UpdateTemplateConfig(doc, "test", "V1.0.0", "det", "yolo26_det", "", {}, false, "", "");
+        CHECK(doc["models"][0]["params"]["raw_output"] == raw);
+        if (raw)
+            CHECK(doc["labels"].size() == 2);
+        else
+            CHECK(doc["labels"] == labels);
+    }
+}
+
+TEST_CASE("YOLO26 import keeps valid ONNX names ahead of generated labels", "[model][yolo26]") {
+    cosmo::BmodelInfo info;
+    info.valid           = true;
+    info.class_names_raw = "{0: 'person', 1: 'vehicle'}";
+    nlohmann::json doc   = {{"models", {{{"outputs", {{{"shape", {1, 6, 8400}}}}}}}}};
+    ModelImportExporter importer;
+    importer.UpdateTemplateConfig(doc, "test", "V1.0.0", "det", "yolo26_det", "", {info}, false, "", "");
+    REQUIRE(doc["labels"].size() == 2);
+    CHECK(doc["labels"][0]["name"] == "person");
+    CHECK(doc["labels"][1]["name"] == "vehicle");
+}
+
 TEST_CASE("ONNX class metadata accepts complete Python and JSON dictionaries", "[model][metadata]") {
     struct Example {
         std::string raw;
