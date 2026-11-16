@@ -266,6 +266,8 @@ Status Yolo26DetPipeline::Init(const PipelineConfig& config, const std::string& 
         nlohmann::json p = pipeline_utils::ParseJsonObject(mc.params_json);
         if (p.contains("raw_output") && !p["raw_output"].is_boolean())
             return Status(COSMO_NN_ERR_INVALID_CFG, "YOLO E2E raw_output must be a boolean");
+        if (mc.outputs.size() != 1)
+            return Status(COSMO_NN_ERR_INVALID_CFG, "YOLO26 detection expects one output");
         ModelInfo model;
         model.name      = mc.name;
         model.filename  = mc.file_name;
@@ -299,11 +301,14 @@ Status Yolo26DetPipeline::Init(const PipelineConfig& config, const std::string& 
             output.name      = out_def.name;
             output.shape     = out_def.shape;
             output.data_type = out_def.data_type;
-            if (i == 0)
-                output.op =
+            if (i == 0) {
+                auto post =
                     pipeline_utils::MakeYoloE2EPostOp(conf_thresh, top_k, e2e_input_w, e2e_input_h,
                                                       pipeline_utils::ReadFloat(p, "nms_threshold", 0.7f),
                                                       pipeline_utils::ReadBool(p, "raw_output", false));
+                post->auto_detect_output = !p.contains("raw_output");
+                output.op                = std::move(post);
+            }
             model.output_node_infos.push_back(std::move(output));
         }
         model_info_.models.push_back(std::move(model));

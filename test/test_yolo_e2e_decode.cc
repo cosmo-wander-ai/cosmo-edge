@@ -28,9 +28,11 @@ namespace {
         YoloE2EDecodeNode node;
         DecodeTensor output;
 
-        explicit E2EDecoder(bool raw = false, int top_k = 4, float conf = 0.25f, float nms = 0.7f)
+        explicit E2EDecoder(bool raw = false, int top_k = 4, float conf = 0.25f, float nms = 0.7f,
+                            bool automatic = false)
             : output({2, top_k, 6}, std::vector<float>(2 * top_k * 6, -99.f)) {
-            auto op = pipeline_utils::MakeYoloE2EPostOp(conf, top_k, 200, 100, nms, raw);
+            auto op                = pipeline_utils::MakeYoloE2EPostOp(conf, top_k, 200, 100, nms, raw);
+            op->auto_detect_output = automatic;
             node.SetMaxBatch(2);
             node.LoadParam(op.get());
             REQUIRE((node.InferTopShapes() == COSMO_NN_OK));
@@ -64,6 +66,7 @@ namespace {
               "[nn][yolo26][decode]") {
         const auto decoded = pipeline_utils::MakeYoloE2EPostOp(0.25f, 4, 200, 100);
         CHECK_FALSE(decoded->raw_output);
+        CHECK_FALSE(decoded->auto_detect_output);
         const auto raw = pipeline_utils::MakeYoloE2EPostOp(0.25f, 4, 200, 100, 0.45f, true);
         CHECK(raw->raw_output);
         CHECK(raw->nms_threshold == Catch::Approx(0.45f));
@@ -71,8 +74,9 @@ namespace {
 
     TEST_CASE("YOLO end-to-end decoded pixel rows retain xyxy conversion without additional NMS",
               "[nn][yolo26][decode]") {
+        const bool automatic = GENERATE(false, true);
         DecodeTensor input{{1, 2, 6}, {10, 20, 50, 40, 0.9f, 0, 10, 20, 50, 40, 0.8f, 0}};
-        E2EDecoder decoder;
+        E2EDecoder decoder(false, 4, 0.25f, 0.7f, automatic);
         REQUIRE((decoder.Forward(input) == COSMO_NN_OK));
         decoder.CheckRow(0, 0, {30, 30, 40, 20, 0.9f, 0});
         decoder.CheckRow(0, 1, {30, 30, 40, 20, 0.8f, 0});
@@ -90,7 +94,8 @@ namespace {
 
     TEST_CASE("YOLO end-to-end raw node accepts arbitrary class counts and one candidate",
               "[nn][yolo26][decode]") {
-        const int classes = GENERATE(1, 2, 80);
+        const int classes    = GENERATE(1, 2, 80);
+        const bool automatic = GENERATE(false, true);
         std::vector<float> row(4 + classes, 0.05f);
         row[0]           = 100;
         row[1]           = 50;
@@ -98,7 +103,7 @@ namespace {
         row[3]           = 20;
         row[3 + classes] = 0.9f;
         DecodeTensor input{{1, 4 + classes, 1}, row};
-        E2EDecoder decoder(true);
+        E2EDecoder decoder(!automatic, 4, 0.25f, 0.7f, automatic);
         REQUIRE((decoder.Forward(input) == COSMO_NN_OK));
         decoder.CheckRow(0, 0, {100, 50, 40, 20, 0.9f, static_cast<float>(classes - 1)});
     }
@@ -123,12 +128,13 @@ namespace {
     }
 
     TEST_CASE("YOLO end-to-end default six-row tensor remains decoded", "[nn][yolo26][decode]") {
+        const bool automatic = GENERATE(false, true);
         DecodeTensor input{{1, 6, 6},
                            {
                                10, 20, 50, 40, 0.9f, 0, 30, 30, 50, 50, 0.8f, 1, 0, 0, 0, 0, 0, 0,
                                0,  0,  0,  0,  0,    0, 0,  0,  0,  0,  0,    0, 0, 0, 0, 0, 0, 0,
                            }};
-        E2EDecoder decoder;
+        E2EDecoder decoder(false, 4, 0.25f, 0.7f, automatic);
         REQUIRE((decoder.Forward(input) == COSMO_NN_OK));
         decoder.CheckRow(0, 0, {30, 30, 40, 20, 0.9f, 0});
         decoder.CheckRow(0, 1, {40, 40, 20, 20, 0.8f, 1});
@@ -144,8 +150,9 @@ namespace {
 
     TEST_CASE("YOLO end-to-end batches reuse fixed output capacity and clear padding",
               "[nn][yolo26][decode]") {
-        const bool raw = GENERATE(false, true);
-        E2EDecoder decoder(raw);
+        const bool raw       = GENERATE(false, true);
+        const bool automatic = GENERATE(false, true);
+        E2EDecoder decoder(raw && !automatic, 4, 0.25f, 0.7f, automatic);
         DecodeTensor single{
             raw ? DimsVector{1, 5, 1} : DimsVector{1, 1, 6},
             raw ? std::vector<float>{30, 30, 40, 20, 0.9f} : std::vector<float>{10, 20, 50, 40, 0.9f, 0}};
@@ -165,9 +172,10 @@ namespace {
 
     TEST_CASE("YOLO end-to-end raw node enforces top-k after class-aware suppression",
               "[nn][yolo26][decode]") {
+        const bool automatic = GENERATE(false, true);
         DecodeTensor input{
             {1, 5, 3}, RawRows({{50, 50, 40, 40, 0.9f}, {51, 50, 40, 40, 0.8f}, {150, 50, 20, 20, 0.7f}})};
-        E2EDecoder decoder(true, 2);
+        E2EDecoder decoder(!automatic, 2, 0.25f, 0.7f, automatic);
         REQUIRE((decoder.Forward(input) == COSMO_NN_OK));
         decoder.CheckRow(0, 0, {50, 50, 40, 40, 0.9f, 0});
         decoder.CheckRow(0, 1, {150, 50, 20, 20, 0.7f, 0});
@@ -194,6 +202,60 @@ namespace {
             DecodeTensor input{shape, std::vector<float>(48)};
             CHECK((decoder.Forward(input) != COSMO_NN_OK));
         }
+    }
+
+    TEST_CASE("YOLO26 automatic decoder uses each actual tensor layout", "[nn][yolo26][decode]") {
+        E2EDecoder decoder(false, 4, 0.25f, 0.7f, true);
+        CHECK(decoder.node.NeedBottomShapesInfered());
+        REQUIRE((decoder.node.InferTopShapesWithBottoms({{1, 5, 1}}, {DATA_TYPE_FLOAT}) == COSMO_NN_OK));
+        DecodeTensor raw{{1, 5, 1}, {30, 30, 40, 20, 0.9f}};
+        REQUIRE((decoder.Forward(raw) == COSMO_NN_OK));
+        decoder.CheckRow(0, 0, {30, 30, 40, 20, 0.9f, 0});
+        DecodeTensor decoded{{1, 1, 6}, {10, 20, 50, 40, 0.8f, 1}};
+        REQUIRE((decoder.Forward(decoded) == COSMO_NN_OK));
+        decoder.CheckRow(0, 0, {30, 30, 40, 20, 0.8f, 1});
+        decoder.CheckRow(0, 1, {0, 0, 0, 0, 0, 0});
+    }
+
+    TEST_CASE("YOLO26 automatic shape validation rejects invalid inputs before inference",
+              "[nn][yolo26][decode]") {
+        E2EDecoder decoder(false, 4, 0.25f, 0.7f, true);
+        for (const auto& dims :
+             std::vector<DimsVector>{{1, 4, 1}, {1, 5}, {1, 5, 1, 1}, {0, 5, 1}, {1, 5, -1}, {3, 5, 1}}) {
+            CAPTURE(dims);
+            CHECK((decoder.node.InferTopShapesWithBottoms({dims}, {DATA_TYPE_FLOAT}) != COSMO_NN_OK));
+            DecodeTensor input{dims, std::vector<float>(30)};
+            CHECK((decoder.Forward(input) != COSMO_NN_OK));
+        }
+        CHECK((decoder.node.InferTopShapesWithBottoms({}, {}) != COSMO_NN_OK));
+        CHECK((decoder.node.InferTopShapesWithBottoms({{1, 5, 1}}, {DATA_TYPE_INT32}) != COSMO_NN_OK));
+    }
+
+    TEST_CASE("YOLO26 automatic decoder validates NMS only for raw outputs", "[nn][yolo26][decode]") {
+        for (float invalid : {-0.1f, 1.1f, std::numeric_limits<float>::quiet_NaN()}) {
+            E2EDecoder decoder(false, 4, 0.25f, invalid, true);
+            DecodeTensor decoded{{1, 1, 6}, {10, 20, 50, 40, 0.9f, 0}};
+            REQUIRE((decoder.Forward(decoded) == COSMO_NN_OK));
+            CHECK((decoder.node.InferTopShapesWithBottoms({{1, 1, 6}}, {DATA_TYPE_FLOAT}) == COSMO_NN_OK));
+            DecodeTensor raw{{1, 5, 1}, {30, 30, 40, 20, 0.9f}};
+            CHECK((decoder.Forward(raw) == COSMO_NN_ERR_PARAM));
+            CHECK((decoder.node.InferTopShapesWithBottoms({{1, 5, 1}}, {DATA_TYPE_FLOAT}) ==
+                   COSMO_NN_ERR_PARAM));
+        }
+    }
+
+    TEST_CASE("YOLO26 automatic raw output performs class-aware NMS", "[nn][yolo26][decode]") {
+        DecodeTensor input{{1, 6, 3},
+                           RawRows({{100, 50, 40, 20, 0.9f, 0.1f},
+                                    {101, 50, 40, 20, 0.8f, 0.1f},
+                                    {100, 50, 40, 20, 0.1f, 0.85f}})};
+        E2EDecoder decoder(false, 4, 0.25f, 0.7f, true);
+        REQUIRE((decoder.Forward(input) == COSMO_NN_OK));
+        decoder.CheckRow(0, 0, {100, 50, 40, 20, 0.9f, 0});
+        decoder.CheckRow(0, 1, {100, 50, 40, 20, 0.85f, 1});
+        decoder.CheckRow(0, 2, {0, 0, 0, 0, 0, 0});
+        E2EDecoder forced_decoded;
+        CHECK((forced_decoded.Forward(input) == COSMO_NN_ERR_INVALID_INPUT));
     }
 
     TEST_CASE("YOLO end-to-end rejects missing, extra and null tensors", "[nn][yolo26][decode]") {
