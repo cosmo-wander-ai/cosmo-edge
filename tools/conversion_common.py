@@ -65,6 +65,10 @@ def conversion_parameters(contract: dict[str, Any], run_dir: Path) -> dict[str, 
     input_layout = _require_string(params.get("inputLayout"), "parameters.inputLayout").upper()
     pixel_format = _require_string(params.get("pixelFormat"), "parameters.pixelFormat").lower()
     input_shapes = _validate_shapes(params.get("inputShapes"), "parameters.inputShapes")
+    input_sizes = validate_input_sizes(params.get("inputSizes"), input_shapes)
+    input_mode = params.get("sophonInputMode", "dynamic")
+    if input_mode not in ("dynamic", "stages"):
+        raise core.WorkflowError("sophonInputMode must be dynamic or stages")
     output_shapes = params.get("expectedOutputShapes", [])
     if output_shapes:
         output_shapes = _validate_shapes(output_shapes, "parameters.expectedOutputShapes")
@@ -89,6 +93,8 @@ def conversion_parameters(contract: dict[str, Any], run_dir: Path) -> dict[str, 
         "inputLayout": input_layout,
         "pixelFormat": pixel_format,
         "inputShapes": input_shapes,
+        "inputSizes": input_sizes,
+        "sophonInputMode": input_mode,
         "expectedOutputShapes": output_shapes,
         "toolchainSpec": toolchain_spec,
         "tensorTolerance": tolerance,
@@ -103,6 +109,22 @@ def conversion_parameters(contract: dict[str, Any], run_dir: Path) -> dict[str, 
         "recordedBy": str(params.get("recordedBy", "")),
         "raw": params,
     }
+
+
+def validate_input_sizes(value: Any, input_shapes: list[list[int]]) -> list[list[int]]:
+    """Validate three H/W profiles against a single NCHW compilation limit."""
+    if value is None:
+        return []
+    if (not isinstance(value, list) or len(value) != 3 or len(input_shapes) != 1
+            or len(input_shapes[0]) != 4 or input_shapes[0][:2] != [1, 3]):
+        raise core.WorkflowError("inputSizes requires three H/W pairs and one batch-1 NCHW image input")
+    if any(not isinstance(size, list) or len(size) != 2
+           or any(type(dim) is not int or dim <= 0 or dim % 32 for dim in size)
+           for size in value) or len({tuple(size) for size in value}) != 3:
+        raise core.WorkflowError("inputSizes must contain three distinct positive stride-32 H/W pairs")
+    if any(size[0] > input_shapes[0][2] or size[1] > input_shapes[0][3] for size in value):
+        raise core.WorkflowError("inputSizes exceed the compilation input shape")
+    return value
 
 
 def _read_environment_report(

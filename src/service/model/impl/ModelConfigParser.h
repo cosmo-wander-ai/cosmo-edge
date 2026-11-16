@@ -8,6 +8,7 @@
 
 #include "nlohmann/json_fwd.hpp"
 #include "util/ErrorCode.h"
+#include "util/InferenceInputSize.h"
 
 namespace cosmo::service::detail {
 
@@ -35,6 +36,7 @@ struct ParsedModelConfig {
     ParsedIoShape input;
     ParsedIoShape output;
     std::vector<ParsedLabel> labels;
+    InferenceInputSizes input_sizes;
     bool valid{false};  // True if algorithm_code was successfully parsed
 };
 

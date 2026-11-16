@@ -8,6 +8,7 @@
 #include "nn/utils/net_utils.h"
 #include "nn/utils/profiler.h"
 #include "nn/utils/rect.h"
+#include "util/InferenceInputSize.h"
 
 namespace cosmo::nn {
 
@@ -20,6 +21,7 @@ public:
         std::string tokenizer_path;
         std::string word_table_path;
         int device_id = 0;
+        std::optional<InferenceInputSize> input_size;
     };
 
     DefaultComponent(const Options& options, std::string json_path, std::string model_path,

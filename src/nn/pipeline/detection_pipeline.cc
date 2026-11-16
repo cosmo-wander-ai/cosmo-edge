@@ -262,8 +262,16 @@ Status Yolo26DetPipeline::Init(const PipelineConfig& config, const std::string& 
     model_info_.reduce        = config.reduce;
     model_info_.type          = "yolo26_det";
 
+    InferenceInputSize selected;
+    std::string size_error;
+    if (!ResolveInferenceInputSize(config.input_sizes, config.requested_input_size, selected, size_error))
+        return Status(COSMO_NN_ERR_INVALID_CFG, size_error);
+
     for (const auto& mc : config.models) {
-        nlohmann::json p = pipeline_utils::ParseJsonObject(mc.params_json);
+        nlohmann::json p     = pipeline_utils::ParseJsonObject(mc.params_json);
+        const bool has_sizes = !config.input_sizes.sizes.empty();
+        if (has_sizes)
+            p["input_size"] = {selected.height, selected.width};
         if (p.contains("raw_output") && !p["raw_output"].is_boolean())
             return Status(COSMO_NN_ERR_INVALID_CFG, "YOLO E2E raw_output must be a boolean");
         if (mc.outputs.size() != 1)
@@ -274,11 +282,17 @@ Status Yolo26DetPipeline::Init(const PipelineConfig& config, const std::string& 
         model.file_md5  = mc.file_md5;
         model.max_batch = mc.max_batch;
         max_batch_      = mc.max_batch;
+        if (has_sizes) {
+            model.input_sizes         = config.input_sizes.sizes;
+            model.selected_input_size = selected;
+        }
 
         for (const auto& in_def : mc.inputs) {
             InputNodeInfo input;
-            input.name      = in_def.name;
-            input.shape     = in_def.shape;
+            input.name  = in_def.name;
+            input.shape = in_def.shape;
+            if (has_sizes)
+                input.shape = {1, 3, selected.height, selected.width};
             input.data_type = in_def.data_type;
             input.ops       = MakeDetPreprocess(p);
             model.input_node_infos.push_back(std::move(input));
@@ -291,8 +305,8 @@ Status Yolo26DetPipeline::Init(const PipelineConfig& config, const std::string& 
         int e2e_input_w = 640, e2e_input_h = 640;
         std::vector<int> input_size = pipeline_utils::ReadIntArray(p, "input_size", {}, 2);
         if (input_size.size() >= 2) {
-            e2e_input_w = input_size[0];
-            e2e_input_h = input_size[1];
+            e2e_input_h = input_size[0];
+            e2e_input_w = input_size[1];
         }
 
         for (size_t i = 0; i < mc.outputs.size(); i++) {

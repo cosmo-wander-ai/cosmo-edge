@@ -52,6 +52,8 @@ void from_json(const nlohmann::json& j, MsgAtomicModel& v) {
     JSON_OPT(j, v, atomicName);
     JSON_OPT(j, v, label);
     JSON_OPT(j, v, labelList);
+    JSON_OPT(j, v, inputSizes);
+    JSON_OPT(j, v, defaultInputSize);
 }
 
 void to_json(nlohmann::json& j, const MsgAtomicModel& v) {
@@ -59,6 +61,10 @@ void to_json(nlohmann::json& j, const MsgAtomicModel& v) {
     j["atomicName"] = v.atomicName;
     j["label"]      = v.label;
     j["labelList"]  = v.labelList;
+    if (!v.inputSizes.empty()) {
+        j["inputSizes"]       = v.inputSizes;
+        j["defaultInputSize"] = v.defaultInputSize;
+    }
 }
 
 void from_json(const nlohmann::json& j, MsgListSend::ResData& v) {

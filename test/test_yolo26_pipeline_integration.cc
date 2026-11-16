@@ -17,14 +17,25 @@ namespace {
     public:
         Status InitRaw(const PipelineConfig& config, const std::string& path, DeviceType device) {
             const auto& source = config.models.at(0);
-            const auto params  = pipeline_utils::ParseJsonObject(source.params_json);
+            auto params        = pipeline_utils::ParseJsonObject(source.params_json);
+            InferenceInputSize selected;
+            std::string error;
+            if (!ResolveInferenceInputSize(config.input_sizes, config.requested_input_size, selected, error))
+                return Status(COSMO_NN_ERR_INVALID_CFG, error);
+            const bool has_sizes = !config.input_sizes.sizes.empty();
+            if (has_sizes)
+                params["input_size"] = {selected.height, selected.width};
             ModelInfo model;
-            model.filename  = source.file_name;
-            model.max_batch = source.max_batch;
+            model.filename            = source.file_name;
+            model.max_batch           = source.max_batch;
+            model.input_sizes         = config.input_sizes.sizes;
+            model.selected_input_size = selected;
             for (const auto& def : source.inputs) {
                 InputNodeInfo input;
-                input.name      = def.name;
-                input.shape     = def.shape;
+                input.name  = def.name;
+                input.shape = def.shape;
+                if (has_sizes)
+                    input.shape = {1, 3, selected.height, selected.width};
                 input.data_type = def.data_type;
                 input.ops.push_back(pipeline_utils::MakeResizeOp(
                     pipeline_utils::ReadIntArray(params, "input_size", {640, 640}, 2),
@@ -100,6 +111,11 @@ namespace {
         REQUIRE_FALSE(json_config.at("models")[0].at("params").contains("raw_output"));
         PipelineConfig config;
         REQUIRE(bool(pipeline_utils::ParsePipelineConfig(json_config.dump(), config)));
+        if (manifest.contains("input_size")) {
+            InferenceInputSize size;
+            REQUIRE(ParseInferenceInputSize(manifest["input_size"].get<std::string>(), size));
+            config.requested_input_size = size;
+        }
         DeviceType device  = DEVICE_NAIVE;
         const auto backend = manifest.at("backend").get<std::string>();
         if (backend == "cpu") {
@@ -114,8 +130,14 @@ namespace {
 #else
             FAIL("This executable does not contain the Sophon backend");
 #endif
+        } else if (backend == "rknn") {
+#ifdef COSMO_NN_USE_RKNN_BACKEND
+            device = DEVICE_RKNN;
+#else
+            FAIL("This executable does not contain the RKNN backend");
+#endif
         } else {
-            FAIL("Fixture backend must be cpu or sophon");
+            FAIL("Fixture backend must be cpu, sophon or rknn");
         }
         Yolo26DetPipeline pipeline;
         auto status = pipeline.Init(config, model_path.string(), device, 0, nullptr, "", "");
@@ -125,8 +147,21 @@ namespace {
         status = raw_pipeline.InitRaw(config, model_path.string(), device);
         INFO(status.description());
         REQUIRE(bool(status));
+        std::unique_ptr<Yolo26DetPipeline> companion;
+        if (manifest.contains("parallel_input_size")) {
+            InferenceInputSize size;
+            REQUIRE(ParseInferenceInputSize(manifest["parallel_input_size"].get<std::string>(), size));
+            auto other_config                 = config;
+            other_config.requested_input_size = size;
+            companion                         = std::make_unique<Yolo26DetPipeline>();
+            status = companion->Init(other_config, model_path.string(), device, 0, nullptr, "", "");
+            INFO(status.description());
+            REQUIRE(bool(status));
+        }
         REQUIRE_FALSE(manifest.at("frames").empty());
         nlohmann::json report{{"backend", backend}, {"frames", nlohmann::json::array()}};
+        if (config.requested_input_size)
+            report["input_size"] = config.requested_input_size->ToString();
         size_t total = 0;
         for (const auto& frame : manifest.at("frames")) {
             const int width  = frame.at("width").get<int>();
@@ -165,6 +200,23 @@ namespace {
             std::vector<std::vector<ObjectInfoV1>> outputs;
             REQUIRE(bool(pipeline.ParseDetectionOutput(outputs)));
             REQUIRE(outputs.size() == 1);
+            if (companion) {
+                REQUIRE(bool(companion->Forward({{image}})));
+                std::vector<std::vector<ObjectInfoV1>> other_outputs;
+                REQUIRE(bool(companion->ParseDetectionOutput(other_outputs)));
+                REQUIRE(other_outputs.size() == 1);
+                REQUIRE(bool(pipeline.Forward({{image}})));
+                std::vector<std::vector<ObjectInfoV1>> repeated;
+                REQUIRE(bool(pipeline.ParseDetectionOutput(repeated)));
+                REQUIRE(repeated.size() == outputs.size());
+                REQUIRE(repeated[0].size() == outputs[0].size());
+                for (size_t i = 0; i < outputs[0].size(); ++i) {
+                    CHECK(repeated[0][i].x1 == Catch::Approx(outputs[0][i].x1));
+                    CHECK(repeated[0][i].y1 == Catch::Approx(outputs[0][i].y1));
+                    CHECK(repeated[0][i].infos[0].confidence ==
+                          Catch::Approx(outputs[0][i].infos[0].confidence));
+                }
+            }
             nlohmann::json objects = nlohmann::json::array();
             for (const auto& object : outputs[0]) {
                 REQUIRE_FALSE(object.infos.empty());
