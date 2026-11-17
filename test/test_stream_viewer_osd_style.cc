@@ -1176,4 +1176,76 @@ TEST_CASE("Target placement history is bounded and offscreen cards move immediat
     CHECK(panel.y + panel.height <= viewer.height_ - 4);
 }
 
+TEST_CASE("Pass-flow preview rebases both counters after task restart", "[stream][osd][pass-flow][restart]") {
+    test::MockTaskService tasks;
+    ALLOW_CALL(tasks, GetTaskFrameInfo(trompeloeil::_, trompeloeil::_, trompeloeil::_, trompeloeil::_,
+                                       trompeloeil::_, trompeloeil::_))
+        .RETURN(true);
+    test::ScopedServiceOverride<service::ITaskQuery> registration(tasks);
+    StreamViewerOverview viewer("camera", "algorithm");
+    MsgRecAlarm record;
+    record.type       = GENERATE(OnEventsPropertyType::People, OnEventsPropertyType::Car);
+    record.alarm      = true;
+    const auto report = [&](int64_t enter, int64_t leave, const std::string& expectedIn,
+                            const std::string& expectedOut) {
+        record.enterTotalCount = enter;
+        record.leaveTotalCount = leave;
+        std::vector<MsgRecAlarm> records{record};
+        viewer.LiveDataAlarmToLocal(records);
+        REQUIRE(viewer.infos_.passFlowOverviews.size() == 1);
+        const auto& texts = viewer.infos_.passFlowOverviews.front().text.posTexts;
+        REQUIRE(texts.size() == 2);
+        CHECK(texts[0].text == "IN : " + expectedIn);
+        CHECK(texts[1].text == "OUT: " + expectedOut);
+    };
+
+    report(82, 88, "0", "0");
+    report(100, 110, "18", "22");
+    SECTION("Restart reports zero before new crossings") {
+        report(0, 0, "0", "0");
+        report(0, 3, "0", "3");
+        report(2, 3, "2", "3");
+        report(2, 3, "2", "3");
+        report(0, 0, "0", "0");
+        report(1, 2, "1", "2");
+    }
+    SECTION("Restart is detected even if both new totals exceed the original baseline") {
+        report(90, 95, "0", "0");
+        report(91, 97, "1", "2");
+    }
+    SECTION("A decrease in either direction rebases both counters") {
+        report(101, 0, "0", "0");
+        report(102, 2, "1", "2");
+    }
+    SECTION("Filtered default-zero records do not reset the preview baseline") {
+        record.alarm = false;
+        report(0, 0, "18", "22");
+        record.alarm = true;
+        report(102, 113, "20", "25");
+    }
+}
+
+TEST_CASE("Pass-flow preview records a zero initial baseline before the first entry",
+          "[stream][osd][pass-flow]") {
+    test::MockTaskService tasks;
+    ALLOW_CALL(tasks, GetTaskFrameInfo(trompeloeil::_, trompeloeil::_, trompeloeil::_, trompeloeil::_,
+                                       trompeloeil::_, trompeloeil::_))
+        .RETURN(true);
+    test::ScopedServiceOverride<service::ITaskQuery> registration(tasks);
+    StreamViewerOverview viewer("camera", "algorithm");
+    std::vector<MsgRecAlarm> records(1);
+    records[0].type  = OnEventsPropertyType::People;
+    records[0].alarm = true;
+    viewer.LiveDataAlarmToLocal(records);
+    REQUIRE(viewer.infos_.passFlowOverviews.size() == 1);
+    CHECK(viewer.infos_.passFlowOverviews.front().text.posTexts[0].text == "IN : 0");
+    CHECK(viewer.infos_.passFlowOverviews.front().text.posTexts[1].text == "OUT: 0");
+
+    records[0].enterTotalCount = 1;
+    records[0].leaveTotalCount = 2;
+    viewer.LiveDataAlarmToLocal(records);
+    CHECK(viewer.infos_.passFlowOverviews.front().text.posTexts[0].text == "IN : 1");
+    CHECK(viewer.infos_.passFlowOverviews.front().text.posTexts[1].text == "OUT: 2");
+}
+
 }  // namespace
