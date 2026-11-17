@@ -116,6 +116,19 @@ if [ ! -f "${TRUSTED_STOP_SCRIPT}" ] || [ ! -x "${TRUSTED_STOP_SCRIPT}" ]; then
 fi
 "${TRUSTED_STOP_SCRIPT}"
 
+# The package explicitly selects a commissioned carrier; never infer wiring
+# from the chip name. Preserve custom/disabled mappings and fail visibly.
+ALARM_BOARD_FILE="${INSTALLPATH}/share/cosmo/alarm-output-board"
+if [ -f "${ALARM_BOARD_FILE}" ]; then
+    alarm_board="$(cat "${ALARM_BOARD_FILE}")"
+    if alarm_status="$(python3 "${SCRIPT_DIR}/prepare_sophon_alarm_outputs.py" \
+        --profile "${alarm_board}" --data-dir "${COSMO_DATA_DIR}" 2>&1)"; then
+        cosmo_log "$logTag" "${alarm_status}" "$logFile"
+    else
+        cosmo_log "$logTag" "WARNING: ${alarm_status}" "$logFile"
+    fi
+fi
+
 # Add iptables rule (idempotent - skips if already exists)
 if hash iptables 2>/dev/null; then
     cosmo_log "$logTag" "Ensuring iptables UDP/46000 rule..." "$logFile"

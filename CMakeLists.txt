@@ -962,6 +962,19 @@ if(COSMO_NN_USE_RKNN_BACKEND)
 endif()
 
 # Scripts (exclude dev-only tools from device deployment)
+set(COSMO_ALARM_OUTPUT_BOARD "none" CACHE STRING "Explicit AlarmOut carrier profile")
+set_property(CACHE COSMO_ALARM_OUTPUT_BOARD PROPERTY STRINGS none sophon-four-relay-v1)
+if(COSMO_ALARM_OUTPUT_BOARD STREQUAL "sophon-four-relay-v1")
+    if(NOT COSMO_TARGET_CHIP MATCHES "^(bm1688|cv186x)$")
+        message(FATAL_ERROR "The selected AlarmOut carrier requires bm1688 or cv186x")
+    endif()
+    file(WRITE "${CMAKE_BINARY_DIR}/alarm-output-board" "sophon-four-relay-v1\n")
+    install(FILES "${CMAKE_BINARY_DIR}/alarm-output-board" DESTINATION share/cosmo)
+elseif(NOT COSMO_ALARM_OUTPUT_BOARD STREQUAL "none")
+    message(FATAL_ERROR "Unknown COSMO_ALARM_OUTPUT_BOARD=${COSMO_ALARM_OUTPUT_BOARD}")
+endif()
+install(PROGRAMS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/prepare_sophon_alarm_outputs.py
+    DESTINATION scripts)
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/scripts/
     DESTINATION scripts
     FILES_MATCHING
