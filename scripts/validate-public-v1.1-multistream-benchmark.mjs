@@ -9,7 +9,9 @@ import { generateBenchmarkPages } from './generate-v1.1-benchmark-pages.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const workspace = path.resolve(here, '..');
 const root = path.join(workspace, 'docs', 'benchmarks', 'scenario-bench', 'v1.1');
+const extensionPath = path.join(workspace, 'docs', 'benchmarks', 'scenario-bench', 'rk3588', 'results.json');
 const errors = [];
+const extension = readJsonIfPresent(path.dirname(extensionPath), 'results.json');
 const options = parseArguments(process.argv.slice(2));
 const { archivePath } = options;
 
@@ -40,6 +42,8 @@ const dualCv72Hour = validateDualCv72HourEvidence(manifest, platformDefinitions,
 if (archivePath) validateArchivedEvidence(archivePath, manifest, canonicalPlatforms);
 validateCanonicalSourceLayout(platformDefinitions);
 validateSchemaDocument();
+if (!extension) fail('RK3588 extension source is required');
+else validateRk3588Extension(extension);
 
 const sourceFiles = fs.existsSync(root) ? walk(root) : [];
 // VitePress renders these canonical Markdown pages beside the standalone
@@ -62,7 +66,7 @@ if (!options.sourceOnly) {
     if (!generatedRoot) {
       temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cosmoedge-v1.1-validate-'));
       generatedRoot = temporaryRoot;
-      generation = generateBenchmarkPages({ sourceRoot: root, outputRoot: generatedRoot });
+      generation = generateBenchmarkPages({ sourceRoot: root, outputRoot: generatedRoot, requireRk3588Extension: true });
     }
     reportCount = validateGeneratedPack(generatedRoot, manifest, canonicalPlatforms, vlm, dualCv72Hour, generation);
   } catch (error) {
@@ -71,6 +75,7 @@ if (!options.sourceOnly) {
 }
 
 validatePublicScrub(sourceFiles, root, 'source');
+if (extension) validatePublicScrub([extensionPath], path.dirname(extensionPath), 'RK3588 extension');
 validateChecksums(root, 'source SHA256SUMS');
 // Markdown may link to generated reports. Resolve those links against the final
 // output in the full check, after the source-only prebuild admission succeeds.
@@ -1116,6 +1121,39 @@ function validateCanonicalSourceLayout(definitions) {
   }
 }
 
+function validateRk3588Extension(data) {
+  const nonempty = (value) => typeof value === 'string' && value.trim().length > 0;
+  if (data.schemaVersion !== 1 || data.platform !== 'RK3588') fail('RK3588 extension identity is invalid');
+  for (const field of ['device', 'architecture', 'os', 'runtime', 'build']) {
+    if (!nonempty(data.environment?.[field])) fail(`RK3588 environment.${field} is missing`);
+  }
+  if (!Array.isArray(data.conditions?.fpsTargets) || !sameArray(data.conditions.fpsTargets, [24, 10, 7, 5])
+    || !nonempty(data.conditions?.summaryZh) || !nonempty(data.conditions?.summaryEn)) fail('RK3588 test conditions are incomplete');
+  for (const kind of ['singleWorkloads', 'mixedWorkloads']) {
+    if (!Array.isArray(data[kind]) || !data[kind].length) { fail(`RK3588 ${kind} must not be empty`); continue; }
+    for (const row of data[kind]) {
+      if (!['workloadZh', 'workloadEn', 'version', 'detailsZh', 'detailsEn'].every((key) => nonempty(row[key]))) fail(`RK3588 ${kind} row is incomplete`);
+      if (!/^[0-9a-f]{8,64}$/u.test(row.version ?? '')) fail(`RK3588 ${kind} engine identity must be a SHA-256 prefix`);
+      if (kind === 'singleWorkloads' && (!row.results || ![24, 10, 7, 5].every((fps) => nonempty(row.results[String(fps)])))) fail('RK3588 single-workload FPS matrix is incomplete');
+      if (kind === 'mixedWorkloads' && (!Number.isFinite(row.modelStages) || !Number.isFinite(row.targetFps) || !nonempty(row.passingChannels) || !nonempty(row.bindings))) fail('RK3588 mixed-workload row is incomplete');
+    }
+  }
+  if (!nonempty(data.functionalSource?.summaryZh) || !nonempty(data.functionalSource?.summaryEn)) fail('RK3588 function-test source description is incomplete');
+  if (!Array.isArray(data.functionalValidation) || !data.functionalValidation.length) fail('RK3588 function-test results are missing');
+  else for (const row of data.functionalValidation) {
+    if (!['areaZh', 'areaEn', 'engine', 'resultZh', 'resultEn'].every((key) => nonempty(row[key]))) fail('RK3588 function-test row is incomplete');
+  }
+  if (!['pending', 'observed-not-accepted'].includes(data.longRun?.status)) fail('RK3588 long-run status is invalid');
+  if (data.longRun?.status === 'observed-not-accepted') {
+    const run = data.longRun;
+    if (!/^[0-9a-f]{64}$/u.test(run.engine ?? '')) fail('RK3588 long-run engine must be a full SHA-256');
+    if (!['summaryZh', 'summaryEn', 'conditionsZh', 'conditionsEn'].every((key) => nonempty(run[key]))) fail('RK3588 long-run description is incomplete');
+    const fields = ['durationHours', 'channels', 'tasks', 'nodes', 'completeWindows', 'passingWindows', 'samples', 'gateGroups', 'queues', 'queueDiscardDelta'];
+    if (!fields.every((key) => Number.isSafeInteger(run[key]) && run[key] >= 0) || typeof run.observedBypassZero !== 'boolean') fail('RK3588 long-run observations are invalid');
+    if (run.durationHours !== 48 || run.channels < 1 || run.tasks < 1 || run.nodes < 1 || run.passingWindows > run.completeWindows || run.completeWindows > run.durationHours * 120) fail('RK3588 long-run observation counts are inconsistent');
+  }
+}
+
 function validateSchemaDocument() {
   const schema = readJsonIfPresent(root, 'results/cases.schema.json');
   if (!schema) return;
@@ -1139,6 +1177,11 @@ function validateGeneratedPack(outputRoot, manifestValue, platforms, vlmValue, d
     'results/dual-cv-72h/report.html',
     'results/dual-cv-72h/report.zh-CN.html',
   ];
+  if (extension) {
+    expectedReports.push('results/rk3588/report.html', 'results/rk3588/report.zh-CN.html');
+    const copied = path.join(outputRoot, 'results', 'rk3588', 'results.json');
+    if (!fs.existsSync(copied) || !fs.readFileSync(copied).equals(fs.readFileSync(extensionPath))) fail('RK3588 canonical copy differs from its source');
+  }
   for (const platform of platforms) {
     for (const localeSuffix of ['', '.zh-CN']) {
       expectedReports.push(
@@ -1185,6 +1228,8 @@ function validateGeneratedPack(outputRoot, manifestValue, platforms, vlmValue, d
 
   for (const rootReport of ['report.html', 'report.zh-CN.html']) {
     const html = fs.readFileSync(path.join(outputRoot, rootReport), 'utf8');
+    const extensionLink = rootReport === 'report.zh-CN.html' ? 'results/rk3588/report.zh-CN.html' : 'results/rk3588/report.html';
+    if (!reportLinks(html).has(extensionLink)) fail(`${rootReport} is missing its RK3588 extension link`);
     for (const platform of platforms) {
       if (!html.includes(platform.platform)) fail(`${rootReport} is missing release platform ${platform.platform}`);
     }

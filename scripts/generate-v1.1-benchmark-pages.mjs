@@ -23,7 +23,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   );
 }
 
-export function generateBenchmarkPages({ sourceRoot = defaultSourceRoot, outputRoot = defaultOutputRoot } = {}) {
+export function generateBenchmarkPages({ sourceRoot = defaultSourceRoot, outputRoot = defaultOutputRoot, requireRk3588Extension } = {}) {
   sourceRoot = path.resolve(sourceRoot);
   outputRoot = path.resolve(outputRoot);
   if (sourceRoot === outputRoot) throw new Error('benchmark pages must be generated outside the canonical source directory');
@@ -32,6 +32,14 @@ export function generateBenchmarkPages({ sourceRoot = defaultSourceRoot, outputR
   const manifest = readJson(path.join(sourceRoot, 'release-manifest.json'));
   const platformDefs = Array.isArray(manifest.platforms) ? manifest.platforms : [];
   const platformIds = platformDefs.map((definition) => definition.id);
+  // This branch requires the RK3588 extension for its normal site build.
+  // Standalone v1.1 source packs remain usable without a sibling extension.
+  const extensionPath = path.resolve(sourceRoot, '..', 'rk3588', 'results.json');
+  const hasExtension = fs.existsSync(extensionPath);
+  const requireExtension = requireRk3588Extension ?? sourceRoot === defaultSourceRoot;
+  if (requireExtension && !hasExtension) throw new Error(`RK3588 extension source is missing: ${extensionPath}`);
+  const extension = hasExtension ? readJson(extensionPath) : null;
+  if (extension && platformIds.includes('rk3588')) throw new Error('RK3588 cannot be both a release platform and an extension');
   fs.mkdirSync(outputRoot, { recursive: true });
   copyCanonicalAssets(sourceRoot, outputRoot, platformIds);
 
@@ -39,6 +47,14 @@ export function generateBenchmarkPages({ sourceRoot = defaultSourceRoot, outputR
   const vlm = readJson(path.join(sourceRoot, 'results', 'vlm-observations.json'));
   const vlmByPlatform = new Map(vlm.observations.map((item) => [item.platformId, item]));
   const longRun = readJson(path.join(sourceRoot, 'results', 'dual-cv-72h.json'));
+  for (const name of ['report.html', 'report.zh-CN.html', 'results.json']) {
+    removePath(path.join(outputRoot, 'results', 'rk3588', name));
+  }
+  if (extension) {
+    const extensionOutput = path.join(outputRoot, 'results', 'rk3588');
+    fs.mkdirSync(extensionOutput, { recursive: true });
+    fs.copyFileSync(extensionPath, path.join(extensionOutput, 'results.json'));
+  }
   const longRunByPlatform = new Map(longRun.observations.map((item) => [item.platformId, item]));
   const caseCount = platforms.reduce((count, item) => count + item.cases.length, 0);
   let reportCount = 0;
@@ -48,9 +64,13 @@ export function generateBenchmarkPages({ sourceRoot = defaultSourceRoot, outputR
 
   for (const locale of ['en', 'zh-CN']) {
     const suffix = locale === 'zh-CN' ? '.zh-CN.html' : '.html';
-    writeReport(outputRoot, `report${suffix}`, renderRootReport(locale, manifest, platforms, vlmByPlatform, longRun));
+    writeReport(outputRoot, `report${suffix}`, renderRootReport(locale, manifest, platforms, vlmByPlatform, longRun, extension));
     writeReport(outputRoot, `results/dual-cv-72h/report${suffix}`, renderLongRunReport(locale, longRun, platforms));
     reportCount += 2;
+    if (extension) {
+      writeReport(outputRoot, `results/rk3588/report${suffix}`, renderRk3588Extension(locale, extension));
+      reportCount += 1;
+    }
 
     for (const platform of platforms) {
       const longRunObservation = longRunByPlatform.get(platform.id);
@@ -272,7 +292,7 @@ function renderVlmScope(locale) {
     : 'Scope: the validated VLM performance boundary comes from 60-second short-run steps. Each added route passes task-local readiness before the executed 0.1 FPS-per-channel, 80% achievement gate. This is not maximum-capacity, long-run, or production-profile certification.';
 }
 
-function renderRootReport(locale, manifest, platforms, vlmByPlatform, longRun) {
+function renderRootReport(locale, manifest, platforms, vlmByPlatform, longRun, extension) {
   const zh = locale === 'zh-CN';
   const targetFpsValues = manifest.controls.smallModelTargetFps;
   const longRunByPlatform = new Map(longRun.observations.map((item) => [item.platformId, item]));
@@ -357,6 +377,10 @@ function renderRootReport(locale, manifest, platforms, vlmByPlatform, longRun) {
     `<p>${anchor(`results/dual-cv-72h/report${zh ? '.zh-CN' : ''}.html`, zh ? '打开 72 小时多平台报告' : 'Open the 72-hour multi-platform report')} · ${anchor('results/dual-cv-72h.json', zh ? 'canonical 数据' : 'canonical data')}</p>`,
   ];
 
+  if (extension) {
+    body.push(`<h2>RK3588</h2><p>${anchor(`results/rk3588/report${zh ? '.zh-CN' : ''}.html`, zh ? '查看 RK3588 平台扩展报告' : 'Open the RK3588 platform extension report')}</p>`);
+  }
+
   body.push(
     `<h2>${zh ? '已验证 VLM 性能' : 'Validated VLM performance'}</h2>`,
     `<p>${zh ? '三平台使用同一协议，80%吞吐阈值在测试执行时直接参与 PASS/FAIL。' : 'All three platforms use one protocol, with the 80% throughput threshold participating directly in runtime PASS/FAIL.'}</p>`,
@@ -375,6 +399,55 @@ function renderRootReport(locale, manifest, platforms, vlmByPlatform, longRun) {
   );
 
   return page(locale, zh ? 'CosmoEdge 1.1 多平台容量基准' : 'CosmoEdge 1.1 Multi-Platform Benchmark', rootNav(locale), body.join(''));
+}
+
+function renderRk3588Extension(locale, extension) {
+  const zh = locale === 'zh-CN';
+  const env = extension.environment;
+  const mixedRows = extension.mixedWorkloads.map((row) => [
+    `${zh ? row.workloadZh : row.workloadEn} (${row.version})`, row.modelStages,
+    row.targetFps, row.passingChannels, row.bindings,
+  ]);
+  const singleRows = extension.singleWorkloads.map((row) => [
+    `${zh ? row.workloadZh : row.workloadEn} (${row.version})`,
+    ...extension.conditions.fpsTargets.map((fps) => row.results[String(fps)] ?? '—'),
+  ]);
+  const details = [...extension.singleWorkloads, ...extension.mixedWorkloads].map((row) =>
+    `<li><code>${escapeHtml(row.version)}</code>: ${escapeHtml(zh ? row.detailsZh : row.detailsEn)}</li>`).join('');
+  const longRun = extension.longRun;
+  const longRunText = longRun.status === 'pending'
+    ? (zh ? '48 小时混合任务长稳结果将在运行结束及核验后补充。' : 'The 48-hour mixed-workload result will be added after the run and verification.')
+    : (zh ? longRun.summaryZh : longRun.summaryEn);
+  const longRunTable = longRun.status === 'pending' ? '' :
+    `<p>${escapeHtml(zh ? longRun.conditionsZh : longRun.conditionsEn)}</p>` +
+    table(zh
+      ? ['平台', '观测时长', '固定路数', '任务绑定', '节点', '完整 / 通过窗口', '采样', '结果']
+      : ['Platform', 'Observation', 'Channels', 'Task bindings', 'Nodes', 'Complete / passing windows', 'Samples', 'Result'],
+    [['RK3588', `${longRun.durationHours} h`, longRun.channels, longRun.tasks, longRun.nodes,
+      `${longRun.completeWindows} / ${longRun.passingWindows}`, longRun.samples,
+      zh ? '观测完成，待验收' : 'Observed; acceptance pending']]) +
+    table(zh ? ['Gate 组数', '观测旁路', '队列数', '队列丢弃增量', '引擎 SHA-256'] : ['Gate groups', 'Observed bypass', 'Queues', 'Queue discard increment', 'Engine SHA-256'],
+      [[longRun.gateGroups, longRun.observedBypassZero ? '0' : (zh ? '非零' : 'Nonzero'), longRun.queues, longRun.queueDiscardDelta, longRun.engine]]);
+  const functionalRows = extension.functionalValidation.map((row) => [
+    zh ? row.areaZh : row.areaEn, row.engine, zh ? row.resultZh : row.resultEn,
+  ]);
+  const body = `<h1>RK3588 · ${zh ? '视频分析容量基准' : 'Video analytics benchmark'}</h1>` +
+    `<p>${escapeHtml(zh ? extension.conditions.summaryZh : extension.conditions.summaryEn)}</p>` +
+    `<h2>${zh ? '并发混合任务矩阵' : 'Concurrent mixed-workload matrix'}</h2>` +
+    table(zh ? ['每路任务组成（引擎 SHA-256 前缀）', '模型阶段/路', '目标 FPS/任务', '通过路数', '业务任务绑定'] : ['Workload per channel (engine SHA-256 prefix)', 'Model stages/ch', 'Target FPS/task', 'Passing channels', 'Business-task bindings'], mixedRows) +
+    `<p>${zh ? '* 表示下一档发生 MPP copy-out 失败并中止，当前数字是已完成档位。具体测试结果见下方说明。' : '* The next step stopped after an MPP copy-out failure; the number is the last completed step. See the result details below.'}</p>` +
+    `<h2>${zh ? '单任务容量矩阵' : 'Single-task capacity matrix'}</h2>` +
+    table([zh ? '任务（引擎 SHA-256 前缀）' : 'Workload (engine SHA-256 prefix)', ...extension.conditions.fpsTargets.map((fps) => `${fps} FPS`)], singleRows) +
+    `<p>${zh ? '* 表示下一档发生 MPP copy-out 失败并中止，当前数字为阶段性观测；— 表示该行没有通过的结果或未测试。' : '* The next step stopped after an MPP copy-out failure; the number is a provisional observation. — means no passing result or not tested in that row.'}</p>` +
+    `<h2>${zh ? '测试结果说明' : 'Result details'}</h2><ul>${details}</ul>` +
+    `<h2>${zh ? '48 小时混合任务长稳' : '48-hour mixed-workload observation'}</h2><p>${escapeHtml(longRunText)}</p>${longRunTable}` +
+    `<h2>${zh ? '测试环境' : 'Test environment'}</h2>` +
+    table(zh ? ['设备', '架构', '操作系统', '运行时 / 媒体', '构建环境'] : ['Device', 'Architecture', 'OS', 'Runtime / media', 'Build environment'], [[env.device, env.architecture, env.os, env.runtime, env.build]]) +
+    `<h2>${zh ? '视频与业务功能验证' : 'Video and business function validation'}</h2>` +
+    `<p>${escapeHtml(zh ? extension.functionalSource.summaryZh : extension.functionalSource.summaryEn)}</p>` +
+    table(zh ? ['验证项', '测试引擎身份', '结果'] : ['Validation', 'Tested engine identity', 'Result'], functionalRows) +
+    `<p>${anchor('results.json', zh ? '查看 canonical 数据' : 'Open canonical data')}</p>`;
+  return page(locale, `RK3588 ${zh ? '容量基准' : 'benchmark'}`, platformNav(locale), body);
 }
 
 function renderPlatformReport(locale, manifest, platform, observation, longRunObservation) {
