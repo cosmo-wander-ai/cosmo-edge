@@ -665,7 +665,8 @@ Status RknnNetNode::QueryTensorAttributes() {
         input_attrs_[index]       = {};
         input_attrs_[index].index = index;
         result =
-            rknn_query(context_, RKNN_QUERY_INPUT_ATTR, &input_attrs_[index], sizeof(input_attrs_[index]));
+            rknn_query(context_, input_sizes_.empty() ? RKNN_QUERY_INPUT_ATTR : RKNN_QUERY_CURRENT_INPUT_ATTR,
+                       &input_attrs_[index], sizeof(input_attrs_[index]));
         if (result != RKNN_SUCC)
             return RknnError("RKNN_QUERY_INPUT_ATTR", result);
     }
@@ -676,8 +677,9 @@ Status RknnNetNode::QueryTensorAttributes() {
     for (uint32_t index = 0; index < io_count_.n_output; ++index) {
         output_attrs_[index]       = {};
         output_attrs_[index].index = index;
-        result =
-            rknn_query(context_, RKNN_QUERY_OUTPUT_ATTR, &output_attrs_[index], sizeof(output_attrs_[index]));
+        result                     = rknn_query(context_,
+                            input_sizes_.empty() ? RKNN_QUERY_OUTPUT_ATTR : RKNN_QUERY_CURRENT_OUTPUT_ATTR,
+                                                &output_attrs_[index], sizeof(output_attrs_[index]));
         if (result != RKNN_SUCC)
             return RknnError("RKNN_QUERY_OUTPUT_ATTR", result);
         auto shape = TensorShape(output_attrs_[index]);
@@ -707,6 +709,52 @@ Status RknnNetNode::QueryTensorAttributes() {
     detector_model_   = yolov8_heads_ && input.n_dims == 4 && input.fmt == RKNN_TENSOR_NHWC &&
                       input.dims[0] == 1 && input.dims[1] == 640 && input.dims[2] == 640 &&
                       input.dims[3] == 3;
+    return COSMO_NN_OK;
+}
+
+Status RknnNetNode::PrepareInputSize() {
+    if (input_sizes_.empty())
+        return COSMO_NN_OK;
+    rknn_input_output_num count{};
+    if (rknn_query(context_, RKNN_QUERY_IN_OUT_NUM, &count, sizeof(count)) != RKNN_SUCC ||
+        count.n_input != 1 || count.n_output != 1)
+        return Status(COSMO_NN_ERR_INVALID_CFG, "Dynamic YOLO26 expects one input and one output");
+    rknn_tensor_attr input{};
+    int result = rknn_query(context_, RKNN_QUERY_INPUT_ATTR, &input, sizeof(input));
+    if (result != RKNN_SUCC)
+        return RknnError("RKNN_QUERY_INPUT_ATTR", result);
+    if (input.n_dims != 4 || (input.fmt != RKNN_TENSOR_NHWC && input.fmt != RKNN_TENSOR_NCHW))
+        return Status(COSMO_NN_ERR_INVALID_CFG, "Dynamic detector requires a 4D image input");
+    rknn_input_range range{};
+    result = rknn_query(context_, RKNN_QUERY_INPUT_DYNAMIC_RANGE, &range, sizeof(range));
+    if (result != RKNN_SUCC)
+        return RknnError("RKNN_QUERY_INPUT_DYNAMIC_RANGE", result);
+    if (range.n_dims != 4 || range.fmt != input.fmt)
+        return Status(COSMO_NN_ERR_INVALID_CFG, "RKNN dynamic input layout is inconsistent");
+    const int height_axis  = input.fmt == RKNN_TENSOR_NHWC ? 1 : 2;
+    const int width_axis   = height_axis + 1;
+    const int channel_axis = input.fmt == RKNN_TENSOR_NHWC ? 3 : 1;
+    if (range.shape_number == 0 || range.shape_number > RKNN_MAX_DYNAMIC_SHAPE_NUM)
+        return Status(COSMO_NN_ERR_INVALID_CFG, "RKNN model has no supported dynamic input sizes");
+    for (const auto& size : input_sizes_) {
+        bool found = false;
+        for (uint32_t i = 0; i < range.shape_number; ++i) {
+            const auto* dims = range.dyn_range[i];
+            if (dims[0] == 1 && dims[channel_axis] == 3 &&
+                dims[height_axis] == static_cast<uint32_t>(size.height) &&
+                dims[width_axis] == static_cast<uint32_t>(size.width))
+                found = true;
+        }
+        if (!found)
+            return Status(COSMO_NN_ERR_INVALID_CFG, "Declared size is absent from the RKNN artifact");
+    }
+    input.dims[0]            = 1;
+    input.dims[channel_axis] = 3;
+    input.dims[height_axis]  = selected_input_size_.height;
+    input.dims[width_axis]   = selected_input_size_.width;
+    result                   = rknn_set_input_shapes(context_, 1, &input);
+    if (result != RKNN_SUCC)
+        return RknnError("rknn_set_input_shapes", result);
     return COSMO_NN_OK;
 }
 
@@ -768,7 +816,9 @@ Status RknnNetNode::InitializeLoadedContext(uint64_t context_sequence) {
         DestroyContext();
         return RknnError("RKNN_QUERY_SDK_VERSION", result);
     }
-    auto status = QueryTensorAttributes();
+    auto status = PrepareInputSize();
+    if (status)
+        status = QueryTensorAttributes();
     if (!status) {
         DestroyContext();
         return status;

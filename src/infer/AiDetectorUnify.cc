@@ -33,6 +33,10 @@ AiDetectorUnify::~AiDetectorUnify() {
 }
 
 util::ErrorEnum AiDetectorUnify::Init() {
+    return Init(std::nullopt);
+}
+
+util::ErrorEnum AiDetectorUnify::Init(std::optional<InferenceInputSize> input_size) {
     if (detector_) {
         LOG_WARN("{}", "Init SDK Detector Failed. Already Init");
         return util::ErrorEnum::Created;
@@ -40,6 +44,7 @@ util::ErrorEnum AiDetectorUnify::Init() {
 
     try {
         cosmo::nn::DefaultComponent::Options options;
+        options.input_size = input_size;
         detector_ =
             std::make_unique<cosmo::nn::DefaultComponent>(options, cfg_path_, model_path_, GetDeviceType());
     } catch (const std::exception& e) {

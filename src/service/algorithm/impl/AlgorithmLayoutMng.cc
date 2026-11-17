@@ -17,12 +17,15 @@
 #include "nlohmann/json.hpp"
 #include "service/algorithm/IAlgorithmCrud.h"
 #include "service/detail/ServiceRegistry.h"
+#include "service/model/IModelPathMapping.h"
+#include "service/model/impl/ModelConfigParser.h"
 #include "util/DateTimeFormat.h"
 #include "util/Exec.h"
 #include "util/FileUtil.h"
 #include "util/JsonFileUtil.h"
 #include "util/Log.h"
 #include "util/PathUtil.h"
+#include "util/dto/ActionCodes.h"
 #include "util/dto/AlgorithmMsgTypes.h"
 #include "util/dto/PictureWorkflow.h"
 
@@ -30,6 +33,50 @@ namespace cosmo::service::detail {
 namespace alg = algorithm;
 
 namespace {
+    std::string GetStr(const nlohmann::json& doc, const std::string& key);
+    bool ValidateInputSizes(const std::string& encoded) {
+        const auto workflow = nlohmann::json::parse(encoded, nullptr, false);
+        if (!workflow.is_array())
+            return true;
+        for (const auto& node : workflow) {
+            if (!node.is_object() || !node.contains("configObject") || !node["configObject"].is_object())
+                continue;
+            const auto& object = node["configObject"];
+            if (!object.contains("params") || !object["params"].is_array())
+                continue;
+            std::optional<InferenceInputSize> requested;
+            std::string code;
+            for (const auto& param : object["params"]) {
+                if (!param.is_object())
+                    continue;
+                const auto key = param.value("key", std::string());
+                if (key == "atomicCode")
+                    code = GetStr(param, "value");
+                if (key == "inputSize") {
+                    InferenceInputSize size;
+                    if (requested || !ParseInferenceInputSize(GetStr(param, "value"), size))
+                        return false;
+                    requested = size;
+                }
+            }
+            if (!requested)
+                continue;
+            const auto action = node.value("actionId", std::string());
+            if (action != AADetect_Code && action != PADetect_Code)
+                return false;
+            std::string config_path, model_path;
+            if (!ServiceRegistry::Instance().Get<IModelPathMapping>().GetModelCfg(code, config_path,
+                                                                                  model_path))
+                return false;
+            const auto config = ModelConfigParser::Parse(config_path);
+            InferenceInputSize effective;
+            std::string error;
+            if (!config.valid || !ResolveInferenceInputSize(config.input_sizes, requested, effective, error))
+                return false;
+        }
+        return true;
+    }
+
     // Helper: get string from json with type coercion
     std::string GetStr(const nlohmann::json& doc, const std::string& key) {
         if (!doc.contains(key))
@@ -243,6 +290,12 @@ cosmo::util::ErrorEnum AlgorithmLayoutMng::LayoutSave(const algorithm::LayoutSav
         return cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail;
     }
     if (!ValidateAlgorithmMetadataParams(validatedMetadata)) {
+        return cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail;
+    }
+    try {
+        if (!ValidateInputSizes(req.algorithmProcessdata))
+            return cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail;
+    } catch (const std::exception&) {
         return cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail;
     }
     // LayoutSave is a read-modify-write transaction followed by hot reload and possible rollback.

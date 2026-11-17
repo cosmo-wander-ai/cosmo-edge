@@ -405,6 +405,7 @@ Status Graph::WireNetNode(const ModelInfo& model, const std::vector<std::string>
     net_ptr->SetNetworkInputNames(actual_input_names);
     net_ptr->SetNetworkOutputNames(actual_output_names);
     net_ptr->SetInputContract(model.input_contract);
+    net_ptr->SetInputSizes(model.input_sizes, model.selected_input_size);
 
     // Insert copy nodes right before net_node (after all preprocess nodes)
     std::move(new_copy_nodes.begin(), new_copy_nodes.end(), std::back_inserter(nodes));

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "util/InferenceInputSize.h"
 #include "util/LogicCalc.h"
 #include "util/MsgBaseTypes.h"
 
@@ -36,6 +37,7 @@ struct ActionNode : public ActionBase {
     std::string actionName;
     std::string atomAlgName;  // Atomic algorithm prefix (with path), extracted from configObject.params
     std::string atomicCode;   // Atomic algorithm code, extracted from configObject.params
+    std::optional<InferenceInputSize> input_size;
     MvActionConfigObject configObject;
 };
 

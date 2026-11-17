@@ -8,6 +8,7 @@
 #include "nn/core/macros.h"
 #include "nn/core/status.h"
 #include "nn/utils/op.h"
+#include "util/InferenceInputSize.h"
 
 namespace cosmo::nn {
 
@@ -40,6 +41,8 @@ struct PUBLIC ModelInfo {
     std::string file_md5       = {};
     std::string input_contract = {};
     int max_batch              = 0;
+    std::vector<InferenceInputSize> input_sizes;
+    InferenceInputSize selected_input_size;
 
     std::vector<InputNodeInfo> input_node_infos   = {};
     std::vector<OutputNodeInfo> output_node_infos = {};

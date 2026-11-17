@@ -69,6 +69,7 @@ def _report_shapes(text: str, kind: str) -> list[list[int]] | None:
     lines = re.findall(rf"^\s*{kind}\s*:\s*(.+)$", text, flags=re.MULTILINE | re.IGNORECASE)
     shapes = []
     for line in lines:
+        line = re.sub(r"\bmax\s*:\s*", "", line, flags=re.IGNORECASE)
         match = re.search(r"\[\s*(\d+(?:\s*,\s*\d+)*)\s*\]", line)
         if not match:
             return None
@@ -148,10 +149,19 @@ def check_package(
         add("modelInfo.mapping", "UNVERIFIED", "A single candidate/config/report mapping is unavailable; per-segment I/O evidence is required.")
     else:
         model = models[0]
+        profiles = parameters.get("inputSizes", [])
+        model_params = model.get("params", {})
+        if profiles:
+            compare("models[0].params.input_sizes", model_params.get("input_sizes"), profiles)
+            default = model_params.get("input_size")
+            add("models[0].params.defaultInputSize", "PASS" if default in profiles else "FAIL",
+                "The model default must belong to the frozen input profiles.")
         for kind, key in (("inputs", "inputShapes"), ("outputs", "expectedOutputShapes")):
             actual = [item.get("shape") if isinstance(item, dict) else None
                       for item in model.get(kind, [])] if isinstance(model.get(kind), list) else None
             expected = parameters.get(key)
+            if profiles and kind == "inputs" and model_params.get("input_size") in profiles:
+                expected = [[1, 3, *model_params["input_size"]]]
             if actual and expected:
                 effective = []
                 for index, shape in enumerate(actual):
@@ -179,13 +189,13 @@ def check_package(
             add("models[0].params", "UNVERIFIED", "Preprocessing parameters are not an object.")
         elif len(shapes) != 1 or len(shapes[0]) != 4 or layout not in ("NCHW", "NHWC"):
             add("models[0].params.spatialSize", "UNVERIFIED", "No unambiguous image input layout is frozen.")
-        elif model_type not in ("yolov8_det", "classify", "feature"):
+        elif model_type not in ("yolov8_det", "yolo26_det", "classify", "feature"):
             add("models[0].params.spatialSize", "UNVERIFIED", "This pipeline's preprocessing size contract is not implemented by the checker.")
         else:
             # Known pipeline defaults, not universal candidate dimensions. See
             # detection_pipeline.cc, classify_pipeline.cc and feature_pipeline.cc.
             field = "input_size"
-            defaults = {"yolov8_det": [640, 640], "classify": [224, 224], "feature": [112, 112]}[model_type]
+            defaults = {"yolov8_det": [640, 640], "yolo26_det": [640, 640], "classify": [224, 224], "feature": [112, 112]}[model_type]
             selector_known = True
             if model_type == "feature":
                 crop = params.get("crop", False)
@@ -203,7 +213,8 @@ def check_package(
                     add(f"models[0].params.{field}", "UNVERIFIED", "Cannot determine the effective preprocessing size from this value.")
                 else:
                     # Sophon resize/affine nodes consume height then width.
-                    spatial = shapes[0][2:4] if layout == "NCHW" else shapes[0][1:3]
+                    spatial = (model_params["input_size"] if profiles else
+                               (shapes[0][2:4] if layout == "NCHW" else shapes[0][1:3]))
                     compare(f"models[0].params.{field}", actual[:2], spatial)
 
         observed: dict[str, list[list[int]]] = {}

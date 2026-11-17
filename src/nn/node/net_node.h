@@ -34,6 +34,7 @@ public:
     void SetNetworkOutputNames(std::vector<std::string> names);
 
     void SetInputContract(std::string contract);
+    void SetInputSizes(std::vector<InferenceInputSize> sizes, InferenceInputSize selected);
 
     void SetOutputToCpu(bool v) {
         output_to_cpu_ = v;
@@ -48,6 +49,8 @@ protected:
     std::vector<std::string> network_input_names{};
     std::vector<std::string> network_output_names{};
     std::string input_contract_{};
+    std::vector<InferenceInputSize> input_sizes_;
+    InferenceInputSize selected_input_size_;
 };
 
 }  // namespace cosmo::nn

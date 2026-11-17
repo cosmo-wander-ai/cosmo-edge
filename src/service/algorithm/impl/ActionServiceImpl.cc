@@ -41,9 +41,20 @@ void ActionServiceImpl::ExpandLogicValues(cosmo::LogicCalc& logic) {
     }
 }
 
-void ActionServiceImpl::ExtractAtomAlgParams(cosmo::ActionNode& action, bool full_compat) {
+bool ActionServiceImpl::ExtractAtomAlgParams(cosmo::ActionNode& action, bool full_compat) {
+    action.input_size.reset();
+    bool size_seen = false;
     for (auto& param : action.configObject.params) {
         const std::string key = std::string(cosmo::util::Trim(param.key.ToString()));
+
+        if (key == "inputSize") {
+            InferenceInputSize size;
+            if (size_seen || !ParseInferenceInputSize(param.value.ToString(), size))
+                return false;
+            size_seen         = true;
+            action.input_size = size;
+            continue;
+        }
 
         if (cosmo::key::FPS == key) {
             action.initFps = cosmo::util::ParseFloat(param.value.ToString());
@@ -67,6 +78,7 @@ void ActionServiceImpl::ExtractAtomAlgParams(cosmo::ActionNode& action, bool ful
             action.atomicCode  = param.value.ToString();
         }
     }
+    return true;
 }
 
 cosmo::ActionAlgPtr ActionServiceImpl::FindByCodeVersion(
@@ -117,7 +129,8 @@ bool ActionServiceImpl::DoUpdateActionAlg(cosmo::ActionAlg& action_alg_in, std::
         if (needs_logic_expand(action.actionId)) {
             ExpandLogicValues(action.configObject.condition);
         } else if (needs_atom_params(action.actionId)) {
-            ExtractAtomAlgParams(action, full_compat_atom_keys);
+            if (!ExtractAtomAlgParams(action, full_compat_atom_keys))
+                return false;
         }
 
         if ((action.initFps > 0) && (action.initFps < min_fps)) {
