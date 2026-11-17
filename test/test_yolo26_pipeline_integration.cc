@@ -9,6 +9,7 @@
 #include "nn/core/abstract_device.h"
 #include "nn/pipeline/detection_pipeline.h"
 #include "nn/pipeline/pipeline_utils.h"
+#include "support/ScopedPathOverride.h"
 
 namespace cosmo::nn {
 namespace {
@@ -98,8 +99,10 @@ namespace {
         const auto manifest_path = std::filesystem::absolute(manifest_name);
         std::ifstream manifest_stream(manifest_path);
         REQUIRE(manifest_stream.good());
-        const auto manifest    = nlohmann::json::parse(manifest_stream);
-        const auto root        = manifest_path.parent_path();
+        const auto manifest = nlohmann::json::parse(manifest_stream);
+        const auto root     = manifest_path.parent_path();
+        cosmo::test::ScopedPathOverride path_override(manifest.value("data_root", cosmo::path::GetBaseDir()),
+                                                      cosmo::path::GetAppBaseDir());
         const auto config_path = root / manifest.at("config").get<std::string>();
         const auto model_path  = root / manifest.at("model").get<std::string>();
         const auto output_path = root / manifest.at("output").get<std::string>();
