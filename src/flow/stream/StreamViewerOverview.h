@@ -105,8 +105,10 @@ struct StreamOverviewInfo {
 
 struct StreamOverviewPassFlowRecord {
     bool record{false};
-    int enterNumber{-1};
-    int leaveNumber{-1};
+    int64_t enterNumber{0};
+    int64_t leaveNumber{0};
+    int64_t lastEnterNumber{0};
+    int64_t lastLeaveNumber{0};
 };
 
 class StreamViewerOverview {
