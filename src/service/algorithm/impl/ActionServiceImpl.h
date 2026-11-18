@@ -38,7 +38,7 @@ private:
 
     /// Extract FPS and atomic algorithm code from configObject.params.
     /// The full-compat version handles multiple key name aliases for atomicCode.
-    static void ExtractAtomAlgParams(cosmo::ActionNode& action, bool full_compat);
+    static bool ExtractAtomAlgParams(cosmo::ActionNode& action, bool full_compat);
 
     /// Predicate type: returns true if the given action node needs atomic param extraction.
     using ActionPredicate = std::function<bool(const std::string& action_id)>;

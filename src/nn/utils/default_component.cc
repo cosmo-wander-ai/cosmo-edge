@@ -26,6 +26,9 @@ DefaultComponent::DefaultComponent(const Options& options, std::string json_path
     status = pipeline_utils::ParsePipelineConfig(json_content, config);
     if (!bool(status))
         throw std::invalid_argument("Failed to parse pipeline config: " + std::string(status.description()));
+    config.requested_input_size = options.input_size;
+    if (options.input_size && config.model_type != "yolo26_det")
+        throw std::invalid_argument("Input size selection is supported only for YOLO26 detection");
 
     auto& registry = ModelPipelineRegistry::Instance();
     if (!registry.Has(config.model_type)) {

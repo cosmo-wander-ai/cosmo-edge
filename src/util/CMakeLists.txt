@@ -14,6 +14,7 @@ add_library(cosmo_util OBJECT
     FpsCtrl.cc           FpsCtrl.h
     GeometricPos.cc      GeometricPos.h
     HttpUrlUtil.cc       HttpUrlUtil.h
+    InferenceInputSize.cc InferenceInputSize.h
     JsonFileUtil.cc      JsonFileUtil.h
     Log.cc               Log.h
     NToL.cc              NToL.h

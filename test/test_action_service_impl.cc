@@ -3,6 +3,7 @@
 // Tests exercise the in-memory CRUD operations without external dependencies.
 
 #include "service/algorithm/impl/ActionServiceImpl.h"
+#include "util/dto/ActionCodes.h"
 
 using namespace cosmo::service;
 
@@ -19,6 +20,26 @@ cosmo::ActionAlg MakeAlg(const std::string& code, const std::string& version,
 }
 
 }  // namespace
+
+TEST_CASE("Detector input size is extracted once at task construction", "[action-service][input-sizes]") {
+    ActionServiceImpl sut;
+    auto alg = MakeAlg("sizes", "v1");
+    cosmo::ActionNode node;
+    node.actionId = std::string(cosmo::AADetect_Code);
+    cosmo::MsgDynamicKeyValue size;
+    size.key   = "inputSize";
+    size.value = "640x384";
+    node.configObject.params.push_back(size);
+    alg.workFlow.push_back(node);
+    REQUIRE(sut.UpdateActionAlg(alg));
+    const auto loaded = sut.GetActionAlg("sizes", "v1");
+    REQUIRE(loaded != nullptr);
+    REQUIRE(loaded->workFlow[0].input_size.has_value());
+    CHECK(*loaded->workFlow[0].input_size == cosmo::InferenceInputSize{640, 384});
+    alg.workFlow[0].configObject.params[0].value = "640x0";
+    CHECK_FALSE(sut.UpdateActionAlg(alg));
+    CHECK(loaded->workFlow[0].input_size->height == 384);
+}
 
 TEST_CASE("ActionServiceImpl: Video alg CRUD", "[action-service]") {
     ActionServiceImpl sut;

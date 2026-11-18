@@ -11,6 +11,9 @@
 #include <cctype>
 #include <string>
 
+#include "service/detail/ServiceRegistry.h"
+#include "service/model/IModelPathMapping.h"
+#include "service/model/impl/ModelConfigParser.h"
 #include "util/Keys.h"
 #include "util/Log.h"
 #include "util/SafeParse.h"
@@ -73,8 +76,25 @@ namespace {
     }
 }  // namespace
 
+// This concrete entry intentionally specializes placement; see AiDetectMng.h.
+// cppcheck-suppress duplInheritedMember
 AiDetectorPtr AiDetectMng::GetInst(const std::string& algCode, const std::string& channelId,
                                    const std::string& task, ActionNode& action) {
+    std::string config_path, model_path;
+    if (!service::ServiceRegistry::Instance().Get<service::IModelPathMapping>().GetModelCfg(
+            algCode, config_path, model_path))
+        return nullptr;
+    const auto config = service::detail::ModelConfigParser::Parse(config_path);
+    InferenceInputSize effective;
+    std::string size_error;
+    if (!config.valid ||
+        !ResolveInferenceInputSize(config.input_sizes, action.input_size, effective, size_error)) {
+        LOG_WARN("Detector input size rejected: {}", size_error);
+        return nullptr;
+    }
+    // Canonicalize only multi-size models; legacy callers keep their original initialization path.
+    if (!config.input_sizes.sizes.empty())
+        action.input_size = effective;
     const float requested_fps  = ResolvePlacementFps(algCode, action);
     const float normalized_fps = ai_detector_fps::NormalizeRequestedFps(requested_fps);
 
@@ -91,7 +111,7 @@ AiDetectorPtr AiDetectMng::GetInst(const std::string& algCode, const std::string
     // inference and break history/overview/confidence activation, so fps budget never rejects it.
     for (size_t i = 0; i < algInsts.size(); ++i) {
         const auto& inst = algInsts[i];
-        if (inst->ChannelExist(channelId)) {
+        if (inst->GetInputSize() == action.input_size && inst->ChannelExist(channelId)) {
             if (!inst->AddTask(channelId, task, requested_fps)) {
                 LOG_WARN("[{}] Channel:{} Task:{} Get {} Inst Failed", kTag, channelId, task, algCode);
                 return nullptr;
@@ -111,7 +131,7 @@ AiDetectorPtr AiDetectMng::GetInst(const std::string& algCode, const std::string
         const auto& inst            = algInsts[i];
         const float assigned_before = inst->AssignedFps();
         const float delta           = inst->DeltaFpsForTask(channelId, normalized_fps);
-        if (inst->CanAccept(channelId, requested_fps)) {
+        if (inst->GetInputSize() == action.input_size && inst->CanAccept(channelId, requested_fps)) {
             if (!inst->AddTask(channelId, task, requested_fps)) {
                 LOG_WARN("[{}] Channel:{} Task:{} Get {} Inst Failed", kTag, channelId, task, algCode);
                 return nullptr;

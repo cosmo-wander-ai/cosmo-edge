@@ -7,11 +7,15 @@ import argparse
 import hashlib
 import importlib.metadata
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 import onnx
 from rknn.api import RKNN
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from conversion_common import validate_input_sizes
 
 
 def sha256(path: Path) -> str:
@@ -42,6 +46,7 @@ def main() -> int:
     parser.add_argument("--quantize", action="store_true")
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--input-sizes", help="Three [height, width] pairs as JSON")
     args = parser.parse_args()
 
     spec_path = args.spec.resolve()
@@ -63,6 +68,18 @@ def main() -> int:
 
     spec = json.loads(spec_path.read_text(encoding="utf-8"))
     conversion = spec["conversion"]
+    declared_sizes = conversion.get("input_sizes")
+    if args.input_sizes:
+        requested_sizes = json.loads(args.input_sizes)
+        if declared_sizes is not None and declared_sizes != requested_sizes:
+            raise RuntimeError("input size profiles conflict with the model spec")
+        declared_sizes = requested_sizes
+    limit = conversion.get("input_shapes", [])
+    if declared_sizes and not limit:
+        if (isinstance(declared_sizes, list) and len(declared_sizes) == 3
+                and all(isinstance(size, list) and len(size) == 2 for size in declared_sizes)):
+            limit = [[1, 3, max(size[0] for size in declared_sizes), max(size[1] for size in declared_sizes)]]
+    input_sizes = validate_input_sizes(declared_sizes, limit)
     profile = None
     if platform_profile_path is not None:
         profile = json.loads(platform_profile_path.read_text(encoding="utf-8"))
@@ -113,12 +130,15 @@ def main() -> int:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     rknn = RKNN(verbose=args.verbose)
     try:
+        dynamic_config = ({"dynamic_input": [[[1, 3, height, width]] for height, width in input_sizes]}
+                          if input_sizes else {})
         # Mean/std are intentionally omitted: CosmoEdge already supplies normalized
         # NCHW float tensors and must remain the single preprocessing owner.
         require_success(
             rknn.config(
                 target_platform=target_platform,
                 optimization_level=int(conversion["optimization_level"]),
+                **dynamic_config,
             ),
             "rknn.config",
         )
@@ -157,6 +177,7 @@ def main() -> int:
             "target_platform": target_platform,
             "optimization_level": conversion["optimization_level"],
             "quantized": args.quantize,
+            "input_sizes": input_sizes,
             "dataset": str(args.dataset.resolve()) if args.dataset else None,
             "dataset_sha256": sha256(args.dataset.resolve()) if args.dataset else None,
             "preprocessing_owner": "host",

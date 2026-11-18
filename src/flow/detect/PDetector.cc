@@ -22,6 +22,7 @@ PDetector::~PDetector() {
 
 PDetector::PDetector(const std::string& taskId, ActionNode& action)
     : PActionBase(action, taskId),
+      input_size_(action.input_size),
       duration_stat_(taskId + "-" + action.actionName + "-" + action.flowActionId) {
     action_status_ = util::ErrorEnum::ActionReady;
     LOG_INFO("[{} {}] Init ", GetTaskId(), GetFlowActionId());
@@ -43,7 +44,7 @@ bool PDetector::ActionInit() {
         return false;
     }
     inst_    = std::make_shared<AiDetectorUnify>(GetAtomicCode(), cfgPath, modelPath);
-    auto ret = inst_->Init();
+    auto ret = inst_->Init(input_size_);
     if (util::ErrorEnum::Success != ret) {
         inst_.reset();
         inst_ = nullptr;

@@ -177,8 +177,10 @@ std::vector<cosmo::Model::MsgAtomicModel> ModelServiceImpl::QueryAtomicModels(co
                       cfg.model_type);
 
             cosmo::Model::MsgAtomicModel model;
-            model.atomicCode = cfg.algorithm_code;
-            model.atomicName = cfg.model_name;
+            model.atomicCode       = cfg.algorithm_code;
+            model.atomicName       = cfg.model_name;
+            model.inputSizes       = cfg.input_sizes.sizes;
+            model.defaultInputSize = cfg.input_sizes.default_size;
 
             // Filter by modelName
             if (!modelName.empty() && model.atomicName.find(modelName) == std::string::npos) {

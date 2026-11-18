@@ -1,6 +1,8 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -10,12 +12,34 @@
 #include "catch_amalgamated.hpp"
 #include "flow/task/TaskBase.h"
 #include "mock/MockAppInfoService.h"
+#include "mock/MockModelService.h"
 #include "service/ai/impl/LlmInferServiceImpl.h"
 #include "support/ScopedServiceOverride.h"
+#include "util/UuidUtil.h"
 #include "util/dto/ActionCodes.h"
 
 namespace cosmo {
 namespace {
+    struct StatusModelContext {
+        std::filesystem::path path =
+            std::filesystem::temp_directory_path() / ("cosmo-status-model-" + util::GenerateUUID() + ".json");
+        test::MockModelService model;
+        test::ScopedServiceOverride<service::IModelPathMapping> registration{model};
+        std::unique_ptr<trompeloeil::expectation> mapping;
+
+        StatusModelContext() {
+            std::ofstream(path)
+                << R"({"algorithm_code":"status","model_type":"yolo26_det","models":[{"name":"status","params":{"input_size":[640,640]}}]})";
+            using trompeloeil::_;
+            mapping = NAMED_ALLOW_CALL(model, GetModelCfg(_, _, _))
+                          .LR_SIDE_EFFECT(_2 = path.string())
+                          .LR_SIDE_EFFECT(_3 = "unused")
+                          .RETURN(true);
+        }
+        ~StatusModelContext() {
+            std::filesystem::remove(path);
+        }
+    };
 
     // Public status order, independent of the order in which a workflow creates its actions.
     constexpr std::array<std::string_view, 23> kActionStatusOrder = {
@@ -109,6 +133,7 @@ TEST_CASE("TaskBase empty aggregation preserves caller entries", "[TaskBase][sta
 
 TEST_CASE("TaskBase aggregates every manager in status order with the requested window",
           "[TaskBase][status]") {
+    StatusModelContext model_context;
     test::MockAppInfoService app_info;
     test::ScopedServiceOverride<service::IAppInfoService> app_info_guard(app_info);
     REQUIRE_CALL(app_info, GetNumber()).RETURN(0);
@@ -225,6 +250,7 @@ TEST_CASE("TaskBase aggregates every manager in status order with the requested 
 
 TEST_CASE("TaskBase aggregation retains shared instances until the last task is deleted",
           "[TaskBase][status][lifecycle]") {
+    StatusModelContext model_context;
     test::MockAppInfoService app_info;
     test::ScopedServiceOverride<service::IAppInfoService> app_info_guard(app_info);
     REQUIRE_CALL(app_info, GetNumber()).RETURN(0);
