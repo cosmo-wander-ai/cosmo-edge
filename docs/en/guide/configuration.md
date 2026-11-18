@@ -181,7 +181,8 @@ five seconds after the last trigger. Further alarms extend the hold time.
 
 ### Deployment and startup state
 
-After stopping the previous engine, the standard startup calls `scripts/prepare_alarm_outputs.py`.
+After stopping the previous engine, startup prefers an explicitly selected package carrier profile;
+otherwise it calls `scripts/prepare_alarm_outputs.py`.
 It checks direction and polarity for every mapped GPIO, initializes outputs inactive, then starts
 the engine. The BSP must export GPIOs and configure their direction first. The generated service
 runs after `rc-local.service`; configure ordering explicitly for other GPIO initialization services.
@@ -193,8 +194,25 @@ automatic provisioning is limited to the four-PhotoMOS board with both device-tr
 with kernel `active_low=0` on all four lines.
 This profile maps channels 1–4 to GPIOs 96–99 with active-high polarity and changes those boot
 assignments to 0. Failed mapping publication restores the startup script. The SoC name alone
-never selects this wiring. Other boards need an administrator-provided mapping based on their
-schematics, followed by an application restart.
+never selects this wiring.
+
+For the supported BM1688/CV186X four-output carriers, build with
+`-DCOSMO_ALARM_OUTPUT_BOARD=sophon-four-relay-v1` (default: `none`). The package marker selects
+`scripts/prepare_sophon_alarm_outputs.py`, which checks controller layout, ownership and pinmux,
+exports missing pins, initializes them low, and creates a mapping only if absent. It does not change
+pinmux or overwrite custom/disabled mappings. Initialization failures are logged without blocking
+the engine; shared readiness checks report unavailable channels.
+
+| Supported carrier | GPIOs for output channels 1 / 2 / 3 / 4 | Active level |
+| --- | --- | --- |
+| RK3576 carrier identified above | 96 / 97 / 98 / 99 | High |
+| Explicitly selected BM1688 carrier | 389 / 390 / 480 / 347 | High |
+| Explicitly selected CV186X carrier | 389 / 390 / 480 / 347 | High |
+
+All three use the same linkage, duration and readiness logic. These mappings are carrier-specific,
+not universal SoC defaults. Build upgrade packages separately for each target chip. Alarm IN is
+outside this feature. Other boards need an administrator-provided mapping based on their schematics,
+followed by an application restart.
 
 Saving workflows with output nodes and enabling strategies checks mapping, direction, kernel polarity
 and write access. An unavailable channel returns `AlarmOutputUnavailable`. Previously saved strategies
