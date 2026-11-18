@@ -283,9 +283,10 @@ TEST_CASE("ModelImportExporter Tests", "[model]") {
         network.name      = "onnx_network";
         network.max_batch = 1;
         network.inputs.push_back({"images", {1, 3, 640, 640}, 0});
-        network.outputs.push_back({"head_small", {1, 3, 80, 80, 6}, 0});
-        network.outputs.push_back({"head_medium", {1, 3, 40, 40, 6}, 0});
-        network.outputs.push_back({"head_large", {1, 3, 20, 20, 6}, 0});
+        const int classes = GENERATE(1, 80);
+        network.outputs.push_back({"head_small", {1, 3, 80, 80, 5 + classes}, 0});
+        network.outputs.push_back({"head_medium", {1, 3, 40, 40, 5 + classes}, 0});
+        network.outputs.push_back({"head_large", {1, 3, 20, 20, 5 + classes}, 0});
         bmodelInfo.networks.push_back(network);
 
         importExporter.UpdateTemplateConfig(doc, "4208523", "V1.0.0", "pedestrian", "yolov5_det", "desc",
@@ -299,6 +300,8 @@ TEST_CASE("ModelImportExporter Tests", "[model]") {
         REQUIRE(model["params"]["use_npu_postprocess"].get<bool>());
         REQUIRE(model["params"]["anchors"].size() == 3);
         REQUIRE(model["params"]["stride"].size() == 3);
+        REQUIRE(doc["labels"].size() == classes);
+        REQUIRE(doc["labels"].back()["id"] == std::to_string(classes - 1));
         REQUIRE(doc["labels"][0]["threshold"][0].get<double>() == 0.25);
         REQUIRE(doc["labels"][0]["threshold"][1].get<double>() == 0.25);
     }
