@@ -119,6 +119,39 @@ def prepare_run(root: Path, contract: dict) -> tuple[Path, Path]:
 
 
 class ModelConversionWorkflowTest(unittest.TestCase):
+    def test_three_input_sizes_enable_dynamic_transform_and_deploy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            contract = make_contract()
+            contract["parameters"]["inputShapes"] = [[1, 3, 640, 640]]
+            contract["parameters"]["inputSizes"] = [[320, 320], [640, 640], [384, 640]]
+            contract["parameters"]["disableLayerGroup"] = True
+            run_dir, _ = prepare_run(Path(directory), contract)
+            parameters = conversion.conversion_parameters(contract, run_dir)
+            self.assertIn("--dynamic", conversion.build_transform_arguments(
+                parameters, source_model="model.onnx", mlir="model.mlir"))
+            self.assertIn("--dynamic", conversion.build_deploy_arguments(
+                parameters, mlir="model.mlir", model="model.bmodel"))
+            self.assertIn("--disable_layer_group", conversion.build_deploy_arguments(
+                parameters, mlir="model.mlir", model="model.bmodel"))
+            for sizes in ([[320, 320], [640, 640]], [[320, 320], [640, 640], [640, 640]],
+                          [[320, 320], [640, 640], [384, 672]],
+                          [[320, 320], [640, 640], [385, 640]]):
+                contract["parameters"]["inputSizes"] = sizes
+                with self.assertRaises(core.WorkflowError):
+                    conversion.conversion_parameters(contract, run_dir)
+
+    def test_static_input_stages_do_not_enable_dynamic_compilation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            contract = make_contract()
+            contract["parameters"].update({"inputShapes": [[1, 3, 640, 640]],
+                "inputSizes": [[320, 320], [640, 640], [384, 640]], "sophonInputMode": "stages"})
+            run_dir, _ = prepare_run(Path(directory), contract)
+            parameters = conversion.conversion_parameters(contract, run_dir)
+            self.assertNotIn("--dynamic", conversion.build_transform_arguments(
+                parameters, source_model="model.onnx", mlir="model.mlir"))
+            self.assertNotIn("--dynamic", conversion.build_deploy_arguments(
+                parameters, mlir="model.mlir", model="model.bmodel"))
+
     def test_checker_only_cli_does_not_request_runtime_execution(self):
         with tempfile.TemporaryDirectory() as directory:
             model_path = Path(directory) / "source.onnx"

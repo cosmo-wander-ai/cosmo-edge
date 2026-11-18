@@ -80,6 +80,7 @@
 #include "service/network/IHttpLifecycle.h"
 #include "service/network/IMqttLifecycle.h"
 #include "service/network/INetworkConfig.h"
+#include "service/network/IWifiConfig.h"
 #include "service/network/impl/AuthServiceImpl.h"
 #include "service/network/impl/ClientMessageServiceImpl.h"
 #include "service/network/impl/DeviceDiscoveryServiceImpl.h"
@@ -87,6 +88,7 @@
 #include "service/network/impl/HttpLifecycleServiceImpl.h"
 #include "service/network/impl/MqttLifecycleServiceImpl.h"
 #include "service/network/impl/NetworkConfigServiceImpl.h"
+#include "service/network/impl/WifiConfigServiceImpl.h"
 #include "service/onboarding/IOnboardingService.h"
 #include "service/onboarding/impl/OnboardingServiceImpl.h"
 #include "service/onvif/impl/OnvifServiceImpl.h"
@@ -194,6 +196,8 @@ static void RegisterInfrastructureServices() {
             []() { return std::make_unique<cosmo::ApiRouter>(cosmo::MessageFromType::MessageFromMqtt); }));
     registry.Register<cosmo::service::INetworkConfig>(
         std::make_unique<cosmo::service::NetworkConfigServiceImpl>());
+
+    registry.Register<cosmo::service::IWifiConfig>(std::make_unique<cosmo::service::WifiConfigServiceImpl>());
 
     registry.Register<cosmo::service::IDeviceDiscoveryService>(
         std::make_unique<cosmo::service::DeviceDiscoveryServiceImpl>());
@@ -381,6 +385,7 @@ static void InitializeServices() {
     registry.Get<cosmo::service::IAlgorithmService>().Init();
 
     registry.Get<cosmo::service::INetworkConfig>().Init();
+    registry.Get<cosmo::service::IWifiConfig>().Init();
 
     registry.Get<cosmo::service::IDbService>().Init();
 
@@ -464,6 +469,9 @@ static void StopExternalComponents() {
     }
     if (registry.Has<cosmo::service::IMqttLifecycle>()) {
         stop("MQTT client", [&registry]() { registry.Get<cosmo::service::IMqttLifecycle>().MqttShutdown(); });
+    }
+    if (registry.Has<cosmo::service::IWifiConfig>()) {
+        stop("Wi-Fi worker", [&registry]() { registry.Get<cosmo::service::IWifiConfig>().Stop(); });
     }
     if (registry.Has<cosmo::service::INetworkConfig>()) {
         stop("network configuration worker",

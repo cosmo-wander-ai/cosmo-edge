@@ -176,11 +176,13 @@ run_cppcheck() (
             fi
             # Keep assertions enabled and model their evaluated expressions.
             # Catch2's own analysis mode preserves mutually exclusive sections.
+            # Define the compiler attribute probe for cppcheck's preprocessor.
             TEST_ARGS+=(
                 -I "$PROJECT_ROOT/test"
                 -UCATCH_CONFIG_DISABLE
                 -UCATCH_CONFIG_PREFIX_ALL
                 -DCATCH_CONFIG_EXPERIMENTAL_STATIC_ANALYSIS_SUPPORT
+                '-D__has_cpp_attribute(x)=0'
                 "--include=$PROJECT_ROOT/tools/cppcheck/Catch2Model.h"
             )
             break
@@ -189,9 +191,11 @@ run_cppcheck() (
     local JOBS
     JOBS=$(nproc) || return $?
     local EXIT_CODE=0
+    # Standalone host analysis has no CMake compile definitions; select the CPU backend.
     cppcheck \
         --std=c++17 \
         --language=c++ \
+        -DCOSMO_NN_USE_CPU_BACKEND \
         --enable="$ENABLE" \
         --error-exitcode=1 \
         --inline-suppr \

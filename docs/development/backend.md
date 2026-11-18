@@ -200,10 +200,8 @@ ROUTE("/gtw/cwai/System/", kAuth, system_handler_, System, QueryDeviceInfo);
 
 ### 构建和运行
 
-```bash
-bash scripts/build_cpu_test.sh
-./build_cpu/cosmo-tests
-```
+按[构建指南的 CPU 测试路径](../guide/build.md#cpu-测试构建)，在 Linux x86_64 宿主机的
+构建容器内先生成测试程序，再执行测试。该节统一维护镜像、运行库和结果判定方式。
 
 ### Mock
 

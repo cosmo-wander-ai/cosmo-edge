@@ -136,6 +136,13 @@ const char* RuntimeOptionsHelp() noexcept {
 bool IsHostManagementRoute(const std::string& route) {
     static const std::set<std::string> blocked{"/gtw/cwai/network/modifynetcard",
                                                "/gtw/cwai/network/modifynetdns",
+                                               "/gtw/cwai/network/querynetworkstatus",
+                                               "/gtw/cwai/network/scanwifi",
+                                               "/gtw/cwai/network/connectwifi",
+                                               "/gtw/cwai/network/querywifioperation",
+                                               "/gtw/cwai/network/confirmwificonfig",
+                                               "/gtw/cwai/network/disconnectwifi",
+                                               "/gtw/cwai/network/forgetwifi",
                                                "/gtw/cwai/system/ntpdate",
                                                "/gtw/cwai/system/modifytime",
                                                "/gtw/cwai/system/resetsystem",

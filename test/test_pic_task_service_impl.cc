@@ -57,14 +57,6 @@ struct PicTaskCancelDependencies {
 }  // namespace
 
 // ============================================================================
-// Construction
-// ============================================================================
-
-TEST_CASE("PicTaskServiceImpl: construction and destruction", "[PicTaskService]") {
-    REQUIRE_NOTHROW([]() { PicTaskServiceImpl sut; }());
-}
-
-// ============================================================================
 // Checksum round-trip
 // ============================================================================
 

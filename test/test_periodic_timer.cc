@@ -16,10 +16,6 @@
 
 using namespace cosmo;
 
-TEST_CASE("PeriodicTimer: construction and destruction", "[periodic-timer]") {
-    REQUIRE_NOTHROW([]() { PeriodicTimer timer("test-timer"); }());
-}
-
 TEST_CASE("PeriodicTimer: Start then Destroy lifecycle", "[periodic-timer]") {
     PeriodicTimer timer("lifecycle-test");
 

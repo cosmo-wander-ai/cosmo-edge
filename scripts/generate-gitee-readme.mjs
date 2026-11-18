@@ -46,7 +46,7 @@ const replacements = [
   {
     source: githubCloneCommand,
     target: giteeCloneCommand,
-    expectedOccurrences: 2
+    expectedOccurrences: 1
   }
 ];
 

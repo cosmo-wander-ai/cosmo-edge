@@ -12,6 +12,7 @@
 
 #include "platform/NetCardOpInternal.h"
 #include "platform/NetworkManagerConfig.h"
+#include "platform/WifiPlatform.h"
 #include "util/Exec.h"
 #include "util/FileUtil.h"
 #include "util/FormatString.h"
@@ -113,6 +114,7 @@ namespace {
 }  // namespace
 
 bool ModifyNetCfg(const NetCardInfo& main, const NetCardInfo& sub) {
+    const bool wifi_capable = HasWirelessInterface();
     std::string netplan_info;
     netplan_info.append("network:\n");
     netplan_info.append(kIndent2).append("version: 2\n");
@@ -126,6 +128,10 @@ bool ModifyNetCfg(const NetCardInfo& main, const NetCardInfo& sub) {
         netplan_info.append(kIndent6).append("addresses: []\n");
         netplan_info.append(kIndent6).append("optional: yes\n");
         netplan_info.append(kIndent6).append("dhcp-identifier: mac\n");
+        if (wifi_capable) {
+            netplan_info.append(kIndent6).append("dhcp4-overrides:\n");
+            netplan_info.append(kIndent8).append("route-metric: 100\n");
+        }
     } else {
         auto cidr = SubnetMaskToCIDR(main.net_mask);
         if (!cidr) {
@@ -143,23 +149,26 @@ bool ModifyNetCfg(const NetCardInfo& main, const NetCardInfo& sub) {
             netplan_info.append(kIndent6).append("routes:\n");
             netplan_info.append(kIndent8).append("- to: default\n");
             netplan_info.append(kIndent10).append("via: ").append(main.gateway).append("\n");
+            if (wifi_capable) {
+                netplan_info.append(kIndent10).append("metric: 100\n");
+            }
             if (!internal::IsSameIpv4Subnet(main.ip_addr, main.gateway, main.net_mask)) {
                 netplan_info.append(kIndent10).append("on-link: true\n");
             }
         }
         netplan_info.append(kIndent6).append("optional: yes\n");
+    }
 
-        if (!main.dnss.empty()) {
-            netplan_info.append(kIndent6).append("nameservers:\n");
-            netplan_info.append(kIndent8).append("addresses: [");
-            for (size_t i = 0; i < main.dnss.size(); i++) {
-                if (i > 0) {
-                    netplan_info.append(", ");
-                }
-                netplan_info.append(main.dnss[i]);
+    if (!main.dnss.empty()) {
+        netplan_info.append(kIndent6).append("nameservers:\n");
+        netplan_info.append(kIndent8).append("addresses: [");
+        for (size_t i = 0; i < main.dnss.size(); i++) {
+            if (i > 0) {
+                netplan_info.append(", ");
             }
-            netplan_info.append("]\n");
+            netplan_info.append(main.dnss[i]);
         }
+        netplan_info.append("]\n");
     }
 
     // eth1
@@ -169,6 +178,10 @@ bool ModifyNetCfg(const NetCardInfo& main, const NetCardInfo& sub) {
         netplan_info.append(kIndent6).append("addresses: []\n");
         netplan_info.append(kIndent6).append("optional: yes\n");
         netplan_info.append(kIndent6).append("dhcp-identifier: mac\n");
+        if (wifi_capable) {
+            netplan_info.append(kIndent6).append("dhcp4-overrides:\n");
+            netplan_info.append(kIndent8).append("use-routes: false\n");
+        }
     } else {
         auto cidr = SubnetMaskToCIDR(sub.net_mask);
         if (!cidr) {

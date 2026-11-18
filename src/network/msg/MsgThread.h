@@ -20,7 +20,7 @@ public:
     virtual ~MsgThread() = default;
 
     // Start or restart the message loop after a completed stop.
-    bool start();
+    bool start() override;
 
     // Stop the message-loop thread and join.
     void Stop();

@@ -2,6 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include "platform/WifiPlatform.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/network/INetworkConfig.h"
 #include "service/network/impl/DeviceDiscoveryServiceImpl.h"
@@ -42,9 +43,20 @@ void DeviceDiscoveryServiceImpl::HandleProbe(DiscoveryProbeRecv&& data) {
             {"deviceSn", "设备SN", ServiceRegistry::Instance().Get<IDeviceHardware>().GetDevSn()});
     }
 
-    ret_data.resCode = errc.value();
-    ret_data.resMsg  = errc.message();
-    SendMessage(std::move(nlohmann::json(ret_data).dump()), data.from);
+    ret_data.resCode                        = errc.value();
+    ret_data.resMsg                         = errc.message();
+    auto response                           = nlohmann::json(ret_data);
+    const auto interfaces                   = platform::ReadNetworkInterfaces();
+    response["resData"]["interfaces"]       = platform::NetworkInterfacesJson(interfaces);
+    response["resData"]["currentAddress"]   = platform::CurrentHostAddress();
+    response["resData"]["currentInterface"] = "";
+    for (const auto& interface : interfaces) {
+        if (interface.is_default) {
+            response["resData"]["currentInterface"] = interface.interface_name;
+            break;
+        }
+    }
+    SendMessage(response.dump(), data.from, data.receive_interface_index, data.receive_local_address);
 }
 
 }  // namespace cosmo::service

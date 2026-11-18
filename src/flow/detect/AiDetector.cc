@@ -153,9 +153,10 @@ AiDetector::AiDetector(ActionNode& action)
     : AlgActionBase(AlgActionType::AlgActionAiDetect, action, "", "", action.atomicCode + " AiDetector") {
     action_status = util::ErrorEnum::ActionReady;
     data_queue->SetMaxSize(30);
-    alg_code_ = action.atomicCode;
-    name_     = action.atomicCode;
-    uuid      = util::GenerateUUID();
+    alg_code_   = action.atomicCode;
+    input_size_ = action.input_size;
+    name_       = action.atomicCode;
+    uuid        = util::GenerateUUID();
 
     // Admit the first frame immediately. AiSdkInit replaces this with the
     // loaded model's bounded batch before the next queue drain.
@@ -212,7 +213,7 @@ bool AiDetector::AiSdkInit() {
     }
     LOG_INFO("{}cfgPath:{}, modelPath:{}", kTag, cfgPath, modelPath);
     detector_ = std::make_shared<AiDetectorUnify>(alg_code_, cfgPath, modelPath);
-    auto ret  = detector_->Init();
+    auto ret  = detector_->Init(input_size_);
     if (util::ErrorEnum::Success != ret) {
         detector_.reset();
         detector_     = nullptr;
@@ -287,6 +288,9 @@ void AiDetector::HandFrames(std::vector<AlgDataPtr> alg_datas) {
     std::vector<AlgDataPtr> activeAlgDatas;
     for (auto algData : alg_datas) {
         if (algData && algData->chanDataDec.frame && algData->chanDataDec.frame->Active()) {
+            // Different size instances can receive the same decoded frame wrapper.
+            if (input_size_)
+                algData = AlgDataCopy(algData);
             images.push_back(algData->chanDataDec.frame);
             native_buffers.push_back(algData->chanDataDec.native_buffer);
             activeAlgDatas.push_back(algData);

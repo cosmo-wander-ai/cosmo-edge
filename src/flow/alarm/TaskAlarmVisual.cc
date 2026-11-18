@@ -99,7 +99,8 @@ void TaskAlarm::CaptureVisualAlarmCandidates(const AlgDataPtr& data) {
                 candidate.sourceTargetId = target.sourceTargetId;
                 candidate.trackIndex     = -1;  // Scalar tracking belongs to the unit, not each target.
                 candidate.box            = {target.box.x, target.box.y, target.box.width, target.box.height};
-                candidate.confidence     = {{target.label, "", target.confidence}};
+                candidate.confidence     = {
+                    {target.label, "", target.confidence, AiAnnotationSource::Unknown, {}}};
                 candidate.attributes.clear();
                 unit.visualCandidates.push_back(std::move(candidate));
             }

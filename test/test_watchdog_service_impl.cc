@@ -10,10 +10,6 @@
 
 using namespace cosmo::service;
 
-TEST_CASE("WatchDogServiceImpl: construction and destruction", "[WatchDogService]") {
-    REQUIRE_NOTHROW([]() { WatchDogServiceImpl sut; }());
-}
-
 TEST_CASE("WatchDogServiceImpl: Start and Stop", "[WatchDogService][.device]") {
     WatchDogServiceImpl sut;
 

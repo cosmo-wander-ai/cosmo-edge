@@ -98,16 +98,20 @@ variables described by older guides. Diagnose GHCR pulls, npm-cache population, 
 | Variable / argument | Default | Description |
 | --- | --- | --- |
 | `COSMO_TARGET_CHIP` | `rk3576` | `rk3576` or `rv1126b`; Compose passes it to `--chip` |
-| `COSMO_PACKAGE_MODELS` | `include` | `include` or `preserve`, which is only for code/structure validation |
+| `COSMO_MODEL_GUARD_BUILD_PROFILE` | `public-runtime` | Open; `production-release` supports RK3576 Protected only |
+| `COSMO_MODEL_GUARD_SDK_ROOT` | Repository RKNN SDK when not overridden | Protected uses `prebuild/model-guard-v2-rknn-abi1/`; overrides must be container-accessible |
+| `COSMO_PACKAGE_MODELS` | `include` | `include` carries models; `preserve` retains installed models and cannot initialize a blank device |
 | `COSMO_BUILD_JOBS` | `4` | Cross-build parallelism |
 | `COSMO_ROCKCHIP_BUILDER_IMAGE` | Repository-pinned GHCR digest | Controlled builder-image override |
 | `COSMO_RKNN_ARTIFACT_MANIFEST` | Manifest from the platform profile | Selects a model bundle with source, hash, usage, and license identity; commercial or proprietary inputs use a separate manifest in an ignored task directory |
 
 The builder also uses the npm cache/retry variables listed for Sophon. An RV1126B `include` build generates
 and verifies `output/platform-artifacts/rv1126b/resource-overlay` from the selected artifact manifest;
-`preserve` validates only code and package structure and is not device acceptance. The repository default is
+`preserve` carries no models; build results do not establish model delivery or device acceptance. The repository default is
 an AGPL-3.0 community example bundle, not a commercial model deliverable. Commercial or proprietary models
 require an independent manifest and license record.
+
+See [advanced build options](./build.md#advanced-build-options) for Protected commands and chip support.
 
 ## Resource Directories
 
@@ -129,10 +133,11 @@ inventory, size, and SHA-256.
 | Path | Description |
 | --- | --- |
 | `/appfs/cosmo_wander/cwai_data` | Default application installation directory |
-| `/data/cwaiuserdata` | Default user-data root |
-| `/data/cwaiuserdata/log/logs` | Application logs |
-| `/data/cwaiuserdata/upgrade` | Upgrade staging directory |
-| `/data/cwaiuserdata/tmp/*` | nginx temporary directories |
+| `/data/cwaiuserdata` | Default Sophon and x86 data root; x86 mounts a named volume |
+| `/userdata/cwaiuserdata` | Default RK3576 / RV1126B data root |
+| `<data-root>/log/logs` | Application logs |
+| `<data-root>/upgrade` | Upgrade staging directory |
+| `<data-root>/tmp/*` | nginx temporary directories |
 
 Device deployments may override the application and data roots with `COSMO_APP_DATA_DIR` and `COSMO_DATA_DIR`.
 Overrides must be controlled absolute paths consistent with the service and persistence policy.

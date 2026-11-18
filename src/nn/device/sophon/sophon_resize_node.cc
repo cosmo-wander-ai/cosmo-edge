@@ -100,7 +100,7 @@ namespace {
 
         if (gravity == 0) {
             ret = bmcv_image_vpp_convert(handle, 1, source_image.Get(), destination_image.Out(), nullptr,
-                                         BMCV_INTER_NEAREST);
+                                         BMCV_INTER_LINEAR);
         } else if (gravity == 1) {
             const float scale = std::min(static_cast<float>(dst_width) / static_cast<float>(src_width),
                                          static_cast<float>(dst_height) / static_cast<float>(src_height));
@@ -119,7 +119,7 @@ namespace {
             padding.padding_r    = color;
             padding.if_memset    = 1;
             ret = bmcv_image_vpp_convert_padding(handle, 1, source_image.Get(), destination_image.Out(),
-                                                 &padding, nullptr, BMCV_INTER_NEAREST);
+                                                 &padding, nullptr, BMCV_INTER_LINEAR);
         } else if (gravity == 2) {
             const double source_ratio = static_cast<double>(src_width) / static_cast<double>(src_height);
             const double target_ratio = static_cast<double>(dst_width) / static_cast<double>(dst_height);
@@ -136,7 +136,7 @@ namespace {
                 crop.start_y = (src_height - crop.crop_h) / 2;
             }
             ret = bmcv_image_vpp_convert(handle, 1, source_image.Get(), destination_image.Out(), &crop,
-                                         BMCV_INTER_NEAREST);
+                                         BMCV_INTER_LINEAR);
         } else {
             return Status(COSMO_NN_ERR_PARAM, "gravity not supported");
         }

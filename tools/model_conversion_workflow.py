@@ -233,6 +233,8 @@ def build_transform_arguments(
         "--mlir",
         mlir,
     ]
+    if parameters.get("inputSizes") and parameters.get("sophonInputMode", "dynamic") == "dynamic":
+        arguments.append("--dynamic")
     if test_input and test_result:
         arguments.extend(["--test_input", test_input, "--test_result", test_result])
     return arguments
@@ -258,6 +260,10 @@ def build_deploy_arguments(
         "--model",
         model,
     ]
+    if parameters.get("inputSizes") and parameters.get("sophonInputMode", "dynamic") == "dynamic":
+        arguments.append("--dynamic")
+    if parameters.get("raw", {}).get("disableLayerGroup") is True:
+        arguments.append("--disable_layer_group")
     for flag, value in (("--quantize_table", quantize_table), ("--calibration_table", calibration_table)):
         if value is not None:
             arguments.extend([flag, value])
@@ -269,10 +275,53 @@ def build_deploy_arguments(
 
 
 def _shape_appears(text: str, shape: list[int]) -> bool:
-    compact = re.sub(r"\s+", "", text.lower())
+    compact = re.sub(r"\s+", "", text.lower()).replace("max:", "")
     comma = "[" + ",".join(str(value) for value in shape) + "]"
     cross = "x".join(str(value) for value in shape)
     return comma in compact or cross in compact
+
+
+def _combine_input_stages(parameters, toolchain, run_dir, bmodel_path, commands, manifest):
+    """Compile the remaining declared sizes and combine one static network's stages."""
+    profiles = parameters["inputSizes"]
+    work = run_dir / "work"
+    logs = run_dir / "logs"
+    initial = work / "stage-initial.bmodel"
+    shutil.copyfile(bmodel_path, initial)
+    models = [initial]
+    records = [{"shape": parameters["inputShapes"][0], "artifact": _artifact(initial, run_dir, "input-stage")}]
+    for height, width in profiles:
+        shape = [1, 3, height, width]
+        if shape == parameters["inputShapes"][0]:
+            continue
+        stage = dict(parameters, inputShapes=[shape], inputSizes=[])
+        stage_mlir = work / f"stage-{width}x{height}.mlir"
+        stage_model = work / f"stage-{width}x{height}.bmodel"
+        transform = build_transform_arguments(stage,
+            source_model=_runtime_path(parameters["sourceModel"], run_dir, toolchain),
+            mlir=_runtime_path(stage_mlir, run_dir, toolchain))
+        deploy = build_deploy_arguments(stage, mlir=_runtime_path(stage_mlir, run_dir, toolchain),
+                                        model=_runtime_path(stage_model, run_dir, toolchain))
+        for key, arguments in (("modelTransform", transform), ("modelDeploy", deploy)):
+            process = _run_logged(_tool_command(toolchain, key, arguments, run_dir=run_dir),
+                cwd=work, log_path=logs / f"stage-{width}x{height}-{key}.log", commands=commands,
+                run_dir=run_dir, environment=core.toolchain_environment(toolchain))
+            if process.returncode != 0:
+                raise ExecutionFailure(f"Static input stage {width}x{height} {key} failed")
+        if not stage_model.is_file():
+            raise ExecutionFailure(f"Static input stage {width}x{height} is missing")
+        models.append(stage_model)
+        records.append({"shape": shape, "artifact": _artifact(stage_model, run_dir, "input-stage")})
+    combined = work / "combined-input-stages.bmodel"
+    process = _run_logged(_tool_command(toolchain, "modelTool",
+        ["--combine", *[_runtime_path(path, run_dir, toolchain) for path in models],
+         "-o", _runtime_path(combined, run_dir, toolchain)], run_dir=run_dir),
+        cwd=work, log_path=logs / "combine-input-stages.log", commands=commands, run_dir=run_dir,
+        environment=core.toolchain_environment(toolchain))
+    if process.returncode != 0 or not combined.is_file():
+        raise ExecutionFailure("Combining static input stages failed")
+    os.replace(combined, bmodel_path)
+    manifest["stages"]["inputProfiles"] = {"status": "PASS", "mode": "stages", "profiles": records}
 
 
 def execute_conversion(
@@ -337,6 +386,8 @@ def execute_conversion(
             "quantization": parameters["quantization"],
             "inputLayout": parameters["inputLayout"],
             "inputShapes": parameters["inputShapes"],
+            "inputSizes": parameters["inputSizes"],
+            "inputMode": parameters["sophonInputMode"],
             "expectedOutputShapes": parameters["expectedOutputShapes"],
         },
         "toolchain": current_toolchain,
@@ -502,6 +553,10 @@ def execute_conversion(
         if deploy.returncode != 0 or not bmodel_path.is_file():
             manifest["stages"]["deploy"] = {"status": "FAIL"}
             raise ExecutionFailure("model_deploy failed or did not create the requested bmodel")
+        if parameters["inputSizes"] and parameters["sophonInputMode"] == "stages":
+            if parameters["inputShapes"][0][2:] not in parameters["inputSizes"]:
+                raise core.WorkflowError("Static-stage compilation shape must be one declared input size")
+            _combine_input_stages(parameters, current_toolchain, run_dir, bmodel_path, commands, manifest)
         bmodel = _artifact(bmodel_path, run_dir, "bm1688-bmodel" if chip == "bm1688" else "bmodel")
         manifest["stages"]["deploy"] = {"status": "PASS", "artifact": bmodel}
         manifest["artifacts"] = [bmodel]
@@ -519,6 +574,9 @@ def execute_conversion(
         else:
             tensor_status = "UNVERIFIED"
             tensor_detail = "No test input was supplied for transform/deploy tensor comparison."
+        if parameters["inputSizes"] and parameters["sophonInputMode"] == "stages":
+            tensor_status = "UNVERIFIED"
+            tensor_detail = "Static stages compiled; each input profile still requires runtime numerical validation."
         manifest["stages"]["tensorCompare"] = {
             "status": tensor_status,
             "detail": tensor_detail,
@@ -553,6 +611,8 @@ def execute_conversion(
             if model_info.returncode == 0:
                 _write_private_text(model_info_path, core.redact_text(info_text))
                 expected_shapes = parameters["inputShapes"] + parameters["expectedOutputShapes"]
+                if parameters["inputSizes"] and parameters["sophonInputMode"] == "stages":
+                    expected_shapes += [[1, 3, height, width] for height, width in parameters["inputSizes"]]
                 contract_matches = all(_shape_appears(info_text, shape) for shape in expected_shapes)
                 manifest["stages"]["modelInfo"] = {
                     "status": "PASS" if contract_matches else "UNVERIFIED",

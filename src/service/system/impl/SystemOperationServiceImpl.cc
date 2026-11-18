@@ -7,10 +7,12 @@
 #include <mutex>
 
 #include "service/detail/ServiceRegistry.h"
+#include "service/network/IWifiConfig.h"
 #include "service/system/impl/LogArchive.h"
 #include "service/system/impl/PacketUpgrade.h"
 #include "service/system/impl/UpgradeStorage.h"
 #include "util/ErrorCode.h"
+#include "util/Exception.h"
 #include "util/Log.h"
 #include "util/PathUtil.h"
 #include "util/RuntimeIsolation.h"
@@ -34,6 +36,10 @@ void SystemOperationServiceImpl::ResetDevice(const std::string& reason) {
     if (cosmo::runtime::IsIsolatedRuntime()) {
         LOG_WARN("{}", "Device reset is disabled in isolated runtime");
         return;
+    }
+    auto& registry = ServiceRegistry::Instance();
+    if (registry.Has<IWifiConfig>() && !registry.Get<IWifiConfig>().Reset()) {
+        throw util::ErrorMessage(util::ErrorEnum::Failed, "Failed to clear managed Wi-Fi configuration");
     }
     auto base_dir = cosmo::path::GetBaseDir();
     reboot_mgr_.Reset(reason, base_dir);

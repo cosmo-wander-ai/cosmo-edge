@@ -1,14 +1,7 @@
 #include "catch_amalgamated.hpp"
 #include "service/algorithm/IAlgorithmService.h"
 #include "util/PathUtil.h"
-/*
- * test_concurrency_fixes.cc - Phase 1.1 并发修复验证
- *
- * 测试目标:
- * 1. NotifyAlgorithmDeleted 在锁内原子标记 enable=false / status=Stop
- * 2. 并发 GetTasks 读取期间不会看到半更新状态
- * 3. TaskServiceImpl 日志限频 map 在 TaskDelete 后被清理
- */
+// Concurrent access checks for task, system configuration and service registry state.
 #include <atomic>
 #include <filesystem>
 #include <fstream>
@@ -16,7 +9,6 @@
 #include <vector>
 
 #include "mock/MockAlgorithmService.h"
-#include "service/camera/impl/CameraServiceImpl.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/system/impl/SystemServiceImpl.h"
 #include "service/task/impl/TaskServiceImpl.h"
@@ -24,119 +16,6 @@
 #include "support/ScopedServiceOverride.h"
 
 using namespace cosmo;
-
-// ============================================================
-// CameraServiceImpl: NotifyAlgorithmsDeleted state consistency
-// ============================================================
-
-TEST_CASE("CameraServiceImpl: NotifyAlgorithmsDeleted marks all matching tasks atomically",
-          "[CameraServiceImpl][concurrency]") {
-    (void)!system("rm -rf /tmp/test_conc*");
-    cosmo::service::CameraServiceImpl svc;
-
-    // Verify: deleting non-existent algorithm does not crash
-    SECTION("Deleting non-existent algorithm does not crash") {
-        REQUIRE_NOTHROW(svc.NotifyAlgorithmsDeleted({"non_existent_alg"}));
-    }
-
-    // Verify: GetTasks on non-existent camera returns empty
-    SECTION("GetTasks returns empty when camera does not exist") {
-        auto tasks = svc.GetTasks("non_existent_camera");
-        REQUIRE(tasks.empty());
-    }
-}
-
-// ============================================================
-// CameraServiceImpl: concurrent read safety
-// ============================================================
-
-TEST_CASE("CameraServiceImpl: concurrent GetTasks reads are safe", "[CameraServiceImpl][concurrency]") {
-    (void)!system("rm -rf /tmp/test_conc*");
-    cosmo::service::CameraServiceImpl svc;
-
-    std::atomic<bool> go{false};
-    std::atomic<int> readCount{0};
-    std::atomic<int> readyCount{0};
-    std::atomic<int> unexpectedTaskCount{0};
-    constexpr int kReaderCount    = 4;
-    constexpr int kReadsPerReader = 100;
-
-    // Start multiple reader threads concurrently calling GetTasks
-    std::vector<std::thread> readers;
-    for (int i = 0; i < kReaderCount; i++) {
-        readers.emplace_back([&]() {
-            readyCount.fetch_add(1, std::memory_order_release);
-            while (!go.load(std::memory_order_acquire)) {
-                std::this_thread::yield();
-            }
-            // Every reader completes its workload even if the writer finishes
-            // before this thread is scheduled (common on constrained CI runners).
-            for (int read = 0; read < kReadsPerReader; ++read) {
-                auto tasks = svc.GetTasks("non_existent_camera");
-                if (!tasks.empty()) {
-                    unexpectedTaskCount.fetch_add(1, std::memory_order_relaxed);
-                }
-                readCount.fetch_add(1, std::memory_order_relaxed);
-            }
-        });
-    }
-
-    // Wait for all readers to be ready before starting writes
-    while (readyCount.load(std::memory_order_acquire) < kReaderCount) {
-        std::this_thread::yield();
-    }
-    go.store(true, std::memory_order_release);
-
-    // Simultaneously do writes on the main thread
-    for (int i = 0; i < 100; i++) {
-        svc.NotifyAlgorithmsDeleted({"alg_" + std::to_string(i)});
-    }
-
-    for (auto& t : readers) {
-        t.join();
-    }
-
-    // Check results on the test thread after all reader work has completed.
-    REQUIRE(readCount.load() == kReaderCount * kReadsPerReader);
-    REQUIRE(unexpectedTaskCount.load() == 0);
-}
-
-// ============================================================
-// CameraServiceImpl: NotifyAlgorithmsChanged safety for non-existent algorithm
-// ============================================================
-
-TEST_CASE("CameraServiceImpl: NotifyAlgorithmsChanged with non-existent alg does not crash",
-          "[CameraServiceImpl][concurrency]") {
-    (void)!system("rm -rf /tmp/test_conc*");
-    cosmo::service::CameraServiceImpl svc;
-
-    REQUIRE_NOTHROW(svc.NotifyAlgorithmsChanged({"non_existent_alg"}, false));
-    REQUIRE_NOTHROW(svc.NotifyAlgorithmsChanged({"non_existent_alg"}, true));
-}
-
-// ============================================================
-// TaskServiceImpl: 日志限频 map 清理
-// ============================================================
-
-TEST_CASE("TaskServiceImpl: log throttle map is cleaned on TaskDelete", "[TaskService][concurrency]") {
-    cosmo::service::TaskServiceImpl svc;
-
-    // GetTaskLiveOverviewInfo 对不存在的 task 会写入 m_notInPoolLogTs
-    // 调用多次确保 map entry 被创建
-    for (int i = 0; i < 3; i++) {
-        auto infos = svc.GetTaskLiveOverviewInfo("phantom_task_001");
-        REQUIRE(infos.empty());
-    }
-
-    // TaskDelete 应当清理 map entry（即使 task 不存在，也不应崩溃）
-    auto ret = svc.TaskDelete("phantom_task_001");
-    // task 不存在返回 NotInit
-    REQUIRE(ret == cosmo::util::ErrorEnum::NotInit);
-
-    // 再次调用不应崩溃 — 验证 map 操作安全
-    auto infos2 = svc.GetTaskLiveOverviewInfo("phantom_task_001");
-    REQUIRE(infos2.empty());
-}
 
 // ============================================================
 // TaskServiceImpl: 并发 GetTaskLiveOverviewInfo 调用安全

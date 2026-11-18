@@ -20,10 +20,6 @@
 
 using namespace cosmo::service;
 
-TEST_CASE("StorageCleanServiceImpl: construction and destruction", "[StorageCleanService]") {
-    REQUIRE_NOTHROW([]() { StorageCleanServiceImpl sut; }());
-}
-
 TEST_CASE("StorageCleanServiceImpl: Start then Stop lifecycle", "[StorageCleanService]") {
     const std::string root = "/tmp/cosmo_storage_clean_service_test";
     cosmo::test::ScopedPathOverride path_override(root, root);

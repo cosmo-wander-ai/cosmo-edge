@@ -326,10 +326,14 @@ std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> GetQuadOsdLines(c
     for (size_t index = 0; index < corners.size(); ++index) {
         const auto& a    = corners[index];
         const auto& b    = corners[(index + 1) % corners.size()];
-        const double dx  = static_cast<double>(b.x) - a.x;
-        const double dy  = static_cast<double>(b.y) - a.y;
+        const double ax  = static_cast<double>(a.x);
+        const double ay  = static_cast<double>(a.y);
+        const double bx  = static_cast<double>(b.x);
+        const double by  = static_cast<double>(b.y);
+        const double dx  = bx - ax;
+        const double dy  = by - ay;
         const double p[] = {-dx, dx, -dy, dy};
-        const double q[] = {a.x, width - 1.0 - a.x, a.y, height - 1.0 - a.y};
+        const double q[] = {ax, width - 1.0 - ax, ay, height - 1.0 - ay};
         double first     = 0.0;
         double last      = 1.0;
         bool visible     = true;
@@ -354,8 +358,8 @@ std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> GetQuadOsdLines(c
         if (!visible)
             continue;
         auto point_at = [&](double t) -> util::Point {
-            return {static_cast<int>(std::lround(std::clamp(a.x + t * dx, 0.0, width - 1.0))),
-                    static_cast<int>(std::lround(std::clamp(a.y + t * dy, 0.0, height - 1.0)))};
+            return {static_cast<int>(std::lround(std::clamp(ax + t * dx, 0.0, width - 1.0))),
+                    static_cast<int>(std::lround(std::clamp(ay + t * dy, 0.0, height - 1.0)))};
         };
         lines.push_back({point_at(first), point_at(last)});
     }

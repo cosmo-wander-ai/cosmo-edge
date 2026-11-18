@@ -96,6 +96,9 @@ public:
     std::string GetAlgCode() const {
         return alg_code_;
     }
+    std::optional<InferenceInputSize> GetInputSize() const {
+        return input_size_;
+    }
 
 protected:
     // Worker thread entry point (override from base class)
@@ -135,6 +138,7 @@ private:
 
 private:
     std::string alg_code_;
+    std::optional<InferenceInputSize> input_size_;
     std::string name_;
     int init_retry_count_{0};
     int64_t last_init_fail_time_ms_{0};

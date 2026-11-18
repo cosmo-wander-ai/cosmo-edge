@@ -24,6 +24,9 @@ set(SRS_GB28181_PATCH_COMMAND
     COMMAND ${CMAKE_COMMAND}
         "-DSRS_SOURCE_DIR=<SOURCE_DIR>"
         -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181_frames.cmake
+    COMMAND ${CMAKE_COMMAND}
+        "-DSRS_SOURCE_DIR=<SOURCE_DIR>"
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181_rtmp_control.cmake
 )
 
 if(COSMO_TARGET_ARCH STREQUAL "aarch64")
@@ -93,9 +96,10 @@ ExternalProject_Add(
     LOG_OUTPUT_ON_FAILURE ON
 )
 
-# Reapply the versioned frame fix when its script changes in an existing build.
+# Reapply versioned fixes when their scripts change in an existing build.
 ExternalProject_Add_StepDependencies(srs_external patch
-    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181_frames.cmake)
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181_frames.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181_rtmp_control.cmake)
 
 add_dependencies(third_build srs_external)
 

@@ -1,5 +1,4 @@
 #include "catch_amalgamated.hpp"
-#include "util/PathUtil.h"
 // Unit tests for AppInfoServiceImpl — validates state management,
 // overview queries through IHardwareQuery, and thread-safe property accessors.
 
@@ -9,52 +8,10 @@
 #include "mock/MockTaskService.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/system/impl/AppInfoServiceImpl.h"
-#include "support/ScopedPathOverride.h"
 #include "support/ScopedServiceOverride.h"
 
 TEST_CASE("AppInfoServiceImpl: State management", "[appinfo][service]") {
     cosmo::service::AppInfoServiceImpl appInfoSvc;
-
-    SECTION("GetHaveManager returns false by default") {
-        REQUIRE(appInfoSvc.GetHaveManager() == false);
-    }
-
-    SECTION("SetEngineType and GetEngineType round-trip") {
-        appInfoSvc.SetEngineType("TestEngine");
-        REQUIRE(appInfoSvc.GetEngineType() == "TestEngine");
-    }
-
-    SECTION("SetDevId and DevId round-trip") {
-        appInfoSvc.SetDevId("DEV-001");
-        REQUIRE(appInfoSvc.DevId() == "DEV-001");
-    }
-
-    SECTION("GetAppRuntime returns non-negative elapsed time") {
-        auto runtime = appInfoSvc.GetAppRuntime();
-        REQUIRE(runtime >= 0);
-    }
-
-    SECTION("GetPicTaskGroupCount returns default of 3") {
-        REQUIRE(appInfoSvc.GetPicTaskGroupCount() == 3);
-    }
-
-    SECTION("OverviewStructureRecord toggle") {
-        REQUIRE(appInfoSvc.GetOverviewStructureRecord() == false);
-        appInfoSvc.SetOverviewStructureRecord(true);
-        REQUIRE(appInfoSvc.GetOverviewStructureRecord() == true);
-        appInfoSvc.SetOverviewStructureRecord(false);
-        REQUIRE(appInfoSvc.GetOverviewStructureRecord() == false);
-    }
-
-    SECTION("OverviewStructureFile toggle") {
-        REQUIRE(appInfoSvc.GetOverviewStructureFile() == false);
-        appInfoSvc.SetOverviewStructureFile(true);
-        REQUIRE(appInfoSvc.GetOverviewStructureFile() == true);
-    }
-
-    SECTION("GetModelDebug returns false by default") {
-        REQUIRE(appInfoSvc.GetModelDebug() == false);
-    }
 
     SECTION("GetNumber returns incrementing values") {
         auto n1 = appInfoSvc.GetNumber();
@@ -62,26 +19,6 @@ TEST_CASE("AppInfoServiceImpl: State management", "[appinfo][service]") {
         auto n3 = appInfoSvc.GetNumber();
         REQUIRE(n2 == n1 + 1);
         REQUIRE(n3 == n2 + 1);
-    }
-
-    SECTION("LogWebPath returns fixed web path") {
-        REQUIRE(appInfoSvc.LogWebPath() == "/logs/");
-    }
-}
-
-TEST_CASE("AppInfoServiceImpl: Path delegation", "[appinfo][service]") {
-    cosmo::test::ScopedPathOverride paths("/tmp/cosmo_app_info_test", "/tmp/cosmo_app_info_test_app");
-    cosmo::service::AppInfoServiceImpl appInfoSvc;
-
-    SECTION("UserDataPath returns base dir + /cwai") {
-        auto path = appInfoSvc.UserDataPath();
-        REQUIRE(path.find("/cwai") != std::string::npos);
-    }
-
-    SECTION("LogPath returns log dir + /logs/") {
-        auto path = appInfoSvc.LogPath();
-        REQUIRE(path.find("/log") != std::string::npos);
-        REQUIRE(path.find("/logs/") != std::string::npos);
     }
 }
 

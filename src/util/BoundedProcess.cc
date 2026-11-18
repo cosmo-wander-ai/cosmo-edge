@@ -67,7 +67,11 @@ namespace {
             } else if (count == 0) {
                 Descriptors::Close(fd);
                 return true;
-            } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            } else if (errno == EAGAIN
+#if EWOULDBLOCK != EAGAIN
+                       || errno == EWOULDBLOCK
+#endif
+            ) {
                 return true;
             } else if (errno != EINTR) {
                 throw std::runtime_error("process_io_failed");

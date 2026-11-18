@@ -267,16 +267,8 @@ TEST_CASE("CameraServiceImpl: source errors survive serialization and clear afte
 }
 
 // ============================================================
-// 构造 / 析构安全
+// Service lifecycle
 // ============================================================
-
-TEST_CASE("CameraServiceImpl: construction and destruction without Init", "[CameraService]") {
-    // 仅构造和析构，不调用 InitCameraEntities
-    REQUIRE_NOTHROW([]() {
-        CameraServiceImpl svc;
-        // destructor runs here
-    }());
-}
 
 TEST_CASE("CameraServiceImpl: Stop is safe and idempotent without Init", "[CameraService][lifecycle]") {
     CameraServiceImpl svc;

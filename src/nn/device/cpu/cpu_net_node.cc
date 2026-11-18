@@ -185,6 +185,8 @@ Status CpuNetNode::InferTopShapes() {
             for (size_t i = 0; i < probe_out.size() && i < output_shapes_.size(); i++)
                 output_shapes_[i] = probe_out[i].GetTensorTypeAndShapeInfo().GetShape();
         } catch (...) {
+            if (!input_sizes_.empty())
+                return Status(COSMO_NN_ERR_NET, "Selected input size shape probe failed");
             // Probe failed; fall through with original shapes (best-effort)
         }
     }

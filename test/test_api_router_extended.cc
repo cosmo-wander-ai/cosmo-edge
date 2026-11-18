@@ -134,14 +134,6 @@ TEST_CASE("ApiRouter: MQTT source bypasses auth check", "[ApiRouter][auth]") {
     REQUIRE(response.find("Auth Failed") == std::string::npos);
 }
 
-TEST_CASE("ApiRouter: Handler() returns MessageHandler reference", "[ApiRouter]") {
-    test::ApiRouterTestDependencies mocks;
-    ApiRouter router(MessageFromType::MessageFromHttp);
-    MessageHandler& h = router.Handler();
-    // Just verifying it doesn't crash and returns a valid reference
-    REQUIRE(&h != nullptr);
-}
-
 TEST_CASE("ApiRouter: HandMessage(4-arg) unsupported route", "[ApiRouter]") {
     test::ApiRouterTestDependencies mocks;
     ApiRouter router(MessageFromType::MessageFromHttp);

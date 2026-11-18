@@ -79,6 +79,7 @@ private:
     };
 
     Status QueryTensorAttributes();
+    Status PrepareInputSize();
     Status PrepareInput(const Blob& blob, std::vector<float>& nhwc, int& height, int& width) const;
     Status PrepareNativeCompatibilityInput(const Blob& blob, std::vector<float>& nhwc, int& height,
                                            int& width) const;

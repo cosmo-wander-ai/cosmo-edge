@@ -106,6 +106,9 @@ public:
     // pixel xywh and class probabilities; the default is decoded [B, N, 6].
     bool raw_output = false;
 
+    // Internal YOLO26 pipeline flag; never serialized into model params.
+    bool auto_detect_output = false;
+
     // OBB model contract only. Ordinary YOLO decoders retain their own format.
     bool normalized_coordinates = false;
 };

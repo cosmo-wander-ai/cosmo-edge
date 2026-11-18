@@ -75,6 +75,14 @@
                 <span v-if="obj.display.subtitle" class="model-option-subtitle">{{ obj.display.subtitle }}</span>
               </el-option>
             </el-select>
+            <div v-if="isDetectorNode && (inferenceSizeOptions.length || inferenceInputSize)" class="inference-input-size">
+              <label :for="inferenceSizeId">{{ t('glossary.inferenceInputSize') }}</label>
+              <el-select :id="inferenceSizeId" v-model="inferenceInputSize" class="form-content" size="small" :aria-label="t('glossary.inferenceInputSize')">
+                <el-option v-for="option in inferenceSizeOptions" :key="option.value" :value="option.value" :label="option.label + (option.isDefault ? ` (${t('glossary.defaultInputSize')})` : '')" />
+              </el-select>
+              <div>{{ t('glossary.inputSizeNextStart') }}</div>
+              <div v-if="!inferenceSizeValid" role="alert">{{ t('glossary.invalidInputSize') }}</div>
+            </div>
           </div>
 
           <div v-else-if="item.type === 'trackSelect'">
@@ -310,6 +318,7 @@ import { t, localeColon, currentLocale } from '@/i18n'
 import { resolveI18nText, resolveI18nOptionLabel } from '@/utils/i18nResource'
 import { resolvePresetModelDisplay } from '@/utils/presetModelDisplay'
 import { loadModelDisplaySources, withModelDisplaySource } from '@/utils/modelDisplaySources'
+import { inputSizeOptions, defaultInputSizeValue, isInputSizeValid } from '@/utils/inferenceInputSize'
 import {
   AREA_RULE_UI_TYPES,
   applyAreaRuleUiType,
@@ -445,6 +454,11 @@ const paramConfigs = ref([])
 const tableData = ref([1, 2, 3])
 const atomicModelList = ref([])
 const selectedAtomic = ref({})
+const isDetectorNode = computed(() => ['AA_00001', 'PA_00001'].includes(props.actionDetail.actionId))
+const inferenceInputSize = ref(props.configObject?.params?.find(param => param.key === 'inputSize')?.value || '')
+const inferenceSizeId = `inference-size-${v4()}`
+const inferenceSizeOptions = computed(() => inputSizeOptions(selectedAtomic.value))
+const inferenceSizeValid = computed(() => isInputSizeValid(selectedAtomic.value, inferenceInputSize.value))
 const selectedTrackAtomic = ref({})
 const labelFilterList = ref([])
 const labelList = ref([])
@@ -969,6 +983,8 @@ const getModelSelectList = (code, type) => {
     })
     if (atomic) {
       selectedAtomic.value = atomic
+      if (isDetectorNode.value && !inferenceInputSize.value)
+        inferenceInputSize.value = defaultInputSizeValue(atomic)
       let labelListTemp = []
 
       if (type === 'modelSelectCategories_classify') {
@@ -1100,6 +1116,8 @@ const modelSelectChange = (val) => {
   labelList.value = []
   const atomic = _.find(atomicModelList.value, { atomicCode: val })
   selectedAtomic.value = atomic
+  if (isDetectorNode.value)
+    inferenceInputSize.value = defaultInputSizeValue(atomic)
 
   let labelListTemp = []
   if (modelSelectType.value === 'modelSelectCategories_classify') {
@@ -1183,6 +1201,7 @@ watch(
 watch(
   [
     paramConfigs,
+    inferenceInputSize,
     targetLabelArr,
     targetLimitLabelArr,
     condition,
@@ -1380,6 +1399,8 @@ const submitForm = () => {
     },
     params: []
   }
+  if (isDetectorNode.value && inferenceInputSize.value)
+    configObject.params.push({ key: 'inputSize', value: inferenceInputSize.value })
   paramConfigs.value.forEach((item) => {
     if (item.key && item.key !== 'condition' && item.level !== '2') {
       if (item.dependsOn && item.dependsOn.key) {

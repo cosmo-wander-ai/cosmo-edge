@@ -1,6 +1,6 @@
 ---
 title: CV186X Quick Start
-description: Install CosmoEdge 1.1 on a prepared CV186X Linux device and produce the first detection event.
+description: Install a matching CosmoEdge release on a prepared CV186X Linux device and produce the first detection event.
 prev:
   text: Build Guide
   link: /en/guide/build
@@ -11,13 +11,13 @@ next:
 
 # CV186X Quick Start
 
-This guide targets a CV186X Linux device with Sophon runtime dependencies and networking already
-prepared. CosmoEdge 1.1 uses BMRT and `.nn` artifacts validated on CV186X. The two open Sophon
-models used by this release benchmark are byte-identical to the BM1688 workload artifacts; other
-models still require contract-by-contract compatibility validation.
+This guide targets a CV186X Linux device with Sophon runtime dependencies and networking
+already prepared. It uses BMRT and CV186X-compatible `.nn` models. The two Sophon models in
+the historical v1.1 public benchmark are byte-identical to the BM1688 benchmark artifacts;
+other models still require contract-by-contract validation. Historical results do not qualify
+a newly built package on a device.
 
-Verify hardware identity before installation; an IP address or old model directory
-is not platform evidence:
+Before installation, verify hardware identity; an IP address or old model directory name is not platform evidence:
 
 ```bash
 tr -d '\0' </proc/device-tree/model; echo
@@ -41,48 +41,34 @@ conflict. A running service alone does not qualify CV186X inference.
 
 ## 1. Obtain and verify the package
 
-You can build the CV186X package from source:
+On the build host, select Linux Bash or Windows PowerShell through the
+[CV186X build entry](./build.md#cv186x). Default Open output is under
+`build_output/public-runtime/cv186x/`, with one package, `TARGET_CHIP`, and `SHA256SUMS`.
 
-```bash
-./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package --chip cv186x
-cat build_output/public-runtime/cv186x/TARGET_CHIP
-(cd build_output/public-runtime/cv186x && sha256sum -c SHA256SUMS)
-```
-
-The chip-model argument selects the CV186X resource directory and isolates the
-output under `build_output/public-runtime/cv186x/`. The archive still uses the
-`cosmo-V<version>-<md5>.tar.gz` format and must be qualified together with the
-adjacent `TARGET_CHIP` and `SHA256SUMS` files.
-
-Alternatively, download a CosmoEdge 1.1 Sophon Open package explicitly marked
-for CV186X and its published SHA-256 from the
-[GitHub Release](https://github.com/cosmo-wander-ai/cosmo-edge/releases), then verify it on the build host:
-
-```bash
-sha256sum cosmo-V1.1.0-*.tar.gz
-scp cosmo-V1.1.0-*.tar.gz root@<device_ip>:/tmp/
-```
+Alternatively, obtain the desired release's explicitly labeled CV186X package and checksum
+information from [GitHub Release](https://github.com/cosmo-wander-ai/cosmo-edge/releases).
+Follow [artifact verification](./build.md#hand-a-sophon-build-to-the-deployment-workflow),
+confirm `cv186x` and the SHA-256 against the manifest or release record, and record the actual
+full package filename. Source and release-package versions may differ; do not select a
+package using a fixed old-version wildcard.
 
 ## 2. Install and start
 
-```bash
-ssh root@<device_ip>
-install_dir=$(mktemp -d /tmp/cosmo-install.XXXXXX)
-tar -xzf /tmp/cosmo-V1.1.0-*.tar.gz -C "$install_dir"
-cd "$install_dir"/cosmo-V*/
-./scripts/install.sh
-reboot
-```
+Follow the [Deployment Guide: SSH Installation Path](./deployment.md#ssh-installation-path),
+selecting `build_output/public-runtime/cv186x/`. That section separates host-side transfer
+from device installation and maintains the shared backup, verification, installation, reboot,
+and recovery steps. Use the actual package filename verified above.
 
-After the device returns, confirm that `cosmo.service` is active and verify version 1.1 in the
-device console. An existing CosmoEdge device can upload the same archive through **System
-Management → System Maintenance → Software Upgrade**.
+After reboot, confirm `cosmo.service` is active and the management page reports the target
+package's version, then complete [post-upgrade acceptance](./deployment.md#installation-and-post-upgrade-acceptance).
+An existing CosmoEdge device can also upload the same package through **System Management →
+System Maintenance → Software Upgrade**.
 
 ## 3. Create the first event with the bundled open models
 
 For a `cv186x` build, the build script automatically selects the matching resource
-directory. Users do not provide that path. The package includes the two models
-used by the public CV186X benchmark:
+directory. Users do not provide that path. The default `include` package contains the two models
+used by the historical v1.1 public CV186X benchmark:
 
 - `YOLOV8n V1.0.0`: person detector, `1x3x640x640`, 7,023,600-byte model file;
 - `helmet V1.0.0`: safety-helmet classifier, `1x3x224x224`, 6,001,416-byte model file.
@@ -116,6 +102,6 @@ full contract.
   attempting another upload.
 - See the [Deployment Guide](/en/guide/deployment) for directories, ports, persistence, failure
   recovery, and rollback boundaries.
-- Public workload results are in [ScenarioBench v1.1](https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/report.html).
+- Historical public workload results are in [ScenarioBench v1.1](https://www.cosmowander.ai/docs/benchmarks/scenario-bench/v1.1/report.html).
   A highest short-run point is not an official recommended profile; size production deployments
   with the actual models, streams, and accuracy requirements.

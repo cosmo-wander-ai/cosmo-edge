@@ -531,6 +531,9 @@ namespace pipeline_utils {
             config.algorithm_code = ReadString(root, "algorithm_code", std::string());
             config.version        = ReadString(root, "version", std::string("V1"));
             config.reduce         = ReadString(root, "reduce", std::string());
+            std::string size_error;
+            if (!ReadInferenceInputSizes(root, config.input_sizes, size_error))
+                return Status(COSMO_NN_ERR_INVALID_CFG, size_error);
 
             const nlohmann::json* models_json = FindObjectMember(root, "models");
             if (!models_json || !models_json->is_array() || models_json->empty())
