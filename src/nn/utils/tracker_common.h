@@ -11,6 +11,8 @@ enum class TrackingStatus { kNew, kTracking, kLoss };
 
 enum class MotionState { kUncertain, kMoving, kStill };
 
+enum class ClassMatchMode { kLegacy, kIgnoreClass, kSameClassOnly };
+
 struct PUBLIC TrackingBox {
     int id                = 0;
     int class_id          = 0;
@@ -40,7 +42,8 @@ struct PUBLIC TrackerConfig {
     int motion_length = 5;   // length of history frame to evaluate motion state
     std::vector<float> thresh{};
     std::vector<float> thresh_low;
-    int thresh_low_timeout = 15;
+    int thresh_low_timeout          = 15;
+    ClassMatchMode class_match_mode = ClassMatchMode::kLegacy;
 };
 
 }  // namespace cosmo::nn

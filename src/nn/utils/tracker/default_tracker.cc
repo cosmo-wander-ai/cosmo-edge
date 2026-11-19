@@ -72,21 +72,21 @@ Status DefaultTracker::Update(const std::vector<TrackingBox>& bboxes, std::vecto
     costDisMatrix.resize(trkNum, std::vector<double>(detNum, 0));
 
     // First high-confidence matching
+    const bool is_strict_class = config.class_match_mode == ClassMatchMode::kSameClassOnly;
+    const bool should_prefer_same_class =
+        is_strict_class || (config.class_match_mode == ClassMatchMode::kLegacy && config.classid_same);
+    constexpr double kRejectedCost = 999999;
     for (unsigned int i = 0; i < trkNum; i++) {  // compute iou matrix as a distance matrix
         for (unsigned int j = 0; j < detNum; j++) {
             double iou_weight = 1 - GetDIOU(predictedBoxes.at(i), high_conf_boxes.at(j).box);
 
             double dis_weight = Distance(predictedBoxes.at(i), high_conf_boxes.at(j).box);
 
-            double class_weight =
-                config.classid_same
-                    ? (trackers.at(i).class_id == high_conf_boxes.at(j).class_id ? 0 : 9999999)
-                    : 0;
-
             double weight = iou_weight * dis_weight;
             weight        = weight < 0 ? 0 : weight;
-            if (dis_weight > trackers.at(i).search_range || class_weight > 0)
-                weight = 999999;
+            if (dis_weight > trackers.at(i).search_range ||
+                (should_prefer_same_class && trackers.at(i).class_id != high_conf_boxes.at(j).class_id))
+                weight = kRejectedCost;
 
             costMatrix.at(i).at(j)    = weight;
             costDisMatrix.at(i).at(j) = dis_weight;
@@ -130,15 +130,19 @@ Status DefaultTracker::Update(const std::vector<TrackingBox>& bboxes, std::vecto
         if (assignm == -1)  // pass over invalid values
             continue;
 
-        if (costDisMatrix.at(i).at(assignm) < trackers.at(i).search_range) {
-            trackers.at(i).status   = TrackingStatus::kTracking;
-            trackers.at(i).class_id = high_conf_boxes.at(assignm).class_id;
-            trackers.at(i).Update(high_conf_boxes.at(assignm).box, high_conf_boxes.at(assignm).confidence);
-            trackers.at(i).source_detection_index = high_conf_boxes.at(assignm).source_detection_index;
+        auto& track               = trackers.at(i);
+        const auto& detection     = high_conf_boxes.at(assignm);
+        const bool is_wrong_class = is_strict_class && track.class_id != detection.class_id;
+        if (!is_wrong_class && costDisMatrix.at(i).at(assignm) < track.search_range) {
+            track.class_id = detection.class_id;
+            track.Update(detection.box, detection.confidence, config);
+            track.source_detection_index = detection.source_detection_index;
 
             matchedPairs.push_back(std::pair<int, int>(i, assignm));
         } else {
             unmatchedTrajectories.insert(i);
+            if (is_wrong_class)
+                unmatchedDetections.insert(assignm);
         }
     }
 
@@ -175,8 +179,11 @@ Status DefaultTracker::Update(const std::vector<TrackingBox>& bboxes, std::vecto
 
             double dis_weight = Distance(secondPredictedBoxes.at(i), low_conf_boxes.at(j).box);
 
-            double weight = iou_weight * dis_weight;
-            weight        = weight < 0 ? 0 : weight;
+            double weight     = iou_weight * dis_weight;
+            weight            = weight < 0 ? 0 : weight;
+            const auto& track = utrack.at(i).tracker;
+            if (is_strict_class && track.class_id != low_conf_boxes.at(j).class_id)
+                weight = kRejectedCost;
 
             costMatrix.at(i).at(j)    = weight;
             costDisMatrix.at(i).at(j) = dis_weight;
@@ -219,18 +226,20 @@ Status DefaultTracker::Update(const std::vector<TrackingBox>& bboxes, std::vecto
         if (assignm == -1)  // pass over invalid values
             continue;
 
-        if (costDisMatrix.at(i).at(assignm) < trackers.at(utrack.at(i).trackers_index).search_range) {
-            trackers.at(utrack.at(i).trackers_index).status     = TrackingStatus::kTracking;
-            trackers.at(utrack.at(i).trackers_index).confidence = low_conf_boxes.at(assignm).confidence;
-            trackers.at(utrack.at(i).trackers_index)
-                .Update(low_conf_boxes.at(assignm).box, low_conf_boxes.at(assignm).confidence);
-            trackers.at(utrack.at(i).trackers_index).source_detection_index =
-                low_conf_boxes.at(assignm).source_detection_index;
+        auto& track           = trackers.at(utrack.at(i).trackers_index);
+        const auto& detection = low_conf_boxes.at(assignm);
+        if (costDisMatrix.at(i).at(assignm) < track.search_range &&
+            (!is_strict_class || track.class_id == detection.class_id)) {
+            if (config.class_match_mode == ClassMatchMode::kIgnoreClass) {
+                track.class_id = detection.class_id;
+            }
+            track.Update(detection.box, detection.confidence, config);
+            track.source_detection_index = detection.source_detection_index;
 
             matchedPairs.push_back(std::pair<int, int>(i, assignm));
         } else {
-            trackers.at(utrack.at(i).trackers_index).status     = TrackingStatus::kLoss;
-            trackers.at(utrack.at(i).trackers_index).confidence = -1;
+            track.status     = TrackingStatus::kLoss;
+            track.confidence = -1;
             unmatchedTrajectories.insert(utrack.at(i).trackers_index);
         }
     }

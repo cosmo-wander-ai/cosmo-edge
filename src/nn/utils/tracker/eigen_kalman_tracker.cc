@@ -9,15 +9,18 @@ EigenKalmanTracker::EigenKalmanTracker(Rect2f r, TrackerConfig cfg, unsigned int
     init_kf(r, assigned_id);
 }
 
-void EigenKalmanTracker::Update(Rect2f stateMat, double score) {
+void EigenKalmanTracker::Update(Rect2f stateMat, double score, const TrackerConfig& active_config) {
     status                 = TrackingStatus::kTracking;
     time_since_last_update = 0;
     hits += 1;
     hit_streak += 1;
     confidence = score;
-    if (class_id > 0 && config.thresh.size() >= static_cast<size_t>(class_id) &&
-        config.thresh_low.size() >= static_cast<size_t>(class_id) &&
-        score <= config.thresh.at(class_id - 1) && score >= config.thresh_low.at(class_id - 1)) {
+    // Legacy tracks keep the thresholds captured when they were created.
+    const auto& thresholds =
+        active_config.class_match_mode == ClassMatchMode::kLegacy ? config : active_config;
+    if (class_id > 0 && thresholds.thresh.size() >= static_cast<size_t>(class_id) &&
+        thresholds.thresh_low.size() >= static_cast<size_t>(class_id) &&
+        score <= thresholds.thresh.at(class_id - 1) && score >= thresholds.thresh_low.at(class_id - 1)) {
         low_thresh_count++;
     } else {
         low_thresh_count = 0;

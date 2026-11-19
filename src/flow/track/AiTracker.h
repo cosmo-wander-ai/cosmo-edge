@@ -107,6 +107,7 @@ private:
     int param_modify_sign_{0};
     int param_active_sign_{0};
     TrackMotionStatusFilter motion_status_{TrackMotionStatusFilter::kNone};
+    nn::ClassMatchMode class_match_mode_{nn::ClassMatchMode::kLegacy};
     TrackShapeChangeFilter shape_change_filter_{TrackShapeChangeFilter::kNone};
     float shape_change_threshold_{0.1f};  // Used with shape_change_filter_
     std::string atomic_code_;             // Atomic algorithm code from data stream
