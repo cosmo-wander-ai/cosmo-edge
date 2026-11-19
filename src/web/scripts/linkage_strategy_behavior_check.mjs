@@ -5,11 +5,13 @@ import { loadBehaviorModule } from './helpers/load_behavior_module.mjs'
 
 let enabled = false
 let rejectSwitch = false
+let outputStatus = 'ready'
+let alarmOutputs
 const switches = []
 const { default: api } = await loadBehaviorModule('api/index.js', {
   mocks: { '@/utils/request': { request: async ({ url, data }) => {
-    if (url.endsWith('/Storages')) return { resData: { strages: [] } }
-    if (url.endsWith('/Page')) return { resData: { tasks: [{ id: 'strategy-1', name: 'Test', status: enabled, workFlow: '[]' }] } }
+    if (url.endsWith('/Storages')) return { resData: { strages: [], alarmOutputs } }
+    if (url.endsWith('/Page')) return { resData: { tasks: [{ id: 'strategy-1', name: 'Test', status: enabled, outputStatus, workFlow: '[]' }] } }
     if (url.endsWith('/Switch')) {
       switches.push(JSON.parse(JSON.stringify(data)))
       if (rejectSwitch) throw new Error('Failed to persist strategy')
@@ -69,5 +71,16 @@ try {
   page.unmount()
   page = await mount()
   assert.equal(control(page).props.modelValue, false, 'disabled state must also survive navigation')
+  page.unmount()
+  enabled = true
+  outputStatus = 'unmapped'
+  alarmOutputs = []
+  page = await mount()
+  assert.equal(control(page).props.modelValue, true, 'stored enable setting is distinct from hardware readiness')
+  assert.equal(page.all(n => n.type === 'el-alert')[0].props.title, 'linkageStrategy.outputStatus.unmapped')
+  page.unmount()
+  outputStatus = 'ready'
+  page = await mount()
+  assert.equal(page.all(n => n.type === 'el-alert')[0].props.title, 'linkageStrategy.outputUnavailable')
 } finally { page.unmount() }
 console.log('Linkage strategy switch/save/navigation checks passed')

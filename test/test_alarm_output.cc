@@ -237,3 +237,24 @@ TEST_CASE("Board mapping requires explicit polarity and unique channels and pins
         REQUIRE(channels[0].active_low);
     }
 }
+
+TEST_CASE("AlarmOut readiness never actuates hardware and rechecks availability", "[alarm-output]") {
+    auto state     = std::make_shared<PinState>();
+    bool available = true;
+    AlarmOutputController controller({{3, 98, false}}, [&](const auto&) -> std::unique_ptr<AlarmOutputPin> {
+        return available ? std::make_unique<FakePin>(state) : nullptr;
+    });
+    REQUIRE(controller.Status(1) == "unmapped");
+    REQUIRE(controller.Status(3) == "ready");
+    REQUIRE(state->Writes().empty());
+    available = false;
+    REQUIRE(controller.Status(3) == "gpioUnavailable");
+    REQUIRE_FALSE(controller.Pulse(3, 10ms));
+    available = true;
+    REQUIRE(controller.Status(3) == "ready");
+    REQUIRE(state->Writes().empty());
+    REQUIRE(controller.Pulse(3, 10ms));
+    REQUIRE(state->WaitForReset(2s));
+    controller.Stop();
+    REQUIRE(controller.Status(3) == "stopped");
+}

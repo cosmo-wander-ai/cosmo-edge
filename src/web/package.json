@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "alarm-output:check": "node scripts/alarm_output_readiness_check.mjs && node --experimental-vm-modules scripts/linkage_strategy_behavior_check.mjs",
     "dev": "vite",
     "i18n:check": "node scripts/i18n_check_locales.mjs",
     "task-card-layout:check": "node scripts/task_card_layout_check.mjs",

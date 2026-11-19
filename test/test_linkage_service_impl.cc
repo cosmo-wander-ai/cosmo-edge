@@ -13,6 +13,7 @@
 #include <fstream>
 #include <nlohmann/json.hpp>
 
+#include "linkage/AlarmOutputController.h"
 #include "service/infra/impl/LinkageServiceImpl.h"
 #include "support/ScopedPathOverride.h"
 
@@ -86,6 +87,46 @@ struct LinkageTestEnv {
 };
 
 }  // namespace
+
+TEST_CASE("Linkage output readiness gates save and enable without pulsing", "[linkage-service]") {
+    LinkageTestEnv env;
+    struct Pin : cosmo::linkage::AlarmOutputPin {
+        bool SetActive(bool) override {
+            FAIL("Readiness must never write GPIO");
+            return false;
+        }
+    };
+    bool available  = true;
+    auto controller = std::make_shared<cosmo::linkage::AlarmOutputController>(
+        std::vector<cosmo::linkage::AlarmOutputChannel>{{3, 98, false}},
+        [&](const auto&) -> std::unique_ptr<cosmo::linkage::AlarmOutputPin> {
+            return available ? std::make_unique<Pin>() : nullptr;
+        });
+    LinkageServiceImpl sut(controller);
+    auto workflow                         = nlohmann::json::parse(MakeValidWorkflow());
+    workflow[1]["actionId"]               = "LA_AlarmOutput_Code";
+    workflow[1]["configObject"]["params"] = nlohmann::json::array(
+        {{{"key", "outputChannel"}, {"value", "3"}}, {{"key", "duration"}, {"value", "5"}}});
+    std::string id;
+    REQUIRE(sut.Add("mapped", workflow.dump(), id) == ErrorEnum::Success);
+    REQUIRE(sut.Update("mapped", id, workflow.dump()) == ErrorEnum::Success);
+    REQUIRE(sut.GetAlarmOutputs().size() == 1);
+    REQUIRE(sut.GetAlarmOutputs()[0].channel == 3);
+    REQUIRE(sut.Switch(id, false) == ErrorEnum::Success);
+    REQUIRE(sut.Switch(id, true) == ErrorEnum::Success);
+    available = false;
+    REQUIRE(sut.GetAlarmOutputs()[0].status == "gpioUnavailable");
+    REQUIRE(sut.Update("unavailable", id, workflow.dump()) == ErrorEnum::AlarmOutputUnavailable);
+    REQUIRE(sut.Switch(id, true) == ErrorEnum::AlarmOutputUnavailable);
+    size_t total = 0;
+    auto rows    = sut.Query(1, 10, "", total);
+    REQUIRE(rows[0].status);
+    REQUIRE(rows[0].name == "mapped");
+    REQUIRE(rows[0].outputStatus == "gpioUnavailable");
+    REQUIRE(sut.Switch(id, false) == ErrorEnum::Success);
+    available = true;
+    REQUIRE(sut.Switch(id, true) == ErrorEnum::Success);
+}
 
 TEST_CASE("LinkageServiceImpl: CRUD and query operations", "[linkage-service]") {
     LinkageTestEnv env;
@@ -286,12 +327,27 @@ TEST_CASE("LinkageServiceImpl: CRUD and query operations", "[linkage-service]") 
         workflow[1]["configObject"]["params"] = nlohmann::json::array(
             {{{"key", "outputChannel"}, {"value", "1"}}, {{"key", "duration"}, {"value", "5"}}});
         std::string id;
-        REQUIRE(sut.Add("alarm-output", workflow.dump(), id) == ErrorEnum::Success);
+        REQUIRE(sut.Add("alarm-output", workflow.dump(), id) == ErrorEnum::AlarmOutputUnavailable);
+        REQUIRE(sut.Add("alarm-output", MakeValidWorkflow(), id) == ErrorEnum::Success);
+        REQUIRE(sut.Update("alarm-output", id, workflow.dump()) == ErrorEnum::AlarmOutputUnavailable);
+        // Simulate an enabled strategy saved by an older release. Keep it visible
+        // when hardware is missing rather than deleting customer configuration.
+        {
+            std::ofstream file(env.baseDir + "/conf/linkAge/" + id + ".json");
+            file << workflow.dump();
+        }
         LinkageServiceImpl reloaded;
         size_t total          = 0;
         const auto strategies = reloaded.Query(1, 10, "", total);
         REQUIRE(total == 1);
         REQUIRE(strategies[0].name == "alarm-output");
+        REQUIRE(strategies[0].status);
+        REQUIRE(strategies[0].outputStatus == "unmapped");
+        REQUIRE(reloaded.Switch(id, true) == ErrorEnum::AlarmOutputUnavailable);
+        REQUIRE(reloaded.Switch(id, false) == ErrorEnum::Success);
+        REQUIRE(reloaded.Switch(id, true) == ErrorEnum::AlarmOutputUnavailable);
+        REQUIRE_FALSE(reloaded.Query(1, 10, "", total)[0].status);
+        REQUIRE(std::filesystem::is_regular_file(env.baseDir + "/conf/linkAge/" + id + ".json"));
         workflow[1]["configObject"]["params"][1]["value"] = "5seconds";
         REQUIRE(sut.Update("invalid-output", id, workflow.dump()) == ErrorEnum::ParameterException);
         REQUIRE(sut.Query(1, 10, "", total)[0].name == "alarm-output");

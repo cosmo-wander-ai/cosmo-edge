@@ -46,6 +46,7 @@ Linkage::MsgStoragesSend MessageLinkageHandler::Handle(Linkage::MsgStoragesRecv&
     Linkage::MsgStoragesSend retData{};
     int total_size = 0;
     linkage_svc_.ReadSupportedStorage(total_size, retData.resData.storages);
+    retData.resData.alarmOutputs = linkage_svc_.GetAlarmOutputs();
     return retData;
 }
 

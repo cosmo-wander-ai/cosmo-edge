@@ -146,6 +146,7 @@ Overrides must be controlled absolute paths consistent with the service and pers
 
 Add **Alarm Output Linkage** under business processing, after an alarm-data node bound to an algorithm.
 The component accepts a logical output channel (1–64) and duration (1–600 seconds, default 5).
+The page lists only configured output channels whose control interfaces are currently accessible.
 The channel range does not describe the number of physical outputs. Repeated alarms extend the hold
 time on the same channel; channels reset independently when their deadlines expire.
 
@@ -180,18 +181,45 @@ five seconds after the last trigger. Further alarms extend the hold time.
 
 ### Deployment and startup state
 
-Loading the mapping does not proactively reset every pin. A missing mapping also does not return
-existing hardware outputs to idle. Board initialization must export GPIOs, set their direction and
-establish the idle level before the application starts. Keep that ordering across cold boots,
-application restarts and upgrades. For example, active-high outputs need an initial level of 0.
-If a separate service initializes the GPIOs, start the application after that initialization finishes.
+After stopping the previous engine, startup prefers an explicitly selected package carrier profile;
+otherwise it calls `scripts/prepare_alarm_outputs.py`.
+It checks direction and polarity for every mapped GPIO, initializes outputs inactive, then starts
+the engine. The BSP must export GPIOs and configure their direction first. The generated service
+runs after `rc-local.service`; configure ordering explicitly for other GPIO initialization services.
 
-Generic application packages do not assign board pins or rewrite board startup scripts. Devices
-using the same SoC, including RK3576, may have different wiring and polarity. A board-specific
-upgrade must check the board, existing mapping and startup configuration, back up changed files,
-set idle levels with the application stopped, and restore configuration if installation fails.
-Preserve existing models, authorization and strategy enable states; a disabled strategy must be
-explicitly enabled before it can trigger an output.
+Existing `alarmOutputs.json` files, including empty mappings, are preserved. When the file is absent,
+automatic provisioning is limited to the four-PhotoMOS board with both device-tree identifiers
+`rockchip,rk3576-evb1-v10` and `rockchip,rk3576`, plus four separate `rc.local` comments
+`RLY_CTL0_GPIO3_A0` through `RLY_CTL3_GPIO3_A3` and exactly one value assignment for each GPIO,
+with kernel `active_low=0` on all four lines.
+This profile maps channels 1–4 to GPIOs 96–99 with active-high polarity and changes those boot
+assignments to 0. Failed mapping publication restores the startup script. The SoC name alone
+never selects this wiring.
+
+For the supported BM1688/CV186X four-output carriers, build with
+`-DCOSMO_ALARM_OUTPUT_BOARD=sophon-four-relay-v1` (default: `none`). The package marker selects
+`scripts/prepare_sophon_alarm_outputs.py`, which checks controller layout, ownership and pinmux,
+exports missing pins, initializes them low, and creates a mapping only if absent. It does not change
+pinmux or overwrite custom/disabled mappings. Initialization failures are logged without blocking
+the engine; shared readiness checks report unavailable channels.
+
+| Supported carrier | GPIOs for output channels 1 / 2 / 3 / 4 | Active level |
+| --- | --- | --- |
+| RK3576 carrier identified above | 96 / 97 / 98 / 99 | High |
+| Explicitly selected BM1688 carrier | 389 / 390 / 480 / 347 | High |
+| Explicitly selected CV186X carrier | 389 / 390 / 480 / 347 | High |
+
+All three use the same linkage, duration and readiness logic. These mappings are carrier-specific,
+not universal SoC defaults. Build upgrade packages separately for each target chip. Alarm IN is
+outside this feature. Other boards need an administrator-provided mapping based on their schematics,
+followed by an application restart.
+
+Saving workflows with output nodes and enabling strategies checks mapping, direction, kernel polarity
+and write access. An unavailable channel returns `AlarmOutputUnavailable`. Previously saved strategies
+remain visible with their original enable setting when hardware is unavailable; the page separately
+shows the failure reason. They can be disabled, but cannot be enabled again until readiness passes.
+Readiness probes and engine mapping loads do not actuate outputs. Readiness confirms control-interface
+access, not terminal behavior; physical acceptance still requires measurement.
 
 ### Linkage acceptance and troubleshooting
 
