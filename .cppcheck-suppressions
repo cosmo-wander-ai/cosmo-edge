@@ -13,10 +13,6 @@ unmatchedSuppression
 // including DTO serializers.
 unusedStructMember:*.h
 
-// Preserve supported implicit conversions and public by-value/reference APIs.
-// Changing these signatures or adding explicit would break existing callers.
-noExplicitConstructor:*src/flow/common/AlgAlarmTypes.h:85
-
 // Retired instances must be destroyed after the pool lock is released.
 // The reservation destructor reads active; clearing it prevents a second decrement.
 variableScope:*src/util/InstancePool.h:133

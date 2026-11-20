@@ -82,7 +82,7 @@ struct DataAlarmBox {
     std::vector<AiTargetAnnotation> annotations;
     std::string sourceTargetId;
 
-    DataAlarmBox(util::Box value) : box(value) {}
+    explicit DataAlarmBox(util::Box value) : box(value) {}
     DataAlarmBox(util::Box value, std::optional<util::Quad> corners)
         : box(value), oriented_corners(std::move(corners)) {}
 };
