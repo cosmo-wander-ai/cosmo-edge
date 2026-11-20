@@ -119,8 +119,8 @@ Status YoloV5DetPipeline::Init(const PipelineConfig& config, const std::string& 
         int v5_input_w = 640, v5_input_h = 640;
         std::vector<int> input_size = pipeline_utils::ReadIntArray(p, "input_size", {}, 2);
         if (input_size.size() >= 2) {
-            v5_input_w = input_size[0];
-            v5_input_h = input_size[1];
+            v5_input_h = input_size[0];
+            v5_input_w = input_size[1];
         }
 
         for (size_t i = 0; i < mc.outputs.size(); i++) {
@@ -210,8 +210,8 @@ Status YoloV8DetPipeline::Init(const PipelineConfig& config, const std::string& 
         int post_input_w = 640, post_input_h = 640;
         std::vector<int> input_size = pipeline_utils::ReadIntArray(p, "input_size", {}, 2);
         if (input_size.size() >= 2) {
-            post_input_w = input_size[0];
-            post_input_h = input_size[1];
+            post_input_h = input_size[0];
+            post_input_w = input_size[1];
         }
 
         for (size_t i = 0; i < mc.outputs.size(); i++) {
@@ -508,8 +508,8 @@ Status GenericDetectorPipeline::Init(const PipelineConfig& config, const std::st
                 int gd_input_w = 640, gd_input_h = 640;
                 std::vector<int> input_size = pipeline_utils::ReadIntArray(p, "input_size", {}, 2);
                 if (input_size.size() >= 2) {
-                    gd_input_w = input_size[0];
-                    gd_input_h = input_size[1];
+                    gd_input_h = input_size[0];
+                    gd_input_w = input_size[1];
                 }
                 if (post_type == "yolov8") {
                     output.op = pipeline_utils::MakeYoloV8PostOp(nms_thresh, conf_thresh, top_k, gd_input_w,
