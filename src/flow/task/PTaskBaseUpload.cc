@@ -161,6 +161,91 @@ void PTaskBase::UploadImage(const std::vector<uint8_t>& data, const std::string&
         nullptr, "jpg", fileName, bucket, url);
 }
 
+static void DrawDetectionBoxes(const AlgDataPtr& alg_data, const VideoFramePtr& frame) {
+    const auto detections = alg_data->chanDataDetect.detRet;
+    if (!detections)
+        return;
+
+    const media::Color color{255, 0, 0};
+    for (const auto& target : detections->targets) {
+        if (target.box.width <= 0 || target.box.height <= 0)
+            continue;
+        auto lines = target.oriented_corners
+                         ? GetQuadOsdLines(*target.oriented_corners, frame->GetWidth(), frame->GetHeight())
+                         : GetBoxOsdLines(target.box, frame->GetWidth(), frame->GetHeight());
+        service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().DrawLines(frame, lines, color, 2);
+    }
+}
+
+static void DrawLandmarkCrosses(const AlgDataPtr& alg_data, const VideoFramePtr& frame) {
+    const auto detections = alg_data->chanDataDetect.detRet;
+    if (!detections)
+        return;
+
+    const media::Color color{0, 255, 0};
+    const int width  = frame->GetWidth();
+    const int height = frame->GetHeight();
+    for (const auto& target : detections->targets) {
+        for (const auto& pt : target.landmark.landmark) {
+            const int x = static_cast<int>(pt.x);
+            const int y = static_cast<int>(pt.y);
+            if (x < 2 || x >= width - 2 || y < 2 || y >= height - 2)
+                continue;
+            std::vector<std::pair<util::Point, util::Point>> lines{{{x - 2, y}, {x + 2, y}},
+                                                                   {{x, y - 2}, {x, y + 2}}};
+            service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().DrawLines(frame, lines, color,
+                                                                                          2);
+        }
+    }
+}
+
+static void DrawSegmentationMasks(const AlgDataPtr& alg_data, VideoFramePtr& frame) {
+    const auto detections = alg_data->chanDataDetect.detRet;
+    if (!detections)
+        return;
+
+    bool hasMaskApplied = false;
+    int imgW            = frame->GetWidth();
+    int imgH            = frame->GetHeight();
+
+    if (frame->GetPixelFormat() == media::PixelFormat::PIXEL_I420 &&
+        service::ServiceRegistry::Instance().Get<service::IVideoFrameTransform>().EnsureHostData(frame)) {
+        // Sophon path (I420): EnsureHostData copies device→host into GetHostData().
+        // CPU path (I420): data lives in GetData() (pool memory), GetHostData() is nullptr.
+        uint8_t* yuvData = frame->GetHostData();
+        if (!yuvData) {
+            yuvData = frame->GetData();  // CPU fallback
+        }
+        if (yuvData) {
+            for (const auto& tgt : detections->targets) {
+                if (ApplyYuvMask(yuvData, imgW, imgH, tgt.mask)) {
+                    hasMaskApplied = true;
+                }
+            }
+        }
+    } else if (frame->GetPixelFormat() == media::PixelFormat::PIXEL_BGR8) {
+        // CPU path (BGR8): mask overlay directly on packed BGR data
+        uint8_t* bgrData = frame->GetData();
+        if (bgrData) {
+            for (const auto& tgt : detections->targets) {
+                if (ApplyBgrMask(bgrData, imgW, imgH, tgt.mask)) {
+                    hasMaskApplied = true;
+                }
+            }
+        }
+    }
+
+    // Key: After CPU (Host) memory modification above, since EncodeJpeg
+    // defaults to reading from Device memory (YUV->RGB->JPEG via hardware),
+    // we must sync the modified YUV data back to Device memory.
+    // CopyJpegSrcFrame detects HostData and uses bm_memcpy_s2d_partial
+    // to sync it to a new device buffer, returning that new Frame.
+    // On CPU backend this is a no-op copy (data is already in host memory).
+    if (hasMaskApplied && frame->GetPixelFormat() == media::PixelFormat::PIXEL_I420) {
+        frame = service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().CopyJpegSrcFrame(frame);
+    }
+}
+
 void PTaskBase::DetTargetHandFullPicture(AlgDataPtr algData, MsgPTaskDetectPicRecv& /*data*/,
                                          MsgPTaskDetectPicSend& retData) {
     // Original image
@@ -171,99 +256,9 @@ void PTaskBase::DetTargetHandFullPicture(AlgDataPtr algData, MsgPTaskDetectPicRe
         return;
     }
 
-    // Full-scene annotated image
-    media::Color box_color{uint8_t(0), uint8_t(0), uint8_t(0)};
-    int lineWidth = 2;
-
-    // Overlay detection targets with colored boxes
-    box_color.red   = uint8_t(255);
-    box_color.green = 0;
-    box_color.blue  = 0;
-    if (algData->chanDataDetect.detRet) {
-        for (const auto& target : algData->chanDataDetect.detRet->targets) {
-            if (target.box.width <= 0 || target.box.height <= 0)
-                continue;
-            auto boxLines =
-                target.oriented_corners
-                    ? GetQuadOsdLines(*target.oriented_corners, origImg->GetWidth(), origImg->GetHeight())
-                    : GetBoxOsdLines(target.box, origImg->GetWidth(), origImg->GetHeight());
-            service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().DrawLines(
-                origImg, boxLines, box_color, lineWidth);
-        }
-    }
-
-    // Overlay landmark keypoints (green cross markers)
-    if (algData->chanDataDetect.detRet) {
-        media::Color landmark_color{uint8_t(0), uint8_t(255), uint8_t(0)};
-        int lmLineWidth = 2;
-        int imgW        = origImg->GetWidth();
-        int imgH        = origImg->GetHeight();
-        for (const auto& target : algData->chanDataDetect.detRet->targets) {
-            if (target.landmark.landmark.empty()) {
-                continue;
-            }
-            for (const auto& pt : target.landmark.landmark) {
-                int px = static_cast<int>(pt.x);
-                int py = static_cast<int>(pt.y);
-                // Ensure within image bounds
-                if (px < 2 || px >= imgW - 2 || py < 2 || py >= imgH - 2) {
-                    continue;
-                }
-                // Draw cross marker (5x5)
-                std::vector<std::pair<util::Point, util::Point>> crossLines;
-                crossLines.push_back({{px - 2, py}, {px + 2, py}});
-                crossLines.push_back({{px, py - 2}, {px, py + 2}});
-                service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().DrawLines(
-                    origImg, crossLines, landmark_color, lmLineWidth);
-            }
-        }
-    }
-
-    // Overlay SAM2 semi-transparent mask
-    if (algData->chanDataDetect.detRet) {
-        bool hasMaskApplied = false;
-        int imgW            = origImg->GetWidth();
-        int imgH            = origImg->GetHeight();
-
-        if (origImg->GetPixelFormat() == media::PixelFormat::PIXEL_I420 &&
-            service::ServiceRegistry::Instance().Get<service::IVideoFrameTransform>().EnsureHostData(
-                origImg)) {
-            // Sophon path (I420): EnsureHostData copies device→host into GetHostData().
-            // CPU path (I420): data lives in GetData() (pool memory), GetHostData() is nullptr.
-            uint8_t* yuvData = origImg->GetHostData();
-            if (!yuvData) {
-                yuvData = origImg->GetData();  // CPU fallback
-            }
-            if (yuvData) {
-                for (const auto& tgt : algData->chanDataDetect.detRet->targets) {
-                    if (ApplyYuvMask(yuvData, imgW, imgH, tgt.mask)) {
-                        hasMaskApplied = true;
-                    }
-                }
-            }
-        } else if (origImg->GetPixelFormat() == media::PixelFormat::PIXEL_BGR8) {
-            // CPU path (BGR8): mask overlay directly on packed BGR data
-            uint8_t* bgrData = origImg->GetData();
-            if (bgrData) {
-                for (const auto& tgt : algData->chanDataDetect.detRet->targets) {
-                    if (ApplyBgrMask(bgrData, imgW, imgH, tgt.mask)) {
-                        hasMaskApplied = true;
-                    }
-                }
-            }
-        }
-
-        // Key: After CPU (Host) memory modification above, since EncodeJpeg
-        // defaults to reading from Device memory (YUV->RGB->JPEG via hardware),
-        // we must sync the modified YUV data back to Device memory.
-        // CopyJpegSrcFrame detects HostData and uses bm_memcpy_s2d_partial
-        // to sync it to a new device buffer, returning that new Frame.
-        // On CPU backend this is a no-op copy (data is already in host memory).
-        if (hasMaskApplied && origImg->GetPixelFormat() == media::PixelFormat::PIXEL_I420) {
-            origImg =
-                service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>().CopyJpegSrcFrame(origImg);
-        }
-    }
+    DrawDetectionBoxes(algData, origImg);
+    DrawLandmarkCrosses(algData, origImg);
+    DrawSegmentationMasks(algData, origImg);
 
     auto fullJpeg = service::ServiceRegistry::Instance().Get<service::IVideoFrameCodec>().EncodeJpeg(origImg);
 

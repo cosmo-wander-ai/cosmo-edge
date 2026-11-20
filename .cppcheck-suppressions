@@ -12,6 +12,3 @@ unmatchedSuppression
 // Standalone header scans cannot see field uses in other translation units,
 // including DTO serializers.
 unusedStructMember:*.h
-
-// Each overlay pass rechecks detection state after the preceding drawing calls.
-duplicateCondition:*src/flow/task/PTaskBaseUpload.cc:223
