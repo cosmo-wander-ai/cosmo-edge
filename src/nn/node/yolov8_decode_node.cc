@@ -60,7 +60,9 @@ Status YoloV8DecodeNode::InferTopShapes() {
     top_blob_data_types = {DataType::DATA_TYPE_FLOAT};
 
     if (shared_resource) {
-        shared_resource->yolov8_direct_postprocess = {true, base_conf, input_width_, input_height_};
+        // Keep rectangular RKNN inputs on the existing tensor decode path.
+        shared_resource->yolov8_direct_postprocess = {input_width_ == input_height_, base_conf, input_width_,
+                                                      input_height_};
     }
 
     return COSMO_NN_OK;
