@@ -13,9 +13,7 @@
 namespace cosmo {
 
 struct LogicalJudgmentLogicParam {
-    std::string alg_code;
     std::string label;
-    std::string category;
     float value{0.0f};
 };
 

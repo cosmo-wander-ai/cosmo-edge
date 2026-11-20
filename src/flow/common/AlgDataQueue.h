@@ -69,7 +69,6 @@ private:
     QueueType m_queue;
     std::string m_name;
     size_t m_maxSize;
-    size_t m_durationIndex{0};
     bool m_isRunning;
     util::FpsCalc m_inputFps;
     float m_infps{0.0};

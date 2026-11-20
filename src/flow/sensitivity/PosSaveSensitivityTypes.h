@@ -10,14 +10,8 @@
 
 struct cosmo::PosSaveSensitivity::TrackIdData {
     struct TrackIdDataEl {
-        struct TrackIdAreaData {
-            std::string id;  // Area ID
-            std::string name;
-        };
         bool has_area{false};
         bool has_shielded_area{false};
-        std::vector<TrackIdAreaData> areas;
-        std::vector<TrackIdAreaData> shield_areas;
         bool logic_result{false};
         bool is_filtered{false};
         std::string filter_desc;
@@ -34,9 +28,8 @@ struct cosmo::PosSaveSensitivity::TrackIdData {
     VideoFramePtr frame{nullptr};  // Original decoded data frame
     AiDetectRstEl frame_target;    // Detection from exactly the retained frame
     std::vector<AiDetectRstEl> frame_group_targets;
-    size_t first_timestamp{0};    // Timestamp when appeared
-    size_t last_timestamp{0};     // Timestamp before disappearance
-    bool is_history_full{false};  // Calculate sensitivity only after history queue has been popped
+    size_t first_timestamp{0};  // Timestamp when appeared
+    size_t last_timestamp{0};   // Timestamp before disappearance
     AiDetectRstEl target;
     std::vector<AiDetectRstEl> group_targets;
     std::deque<TrackIdDataEl> history;

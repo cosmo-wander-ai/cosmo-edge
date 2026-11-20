@@ -34,8 +34,6 @@ struct Qwen3VLWorkerChannel {
 
 struct Qwen3VLWorkerParamEl {
     std::string task_id;
-    std::string atomic_code;
-    float fps{1.0};
     std::string prompt;
     bool advanced_mode{false};
     Qwen3VLGenerationStyle generation_style{Qwen3VLGenerationStyle::STANDARD};
@@ -47,7 +45,6 @@ struct Qwen3VLWorkerParamEl {
 
 struct Qwen3VLWorkerParam {
     int param_modify_sign{0};
-    int param_active_sign{-1};
     std::vector<Qwen3VLWorkerParamEl> param;
 };
 
@@ -135,7 +132,6 @@ private:
     bool detector_inst_init_{false};
     std::atomic<util::ErrorEnum> initialization_status_{util::ErrorEnum::ActionReady};
     bool local_worker_registered_{false};  // Owned by the processing thread.
-    int sign_register_{0};
     Qwen3VLWorkerParam params_;
     std::map<std::string, Qwen3VLTaskContext> task_contexts_;
     std::map<std::string, TaskBaseArea>

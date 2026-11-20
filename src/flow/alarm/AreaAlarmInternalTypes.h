@@ -38,7 +38,6 @@ struct AreaAlarm::TrackIdAreaDataUnit {
     std::chrono::steady_clock::time_point data_time_point;
     size_t frame_index{0};
     bool is_in_area{false};
-    bool is_break_line{false};
 };
 
 struct AreaAlarm::TrackIdAreaData {
@@ -49,7 +48,6 @@ struct AreaAlarm::TrackIdAreaData {
 
 struct AreaAlarm::TrackIdData {
     int track_id{-1};
-    std::string track_id_uuid;
     bool detected;
     bool target_in_shielded_area{false};
     std::map<std::string, TrackIdAreaData> area_data;
@@ -63,7 +61,6 @@ struct AreaAlarm::TrackIdData {
 // --- Pass-flow / wrong-direction internal types ---
 
 struct AreaAlarm::PassFlowTrackIdData {
-    unsigned track_id{0};
     bool detected{false};
     AiDetectRstEl target;
     std::deque<AiDetectRstEl> history;

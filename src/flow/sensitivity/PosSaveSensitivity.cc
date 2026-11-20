@@ -244,15 +244,8 @@ void PosSaveSensitivity::AddHistory(AlgDataPtr algData, DataDetTrackClassifyPtr 
         trackData.target_confidence_info.box       = target.box;
         trackData.target_confidence_info.targetPos = target.targetPos;
 
-        // Area & Shild Area
         trackData.has_area          = input->bHaveArea;
         trackData.has_shielded_area = input->bHaveShieldedArea;
-        for (auto& shiledArea : target.areaSign.shielded_areas) {
-            trackData.shield_areas.push_back({shiledArea.area_id, shiledArea.area_name});
-        }
-        for (auto& targetAreas : target.areaSign.areas) {
-            trackData.areas.push_back({targetAreas.area_id, targetAreas.area_name});
-        }
 
         idData.history.push_back(trackData);
     }
@@ -263,7 +256,6 @@ void PosSaveSensitivity::OldHistory() {
         while ((it->second.history.size() > params_.pos_sen_total_count)) {
             it->second.history.pop_front();
         }
-        it->second.is_history_full = !it->second.history.empty();
         ++it;
     }
 }

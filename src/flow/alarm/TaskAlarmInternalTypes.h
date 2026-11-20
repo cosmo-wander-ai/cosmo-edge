@@ -24,7 +24,6 @@ struct TaskAlarm::AlarmIdData {
 };
 
 struct TaskAlarm::AreaIdData {
-    std::string areaId;
     bool haveReport{false};
     std::chrono::steady_clock::time_point lastAlarmTime;
 };

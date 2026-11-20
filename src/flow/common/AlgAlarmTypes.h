@@ -44,16 +44,6 @@ struct RecordParam {
     RetroDirect retroDirect{RetroDirect::RetroDirectNone};  // Invalid direction
 };
 
-struct DataTargetFilter {
-    bool bFilter{false};                 // Will be true if any other bool filter is true
-    bool bSizeFilter{false};             // Size filter
-    bool bSideFilter{false};             // Edge filter
-    bool bConfidenceFilter{false};       // Confidence filter
-    bool bAlarmLimitCountFilter{false};  // Alarm count filter
-    bool bAlarmDurationFilter{false};    // Alarm interval filter
-    std::vector<std::string> areaId;     // Inner area list including both normal and shielded areas
-};
-
 struct DataAlarmTargetConfidence {
     util::Box box;
     std::vector<util::Box> friends;
@@ -176,7 +166,6 @@ struct DataAlarmUnit {
     AiDetectMatchHighScoreInfo matchInfo;   // Highest score match info during Reid algorithm comparison
     AlgTaskDataFaceLogicAreaInfo areaInfo;  // Effective only when OnEventsReportTypeTrigger
     VideoFramePtr baseFrame;                // Base frame for camera movement
-    bool bLogicResult{false};
     /// Graphic-text judgment is already completed by upstream (e.g. Qwen3VL node), event reporting side does
     /// not do a second LLM audit
     bool bLlmPrejudged{false};
@@ -197,10 +186,5 @@ struct DataAlarm {
     std::deque<DataAlarmUnit> alarms;  // AlarmDataTypeTrack
 };
 using DataAlarmPtr = std::shared_ptr<DataAlarm>;
-
-struct DataFilter {
-    std::vector<DataTargetFilter> targetsFilter;
-};
-using DataFilterPtr = std::shared_ptr<DataFilter>;
 
 }  // namespace cosmo
