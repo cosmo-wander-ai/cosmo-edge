@@ -106,14 +106,4 @@ struct TaskStatus {
     std::vector<ActionRuntimeInfo> actionInfo;
 };
 
-struct PTaskStatus {
-    std::string taskId;
-    std::string streamUrl;         // Video stream URL
-    std::string algorithmId;       // Algorithm ID
-    std::string algorithmName;     // Algorithm name
-    std::string algorithmVersion;  // Algorithm version
-    std::vector<AlgActionDataQueueStatusDto> queStatus;
-    std::vector<ActionRuntimeInfo> actionInfo;
-};
-
 }  // namespace cosmo

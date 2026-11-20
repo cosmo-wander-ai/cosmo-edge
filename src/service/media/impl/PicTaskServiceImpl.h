@@ -45,8 +45,6 @@ public:
     bool SetTaskParam(const std::string& taskId, cosmo::MsgTaskConfig& param) override;
     bool GetTaskParam(const std::string& taskId, cosmo::MsgTaskConfig& param) override;
 
-    std::vector<cosmo::PTaskStatus> GetTaskStatus(unsigned int durationSec = 30) override;
-
     bool TasksHaveChange(const std::string& nodeAlgorithmCheckSum) override;
     size_t TaskCount() override;
 
