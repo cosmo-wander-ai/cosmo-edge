@@ -68,18 +68,14 @@ static Status DetectionForward(
     return Status{COSMO_NN_OK};
 }
 
-static Status DetectionParseOutput(std::vector<std::shared_ptr<Blob>> output_blobs,
+static Status DetectionParseOutput(const std::vector<std::shared_ptr<Blob>>& output_blobs,
                                    const std::vector<Size>& image_sizes, const Size& net_input_size,
                                    const std::vector<int>& indices, const std::vector<float>& thresholds,
                                    const std::vector<std::string>& classnames,
                                    std::vector<std::vector<ObjectInfoV1>>& outputs) {
     outputs.clear();
-    std::vector<Size> image_sizes_copy       = image_sizes;
-    std::vector<int> indices_copy            = indices;
-    std::vector<float> thresholds_copy       = thresholds;
-    std::vector<std::string> classnames_copy = classnames;
-    return NetUtils::ParseDetectionOutput(output_blobs, image_sizes_copy, net_input_size, indices_copy,
-                                          thresholds_copy, classnames_copy, outputs);
+    return NetUtils::ParseDetectionOutput(output_blobs, image_sizes, net_input_size, indices, thresholds,
+                                          classnames, outputs);
 }
 
 // ============================= YOLOv5 =====================================

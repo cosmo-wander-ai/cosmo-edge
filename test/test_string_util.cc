@@ -5,6 +5,7 @@
  * Tests Split, Trim, ToUpper, ToLower, UTF8Length, JoinStrings,
  * GetLastPathSegment, VectorToString, and ToString.
  */
+#include "nn/utils/string_format.h"
 #include "util/StringUtil.h"
 
 using namespace cosmo::util;
@@ -154,6 +155,12 @@ TEST_CASE("StringUtil: VectorToString", "[string-util]") {
         std::vector<int> v = {42};
         REQUIRE(VectorToString(v) == "[42]");
     }
+}
+
+TEST_CASE("NN vector formatting preserves integer and unsigned byte output", "[string-util][nn]") {
+    CHECK(cosmo::nn::VectorToString(std::vector<int>{}) == "");
+    CHECK(cosmo::nn::VectorToString(std::vector<int>{1, 2, 3}) == "[1,2,3]");
+    CHECK(cosmo::nn::VectorToString(std::vector<int8_t>{-1, 0}) == "[255,0]");
 }
 
 TEST_CASE("StringUtil: ToString", "[string-util]") {

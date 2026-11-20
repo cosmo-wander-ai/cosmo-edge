@@ -18,7 +18,7 @@ std::string BoolToString(bool val);
 std::string DeviceTypeToString(DeviceType val);
 
 template <typename T>
-std::string VectorToString(std::vector<T> val) {
+std::string VectorToString(const std::vector<T>& val) {
     if (val.empty())
         return "";
 
@@ -34,7 +34,7 @@ std::string VectorToString(std::vector<T> val) {
 }
 
 template <>
-std::string VectorToString(std::vector<int8_t> val);
+std::string VectorToString(const std::vector<int8_t>& val);
 
 template <typename T>
 std::vector<T> Spilt(const std::string& src, const std::string& sep) {

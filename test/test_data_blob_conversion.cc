@@ -17,6 +17,7 @@
 #include "nn/core/abstract_device.h"
 #include "nn/device/naive/naive_device.h"
 #include "nn/pipeline/model_pipeline.h"
+#include "nn/utils/default_component.h"
 
 namespace cosmo {
 namespace {
@@ -173,6 +174,13 @@ namespace {
     public:
         nn::Status Init(const nn::PipelineConfig&, const std::string&, nn::DeviceType, int, nn::IProfiler*,
                         const std::string&, const std::string&) override {
+            nn::Instruction instruction;
+            instruction.categories.push_back({"probe", 1, {0.65F}});
+            instruction.infos.push_back({"probe", "probe", {0.65F}});
+            model_info_.config.instructions.push_back(std::move(instruction));
+            selected_indices_.push_back(0);
+            selected_classnames_.push_back("probe");
+            selected_thresholds_.push_back(0.65F);
             return nn::Status{nn::COSMO_NN_OK};
         }
         nn::Status Forward(std::initializer_list<std::vector<std::shared_ptr<nn::Blob>>>) override {
@@ -218,6 +226,27 @@ namespace {
         mem::MemoryPoolMng pool_;
         std::filesystem::path directory_;
     };
+
+    TEST_CASE("DefaultComponent forwards category and threshold queries by ID and label", "[nn][category]") {
+        ConversionFixture fixture;
+        nn::DefaultComponent component({}, fixture.ConfigPath(), "/unused", nn::DEVICE_NAIVE);
+        float threshold = 0;
+        REQUIRE(static_cast<bool>(component.GetThreshold(0, &threshold)));
+        CHECK(threshold == 0.65F);
+        REQUIRE(static_cast<bool>(component.SetThreshold(std::string("probe"), 0.25F)));
+        REQUIRE(static_cast<bool>(component.GetThreshold(0, &threshold)));
+        CHECK(threshold == 0.25F);
+        REQUIRE(static_cast<bool>(component.SetThreshold(0, 0.5F)));
+        REQUIRE(static_cast<bool>(component.GetThreshold(std::string("probe"), &threshold)));
+        CHECK(threshold == 0.5F);
+
+        nn::CategoryInfo category;
+        REQUIRE(static_cast<bool>(component.GetCategoryInfo(0, category)));
+        CHECK(category.threshold == std::vector<float>{0.65F});
+        REQUIRE(static_cast<bool>(component.GetCategoryInfo(std::string("probe"), category)));
+        CHECK(category.class_name == "probe");
+        CHECK(category.threshold == std::vector<float>{0.65F});
+    }
 
     TEST_CASE("Inference wrappers propagate conversion allocation failures",
               "[data-blob][infer-conversion]") {

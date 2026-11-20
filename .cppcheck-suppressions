@@ -16,32 +16,6 @@ unusedStructMember:*.h
 // Preserve supported implicit conversions and public by-value/reference APIs.
 // Changing these signatures or adding explicit would break existing callers.
 noExplicitConstructor:*src/flow/common/AlgAlarmTypes.h:85
-noExplicitConstructor:*src/nn/utils/net_utils.h:85
-passedByValue:*src/nn/utils/default_component.cc:82
-passedByValue:*src/nn/utils/default_component.cc:90
-passedByValue:*src/nn/utils/default_component.cc:98
-constParameterPointer:*src/nn/utils/net_utils.cc:131
-passedByValue:*src/nn/utils/net_utils.cc:198
-passedByValue:*src/nn/utils/net_utils.cc:200
-passedByValue:*src/nn/utils/net_utils.cc:201
-// Exposed after const-correcting private helpers; retain the public overload type.
-constParameterReference:*src/nn/utils/net_utils.cc:291
-constParameterReference:*src/nn/utils/net_utils.cc:328
-constParameterReference:*src/nn/utils/net_utils.cc:422
-constParameterReference:*src/nn/utils/net_utils.cc:423
-constParameterReference:*src/nn/utils/net_utils.cc:424
-constParameterReference:*src/nn/utils/net_utils.cc:425
-constParameterReference:*src/nn/utils/net_utils.cc:426
-constParameterReference:*src/nn/utils/net_utils.cc:438
-constParameterReference:*src/nn/utils/net_utils.cc:440
-constParameterReference:*src/nn/utils/net_utils.cc:514
-constParameterReference:*src/nn/utils/net_utils.cc:597
-constParameterReference:*src/nn/utils/net_utils.cc:598
-passedByValue:*src/nn/utils/net_utils.cc:693
-constParameterReference:*src/nn/utils/net_utils.cc:709
-constParameterReference:*src/nn/utils/net_utils.cc:710
-constParameterReference:*src/nn/utils/net_utils.cc:731
-passedByValue:*src/nn/utils/string_format.h:21
 
 // Retired instances must be destroyed after the pool lock is released.
 // The reservation destructor reads active; clearing it prevents a second decrement.
