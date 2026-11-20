@@ -98,7 +98,7 @@ Status KeypointsPipeline::Forward(std::initializer_list<std::vector<std::shared_
             rects_.push_back(r);
         }
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status KeypointsPipeline::ParseKeypointsOutput(std::vector<std::vector<ObjectInfoV1>>& outputs) {

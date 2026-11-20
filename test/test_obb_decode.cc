@@ -2,6 +2,7 @@
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <type_traits>
 #include <vector>
 
 #include "catch_amalgamated.hpp"
@@ -10,6 +11,18 @@
 
 namespace cosmo::nn {
 namespace {
+
+    static_assert(std::is_constructible_v<Status, int> && !std::is_convertible_v<int, Status>);
+
+    TEST_CASE("Explicit status construction preserves code and message", "[nn][status]") {
+        Status ok;
+        Status error{COSMO_NN_ERR_PARAM};
+        Status detailed{COSMO_NN_ERR_PARAM, "bad input"};
+        CHECK(ok == COSMO_NN_OK);
+        CHECK(error == COSMO_NN_ERR_PARAM);
+        CHECK(error.description().find("msg: OK") != std::string::npos);
+        CHECK(detailed.description().find("msg: bad input") != std::string::npos);
+    }
 
     constexpr float kPi = 3.14159265358979323846f;
 

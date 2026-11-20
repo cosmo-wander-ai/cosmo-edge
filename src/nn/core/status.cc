@@ -2,6 +2,7 @@
 
 #include <iomanip>
 #include <sstream>
+#include <utility>
 
 namespace cosmo::nn {
 
@@ -19,10 +20,11 @@ Status::~Status() {
     message = "";
 }
 
-Status::Status(int c, std::string msg) {
-    code    = c;
-    message = msg;
-}
+Status::Status() : Status(COSMO_NN_OK) {}
+
+Status::Status(int c) : Status(c, "OK") {}
+
+Status::Status(int c, std::string msg) : code(c), message(std::move(msg)) {}
 
 Status& Status::operator=(int c) {
     code    = c;

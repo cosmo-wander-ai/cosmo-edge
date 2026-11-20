@@ -73,7 +73,7 @@ namespace {
         if (ret != BM_SUCCESS) {
             return Status(COSMO_NN_ERR_SOPHON_ATTACH_FAILED, "bm_image source attach failed");
         }
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     }
 
     Status ResizeFrame(bm_handle_t handle, const bm_device_mem_t& source, const BlobDesc& source_desc,
@@ -144,7 +144,7 @@ namespace {
         if (ret != BM_SUCCESS) {
             return Status(COSMO_NN_ERR_SOPHON_INFER_ERR, "bmcv resize failed");
         }
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     }
 
     bool ValidateImageDims(const DimsVector& dims, uint32_t* width, uint32_t* height) {
@@ -196,7 +196,7 @@ Status SophonResizeNode::InferTopShapes() {
     }
     top_blob_shapes     = {{max_batch, out_h, aligned_w, 3}};
     top_blob_data_types = {DataType::DATA_TYPE_UINT8};
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 DeviceType SophonResizeNode::GetTopBlobDeviceType() {
@@ -236,7 +236,7 @@ Status SophonResizeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blob
         return status;
     }
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status SophonResizeNode::Forward(std::shared_ptr<Blob>& bottom_blob, std::shared_ptr<Blob>& top_blob) {
@@ -287,7 +287,7 @@ Status SophonResizeNode::Forward(std::shared_ptr<Blob>& bottom_blob, std::shared
         RETURN_ON_FAIL(ResizeFrame(handle, source, bottom_desc, src_width, src_height, destination, dst_width,
                                    dst_height, gravity, color));
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status SophonResizeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
@@ -337,7 +337,7 @@ Status SophonResizeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blob
         RETURN_ON_FAIL(ResizeFrame(handle, source, bottom_desc, src_width, src_height, destination, dst_width,
                                    dst_height, gravity, color));
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

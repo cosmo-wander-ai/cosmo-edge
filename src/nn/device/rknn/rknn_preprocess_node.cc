@@ -432,7 +432,7 @@ Status RknnResizeNode::InferTopShapes() {
     shared_resource->net_input_h = out_height_;
     top_blob_shapes              = {{1, out_height_, out_width_, 3}};
     top_blob_data_types          = {DataType::DATA_TYPE_UINT8};
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 size_t RknnResizeNode::GetBottomCount() {
@@ -769,7 +769,7 @@ Status RknnResizeNode::ResizeSingle(const std::shared_ptr<Blob>& bottom, const s
     top_desc.data_format  = DATA_FORMAT_NHWC;
     top_desc.image_format = detector_contract_ ? IMAGE_RGB : bottom_desc.image_format;
     top->SetBlobDesc(top_desc);
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status RknnResizeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
@@ -802,7 +802,7 @@ Status RknnResizeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
     }
     top_blobs[0]->SetBlobDesc(top_desc);
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 RknnCropResizeNode::RknnCropResizeNode() : CpuCropResizeNode() {
@@ -1109,7 +1109,7 @@ Status RknnCropResizeNode::Forward(std::vector<std::shared_ptr<Blob>>& image_blo
     timer.Start();
     if (ForwardWithRga(image_blobs, rect_blobs, top_blobs)) {
         timer.Stop();
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     }
     InvalidateRgaBoundFrame();
     timer.Stop();
@@ -1172,7 +1172,7 @@ Status RknnNormalizeNode::InferTopShapesWithBottoms(std::vector<DimsVector> dims
         top_blob_shapes     = {{dims[0][0], dims[0][3], dims[0][1], dims[0][2]}};
         top_blob_data_types = {DataType::DATA_TYPE_FLOAT};
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 size_t RknnNormalizeNode::GetBottomCount() {
@@ -1221,7 +1221,7 @@ Status RknnNormalizeNode::ForwardNative(const Blob& bottom, Blob& top) {
     GetInferencePipelineMetrics().RecordRknnPreprocessFastHit();
     top_desc.image_format = is_bgr_ ? IMAGE_BGR : IMAGE_RGB;
     top.SetBlobDesc(top_desc);
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status RknnNormalizeNode::ForwardFloat(const Blob& bottom, Blob& top) {
@@ -1255,7 +1255,7 @@ Status RknnNormalizeNode::ForwardFloat(const Blob& bottom, Blob& top) {
                 (static_cast<float>(batch_source[source_offset + third_channel]) - mean_[2]) * scale_[2];
         }
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status RknnNormalizeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,

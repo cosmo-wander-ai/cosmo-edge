@@ -110,12 +110,12 @@ Status SophonDevice::Allocate(void** handle, unsigned long* phy, BlobMemorySizeI
     }
 
     *handle = static_cast<void*>(tensor_mem.release());  // transfer ownership to caller
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status SophonDevice::Free(void* handle, unsigned long phy) {
     if (handle == nullptr) {
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     }
     if (bm_handle == nullptr) {
         return Status(COSMO_NN_ERR_SOPHON_HANDLE_FAILED, "SophonDevice::Free device handle is null");
@@ -125,7 +125,7 @@ Status SophonDevice::Free(void* handle, unsigned long phy) {
     bm_free_device(bm_handle, *mem);
     delete mem;
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status SophonDevice::Allocate(void** handle, size_t size) {
@@ -143,7 +143,7 @@ Status SophonDevice::Allocate(void** handle, size_t size) {
         return Status(COSMO_NN_ERR_SOPHON_ALLOC_MEM_FAILED, "SophonDevice raw allocation failed");
     }
     *handle = tensor_mem.release();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status SophonDevice::CopyToDevice(BlobHandle* dst, const BlobHandle* src, BlobDesc& desc, void* queue) {
@@ -162,7 +162,7 @@ Status SophonDevice::CopyToDevice(BlobHandle* dst, const BlobHandle* src, BlobDe
             BM_SUCCESS) {
         return Status(COSMO_NN_ERR_SOPHON_MEMCPY_ERR, "SophonDevice copy to device failed");
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status SophonDevice::CopyFromDevice(BlobHandle* dst, const BlobHandle* src, BlobDesc& desc, void* queue) {
@@ -181,7 +181,7 @@ Status SophonDevice::CopyFromDevice(BlobHandle* dst, const BlobHandle* src, Blob
             BM_SUCCESS) {
         return Status(COSMO_NN_ERR_SOPHON_MEMCPY_ERR, "SophonDevice copy from device failed");
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 TypeDeviceRegister<SophonDevice> g_sophon_device_register(DEVICE_SOPHON_TPU);

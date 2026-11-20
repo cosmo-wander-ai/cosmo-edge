@@ -16,7 +16,6 @@ unusedStructMember:*.h
 // Preserve supported implicit conversions and public by-value/reference APIs.
 // Changing these signatures or adding explicit would break existing callers.
 noExplicitConstructor:*src/flow/common/AlgAlarmTypes.h:85
-noExplicitConstructor:*src/nn/core/status.h:64
 noExplicitConstructor:*src/nn/utils/net_utils.h:85
 passedByValue:*src/nn/utils/default_component.cc:82
 passedByValue:*src/nn/utils/default_component.cc:90

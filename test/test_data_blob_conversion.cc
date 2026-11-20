@@ -33,7 +33,7 @@ namespace {
                 if (throw_on_failure_) {
                     throw std::bad_alloc();
                 }
-                return nn::COSMO_NN_ERR_OUT_OF_MEMORY;
+                return nn::Status{nn::COSMO_NN_ERR_OUT_OF_MEMORY};
             }
             return NaiveDevice::Allocate(handle, phy, info);
         }
@@ -173,11 +173,11 @@ namespace {
     public:
         nn::Status Init(const nn::PipelineConfig&, const std::string&, nn::DeviceType, int, nn::IProfiler*,
                         const std::string&, const std::string&) override {
-            return nn::COSMO_NN_OK;
+            return nn::Status{nn::COSMO_NN_OK};
         }
         nn::Status Forward(std::initializer_list<std::vector<std::shared_ptr<nn::Blob>>>) override {
             ++forward_calls;
-            return nn::COSMO_NN_ERR_NET;
+            return nn::Status{nn::COSMO_NN_ERR_NET};
         }
         int GetMaxBatchSize() const override {
             return 2;

@@ -40,7 +40,7 @@ Status IdentityNode::InferTopShapes() {
     if (first_calculate_node && !expected_shape.empty()) {
         top_blob_shapes     = {expected_shape};
         top_blob_data_types = {expected_data_type};
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     }
 
     // If not a first_calculate_node, this should not be called
@@ -65,7 +65,7 @@ Status IdentityNode::InferTopShapesWithBottoms(std::vector<DimsVector> dims, std
     top_blob_data_types = {types[0]};
     top_blob_shapes     = {dims[0]};
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status IdentityNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
@@ -105,7 +105,7 @@ Status IdentityNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
     std::memcpy(output_handle.base, input_handle.base, byte_size);
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status IdentityNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
@@ -138,7 +138,7 @@ Status IdentityNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
     std::memcpy(output_handle.base, input_handle.base, byte_size);
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

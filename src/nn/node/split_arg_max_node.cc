@@ -36,7 +36,7 @@ Status SplitArgMaxNode::InferTopShapes() {
     top_blob_shapes     = {{max_batch, 2, static_cast<int>(split.size())}};
     top_blob_data_types = {DataType::DATA_TYPE_FLOAT};
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status SplitArgMaxNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
@@ -102,7 +102,7 @@ Status SplitArgMaxNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs
     }
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

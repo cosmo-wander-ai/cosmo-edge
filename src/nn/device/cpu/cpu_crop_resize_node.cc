@@ -47,7 +47,7 @@ Status CpuCropResizeNode::InferTopShapes() {
 
     top_blob_shapes     = {{max_batch, dst_height, dst_width, 3}};  // NHWC
     top_blob_data_types = {DataType::DATA_TYPE_UINT8};
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 size_t CpuCropResizeNode::GetTopCount() {
@@ -124,7 +124,7 @@ Status CpuCropResizeNode::PrepareRect(std::shared_ptr<Blob> host_rect, int image
         calculated_rects.push_back(x2 - x1 + 1);
         calculated_rects.push_back(y2 - y1 + 1);
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 void CpuCropResizeNode::BilinearResize(const uint8_t* src, int src_w, int src_h, int channels, uint8_t* dst,
@@ -248,13 +248,13 @@ Status CpuCropResizeNode::Forward(std::vector<std::shared_ptr<Blob>>& image_blob
     }
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status CpuCropResizeNode::Forward(std::vector<std::shared_ptr<Blob>>& /*bottom_blobs*/,
                                   std::vector<std::shared_ptr<Blob>>& /*top_blobs*/) {
     // Two-input version not used via this overload
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

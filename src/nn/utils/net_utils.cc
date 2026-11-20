@@ -285,7 +285,7 @@ Status NetUtils::PickDetectionObjects(std::shared_ptr<Blob>& blob, std::vector<S
         detects.push_back(extracted_objs);
     }
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 ObjectInfo NetUtils::AdjustSize(ObjectInfo& info, Size old_, Size new_, int gravity) {
@@ -389,7 +389,7 @@ Status NetUtils::GenerateCropResizeParam(CropResize* crop_resize, int left, int 
         param.dst_height = crop_resize->dsize[0];
         param.dst_width  = crop_resize->dsize[1];
         param.val        = crop_resize->color.at(0);
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     }
 
     // Unified signed ratio: negative or 0 means crop, positive means expand
@@ -416,7 +416,7 @@ Status NetUtils::GenerateCropResizeParam(CropResize* crop_resize, int left, int 
     param.dst_height = crop_resize->dsize[0];
     param.dst_width  = crop_resize->dsize[1];
     param.val        = crop_resize->color.at(0);
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status NetUtils::ParseDetectionOutput(std::vector<std::shared_ptr<Blob>>& blobs,
@@ -508,7 +508,7 @@ Status NetUtils::ParseClassificationOutput(std::vector<std::shared_ptr<Blob>>& b
         return Status(COSMO_NN_ERR_INVALID_INPUT, "Unsupported blob shape");
     }
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status NetUtils::ParseKeypointOutput(std::vector<std::shared_ptr<Blob>>& blobs, std::vector<Rect>& rects,
@@ -536,7 +536,7 @@ Status NetUtils::ParseKeypointOutput(std::vector<std::shared_ptr<Blob>>& blobs, 
         std::vector<ObjectInfoV1> _obj_infos = {obj_info};
         outputs.push_back(_obj_infos);
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 std::string NetUtils::TokenizerDecode(void* handle, std::vector<int>& ids) {
@@ -687,7 +687,7 @@ Status NetUtils::ParseDINOOutput(std::vector<std::shared_ptr<Blob>>& blobs, void
         }
         detects.push_back(std::move(objects));
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status NetUtils::GetImageSize(DimsVector dims, DataFormat layout, Size& size) {
@@ -703,7 +703,7 @@ Status NetUtils::GetImageSize(DimsVector dims, DataFormat layout, Size& size) {
     } else {
         return Status(COSMO_NN_ERR_PARAM, "GetImageSize: unsupported layout");
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 void NetUtils::CalculateWarpAffineMatrix(std::vector<std::pair<float, float>>& src_points,
@@ -914,7 +914,7 @@ Status NetUtils::WarpAffine(std::shared_ptr<Blob> blob, std::vector<std::pair<fl
     bm_dev_free(pbmhandle);
 #endif
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

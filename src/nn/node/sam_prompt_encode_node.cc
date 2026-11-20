@@ -43,7 +43,7 @@ Status SAMPromptEncodeNode::InferTopShapes() {
     // Default shape: [batch, max_points, 2]
     top_blob_data_types = {DataType::DATA_TYPE_FLOAT};
     top_blob_shapes     = {{1, max_points, 2}};
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 bool SAMPromptEncodeNode::NeedBottomShapesInfered() {
@@ -69,7 +69,7 @@ Status SAMPromptEncodeNode::InferTopShapesWithBottoms(std::vector<DimsVector> di
     top_blob_data_types = {DataType::DATA_TYPE_FLOAT};
     top_blob_shapes     = {{batch, max_points, 2}};
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 void SAMPromptEncodeNode::NormalizeCoords(float* coords, int num_points, int orig_width, int orig_height) {
@@ -150,7 +150,7 @@ Status SAMPromptEncodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_b
     }
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

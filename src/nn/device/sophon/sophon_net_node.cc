@@ -131,7 +131,7 @@ namespace {
                 BM_SUCCESS) {
                 return Status(COSMO_NN_ERR_SOPHON_MEMCPY_ERR, "Sophon memcpy d2s failed");
             }
-            return COSMO_NN_OK;
+            return Status{COSMO_NN_OK};
         }
 
         const size_t source_element_size = static_cast<size_t>(bmruntime::ByteSize(dtype));
@@ -159,22 +159,22 @@ namespace {
         switch (dtype) {
             case BM_FLOAT16:
                 ConvertToFloat<uint16_t>(tmp.data(), element_count, 1.0F, out, Float16ToFloat);
-                return COSMO_NN_OK;
+                return Status{COSMO_NN_OK};
             case BM_BFLOAT16:
                 ConvertToFloat<uint16_t>(tmp.data(), element_count, 1.0F, out, BFloat16ToFloat);
-                return COSMO_NN_OK;
+                return Status{COSMO_NN_OK};
             case BM_INT8:
                 ConvertToFloat<int8_t>(tmp.data(), element_count, scale, out,
                                        [](int8_t value) { return value; });
-                return COSMO_NN_OK;
+                return Status{COSMO_NN_OK};
             case BM_UINT8:
                 ConvertToFloat<uint8_t>(tmp.data(), element_count, scale, out,
                                         [](uint8_t value) { return value; });
-                return COSMO_NN_OK;
+                return Status{COSMO_NN_OK};
             case BM_INT32:
                 ConvertToFloat<int32_t>(tmp.data(), element_count, scale, out,
                                         [](int32_t value) { return value; });
-                return COSMO_NN_OK;
+                return Status{COSMO_NN_OK};
             default:
                 return Status(COSMO_NN_ERR_INVALID_INPUT, "Sophon output data type is unsupported");
         }
@@ -333,7 +333,7 @@ Status SophonNetNode::AllocateOutputDeviceMemory() {
         tensor_size_vec.push_back(static_cast<uint32_t>(output_tensor_size));
         tensor_capacity_vec_.push_back(output_tensor_size);
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status SophonNetNode::SetupNetworkAfterBmrt() {
@@ -400,12 +400,12 @@ Status SophonNetNode::SetupNetworkAfterBmrt() {
     if (!input_sizes_.empty() && m_netinfo->is_dynamic)
         RETURN_ON_FAIL(ProbeInputSize());
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status SophonNetNode::PrepareInputSize() {
     if (input_sizes_.empty())
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     if (m_netinfo->input_num != 1 || m_netinfo->output_num != 1)
         return Status(COSMO_NN_ERR_INVALID_CFG, "Three input sizes require a single-input YOLO26 bmodel");
     if (!m_netinfo->is_dynamic) {
@@ -428,7 +428,7 @@ Status SophonNetNode::PrepareInputSize() {
         input_tensors[0].shape  = m_netinfo->stages[selected_stage_].input_shapes[0];
         output_tensors[0].shape = m_netinfo->stages[selected_stage_].output_shapes[0];
         selected_output_shapes_ = {output_tensors[0].shape};
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     }
     const auto& limit = m_netinfo->stages[0].input_shapes[0];
     if (limit.num_dims != 4 || limit.dims[0] != 1 || limit.dims[1] != 3)
@@ -439,7 +439,7 @@ Status SophonNetNode::PrepareInputSize() {
     }
     input_tensors[0].shape.dims[2] = selected_input_size_.height;
     input_tensors[0].shape.dims[3] = selected_input_size_.width;
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status SophonNetNode::ProbeInputSize() {
@@ -467,7 +467,7 @@ Status SophonNetNode::ProbeInputSize() {
     for (const auto& output : output_tensors)
         selected_output_shapes_.push_back(output.shape);
     RETURN_ON_FAIL(CheckInputSizeOutputs());
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status SophonNetNode::CheckInputSizeOutputs() {
@@ -479,7 +479,7 @@ Status SophonNetNode::CheckInputSizeOutputs() {
             return Status(COSMO_NN_ERR_INVALID_INPUT, "Dynamic output shape or capacity changed");
         tensor_size_vec[i] = static_cast<uint32_t>(bytes);
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status SophonNetNode::LoadWeight(const char* data, size_t size) {
@@ -600,7 +600,7 @@ Status SophonNetNode::InferTopShapes() {
         top_blob_data_types.push_back(out_type);
     }
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 DeviceType SophonNetNode::GetTopBlobDeviceType() {
@@ -666,7 +666,7 @@ Status SophonNetNode::CopyOutputToBlob(const std::shared_ptr<Blob>& top_blob, in
             return Status(COSMO_NN_ERR_SOPHON_MEMCPY_ERR, "Sophon memcpy d2d failed");
         }
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status SophonNetNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
@@ -815,7 +815,7 @@ Status SophonNetNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
             RETURN_ON_FAIL(CopyOutputToBlob(top_blobs.at(idx_hr1), high_res_1_bm));
             RETURN_ON_FAIL(CopyOutputToBlob(top_blobs.at(idx_emb), image_embed_bm));
             timer.Stop();
-            return COSMO_NN_OK;
+            return Status{COSMO_NN_OK};
         }
     }
 
@@ -837,7 +837,7 @@ Status SophonNetNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
             RETURN_ON_FAIL(CopyOutputToBlob(top_blobs.at(0), masks_bmodel_idx));
             RETURN_ON_FAIL(CopyOutputToBlob(top_blobs.at(1), scores_bmodel_idx));
             timer.Stop();
-            return COSMO_NN_OK;
+            return Status{COSMO_NN_OK};
         }
     }
 
@@ -880,7 +880,7 @@ Status SophonNetNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
     }
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

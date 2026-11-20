@@ -45,7 +45,7 @@ Status CpuSequenceNode::InferTopShapes() {
     // Output: NCHW float32 (stitched + normalized)
     top_blob_shapes     = {{max_batch, 3, dst_height, dst_width}};
     top_blob_data_types = {DataType::DATA_TYPE_FLOAT};
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 size_t CpuSequenceNode::GetTopCount() {
@@ -82,7 +82,7 @@ Status CpuSequenceNode::PrepareRect(std::shared_ptr<Blob> host_rect, int image_w
         calculated_rects.push_back(x2 - x1 + 1);
         calculated_rects.push_back(y2 - y1 + 1);
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 void CpuSequenceNode::BilinearResize(const uint8_t* src, int src_w, int src_h, int channels, uint8_t* dst,
@@ -195,7 +195,7 @@ Status CpuSequenceNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs
     }
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

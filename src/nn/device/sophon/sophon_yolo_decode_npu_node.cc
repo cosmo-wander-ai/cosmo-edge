@@ -37,7 +37,7 @@ Status SophonYoloDecodeNPUNode::InferTopShapes() {
     top_blob_shapes     = {{max_batch, top_k, top_col}};
     top_blob_data_types = {DataType::DATA_TYPE_FLOAT};
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 size_t SophonYoloDecodeNPUNode::GetBottomCount() {
@@ -144,7 +144,7 @@ Status SophonYoloDecodeNPUNode::Forward(std::vector<std::shared_ptr<Blob>>& bott
     }
     timer.Stop();
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 std::vector<YoloBox> SophonYoloDecodeNPUNode::NMS(std::vector<YoloBox>& detections, float iou_threshold) {
