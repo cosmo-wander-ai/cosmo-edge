@@ -85,13 +85,13 @@ DurationStatInfo DurationStat::ComputeStats(int duration_ms) const {
     int64_t max_ns{0};
     int64_t min_ns{std::numeric_limits<int64_t>::max()};
     for (size_t i = start_offset; i < count; i++) {
-        size_t si = (oldest + i) % kMaxDurationSamples;
-        total_ns += samples_[si].duration_ns;
-        if (max_ns < samples_[si].duration_ns) {
-            max_ns = samples_[si].duration_ns;
+        const Sample& sample = samples_[(oldest + i) % kMaxDurationSamples];
+        total_ns += sample.duration_ns;
+        if (max_ns < sample.duration_ns) {
+            max_ns = sample.duration_ns;
         }
-        if (min_ns > samples_[si].duration_ns) {
-            min_ns = samples_[si].duration_ns;
+        if (min_ns > sample.duration_ns) {
+            min_ns = sample.duration_ns;
         }
         stat_count += 1;
     }

@@ -124,7 +124,8 @@ bash scripts/static_analysis.sh --all
 
 说明：
 
-- hook、CI 和手动 cppcheck 检查统一通过此脚本执行。`--profile full`（默认）启用 warning、style、performance、portability；`--profile commit` 保留提交检查的 warning 类别，两者均包含默认的 error 检查。所有已启用且未抑制的诊断、工具错误均返回失败。
+- hook、CI 和手动 cppcheck 检查统一通过此脚本执行。`--profile full`（默认）启用 warning、style、performance、portability。`--profile commit` 启用 warning。两者均包含默认的 error 检查。
+- `full` 使用 Python 3 核验自研头文件的 `unusedStructMember`。只有 Cppcheck 的符号数据确证同一字段在项目代码中有引用时，才将候选判为已使用。其余启用的诊断和工具错误均使检查失败。将 `COSMO_CPPCHECK_REPORT_DIR` 设为已有私有目录可保存原始 XML、退出状态及字段引用证据。
 - `--staged` 检查暂存的 `.h` / `.cc` 文件；`--base-ref REF` 检查 REF 与 HEAD 之间 `src` / `test` 下的变更文件，两者互斥。CI 计算 merge-base 后传入 `--base-ref`，删除文件不参与检查。
 - 直接运行 `--cppcheck` 时缺少工具会失败；hook 和 `--all` 会跳过未安装的工具，`--all` 汇总已执行检查的失败。
 - `clang-tidy` 依赖 `build/compile_commands.json`，需要先完成对应构建配置。

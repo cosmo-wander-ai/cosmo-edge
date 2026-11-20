@@ -119,7 +119,6 @@ bool TargetChooseBest::GetQualityAngle(const AiDetectRstEl& target, float& quali
 
 struct TargetChooseBest::TrackIdData {
     int track_id{-1};
-    std::string track_id_info;
     bool detected{false};
     float best_quality{-1.0};
     AiDetectBestEl best_el;

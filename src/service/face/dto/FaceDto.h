@@ -44,7 +44,6 @@ struct PersonView {
     std::string serialNumber;
     int64_t createTime{0};
     int64_t updateTime{0};
-    size_t pictureCount{0};
 
     /// Build from a Person domain object.
     static PersonView From(const cosmo::PersonPtr& p);

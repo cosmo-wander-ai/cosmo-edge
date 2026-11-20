@@ -45,11 +45,6 @@ public:
 
     // ── Task Status ──
 
-    /// Get status information for all image tasks.
-    /// @param durationSec Time window for statistics (default: 30s).
-    /// @return Vector of task status DTOs.
-    virtual std::vector<cosmo::PTaskStatus> GetTaskStatus(unsigned int durationSec = 30) = 0;
-
     /// Check if task configuration has changed compared to a given checksum.
     /// @param nodeAlgorithmCheckSum Checksum to compare against.
     /// @return true if the current configuration differs.

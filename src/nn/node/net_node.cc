@@ -45,12 +45,12 @@ void NetNode::SetInputSizes(std::vector<InferenceInputSize> sizes, InferenceInpu
 Status NetNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blob,
                         std::vector<std::shared_ptr<Blob>>& params,
                         std::vector<std::shared_ptr<Blob>>& top_blobs) {
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status NetNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blob,
                         std::vector<std::shared_ptr<Blob>>& top_blobs) {
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

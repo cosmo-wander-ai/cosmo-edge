@@ -283,7 +283,7 @@ Status CpuDinoEncodeNode::InferTopShapes() {
         DataType::DATA_TYPE_INT32, DataType::DATA_TYPE_INT32, DataType::DATA_TYPE_FLOAT,
         DataType::DATA_TYPE_FLOAT, DataType::DATA_TYPE_FLOAT,
     };
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 std::string CpuDinoEncodeNode::Strip(const std::string& str) {
@@ -565,7 +565,7 @@ Status CpuDinoEncodeNode::Forward(std::vector<std::shared_ptr<Blob>>& images,
     }
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

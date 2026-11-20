@@ -106,18 +106,22 @@ TEST_CASE("Detector placement isolates sizes on the same channel", "[input-sizes
     AiDetectMng manager;
     ActionNode action;
     action.atomicCode     = "4000998";
-    auto default_instance = manager.GetInst(action.atomicCode, "camera", "default", action);
+    action.actionName     = "Detector action";
+    auto default_instance = manager.GetDetectorForChannel(action.atomicCode, "camera", "default", action);
     REQUIRE(default_instance);
+    CHECK(default_instance->GetDetectorName() == "4000998");
+    CHECK(static_cast<const AlgActionBase&>(*default_instance).GetName() == "Detector action");
     CHECK(action.input_size == InferenceInputSize{640, 640});
     auto same = action;
-    CHECK(manager.GetInst(same.atomicCode, "camera", "same", same) == default_instance);
+    CHECK(manager.GetDetectorForChannel(same.atomicCode, "camera", "same", same) == default_instance);
     auto small          = action;
     small.input_size    = InferenceInputSize{320, 320};
-    auto small_instance = manager.GetInst(small.atomicCode, "camera", "small", small);
+    auto small_instance = manager.GetDetectorForChannel(small.atomicCode, "camera", "small", small);
     REQUIRE(small_instance);
     CHECK(small_instance != default_instance);
-    auto another        = small;
-    auto other_instance = manager.GetInst(another.atomicCode, "other-camera", "small-other", another);
+    auto another = small;
+    auto other_instance =
+        manager.GetDetectorForChannel(another.atomicCode, "other-camera", "small-other", another);
     REQUIRE(other_instance);
     CHECK(other_instance->GetInputSize() == small.input_size);
     REQUIRE(manager.DeleteInst(default_instance, "camera", "default"));
@@ -127,5 +131,5 @@ TEST_CASE("Detector placement isolates sizes on the same channel", "[input-sizes
     REQUIRE(manager.DeleteInst(other_instance, "other-camera", "small-other"));
     auto invalid       = action;
     invalid.input_size = InferenceInputSize{512, 512};
-    CHECK_FALSE(manager.GetInst(invalid.atomicCode, "camera", "invalid", invalid));
+    CHECK_FALSE(manager.GetDetectorForChannel(invalid.atomicCode, "camera", "invalid", invalid));
 }

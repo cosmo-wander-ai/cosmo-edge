@@ -139,7 +139,10 @@ void PosSaveSensitivity::FillAlarmDataTrackId(DataAlarmUnit& alarmUnit, TrackIdD
     if (alarmUnit.friends.empty()) {
         alarmUnit.boxs.push_back(MakeAlarmBox(target));
     } else {
-        alarmUnit.boxs.assign(alarmUnit.friends.begin(), alarmUnit.friends.end());
+        alarmUnit.boxs.reserve(alarmUnit.friends.size());
+        alarmUnit.boxs.clear();
+        for (const auto& box : alarmUnit.friends)
+            alarmUnit.boxs.emplace_back(box);
     }
 
     for (const auto& assoTarget : group_targets) {

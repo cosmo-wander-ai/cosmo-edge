@@ -16,6 +16,7 @@ namespace cosmo {
 
 class AiLandmark : public AlgActionBase {
 public:
+    AiLandmark(const std::string& a_task_id, ActionNode& action);
     AiLandmark(const std::string& a_task_id, const std::string& alg_code, ActionNode& action);
     ~AiLandmark() override;
 

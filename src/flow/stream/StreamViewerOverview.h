@@ -82,7 +82,6 @@ struct StreamOverviewIdentity {
 };
 
 struct StreamOverviewEl : public StreamOverviewIdentity {
-    bool bNeedOld{false};
     std::vector<StreamOverviewText> texts;
     std::vector<StreamOverviewLine> lines;
 };

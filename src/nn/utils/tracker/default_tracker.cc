@@ -44,7 +44,7 @@ Status DefaultTracker::Update(const std::vector<TrackingBox>& bboxes, std::vecto
             trk.source_detection_index = high_conf_boxes.at(i).source_detection_index;
             trackers.push_back(trk);
         }
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     }
 
     //  2 Remove predicted boxes --------------------------------------------------------------
@@ -268,7 +268,7 @@ Status DefaultTracker::Update(const std::vector<TrackingBox>& bboxes, std::vecto
         }
     }
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

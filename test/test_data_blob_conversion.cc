@@ -17,9 +17,49 @@
 #include "nn/core/abstract_device.h"
 #include "nn/device/naive/naive_device.h"
 #include "nn/pipeline/model_pipeline.h"
+#include "nn/utils/default_component.h"
 
 namespace cosmo {
 namespace {
+
+    class RegistrationProbe final : public nn::NaiveDevice {
+    public:
+        explicit RegistrationProbe(nn::DeviceType type) : NaiveDevice(type) {
+            ++constructions;
+            if (fail)
+                throw std::bad_alloc();
+        }
+
+        inline static int constructions = 0;
+        inline static bool fail         = false;
+    };
+
+    TEST_CASE("Device registration constructs only a missing entry", "[nn][device]") {
+        constexpr auto type = nn::DEVICE_CPU;
+        auto& devices       = nn::GetGlobDeviceMap();
+        using DeviceMap     = std::map<nn::DeviceType, std::shared_ptr<nn::AbstractDevice>>;
+        struct RestoreDevice {
+            DeviceMap& map;
+            DeviceMap::node_type previous;
+            ~RestoreDevice() {
+                map.erase(nn::DEVICE_CPU);
+                if (previous)
+                    map.insert(std::move(previous));
+            }
+        } restore{devices, devices.extract(type)};
+
+        RegistrationProbe::constructions = 0;
+        RegistrationProbe::fail          = true;
+        CHECK_THROWS_AS(nn::TypeDeviceRegister<RegistrationProbe>{type}, std::bad_alloc);
+        CHECK(devices.count(type) == 0);
+
+        RegistrationProbe::fail = false;
+        (void)nn::TypeDeviceRegister<RegistrationProbe>{type};
+        const auto registered = devices.at(type);
+        (void)nn::TypeDeviceRegister<RegistrationProbe>{type};
+        CHECK(devices.at(type) == registered);
+        CHECK(RegistrationProbe::constructions == 2);
+    }
 
     class ControlledDataDevice final : public nn::NaiveDevice {
     public:
@@ -33,7 +73,7 @@ namespace {
                 if (throw_on_failure_) {
                     throw std::bad_alloc();
                 }
-                return nn::COSMO_NN_ERR_OUT_OF_MEMORY;
+                return nn::Status{nn::COSMO_NN_ERR_OUT_OF_MEMORY};
             }
             return NaiveDevice::Allocate(handle, phy, info);
         }
@@ -173,11 +213,18 @@ namespace {
     public:
         nn::Status Init(const nn::PipelineConfig&, const std::string&, nn::DeviceType, int, nn::IProfiler*,
                         const std::string&, const std::string&) override {
-            return nn::COSMO_NN_OK;
+            nn::Instruction instruction;
+            instruction.categories.push_back({"probe", 1, {0.65F}});
+            instruction.infos.push_back({"probe", "probe", {0.65F}});
+            model_info_.config.instructions.push_back(std::move(instruction));
+            selected_indices_.push_back(0);
+            selected_classnames_.push_back("probe");
+            selected_thresholds_.push_back(0.65F);
+            return nn::Status{nn::COSMO_NN_OK};
         }
         nn::Status Forward(std::initializer_list<std::vector<std::shared_ptr<nn::Blob>>>) override {
             ++forward_calls;
-            return nn::COSMO_NN_ERR_NET;
+            return nn::Status{nn::COSMO_NN_ERR_NET};
         }
         int GetMaxBatchSize() const override {
             return 2;
@@ -218,6 +265,27 @@ namespace {
         mem::MemoryPoolMng pool_;
         std::filesystem::path directory_;
     };
+
+    TEST_CASE("DefaultComponent forwards category and threshold queries by ID and label", "[nn][category]") {
+        ConversionFixture fixture;
+        nn::DefaultComponent component({}, fixture.ConfigPath(), "/unused", nn::DEVICE_NAIVE);
+        float threshold = 0;
+        REQUIRE(static_cast<bool>(component.GetThreshold(0, &threshold)));
+        CHECK(threshold == 0.65F);
+        REQUIRE(static_cast<bool>(component.SetThreshold(std::string("probe"), 0.25F)));
+        REQUIRE(static_cast<bool>(component.GetThreshold(0, &threshold)));
+        CHECK(threshold == 0.25F);
+        REQUIRE(static_cast<bool>(component.SetThreshold(0, 0.5F)));
+        REQUIRE(static_cast<bool>(component.GetThreshold(std::string("probe"), &threshold)));
+        CHECK(threshold == 0.5F);
+
+        nn::CategoryInfo category;
+        REQUIRE(static_cast<bool>(component.GetCategoryInfo(0, category)));
+        CHECK(category.threshold == std::vector<float>{0.65F});
+        REQUIRE(static_cast<bool>(component.GetCategoryInfo(std::string("probe"), category)));
+        CHECK(category.class_name == "probe");
+        CHECK(category.threshold == std::vector<float>{0.65F});
+    }
 
     TEST_CASE("Inference wrappers propagate conversion allocation failures",
               "[data-blob][infer-conversion]") {

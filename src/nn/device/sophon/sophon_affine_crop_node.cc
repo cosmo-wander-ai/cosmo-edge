@@ -51,7 +51,7 @@ Status SophonAffineCropNode::InferTopShapes() {
     top_blob_shapes     = {{max_batch, dst_height, aligned_w, 3}};
     top_blob_data_types = {DataType::DATA_TYPE_UINT8};
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 size_t SophonAffineCropNode::GetTopCount() {
@@ -88,7 +88,7 @@ Status SophonAffineCropNode::Forward(std::vector<std::shared_ptr<Blob>>& image_b
     RETURN_ON_FAIL(Forward(image_blobs, landmark_blobs, top_blob));
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status SophonAffineCropNode::Forward(std::vector<std::shared_ptr<Blob>>& image_blobs,
@@ -232,7 +232,7 @@ Status SophonAffineCropNode::Forward(std::vector<std::shared_ptr<Blob>>& image_b
         return Status(COSMO_NN_ERR_SOPHON_BMIMAGE_DESTROY_FAILED, "bm_image destroy failed.");
     }
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status SophonAffineCropNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
@@ -242,7 +242,7 @@ Status SophonAffineCropNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_
 
     auto top_blob = top_blobs.at(0);
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status SophonAffineCropNode::PrepareAffineCropMatrixs(std::shared_ptr<Blob> landmark_blob) {
@@ -267,7 +267,7 @@ Status SophonAffineCropNode::PrepareAffineCropMatrixs(std::shared_ptr<Blob> land
         RETURN_ON_FAIL(CalculateMatrix(data, host_matrixs));
     }
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status SophonAffineCropNode::CalculateMatrix(float* landmark, std::vector<float>& matrix) {
@@ -354,7 +354,7 @@ Status SophonAffineCropNode::CalculateMatrix(float* landmark, std::vector<float>
     matrix.push_back(a4);
     matrix.push_back(ty);
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

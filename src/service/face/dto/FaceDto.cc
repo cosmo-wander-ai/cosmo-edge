@@ -18,8 +18,7 @@ FacePicView FacePicView::From(const cosmo::FacePicPtr& pic) {
 }
 
 PersonView PersonView::From(const cosmo::PersonPtr& p) {
-    return {p->GetId(),         p->GetName(),       p->GetSerialNumber(),
-            p->GetCreateTime(), p->GetUpdateTime(), p->GetPictureCount()};
+    return {p->GetId(), p->GetName(), p->GetSerialNumber(), p->GetCreateTime(), p->GetUpdateTime()};
 }
 
 PersonDetailView PersonDetailView::From(const cosmo::PersonPtr& p) {

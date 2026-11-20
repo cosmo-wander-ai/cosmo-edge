@@ -34,8 +34,6 @@ struct MsgQueryPictureQualitySend : public MsgSendHead {
         int32_t targetBoxOverlay{0};
         int32_t alarmNameOverlay{0};
         int32_t targetSizeOverlay{0};
-        int32_t gpsInfoOverlay{0};
-        std::string overlayText;
         friend void to_json(nlohmann::json& j, const ResData& v);
         friend void from_json(const nlohmann::json& j, ResData& v);
     } resData;

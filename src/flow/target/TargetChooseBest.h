@@ -42,7 +42,6 @@ private:
     int width_{-1};
     int height_{-1};
     std::map<unsigned, TrackIdData> track_id_status_;
-    std::deque<DataDetTrackClassify> historys_;
     OverviewRecordAiRst overview_rec_inst_;
 };
 using TargetChooseBestPtr = std::shared_ptr<TargetChooseBest>;

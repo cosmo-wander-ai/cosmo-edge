@@ -117,7 +117,6 @@ namespace media {
 
     protected:
         std::string idx_name_;
-        std::string url_;
 
         VideoCodecType codec_type_{VideoCodecType::kInvalid};
 

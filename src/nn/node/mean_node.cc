@@ -45,7 +45,7 @@ Status MeanNode::InferTopShapesWithBottoms(std::vector<DimsVector> dims, std::ve
 
     top_blob_shapes     = {dim};
     top_blob_data_types = {type};
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status MeanNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
@@ -87,7 +87,7 @@ Status MeanNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
     }
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

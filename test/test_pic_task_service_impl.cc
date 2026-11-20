@@ -109,10 +109,6 @@ TEST_CASE("PicTaskServiceImpl: empty state queries", "[PicTaskService]") {
         REQUIRE(sut.QueryRealTasks(false).empty());
         REQUIRE(sut.QueryRealTasks(true).empty());
     }
-
-    SECTION("GetTaskStatus returns empty on construction") {
-        REQUIRE(sut.GetTaskStatus(30).empty());
-    }
 }
 
 // ============================================================================

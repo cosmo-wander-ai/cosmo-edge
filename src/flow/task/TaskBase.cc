@@ -35,7 +35,7 @@ void TaskBase::RegisterActionHandlers() {
     // Detection (special: requires algCode + channelId)
     action_handlers_[AADetect_Code] = {
         [this](const std::string& chId, const std::string& tId, ActionNode& action) -> AlgActionBasePtr {
-            return detect_mng_.GetInst(action.atomAlgName, chId, tId, action);
+            return detect_mng_.GetDetectorForChannel(action.atomAlgName, chId, tId, action);
         },
         [this](AlgActionBasePtr inst, const std::string& chId, const std::string& tId) -> bool {
             return detect_mng_.DeleteInst(std::dynamic_pointer_cast<AiDetector>(inst), chId, tId);

@@ -50,7 +50,7 @@ util::ErrorEnum POcr::HandPic(AlgDataPtr data) {
         const auto status = instance_->Classify(image, box, text);
         if (status != util::ErrorEnum::Success)
             return status;
-        target.ocrRst.push_back({GetAtomicCode(), text, 0.0F});
+        target.ocrRst.push_back({text});
     }
     return util::ErrorEnum::Success;
 }

@@ -139,7 +139,7 @@ Status CpuNetNode::LoadWeight(const char* data, size_t size) {
         }
     }
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status CpuNetNode::InferTopShapes() {
@@ -210,7 +210,7 @@ Status CpuNetNode::InferTopShapes() {
             dt = DATA_TYPE_UINT8;
         top_blob_data_types.push_back(dt);
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status CpuNetNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
@@ -372,7 +372,7 @@ Status CpuNetNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
     }
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

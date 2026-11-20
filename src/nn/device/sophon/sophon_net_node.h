@@ -86,9 +86,6 @@ private:
     uint32_t batch_size = 1;
     netInfos netInfo_;
     size_t input_tensor_size = 0;
-
-    std::vector<const char*> bottom_tensor_names;
-    std::vector<const char*> top_tensor_names;
 };
 
 }  // namespace cosmo::nn

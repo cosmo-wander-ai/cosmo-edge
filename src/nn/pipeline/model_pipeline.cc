@@ -55,7 +55,7 @@ Status ModelPipeline::SetThreshold(int id, float threshold) {
     if (iter == selected_indices_.end())
         return Status(COSMO_NN_ERR_INVALID_INPUT, "No such id");
     selected_thresholds_[std::distance(selected_indices_.begin(), iter)] = threshold;
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status ModelPipeline::SetThreshold(const std::string& label, float threshold) {
@@ -63,7 +63,7 @@ Status ModelPipeline::SetThreshold(const std::string& label, float threshold) {
     if (iter == selected_classnames_.end())
         return Status(COSMO_NN_ERR_INVALID_INPUT, "No such label");
     selected_thresholds_[std::distance(selected_classnames_.begin(), iter)] = threshold;
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status ModelPipeline::GetThreshold(int id, float* threshold) {
@@ -73,7 +73,7 @@ Status ModelPipeline::GetThreshold(int id, float* threshold) {
     if (iter == selected_indices_.end())
         return Status(COSMO_NN_ERR_INVALID_INPUT, "No such id");
     *threshold = selected_thresholds_[std::distance(selected_indices_.begin(), iter)];
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status ModelPipeline::GetThreshold(const std::string& label, float* threshold) {
@@ -83,7 +83,7 @@ Status ModelPipeline::GetThreshold(const std::string& label, float* threshold) {
     if (iter == selected_classnames_.end())
         return Status(COSMO_NN_ERR_INVALID_INPUT, "No such label");
     *threshold = selected_thresholds_[std::distance(selected_classnames_.begin(), iter)];
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status ModelPipeline::GetCategoryInfo(int class_id, CategoryInfo& info) {
@@ -109,7 +109,7 @@ Status ModelPipeline::GetCategoryInfo(int class_id, CategoryInfo& info) {
         }
         id -= c.split;
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status ModelPipeline::GetCategoryInfo(const std::string& label, CategoryInfo& info) {
@@ -150,7 +150,7 @@ Status ModelPipeline::InitGraph(const std::string& model_path, DeviceType device
 
     std::string mp = model_path;
     RETURN_ON_FAIL(graph_->Init(model_info_, mp, device_type, tokenizer_path, device_id));
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status ModelPipeline::RunGraph(std::initializer_list<std::vector<std::shared_ptr<Blob>>> inputs) {

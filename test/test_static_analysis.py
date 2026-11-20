@@ -24,12 +24,14 @@ class StaticAnalysisTests(unittest.TestCase):
             (self.root / directory).mkdir()
         shutil.copy2(REPOSITORY / "scripts/static_analysis.sh", self.root / "scripts")
         (self.root / "tools/cppcheck").mkdir(parents=True)
-        shutil.copy2(REPOSITORY / "tools/cppcheck/Catch2Model.h", self.root / "tools/cppcheck")
+        for name in ("Catch2Model.h", "verify_members.py"):
+            shutil.copy2(REPOSITORY / "tools/cppcheck" / name, self.root / "tools/cppcheck")
         shutil.copy2(REPOSITORY / ".cppcheck-suppressions", self.root)
         # Keep fixture commands independent of the host's installed analyzers.
         for name in ("bash", "dirname", "git", "find", "sort", "nproc", "mktemp",
                      "rm"):
             (self.root / "bin" / name).symlink_to(shutil.which(name))
+        (self.root / "bin/python3").symlink_to(sys.executable)
         self.log = self.root / "calls.jsonl"
         self.env = dict(os.environ, PATH=str(self.root / "bin"),
                         TMPDIR=str(self.root / "tmp"), CALL_LOG=str(self.log))
@@ -56,7 +58,16 @@ class StaticAnalysisTests(unittest.TestCase):
             if args == ['--version']:
                 print('Cppcheck 2.13.0')
                 sys.exit(int(os.environ.get('VERSION_EXIT', '0')))
-            sys.exit(int(os.environ.get('CPPCHECK_EXIT', '0')))
+            if any(arg.startswith('--addon=') for arg in args):
+                sys.exit(int(os.environ.get('INDEX_EXIT', '0')))
+            code = int(os.environ.get('CPPCHECK_EXIT', '0'))
+            if '--xml' in args:
+                report = os.environ.get('CPPCHECK_REPORT')
+                if report is not None:
+                    print(report, file=sys.stderr)
+                elif code == 0:
+                    print('<results version="2"><errors/></results>', file=sys.stderr)
+            sys.exit(code)
             """))
 
     def git(self, *args):
@@ -107,7 +118,7 @@ class StaticAnalysisTests(unittest.TestCase):
                 self.analyze("--cppcheck", *(["--profile", profile] if profile else []))
                 args = self.assert_files(included)
                 self.assertIn("--enable=" + enabled, args)
-                self.assertIn("--error-exitcode=1", args)
+                self.assertIn("--error-exitcode=" + ("1" if profile == "commit" else "42"), args)
                 self.assertIn("-DCOSMO_NN_USE_CPU_BACKEND", args)
                 self.assertIn("--suppressions-list=" + str(self.root / ".cppcheck-suppressions"), args)
 
@@ -166,12 +177,75 @@ class StaticAnalysisTests(unittest.TestCase):
 
     def test_tool_failures_propagate_without_success_message(self):
         self.write("src/clean.cc")
-        for status in (1, 17):
-            output = self.analyze("--cppcheck", expected=status, CPPCHECK_EXIT=str(status))
+        for status in (1, 17, 42):
+            output = self.analyze("--cppcheck", expected=1 if status == 42 else status,
+                                  CPPCHECK_EXIT=str(status))
             self.assertNotIn("No issues found", output)
         output = self.analyze("--all", expected=1, VERSION_EXIT="23")
         self.assertNotIn("No issues found", output)
         self.assertEqual(self.calls(), [])
+
+    def test_header_reference_index_failure_preserves_original_diagnostics(self):
+        header = self.write("src/member.h", "struct Record { int member; };\n")
+        self.write("src/reader.cc")
+        report = (
+            '<results version="2"><errors>'
+            '<error id="unusedStructMember" severity="style" msg="unverified member">'
+            f'<location file="{header}" line="1" column="21"/>'
+            '<symbol>Record::member</symbol></error></errors></results>'
+        )
+        output = self.analyze("--cppcheck", expected=1, CPPCHECK_EXIT="42", INDEX_EXIT="17",
+                              CPPCHECK_REPORT=report)
+        self.assertIn("unverified member", output)
+        self.assertIn("Cppcheck member indexing failed", output)
+        self.assertNotIn("No issues found", output)
+
+    @unittest.skipUnless(REAL_CPPCHECK, "cppcheck is not installed")
+    def test_unused_implementation_member_and_shared_header(self):
+        (self.root / "bin/cppcheck").unlink()
+        (self.root / "bin/cppcheck").symlink_to(REAL_CPPCHECK)
+        self.write("src/model/shared.h", textwrap.dedent('''\
+            struct Shared { int value; int dead; };
+            struct Other { int dead; };
+            struct BackendState { int enabled; };
+        '''))
+        self.write("src/nn/device/rknn/probe.cc", textwrap.dedent('''\
+            #include "model/shared.h"
+            #ifdef COSMO_NN_USE_RKNN_BACKEND
+            int RknnValue(const BackendState& state) { return state.enabled; }
+            #endif
+        '''))
+        self.write("src/record.cc", textwrap.dedent('''\
+            #include "model/shared.h"
+            namespace {
+                struct Record { int value; int unused; };
+            }
+            #define READ_FIELD(object, field) (object).field
+            int Read(const Shared& shared, const Other& other) {
+                Record record{};
+                return record.value + READ_FIELD(shared, value) + other.dead;
+            }
+        '''))
+        output = self.analyze("--cppcheck", "--profile", "full", expected=1)
+        self.assertIn("unusedStructMember", output)
+        self.assertIn("Record::unused", output)
+        self.assertNotIn("Shared::value", output)
+        self.assertIn("Shared::dead", output)
+        self.assertNotIn("Other::dead", output)
+        self.assertNotIn("BackendState::enabled", output)
+
+        self.git("add", "src/model/shared.h")
+        output = self.analyze("--cppcheck", "--staged", "--profile", "full", expected=1)
+        self.assertIn("Shared::dead", output)
+        self.assertNotIn("Shared::value", output)
+        self.assertNotIn("Other::dead", output)
+        self.assertNotIn("BackendState::enabled", output)
+
+        base = self.git("rev-parse", "HEAD")
+        self.commit()
+        output = self.analyze("--cppcheck", "--base-ref", base, expected=1)
+        self.assertIn("Shared::dead", output)
+        self.assertNotIn("Shared::value", output)
 
     @unittest.skipUnless(REAL_CPPCHECK, "cppcheck is not installed")
     def test_real_catch_assertions_are_analyzed_without_hiding_diagnostics(self):

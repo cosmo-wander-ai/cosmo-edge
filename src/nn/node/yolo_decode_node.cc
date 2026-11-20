@@ -34,7 +34,7 @@ Status YoloDecodeNode::InferTopShapes() {
     top_blob_shapes     = {{max_batch, top_k, top_col}};
     top_blob_data_types = {DataType::DATA_TYPE_FLOAT};
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 size_t YoloDecodeNode::GetBottomCount() {
@@ -157,7 +157,7 @@ Status YoloDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
 
     timer.Stop();
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 void YoloDecodeNode::NMS(std::vector<std::tuple<int, float, int, bool>>& conf_list, float* bottom,

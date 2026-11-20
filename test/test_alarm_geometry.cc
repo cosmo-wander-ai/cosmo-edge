@@ -2,6 +2,7 @@
 #include <deque>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "catch_amalgamated.hpp"
@@ -25,6 +26,9 @@
 #include "flow/alarm/AreaAlarmInternalTypes.h"
 #include "flow/sensitivity/PosSaveSensitivityTypes.h"
 #include "flow/sensitivity/SensitivityTypes.h"
+
+static_assert(std::is_constructible_v<cosmo::DataAlarmBox, cosmo::util::Box>);
+static_assert(!std::is_convertible_v<cosmo::util::Box, cosmo::DataAlarmBox>);
 
 namespace cosmo {
 namespace {
@@ -270,7 +274,7 @@ namespace {
         alarms[0].targets.push_back(MakeOnEventsTarget(first));
         alarms[1].box = common_box;
         alarms[1].boxs.push_back(MakeAlarmBox(second));
-        alarms[1].boxs.push_back(common_box);  // Existing AABB-only producers remain supported.
+        alarms[1].boxs.emplace_back(common_box);  // Existing AABB-only producers remain supported.
         alarms[1].targets.push_back(MakeOnEventsTarget(second));
 
         const auto merged = alarm::MergeAlarmBatch(alarms, {1, 0});

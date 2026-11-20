@@ -46,7 +46,7 @@ NetCardOpResult DoNetCard(const NetCardInfo& info) {
                      info.gateway);
         }
 
-        auto res = NetCardEffect(info);
+        const NetCardOpResult res = NetCardEffect(info);
         LOG_INFO("NetCardEffect done, code:{} msg:{} result:{}", static_cast<int>(res.error_code),
                  res.message, res.result_data);
         return res;

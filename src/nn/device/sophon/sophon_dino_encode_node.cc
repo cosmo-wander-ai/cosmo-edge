@@ -132,7 +132,7 @@ Status SophonDinoEncodeNode::InferTopShapes() {
                            DataType::DATA_TYPE_FLOAT,              // attention_mask
                            DataType::DATA_TYPE_FLOAT,              // text_token_mask
                            DataType::DATA_TYPE_FLOAT};             // proposals
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 std::string SophonDinoEncodeNode::Strip(const std::string& str) {
@@ -734,7 +734,7 @@ Status SophonDinoEncodeNode::Forward(std::vector<std::shared_ptr<Blob>>& images,
     }
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

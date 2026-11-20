@@ -82,7 +82,9 @@ struct PUBLIC OutputCalculateParam {
 };
 
 struct PUBLIC Size {
-    Size(int w = 0, int h = 0);
+    Size() = default;
+    explicit Size(int w);
+    Size(int w, int h);
     int width  = 0;
     int height = 0;
 };
@@ -109,20 +111,20 @@ public:
 
     static float Sigmoid(float x);
 
-    static void SwapYUV_I420toYUV_NV12(unsigned char* i420bytes, unsigned char* nv12bytes, int width,
+    static void SwapYUV_I420toYUV_NV12(const unsigned char* i420bytes, unsigned char* nv12bytes, int width,
                                        int height);
     // static std::shared_ptr<Net> CreateNet(ModelConfig model_cfg_, BackendConfig backend_cfg_,
     //                                       ShapesMap max_input_shapes_, Status& status);
 
     static void NMS(std::vector<ObjectInfo>& input, std::vector<ObjectInfo>& output, float iou_threshold_);
 
-    static Status PickDetectionObjects(std::shared_ptr<Blob>& blob, std::vector<Size> input_sizes,
+    static Status PickDetectionObjects(std::shared_ptr<Blob>& blob, const std::vector<Size>& input_sizes,
                                        Size net_input_size, std::vector<int> selected_indcies,
-                                       std::vector<float> selected_thresholds,
-                                       std::vector<std::string> selected_label,
+                                       const std::vector<float>& selected_thresholds,
+                                       const std::vector<std::string>& selected_label,
                                        std::vector<std::vector<ObjectInfoV1>>& detects);
 
-    static Status GetImageSize(DimsVector, DataFormat, Size&);
+    static Status GetImageSize(const DimsVector&, DataFormat, Size&);
 
     /**
      * gravity
@@ -130,43 +132,45 @@ public:
      *  1   : resize to fit the new size and keep aspect, empty apace may be remain zero
      *  2   : resize to fit the new size and keep aspect, no empty space remain
      */
-    static ObjectInfo AdjustSize(ObjectInfo& info, Size old_, Size new_, int gravity = 0);
+    static ObjectInfo AdjustSize(const ObjectInfo& info, Size old_, Size new_, int gravity = 0);
 
-    static ObjectInfoV1 AdjustSize(ObjectInfoV1& info, Size old_, Size new_, int gravity = 0);
+    static ObjectInfoV1 AdjustSize(const ObjectInfoV1& info, Size old_, Size new_, int gravity = 0);
 
     static Status GenerateCropResizeParam(CropResize* crop_resize, int left, int top, int right, int bottom,
                                           Size size, CropResizeParam& param);
 
-    static Status ParseDetectionOutput(std::vector<std::shared_ptr<Blob>>& blobs,
-                                       std::vector<Size>& image_sizes, Size net_input_size,
-                                       std::vector<int>& selected_indcies,
-                                       std::vector<float>& selected_thresholds,
-                                       std::vector<std::string>& selected_label,
+    static Status ParseDetectionOutput(const std::vector<std::shared_ptr<Blob>>& blobs,
+                                       const std::vector<Size>& image_sizes, Size net_input_size,
+                                       const std::vector<int>& selected_indcies,
+                                       const std::vector<float>& selected_thresholds,
+                                       const std::vector<std::string>& selected_label,
                                        std::vector<std::vector<ObjectInfoV1>>& detects);
 
-    static Status ParseClassificationOutput(std::vector<std::shared_ptr<Blob>>& blobs,
+    static Status ParseClassificationOutput(const std::vector<std::shared_ptr<Blob>>& blobs,
                                             std::vector<int>& selected_indcies,
-                                            std::vector<std::string>& selected_label,
+                                            const std::vector<std::string>& selected_label,
                                             std::vector<std::vector<ObjectInfoV1>>& detects);
 
-    static Status ParseKeypointOutput(std::vector<std::shared_ptr<Blob>>& blobs, std::vector<Rect>& rects,
+    static Status ParseKeypointOutput(const std::vector<std::shared_ptr<Blob>>& blobs,
+                                      const std::vector<Rect>& rects,
                                       std::vector<std::vector<ObjectInfoV1>>& detects);
 
     static std::string TokenizerDecode(void* handle, std::vector<int>& ids);
 
-    static Status ParseDINOOutput(std::vector<std::shared_ptr<Blob>>& blobs, void* tokenizer_handle,
-                                  std::vector<Size>& input_sizes, std::vector<int>& padding_input_ids,
-                                  float text_threshold, float box_threshold,
-                                  std::vector<std::vector<ObjectInfoV1>>& detects);
+    static Status ParseDINOOutput(const std::vector<std::shared_ptr<Blob>>& blobs, void* tokenizer_handle,
+                                  const std::vector<Size>& input_sizes,
+                                  const std::vector<int>& padding_input_ids, float text_threshold,
+                                  float box_threshold, std::vector<std::vector<ObjectInfoV1>>& detects);
 
-    static void CalculateWarpAffineMatrix(std::vector<std::pair<float, float>>& src_points,
-                                          std::vector<std::pair<float, float>>& dst_points,
+    static void CalculateWarpAffineMatrix(const std::vector<std::pair<float, float>>& src_points,
+                                          const std::vector<std::pair<float, float>>& dst_points,
                                           std::vector<float>& matrix);
 
-    static void WarpAffineMatrixInverse(std::vector<float>& matrix, std::vector<float>& inverse);
+    static void WarpAffineMatrixInverse(const std::vector<float>& matrix, std::vector<float>& inverse);
 
     // High-level warp affine: compute matrix from src/dst points, then apply transform on device
-    static Status WarpAffine(std::shared_ptr<Blob> blob, std::vector<std::pair<float, float>>& src_points,
+    static Status WarpAffine(std::shared_ptr<Blob> blob,
+                             const std::vector<std::pair<float, float>>& src_points,
                              std::shared_ptr<Blob>& out_blob, float x_scale = 0.03f, float y_scale = 0.02f);
 
     static void MaskScale(uint8_t* src, size_t src_width, size_t src_height, uint8_t* dst, size_t dst_width,

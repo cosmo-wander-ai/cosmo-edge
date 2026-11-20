@@ -306,7 +306,7 @@ System::MsgQueryTimeSend MessageSystemHandler::Handle(System::MsgQueryTimeRecv&&
     retData.resData.timeStatus.ntp.interval  = ts.ntp.interval;
     retData.resData.timeStatus.ntp.port      = ts.ntp.port;
 
-    for (auto& z : zones) {
+    for (const service::TimeZoneItem& z : zones) {
         System::MsgQueryTimeSend::ZoneInfo zf{};
         zf.name  = z.name;
         zf.value = z.value;

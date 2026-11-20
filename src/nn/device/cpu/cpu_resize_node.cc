@@ -42,7 +42,7 @@ Status CpuResizeNode::InferTopShapes() {
 
     top_blob_shapes     = {{1, out_h_, out_w_, 3}};  // NHWC
     top_blob_data_types = {DataType::DATA_TYPE_UINT8};
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 size_t CpuResizeNode::GetBottomCount() {
@@ -132,7 +132,7 @@ Status CpuResizeNode::ResizeSingle(std::shared_ptr<Blob>& bottom, std::shared_pt
         }
     }
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status CpuResizeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
@@ -180,7 +180,7 @@ Status CpuResizeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
     }
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

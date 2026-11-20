@@ -80,7 +80,6 @@ private:
     TaskBaseArea task_area_;
     util::DurationStat duration_stat_;
     OverviewRecordAiRst overview_rec_inst_;
-    std::deque<DataDetTrackClassify> historys_;
 };
 
 using AiRecognizerPtr = std::shared_ptr<AiRecognizer>;

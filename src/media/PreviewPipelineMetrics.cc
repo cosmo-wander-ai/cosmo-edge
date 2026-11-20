@@ -85,7 +85,7 @@ void PreviewPipelineMetrics::RecordTimedEncode(PreviewToken token, uint64_t nano
 PreviewDurationAggregate PreviewPipelineMetrics::AggregateTimedSamples(const std::deque<TimedSample>& samples,
                                                                        SampleTime now) {
     PreviewDurationAggregate result;
-    for (const auto& sample : samples) {
+    for (const TimedSample& sample : samples) {
         if (sample.at > now || now - sample.at >= kTimedWindow)
             continue;
         if (result.count == 0)
@@ -108,9 +108,12 @@ PreviewDurationSnapshot PreviewPipelineMetrics::TimedPreview(const std::string& 
     if (key == timed_keys_.end())
         return {};
     const auto it = timed_previews_.find(key->second);
-    if (it == timed_previews_.end() || !it->second.ready)
+    if (it == timed_previews_.end())
         return {};
-    return {AggregateTimedSamples(it->second.osd, now), AggregateTimedSamples(it->second.encode, now)};
+    const TimedPreviewState& state = it->second;
+    if (!state.ready)
+        return {};
+    return {AggregateTimedSamples(state.osd, now), AggregateTimedSamples(state.encode, now)};
 }
 
 void PreviewPipelineMetrics::PublisherOpened() {

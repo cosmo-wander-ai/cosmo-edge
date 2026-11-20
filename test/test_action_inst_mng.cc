@@ -15,8 +15,10 @@
 #include "flow/action/ActionInstMngBase.h"
 #include "flow/classify/AiClassifyAreaMng.h"
 #include "flow/classify/AiClassifyGroupMng.h"
+#include "flow/landmark/AiLandmarkMng.h"
 #include "flow/ocr/AiOcrMng.h"
 #include "flow/target/TargetChooseBestMng.h"
+#include "flow/track/AiTracker.h"
 
 using namespace cosmo;
 
@@ -236,6 +238,16 @@ TEST_CASE("Named action managers preserve identity and ownership", "[ActionInstM
     SECTION("TargetChooseBestMng") {
         CheckManagerLifecycle<TargetChooseBestMng>();
     }
+    SECTION("AiLandmarkMng") {
+        CheckManagerLifecycle<AiLandmarkMng>();
+    }
+}
+
+TEST_CASE("Tracker name remains distinct from its action name", "[ActionInstMng]") {
+    auto action = MakeAction();
+    AiTracker tracker("tracking-task", action);
+    CHECK(tracker.GetTrackerName() == "tracking-task");
+    CHECK(static_cast<const AlgActionBase&>(tracker).GetName() == action.actionName);
 }
 
 TEST_CASE("SimpleMapActionMng constructs once for concurrent callers", "[ActionInstMng]") {

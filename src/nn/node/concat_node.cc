@@ -61,7 +61,7 @@ Status ConcatNode::InferTopShapesWithBottoms(std::vector<DimsVector> dims, std::
 
     top_blob_shapes = {top_dims};
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status ConcatNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
@@ -124,7 +124,7 @@ Status ConcatNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
     }
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

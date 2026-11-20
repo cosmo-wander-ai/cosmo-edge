@@ -67,7 +67,6 @@ namespace media {
         // outlined bitmap cache (full string-level caching)
         std::mutex outlineCacheMutex;
         std::unordered_map<OutlinedKey, OsdTextRenderer::OutlinedTextBitmap, OutlinedKeyHash> outlineCache;
-        static constexpr size_t kMaxOutlineCacheSize = 256;  // prevent unbounded growth
 
         const CachedGlyph& GetGlyph(uint32_t cp, float pixelHeight, float scale) {
             GlyphKey key{cp, static_cast<int>(pixelHeight * 10)};
@@ -259,6 +258,8 @@ namespace media {
         return result;
     }
     namespace {
+        constexpr size_t kMaxOutlineCacheSize = 256;
+
         void DilateBody(const OsdTextRenderer::TextBitmap& inner, std::vector<uint8_t>& boldBody, int ow,
                         int /*oh*/, int totalRadius, int bodyBoldRadius) {
             int br2 = bodyBoldRadius * bodyBoldRadius;
@@ -374,7 +375,7 @@ namespace media {
         // ── write to cache ──
         {
             std::lock_guard<std::mutex> lock(impl_->outlineCacheMutex);
-            if (impl_->outlineCache.size() >= Impl::kMaxOutlineCacheSize) {
+            if (impl_->outlineCache.size() >= kMaxOutlineCacheSize) {
                 impl_->outlineCache.clear();  // simple LRU: clear when full
             }
             impl_->outlineCache.emplace(cacheKey, result);
@@ -424,7 +425,7 @@ namespace media {
         }
         {
             std::lock_guard<std::mutex> lock(impl_->outlineCacheMutex);
-            if (impl_->outlineCache.size() >= Impl::kMaxOutlineCacheSize)
+            if (impl_->outlineCache.size() >= kMaxOutlineCacheSize)
                 impl_->outlineCache.clear();
             impl_->outlineCache.emplace(key, result);
         }

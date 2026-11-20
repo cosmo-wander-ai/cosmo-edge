@@ -90,7 +90,6 @@ private:
     std::string sub_channel_id_;  // Actual channel ID for polling tasks
     std::string url_;
     bool is_started_{false};
-    util::ErrorEnum action_status_{util::ErrorEnum::Success};
     std::vector<std::string> tasks_;
     AlgTaskUnit regist_task_;
     AlgChannelDemux demuxer_;   // FFmpeg demux

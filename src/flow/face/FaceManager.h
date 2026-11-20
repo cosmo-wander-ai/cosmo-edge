@@ -90,7 +90,6 @@ private:
 private:
     std::map<std::string, PersonPtr> person_map_;  // All persons indexed by ID for search
     std::vector<FaceLibPtr> face_libs_;            // All face libraries
-    size_t max_face_number_{300000};
     size_t max_face_lib_number_{100};
     std::pair<std::string, std::unique_ptr<MsgQueryFacesR>> query_cond_;
     mutable std::shared_mutex mtx_;

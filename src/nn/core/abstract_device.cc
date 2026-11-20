@@ -15,7 +15,7 @@ Status AbstractDevice::Allocate(BlobHandle* handle, BlobMemorySizeInfo& size_inf
     handle->base = data;
     handle->phy  = phy;
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status AbstractDevice::Free(const BlobHandle& handle) {

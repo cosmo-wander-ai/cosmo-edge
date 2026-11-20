@@ -77,9 +77,8 @@ namespace {
 }  // namespace
 
 // This concrete entry intentionally specializes placement; see AiDetectMng.h.
-// cppcheck-suppress duplInheritedMember
-AiDetectorPtr AiDetectMng::GetInst(const std::string& algCode, const std::string& channelId,
-                                   const std::string& task, ActionNode& action) {
+AiDetectorPtr AiDetectMng::GetDetectorForChannel(const std::string& algCode, const std::string& channelId,
+                                                 const std::string& task, ActionNode& action) {
     std::string config_path, model_path;
     if (!service::ServiceRegistry::Instance().Get<service::IModelPathMapping>().GetModelCfg(
             algCode, config_path, model_path))

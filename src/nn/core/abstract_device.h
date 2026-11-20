@@ -44,10 +44,11 @@ template <typename T>
 class TypeDeviceRegister {
 public:
     explicit TypeDeviceRegister(DeviceType type) {
-        auto& map = GetGlobDeviceMap();
-        if (map.find(type) == map.end()) {
-            map[type] = std::shared_ptr<T>(new T(type));
-        }
+        auto& map           = GetGlobDeviceMap();
+        const auto position = map.lower_bound(type);
+        if (position != map.end() && position->first == type)
+            return;
+        map.emplace_hint(position, type, std::shared_ptr<T>(new T(type)));
     }
 };
 

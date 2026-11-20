@@ -31,10 +31,10 @@ protected:
     virtual void run() = 0;
 
 private:
-    std::mutex lifecycle_mtx_;
+    std::mutex thread_lifecycle_mtx_;
     std::thread thread_;
-    std::string uuid_;
-    std::string name_;
+    std::string registry_uuid_;
+    std::string thread_name_;
 };
 
 }  // namespace cosmo::util

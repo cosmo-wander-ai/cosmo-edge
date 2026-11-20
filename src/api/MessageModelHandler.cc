@@ -400,7 +400,7 @@ Model::MsgCancelUploadSend MessageModelHandler::Handle(Model::MsgCancelUploadRec
 Model::MsgUploadCapabilitiesSend MessageModelHandler::Handle(Model::MsgUploadCapabilitiesRecv&& /*data*/,
                                                              std::error_condition& errc) const {
     Model::MsgUploadCapabilitiesSend result;
-    const auto capabilities =
+    const service::UploadCapabilities capabilities =
         service::ServiceRegistry::Instance().Get<service::IUploadStagingService>().GetCapabilities();
     result.resData.maxTotalSize                = std::to_string(capabilities.max_total_size);
     result.resData.maxChunkSize                = std::to_string(capabilities.max_chunk_size);

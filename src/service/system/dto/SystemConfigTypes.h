@@ -29,7 +29,6 @@ struct CfgSystemLogoInfo {
     bool bHaveSetLogo{false};
     std::string systemName;
     std::string logoFileName;
-    CfgSystemDebugInfo debugInfo;
     friend void to_json(nlohmann::json& j, const CfgSystemLogoInfo& v);
     friend void from_json(const nlohmann::json& j, CfgSystemLogoInfo& v);
 };

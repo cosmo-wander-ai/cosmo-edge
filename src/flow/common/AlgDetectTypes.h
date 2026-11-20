@@ -87,9 +87,7 @@ struct AlgTaskDataRecogThings {
     std::string areaId;
     std::string areaName;
     util::Box box;
-    bool bLogicResult{false};  // Reused by filtering module. true: moving, false: stationary
-    float average{-1.0};       // Filtering result
-    AIMotionState motionStatus{AIMotionState::UNCERTAIN};  // Filtering motion state
+    bool bLogicResult{false};              // Reused by filtering module. true: moving, false: stationary
     AiDetectMatchHighScoreInfo matchInfo;  // Highest score match info during Reid algorithm comparison
 };
 
@@ -107,9 +105,7 @@ struct AlgTaskDataAiVideoQuality {
     DataDetTrackClassifyPtr targetRst{nullptr};  // Effective when bInputArea is false
 };
 
-struct AlgTaskDataFilter {
-    DataFilterPtr filterRst{nullptr};
-};
+struct AlgTaskDataFilter {};
 
 struct AlgTaskDataAlarm {
     DataAlarmPtr alarmData{nullptr};

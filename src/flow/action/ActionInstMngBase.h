@@ -16,6 +16,11 @@
 
 namespace cosmo {
 
+template <typename InstT>
+decltype(auto) InstanceFlowActionId(const InstT& inst) {
+    return inst.GetFlowActionId();
+}
+
 // ──────────────────────────────────────────────────────
 // VectorActionMng: Stores instances using vector<shared_ptr<T>>
 // Applicable to: ActionBranchMng, LogicalJudgmentMng, SensitivityMng,
@@ -100,7 +105,7 @@ protected:
 
     InstPtr FindByTaskAndFlowUnlocked(const std::string& taskId, const std::string& flowActionId) {
         auto it = std::find_if(insts.begin(), insts.end(), [&](const InstPtr& inst) {
-            return (inst->GetTaskId() == taskId) && (inst->GetFlowActionId() == flowActionId);
+            return (inst->GetTaskId() == taskId) && (InstanceFlowActionId(*inst) == flowActionId);
         });
         return (it != insts.end()) ? *it : nullptr;
     }

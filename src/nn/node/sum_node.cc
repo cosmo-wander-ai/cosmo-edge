@@ -27,7 +27,7 @@ Status SumNode::InferTopShapes() {
     top_blob_shapes     = {{max_batch, 1}};
     top_blob_data_types = {DataType::DATA_TYPE_FLOAT};
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status SumNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
@@ -63,7 +63,7 @@ Status SumNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
     }
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

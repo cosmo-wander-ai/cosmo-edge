@@ -23,26 +23,11 @@ inline bool HasTaskInitializationFailure(const TaskStatus& status) {
     });
 }
 
-enum class CameraTaskOpStatus {
-    kNone = 0,
-    kOpenByConfig,      // Opened by config
-    kOpenByInterface,   // Opened by API
-    kOpenBySchedule,    // Opened by schedule template
-    kOpenByAuth,        // Opened by authorization
-    kCloseByConfig,     // Closed by config
-    kCloseByInterface,  // Closed by API
-    kCloseBySchedule,   // Closed by schedule template
-    kCloseByAuth        // Closed by authorization
-};
 enum class CameraTaskStatus {
     kPause = -1,
     kStop,       // Stopped
     kInService,  // Running
     kAbnormal    // Abnormal
-};
-struct CameraTaskOp {
-    int64_t op_timestamp_{0};   // Operation timestamp (not persisted)
-    CameraTaskOpStatus status;  // Operation status (not persisted)
 };
 
 struct CameraTask {
@@ -53,7 +38,6 @@ struct CameraTask {
     std::string schedule_name_{};          // Schedule template name
     std::atomic<bool> is_enabled_{false};  // Enable switch
     std::atomic<CameraTaskStatus> status_{CameraTaskStatus::kStop};
-    std::vector<CameraTaskOp> ops_;  // Operation log (max 10 entries, not persisted)
 
     MsgTaskCreateRecv data_;   // Structured overlay data
     ActionAlgPtr action_alg_;  // Algorithm orchestration config for overlay

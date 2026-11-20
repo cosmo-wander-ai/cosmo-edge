@@ -60,8 +60,8 @@ AlgChannelDecode::AlgChannelDecode(AlgChannel& channel_inst, const std::string& 
     action_status_ = util::ErrorEnum::NotInit;
     device_id_ =
         static_cast<int>(service::ServiceRegistry::Instance().Get<service::IAppInfoService>().GetNumber());
-    uuid_ = util::GenerateUUID();
-    name_ = channel_id + " Decode";
+    uuid_         = util::GenerateUUID();
+    decoder_name_ = channel_id + " Decode";
     LOG_INFO("ChannelDecode:{}/{} Init (decoder deferred)", channel_id_, uuid_);
 }
 
@@ -140,18 +140,20 @@ bool AlgChannelDecode::ValidateFrame(VideoPacketPtr& video_frame, bool just_need
             if (!video_frame->IsIFrame()) {
                 return false;
             }
-            LOG_INFO("{} Got I Frame At {}, Last Frame:{}", name_, video_frame->index, frame_index_);
+            LOG_INFO("{} Got I Frame At {}, Last Frame:{}", decoder_name_, video_frame->index, frame_index_);
         } else {
             if (video_frame->index <= 0) {
                 if (!video_frame->IsIFrame()) {
                     return false;
                 }
-                LOG_INFO("{} Got I Frame At {}, Last Frame:{}", name_, video_frame->index, frame_index_);
+                LOG_INFO("{} Got I Frame At {}, Last Frame:{}", decoder_name_, video_frame->index,
+                         frame_index_);
             } else if ((frame_index_ + 1) != video_frame->index) {
                 if (!video_frame->IsIFrame()) {
                     return false;
                 }
-                LOG_WARN("{} Got I Frame At {}, Last Frame:{}", name_, video_frame->index, frame_index_);
+                LOG_WARN("{} Got I Frame At {}, Last Frame:{}", decoder_name_, video_frame->index,
+                         frame_index_);
             }
         }
     }
@@ -164,7 +166,7 @@ void AlgChannelDecode::PrepareDecoder(VideoPacketPtr& video_frame) {
     }
     // Lazily create decoder instance (allocate VPU VRAM only on first use).
     if (!decoder_) {
-        LOG_INFO("{} Creating video decoder on demand (deviceId={})", name_, device_id_);
+        LOG_INFO("{} Creating video decoder on demand (deviceId={})", decoder_name_, device_id_);
         auto* media_handle = service::ServiceRegistry::Instance().Get<mem::IDeviceContext>().GetMediaHandle();
         decoder_           = media::VideoDecoder::Create(static_cast<size_t>(device_id_), media_handle);
     }
@@ -184,8 +186,8 @@ void AlgChannelDecode::PrepareDecoder(VideoPacketPtr& video_frame) {
         frame_index_  = -1;
         ++decoder_stream_reuse_count_;
         if (decoder_stream_reuse_count_ == 1 || decoder_stream_reuse_count_ % 240 == 0) {
-            LOG_INFO("{} reused decoder across stream restart: stream={} codec={} size={}x{} count={}", name_,
-                     stream_index_, video_frame->codec_type, decoder_width, decoder_height,
+            LOG_INFO("{} reused decoder across stream restart: stream={} codec={} size={}x{} count={}",
+                     decoder_name_, stream_index_, video_frame->codec_type, decoder_width, decoder_height,
                      decoder_stream_reuse_count_);
         }
         return;
@@ -196,7 +198,7 @@ void AlgChannelDecode::PrepareDecoder(VideoPacketPtr& video_frame) {
         if (decoder_->IsOpened()) {
             decoder_->Close();
             LOG_INFO("{} Decoder Reset Last stream:{} New Stream:{} SuccessCount:{} codecResetSign:{} ",
-                     name_, stream_index_, video_frame->stream_idx, decode_count_, codec_reset_sign_);
+                     decoder_name_, stream_index_, video_frame->stream_idx, decode_count_, codec_reset_sign_);
         }
     }
     if (!decoder_->IsOpened()) {
@@ -206,7 +208,7 @@ void AlgChannelDecode::PrepareDecoder(VideoPacketPtr& video_frame) {
         decode_count_               = 0;
         frame_index_                = -1;
         decoder_stream_reuse_count_ = 0;
-        LOG_INFO("{} streamIndex:{} videoType:{} Changed, dumux video width:{}, height:{}", name_,
+        LOG_INFO("{} streamIndex:{} videoType:{} Changed, dumux video width:{}, height:{}", decoder_name_,
                  stream_index_, video_frame->codec_type, video_frame->width, video_frame->height);
 
         decoder_->SetCodecType(video_frame->codec_type, decoder_width, decoder_height);
@@ -222,7 +224,7 @@ void AlgChannelDecode::HandFrame(AlgDataPtr demux_data) {
 
     auto video_frame = demux_data->chanDataOrig.packet;
     if (!video_frame) {
-        LOG_INFO("{} Empty Data", name_);
+        LOG_INFO("{} Empty Data", decoder_name_);
         action_status_ = util::ErrorEnum::FlowDataInvalid;
         return;
     }
@@ -252,7 +254,7 @@ void AlgChannelDecode::HandFrame(AlgDataPtr demux_data) {
             return;
         }
         if (0 == decode_count_ % 300) {
-            LOG_INFO("{} MaxFps:{} Just Need I Frame, Frame:{} is {} Frame", name_, GetMaxFps(),
+            LOG_INFO("{} MaxFps:{} Just Need I Frame, Frame:{} is {} Frame", decoder_name_, GetMaxFps(),
                      video_frame->GetSequence(), video_frame->IsIFrame() ? "I" : "P");
         }
     }
@@ -283,7 +285,7 @@ void AlgChannelDecode::HandFrame(AlgDataPtr demux_data) {
                                                   video_frame->index, is_decode_ret);
         } catch (const std::exception& e) {
             codec_reset_sign_ = true;
-            LOG_ERRO("{} Last Frame is {} Have Decord Errors: {}", name_, frame_index_, e.what());
+            LOG_ERRO("{} Last Frame is {} Have Decord Errors: {}", decoder_name_, frame_index_, e.what());
             return;
         }
     }
@@ -297,14 +299,14 @@ void AlgChannelDecode::HandFrame(AlgDataPtr demux_data) {
         } else {
             consecutive_decode_failures_++;
             if (consecutive_decode_failures_ >= kMaxConsecutiveDecodeFailures) {
-                LOG_WARN("{} {} consecutive decode failures (frameIndex:{}), forcing decoder reset", name_,
-                         consecutive_decode_failures_, video_frame->index);
+                LOG_WARN("{} {} consecutive decode failures (frameIndex:{}), forcing decoder reset",
+                         decoder_name_, consecutive_decode_failures_, video_frame->index);
                 codec_reset_sign_            = true;
                 consecutive_decode_failures_ = 0;
             }
             action_status_ = util::ErrorEnum::DecoderFrameFailed;
-            LOG_INFO("{} Decode Failed At {}, Last Frame:{}, consecutiveFails:{}", name_, video_frame->index,
-                     frame_index_, consecutive_decode_failures_);
+            LOG_INFO("{} Decode Failed At {}, Last Frame:{}, consecutiveFails:{}", decoder_name_,
+                     video_frame->index, frame_index_, consecutive_decode_failures_);
         }
         return;
     }
@@ -353,8 +355,8 @@ void AlgChannelDecode::HandFrame(AlgDataPtr demux_data) {
     duration_stat_.EndSample();
     if (!frame_data || !frame_data->Active()) {
         action_status_ = util::ErrorEnum::DecoderFrameFailed;
-        LOG_WARN("{} decoded frame materialization failed at frame:{} stream:{}", name_, video_frame->index,
-                 video_frame->stream_idx);
+        LOG_WARN("{} decoded frame materialization failed at frame:{} stream:{}", decoder_name_,
+                 video_frame->index, video_frame->stream_idx);
         return;
     }
     frame_data->SetTimestamp(output_timestamp);
@@ -372,7 +374,7 @@ void AlgChannelDecode::HandFrame(AlgDataPtr demux_data) {
         if (!output_frame) {
             // Resize failure usually means insufficient device/memory; abort to avoid null-pointer crash.
             action_status_ = util::ErrorEnum::DecoderFrameFailed;
-            LOG_WARN("{} Resize failed at frame:{} stream:{} (src:{}x{} dst:{}x{})", name_,
+            LOG_WARN("{} Resize failed at frame:{} stream:{} (src:{}x{} dst:{}x{})", decoder_name_,
                      frame_data ? static_cast<int64_t>(frame_data->GetFrameIndex()) : int64_t{-1},
                      frame_data ? frame_data->GetStreamIndex() : int64_t{-1},
                      frame_data ? frame_data->GetWidth() : size_t{0},
@@ -534,6 +536,6 @@ void AlgChannelDecode::run() {
     }
 #endif
 
-    LOG_INFO("{} THREAD [{}] Stop ", name_, Name());
+    LOG_INFO("{} THREAD [{}] Stop ", decoder_name_, Name());
 }
 }  // namespace cosmo

@@ -12,13 +12,7 @@ namespace cosmo {
 
 namespace {
     db::LibInfo ToDbLibInfo(const MsgBaseFaceLibInfo& src) {
-        return {src.id,
-                src.name,
-                src.type,
-                src.threshold,
-                src.maxFaceNumber,
-                src.strangerAlarm,
-                src.strangerThreshold};
+        return {src.id, src.name, src.type, src.threshold, src.maxFaceNumber};
     }
 }  // namespace
 

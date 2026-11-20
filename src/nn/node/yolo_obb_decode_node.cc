@@ -54,7 +54,7 @@ Status YoloObbDecodeNode::InferTopShapes() {
         return Status(COSMO_NN_ERR_PARAM, "Invalid OBB decoder parameters");
     top_blob_shapes     = {{max_batch, top_k, kOutputColumns}};
     top_blob_data_types = {DATA_TYPE_FLOAT};
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 size_t YoloObbDecodeNode::GetBottomCount() {
@@ -108,7 +108,7 @@ Status YoloObbDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blo
     // Keep the allocated output batch dimension: padded batches remain zero,
     // and the parser uses the count of actual source-image transforms.
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status ParseYoloObbOutput(const std::shared_ptr<Blob>& blob,
@@ -175,7 +175,7 @@ Status ParseYoloObbOutput(const std::shared_ptr<Blob>& blob,
         }
         outputs.push_back(std::move(objects));
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

@@ -358,9 +358,9 @@ bool NetworkConfigServiceImpl::ApplyCardInfo(const platform::NetCardInfo& info) 
             effect_info.is_dhcp_change = (net_card_info_.sub.dhcp != effect_info.dhcp);
         }
     }
-    auto res        = platform::DoNetCard(effect_info);
-    ret_code        = static_cast<int>(res.error_code);
-    auto ret_string = res.result_data;
+    const platform::NetCardOpResult res = platform::DoNetCard(effect_info);
+    ret_code                            = static_cast<int>(res.error_code);
+    auto ret_string                     = res.result_data;
     LOG_INFO("Set {}/{} Get Ret {}:{}", info.eth_name, info.ip_addr, ret_code, ret_string);
 #endif
     if (0 == ret_code) {

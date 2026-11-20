@@ -276,7 +276,7 @@ OnvifSourceResult OnvifServiceImpl::Resolve(const std::string& source, const std
             result.error = "source_not_found";
             return result;
         }
-        auto& entry     = it->second;
+        Entry& entry    = it->second;
         result.revision = entry.revision;
         if (!entry.uri.empty()) {
             result.mediaUrl = entry.uri;
@@ -303,7 +303,7 @@ OnvifSourceResult OnvifServiceImpl::Resolve(const std::string& source, const std
                 it->second.resolving = false;
             return {{}, "configuration_changed", 0};
         }
-        auto& entry     = it->second;
+        Entry& entry    = it->second;
         entry.resolving = false;
         entry.uri       = result.mediaUrl;
         entry.error     = result.error;
