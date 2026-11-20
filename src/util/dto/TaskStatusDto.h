@@ -88,8 +88,6 @@ struct ActionRuntimeSon {
 
 struct ActionRuntimeInfo {
     std::string actionId;
-    std::string channelId;
-    bool bChannelReuse{false};  // NOTE: currently always false; mirrored to ClientMsgError for JSON output
     float maxTaskFps{0.0};
     std::string queueName;
     std::vector<ActionRuntimeSon> sons;

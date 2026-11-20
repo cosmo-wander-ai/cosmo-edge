@@ -77,9 +77,7 @@ struct DeviceMemPoolStatus {
     friend void from_json(const nlohmann::json& j, DeviceMemPoolStatus& v);
 };
 
-struct MsgQueryDeviceMemStatusRecv : public MsgRecvHead {
-    bool backtrace{false};
-};
+struct MsgQueryDeviceMemStatusRecv : public MsgRecvHead {};
 struct MsgQueryDeviceMemStatusSend : public MsgSendHead {
     size_t totalMalloc{0};
     size_t totalInUsing{0};

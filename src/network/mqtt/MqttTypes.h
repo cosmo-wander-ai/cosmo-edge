@@ -76,11 +76,6 @@ struct MqttConnectOptions {
 };
 
 // MQTT connection config + subscription info
-struct MqttClientInfos {
-    MqttConnectOptions connect_opts;
-    std::map<std::string, int> subscriptions;
-};
-
 // MQTT message
 struct MqttMessage {
     std::string topic;

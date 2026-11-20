@@ -92,13 +92,8 @@ BodyLib::MsgModifyPersonLibSend MessageBodyLibHandler::Handle(BodyLib::MsgModify
                 throw util::ErrorMessage(util::ErrorEnum::ParameterException);
             }
             data.personLib.id = util::GenerateUUID();
-            db::LibInfo info{data.personLib.id,
-                             data.personLib.name,
-                             data.personLib.type,
-                             data.personLib.threshold,
-                             data.personLib.maxPersonNumber,
-                             data.personLib.strangerAlarm,
-                             data.personLib.strangerThreshold};
+            db::LibInfo info{data.personLib.id, data.personLib.name, data.personLib.type,
+                             data.personLib.threshold, data.personLib.maxPersonNumber};
             db::TransactionGuard txn(dao_svc_);
             if (!dao_svc_.AddPersonLib(info)) {
                 throw util::ErrorMessage(util::ErrorEnum::DatabaseFailed);
@@ -108,13 +103,8 @@ BodyLib::MsgModifyPersonLibSend MessageBodyLibHandler::Handle(BodyLib::MsgModify
             break;
         }
         case Operation::Update: {
-            db::LibInfo info{data.personLib.id,
-                             data.personLib.name,
-                             data.personLib.type,
-                             data.personLib.threshold,
-                             data.personLib.maxPersonNumber,
-                             data.personLib.strangerAlarm,
-                             data.personLib.strangerThreshold};
+            db::LibInfo info{data.personLib.id, data.personLib.name, data.personLib.type,
+                             data.personLib.threshold, data.personLib.maxPersonNumber};
             db::TransactionGuard txn(dao_svc_);
             if (!dao_svc_.UpdatePersonLib(info)) {
                 throw util::ErrorMessage(util::ErrorEnum::DatabaseFailed);

@@ -23,16 +23,6 @@ struct QueryFaceTaskEventCondition {
     int page_size{10};
 };
 
-// Task event upload info
-struct TaskFaceEventFileReport {
-    std::string id;
-    int report_status{-1};     // -1: no update, 0: unreported (default), 1: reported
-    std::string pic_url;       // Detected picture URL
-    std::string full_pic_url;  // Full picture URL
-    std::string orig_pic_url;  // Original picture URL
-    std::string video_url;     // Video URL
-};
-
 struct FaceTaskEventData {
     std::string id;
     std::string category;
@@ -62,7 +52,6 @@ struct FaceTaskEventData {
 // Task event query result
 struct FaceTaskEventsResult {
     size_t total_count{0};
-    std::string export_result_url;
     std::vector<FaceTaskEventData> behavior_list;
 };
 

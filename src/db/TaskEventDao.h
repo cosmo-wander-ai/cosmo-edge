@@ -33,16 +33,6 @@ struct QueryTaskEventCondition {
     std::string prop_direction;      // Target direction (e.g. vehicle direction)
 };
 
-// Task event upload info
-struct TaskEventFileReport {
-    std::string id;
-    int report_status{-1};     // -1: no update, 0: unreported (default), 1: reported
-    std::string pic_url;       // Detected picture URL
-    std::string full_pic_url;  // Full picture URL
-    std::string orig_pic_url;  // Original picture URL
-    std::string video_url;     // Video URL
-};
-
 struct TaskEventData {
     std::string id;
     std::string category;

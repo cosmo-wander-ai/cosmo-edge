@@ -103,24 +103,12 @@ AiFeature FaceRegLib::QueryFaceFeature(const std::string& faceId) {
 }
 
 bool FaceRegLib::AddFaceLib(const MsgBaseFaceLibInfo& data) {
-    db::LibInfo info{data.id,
-                     data.name,
-                     data.type,
-                     data.threshold,
-                     data.maxFaceNumber,
-                     data.strangerAlarm,
-                     data.strangerThreshold};
+    db::LibInfo info{data.id, data.name, data.type, data.threshold, data.maxFaceNumber};
     return m_dbPersonEvent->AddFaceLib(info);
 }
 
 bool FaceRegLib::UpdateFaceLib(const MsgBaseFaceLibInfo& data) {
-    db::LibInfo info{data.id,
-                     data.name,
-                     data.type,
-                     data.threshold,
-                     data.maxFaceNumber,
-                     data.strangerAlarm,
-                     data.strangerThreshold};
+    db::LibInfo info{data.id, data.name, data.type, data.threshold, data.maxFaceNumber};
     return m_dbPersonEvent->UpdateFaceLib(info);
 }
 

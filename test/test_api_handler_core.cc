@@ -114,7 +114,7 @@ TEST_CASE("MessageHandler: memory pools use only diagnostics", "[CoreHandler][na
     std::vector<service::PoolStatusDto> pools;
     const bool populated = GENERATE(false, true);
     if (populated) {
-        pools = {{128, 3, 2, {{11, 23, 99}, {12, 24, 100}}}, {512, 1, 1, {{13, 25, 101}}}};
+        pools = {{128, 3, 2, {{11, 23}, {12, 24}}}, {512, 1, 1, {{13, 25}}}};
     }
     REQUIRE_CALL(app_info, GetMemoryPoolStatus()).RETURN(pools);
     std::error_condition errc = util::ErrorEnum::Success;

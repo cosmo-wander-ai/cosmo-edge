@@ -274,11 +274,9 @@ Event::MsgQueryPassengerFlowNumberSend MessageEventHandler::Handle(
     number_list.reserve(sql_data.numberList.size());
     for (const auto& unit : sql_data.numberList) {
         TimePoint web_unit;
-        web_unit.channelId     = unit.cameraId;
-        web_unit.algorithmCode = unit.algorithm_code;
-        web_unit.enterNumber   = unit.enterNumber;
-        web_unit.leaveNumber   = unit.leaveNumber;
-        web_unit.hour          = unit.hour;
+        web_unit.enterNumber = unit.enterNumber;
+        web_unit.leaveNumber = unit.leaveNumber;
+        web_unit.hour        = unit.hour;
         number_list.push_back(web_unit);
     }
 

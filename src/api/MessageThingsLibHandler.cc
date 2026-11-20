@@ -48,13 +48,8 @@ ThingsLib::MsgModifyThingsLibSend MessageThingsLibHandler::Handle(ThingsLib::Msg
                 throw util::ErrorMessage(util::ErrorEnum::ParameterException);
             }
             data.thingsLib.id = util::GenerateUUID();
-            db::LibInfo info{data.thingsLib.id,
-                             data.thingsLib.name,
-                             data.thingsLib.type,
-                             data.thingsLib.threshold,
-                             data.thingsLib.maxThingsNumber,
-                             data.thingsLib.strangerAlarm,
-                             data.thingsLib.strangerThreshold};
+            db::LibInfo info{data.thingsLib.id, data.thingsLib.name, data.thingsLib.type,
+                             data.thingsLib.threshold, data.thingsLib.maxThingsNumber};
             db::TransactionGuard guard(dao_svc_);
             if (!dao_svc_.AddArticlesReidLib(info)) {
                 throw util::ErrorMessage(util::ErrorEnum::DatabaseFailed);
@@ -64,13 +59,8 @@ ThingsLib::MsgModifyThingsLibSend MessageThingsLibHandler::Handle(ThingsLib::Msg
             break;
         }
         case Operation::Update: {
-            db::LibInfo info{data.thingsLib.id,
-                             data.thingsLib.name,
-                             data.thingsLib.type,
-                             data.thingsLib.threshold,
-                             data.thingsLib.maxThingsNumber,
-                             data.thingsLib.strangerAlarm,
-                             data.thingsLib.strangerThreshold};
+            db::LibInfo info{data.thingsLib.id, data.thingsLib.name, data.thingsLib.type,
+                             data.thingsLib.threshold, data.thingsLib.maxThingsNumber};
             db::TransactionGuard guard(dao_svc_);
             if (!dao_svc_.UpdateArticlesReidLib(info)) {
                 throw util::ErrorMessage(util::ErrorEnum::DatabaseFailed);
