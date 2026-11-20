@@ -639,6 +639,7 @@ export default {
     switchOff: 'Off',
     simpleTip: '* Non-standard component defaults use text input',
     targetLabel: 'Target Label',
+    behaviorAttributes: 'Behavior Attributes',
     minSizeEnabled: 'Min Size Enabled',
     confidenceAdjust: 'Confidence Adjust',
     positiveAdjust: 'Positive Adjust',

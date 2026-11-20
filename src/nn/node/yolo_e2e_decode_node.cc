@@ -45,14 +45,17 @@ void YoloE2EDecodeNode::LoadParam(Op* op) {
     if (!post)
         return;
 
-    top_k          = post->top_k;
-    base_conf      = post->nms_detection_conf;
-    nms_threshold_ = post->nms_threshold;
-    raw_output_    = post->raw_output;
-    input_width_   = post->input_width;
-    input_height_  = post->input_height;
+    person_attributes_ = post->name == "yolo26_person_attributes_postprocess";
+    top_col            = person_attributes_ ? 10 : 6;
+    top_k              = post->top_k;
+    base_conf          = post->nms_detection_conf;
+    nms_threshold_     = post->nms_threshold;
+    raw_output_        = post->raw_output;
+    input_width_       = post->input_width;
+    input_height_      = post->input_height;
     valid_params_ =
         top_k > 0 && std::isfinite(base_conf) && base_conf >= 0.f && base_conf <= 1.f &&
+        (!person_attributes_ || !raw_output_) &&
         (!raw_output_ || (std::isfinite(nms_threshold_) && nms_threshold_ >= 0.f && nms_threshold_ <= 1.f));
 }
 
@@ -85,7 +88,7 @@ Status YoloE2EDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blo
     const auto& bottom_dim = bottom_blob->GetBlobDesc().dims;
     const auto& top_dim    = top_blob->GetBlobDesc().dims;
     const int batch        = bottom_dim[0];
-    if ((raw_output_ && bottom_dim[1] <= 4) || (!raw_output_ && bottom_dim[2] != 6))
+    if ((raw_output_ && bottom_dim[1] <= 4) || (!raw_output_ && bottom_dim[2] != top_col))
         return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid YOLO E2E output layout for raw_output mode");
     if (batch > max_batch || top_dim[0] < batch || top_dim[1] != top_k || top_dim[2] != top_col)
         return Status(COSMO_NN_ERR_INVALID_INPUT, "YOLO E2E output capacity is insufficient");
@@ -131,7 +134,7 @@ Status YoloE2EDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blo
 
         // Auto-detect normalized coordinates from raw (x1,y1,x2,y2)
         bool is_normalized = false;
-        if (input_width_ > 0 && input_height_ > 0) {
+        if (!person_attributes_ && input_width_ > 0 && input_height_ > 0) {
             is_normalized   = true;
             int check_count = std::min(20, box_num);
             for (int i = 0; i < check_count && is_normalized; i++) {
@@ -163,8 +166,19 @@ Status YoloE2EDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blo
             float score    = src[i * box_col + 4];
             float class_id = src[i * box_col + 5];
 
-            if (std::isnan(score) || score < base_conf)
+            if (person_attributes_) {
+                bool valid = std::isfinite(x1) && std::isfinite(y1) && std::isfinite(x2) &&
+                             std::isfinite(y2) && x2 > x1 && y2 > y1 && std::isfinite(score) && score > 0.f &&
+                             score <= 1.f && score >= base_conf && class_id == 0.f;
+                for (int k = 6; k < 10 && valid; ++k) {
+                    const float attribute = src[i * box_col + k];
+                    valid                 = std::isfinite(attribute) && attribute >= 0.f && attribute <= 1.f;
+                }
+                if (!valid)
+                    continue;
+            } else if (std::isnan(score) || score < base_conf) {
                 continue;
+            }
 
             // Denormalize if model outputs normalized coordinates
             if (is_normalized) {
@@ -180,12 +194,20 @@ Status YoloE2EDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blo
             float w  = x2 - x1;
             float h  = y2 - y1;
 
+            if (person_attributes_ &&
+                (!std::isfinite(cx) || !std::isfinite(cy) || !std::isfinite(w) || !std::isfinite(h)))
+                continue;
+
             dst[valid_count * top_col + 0] = cx;
             dst[valid_count * top_col + 1] = cy;
             dst[valid_count * top_col + 2] = w;
             dst[valid_count * top_col + 3] = h;
             dst[valid_count * top_col + 4] = score;
             dst[valid_count * top_col + 5] = class_id;
+            if (person_attributes_) {
+                for (int k = 6; k < 10; ++k)
+                    dst[valid_count * top_col + k] = src[i * box_col + k];
+            }
             valid_count++;
         }
     }

@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "catch_amalgamated.hpp"
+#include "flow/logical/LogicCalcEngine.h"
 #include "infer/AiTrackerUnify.h"
 #include "nn/utils/tracker_wrap.h"
 
@@ -212,6 +213,64 @@ namespace {
         REQUIRE(axis_aligned.size() == 1);
         REQUIRE(axis_aligned.front().targetId == detection.targetId);
         REQUIRE_FALSE(axis_aligned.front().oriented_corners.has_value());
+    }
+
+    TEST_CASE("Joint person attributes follow current measurements through tracking and loss",
+              "[infer][tracker][person-attributes]") {
+        const std::string code = "person-attributes";
+        AiTrackerUnify tracker(code, {"person"}, {{"person", code, 0.5f}}, 640, 480);
+
+        const auto make_detection = [&](const std::string& id, float smoking, float normal) {
+            AiDetectRstEl target;
+            target.targetId                 = id;
+            target.box                      = util::Box(100, 100, 40, 80);
+            target.confidence               = {"person", code, 0.9f, AiAnnotationSource::Detection};
+            target.hasJointPersonAttributes = true;
+            target.classifyRst              = {
+                {"smoking", code, smoking, AiAnnotationSource::Classification, id + "-smoking"},
+                {"sleep", code, 0.01f, AiAnnotationSource::Classification, id + "-sleep"},
+                {"fall", code, 0.02f, AiAnnotationSource::Classification, id + "-fall"},
+                {"normal", code, normal, AiAnnotationSource::Classification, id + "-normal"}};
+            for (const auto& attr : target.classifyRst) {
+                target.attrRst.push_back({attr.label, attr.label, attr.atomic_code, attr.confidence,
+                                          attr.source, attr.measurementId});
+            }
+            return target;
+        };
+
+        const auto normal = make_detection("normal-frame", 0.01f, 0.94f);
+        REQUIRE(TraceGeometry(tracker, {normal}).empty());
+        const auto started = TraceGeometry(tracker, {normal});
+        REQUIRE(started.size() == 1);
+        REQUIRE(started.front().classifyRst.size() == 4);
+        const auto track_id = started.front().trackId;
+        const auto smoking  = make_detection("smoking-frame", 0.86f, 0.13f);
+        const auto current  = TraceGeometry(tracker, {smoking});
+        REQUIRE(current.size() == 1);
+        const auto& target = current.front();
+        REQUIRE(target.trackId == track_id);
+        REQUIRE(target.targetId == smoking.targetId);
+        REQUIRE(target.confidence.label == "person");
+        REQUIRE(target.confidence.confidence == Catch::Approx(0.9f));
+        REQUIRE(target.attrRst.size() == 4);
+        REQUIRE(target.attrRst.front().measurementId == "smoking-frame-smoking");
+        REQUIRE(target.attrRst.back().confidence == Catch::Approx(0.13f));
+        float behavior_score = 0.0f;
+        REQUIRE(LogicCalcEngine::GetAiOutValue(target, "smoking", behavior_score));
+        REQUIRE(behavior_score == Catch::Approx(0.86f));
+
+        const auto lost = TraceGeometry(tracker, {});
+        REQUIRE(lost.size() == 1);
+        REQUIRE(lost.front().trackId == track_id);
+        REQUIRE_FALSE(lost.front().hasJointPersonAttributes);
+        REQUIRE(lost.front().attrRst.empty());
+        REQUIRE_FALSE(LogicCalcEngine::GetAiOutValue(lost.front(), "smoking", behavior_score));
+
+        const auto observed_again = TraceGeometry(tracker, {make_detection("returned-frame", 0.05f, 0.92f)});
+        REQUIRE(observed_again.size() == 1);
+        REQUIRE(observed_again.front().trackId == track_id);
+        REQUIRE(LogicCalcEngine::GetAiOutValue(observed_again.front(), "normal", behavior_score));
+        REQUIRE(behavior_score == Catch::Approx(0.92f));
     }
 
 }  // namespace

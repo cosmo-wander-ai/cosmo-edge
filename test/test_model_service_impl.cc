@@ -6,6 +6,7 @@
 #include "mock/MockAlgorithmService.h"
 #include "mock/MockAppInfoService.h"
 #include "mock/MockCameraService.h"
+#include "nlohmann/json.hpp"
 #include "service/model/impl/ModelServiceImpl.h"
 #include "support/MockDefaults.h"
 #include "support/ScopedPathOverride.h"
@@ -262,6 +263,38 @@ TEST_CASE("ModelServiceImpl: 模型服务核心逻辑", "[model-service]") {
             REQUIRE(atomicRows[0].atomicCode == "test_model_001");
             REQUIRE(atomicRows[0].atomicName == "TestModel");
             REQUIRE(atomicRows[0].labelList.size() == 2);
+            CHECK_FALSE(nlohmann::json(atomicRows[0]).contains("behaviorScores"));
+        }
+
+        SECTION("Person attributes models are selectable as detectors") {
+            const auto modelDir = std::filesystem::path(testModelsDir) / "person_attributes";
+            std::filesystem::create_directories(modelDir);
+            std::ofstream(modelDir / "config.json")
+                << R"({"algorithm_code":"person_attributes","model_type":"yolo26_person_attributes",
+                       "models":[{"name":"Person Attributes"}],
+                       "labels":[{"id":"0","name":"person","threshold":[0.25]}]})";
+
+            const auto detectors = sut.QueryAtomicModels("Person Attributes", "detector", "");
+            REQUIRE(detectors.size() == 1);
+            CHECK(detectors.front().atomicCode == "person_attributes");
+            REQUIRE(detectors.front().labelList.size() == 1);
+            CHECK(detectors.front().labelList.front().class_name == "person");
+            const nlohmann::json response = detectors.front();
+            const auto scores             = nlohmann::json::parse(R"([
+                {"class_name":"smoking","nameCN":"抽烟"},
+                {"class_name":"sleep","nameCN":"睡岗"},
+                {"class_name":"fall","nameCN":"跌倒"},
+                {"class_name":"normal","nameCN":"正常"}
+            ])");
+            CHECK(response.at("behaviorScores") == scores);
+            CHECK(nlohmann::json(response.get<cosmo::Model::MsgAtomicModel>()).at("behaviorScores") ==
+                  scores);
+            const auto labels = nlohmann::json::parse(response.at("label").get<std::string>());
+            REQUIRE(labels.size() == 1);
+            CHECK(labels.front().at("class_name") == "person");
+            CHECK(sut.QueryAtomicModels("", "detector", "").size() == 2);
+            CHECK(sut.QueryAtomicModels("", "classify", "").empty());
+            CHECK(sut.QueryAtomicModels("", "yolo26_person_attributes", "").size() == 1);
         }
 
         SECTION("GetModelPathMapping 可以正确返回映射路径") {

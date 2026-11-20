@@ -26,12 +26,13 @@ public:
     virtual size_t GetTopCount() override;
 
 private:
-    float base_conf      = 0.25f;
-    float nms_threshold_ = 0.7f;
-    int top_k            = 300;
-    bool raw_output_     = false;
-    bool valid_params_   = false;
-    int top_col          = 6;
+    float base_conf         = 0.25f;
+    float nms_threshold_    = 0.7f;
+    int top_k               = 300;
+    bool raw_output_        = false;
+    bool person_attributes_ = false;
+    bool valid_params_      = false;
+    int top_col             = 6;
 
     // Net input dimensions for denormalizing coordinates
     int input_width_  = 0;

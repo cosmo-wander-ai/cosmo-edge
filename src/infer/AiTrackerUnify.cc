@@ -218,6 +218,11 @@ std::vector<AiDetectRstEl> AiTrackerUnify::TrackEl2DetEl(const std::vector<cosmo
                     det_box_el.confidence.confidence == detection.confidence.confidence)
                     det_box_el.confidence.source = detection.confidence.source;
                 det_box_el.oriented_corners = detection.oriented_corners;
+                if (detection.hasJointPersonAttributes) {
+                    det_box_el.hasJointPersonAttributes = true;
+                    det_box_el.classifyRst              = detection.classifyRst;
+                    det_box_el.attrRst                  = detection.attrRst;
+                }
             } else {
                 det_box_el.targetId = util::GenerateUUID();
             }

@@ -77,7 +77,7 @@ export const updateNodeConfig = (nodes, nodeId, configObject) => {
 }
 
 export const updateAtomicList = (list, payload = {}) => {
-  const { position, atomicCode, atomicName, labelList } = payload
+  const { position, atomicCode, atomicName, labelList, behaviorScores } = payload
   if (!position) return list
   const source = list || []
   const index = source.findIndex((atomic) => String(atomic.position) === String(position))
@@ -87,9 +87,19 @@ export const updateAtomicList = (list, payload = {}) => {
     atomicName: atomicName || '',
     labelList: Array.isArray(labelList) ? labelList : []
   }
+  if (behaviorScores?.length) entry.behaviorScores = behaviorScores
   return index < 0
     ? [...source, entry]
     : source.map((atomic, current) => current === index ? entry : atomic)
+}
+
+// Older saved scenes have the model binding but no behavior score metadata.
+export const attachBehaviorScores = (atomics, models) => {
+  const scores = new Map(models.filter(model => model.behaviorScores?.length)
+    .map(model => [String(model.atomicCode), model.behaviorScores]))
+  return atomics.map(atomic => scores.has(String(atomic.atomicCode))
+    ? { ...atomic, behaviorScores: scores.get(String(atomic.atomicCode)) }
+    : atomic)
 }
 
 const isActionNode = node =>

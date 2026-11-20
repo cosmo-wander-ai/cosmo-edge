@@ -47,11 +47,22 @@ void to_json(nlohmann::json& j, const MsgAtomicModelLabel& v) {
     j["used"]       = v.used;
 }
 
+void from_json(const nlohmann::json& j, MsgAtomicModelBehaviorScore& v) {
+    JSON_OPT(j, v, class_name);
+    JSON_OPT(j, v, nameCN);
+}
+
+void to_json(nlohmann::json& j, const MsgAtomicModelBehaviorScore& v) {
+    j["class_name"] = v.class_name;
+    j["nameCN"]     = v.nameCN;
+}
+
 void from_json(const nlohmann::json& j, MsgAtomicModel& v) {
     JSON_OPT(j, v, atomicCode);
     JSON_OPT(j, v, atomicName);
     JSON_OPT(j, v, label);
     JSON_OPT(j, v, labelList);
+    JSON_OPT(j, v, behaviorScores);
 }
 
 void to_json(nlohmann::json& j, const MsgAtomicModel& v) {
@@ -59,6 +70,8 @@ void to_json(nlohmann::json& j, const MsgAtomicModel& v) {
     j["atomicName"] = v.atomicName;
     j["label"]      = v.label;
     j["labelList"]  = v.labelList;
+    if (!v.behaviorScores.empty())
+        j["behaviorScores"] = v.behaviorScores;
 }
 
 void from_json(const nlohmann::json& j, MsgListSend::ResData& v) {

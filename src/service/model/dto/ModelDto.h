@@ -310,11 +310,19 @@ namespace Model {
         friend void from_json(const nlohmann::json& j, MsgAtomicModelLabel& v);
     };
 
+    struct MsgAtomicModelBehaviorScore {
+        std::string class_name;
+        std::string nameCN;
+        friend void to_json(nlohmann::json& j, const MsgAtomicModelBehaviorScore& v);
+        friend void from_json(const nlohmann::json& j, MsgAtomicModelBehaviorScore& v);
+    };
+
     struct MsgAtomicModel {
         std::string atomicCode;
         std::string atomicName;
         std::string label;
         std::vector<MsgAtomicModelLabel> labelList;
+        std::vector<MsgAtomicModelBehaviorScore> behaviorScores;
         friend void to_json(nlohmann::json& j, const MsgAtomicModel& v);
         friend void from_json(const nlohmann::json& j, MsgAtomicModel& v);
     };

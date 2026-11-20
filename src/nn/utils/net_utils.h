@@ -144,6 +144,13 @@ public:
                                        std::vector<std::string>& selected_label,
                                        std::vector<std::vector<ObjectInfoV1>>& detects);
 
+    // Input is host float [B,N,10]: center xywh, person score, class 0,
+    // and independent smoking/sleep/fall/normal scores, in that order.
+    static Status ParsePersonAttributesOutput(const std::vector<std::shared_ptr<Blob>>& blobs,
+                                              const std::vector<Size>& image_sizes, Size net_input_size,
+                                              float person_threshold, const std::string& person_label,
+                                              std::vector<std::vector<ObjectInfoV1>>& detects);
+
     static Status ParseClassificationOutput(std::vector<std::shared_ptr<Blob>>& blobs,
                                             std::vector<int>& selected_indcies,
                                             std::vector<std::string>& selected_label,

@@ -195,7 +195,8 @@ std::vector<cosmo::Model::MsgAtomicModel> ModelServiceImpl::QueryAtomicModels(co
                                [](unsigned char c) { return std::tolower(c); });
                 bool type_match = false;
                 if (dtLower == "detector")
-                    type_match = (mt_lower.find("_det") != std::string::npos || mt_lower == "detector");
+                    type_match = (mt_lower.find("_det") != std::string::npos || mt_lower == "detector" ||
+                                  mt_lower == "yolo26_person_attributes");
                 else if (dtLower == "classify")
                     type_match = (mt_lower.find("classify") != std::string::npos || mt_lower == "classify");
                 else
@@ -216,6 +217,10 @@ std::vector<cosmo::Model::MsgAtomicModel> ModelServiceImpl::QueryAtomicModels(co
                 label.nameCN     = pl.class_name;
                 model.labelList.push_back(std::move(label));
             }
+
+            if (cfg.model_type == "yolo26_person_attributes")
+                model.behaviorScores = {
+                    {"smoking", "抽烟"}, {"sleep", "睡岗"}, {"fall", "跌倒"}, {"normal", "正常"}};
 
             // Serialize labelList to JSON string for frontend
             if (!model.labelList.empty()) {

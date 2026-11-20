@@ -13,7 +13,9 @@
 #include "flow/target/TargetFilter.h"
 
 #include <algorithm>
+#include <cmath>
 #include <iterator>
+#include <limits>
 
 #include "util/Keys.h"
 #include "util/Log.h"
@@ -23,6 +25,45 @@ static constexpr const char* kTag       = "TARGETFILTER ";
 static constexpr int kFilterLogInterval = 100;
 namespace cosmo {
 
+namespace {
+    constexpr std::string_view kAttribute{"attr"};
+
+    bool IsBehaviorFilter(const BAFilterParam& filter) {
+        return filter.type == BAFilterType::kBehaviorConfidenceMin;
+    }
+
+    bool MatchesPersonBehavior(const std::vector<BAFilterParam>& filters, AiDetectRstEl& target) {
+        if (!target.hasJointPersonAttributes || target.trackStatus == AITrackingStatus::LOSS)
+            return false;
+
+        // A person may satisfy more than one selected behavior. Each match comes from the
+        // same detector measurement and keeps its own score for downstream alarm evidence.
+        bool matched = false;
+        for (const auto& score : target.classifyRst) {
+            if (score.source != AiAnnotationSource::Classification ||
+                score.atomic_code != target.confidence.atomic_code || !std::isfinite(score.confidence) ||
+                score.confidence < 0.0f || score.confidence > 1.0f)
+                continue;
+            const bool passes = std::any_of(filters.begin(), filters.end(), [&](const auto& filter) {
+                return IsBehaviorFilter(filter) && score.label == filter.label && filter.f_value >= 0.0f &&
+                       filter.f_value <= 1.0f && score.confidence >= filter.f_value;
+            });
+            if (!passes)
+                continue;
+            const auto already_recorded = [&](const auto& annotation) {
+                return annotation.label == score.label && annotation.atomic_code == score.atomic_code &&
+                       annotation.source == score.source && annotation.score == score.confidence;
+            };
+            if (std::none_of(target.alarmAnnotations.begin(), target.alarmAnnotations.end(),
+                             already_recorded))
+                target.alarmAnnotations.push_back(
+                    {score.label, score.atomic_code, score.confidence, score.source});
+            matched = true;
+        }
+        return matched;
+    }
+}  // namespace
+
 TargetFilter::~TargetFilter() {
     LOG_INFO("{}Task:{} Stop", kTag, task_id);
     Stop();
@@ -31,6 +72,13 @@ TargetFilter::~TargetFilter() {
 
 TargetFilter::TargetFilter(const std::string& taskId, ActionNode& action)
     : AlgActionBase(AlgActionType::AlgActionBAFilter, action, "", taskId) {
+    // For video tasks, node params declare the selected behaviors. The task then broadcasts
+    // its parameter overrides to all actions, including filters on unrelated branches.
+    for (const auto& param : action.configObject.params) {
+        BAFilterParam filter;
+        if (param.keys.size() == 5 && AnalysisKey(param, filter) && IsBehaviorFilter(filter))
+            filter_params_.push_back(std::move(filter));
+    }
     action_status = util::ErrorEnum::ActionReady;
     LOG_INFO("{}Task:{} Init", kTag, task_id);
 }
@@ -45,6 +93,13 @@ bool TargetFilter::AnalysisKey(const MsgDynamicKeyValue& param, BAFilterParam& f
             "[{}] param.keys is Empty",
             task_id);
         return false;
+    }
+    if (param.keys.size() == 5 && param.keys[0] == key::FILTER && param.keys[1] == kAttribute &&
+        param.keys[3] == key::CONFIDENCE && param.keys[4] == key::MIN) {
+        filter_el.type    = BAFilterType::kBehaviorConfidenceMin;
+        filter_el.label   = param.keys[2];
+        filter_el.f_value = util::ParseFloat(param.value.ToString(), std::numeric_limits<float>::quiet_NaN());
+        return true;
     }
     if (param.keys.size() != 4) {
         LOG_DEBUG(
@@ -184,8 +239,10 @@ void TargetFilter::SyncFilterParamsToWorkFlow() {
         }
         std::vector<MsgDynamicKeyValue> newParams;
         std::copy_if(node.configObject.params.begin(), node.configObject.params.end(),
-                     std::back_inserter(newParams),
-                     [](const auto& param) { return param.keys.empty() || param.keys[0] != key::FILTER; });
+                     std::back_inserter(newParams), [](const auto& param) {
+                         return param.keys.empty() || param.keys[0] != key::FILTER ||
+                                param.key.ToRefString().rfind("filter.attr.", 0) == 0;
+                     });
         for (const auto& fp : filter_params_) {
             auto kv = FilterParamToKeyValue(fp);
             if (!kv.keys.empty()) {
@@ -214,8 +271,8 @@ bool TargetFilter::ModifyParam(const std::string& /*channelId*/, const std::stri
                     found          = true;
                 }
             }
-            // Add if not found
-            if (!found) {
+            // Broadcast overrides can update a selected behavior but cannot select new ones.
+            if (!found && !IsBehaviorFilter(filter_el)) {
                 filter_params_.push_back(filter_el);
             }
         }
@@ -313,10 +370,14 @@ void TargetFilter::DoFilter(DataDetTrackClassifyPtr input) {
     if (filter_params_.empty()) {
         return;
     }
+    const bool behavior_filtering =
+        std::any_of(filter_params_.begin(), filter_params_.end(), IsBehaviorFilter);
     for (auto& target : input->targets) {
-        bool find_label = false;
-        for (auto& filter : filter_params_) {
-            if ((filter.alg_code == target.algCode) && (filter.label == target.confidence.label)) {
+        const bool filter_person_behavior = behavior_filtering && target.confidence.label == "person";
+        bool find_label                   = filter_person_behavior;
+        for (const auto& filter : filter_params_) {
+            if (!IsBehaviorFilter(filter) && (filter.alg_code == target.algCode) &&
+                (filter.label == target.confidence.label)) {
                 find_label = true;
                 if (FilterTarget(filter, target)) {
                     target.bFilter    = true;
@@ -330,6 +391,11 @@ void TargetFilter::DoFilter(DataDetTrackClassifyPtr input) {
         if (!find_label) {
             target.bFilter    = true;
             target.filterDesc = "Filter Action Have No Label";
+        }
+        if (filter_person_behavior && !target.bFilter && !MatchesPersonBehavior(filter_params_, target)) {
+            target.bFilter    = true;
+            target.filterType = AIFilterType::TargetFilter;
+            target.filterDesc = "Filter Person Behavior Confidence";
         }
     }
 }

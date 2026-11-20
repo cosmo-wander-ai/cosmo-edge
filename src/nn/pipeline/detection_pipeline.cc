@@ -1,7 +1,9 @@
 #include "nn/pipeline/detection_pipeline.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
+#include <limits>
 #include <nlohmann/json.hpp>
 
 #include "nn/pipeline/pipeline_utils.h"
@@ -334,6 +336,82 @@ Status Yolo26DetPipeline::ParseDetectionOutput(std::vector<std::vector<ObjectInf
                                 selected_thresholds_, selected_classnames_, outputs);
 }
 
+// The single detection label is distinct from the four fixed attribute names.
+// The exported tensor contains decoded pixel xyxy rows, not the raw YOLO head.
+Status Yolo26PersonAttributesPipeline::Init(const PipelineConfig& config, const std::string& model_path,
+                                            DeviceType device_type, int device_id, IProfiler* profiler,
+                                            const std::string& tokenizer_path,
+                                            const std::string& word_table_path) {
+    if (config.models.size() != 1 || config.labels.size() != 1 || config.labels[0].id != "0" ||
+        config.labels[0].name != "person" || config.labels[0].threshold.empty() ||
+        !std::isfinite(config.labels[0].threshold[0]) || config.labels[0].threshold[0] < 0.f ||
+        config.labels[0].threshold[0] > 1.f)
+        return Status(COSMO_NN_ERR_INVALID_CFG, "Person-attribute model requires only class 0 named person");
+    const auto& mc = config.models[0];
+    if (mc.max_batch <= 0 || mc.inputs.size() != 1 || mc.outputs.size() != 1 ||
+        mc.outputs[0].shape.size() != 3 || mc.outputs[0].shape[2] != 10 ||
+        (mc.outputs[0].shape[0] != -1 && mc.outputs[0].shape[0] <= 0) ||
+        (mc.outputs[0].shape[1] != -1 && mc.outputs[0].shape[1] <= 0))
+        return Status(COSMO_NN_ERR_INVALID_CFG, "Person-attribute model requires one output [B,N,10]");
+    const auto p = pipeline_utils::ParseJsonObject(mc.params_json);
+    if (p.contains("raw_output") && (!p["raw_output"].is_boolean() || p["raw_output"].get<bool>()))
+        return Status(COSMO_NN_ERR_INVALID_CFG, "Person-attribute model requires decoded pixel rows");
+    if ((p.contains("confidence_threshold") && !p["confidence_threshold"].is_number()) ||
+        (p.contains("top_k") && !p["top_k"].is_number_integer()))
+        return Status(COSMO_NN_ERR_INVALID_CFG, "Invalid person-attribute thresholds");
+    const float confidence = pipeline_utils::ReadFloat(p, "confidence_threshold", 0.25f);
+    const int top_k        = pipeline_utils::ReadInt(p, "top_k", 300);
+    if (!std::isfinite(confidence) || confidence < 0.f || confidence > 1.f || top_k <= 0 ||
+        static_cast<size_t>(top_k) > static_cast<size_t>(std::numeric_limits<int>::max()) / 10 / mc.max_batch)
+        return Status(COSMO_NN_ERR_INVALID_CFG, "Invalid person-attribute thresholds");
+
+    model_info_.algorithmcode = config.algorithm_code;
+    model_info_.reduce        = config.reduce;
+    model_info_.type          = "yolo26_person_attributes";
+    ModelInfo model;
+    model.name      = mc.name;
+    model.filename  = mc.file_name;
+    model.file_md5  = mc.file_md5;
+    model.max_batch = mc.max_batch;
+    max_batch_      = mc.max_batch;
+    InputNodeInfo input;
+    input.name      = mc.inputs[0].name;
+    input.shape     = mc.inputs[0].shape;
+    input.data_type = mc.inputs[0].data_type;
+    input.ops       = MakeDetPreprocess(p);
+    model.input_node_infos.push_back(std::move(input));
+    OutputNodeInfo output;
+    output.name              = mc.outputs[0].name;
+    output.shape             = mc.outputs[0].shape;
+    output.data_type         = mc.outputs[0].data_type;
+    output.op                = std::make_unique<YoloPost>("yolo26_person_attributes_postprocess");
+    auto* post               = static_cast<YoloPost*>(output.op.get());
+    post->nms_detection_conf = confidence;
+    post->top_k              = top_k;
+    post->raw_output         = false;
+    model.output_node_infos.push_back(std::move(output));
+    model_info_.models.push_back(std::move(model));
+    BuildLabels(config, mc.outputs[0].name, {-1, -1, 10}, model_info_);
+    InitThresholdsAndLabels();
+    InitNetInputSize();
+    return InitGraph(model_path, device_type, device_id, profiler, tokenizer_path);
+}
+
+Status Yolo26PersonAttributesPipeline::Forward(
+    std::initializer_list<std::vector<std::shared_ptr<Blob>>> inputs) {
+    return DetectionForward(
+        this, inputs, image_sizes_,
+        [this](std::initializer_list<std::vector<std::shared_ptr<Blob>>> inp) { return RunGraph(inp); });
+}
+
+Status Yolo26PersonAttributesPipeline::ParseDetectionOutput(std::vector<std::vector<ObjectInfoV1>>& outputs) {
+    if (selected_indices_.size() != 1 || selected_indices_[0] != 0 || selected_thresholds_.size() != 1 ||
+        selected_classnames_.size() != 1 || selected_classnames_[0] != "person")
+        return Status(COSMO_NN_ERR_INVALID_CFG, "Invalid person detection label configuration");
+    return NetUtils::ParsePersonAttributesOutput(GetGraphOutput(), image_sizes_, net_input_size_,
+                                                 selected_thresholds_[0], selected_classnames_[0], outputs);
+}
+
 // ============================= YOLO26 OBB (End-to-End) ====================
 
 Status Yolo26ObbPipeline::Init(const PipelineConfig& config, const std::string& model_path,
@@ -553,6 +631,7 @@ REGISTER_MODEL_PIPELINE("yolov9_det", YoloV8DetPipeline);
 REGISTER_MODEL_PIPELINE("yolov11_det", YoloV8DetPipeline);
 REGISTER_MODEL_PIPELINE("yolov12_det", YoloV8DetPipeline);
 REGISTER_MODEL_PIPELINE("yolo26_det", Yolo26DetPipeline);
+REGISTER_MODEL_PIPELINE("yolo26_person_attributes", Yolo26PersonAttributesPipeline);
 REGISTER_MODEL_PIPELINE("yolo26_obb_det", Yolo26ObbPipeline);
 REGISTER_MODEL_PIPELINE("detector", GenericDetectorPipeline);
 

@@ -13,8 +13,12 @@
 #include "nn/utils/model_info_utils.h"
 
 #ifdef COSMO_NN_USE_SOPHON_BACKEND
+#include <array>
+#include <nlohmann/json.hpp>
+
 #include "infer/AiClassifierUnify.h"
 #include "infer/AiDetectorUnify.h"
+#include "infer/AiTrackerUnify.h"
 #include "media/OsdTextRenderer.h"
 #include "media/VideoFrameProcSophon.h"
 #include "mem/DeviceContext.h"
@@ -221,6 +225,87 @@ namespace {
     }
 
 #ifdef COSMO_NN_USE_SOPHON_BACKEND
+    TEST_CASE("BM1688 person attributes keep four scores attached to the original person",
+              "[.person-attributes-device]") {
+        const auto* model_path = std::getenv("COSMO_TEST_PERSON_ATTRIBUTES_MODEL_DIR");
+        const auto* image_path = std::getenv("COSMO_TEST_PERSON_ATTRIBUTES_IMAGE_PATH");
+        REQUIRE(model_path != nullptr);
+        REQUIRE(image_path != nullptr);
+        const std::filesystem::path model(model_path);
+        std::ifstream file(image_path, std::ios::binary);
+        REQUIRE(file.good());
+        const std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(file)),
+                                         std::istreambuf_iterator<char>());
+        REQUIRE_FALSE(bytes.empty());
+
+        mem::DeviceContext context;
+        test::ScopedServiceOverride<mem::IDeviceContext> registration(context);
+        service::MemoryPoolServiceImpl pool;
+        media::OsdTextRenderer osd;
+        media::VideoFrameProcSophon frames(context.GetMediaHandle(), osd);
+        auto decoded = frames.DecodeJpeg(bytes);
+        REQUIRE(VideoFrameValid(decoded));
+        auto image = frames.I4202BGR(decoded);
+        REQUIRE(VideoFrameValid(image));
+        AiDetectorUnify detector("person-attributes", (model / "config.json").string(),
+                                 (model / "model.nn").string());
+        REQUIRE(detector.Init() == util::ErrorEnum::Success);
+        const std::vector<std::string> person_labels{"person"};
+        REQUIRE(detector.GetLabels() == person_labels);
+
+        const std::array<std::string, 4> labels{"smoking", "sleep", "fall", "normal"};
+        nlohmann::json result = nlohmann::json::array();
+        AiTrackerUnify tracker("person-attributes", {"person"}, {{"person", "person-attributes", 0.5f}},
+                               image->GetWidth(), image->GetHeight());
+        for (int frame = 0; frame < 3; ++frame) {
+            std::vector<std::vector<AiDetectRstEl>> detection;
+            REQUIRE(detector.Detect({image}, {}, detection) == util::ErrorEnum::Success);
+            REQUIRE(detection.size() == 1);
+            REQUIRE_FALSE(detection.front().empty());
+            for (const auto& target : detection.front()) {
+                REQUIRE(target.hasJointPersonAttributes);
+                REQUIRE(target.confidence.label == "person");
+                REQUIRE(target.box.width > 0);
+                REQUIRE(target.box.height > 0);
+                REQUIRE(target.classifyRst.size() == labels.size());
+                REQUIRE(target.attrRst.size() == labels.size());
+                nlohmann::json attrs = nlohmann::json::object();
+                for (size_t index = 0; index < labels.size(); ++index) {
+                    const auto& score = target.classifyRst[index];
+                    REQUIRE(score.label == labels[index]);
+                    REQUIRE(std::isfinite(score.confidence));
+                    REQUIRE(score.confidence >= 0.0f);
+                    REQUIRE(score.confidence <= 1.0f);
+                    REQUIRE(target.attrRst[index].measurementId == score.measurementId);
+                    attrs[score.label] = score.confidence;
+                }
+                if (frame == 0) {
+                    result.push_back(
+                        {{"bbox", {target.box.x, target.box.y, target.box.width, target.box.height}},
+                         {"person", target.confidence.confidence},
+                         {"attributes", std::move(attrs)}});
+                }
+            }
+            std::vector<AiDetectRstEl> tracked;
+            REQUIRE(tracker.Trace(detection.front(), tracked) == util::ErrorEnum::Success);
+            if (frame > 0) {
+                REQUIRE_FALSE(tracked.empty());
+                for (const auto& target : tracked) {
+                    REQUIRE(target.trackId >= 0);
+                    REQUIRE(target.hasJointPersonAttributes);
+                    REQUIRE(target.attrRst.size() == labels.size());
+                    const auto current =
+                        std::find_if(detection.front().begin(), detection.front().end(),
+                                     [&](const auto& el) { return el.targetId == target.targetId; });
+                    REQUIRE(current != detection.front().end());
+                    for (size_t index = 0; index < labels.size(); ++index)
+                        REQUIRE(target.attrRst[index].measurementId == current->attrRst[index].measurementId);
+                }
+            }
+        }
+        std::cout << "PERSON_ATTRIBUTES_RESULT " << result.dump() << '\n';
+    }
+
     TEST_CASE("Sophon current pipelines run detection and classification on a real image",
               "[.model-pipeline-device]") {
         const auto* detector_dir   = std::getenv("COSMO_TEST_DETECT_MODEL_DIR");

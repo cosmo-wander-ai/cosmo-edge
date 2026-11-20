@@ -3,6 +3,7 @@ import { h, ref, reactive, provide, inject, getCurrentInstance } from 'vue'
 import lodash from 'lodash'
 import { mountComponent } from './helpers/mount_behavior_component.mjs'
 import { collectFlowData, collectMetaDataParams, createNodeState, updateAtomicList, updateNodeConfig } from '../src/views/gam/countManagement/arrangeDetail/flow/nodeState.js'
+import { behaviorFilterOptions } from '../src/views/gam/countManagement/arrangeDetail/flow/behaviorFilter.js'
 
 const plain = value => JSON.parse(JSON.stringify(value))
 const empty = { default: { render: () => null } }
@@ -572,5 +573,84 @@ for (const key of ['algs', 'strageAlgorithms']) {
     assert.deepEqual(JSON.parse(saved.value), savedSelection, 'saving preserves only channelId/algorithmId pairs')
   } finally { alarmForm.unmount() }
 }
+
+// Joint model scores must remain separate from the person class, and every
+// visible behavior selection must survive serialization and scenario overrides.
+const behaviorScores = [
+  { class_name: 'smoking', nameCN: '抽烟' },
+  { class_name: 'sleep', nameCN: '睡岗' },
+  { class_name: 'fall', nameCN: '跌倒' },
+  { class_name: 'normal', nameCN: '正常' }
+]
+const targetLabel = { atomicCode: 'joint-model', labelCode: 'person', labelName: 'person', sideMinIsEnable: '1' }
+const detector = { atomicCode: 'joint-model', atomicName: 'Joint Person Model', labelList: [{ label: '0', class_name: 'person', nameCN: 'person' }] }
+const mountBehaviorFilter = (atomicList, configObject, sceneParams = [], actionId = 'BA_00002') => mountComponent(
+  'views/gam/countManagement/arrangeDetail/flow/DynamicForm.vue', {
+    props: {
+      actionDetail: {
+        actionId, flowActionId: 'category-filter',
+        inputParamConfig: JSON.stringify([{ key: 'label', type: 'labelFilterList', name: 'Label', level: '1' }])
+      },
+      atomicList,
+      sceneParams,
+      configObject
+    },
+    mocks: {
+      './ConditionView.vue': empty, './TreeSelectMultiple.vue': empty,
+      uuid: { v4: () => 'fixture-id' }, lodash: { default: lodash },
+      '@element-plus/icons-vue': Object.fromEntries(['QuestionFilled', 'ArrowDown', 'ArrowRight', 'CirclePlus', 'CircleClose'].map(name => [name, empty.default])),
+      'tree-transfer-vue3': empty
+    }
+  }
+)
+const initialFilter = { params: [], webConfig: { labelFilterList: [targetLabel] } }
+const behaviorSelects = (form) => form.all(node => node.type === 'el-select' && Object.hasOwn(node.props, 'multiple'))
+const jointAtomicList = [{ ...detector, behaviorScores }]
+assert.deepEqual(behaviorFilterOptions(
+  [{ ...detector, position: 'detector', behaviorScores: behaviorScores.slice(0, 2) },
+    { ...detector, position: 'other-branch', behaviorScores: behaviorScores.slice(2) }],
+  [{ source: 'detector', target: 'tracker' }, { source: 'tracker', target: 'category-filter' }],
+  'category-filter'
+), behaviorScores.slice(0, 2), 'only upstream detectors provide behavior choices')
+const initialBehaviorForm = await mountBehaviorFilter(jointAtomicList, initialFilter)
+let savedBehaviorConfig
+try {
+  const [behaviorSelect] = behaviorSelects(initialBehaviorForm)
+  assert.deepEqual(initialBehaviorForm.all(node => node.type === 'el-option', behaviorSelect).map(node => node.props.value), ['smoking', 'sleep', 'fall', 'normal'])
+  behaviorSelect.props.activate(['smoking', 'fall'])
+  await initialBehaviorForm.settle()
+  savedBehaviorConfig = plain(initialBehaviorForm.instance.submitForm())
+  assert.deepEqual(savedBehaviorConfig.webConfig.labelFilterList.map(item => item.labelCode), ['person'])
+  assert.deepEqual(savedBehaviorConfig.params, [
+    { key: 'label', value: '' },
+    { key: 'filter.attr.smoking.confidence.min', value: '0.70' },
+    { key: 'filter.attr.fall.confidence.min', value: '0.70' }
+  ])
+  assert.deepEqual(savedBehaviorConfig.webConfig.metaDataParams.filter(param => param.key.startsWith('filter.attr.')).map(param => [param.key, param.defaultValue, param.level]), [
+    ['filter.attr.smoking.confidence.min', '0.70', '2'],
+    ['filter.attr.fall.confidence.min', '0.70', '2']
+  ])
+} finally { initialBehaviorForm.unmount() }
+
+const reopenedBehaviorForm = await mountBehaviorFilter(jointAtomicList, savedBehaviorConfig, [{ key: 'filter.attr.smoking.confidence.min', defaultValue: '0.83' }])
+try {
+  const [behaviorSelect] = behaviorSelects(reopenedBehaviorForm)
+  assert.deepEqual(plain(behaviorSelect.props.modelValue), ['smoking', 'fall'])
+  assert.equal(reopenedBehaviorForm.instance.submitForm().params.find(param => param.key === 'filter.attr.smoking.confidence.min').value, '0.83')
+  behaviorSelect.props.activate([])
+  await reopenedBehaviorForm.settle()
+  assert.equal(reopenedBehaviorForm.instance.submitForm().params.some(param => param.key.startsWith('filter.attr.')), false)
+} finally { reopenedBehaviorForm.unmount() }
+
+const legacyFilterForm = await mountBehaviorFilter([detector], initialFilter)
+try {
+  assert.equal(behaviorSelects(legacyFilterForm).length, 0)
+  assert.equal(legacyFilterForm.instance.submitForm().params.some(param => param.key.startsWith('filter.attr.')), false)
+} finally { legacyFilterForm.unmount() }
+
+const pictureFilterForm = await mountBehaviorFilter(jointAtomicList, initialFilter, [], 'PB_00002')
+try {
+  assert.equal(behaviorSelects(pictureFilterForm).length, 0)
+} finally { pictureFilterForm.unmount() }
 
 console.log('Flow node state checks passed')

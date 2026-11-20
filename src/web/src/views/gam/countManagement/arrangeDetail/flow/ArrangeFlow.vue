@@ -41,7 +41,7 @@
         ref="detailPanelRef"
         :node-id="detailPanelNodeId"
         :node-data="detailPanelNodeData"
-        :atomic-list="atomicList"
+        :atomic-list="atomicsWithBehaviorScores"
         :scene-params="algorithmMetadata.params || []"
         :position="screenPanelPosition"
         :viewport="editorViewport"
@@ -68,7 +68,7 @@
 
 
 <script setup>
-import { ref, markRaw, watch, nextTick, computed, provide, readonly, onMounted, onBeforeUnmount } from 'vue'
+import { ref, markRaw, watch, nextTick, computed, provide, readonly, onMounted, onBeforeUnmount, getCurrentInstance } from 'vue'
 import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import ActionView from './ActionView.vue'
@@ -77,7 +77,7 @@ import { flowEditorKey } from '@/views/gam/countManagement/arrangeDetail/flow/fl
 import _ from 'lodash'
 import { generateActionId } from './dataTools.js'
 import { addFlowNode, createFlowGraph, deleteFlowNode, deleteFollowingFlow } from '@/utils/graphEdges.js'
-import { collectFlowData, collectMetaDataParams, createNodeState, updateAtomicList, updateNodeConfig as replaceNodeConfig } from '@/views/gam/countManagement/arrangeDetail/flow/nodeState.js'
+import { attachBehaviorScores, collectFlowData, collectMetaDataParams, createNodeState, updateAtomicList, updateNodeConfig as replaceNodeConfig } from '@/views/gam/countManagement/arrangeDetail/flow/nodeState.js'
 import { t } from '@/i18n'
 
 import '@vue-flow/core/dist/style.css'
@@ -166,6 +166,9 @@ const addDialogY = ref(0)
 const layoutDirection = 'LR'
 const newFlowData = ref([])
 const atomicList = ref([])
+const behaviorModels = ref([])
+const $API = getCurrentInstance().proxy.$API
+const atomicsWithBehaviorScores = computed(() => attachBehaviorScores(atomicList.value, behaviorModels.value))
 const columnCenterX = ref({})
 const activeNodeId = ref('')
 const lockedCenterY = ref({})
@@ -976,6 +979,20 @@ const branchInputParamConfig = computed(() =>
     level: '1',
     regexpr: ''
   }])
+)
+let behaviorCatalogRequested = false
+watch(
+  () => detailPanelNodeData.value?.actionId,
+  async (actionId) => {
+    if (actionId !== 'BA_00002' || behaviorCatalogRequested || !atomicList.value.length) return
+    behaviorCatalogRequested = true
+    try {
+      const result = await $API.atomicModelList({ modelType: 'yolo26_person_attributes', modelName: '', filePath: '' })
+      behaviorModels.value = result?.resData?.list || []
+    } catch {
+      behaviorCatalogRequested = false
+    }
+  }
 )
 watch(
   () => props.algorithmData,

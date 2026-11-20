@@ -416,7 +416,8 @@ Status Graph::WireNetNode(const ModelInfo& model, const std::vector<std::string>
     bool has_host_post =
         std::any_of(output_node_infos.begin(), output_node_infos.end(), [](const OutputNodeInfo& o) {
             return o.op && (o.op->name == "yolov8_postprocess" || o.op->name == "yolo_postprocess" ||
-                            o.op->name == "yolo_e2e_postprocess");
+                            o.op->name == "yolo_e2e_postprocess" ||
+                            o.op->name == "yolo26_person_attributes_postprocess");
         });
 
     bool is_host_memory_device = UsesHostMemory(device_type_);

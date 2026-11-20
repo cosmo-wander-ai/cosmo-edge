@@ -23,7 +23,8 @@ namespace {
     constexpr int kMaxDefaultLabelCount = 80;
 
     bool IsDetectionModel(const std::string& modelType) {
-        return modelType.size() >= 4 && modelType.compare(modelType.size() - 4, 4, "_det") == 0;
+        return modelType == "yolo26_person_attributes" ||
+               (modelType.size() >= 4 && modelType.compare(modelType.size() - 4, 4, "_det") == 0);
     }
 
     bool IsClassifyModel(const std::string& modelType) {
@@ -51,6 +52,9 @@ namespace {
     int InferClassCountFromShape(const std::string& modelType, const std::vector<int>& shape) {
         if (shape.empty())
             return 0;
+
+        if (modelType == "yolo26_person_attributes")
+            return shape.size() == 3 && shape[2] == 10 ? 1 : 0;
 
         // End-to-end decoded output [1, top_k, 6/7] carries no class-count info;
         // labels must be provided explicitly at import time.
@@ -283,7 +287,7 @@ namespace {
     // filled, in which case the shape-based default fill must be skipped.
     bool FillLabelsFromOnnxMetadata(nlohmann::json& doc, const std::string& modelType,
                                     const std::vector<cosmo::BmodelInfo>& bmodel_infos) {
-        if (!IsDetectionModel(modelType))
+        if (!IsDetectionModel(modelType) || modelType == "yolo26_person_attributes")
             return false;
         for (const auto& info : bmodel_infos) {
             if (!info.valid || info.class_names_raw.empty())
@@ -319,7 +323,7 @@ namespace {
         nlohmann::json labels = nlohmann::json::array();
         for (int i = 0; i < label_count; ++i) {
             const std::string id   = std::to_string(i);
-            const std::string name = "category" + id;
+            const std::string name = modelType == "yolo26_person_attributes" ? "person" : "category" + id;
             labels.push_back({{"id", id}, {"name", name}, {"threshold", {threshold, threshold}}});
         }
 
