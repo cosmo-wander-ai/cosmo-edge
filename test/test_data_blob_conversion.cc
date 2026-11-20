@@ -22,6 +22,45 @@
 namespace cosmo {
 namespace {
 
+    class RegistrationProbe final : public nn::NaiveDevice {
+    public:
+        explicit RegistrationProbe(nn::DeviceType type) : NaiveDevice(type) {
+            ++constructions;
+            if (fail)
+                throw std::bad_alloc();
+        }
+
+        inline static int constructions = 0;
+        inline static bool fail         = false;
+    };
+
+    TEST_CASE("Device registration constructs only a missing entry", "[nn][device]") {
+        constexpr auto type = nn::DEVICE_CPU;
+        auto& devices       = nn::GetGlobDeviceMap();
+        using DeviceMap     = std::map<nn::DeviceType, std::shared_ptr<nn::AbstractDevice>>;
+        struct RestoreDevice {
+            DeviceMap& map;
+            DeviceMap::node_type previous;
+            ~RestoreDevice() {
+                map.erase(nn::DEVICE_CPU);
+                if (previous)
+                    map.insert(std::move(previous));
+            }
+        } restore{devices, devices.extract(type)};
+
+        RegistrationProbe::constructions = 0;
+        RegistrationProbe::fail          = true;
+        CHECK_THROWS_AS(nn::TypeDeviceRegister<RegistrationProbe>{type}, std::bad_alloc);
+        CHECK(devices.count(type) == 0);
+
+        RegistrationProbe::fail = false;
+        (void)nn::TypeDeviceRegister<RegistrationProbe>{type};
+        const auto registered = devices.at(type);
+        (void)nn::TypeDeviceRegister<RegistrationProbe>{type};
+        CHECK(devices.at(type) == registered);
+        CHECK(RegistrationProbe::constructions == 2);
+    }
+
     class ControlledDataDevice final : public nn::NaiveDevice {
     public:
         ControlledDataDevice(int fail_on, bool throw_on_failure)

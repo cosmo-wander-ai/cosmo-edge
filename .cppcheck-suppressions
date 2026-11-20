@@ -13,15 +13,5 @@ unmatchedSuppression
 // including DTO serializers.
 unusedStructMember:*.h
 
-// Retired instances must be destroyed after the pool lock is released.
-// The reservation destructor reads active; clearing it prevents a second decrement.
-variableScope:*src/util/InstancePool.h:133
-redundantAssignment:*src/util/InstancePool.h:175
-unreadVariable:*src/util/InstancePool.h:175
-
 // Each overlay pass rechecks detection state after the preceding drawing calls.
 duplicateCondition:*src/flow/task/PTaskBaseUpload.cc:223
-
-// Construct a device only for a missing key; eager insertion arguments would
-// create and destroy extra device instances and change constructor side effects.
-stlFindInsert:*src/nn/core/abstract_device.h:49
