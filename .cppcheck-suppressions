@@ -8,7 +8,3 @@
 // intentionally leave rules for files outside the selected scope unmatched.
 missingIncludeSystem
 unmatchedSuppression
-
-// Standalone header scans cannot see field uses in other translation units,
-// including DTO serializers.
-unusedStructMember:*.h

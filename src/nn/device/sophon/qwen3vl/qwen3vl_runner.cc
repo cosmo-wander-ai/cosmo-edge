@@ -529,9 +529,10 @@ Status Qwen3VLRunner::RunImpl(Model& model, Qwen3VLRunner::Impl& impl,
             tokens.size() >= static_cast<size_t>(model.SEQLEN))
             return Status(COSMO_NN_ERR_INVALID_INPUT, "input tokens exceed max length");
 
-        result.input_tokens = static_cast<int>(tokens.size());
-        if (impl.evaluation && !impl.evaluation_options.input_dump_prefix.empty()) {
-            const auto& prefix = impl.evaluation_options.input_dump_prefix;
+        result.input_tokens                         = static_cast<int>(tokens.size());
+        const EvaluationOptions& evaluation_options = impl.evaluation_options;
+        if (impl.evaluation && !evaluation_options.input_dump_prefix.empty()) {
+            const auto& prefix = evaluation_options.input_dump_prefix;
             std::ofstream pixels_file(prefix + ".pixels.f32", std::ios::binary);
             pixels_file.write(reinterpret_cast<const char*>(pixel_values.data()),
                               static_cast<std::streamsize>(pixel_values.size() * sizeof(float)));

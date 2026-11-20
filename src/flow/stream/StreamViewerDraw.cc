@@ -404,7 +404,7 @@ VideoFramePtr StreamViewerOverview::FrameOverview(VideoFramePtr frame, OverviewI
         }
 
         for (size_t index = 0; index < lines; index++) {
-            auto& textEl = text.posTexts[index];
+            const StreamOverviewTextEl& textEl = text.posTexts[index];
             StreamOverviewAttr attr;
             AttrToColor(textEl.attrPriority, attr);
 
@@ -456,8 +456,8 @@ util::Box StreamViewerOverview::StabilizeTargetPanel(int trackId, const util::Bo
     const auto now = frame_identity_.timestamp;
     auto found     = target_panel_states_.find(trackId);
     if (found != target_panel_states_.end()) {
-        auto& state = found->second;
-        int dx      = state.offsetX;
+        TargetPanelState& state = found->second;
+        int dx                  = state.offsetX;
         // A right-side label follows the right edge when the target width changes.
         if (dx >= state.targetWidth)
             dx += target.width - state.targetWidth;
@@ -500,13 +500,13 @@ util::Box StreamViewerOverview::StabilizeTargetPanel(int trackId, const util::Bo
         }
         found = target_panel_states_.emplace(trackId, TargetPanelState{}).first;
     }
-    auto& state       = found->second;
-    state.offsetX     = panel.x - target.x;
-    state.offsetY     = panel.y - target.y;
-    state.targetWidth = target.width;
-    state.panelWidth  = panel.width;
-    state.panelHeight = panel.height;
-    state.lastSeen    = now;
+    TargetPanelState& state = found->second;
+    state.offsetX           = panel.x - target.x;
+    state.offsetY           = panel.y - target.y;
+    state.targetWidth       = target.width;
+    state.panelWidth        = panel.width;
+    state.panelHeight       = panel.height;
+    state.lastSeen          = now;
     return panel;
 }
 

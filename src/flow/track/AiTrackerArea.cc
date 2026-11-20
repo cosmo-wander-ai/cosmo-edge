@@ -185,8 +185,8 @@ TargetLineUnit AiTracker::TargetOnLinePos(const AiDetectRstEl& target, const std
 }
 
 void AiTracker::TargetCalcBreakLineArea(TrackIdData& idData, const MsgTaskArea& area) {
-    auto& targetLineData           = idData.line_datas[area.areaId];
-    targetLineData.break_line_type = TargetBreakLineType::kNone;
+    TrackIdLineArea& targetLineData = idData.line_datas[area.areaId];
+    targetLineData.break_line_type  = TargetBreakLineType::kNone;
     if (idData.det_el.bFilter) {
         return;
     }

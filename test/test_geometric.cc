@@ -186,6 +186,15 @@ TEST_CASE("DoScaleBox - preserves symmetric integer rounding", "[Geometric]") {
     REQUIRE(result == cosmo::util::Box(50, 50, 202, 202));
 }
 
+TEST_CASE("DoScaleBox applies independent horizontal and longitudinal scales", "[Geometric]") {
+    cosmo::util::TargetScalerParam param;
+    param.scale_horizontal   = 2.0f;
+    param.scale_longitudinal = 1.5f;
+
+    const auto result = cosmo::util::DoScaleBox({100, 100, 20, 40}, param, 1920, 1080);
+    CHECK(result == cosmo::util::Box(90, 90, 40, 60));
+}
+
 TEST_CASE("DoScaleBox - safely clips extreme integer input", "[Geometric]") {
     constexpr int kIntMax = std::numeric_limits<int>::max();
     cosmo::util::TargetScalerParam param;
