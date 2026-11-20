@@ -174,6 +174,23 @@ class StaticAnalysisTests(unittest.TestCase):
         self.assertEqual(self.calls(), [])
 
     @unittest.skipUnless(REAL_CPPCHECK, "cppcheck is not installed")
+    def test_unused_implementation_member_and_shared_header(self):
+        (self.root / "bin/cppcheck").unlink()
+        (self.root / "bin/cppcheck").symlink_to(REAL_CPPCHECK)
+        self.write("src/model/shared.h", "struct Shared { int value; };\n")
+        self.write("src/record.cc", textwrap.dedent('''\
+            #include "model/shared.h"
+            namespace {
+                struct Record { int value; int unused; };
+            }
+            int Read(const Shared& shared) { Record record{}; return record.value + shared.value; }
+        '''))
+        output = self.analyze("--cppcheck", "--profile", "full", expected=1)
+        self.assertIn("unusedStructMember", output)
+        self.assertIn("Record::unused", output)
+        self.assertNotIn("Shared::value", output)
+
+    @unittest.skipUnless(REAL_CPPCHECK, "cppcheck is not installed")
     def test_real_catch_assertions_are_analyzed_without_hiding_diagnostics(self):
         version = subprocess.check_output([REAL_CPPCHECK, "--version"], text=True)
         match = re.search(r"Cppcheck (\d+)\.(\d+)", version)

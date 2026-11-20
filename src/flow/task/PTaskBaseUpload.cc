@@ -137,12 +137,12 @@ void DetTarget2MsgTarget(const AiDetectRstEl& target, MsgPTaskTarget& msgTarget)
     }
 }
 
-void PTaskBase::UploadImage(std::vector<uint8_t>& data, const std::string& url, const std::string& sign) {
+void PTaskBase::UploadImage(const std::vector<uint8_t>& data, const std::string& url,
+                            const std::string& sign) {
     std::string messageId = util::GenerateUUID();
     std::string filePath  = cosmo::path::GetRecordJsonPath();
     std::string fileName  = (std::filesystem::path(filePath) / (messageId + "_" + sign + ".jpg")).string();
-    auto ret              = util::WriteFile(fileName, reinterpret_cast<const std::uint8_t*>(data.data()),
-                                            static_cast<int>(data.size()));
+    auto ret              = util::WriteFile(fileName, data.data(), static_cast<int>(data.size()));
     if (false == ret) {
         LOG_WARN("write image file Failed {}", fileName);
         return;

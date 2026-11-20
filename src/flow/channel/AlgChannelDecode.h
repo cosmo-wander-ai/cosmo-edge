@@ -52,7 +52,7 @@ public:
     void ActionInfo(std::vector<ActionRuntimeInfo>& actionInfo);
 
     [[nodiscard]] std::string GetName() const {
-        return name_;
+        return decoder_name_;
     }
     [[nodiscard]] std::string GetUuid() const {
         return uuid_;
@@ -108,7 +108,7 @@ private:
     mutable std::mutex mtx_;
     AlgChannel& channel_inst_;
     std::string channel_id_;
-    std::string name_;
+    std::string decoder_name_;
     std::string uuid_;
     // Image capture state.
     std::condition_variable cap_cond_;

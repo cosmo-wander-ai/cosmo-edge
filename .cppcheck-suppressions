@@ -9,18 +9,18 @@
 missingIncludeSystem
 unmatchedSuppression
 
-// DTO members may be consumed in another translation unit or through XTOSTRUCT.
-unusedStructMember
+// Standalone header scans cannot see field uses in other translation units,
+// including DTO serializers.
+unusedStructMember:*.h
 
 // Preserve supported implicit conversions and public by-value/reference APIs.
 // Changing these signatures or adding explicit would break existing callers.
-noExplicitConstructor:*src/flow/common/AlgAlarmTypes.h:82
+noExplicitConstructor:*src/flow/common/AlgAlarmTypes.h:85
 noExplicitConstructor:*src/nn/core/status.h:64
 noExplicitConstructor:*src/nn/utils/net_utils.h:85
-constParameterReference:*src/flow/task/PTaskBaseUpload.cc:219
-passedByValue:*src/nn/utils/default_component.cc:79
-passedByValue:*src/nn/utils/default_component.cc:87
-passedByValue:*src/nn/utils/default_component.cc:95
+passedByValue:*src/nn/utils/default_component.cc:82
+passedByValue:*src/nn/utils/default_component.cc:90
+passedByValue:*src/nn/utils/default_component.cc:98
 constParameterPointer:*src/nn/utils/net_utils.cc:131
 passedByValue:*src/nn/utils/net_utils.cc:198
 passedByValue:*src/nn/utils/net_utils.cc:200
@@ -51,7 +51,7 @@ redundantAssignment:*src/util/InstancePool.h:175
 unreadVariable:*src/util/InstancePool.h:175
 
 // Each overlay pass rechecks detection state after the preceding drawing calls.
-duplicateCondition:*src/flow/task/PTaskBaseUpload.cc:312
+duplicateCondition:*src/flow/task/PTaskBaseUpload.cc:223
 
 // Construct a device only for a missing key; eager insertion arguments would
 // create and destroy extra device instances and change constructor side effects.
@@ -70,12 +70,3 @@ duplInheritedMember:*src/flow/track/AiTracker.h:63
 // instances with its task/action key. Base dispatch would change behavior.
 duplInheritedMember:*src/flow/detect/AiDetectMng.h:17
 duplInheritedMember:*src/flow/landmark/AiLandmarkMng.h:16
-
-// Existing derived classes maintain their own lifecycle, queue, or channel
-// metadata independently of similarly named base-class members. These headers
-// are pulled into changed-file scans; keep the exclusions at the declarations.
-duplInheritedMember:*src/flow/action/AlgActionBase.h:183
-duplInheritedMember:*src/util/AsyncQueue.h:86
-duplInheritedMember:*src/flow/channel/AlgChannelDecode.h:111
-duplInheritedMember:*src/flow/channel/AlgChannelDecode.h:112
-duplInheritedMember:*src/flow/channel/AlgChannelDemux.h:100

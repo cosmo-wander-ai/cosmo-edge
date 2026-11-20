@@ -279,6 +279,11 @@ TEST_CASE("Live OSD sends every target segment when a color exceeds the backend 
         group.lines.push_back({{i, 1}, {i, 2}});
     viewer.FrameOverview(nullptr, data);
     REQUIRE(osd.lines.size() == 3);
+    for (const auto& batch : osd.lines) {
+        CHECK(batch.color.red == group.color.red);
+        CHECK(batch.color.green == group.color.green);
+        CHECK(batch.color.blue == group.color.blue);
+    }
     CHECK(osd.fineLineCalls == (group.fine ? 3 : 0));
     CHECK(osd.lines[0].segments.size() == 128);
     CHECK(osd.lines[1].segments.size() == 128);

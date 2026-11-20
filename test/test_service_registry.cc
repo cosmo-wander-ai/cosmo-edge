@@ -149,11 +149,11 @@ class OffsetBase {
 public:
     virtual ~OffsetBase() = default;
     virtual int OffsetValue() const {
-        return 7;
+        return value_;
     }
 
 private:
-    int padding_[4]{1, 2, 3, 4};
+    int value_{7};
 };
 
 class OffsetServiceA : public OffsetBase, public ITestServiceA {
@@ -394,8 +394,12 @@ TEST_CASE("ServiceRegistry: Owned interface pointers preserve base adjustment", 
     RegistryGuard guard;
     auto& registry = cosmo::service::ServiceRegistry::Instance();
 
-    registry.Register<ITestServiceA>(std::make_unique<OffsetServiceA>());
+    auto service                  = std::make_unique<OffsetServiceA>();
+    const ITestServiceA* expected = service.get();
+    REQUIRE(static_cast<const void*>(expected) != static_cast<const void*>(service.get()));
+    registry.Register<ITestServiceA>(std::move(service));
 
+    REQUIRE(&registry.Get<ITestServiceA>() == expected);
     REQUIRE(registry.Get<ITestServiceA>().Name() == "offset");
     REQUIRE(registry.Get<ITestServiceA>().Value() == 7);
 }
