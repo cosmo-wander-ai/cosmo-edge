@@ -60,11 +60,13 @@ public:
     MsgOverviewMem GetOverviewInfo(const std::string& channelId, const std::string& taskId,
                                    int64_t streamIndex = -1, int64_t from = -1, int64_t to = -1) override;
 
-    [[nodiscard]] std::string GetName() const {
+    [[nodiscard]] std::string GetTrackerName() const {
         return name_;
     }
 
 private:
+    using AlgActionBase::GetName;
+
     class TrackIdLineArea;
     class TrackIdData;
     void HandFrame(AlgDataPtr algData) override;

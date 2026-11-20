@@ -13,7 +13,7 @@ public:
 protected:
     bool MatchForDelete(const InstPtr& existing, const InstPtr& target) const override {
         return (existing->GetTaskId() == target->GetTaskId()) &&
-               (existing->GetFlowActionId() == target->GetFlowActionId());
+               (existing->GetAlarmFlowActionId() == target->GetAlarmFlowActionId());
     }
 };
 }  // namespace cosmo

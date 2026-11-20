@@ -90,7 +90,7 @@ public:
         return instance_fps_budget_;
     }
 
-    std::string GetName() const {
+    std::string GetDetectorName() const {
         return name_;
     }
     std::string GetAlgCode() const {
@@ -105,6 +105,8 @@ protected:
     void run() override;
 
 private:
+    using AlgActionBase::GetName;
+
     // taskId/streamIndex keep camelCase to avoid shadowing AlgActionBase members task_id/stream_index.
     void HandFrames(std::vector<AlgDataPtr> alg_datas);
     bool ValidKey(MsgDynamicKeyValue& param);

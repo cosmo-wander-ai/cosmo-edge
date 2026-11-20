@@ -5,6 +5,21 @@
 #include "catch_amalgamated.hpp"
 #include "flow/alarm/TaskFaceAlarm.h"
 
+TEST_CASE("Face alarm task ID remains distinct from base task metadata", "[task-face-alarm]") {
+    class FaceAlarmWithBaseTask : public cosmo::TaskFaceAlarm {
+    public:
+        explicit FaceAlarmWithBaseTask(cosmo::ActionNode& action)
+            : TaskFaceAlarm("channel", "alarm-task", "algorithm", "Face Alarm", action) {
+            task_id = "base-task";
+        }
+    };
+
+    cosmo::ActionNode action;
+    FaceAlarmWithBaseTask alarm(action);
+    CHECK(alarm.GetFaceAlarmTaskId() == "alarm-task");
+    CHECK(static_cast<const cosmo::AlgActionBase&>(alarm).GetTaskId() == "base-task");
+}
+
 namespace {
 
 bool WaitForProcessedFrame(cosmo::TaskFaceAlarm& alarm) {

@@ -20,7 +20,7 @@ TaskFaceAlarmPtr TaskFaceAlarmMng::GetInst(const std::string &channelId, const s
                                            ActionNode &action) {
     std::lock_guard<std::shared_mutex> lock(m_mtx);
     auto it = std::find_if(m_insts.begin(), m_insts.end(),
-                           [&](const TaskFaceAlarmPtr inst) { return inst->GetTaskId() == taskId; });
+                           [&](const TaskFaceAlarmPtr inst) { return inst->GetFaceAlarmTaskId() == taskId; });
 
     if (it != m_insts.end()) {
         return *it;  // Instance already created
@@ -36,8 +36,9 @@ bool TaskFaceAlarmMng::DeleteInst(TaskFaceAlarmPtr inst) {
         return false;
     }
     std::lock_guard<std::shared_mutex> lock(m_mtx);
-    auto it = std::find_if(m_insts.begin(), m_insts.end(),
-                           [&](const TaskFaceAlarmPtr el) { return el->GetTaskId() == inst->GetTaskId(); });
+    auto it = std::find_if(m_insts.begin(), m_insts.end(), [&](const TaskFaceAlarmPtr el) {
+        return el->GetFaceAlarmTaskId() == inst->GetFaceAlarmTaskId();
+    });
     if (it != m_insts.end()) {
         m_insts.erase(it);
         return true;

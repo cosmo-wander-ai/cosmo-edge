@@ -25,17 +25,3 @@ duplicateCondition:*src/flow/task/PTaskBaseUpload.cc:223
 // Construct a device only for a missing key; eager insertion arguments would
 // create and destroy extra device instances and change constructor side effects.
 stlFindInsert:*src/nn/core/abstract_device.h:49
-
-// Existing concrete APIs intentionally hide non-virtual base names. Preserve
-// their by-value return types and concrete state instead of silently routing
-// callers to AlgActionBase's action-node metadata (or changing public types).
-duplInheritedMember:*src/flow/alarm/TaskFaceAlarm.h:46
-duplInheritedMember:*src/flow/detect/AiDetector.h:93
-duplInheritedMember:*src/flow/alarm/AreaAlarm.h:139
-duplInheritedMember:*src/flow/track/AiTracker.h:63
-
-// These concrete managers deliberately specialize placement/construction.
-// AiDetectMng uses FPS-aware placement; AiLandmarkMng constructs landmark
-// instances with its task/action key. Base dispatch would change behavior.
-duplInheritedMember:*src/flow/detect/AiDetectMng.h:17
-duplInheritedMember:*src/flow/landmark/AiLandmarkMng.h:16
