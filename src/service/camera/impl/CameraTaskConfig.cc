@@ -19,10 +19,22 @@
 #include "service/task/ITaskQuery.h"
 #include "util/Log.h"
 #include "util/ScoreCalc.h"
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+#include "flow/detect/AxeraGraphAdmission.h"
+#include "service/algorithm/IAlgorithmQuery.h"
+#endif
 
 namespace cosmo::service {
 
 namespace {
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+    bool AdmitCurrentAxeraAlgorithm(const std::string& algorithm_id) {
+        auto graph = ServiceRegistry::Instance().Get<IAlgorithmQuery>().GetAlgorithm(algorithm_id);
+        // A cached task can outlive the current layout. Returning success in
+        // that case would acknowledge an unvalidated asynchronous start.
+        return graph && axera_graph_admission::Admits(algorithm_id, graph->category, graph->workFlow);
+    }
+#endif
     std::vector<ModelInfo> CollectModelsForAlgorithmNotify(const ActionAlgPtr& algData) {
         std::vector<ModelInfo> models;
         if (!algData) {
@@ -150,6 +162,10 @@ util::ErrorEnum CameraServiceImpl::SaveTask(const std::string& cameraId, const s
     }
 
     if (needs_enable) {
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+        if (!AdmitCurrentAxeraAlgorithm(algorithmId))
+            return util::ErrorEnum::ActionAlgArrangeConfigFail;
+#endif
         auto resource_ret = CheckTaskStartResource();
         if (util::ErrorEnum::Success != resource_ret) {
             LOG_WARN("[{}/{}] SaveOrUpdate rejected before mutation: {}", cameraId, algorithmId,
@@ -400,6 +416,10 @@ util::ErrorEnum CameraServiceImpl::SetTaskEnabled(const std::string& cameraId, c
     }
 
     if (enable) {
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+        if (!AdmitCurrentAxeraAlgorithm(algorithmId))
+            return util::ErrorEnum::ActionAlgArrangeConfigFail;
+#endif
         auto resource_ret = CheckTaskStartResource();
         if (util::ErrorEnum::Success != resource_ret) {
             return resource_ret;

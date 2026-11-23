@@ -108,6 +108,14 @@ struct MsgDownloadModelAuthorizationRequestSend : public MsgSendHead {
 void to_json(nlohmann::json& j, const MsgDownloadModelAuthorizationRequestSend& v);
 void from_json(const nlohmann::json& j, MsgDownloadModelAuthorizationRequestSend& v);
 
+struct MsgDownloadLogsRecv : public MsgRecvHead {};
+struct MsgDownloadLogsSend : public MsgSendHead {
+    std::string filePath;
+    std::string fileName;
+};
+void to_json(nlohmann::json& j, const MsgDownloadLogsSend& v);
+void from_json(const nlohmann::json& j, MsgDownloadLogsSend& v);
+
 struct MsgInstallModelAuthorizationRecv : public MsgRecvHead {
     std::string uploadId;
     std::string filePath;

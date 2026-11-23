@@ -73,6 +73,16 @@ void from_json(const nlohmann::json& j, MsgExportAlarmRecv& v) {
     from_json(j, static_cast<MsgConditionEvent&>(v));
 }
 
+void from_json(const nlohmann::json& j, MsgDownloadAlarmRecv& v) {
+    from_json(j, static_cast<MsgExportAlarmRecv&>(v));
+}
+
+void to_json(nlohmann::json& j, const MsgDownloadAlarmSend& v) {
+    to_json(j, static_cast<const MsgSendHead&>(v));
+    j["filePath"] = v.filePath;
+    j["fileName"] = v.fileName;
+}
+
 void to_json(nlohmann::json& j, const MsgPageSend& v) {
     to_json(j, static_cast<const MsgSendHead&>(v));
     j["resData"] = v.resData;

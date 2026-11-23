@@ -4,7 +4,7 @@
       <h1>{{ t('nav.faceBody') }}</h1>
       <p>{{ t('nav.eventCenter') }}</p>
     </header>
-    <TopBar ref="topBarRef" :dataSouce="topBarData" :formData="formData" :labelWidth="60" :defaultExpand="true" @search="searchList" />
+    <TopBar ref="topBarRef" :dataSouce="topBarData" :formData="formData" :labelWidth="60" :defaultExpand="true" @search="searchList" @reset="resetSearch" />
     <div class="table-container" ref="tableContainerRef">
       <div class="table-header">
         <div class="table-tools">
@@ -132,6 +132,9 @@
 </template>
 
 <script setup>
+import { downloadAlarmExport } from '@/utils/alarmExport'
+import { todayEventTimeRange } from '@/utils/eventQueryDefaults'
+import { eventImageUrl, loadEventImageUrl } from '@/utils/eventImage'
 import { ref, reactive, getCurrentInstance, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import TopBar from '@/components/TopBar.vue'
 import moment from 'moment'
@@ -358,7 +361,7 @@ const { eventTableRef, selectedIds: multipleSelections, deleting, init, handleSe
   tableData,
   buildQuery: () => ({
     timeBegin: moment(formData.times[0]).valueOf(),
-    timeEnd: moment(formData.times[1]).valueOf(),
+    timeEnd: moment(formData.times[1]).add(1, 'second').valueOf(),
     pageNum: pageData.pageNum,
     pageSize: pageData.pageSize,
     algorithmCodes: formData.algorithmCode
@@ -382,44 +385,27 @@ const handleDetail = (row) => {
   detailDialogVisible.value = true
 }
 
+const resetSearch = () => {
+  Object.assign(formData, { times: todayEventTimeRange(), videoChannelName: null, algorithmCode: '', reportStatus: null, personName: '', personCode: '', matchLibName: '' })
+  searchList()
+}
+
 const handleExport = () => {
   const params = {
     timeBegin: moment(formData.times[0]).valueOf(),
-    timeEnd: moment(formData.times[1]).valueOf(),
+    timeEnd: moment(formData.times[1]).add(1, 'second').valueOf(),
     pageNum: 1,
     pageSize: 0,
     algorithmCodes: formData.algorithmCode ? [formData.algorithmCode] : [],
     categorys: ['1'],
     videoChannelName: formData.videoChannelName,
-    reportStatus: formData.reportStatus || null,
+    reportStatus: formData.reportStatus === '' ? null : formData.reportStatus,
     personName: formData.personName,
     personCode: formData.personCode,
     matchLibName: formData.matchLibName,
     language: currentLocale.value
   }
-  proxy.$API.boxExportAlarm(params).then(async (res) => {
-    const { resData } = res
-    if (resData && resData.fileUrl) {
-      downloadFile(resData.fileUrl)
-    } else {
-      proxy.$message.error(t('event.fileExpired'))
-    }
-  })
-}
-
-const downloadFile = async (fileUrl) => {
-  const response = await fetch(fileUrl)
-  if (!response.ok) throw new Error(t('event.fileFetchFailed'))
-  const blob = await response.blob()
-  const url = window.URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.style.display = 'none'
-  link.href = url
-  link.download = fileUrl.split('/').pop() || t('event.alarmRecordCsv')
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  window.URL.revokeObjectURL(url)
+  downloadAlarmExport(params).catch(() => proxy.$message.error(t('event.fileFetchFailed')))
 }
 
 const onCheckVideo = (detail, type) => {
@@ -476,16 +462,16 @@ const returnBaseInfo = (objProperty, key) => {
   return ''
 }
 
-const handleImageClick = (row, type) => {
+const handleImageClick = async (row, type) => {
   // 只有当图片加载成功时才显示预览
   if (!row[`${type}ImageError`]) {
     let imageUrl
     if (type === 'lib') {
-      imageUrl = returnBaseInfo(row.property, 'LibImage')
+      imageUrl = await loadEventImageUrl(returnBaseInfo(row.property, 'LibImage'))
     } else if (type === 'detected') {
-      imageUrl = row.detectedPicture
+      imageUrl = await loadEventImageUrl(row.detectedPicture)
     } else if (type === 'full') {
-      imageUrl = row.fullPicture
+      imageUrl = await loadEventImageUrl(row.fullPicture)
     }
     if (imageUrl) {
       proxy.$imgView([imageUrl])
@@ -500,13 +486,13 @@ const handleImgError = (e, row, type) => {
 const getImageSrc = (row, type) => {
   if (row[`${type}ImageError`]) return errorImageUrl
   if (type === 'lib') {
-    return returnBaseInfo(row.property, 'LibImage') || errorImageUrl
+    return eventImageUrl(returnBaseInfo(row.property, 'LibImage')) || errorImageUrl
   }
   if (type === 'detected') {
-    return row.detectedPicture || errorImageUrl
+    return eventImageUrl(row.detectedPicture) || errorImageUrl
   }
   if (type === 'full') {
-    return row.fullPicture || errorImageUrl
+    return eventImageUrl(row.fullPicture) || errorImageUrl
   }
   return errorImageUrl
 }
@@ -516,9 +502,7 @@ onMounted(() => {
   getAlgorithmInfo()
   getChannelList()
   queryFaceLib()
-  const startDate = moment().startOf('day').format('YYYY-MM-DD HH:mm:ss')
-  const endDate = moment().endOf('day').format('YYYY-MM-DD HH:mm:ss')
-  formData.times = [startDate, endDate]
+  formData.times = todayEventTimeRange()
   init()
   updateTableHeight()
   window.addEventListener('resize', handleResize)

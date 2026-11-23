@@ -11,6 +11,8 @@ class INetworkConfig;
 
 namespace cosmo {
 
+struct RequestDispatchContext;
+
 /// Handles event-related API requests: event query, alarm export, passenger flow.
 class MessageEventHandler {
 public:
@@ -32,6 +34,10 @@ public:
     /// Export alarm events to CSV file.
     [[nodiscard]] Event::MsgExportAlarmSend Handle(Event::MsgExportAlarmRecv&& data,
                                                    std::error_condition& errc) const;
+
+    [[nodiscard]] Event::MsgDownloadAlarmSend Handle(Event::MsgDownloadAlarmRecv&& data,
+                                                     const RequestDispatchContext& context,
+                                                     std::error_condition& errc) const;
 
     /// Query passenger flow statistics.
     [[nodiscard]] Event::MsgQueryPassengerFlowNumberSend Handle(Event::MsgQueryPassengerFlowNumberRecv&& data,

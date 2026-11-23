@@ -229,6 +229,15 @@ const pickerOptions = {
 const chart = ref(null)
 const chartRef = ref(null)
 const algorithmList = ref([])
+let flowQuerySequence = 0
+
+const clearFlowResults = () => {
+  flowQuerySequence++
+  chartList.value = []
+  params.value = null
+  if (chart.value && !chart.value.isDisposed()) chart.value.dispose()
+  chart.value = null
+}
 const { appearance } = useAppearance()
 let lightChartSplitLineColor
 
@@ -292,7 +301,7 @@ watch(timeGranularity, (newVal) => {
       break
   }
   if (newVal) {
-    chartList.value = []
+    clearFlowResults()
   }
 })
 
@@ -323,6 +332,9 @@ const resetParams = (timeGranularityType) => {
       })
       break
   }
+  // Channel and algorithm are required, so reset cannot issue a valid query.
+  // Clear the previous results until the user selects both again.
+  clearFlowResults()
 }
 
 // 获取通道列表
@@ -472,7 +484,9 @@ const formatFlowTime = (timeString) => {
 
 const getData = () => {
   if (!validateParams()) return
+  const request = ++flowQuerySequence
   proxy.$API.queryPassengerFlowNumber(params.value).then((res) => {
+    if (request !== flowQuerySequence) return
     chartList.value = res.resData.numberList.map((item) => ({
       ...item,
       timeString: formatFlowTime(item.timeString)
@@ -488,6 +502,8 @@ const getData = () => {
     })
 
     nextTick(() => {
+      if (request !== flowQuerySequence || !chartRef.value) return
+      if (chart.value && !chart.value.isDisposed()) chart.value.dispose()
       drawCharts(timeData, inData, outData)
     })
   })

@@ -93,6 +93,9 @@ struct DeviceInfoServiceImpl::HwResState {
     double cpu_usage_{0.0};
     cosmo::MsgGpuInfo gpu_info_;
     cosmo::MsgMemoryInfo mem_info_;
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+    detail::AxMemoryUsage ax_memory_;
+#endif
     cosmo::MsgDiskInfo disk_info_;
     cosmo::MsgNetInfo net_info_;
     uint32_t gpu_device_cnt_{1};
@@ -118,12 +121,18 @@ struct DeviceInfoServiceImpl::HwResState {
                 auto mem  = detail::HardwareQueryUtil::QueryMemoryUtilization();
                 auto temp = detail::HardwareQueryUtil::QueryCpuTemperature();
                 auto gpu  = detail::HardwareQueryUtil::QueryGpuUtilization();
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+                auto ax_mem = detail::HardwareQueryUtil::QueryAxMemoryUsage(mem.memtotal);
+#endif
                 {
                     std::lock_guard<std::shared_mutex> lock(mtx_);
                     cpu_usage_ = cpu;
                     mem_info_  = mem;
                     disk_info_ = disk;
                     gpu_info_  = gpu;
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+                    ax_memory_ = ax_mem;
+#endif
                 }
                 LOG_INFO(
                     "Device resource - CPU:{:.2f}%, Temp:{:.2f}C Avail/Total Mem:{}/{} MB, Disk:{}/{} GB",
@@ -152,6 +161,12 @@ struct DeviceInfoServiceImpl::HwResState {
         std::shared_lock<std::shared_mutex> lock(mtx_);
         return mem_info_;
     }
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+    std::pair<cosmo::MsgMemoryInfo, detail::AxMemoryUsage> GetAxMemorySnapshot() {
+        std::shared_lock<std::shared_mutex> lock(mtx_);
+        return {mem_info_, ax_memory_};
+    }
+#endif
     cosmo::MsgDiskInfo GetDiskUtilization() {
         std::shared_lock<std::shared_mutex> lock(mtx_);
         return disk_info_;
@@ -215,11 +230,29 @@ std::vector<HwResourceItem> DeviceInfoServiceImpl::GetHardwareResource(double& c
                      std::isfinite(raw_cpu_utl) && raw_cpu_utl >= 0.0 ? 1 : 0, ""});
 
     // Memory
-    const auto mem_utl   = hw_res_state_->GetMemoryUtilization();
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+    const auto [mem_utl, ax_mem] = hw_res_state_->GetAxMemorySnapshot();
+#else
+    const auto mem_utl = hw_res_state_->GetMemoryUtilization();
+#endif
     const auto mem_usage = GetCapacityUsage(mem_utl.memtotal, mem_utl.memavailable);
     items.push_back({"generalMemoryUtilization", "系统内存使用率", mem_usage.percent,
                      FormatBinaryBytes(mem_usage.used), FormatBinaryBytes(mem_usage.available),
-                     mem_usage.valid ? 1 : 0, "system"});
+                     mem_usage.valid ? 1 : 0, "system",
+                     mem_usage.valid ? FormatBinaryBytes(mem_usage.total) : ""});
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+    if (ax_mem.linuxAllocatedBytes > 0)
+        items.back().allocatedSize = FormatBinaryBytes(ax_mem.linuxAllocatedBytes);
+
+    const auto cmm_usage = GetCapacityUsage(ax_mem.cmmTotalBytes, ax_mem.cmmAvailableBytes);
+    items.push_back({"axCmmMemoryUtilization", "AX CMM内存使用率", cmm_usage.percent,
+                     cmm_usage.valid ? FormatBinaryBytes(cmm_usage.used) : "--",
+                     cmm_usage.valid ? FormatBinaryBytes(cmm_usage.available) : "--", cmm_usage.valid ? 1 : 0,
+                     "ax-cmm", cmm_usage.valid ? FormatBinaryBytes(cmm_usage.total) : ""});
+    const bool total_available = ax_mem.bootAllocatedBytes > 0;
+    items.push_back({"memoryAllocationTotal", "启动内存分配总量", 0, "--", "--", total_available ? 1 : 0,
+                     "boot-allocation", total_available ? FormatBinaryBytes(ax_mem.bootAllocatedBytes) : ""});
+#endif
 
     // GPU/NPU
     auto gpu_utl             = hw_res_state_->GetGpuUtilization();
@@ -271,11 +304,8 @@ std::vector<HwResourceItem> DeviceInfoServiceImpl::GetHardwareResource(double& c
     // Disk
     const auto disk_utl   = hw_res_state_->GetDiskUtilization();
     const auto disk_usage = GetCapacityUsage(disk_utl.disktotal, disk_utl.diskavailable);
-    items.push_back(
-        {"eMMCUtilization", "eMMC使用率", disk_usage.percent,
-         COSMO_FORMAT("{:.2f} GB", static_cast<double>(disk_usage.used) / 1024 / 1024 / 1024),
-         COSMO_FORMAT("{:.2f} GB", static_cast<double>(disk_usage.available) / 1024 / 1024 / 1024),
-         disk_usage.valid ? 1 : 0, ""});
+    items.push_back({"eMMCUtilization", "eMMC使用率", disk_usage.percent, FormatBinaryBytes(disk_usage.used),
+                     FormatBinaryBytes(disk_usage.available), disk_usage.valid ? 1 : 0, ""});
 
     // Packet stats
     size_t packet_total = 0, packet_proc = 0, packet_discard = 0, continues_discard_sec = 0;

@@ -13,7 +13,7 @@
       </div>
     </header>
     <LayaReviewDialog v-model="layaVisible" :event-id="layaEventId" />
-    <TopBar ref="topBarRef" :dataSouce="topBarData" :formData="formData" :labelWidth="60" :defaultExpand="true" @search="searchList" />
+    <TopBar ref="topBarRef" :dataSouce="topBarData" :formData="formData" :labelWidth="60" :defaultExpand="true" @search="searchList" @reset="resetSearch" />
 
     <div class="table-container">
       <div class="table-header">
@@ -31,13 +31,13 @@
         <el-table-column type="index" :index="getIndex" :label="t('field.no')" width="80" />
         <el-table-column :label="t('event.fullImage')" width="120">
           <template #default="{ row }">
-            <el-image v-if="row.fullPicture" :src="row.fullPicture" fit="scale-down" style="width: 60px; height: 60px;cursor: pointer;" @click="handleImageView([row.fullPicture])" />
+            <el-image v-if="row.fullPicture" :src="eventImageUrl(row.fullPicture)" fit="scale-down" style="width: 60px; height: 60px;cursor: pointer;" @click="handleImageView([row.fullPicture])" />
             <span v-else class="image-not-provided">{{ t('event.imageNotProvided') }}</span>
           </template>
         </el-table-column>
         <el-table-column :label="t('event.captureImage')" width="120">
           <template #default="{ row }">
-            <el-image v-if="row.detectedPicture" :src="row.detectedPicture" fit="scale-down" style="width: 60px; height: 60px;cursor: pointer;" @click="handleImageView([row.detectedPicture])" />
+            <el-image v-if="row.detectedPicture" :src="eventImageUrl(row.detectedPicture)" fit="scale-down" style="width: 60px; height: 60px;cursor: pointer;" @click="handleImageView([row.detectedPicture])" />
             <span v-else class="image-not-provided">{{ t('event.imageNotProvided') }}</span>
           </template>
         </el-table-column>
@@ -83,7 +83,7 @@
                   :disabled="deleting" @change="checked => handleGridSelect(checked, item)" />
               </div>
               <button v-if="item.fullPicture" class="event-image-button" type="button" :aria-label="t('event.fullImage')" @click="handleImageView([item.fullPicture])">
-                <el-image :src="item.fullPicture" fit="contain" class="grid-image" />
+                <el-image :src="eventImageUrl(item.fullPicture)" fit="contain" class="grid-image" />
               </button>
               <div v-else class="grid-image image-not-provided">{{ t('event.imageNotProvided') }}</div>
               <div class="grid-info">
@@ -127,6 +127,9 @@
 </template>
 
 <script setup>
+import { downloadAlarmExport } from '@/utils/alarmExport'
+import { todayEventTimeRange } from '@/utils/eventQueryDefaults'
+import { eventImageUrl, loadEventImageUrl } from '@/utils/eventImage'
 import { ref, reactive, watch, onMounted, getCurrentInstance } from 'vue'
 import LayaReviewDialog from '../components/LayaReviewDialog.vue'
 import TopBar from '@/components/TopBar.vue'
@@ -303,7 +306,7 @@ const { eventTableRef, selectedIds: multipleSelections, deleting, allGridSelecte
   isGrid: () => viewType.value === 'grid',
   buildQuery: () => ({
     timeBegin: moment(formData.times[0]).valueOf(),
-    timeEnd: moment(formData.times[1]).valueOf(),
+    timeEnd: moment(formData.times[1]).add(1, 'second').valueOf(),
     pageNum: pageData.pageNum,
     pageSize: pageData.pageSize,
     algorithmCodes: formData.algorithmCode ? [formData.algorithmCode] : [],
@@ -325,10 +328,15 @@ const handleDetail = (row) => {
   detailDialogVisible.value = true
 }
 
+const resetSearch = () => {
+  Object.assign(formData, { times: todayEventTimeRange(), videoChannelName: '', algorithmCode: '', reportStatus: '' })
+  searchList()
+}
+
 const handleExport = () => {
   const params = {
     timeBegin: moment(formData.times[0]).valueOf(),
-    timeEnd: moment(formData.times[1]).valueOf(),
+    timeEnd: moment(formData.times[1]).add(1, 'second').valueOf(),
     pageNum: 1,
     pageSize: 0,
     algorithmCodes: formData.algorithmCode ? [formData.algorithmCode] : [],
@@ -338,29 +346,7 @@ const handleExport = () => {
       formData.reportStatus === '' ? undefined : formData.reportStatus,
     language: currentLocale.value
   }
-  proxy.$API.boxExportAlarm(params).then(async (res) => {
-    const { resData } = res
-    if (resData && resData.fileUrl) {
-      downloadFile(resData.fileUrl)
-    } else {
-      proxy.$message.error(t('event.fileExpired'))
-    }
-  })
-}
-
-const downloadFile = async (fileUrl) => {
-  const response = await fetch(fileUrl)
-  if (!response.ok) throw new Error(t('event.fileFetchFailed'))
-  const blob = await response.blob()
-  const url = window.URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.style.display = 'none'
-  link.href = url
-  link.download = fileUrl.split('/').pop() || t('event.alarmRecordCsv')
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  window.URL.revokeObjectURL(url)
+  downloadAlarmExport(params).catch(() => proxy.$message.error(t('event.fileFetchFailed')))
 }
 
 const onCheckVideo = (detail, type) => {
@@ -421,8 +407,8 @@ const handleImgError = (e) => {
   e.target.src = new URL('@/assets/error-image.png', import.meta.url).href
 }
 
-const handleImageView = (images) => {
-  const availableImages = images.filter((image) => typeof image === 'string' && image.trim())
+const handleImageView = async (images) => {
+  const availableImages = (await Promise.all(images.map(loadEventImageUrl))).filter((image) => typeof image === 'string' && image.trim())
   if (availableImages.length) proxy.$imgView(availableImages)
 }
 
@@ -435,9 +421,7 @@ watch(viewType, () => {
 onMounted(() => {
   getAlgorithmInfo()
   getChannelList()
-  const startDate = moment().startOf('day').format('YYYY-MM-DD HH:mm:ss')
-  const endDate = moment().endOf('day').format('YYYY-MM-DD HH:mm:ss')
-  formData.times = [startDate, endDate]
+  formData.times = todayEventTimeRange()
   init()
 })
 </script>

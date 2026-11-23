@@ -13,9 +13,9 @@
             <span class="info-item-title">{{ t('event.captureImage') }}{{ localeColon }}</span>
             <el-image 
               class="capture-img3" 
-              :src="detailData.detectedPicture" 
+              :src="eventImageUrl(detailData.detectedPicture)"
               fit="contain" 
-              :preview-src-list="[detailData.detectedPicture]"
+              :preview-src-list="[eventImageUrl(detailData.detectedPicture)]"
             >
               <template #error>
                 <div class="image-slot">
@@ -33,9 +33,9 @@
             <span class="info-item-title">{{ t('event.faceBaseImage') }}{{ localeColon }}</span>
             <el-image 
               class="capture-img3" 
-              :src="recognitionData.LibImage" 
+              :src="eventImageUrl(recognitionData.LibImage)"
               fit="contain" 
-              :preview-src-list="[recognitionData.LibImage]"
+              :preview-src-list="[eventImageUrl(recognitionData.LibImage)]"
             >
               <template #error>
                 <div class="image-slot">
@@ -77,9 +77,9 @@
           <span class="info-item-title">{{ t('event.fullImage') }}{{ localeColon }}</span>
           <el-image 
             class="capture-img3" 
-            :src="detailData.fullPicture" 
+            :src="eventImageUrl(detailData.fullPicture)"
             fit="contain" 
-            :preview-src-list="[detailData.fullPicture]"
+            :preview-src-list="[eventImageUrl(detailData.fullPicture)]"
           >
             <template #error>
               <div class="image-slot">
@@ -99,9 +99,9 @@
             <span class="info-item-title">{{ t('event.captureImage') }}{{ localeColon }}</span>
             <el-image 
               class="capture-img3" 
-              :src="faceData.image" 
+              :src="eventImageUrl(faceData.image)"
               fit="contain" 
-              :preview-src-list="[faceData.image]"
+              :preview-src-list="[eventImageUrl(faceData.image)]"
             >
               <template #error>
                 <div class="image-slot">
@@ -122,9 +122,9 @@
             <span class="info-item-title">{{ t('event.captureImage') }}{{ localeColon }}</span>
             <el-image 
               class="capture-img3" 
-              :src="bodyData.image" 
+              :src="eventImageUrl(bodyData.image)"
               fit="contain" 
-              :preview-src-list="[bodyData.image]"
+              :preview-src-list="[eventImageUrl(bodyData.image)]"
             >
               <template #error>
                 <div class="image-slot">
@@ -162,6 +162,7 @@
 </template>
 
 <script setup>
+import { eventImageUrl } from '@/utils/eventImage'
 import { ref, watch } from 'vue'
 import moment from 'moment'
 import ImageLoader from '@/components/ImageLoader.vue'

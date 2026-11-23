@@ -19,7 +19,7 @@ public:
     MAKE_MOCK1(GetAudioFileWebPath, std::string(cosmo::AlarmAudioInfo&), override);
     MAKE_MOCK1(GetAudioFileWebPath, std::string(const std::string&), override);
     MAKE_MOCK2(RemoveAudioFile, bool(const std::string&, std::string&), override);
-    MAKE_MOCK1(AddAudioFile, bool(const std::string&), override);
+    MAKE_MOCK1(AddAudioFile, std::error_condition(const std::string&), override);
     MAKE_CONST_MOCK0(AudioFileCount, size_t(), override);
     MAKE_CONST_MOCK0(AudioFileMaxCount, size_t(), override);
     MAKE_MOCK4(AddAudioDevice, bool(const std::string&, const std::string&, const std::string&, std::string&),

@@ -24,9 +24,14 @@ const page = await mountComponent('views/gam/countManagement/atomicModel/index.v
       const start = (params.pageNum - 1) * params.pageSize
       return { resData: { total: models.length, rows: models.slice(start, start + params.pageSize) } }
     },
-    atomicModelList: async ({ modelType }) => ({ resData: { list: models.filter(model =>
-      modelType === (model.modelCode.startsWith('other-') ? 'classify' : 'yolov5_det'))
-      .map(model => ({ atomicCode: model.modelCode, atomicName: model.modelName })) } }),
+    atomicModelList: async ({ modelType }) => {
+      assert.equal(modelType, '')
+      return { resData: { list: models.map(model => ({
+        atomicCode: model.modelCode, atomicName: model.modelName,
+        modelType: model.modelCode === '3000003' ? 'axera_native_mouse' :
+          (model.modelCode.startsWith('other-') ? 'classify' : 'yolov5_det')
+      })) } }
+    },
     algorithmInquire: async () => ({ resData: { rows: [] } })
   }
 })

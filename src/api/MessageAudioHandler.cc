@@ -6,6 +6,7 @@
 
 #include "service/infra/ILinkageService.h"
 #include "service/media/IAudioService.h"
+#include "util/IRequestDispatcher.h"
 #include "util/Log.h"
 
 namespace cosmo {
@@ -36,6 +37,20 @@ Audio::MsgQueryAudioFileSend MessageAudioHandler::Handle(Audio::MsgQueryAudioFil
     }
 
     return retData;
+}
+
+Audio::MsgDownloadAudioFileSend MessageAudioHandler::Handle(Audio::MsgDownloadAudioFileRecv&& data,
+                                                            const RequestDispatchContext& context,
+                                                            std::error_condition& errc) {
+    Audio::MsgDownloadAudioFileSend result{};
+    if (context.transport != RequestTransport::kHttp || context.principal.empty()) {
+        errc = util::ErrorEnum::InvalidParam;
+        return result;
+    }
+    if (!audio_svc_.PrepareAudioDownload(data.fileId, result.filePath, result.fileName)) {
+        errc = util::ErrorEnum::FileOpenFailed;
+    }
+    return result;
 }
 
 // Audio file delete

@@ -73,6 +73,8 @@ public:
     System::MsgResetSystemSend Handle(System::MsgResetSystemRecv&& data, std::error_condition& errc);  //
 
     System::MsgExportFileSend Handle(System::MsgExportFileRecv&& data, std::error_condition& errc);  //
+    System::MsgDownloadLogsSend Handle(System::MsgDownloadLogsRecv&& data,
+                                       const RequestDispatchContext& context, std::error_condition& errc);
 
     System::MsgUpgradeSend Handle(System::MsgUpgradeRecv&& data, std::error_condition& errc);  //
     System::MsgUpgradeSend Handle(System::MsgUpgradeRecv&& data, const RequestDispatchContext& context,

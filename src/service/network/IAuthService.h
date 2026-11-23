@@ -36,6 +36,9 @@ public:
     /// @return true if the token is valid and not expired.
     virtual bool IsValidToken(const std::string& token) = 0;
 
+    /// Revoke only this session; return false if it no longer exists.
+    virtual bool RevokeToken(const std::string& token) = 0;
+
     /// Validate an active session token and resolve it to a stable account
     /// identity. Resource ownership and quotas must use this principal rather
     /// than the replaceable bearer token.

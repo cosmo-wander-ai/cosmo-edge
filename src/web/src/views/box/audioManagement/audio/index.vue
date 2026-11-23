@@ -60,6 +60,7 @@
               </template>
             </el-upload>
           </el-form-item>
+          <div v-if="uploadError" class="audio-upload-error" role="alert">{{ uploadError }}</div>
         </el-form>
       </div>
       <template #footer>
@@ -75,12 +76,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, getCurrentInstance } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, getCurrentInstance } from 'vue'
 import { WarningFilled } from '@element-plus/icons-vue'
 import TopBar from '@/components/TopBar.vue'
 import moment from 'moment'
-import { t, localeColon, currentLocale } from '@/i18n'
+import { t, localeColon, currentLocale, translateApiMessage } from '@/i18n'
 import { uploadFileInChunks, UploadPurpose } from '@/utils/chunkUpload'
+import { formatActionableApiError } from '@/utils/apiError'
 
 // Resolve default audio display name from backend Chinese
 const AUDIO_NAME_MAP = {
@@ -132,6 +134,7 @@ const pageData = reactive({
 const addDialogVisible = ref(false)
 const fileNameString = ref('')
 const audioFile = ref(null)
+const uploadError = ref('')
 
 // Methods
 function formatDate(timestamp) {
@@ -176,6 +179,7 @@ function selectable(row) {
 }
 
 function handleChange(file, fileList) {
+  uploadError.value = ''
   const rawFile = file.raw || file
   const lowerName = (rawFile.name || '').toLowerCase()
   const isMP3orWAV = lowerName.endsWith('.mp3') || lowerName.endsWith('.wav')
@@ -201,6 +205,7 @@ function handleChange(file, fileList) {
 }
 
 async function saveAudio() {
+  uploadError.value = ''
   if (!audioFile.value) {
     return proxy.$message.warning(t('boxOther.selectAudioFile'))
   }
@@ -221,7 +226,11 @@ async function saveAudio() {
     proxy.$message.success(t('validate.uploadSucceeded'))
     searchList()
     addDialogVisible.value = false
-  } catch (_) {
+  } catch (error) {
+    const apiError = formatActionableApiError(error, translateApiMessage, t)
+    uploadError.value = apiError.messageKey === 'api.error.ExistedName'
+      ? t('boxOther.audioDuplicateName')
+      : apiError.displayMessage || t('api.requestFailed')
     if (stagedUpload?.uploadId) {
       try {
         await proxy.$API.cancelAtomicModelUpload({ uploadId: stagedUpload.uploadId })
@@ -229,34 +238,57 @@ async function saveAudio() {
         // The staging service also expires abandoned sessions by TTL.
       }
     }
-    // The request interceptor reports the concrete upload/import error.
+    // Keep the reason visible in the dialog after any transient toast fades.
   }
 }
 
-function playAudio(item) {
-  audio.value.src = item.filePath
-  audio.value.play()
+let playbackUrl = ''
+async function fetchAudio(item) {
+  const response = await fetch('/gtw/cwai/Audio/DownloadAudioFile', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', token: localStorage.getItem('mtk') || '', mtk: localStorage.getItem('mtk') || '' },
+    body: JSON.stringify({ fileId: item.fileId })
+  })
+  if (!response.ok || (response.headers.get('content-type') || '').includes('application/json')) {
+    throw new Error(t('api.fileFetchFailed'))
+  }
+  const blob = await response.blob()
+  const extension = (item.filePath || '').split('.').pop().toLowerCase()
+  const type = { ogg: 'audio/ogg', mp3: 'audio/mpeg', wav: 'audio/wav' }[extension] || 'application/octet-stream'
+  return new Blob([blob], { type })
 }
 
-function downloadAudio(item) {
-  let path = item.filePath
-  const xhr = new XMLHttpRequest()
-  xhr.open('get', path)
-  xhr.responseType = 'blob'
-  xhr.send()
-  xhr.onload = function () {
-    if (this.status === 200 || this.status === 304) {
-      const url = URL.createObjectURL(this.response)
-      let a = document.createElement('a')
-      a.href = url
-      a.download = item.fileName
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      proxy.$message.success(t('common.operationSucceeded'))
-    }
+async function playAudio(item) {
+  try {
+    const blob = await fetchAudio(item)
+    if (playbackUrl) URL.revokeObjectURL(playbackUrl)
+    playbackUrl = URL.createObjectURL(blob)
+    audio.value.src = playbackUrl
+    await audio.value.play()
+  } catch (_) {
+    proxy.$message.error(t('api.fileFetchFailed'))
   }
 }
+
+async function downloadAudio(item) {
+  try {
+    const url = URL.createObjectURL(await fetchAudio(item))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = item.fileName === '默认' ? 'beep.ogg' : item.fileName
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    proxy.$message.success(t('common.operationSucceeded'))
+  } catch (_) {
+    proxy.$message.error(t('api.fileFetchFailed'))
+  }
+}
+
+onBeforeUnmount(() => {
+  if (playbackUrl) URL.revokeObjectURL(playbackUrl)
+})
 
 function deleteAudio(item) {
   proxy.$confirm(t('boxOther.deleteAudioConfirm'), t('common.notice'), {
@@ -289,6 +321,7 @@ function handleAdd() {
 }
 
 function closeAdd() {
+  uploadError.value = ''
   audioRef.value?.clearFiles?.()
   audioFile.value = null
   fileNameString.value = ''
@@ -339,6 +372,11 @@ onMounted(() => {
 .warning-icon {
   color: var(--theme-accent, #1890ff);
   margin-right: 5px;
+}
+
+.audio-upload-error {
+  color: var(--el-color-danger);
+  margin-top: 8px;
 }
 
 .operation-tools {

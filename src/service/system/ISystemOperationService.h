@@ -35,6 +35,9 @@ public:
     /// @return ErrorEnum::kSuccess on success.
     virtual cosmo::util::ErrorEnum ExportLogs(std::string& fileName, std::string& fileUrl) = 0;
 
+    /// Create a one-time archive in the managed download directory.
+    virtual cosmo::util::ErrorEnum ExportLogsForDownload(std::string& filePath, std::string& fileName) = 0;
+
     /// Apply a firmware upgrade from a local file.
     /// @param filePath Path to the upgrade package.
     /// @return ErrorEnum::kSuccess on success.

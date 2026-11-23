@@ -58,6 +58,7 @@ public:
 
 private:
     [[nodiscard]] bool ParseAvcC(const std::vector<uint8_t>& data);
+    [[nodiscard]] bool ParseAnnexBAvc(const std::vector<uint8_t>& data);
     [[nodiscard]] bool ParseHevcC(const std::vector<uint8_t>& data);
     bool NormalizeAnnexB(const uint8_t* data, size_t size, const uint8_t*& out_data, size_t& out_size);
 

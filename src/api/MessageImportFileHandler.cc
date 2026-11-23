@@ -43,11 +43,10 @@ service::MsgImportFileSend MessageImportFileHandler::Handle(service::MsgImportFi
             throw util::ErrorMessage(util::ErrorEnum::MaxCountLimit, errMsg.c_str());
         }
         if (fs::exists(data.filePath, err)) {
-            if (!audio_svc.AddAudioFile(data.filePath)) {
-                errc = util::ErrorEnum::ExistedName;
-                LOG_WARN("{} File :{} In List", kTag, data.filePath);
-                throw util::ErrorMessage(util::ErrorEnum::FileOpenFailed,
-                                         "Uploaded file already exists, please upload another file");
+            errc = audio_svc.AddAudioFile(data.filePath);
+            if (errc) {
+                LOG_WARN("{} Audio import failed: {}", kTag, errc.message());
+                return {};
             }
         } else {
             LOG_WARN("{} File :{} Not Exist", kTag, data.filePath);

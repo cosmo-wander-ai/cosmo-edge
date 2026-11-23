@@ -3,6 +3,7 @@
 
 #include <shared_mutex>
 
+#include "service/algorithm/impl/ActionModelParams.h"
 #include "service/algorithm/impl/ActionServiceImpl.h"
 #include "util/JsonStructUtil.h"
 #include "util/Keys.h"
@@ -42,43 +43,7 @@ void ActionServiceImpl::ExpandLogicValues(cosmo::LogicCalc& logic) {
 }
 
 bool ActionServiceImpl::ExtractAtomAlgParams(cosmo::ActionNode& action, bool full_compat) {
-    action.input_size.reset();
-    bool size_seen = false;
-    for (auto& param : action.configObject.params) {
-        const std::string key = std::string(cosmo::util::Trim(param.key.ToString()));
-
-        if (key == "inputSize") {
-            InferenceInputSize size;
-            if (size_seen || !ParseInferenceInputSize(param.value.ToString(), size))
-                return false;
-            size_seen         = true;
-            action.input_size = size;
-            continue;
-        }
-
-        if (cosmo::key::FPS == key) {
-            action.initFps = cosmo::util::ParseFloat(param.value.ToString());
-            continue;
-        }
-
-        bool is_atom_code_key = false;
-        if (full_compat) {
-            // Video path: handle multiple legacy key name aliases for atomicCode
-            is_atom_code_key = (key == cosmo::key::ATOM_CODE) || (key == "atomCode") ||
-                               (key == "atomic_code") || (key == "atomiccode") || (key == "modelCode") ||
-                               (key == "algorithm_code") ||
-                               (key.size() > 10 && key.rfind(".atomicCode") == key.size() - 11);
-        } else {
-            // Picture path: only canonical key
-            is_atom_code_key = (key == cosmo::key::ATOM_CODE);
-        }
-
-        if (is_atom_code_key) {
-            action.atomAlgName = param.value.ToString();
-            action.atomicCode  = param.value.ToString();
-        }
-    }
-    return true;
+    return action_model_params::Extract(action, full_compat);
 }
 
 cosmo::ActionAlgPtr ActionServiceImpl::FindByCodeVersion(

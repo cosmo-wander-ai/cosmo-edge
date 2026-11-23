@@ -14,14 +14,17 @@
 #include <algorithm>
 #include <cctype>
 #include <cerrno>
+#include <charconv>
 #include <climits>
 #include <cmath>
 #include <cstring>
 #include <fstream>
 #include <limits>
 #include <mutex>
+#include <optional>
 #include <regex>
 #include <sstream>
+#include <string_view>
 #include <thread>
 
 #include "pcap/pcap.h"
@@ -41,6 +44,102 @@ namespace {
     AcceleratorMetricsProvider& GetAcceleratorMetricsProvider() {
         static auto provider = CreateAcceleratorMetricsProvider();
         return *provider;
+    }
+
+    std::optional<uint64_t> ParseUnsigned(std::string_view text, int base = 10) {
+        uint64_t value = 0;
+        if (text.empty())
+            return std::nullopt;
+        const auto end    = text.data() + text.size();
+        const auto parsed = std::from_chars(text.data(), end, value, base);
+        if (parsed.ec != std::errc{} || parsed.ptr != end)
+            return std::nullopt;
+        return value;
+    }
+
+    int64_t ParseByteCount(std::string_view text, uint64_t unit) {
+        const auto count = ParseUnsigned(text);
+        if (!count || *count > static_cast<uint64_t>(std::numeric_limits<int64_t>::max()) / unit)
+            return 0;
+        return static_cast<int64_t>(*count * unit);
+    }
+
+    int64_t ParseLinuxBootAllocation(std::istream& cmdline) {
+        constexpr std::string_view prefix = "mem=";
+        int64_t bytes                     = 0;
+        for (std::string token; cmdline >> token;) {
+            if (token == "--")
+                break;
+            if (token.compare(0, prefix.size(), prefix) != 0)
+                continue;
+            if (bytes != 0)
+                return 0;
+            auto value = std::string_view(token).substr(prefix.size());
+            if (value.empty())
+                return 0;
+            uint64_t unit = 1;
+            switch (value.back()) {
+                case 'K':
+                case 'k':
+                    unit = 1ULL << 10;
+                    break;
+                case 'M':
+                case 'm':
+                    unit = 1ULL << 20;
+                    break;
+                case 'G':
+                case 'g':
+                    unit = 1ULL << 30;
+                    break;
+            }
+            if (unit > 1)
+                value.remove_suffix(1);
+            bytes = ParseByteCount(value, unit);
+            if (bytes == 0)
+                return 0;
+        }
+        return bytes;
+    }
+
+    // The kernel exposes inclusive endpoints. Normalize both sources to half-open intervals.
+    struct MemoryRange {
+        uint64_t start;
+        uint64_t end;
+    };
+
+    std::optional<MemoryRange> ParseMemoryRange(std::string_view start, std::string_view end) {
+        const auto first = ParseUnsigned(start, 16);
+        const auto last  = ParseUnsigned(end, 16);
+        if (!first || !last || *last < *first || *last == std::numeric_limits<uint64_t>::max())
+            return std::nullopt;
+        return MemoryRange{*first, *last + 1};
+    }
+
+    bool SortDisjoint(std::vector<MemoryRange>& ranges) {
+        std::sort(ranges.begin(), ranges.end(),
+                  [](const auto& left, const auto& right) { return left.start < right.start; });
+        for (size_t i = 1; i < ranges.size(); ++i) {
+            if (ranges[i].start < ranges[i - 1].end)
+                return false;
+        }
+        return true;
+    }
+
+    std::vector<MemoryRange> ReadSystemRamRanges(std::istream& iomem) {
+        static const std::regex range_pattern(R"(^([0-9A-Fa-f]+)-([0-9A-Fa-f]+)\s*:\s*System RAM\s*$)");
+        std::vector<MemoryRange> ranges;
+        for (std::string line; std::getline(iomem, line);) {
+            std::smatch match;
+            if (!std::regex_match(line, match, range_pattern))
+                continue;
+            const auto range = ParseMemoryRange(match.str(1), match.str(2));
+            if (!range || range->end == 1)
+                return {};  // /proc/iomem can mask all addresses for an unprivileged process.
+            ranges.push_back(*range);
+        }
+        if (!SortDisjoint(ranges))
+            return {};
+        return ranges;
     }
 
 #if defined(COSMO_NN_USE_RKNN_BACKEND)
@@ -298,6 +397,92 @@ cosmo::MsgMemoryInfo HardwareQueryUtil::QueryMemoryUtilization() {
     LOG_ERRO("{}", "Failed to open /proc/meminfo !");
     return res;
 }
+
+AxMemoryUsage HardwareQueryUtil::ParseAxMemoryUsage(std::istream& cmm, std::istream& cmdline,
+                                                    std::istream& iomem, int64_t linux_total_bytes) {
+    constexpr uint64_t kKibibyte = 1024;
+    static const std::regex summary_pattern(
+        R"(^\s*total size=([0-9]+)KB(?:\([^)]*\))?,\s*used=([0-9]+)KB(?:\([^)]*\))?,\s*)"
+        R"(remain=([0-9]+)KB(?:\([^)]*\))?,\s*partition_number=([0-9]+),\s*block_number=[0-9]+\s*$)");
+    static const std::regex partition_pattern(
+        R"(^[+\-\s]*PARTITION:\s*Phys\(0x([0-9A-Fa-f]+),\s*0x([0-9A-Fa-f]+)\),\s*)"
+        R"(Size=([0-9]+)KB(?:\([^)]*\))?,\s*NAME="[^"]*"\s*$)");
+
+    AxMemoryUsage result;
+    const auto linux_allocated = ParseLinuxBootAllocation(cmdline);
+    if (linux_allocated >= linux_total_bytes)
+        result.linuxAllocatedBytes = linux_allocated;
+
+    std::vector<MemoryRange> partitions;
+    bool valid_partitions = true;
+    std::optional<uint64_t> partition_count;
+    int64_t total_bytes = 0;
+    int64_t free_bytes  = -1;
+    for (std::string line; std::getline(cmm, line);) {
+        std::smatch match;
+        if (line.find("total size=") != std::string::npos) {
+            if (partition_count || !std::regex_match(line, match, summary_pattern))
+                return result;
+            const auto total = ParseByteCount(match.str(1), kKibibyte);
+            const auto used  = ParseUnsigned(match.str(2));
+            const auto free  = ParseUnsigned(match.str(3));
+            partition_count  = ParseUnsigned(match.str(4));
+            if (total <= 0 || !partition_count || *partition_count == 0 || !used || !free)
+                return result;
+            const auto total_kib = static_cast<uint64_t>(total) / kKibibyte;
+            if (*used > total_kib || *free != total_kib - *used)
+                return result;
+            total_bytes = total;
+            free_bytes  = static_cast<int64_t>(*free * kKibibyte);
+        } else if (line.find("PARTITION:") != std::string::npos) {
+            if (!std::regex_match(line, match, partition_pattern)) {
+                valid_partitions = false;
+                continue;
+            }
+            const auto range = ParseMemoryRange(match.str(1), match.str(2));
+            const auto size  = ParseByteCount(match.str(3), kKibibyte);
+            if (!range || size <= 0 || range->end - range->start != static_cast<uint64_t>(size)) {
+                valid_partitions = false;
+                continue;
+            }
+            partitions.push_back(*range);
+        }
+    }
+
+    result.cmmTotalBytes     = total_bytes;
+    result.cmmAvailableBytes = free_bytes;
+    const auto system        = ReadSystemRamRanges(iomem);
+    if (linux_total_bytes <= 0 || result.linuxAllocatedBytes <= 0 || system.empty() || !valid_partitions ||
+        !partition_count || *partition_count != partitions.size() || !SortDisjoint(partitions))
+        return result;
+    const auto linux_size = static_cast<uint64_t>(result.linuxAllocatedBytes);
+    if (linux_size > std::numeric_limits<uint64_t>::max() - system.front().start)
+        return result;
+    const auto linux_end = system.front().start + linux_size;
+    if (system.back().end != linux_end || partitions.front().start < linux_end)
+        return result;
+
+    int64_t unaccounted_cmm = result.cmmTotalBytes;
+    for (const auto& partition : partitions) {
+        const auto size = partition.end - partition.start;
+        if (size > static_cast<uint64_t>(unaccounted_cmm))
+            return result;
+        unaccounted_cmm -= static_cast<int64_t>(size);
+    }
+    if (unaccounted_cmm == 0 &&
+        result.cmmTotalBytes <= std::numeric_limits<int64_t>::max() - result.linuxAllocatedBytes)
+        result.bootAllocatedBytes = result.linuxAllocatedBytes + result.cmmTotalBytes;
+    return result;
+}
+
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+AxMemoryUsage HardwareQueryUtil::QueryAxMemoryUsage(int64_t linux_total_bytes) {
+    std::ifstream cmm("/proc/ax_proc/mem_cmm_info");
+    std::ifstream cmdline("/proc/cmdline");
+    std::ifstream iomem("/proc/iomem");
+    return ParseAxMemoryUsage(cmm, cmdline, iomem, linux_total_bytes);
+}
+#endif
 
 cosmo::MsgDiskInfo HardwareQueryUtil::QueryDiskUtilization() {
     cosmo::MsgDiskInfo res;

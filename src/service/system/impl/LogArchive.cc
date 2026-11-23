@@ -189,6 +189,9 @@ bool CreateLogArchive(const std::filesystem::path& log_path, const std::filesyst
         if (result != 0) {
             throw std::runtime_error("tar failed (" + std::to_string(result) + "): " + output);
         }
+        if (chmod(pending_archive.c_str(), 0600) != 0) {
+            throw std::system_error(errno, std::generic_category(), "protect log archive");
+        }
         // Only a completed archive becomes visible to the download endpoint.
         fs::rename(pending_archive, archive_path);
         return true;

@@ -5,6 +5,8 @@
 #include "catch2/trompeloeil.hpp"
 // clang-format on
 
+#include <nlohmann/json.hpp>
+
 #include "api/MessageSystemHandler.h"
 #include "media/PreviewPipelineMetrics.h"
 #include "mock/MockConfigNetworkService.h"
@@ -58,10 +60,19 @@ TEST_CASE("SystemHandler: QueryHardwareResource exposes accelerator preview tele
     SystemHandlerMocks mocks;
     auto handler = MakeHandler(mocks);
 
-    service::HwResourceItem system_memory{
-        "generalMemoryUtilization", "系统内存使用率", 18, "1.37 GiB", "6.36 GiB", 1, "system"};
+    service::HwResourceItem system_memory{"generalMemoryUtilization",
+                                          "系统内存使用率",
+                                          18,
+                                          "1.37 GiB",
+                                          "6.36 GiB",
+                                          1,
+                                          "system",
+                                          "7.73 GiB",
+                                          "8.00 GiB"};
+    service::HwResourceItem allocation{"memoryAllocationTotal", "启动内存分配总量", 0, "--", "--", 0,
+                                       "boot-allocation"};
     REQUIRE_CALL(mocks.deviceInfoSvc, GetHardwareResource(_))
-        .RETURN(std::vector<service::HwResourceItem>{system_memory});
+        .RETURN(std::vector<service::HwResourceItem>{system_memory, allocation});
     MsgGpuInfo gpu;
     gpu.gpuusage          = 0.5;
     gpu.gpuusageAvailable = false;
@@ -129,9 +140,16 @@ TEST_CASE("SystemHandler: QueryHardwareResource exposes accelerator preview tele
     CHECK(ret.resData.accelerator.rknnYolov8ScoreSumPointsRejected ==
           inference.rknn_yolov8_score_sum_points_rejected);
     CHECK(ret.resData.accelerator.yolov8PostprocessCalls == inference.yolov8_postprocess_calls);
-    REQUIRE(ret.resData.itemList.size() == 1);
+    REQUIRE(ret.resData.itemList.size() == 2);
     CHECK(ret.resData.itemList.front().memoryDomain == "system");
     CHECK(ret.resData.itemList.front().usedSize == "1.37 GiB");
+    const nlohmann::json wire = ret.resData.itemList;
+    CHECK(wire[0]["totalSize"] == "7.73 GiB");
+    CHECK(wire[0]["allocatedSize"] == "8.00 GiB");
+    CHECK(wire[0].get<System::MsgQueryHardwareResourceSend::Item>().allocatedSize == "8.00 GiB");
+    CHECK(wire[1]["available"] == 0);
+    CHECK_FALSE(wire[1].contains("totalSize"));
+    CHECK_FALSE(wire[1].contains("allocatedSize"));
 }
 
 TEST_CASE("SystemHandler: CheckUpgradeSpace exposes cleanup decision facts", "[system-handler][upgrade]") {

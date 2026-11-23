@@ -20,8 +20,9 @@ public:
                                                        int pageNum, int pageSize) override;
     std::string GetAudioFileWebPath(cosmo::AlarmAudioInfo& info) override;
     std::string GetAudioFileWebPath(const std::string& id) override;
+    bool PrepareAudioDownload(const std::string& id, std::string& filePath, std::string& fileName) override;
     bool RemoveAudioFile(const std::string& id, std::string& msg) override;
-    bool AddAudioFile(const std::string& fileName) override;
+    std::error_condition AddAudioFile(const std::string& fileName) override;
     size_t AudioFileCount() const override;
     size_t AudioFileMaxCount() const override;
 

@@ -136,6 +136,16 @@ void from_json(const nlohmann::json& j, MsgDownloadModelAuthorizationRequestSend
     JSON_OPT(j, v, filePath);
     JSON_OPT(j, v, fileName);
 }
+void to_json(nlohmann::json& j, const MsgDownloadLogsSend& v) {
+    to_json(j, static_cast<const MsgSendHead&>(v));
+    j["filePath"] = v.filePath;
+    j["fileName"] = v.fileName;
+}
+void from_json(const nlohmann::json& j, MsgDownloadLogsSend& v) {
+    from_json(j, static_cast<MsgSendHead&>(v));
+    JSON_OPT(j, v, filePath);
+    JSON_OPT(j, v, fileName);
+}
 void to_json(nlohmann::json& j, const MsgInstallModelAuthorizationRecv& v) {
     to_json(j, static_cast<const MsgRecvHead&>(v));
     j["uploadId"] = v.uploadId;

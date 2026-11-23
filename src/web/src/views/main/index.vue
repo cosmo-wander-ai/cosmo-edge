@@ -24,6 +24,7 @@ const activeMenu = ref('/home')
 const openedMenus = ref([])
 const username = computed(() => localStorage.getItem('account') || t('common.admin'))
 const userMenuOpen = ref(false)
+const logoutPending = ref(false)
 const changePwdVisible = ref(false)
 const changePwdForm = ref({
   oldPassword: '',
@@ -230,16 +231,25 @@ const handleGlobalClick = () => {
   userMenuOpen.value = false
 }
 
-const handleLogout = () => {
+const handleLogout = async () => {
+  if (logoutPending.value) return
+  logoutPending.value = true
   userMenuOpen.value = false
-  localStorage.removeItem('mtk')
-  localStorage.removeItem('token')
-  localStorage.removeItem('account')
-  localStorage.removeItem('platformType')
-  localStorage.removeItem('runMode')
-  localStorage.removeItem('playedCameraList')
-  localStorage.removeItem('dialog')
-  router.replace('/boxLogin')
+  try {
+    await proxy.$API.logout()
+  } catch {
+    proxy.$message.warning(t('system.logoutUnconfirmed'))
+  } finally {
+    localStorage.removeItem('mtk')
+    localStorage.removeItem('token')
+    localStorage.removeItem('account')
+    localStorage.removeItem('platformType')
+    localStorage.removeItem('runMode')
+    localStorage.removeItem('playedCameraList')
+    localStorage.removeItem('dialog')
+    router.replace('/boxLogin')
+    logoutPending.value = false
+  }
 }
 
 const openChangePwd = (e) => {

@@ -142,6 +142,7 @@ const scheduleWall = callback => { const id = ++wallTimerId; wallTimers.set(id, 
 const wall = await mountComponent('views/box/bigScreen/warnningScreen/index.vue', {
   mocks: {
     '@/assets/beep.ogg': { default: '' },
+    '@/utils/eventImage': { eventImageUrl: path => path },
     '@/assets/error-image.png': { default: '' },
     '@element-plus/icons-vue': Object.fromEntries(['Search', 'Setting', 'FullScreen', 'Back', 'Refresh', 'ArrowLeft', 'ArrowRight', 'VideoCamera', 'Monitor', 'Bell'].map(name => [name, name])),
     '../components/flvVideo.vue': { default: {

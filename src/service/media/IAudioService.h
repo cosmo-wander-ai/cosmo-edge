@@ -44,6 +44,10 @@ public:
     /// @return Web URL path.
     virtual std::string GetAudioFileWebPath(const std::string& id) = 0;
 
+    /// Copy the requested audio to a one-time managed download file.
+    virtual bool PrepareAudioDownload(const std::string& id, std::string& filePath,
+                                      std::string& fileName) = 0;
+
     /// Remove an audio file by ID.
     /// @param id  Audio file identifier.
     /// @param msg [out] Error message if removal fails (e.g. file in use).
@@ -52,8 +56,8 @@ public:
 
     /// Add a new audio file from an uploaded file.
     /// @param fileName Uploaded file name (resolved to the upload directory).
-    /// @return true on success.
-    virtual bool AddAudioFile(const std::string& fileName) = 0;
+    /// @return Success, duplicate name, or a file operation error.
+    virtual std::error_condition AddAudioFile(const std::string& fileName) = 0;
 
     /// Get the current number of stored audio files.
     virtual size_t AudioFileCount() const = 0;

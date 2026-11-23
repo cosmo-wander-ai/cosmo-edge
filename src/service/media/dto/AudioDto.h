@@ -44,6 +44,16 @@ namespace Audio {
     void to_json(nlohmann::json& j, const MsgQueryAudioFileSend& v);
     void from_json(const nlohmann::json& j, MsgQueryAudioFileSend& v);
 
+    struct MsgDownloadAudioFileRecv : public MsgRecvHead {
+        std::string fileId;
+    };
+    struct MsgDownloadAudioFileSend : public MsgSendHead {
+        std::string filePath;
+        std::string fileName;
+    };
+    void from_json(const nlohmann::json& j, MsgDownloadAudioFileRecv& v);
+    void to_json(nlohmann::json& j, const MsgDownloadAudioFileSend& v);
+
     // Audio file delete
     struct MsgDeleteAudioFileRecv : public MsgRecvHead {
         std::vector<std::string> fileIdList;

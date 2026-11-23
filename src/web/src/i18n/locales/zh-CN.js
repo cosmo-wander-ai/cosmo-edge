@@ -1072,7 +1072,8 @@ export default {
     rebooting: '设备重启中',
     remainingSeconds: '剩余 {n}s',
     rebootConfirm: '确定要重启设备吗？重启期间将暂时无法访问。',
-    passwordChangedLoginAgain: '修改成功，请重新登录'
+    passwordChangedLoginAgain: '修改成功，请重新登录',
+    logoutUnconfirmed: '无法确认服务端会话已退出，请检查网络连接'
   },
   vlmResults: {
     title: '视觉问答结果',
@@ -1189,6 +1190,12 @@ export default {
     cpuUsage: 'CPU使用率',
     memoryUsage: '内存使用率',
     systemMemoryUsage: '系统内存使用率',
+    memoryTotal: '总计 {value}',
+    deviceMemoryTotal: '整机总内存',
+    systemMemory: '系统内存',
+    axCmmMemory: 'AX 芯片内存池',
+    memoryBootAllocationBasis: '按启动分配',
+    memoryBootAllocated: '启动分配 {value}',
     npuUsage: 'NPU负载',
     emmcUsage: 'eMMC使用率',
     packetLoss: '丢包率',
@@ -1812,6 +1819,7 @@ export default {
     audioFile: '音频文件',
     audioUploadTip: '说明：支持 mp3、wav 音频格式；可上传大小以设备实时安全可用空间为准。',
     audioUploadFormatError: '上传文件只能是 MP3 或 WAV 格式!',
+    audioDuplicateName: '音频文件名已存在，请更换名称；原文件未被覆盖。',
     audioUploadSizeError: '设备当前没有足够的安全可用空间。',
     selectAudioFile: '请先选择音频文件',
     deleteAudioConfirm: '删除音频，此操作不可逆',

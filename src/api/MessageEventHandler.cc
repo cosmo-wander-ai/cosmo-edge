@@ -3,6 +3,7 @@
 #include "api/MessageEventHandler.h"
 
 #include <chrono>
+#include <filesystem>
 #include <fstream>
 #include <unordered_set>
 
@@ -16,6 +17,7 @@
 #include "service/network/INetworkConfig.h"
 #include "util/DateTimeFormat.h"
 #include "util/ErrorCode.h"
+#include "util/IRequestDispatcher.h"
 #include "util/PathUtil.h"
 #include "util/TimeUtil.h"
 
@@ -135,6 +137,29 @@ Event::MsgExportAlarmSend MessageEventHandler::Handle(Event::MsgExportAlarmRecv&
 }
 
 // ── Passenger Flow Query — helpers ──────────────────────────────────
+
+Event::MsgDownloadAlarmSend MessageEventHandler::Handle(Event::MsgDownloadAlarmRecv&& data,
+                                                        const RequestDispatchContext& context,
+                                                        std::error_condition& errc) const {
+    Event::MsgDownloadAlarmSend result{};
+    if (context.transport != RequestTransport::kHttp || context.principal.empty()) {
+        errc = util::ErrorEnum::InvalidParam;
+        return result;
+    }
+    const auto type = data.categorys.empty() ? ExportType::Behavior : CategoryToExportType(data.categorys[0]);
+    int64_t total{0};
+    data.pageNum       = 1;
+    data.pageSize      = 0;
+    const auto records = alarm_service_.QueryEvents(data, total);
+    result.filePath    = ExportAlarmRecordsToCsv(records, type, network_config_.GetHostIpAddress(),
+                                                 algorithm_query_, data.language, true);
+    if (result.filePath.empty()) {
+        errc = util::ErrorEnum::FileOpenFailed;
+        return result;
+    }
+    result.fileName = std::filesystem::path(result.filePath).filename().string();
+    return result;
+}
 
 namespace {
 

@@ -12,6 +12,8 @@ namespace cosmo {
 
 class MessageModelHandler {
 public:
+    [[nodiscard]] Model::MsgQueryGraphModelCandidatesSend Handle(
+        Model::MsgQueryGraphModelCandidatesRecv&& data, std::error_condition& errc) const;
     explicit MessageModelHandler(service::IModelService& model_service);
     ~MessageModelHandler() = default;
 

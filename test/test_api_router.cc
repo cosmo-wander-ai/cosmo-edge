@@ -308,6 +308,25 @@ TEST_CASE("ApiRouter: Authentication Scenarios", "[ApiRouter]") {
         REQUIRE(response.find("Auth Failed") != std::string::npos);
     }
 
+    SECTION("Logout uses only the authenticated HTTP credential") {
+        REQUIRE_CALL(mocks.authSvc, RevokeToken(validMtk)).RETURN(true);
+        REQUIRE(router.DispatchRequest("/gtw/cwai/login/Logout", validMtk, R"({"mtk":"other-session"})",
+                                       response));
+        REQUIRE(nlohmann::json::parse(response)["resCode"] == kServerRspSuccess);
+    }
+
+    SECTION("Logout rejects invalid credentials before invoking revocation") {
+        FORBID_CALL(mocks.authSvc, RevokeToken(trompeloeil::_));
+        REQUIRE_FALSE(router.DispatchRequest("/gtw/cwai/login/Logout", invalidMtk,
+                                             R"({"mtk":"valid_token_123"})", response));
+    }
+
+    SECTION("Logout reports a session revoked concurrently") {
+        REQUIRE_CALL(mocks.authSvc, RevokeToken(validMtk)).RETURN(false);
+        REQUIRE(router.DispatchRequest("/gtw/cwai/login/Logout", validMtk, "{}", response));
+        REQUIRE(nlohmann::json::parse(response)["resCode"] == kServerRspFailed);
+    }
+
     SECTION("Password modification uses the authenticated header credential") {
         REQUIRE_CALL(mocks.authSvc, ChangePasswd(validMtk, "old", "new")).RETURN(util::ErrorEnum::Success);
         REQUIRE(router.DispatchRequest(
@@ -391,4 +410,13 @@ TEST_CASE("ApiRouter: Wi-Fi management requires the HTTP session", "[ApiRouter][
         CHECK(http_router.InspectRequest(context, true) == RequestAdmission::kUnauthorized);
         CHECK(mqtt_router.InspectRequest(context, true) == RequestAdmission::kRouteNotFound);
     }
+}
+
+TEST_CASE("ApiRouter: Logout rejects MQTT transport", "[ApiRouter]") {
+    cosmo::test::ApiRouterTestDependencies mocks;
+    ApiRouter router(cosmo::MessageFromType::MessageFromMqtt);
+    std::string response;
+    FORBID_CALL(mocks.authSvc, RevokeToken(trompeloeil::_));
+    REQUIRE(router.DispatchRequest("/gtw/cwai/login/Logout", "synthetic", "{}", response));
+    REQUIRE(nlohmann::json::parse(response)["resCode"] == kServerRspFailed);
 }

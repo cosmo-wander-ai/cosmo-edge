@@ -28,6 +28,11 @@
 #include "util/dto/ActionCodes.h"
 #include "util/dto/AlgorithmMsgTypes.h"
 #include "util/dto/PictureWorkflow.h"
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+#include "flow/detect/AxeraGraphAdmission.h"
+#include "flow/detect/AxeraGraphJson.h"
+#include "service/algorithm/impl/ActionModelParams.h"
+#endif
 
 namespace cosmo::service::detail {
 namespace alg = algorithm;
@@ -375,6 +380,46 @@ cosmo::util::ErrorEnum AlgorithmLayoutMng::LayoutSave(const algorithm::LayoutSav
     const auto& ownershipSourceDoc =
         !useExistingFile && ret != cosmo::util::ErrorEnum::Success && oldFormatDocLoaded ? oldFormatDoc
                                                                                          : previousDoc;
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+    // Preserve unrelated and unchanged historical layouts. New or changed AX
+    // selections must pass the same graph/reference precheck as the selector.
+    if (!pictureLayout) {
+        const auto old_graph    = GetStr(ownershipSourceDoc, "algorithmProcessdata");
+        const auto old_category = GetStr(ownershipSourceDoc, "algorithmCategory");
+        const auto category     = req.algorithmCategory.empty() ? old_category : req.algorithmCategory;
+        bool graph_unchanged    = !old_graph.empty() && old_graph == req.algorithmProcessdata;
+        if (!graph_unchanged && !old_graph.empty()) {
+            try {
+                graph_unchanged =
+                    nlohmann::json::parse(old_graph) == nlohmann::json::parse(req.algorithmProcessdata);
+            } catch (const std::exception&) {
+                graph_unchanged = false;
+            }
+        }
+        const bool unchanged =
+            graph_unchanged && (req.algorithmCategory.empty() || req.algorithmCategory == old_category);
+        if (!unchanged) {
+            bool controlled = false;
+            try {
+                const auto encoded = nlohmann::json::parse(req.algorithmProcessdata);
+                controlled         = axera_graph_admission::ContainsControlledModel(encoded);
+                auto workflow      = encoded.get<std::vector<ActionNode>>();
+                for (auto& action : workflow) {
+                    if (!action_model_params::Extract(action, true))
+                        return cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail;
+                }
+                if (!axera_graph_admission::Admits(req.algorithmId, category, workflow))
+                    return cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail;
+            } catch (const std::exception&) {
+                // Decoded strings also catch escaped model IDs when a valid
+                // JSON document is not a valid ActionNode graph.
+                if (controlled || req.algorithmProcessdata.find("1001003") != std::string::npos ||
+                    req.algorithmProcessdata.find("9275710") != std::string::npos)
+                    return cosmo::util::ErrorEnum::ActionAlgArrangeConfigFail;
+            }
+        }
+    }
+#endif
     if (ret != cosmo::util::ErrorEnum::Success) {
         if (existingDoc.is_object() && !existingDoc.empty()) {
             doc = existingDoc;
@@ -398,7 +443,10 @@ cosmo::util::ErrorEnum AlgorithmLayoutMng::LayoutSave(const algorithm::LayoutSav
                     LOG_ERRO("{} caught exception: {}", __FUNCTION__, e.what());
                 }
             }
-            doc["algorithmCategory"] = algorithmCategory;
+            doc["algorithmCategory"] = req.algorithmCategory.empty() && oldFormatDocLoaded &&
+                                               oldFormatDoc.contains("algorithmCategory")
+                                           ? oldFormatDoc["algorithmCategory"]
+                                           : nlohmann::json(algorithmCategory);
             doc["configVersionList"] = nlohmann::json::array();
         }
     }
@@ -421,8 +469,8 @@ cosmo::util::ErrorEnum AlgorithmLayoutMng::LayoutSave(const algorithm::LayoutSav
     }
     doc["algorithmCode"] = algorithmCode;
 
-    int algorithmCategory = 1;
     if (!req.algorithmCategory.empty()) {
+        int algorithmCategory = 1;
         try {
             algorithmCategory = std::stoi(req.algorithmCategory);
             if (algorithmCategory == 0)
@@ -430,8 +478,14 @@ cosmo::util::ErrorEnum AlgorithmLayoutMng::LayoutSave(const algorithm::LayoutSav
         } catch (const std::exception& e) {
             LOG_ERRO("{} caught exception: {}", __FUNCTION__, e.what());
         }
+        doc["algorithmCategory"] = algorithmCategory;
+    } else if (!doc.contains("algorithmCategory")) {
+        // Legacy single-file layouts can be promoted to a new filename during save.
+        // Preserve their category when the caller omits it as well.
+        doc["algorithmCategory"] = oldFormatDocLoaded && oldFormatDoc.contains("algorithmCategory")
+                                       ? oldFormatDoc["algorithmCategory"]
+                                       : nlohmann::json(1);
     }
-    doc["algorithmCategory"] = algorithmCategory;
 
     if (!req.algorithmUsage.empty())
         doc["algorithmUsage"] = req.algorithmUsage;

@@ -1072,7 +1072,8 @@ export default {
     rebooting: 'Device is rebooting',
     remainingSeconds: '{n}s remaining',
     rebootConfirm: 'Reboot the device? It will be temporarily unavailable during restart.',
-    passwordChangedLoginAgain: 'Password changed. Please log in again.'
+    passwordChangedLoginAgain: 'Password changed. Please log in again.',
+    logoutUnconfirmed: 'Could not confirm that the server session ended. Check the network connection.'
   },
   vlmResults: {
     title: 'Visual question answering',
@@ -1189,6 +1190,12 @@ export default {
     cpuUsage: 'CPU Usage',
     memoryUsage: 'Memory Usage',
     systemMemoryUsage: 'System Memory Usage',
+    memoryTotal: 'Total {value}',
+    deviceMemoryTotal: 'Total Device Memory',
+    systemMemory: 'System Memory',
+    axCmmMemory: 'AX Chip Memory Pool',
+    memoryBootAllocationBasis: 'Based on boot allocation',
+    memoryBootAllocated: 'Boot allocation {value}',
     npuUsage: 'NPU Load',
     emmcUsage: 'eMMC Usage',
     packetLoss: 'Packet Loss',
@@ -1812,6 +1819,7 @@ export default {
     audioFile: 'Audio File',
     audioUploadTip: 'Note: Supports MP3 and WAV; capacity follows the device safe free space.',
     audioUploadFormatError: 'Only MP3 or WAV format files are allowed!',
+    audioDuplicateName: 'An audio file with this name already exists. Choose another name; the original was not replaced.',
     audioUploadSizeError: 'The device does not currently have enough safe free space.',
     selectAudioFile: 'Please select an audio file first',
     deleteAudioConfirm: 'Delete audio. This action is irreversible.',

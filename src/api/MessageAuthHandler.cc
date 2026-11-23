@@ -11,6 +11,10 @@ static constexpr const char* kTag = "MessageAuthHandler";
 
 MessageAuthHandler::MessageAuthHandler(service::IAuthService& auth_svc) : auth_svc_(auth_svc) {}
 
+bool MessageAuthHandler::RevokeToken(const std::string& token) const {
+    return auth_svc_.RevokeToken(token);
+}
+
 // Login
 Auth::MsgDoLoginSend MessageAuthHandler::Handle(Auth::MsgDoLoginRecv&& data,
                                                 std::error_condition& errc) const {

@@ -424,31 +424,29 @@ const handleReset = () => {
   })
 }
 
-const downloadLog = () => {
-  const params = {
-    exportType: 1
-  }
-  $API.boxExportFile(params).then((res) => {
-    const { resData } = res
-    if (resData && resData.fileUrl) {
-      downloadFile(resData)
+const downloadLog = async () => {
+  try {
+    const response = await fetch('/gtw/cwai/System/DownloadLogs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', token: localStorage.getItem('mtk') || '', mtk: localStorage.getItem('mtk') || '' },
+      body: '{}'
+    })
+    if (!response.ok || (response.headers.get('content-type') || '').includes('application/json')) {
+      throw new Error(t('api.fileFetchFailed'))
     }
-  })
-}
-
-const downloadFile = async (resData) => {
-  const response = await fetch(resData.fileUrl)
-  if (!response.ok) throw new Error(t('api.fileFetchFailed'))
-  const blob = await response.blob()
-  const url = window.URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.style.display = 'none'
-  link.href = url
-  link.download = resData.fileName
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  window.URL.revokeObjectURL(url)
+    const blob = await response.blob()
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.style.display = 'none'
+    link.href = url
+    link.download = 'CosmoEdge-logs.tar'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  } catch (_) {
+    ElMessage.error(t('api.fileFetchFailed'))
+  }
 }
 
 onBeforeUnmount(() => {

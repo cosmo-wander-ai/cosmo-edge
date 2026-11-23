@@ -10,10 +10,14 @@ class ILinkageService;
 
 namespace cosmo {
 
+struct RequestDispatchContext;
+
 class MessageAudioHandler {
 public:
     MessageAudioHandler(service::IAudioService& audio_svc, service::ILinkageService& linkage_svc);
     Audio::MsgQueryAudioFileSend Handle(Audio::MsgQueryAudioFileRecv&& data, std::error_condition& errc);
+    Audio::MsgDownloadAudioFileSend Handle(Audio::MsgDownloadAudioFileRecv&& data,
+                                           const RequestDispatchContext& context, std::error_condition& errc);
     Audio::MsgDeleteAudioFileSend Handle(Audio::MsgDeleteAudioFileRecv&& data, std::error_condition& errc);
     Audio::MsgModifyAudioDeviceSend Handle(Audio::MsgModifyAudioDeviceRecv&& data,
                                            std::error_condition& errc);

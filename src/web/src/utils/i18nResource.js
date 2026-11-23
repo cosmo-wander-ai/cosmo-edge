@@ -16,6 +16,17 @@ const sanitizeSegment = (value) =>
     .replace(/_{2,}/g, '_')
     .replace(/^_|_$/g, '')
 
+// Video scenes without a translated resource key use their configured name.
+// Match the complete name rather than inferring model semantics from an ID.
+const videoSceneNamesEn = {
+  '鼠患检测': 'Rodent Detection',
+  '头肩检测': 'Head and Shoulder Detection',
+  '人员聚集': 'People Gathering',
+  '烟雾检测': 'Smoke Detection',
+  '火焰检测': 'Flame Detection',
+  '垃圾堆检测': 'Trash Pile Detection'
+}
+
 const zhFallbackTerms = [
   ['图片语言视觉大模型', 'Image-Language-Vision Foundation Model'],
   ['图片分割大模型', 'Image-Segmentation Foundation Model'],
@@ -215,7 +226,11 @@ export const resolveResourceAlgorithmName = (item) => {
     const key = `resource.algorithm.${String(code).toLowerCase()}.algorithmname`
     if (te(key)) return t(key)
   }
-  return resolveResourceFallbackText(item.algorithmName || item.name || '')
+  const name = item.algorithmName || item.name || ''
+  if (String(item.algorithmUsage) === '1' &&
+      ['en-US', 'en_US'].includes(i18n.global.locale.value) &&
+      Object.prototype.hasOwnProperty.call(videoSceneNamesEn, name)) return videoSceneNamesEn[name]
+  return resolveResourceFallbackText(name)
 }
 
 /**

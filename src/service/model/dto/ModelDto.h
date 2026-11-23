@@ -11,6 +11,34 @@
 
 namespace cosmo {
 namespace Model {
+    struct MsgQueryGraphModelCandidatesRecv : public MsgRecvHead {
+        std::string sceneId;
+        std::string category;
+        std::string targetNodeId;
+        std::string algorithmProcessdata;
+    };
+    void from_json(const nlohmann::json& j, MsgQueryGraphModelCandidatesRecv& v);
+    void to_json(nlohmann::json& j, const MsgQueryGraphModelCandidatesRecv& v);
+
+    struct GraphModelDenial {
+        std::string modelCode;
+        std::string reason;
+    };
+    void to_json(nlohmann::json& j, const GraphModelDenial& v);
+    struct GraphModelItem {
+        std::string atomicCode;
+        std::string atomicName;
+        std::string modelType;
+        std::string label;
+    };
+    void to_json(nlohmann::json& j, const GraphModelItem& v);
+    struct MsgQueryGraphModelCandidatesSend : public MsgSendHead {
+        bool passthrough{true};
+        std::vector<std::string> allowed;
+        std::vector<GraphModelItem> allowedModels;
+        std::vector<GraphModelDenial> denied;
+    };
+    void to_json(nlohmann::json& j, const MsgQueryGraphModelCandidatesSend& v);
     // Model page query
     struct MsgPageRecv : public MsgRecvHead {
         std::string modelName;
@@ -311,11 +339,20 @@ namespace Model {
         friend void from_json(const nlohmann::json& j, MsgAtomicModelLabel& v);
     };
 
+    struct MsgAtomicModelBehaviorScore {
+        std::string class_name;
+        std::string nameCN;
+        friend void to_json(nlohmann::json& j, const MsgAtomicModelBehaviorScore& v);
+        friend void from_json(const nlohmann::json& j, MsgAtomicModelBehaviorScore& v);
+    };
+
     struct MsgAtomicModel {
         std::string atomicCode;
         std::string atomicName;
         std::string label;
         std::vector<MsgAtomicModelLabel> labelList;
+        std::string modelType;
+        std::vector<MsgAtomicModelBehaviorScore> behaviorScores;
         std::vector<InferenceInputSize> inputSizes;
         InferenceInputSize defaultInputSize;
         friend void to_json(nlohmann::json& j, const MsgAtomicModel& v);

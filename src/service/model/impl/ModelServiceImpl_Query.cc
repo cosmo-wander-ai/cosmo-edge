@@ -22,6 +22,32 @@ namespace cosmo::service {
 
 namespace fs = std::filesystem;
 
+namespace {
+
+    bool MatchesModelType(const std::string& actual, const std::string& requested) {
+        std::string type   = actual;
+        std::string filter = requested;
+        std::transform(type.begin(), type.end(), type.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
+        std::transform(filter.begin(), filter.end(), filter.begin(),
+                       [](unsigned char c) { return std::tolower(c); });
+        if (filter.empty() || type == filter)
+            return true;
+
+        // AX native execution requires an exact scene contract; display roles
+        // must never make one selectable by a generic node.
+        if (type.rfind("axera_native_", 0) == 0)
+            return false;
+        if (filter == "detector")
+            return type == "detector" || type == "yolo26_person_attributes" ||
+                   type.find("_det") != std::string::npos;
+        if (filter == "classify")
+            return type.find("classify") != std::string::npos;
+        return false;
+    }
+
+}  // namespace
+
 void ModelServiceImpl::QueryModels(const std::string& modelName, const std::string& modelCode, int page_num,
                                    int page_size, int& total, std::vector<cosmo::Model::MsgModel>& rows) {
     std::vector<cosmo::Model::MsgModel> all_models;
@@ -179,6 +205,7 @@ std::vector<cosmo::Model::MsgAtomicModel> ModelServiceImpl::QueryAtomicModels(co
             cosmo::Model::MsgAtomicModel model;
             model.atomicCode       = cfg.algorithm_code;
             model.atomicName       = cfg.model_name;
+            model.modelType        = cfg.model_type;
             model.inputSizes       = cfg.input_sizes.sizes;
             model.defaultInputSize = cfg.input_sizes.default_size;
 
@@ -188,24 +215,9 @@ std::vector<cosmo::Model::MsgAtomicModel> ModelServiceImpl::QueryAtomicModels(co
                 continue;
             }
 
-            // Filter by modelType (category matching)
-            if (!modelType.empty()) {
-                std::string mt_lower = cfg.model_type, dtLower = modelType;
-                std::transform(mt_lower.begin(), mt_lower.end(), mt_lower.begin(),
-                               [](unsigned char c) { return std::tolower(c); });
-                std::transform(dtLower.begin(), dtLower.end(), dtLower.begin(),
-                               [](unsigned char c) { return std::tolower(c); });
-                bool type_match = false;
-                if (dtLower == "detector")
-                    type_match = (mt_lower.find("_det") != std::string::npos || mt_lower == "detector");
-                else if (dtLower == "classify")
-                    type_match = (mt_lower.find("classify") != std::string::npos || mt_lower == "classify");
-                else
-                    type_match = (mt_lower == dtLower);
-                if (!type_match) {
-                    LOG_DEBUG("Model type filter mismatch: '{}' (expected: '{}')", cfg.model_type, modelType);
-                    continue;
-                }
+            if (!MatchesModelType(cfg.model_type, modelType)) {
+                LOG_DEBUG("Model type filter mismatch: '{}' (expected: '{}')", cfg.model_type, modelType);
+                continue;
             }
 
             // Convert parsed labels to MsgAtomicModelLabel
@@ -218,6 +230,10 @@ std::vector<cosmo::Model::MsgAtomicModel> ModelServiceImpl::QueryAtomicModels(co
                 label.nameCN     = pl.class_name;
                 model.labelList.push_back(std::move(label));
             }
+
+            if (cfg.model_type == "yolo26_person_attributes")
+                model.behaviorScores = {
+                    {"smoking", "抽烟"}, {"sleep", "睡岗"}, {"fall", "跌倒"}, {"normal", "正常"}};
 
             // Serialize labelList to JSON string for frontend
             if (!model.labelList.empty()) {

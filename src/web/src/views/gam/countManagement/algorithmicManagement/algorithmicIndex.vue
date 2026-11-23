@@ -4,7 +4,7 @@
       <h1>{{ t('nav.sceneTasks') }}</h1>
       <el-button type="primary" @click="addAlgorithmic">{{ t('action.createTask') }}</el-button>
     </div>
-    <TopBar ref="topBarRef" :dataSouce="topBarData" :formData="formData" :labelWidth="80" @search="searchList" />
+    <TopBar ref="topBarRef" :dataSouce="topBarData" :formData="formData" :labelWidth="80" @search="searchList" @reset="searchList" />
     <!-- 工具栏 -->
     <div class="task-toolbar">
       <div class="toolbar-left">
@@ -197,6 +197,7 @@ export default {
   data() {
     return {
       tableData: [],
+      listRequest: 0,
       // 分页
       pageData: {
         pageNum: 1,
@@ -285,7 +286,8 @@ export default {
             { label: t('common.all'), value: '' },
             { label: t('glossary.faceAndBody'), value: 'face' },
             { label: t('glossary.detection'), value: 'detect' },
-            { label: t('glossary.countingAnalytics'), value: 'count' }
+            { label: t('glossary.countingAnalytics'), value: 'count' },
+            { label: t('glossary.vehicleAnalysis'), value: '10' }
           ]
         }
       ]
@@ -329,6 +331,7 @@ export default {
   methods: {
     // 算法管理list
     init() {
+      const request = ++this.listRequest
       this.selectedCards = []
       this.batchDeleteIds = []
       this.loadChannelCounts()
@@ -362,6 +365,7 @@ export default {
         params.pageSize = 9999
       }
       this.$API.algorithmInquire(params).then((res) => {
+        if (request !== this.listRequest) return
         const { resData } = res
         let rows = resData.rows || []
         // 前端过滤：当合并分类选了多个 category 值时
@@ -435,6 +439,7 @@ export default {
     // // 添加
     // Btnredact() {}
     searchList() {
+      localStorage.removeItem('pageName')
       this.pageData.pageNum = 1
       this.init()
     },

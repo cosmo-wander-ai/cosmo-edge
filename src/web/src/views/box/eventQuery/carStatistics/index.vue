@@ -9,7 +9,7 @@
       :dataSouce="topBarData" 
       :formData="formData" 
       :labelWidth="60" 
-      @search="searchList" 
+      @search="searchList" @reset="resetSearch"
     />
     
     <div class="table-container">
@@ -57,7 +57,7 @@
           <template #default="{ row }">
             <el-image 
               v-if="row.detectedPicture"
-              :src="row.detectedPicture" 
+              :src="eventImageUrl(row.detectedPicture)"
               fit="scale-down"
               style="width: 60px; height: 60px;cursor: pointer;" 
               @click="handleImageClick(row, 'detected')"
@@ -70,7 +70,7 @@
           <template #default="{ row }">
             <el-image 
               v-if="row.fullPicture"
-              :src="row.fullPicture" 
+              :src="eventImageUrl(row.fullPicture)"
               fit="scale-down" 
               style="width: 60px; height: 60px;cursor: pointer;"
               @click="handleImageClick(row, 'full')" 
@@ -167,6 +167,9 @@
 </template>
 
 <script setup>
+import { downloadAlarmExport } from '@/utils/alarmExport'
+import { todayEventTimeRange } from '@/utils/eventQueryDefaults'
+import { eventImageUrl, loadEventImageUrl } from '@/utils/eventImage'
 import { ref, reactive, onMounted, getCurrentInstance } from 'vue'
 import TopBar from '@/components/TopBar.vue'
 import moment from 'moment'
@@ -340,7 +343,7 @@ const { eventTableRef, selectedIds: multipleSelections, deleting, init, handleSe
   tableData,
   buildQuery: () => ({
     timeBegin: moment(formData.times[0]).valueOf(),
-    timeEnd: moment(formData.times[1]).valueOf(),
+    timeEnd: moment(formData.times[1]).add(1, 'second').valueOf(),
     pageNum: pageData.pageNum,
     pageSize: pageData.pageSize,
     algorithmCodes: formData.algorithmCode ? [formData.algorithmCode] : [],
@@ -364,10 +367,15 @@ const handleDetail = (row) => {
   detailDialogVisible.value = true
 }
 
+const resetSearch = () => {
+  Object.assign(formData, { times: todayEventTimeRange(), videoChannelName: '', algorithmCode: '', reportStatus: '', propStr: '', propRelatedColor: '', propColor: '', propType: '', propDirection: '' })
+  searchList()
+}
+
 const handleExport = () => {
   const params = {
     timeBegin: moment(formData.times[0]).valueOf(),
-    timeEnd: moment(formData.times[1]).valueOf(),
+    timeEnd: moment(formData.times[1]).add(1, 'second').valueOf(),
     pageNum: 1,
     pageSize: 0,
     algorithmCodes: formData.algorithmCode ? [formData.algorithmCode] : [],
@@ -381,29 +389,7 @@ const handleExport = () => {
     reportStatus: formData.reportStatus === '' ? undefined : formData.reportStatus,
     language: currentLocale.value
   }
-  proxy.$API.boxExportAlarm(params).then(async (res) => {
-    const { resData } = res
-    if (resData && resData.fileUrl) {
-      downloadFile(resData.fileUrl)
-    } else {
-      proxy.$message.error(t('event.fileExpired'))
-    }
-  })
-}
-
-const downloadFile = async (fileUrl) => {
-  const response = await fetch(fileUrl)
-  if (!response.ok) throw new Error(t('event.fileFetchFailed'))
-  const blob = await response.blob()
-  const url = window.URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.style.display = 'none'
-  link.href = url
-  link.download = fileUrl.split('/').pop() || t('event.alarmRecordCsv')
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  window.URL.revokeObjectURL(url)
+  downloadAlarmExport(params).catch(() => proxy.$message.error(t('event.fileFetchFailed')))
 }
 
 const onCheckVideo = (detail, type) => {
@@ -485,7 +471,7 @@ const returnTime = (objProperty, propertyKey) => {
   return ''
 }
 
-const handleImageClick = (row, type) => {
+const handleImageClick = async (row, type) => {
   if (!row[`${type}ImageError`]) {
     let imageUrl
     if (type === 'detected') {
@@ -493,8 +479,8 @@ const handleImageClick = (row, type) => {
     } else if (type === 'full') {
       imageUrl = row.fullPicture
     }
-    // proxy.$imgView([imageUrl])
-    console.log('预览图片:', imageUrl)
+    const resolved = await loadEventImageUrl(imageUrl)
+    if (resolved) proxy.$imgView([resolved])
   }
 }
 
@@ -506,9 +492,7 @@ const handleImgError = (e, row, type) => {
 onMounted(() => {
   getCarDict()
   getChannelList()
-  const startDate = moment().startOf('day').format('YYYY-MM-DD HH:mm:ss')
-  const endDate = moment().endOf('day').format('YYYY-MM-DD HH:mm:ss')
-  formData.times = [startDate, endDate]
+  formData.times = todayEventTimeRange()
   init()
 })
 </script>

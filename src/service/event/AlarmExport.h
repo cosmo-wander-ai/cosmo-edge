@@ -40,6 +40,6 @@ void WriteCsvRowBehavior(std::ostream& os, const MsgEventUnit& event, const std:
 /// @return Web-accessible file URL on success, empty string on failure.
 std::string ExportAlarmRecordsToCsv(const std::vector<MsgEventUnit>& records, ExportType export_type,
                                     const std::string& host_ip, service::IAlgorithmQuery& alg_query,
-                                    const std::string& language = "");
+                                    const std::string& language = "", bool managed_download = false);
 
 }  // namespace cosmo

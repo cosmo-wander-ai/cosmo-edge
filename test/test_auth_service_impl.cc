@@ -116,6 +116,27 @@ TEST_CASE("AuthServiceImpl: Sessions are process local", "[auth-service]") {
     REQUIRE_FALSE(restarted_instance.IsValidToken(token));
 }
 
+TEST_CASE("AuthServiceImpl: Logout revokes only its own session", "[auth-service]") {
+    IsolatedAuthEnv env;
+    AuthServiceImpl sut;
+    auto [first, first_error]   = sut.Login("admin", Md5Upper("admin"));
+    auto [second, second_error] = sut.Login("admin", Md5Upper("admin"));
+    REQUIRE(first_error == cosmo::util::ErrorEnum::Success);
+    REQUIRE(second_error == cosmo::util::ErrorEnum::Success);
+    REQUIRE(first != second);
+    REQUIRE(sut.IsValidToken(first));
+    REQUIRE(sut.IsValidToken(second));
+    REQUIRE(sut.RevokeToken(first));
+    REQUIRE_FALSE(sut.IsValidToken(first));
+    REQUIRE_FALSE(sut.RevokeToken(first));
+    REQUIRE(sut.IsValidToken(second));
+    REQUIRE_FALSE(sut.RevokeToken(""));
+    auto [third, third_error] = sut.Login("admin", Md5Upper("admin"));
+    REQUIRE(third_error == cosmo::util::ErrorEnum::Success);
+    REQUIRE(sut.IsValidToken(third));
+    REQUIRE(sut.IsValidToken(second));
+}
+
 TEST_CASE("AuthServiceImpl: Legacy persisted sessions are discarded", "[auth-service]") {
     IsolatedAuthEnv env;
     const auto auth_path = env.tmpDir + "/conf/auth.json";

@@ -35,6 +35,16 @@ void from_json(const nlohmann::json& j, MsgQueryAudioFileSend& v) {
     JSON_OPT(j, v, resData);
 }
 
+void from_json(const nlohmann::json& j, MsgDownloadAudioFileRecv& v) {
+    from_json(j, static_cast<MsgRecvHead&>(v));
+    JSON_OPT(j, v, fileId);
+}
+void to_json(nlohmann::json& j, const MsgDownloadAudioFileSend& v) {
+    to_json(j, static_cast<const MsgSendHead&>(v));
+    j["filePath"] = v.filePath;
+    j["fileName"] = v.fileName;
+}
+
 void to_json(nlohmann::json& j, const MsgDeleteAudioFileRecv& v) {
     to_json(j, static_cast<const MsgRecvHead&>(v));
     j["fileIdList"] = v.fileIdList;

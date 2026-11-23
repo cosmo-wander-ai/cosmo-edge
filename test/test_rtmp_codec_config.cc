@@ -75,6 +75,39 @@ TEST_CASE("RtmpCodecConfig parses AVC and HEVC parameter records atomically", "[
     }
 }
 
+TEST_CASE("RtmpCodecConfig accepts Annex B H264 RTSP parameter sets", "[rtmp][codec]") {
+    // A demuxer can supply SPS/PPS with either Annex B start-code length.
+    const std::vector<std::uint8_t> annexb{0, 0, 0, 1, 0x67, 0x42, 0, 0, 1, 0x68, 0xce};
+    RtmpCodecConfig config(media::VideoCodecType::kH264, 1920, 1080, 15.0F);
+    config.SetParameters(annexb);
+    REQUIRE(config.HasParameters());
+
+    const std::vector<std::uint8_t> idr{0, 0, 0, 1, 0x65, 0x88};
+    const std::uint8_t* output = nullptr;
+    std::size_t output_size    = 0;
+    media::HFrameType main_type{};
+    media::HFrameType lead_type{};
+    REQUIRE(config.ParseAndPrepare(idr.data(), idr.size(), output, output_size, main_type, lead_type));
+    const std::vector<std::uint8_t> expected{0, 0,    0,    1, 0x67, 0x42, 0, 0,    0,
+                                             1, 0x68, 0xce, 0, 0,    0,    1, 0x65, 0x88};
+    CHECK(std::vector<std::uint8_t>(output, output + output_size) == expected);
+    CHECK(main_type == media::HFrameType::I);
+
+    SECTION("an incomplete replacement retains previously valid parameters") {
+        config.SetParameters({0, 0, 0, 1, 0x67, 0x42});
+        REQUIRE(config.HasParameters());
+        REQUIRE(config.ParseAndPrepare(idr.data(), idr.size(), output, output_size, main_type, lead_type));
+        CHECK(std::vector<std::uint8_t>(output, output + output_size) == expected);
+    }
+    SECTION("an incomplete record is not accepted as a new configuration") {
+        RtmpCodecConfig incomplete(media::VideoCodecType::kH264, 1920, 1080, 15.0F);
+        incomplete.SetParameters({0, 0, 1, 0x67, 0x42});
+        CHECK_FALSE(incomplete.HasParameters());
+        incomplete.SetParameters({0, 0, 1, 0x67, 0x42, 0, 0, 1, 0x68, 0xce, 0, 0, 1, 0x65, 0x88});
+        CHECK_FALSE(incomplete.HasParameters());
+    }
+}
+
 TEST_CASE("RtmpCodecConfig handles invalid rate and resolution arithmetic", "[rtmp][codec]") {
     CHECK(RtmpCodecConfig::EstimateBitrate(INT_MAX, INT_MAX) == 4000000);
     CHECK(RtmpCodecConfig::EstimateBitrate(-1, 1080) == 1000000);

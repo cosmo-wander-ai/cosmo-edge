@@ -340,71 +340,38 @@ const switchTypeTab = (val) => {
   pageData.pageNum = 1
 }
 
-// ── 模型类型映射 ──
-// 通过对每个子类型调用 atomicModelList 来建立可靠映射
-const modelTypeMap = ref({})       // modelCode → subType (e.g. 'classify', 'yolov8_det')
-const modelMainTypeMap = ref({})   // modelCode → mainType (e.g. 'detect', 'classify')
-const allModelsByType = ref({})    // mainType → [model, model, ...]
-const allModelsCount = ref(0)
-
-// 子类型 → 主类型的映射表
+// Repository classification uses the model's registered type. Flow node
+// admission remains a separate backend decision.
+const modelTypeMap = ref({})
+let typeRequest = 0
 const subTypeToMain = {
-  yolov5_det: 'detect', yolov8_det: 'detect', yolov9_det: 'detect',
-  yolov11_det: 'detect', yolov12_det: 'detect', yolo26_det: 'detect',
-  yolo26_obb_det: 'detect',
+  detector: 'detect', axera_native_person: 'detect', axera_native_headshoulder: 'detect',
+  axera_native_vehicle: 'detect', axera_native_fire_smoke: 'detect', axera_native_rubbish: 'detect',
+  axera_native_mouse: 'detect', axera_native_face_test_only: 'detect',
+  axera_native_pedestrian_quality: 'classify', axera_native_face_quality: 'classify',
+  axera_native_pedestrian_attribute: 'classify', axera_native_vehicle_attribute: 'classify',
+  axera_native_hs_helmet: 'classify', axera_native_electric_vehicle: 'classify',
+  axera_native_face_mask: 'classify', axera_native_phone_smoking: 'classify',
+  axera_native_pedsleep: 'classify', axera_native_falldown: 'classify', axera_native_helmet: 'classify',
+  axera_native_pedestrian_reid: 'feature', axera_native_face_feature: 'feature',
   classify: 'classify', keypoints: 'keypoints', feature: 'feature', ocr: 'ocr',
   dino: 'foundation', sam2: 'foundation', qwen3vl: 'foundation', qwen3_5: 'foundation', laya_v: 'foundation'
 }
 
 const loadModelTypes = () => {
-  const subTypes = Object.keys(subTypeToMain)
-  const filePath = ''
-  const byType = { detect: [], classify: [], keypoints: [], feature: [], ocr: [], foundation: [] }
-  const seen = new Set()
-
-  const promises = subTypes.map(st =>
-    proxy.$API.atomicModelList({ modelName: '', modelType: st, filePath }).then(res => {
-      const list = res?.resData?.list || []
-      const mainType = subTypeToMain[st]
-      list.forEach(item => {
-        const code = item.atomicCode || item.modelCode || ''
-        if (!code || seen.has(code)) return
-        seen.add(code)
-        modelTypeMap.value[code] = st
-        modelMainTypeMap.value[code] = mainType
-        byType[mainType].push({
-          ...item,
-          modelCode: code,
-          modelName: item.atomicName || item.modelName || '',
-          _mainType: mainType,
-          _subType: st
-        })
-      })
-    }).catch(() => {})
-  )
-
-  Promise.all(promises).then(() => {
-    allModelsByType.value = byType
-    allModelsCount.value = seen.size
-  })
+  const request = ++typeRequest
+  proxy.$API.atomicModelList({ modelName: '', modelType: '', filePath: '' }).then(res => {
+    if (request !== typeRequest) return
+    const rows = res?.resData?.list || []
+    modelTypeMap.value = Object.fromEntries(rows
+      .filter(row => row.atomicCode && row.modelType)
+      .map(row => [row.atomicCode, row.modelType]))
+  }).catch(() => {})
 }
 
-// 获取模型的主类型
 const getModelMainType = (model) => {
-  // 优先用已建立的映射
-  const mapped = modelMainTypeMap.value[model.modelCode]
-  if (mapped) return mapped
-
-  // fallback：名称推断
-  const name = (model.modelName || '').toLowerCase()
-  if (/dino/i.test(name)) return 'foundation'
-  if (/sam2/i.test(name)) return 'foundation'
-  if (/qwen/i.test(name)) return 'foundation'
-  if (/yolo|det/i.test(name)) return 'detect'
-  if (/classif/i.test(name)) return 'classify'
-  if (/keypoint|pose/i.test(name)) return 'keypoints'
-  if (/feature|embed/i.test(name)) return 'feature'
-  return 'other'
+  const subtype = String(modelTypeMap.value[model?.modelCode] || '').toLowerCase()
+  return subTypeToMain[subtype] || (subtype.includes('_det') ? 'detect' : 'other')
 }
 
 // All views use complete model records; the type endpoint only supplies membership.
@@ -422,17 +389,22 @@ const filteredModels = computed(() => {
   return matchingModels.value.slice(start, start + pageData.pageSize)
 })
 
-// 类型 Tab 计数：使用按类型查询的精确结果
+// Use the same membership for tab counts and matching cards.
 const modelTypeTabs = computed(() => {
-  const byType = allModelsByType.value
+  const byType = {}
+  for (const model of allModels.value) {
+    const type = getModelMainType(model)
+    byType[type] = (byType[type] || 0) + 1
+  }
   return [
-    { label: t('common.all'), value: '', count: allModelsCount.value || allModels.value.length },
-    { label: t('glossary.modelTypeDetect'), value: 'detect', count: (byType.detect || []).length },
-    { label: t('glossary.modelTypeClassify'), value: 'classify', count: (byType.classify || []).length },
-    { label: t('glossary.modelTypeKeypoints'), value: 'keypoints', count: (byType.keypoints || []).length },
-    { label: t('glossary.modelTypeFeature'), value: 'feature', count: (byType.feature || []).length },
-    { label: t('glossary.modelTypeOcr'), value: 'ocr', count: (byType.ocr || []).length },
-    { label: t('glossary.modelTypeFoundation'), value: 'foundation', count: (byType.foundation || []).length }
+    { label: t('common.all'), value: '', count: allModels.value.length },
+    { label: t('glossary.modelTypeDetect'), value: 'detect', count: byType.detect || 0 },
+    { label: t('glossary.modelTypeClassify'), value: 'classify', count: byType.classify || 0 },
+    { label: t('glossary.modelTypeKeypoints'), value: 'keypoints', count: byType.keypoints || 0 },
+    { label: t('glossary.modelTypeFeature'), value: 'feature', count: byType.feature || 0 },
+    { label: t('glossary.modelTypeOcr'), value: 'ocr', count: byType.ocr || 0 },
+    { label: t('glossary.modelTypeFoundation'), value: 'foundation', count: byType.foundation || 0 },
+    { label: t('glossary.other'), value: 'other', count: byType.other || 0 }
   ]
 })
 
@@ -447,7 +419,7 @@ const getModelIconType = (model) => {
   if (subtype === 'dino') return 'text-detection'
   if (subtype === 'sam2') return 'segmentation'
   if (['qwen3vl', 'qwen3_5', 'laya_v'].includes(subtype)) return 'multimodal'
-  return modelMainTypeMap.value[model?.modelCode] || model?._mainType || subTypeToMain[subtype] || 'other'
+  return model?._mainType || getModelMainType(model)
 }
 
 // ── 模型使用状态（通过 algorithmInquire 获取算法列表中的 models 字段关联） ──
@@ -512,15 +484,16 @@ const detailModel = ref({})
 const detailModelDisplay = computed(() => getModelDisplay(detailModel.value))
 const modelLabelData = ref([])
 const isX86 = ref(false)
+const isAxera = ref(false)
 const isRknn = ref(false)
 const isRkllm = ref(false)
-const modelFileExtension = computed(() => isRknn.value ? '.rknn' : (isX86.value ? '.onnx' : '.bmodel'))
+const modelFileExtension = computed(() => isAxera.value ? '.axmodel' : (isRknn.value ? '.rknn' : (isX86.value ? '.onnx' : '.bmodel')))
 const addModelPrimaryFileExtension = computed(() =>
   isRkllm.value && addModelForm.modelType === 'qwen3_5'
     ? '.rkllm'
     : modelFileExtension.value
 )
-const importedModelFileName = computed(() => isRknn.value ? 'model.rknn' : (isX86.value ? 'model.onnx' : 'model.nn'))
+const importedModelFileName = computed(() => isAxera.value ? 'model.axmodel' : (isRknn.value ? 'model.rknn' : (isX86.value ? 'model.onnx' : 'model.nn')))
 const addModelDialogTitle = computed(() => addModelMode.value === 'edit' ? t('action.editModel') : t('action.addModel'))
 const addModelMode = ref('add')
 
@@ -817,7 +790,10 @@ const init = async () => {
     // The request interceptor displays server and network errors.
   }
 }
-onUnmounted(() => { repositoryRequest += 1 })
+onUnmounted(() => {
+  repositoryRequest += 1
+  typeRequest += 1
+})
 
 const refreshModelRepository = () => {
   init()
@@ -1417,6 +1393,7 @@ onMounted(() => {
       const rkllmAvailableItem = devInfoList.find(item => item.key === 'rkllmAvailable')
       const acceleratorBackend = acceleratorBackendItem?.value?.toLowerCase() || ''
       const deviceType = deviceTypeItem?.value?.toLowerCase() || ''
+      isAxera.value = acceleratorBackend === 'axera'
       isX86.value = acceleratorBackend === 'onnx_runtime' || deviceType.includes('x86')
       // Prefer the backend capability reported by new engines. Device-name
       // fallbacks keep compatibility with older releases without adding a

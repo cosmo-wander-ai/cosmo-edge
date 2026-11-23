@@ -109,13 +109,15 @@ System::MsgQueryHardwareResourceSend MessageSystemHandler::Handle(
     auto items         = device_info_.GetHardwareResource(customScore);
     for (auto& item : items) {
         System::MsgQueryHardwareResourceSend::Item it{};
-        it.key          = item.key;
-        it.name         = item.name;
-        it.usedPercent  = item.usedPercent;
-        it.usedSize     = item.usedSize;
-        it.unusedSize   = item.unusedSize;
-        it.available    = item.available;
-        it.memoryDomain = item.memoryDomain;
+        it.key           = item.key;
+        it.name          = item.name;
+        it.usedPercent   = item.usedPercent;
+        it.usedSize      = item.usedSize;
+        it.unusedSize    = item.unusedSize;
+        it.available     = item.available;
+        it.memoryDomain  = item.memoryDomain;
+        it.totalSize     = item.totalSize;
+        it.allocatedSize = item.allocatedSize;
         retData.resData.itemList.push_back(std::move(it));
     }
     retData.resData.customScore                 = COSMO_FORMAT("{:.4f}", customScore);
@@ -507,6 +509,18 @@ System::MsgExportFileSend MessageSystemHandler::Handle(System::MsgExportFileRecv
     }
     errc = system_op_.ExportLogs(retData.resData.fileName, retData.resData.fileUrl);
     return retData;
+}
+
+System::MsgDownloadLogsSend MessageSystemHandler::Handle(System::MsgDownloadLogsRecv&& /*data*/,
+                                                         const RequestDispatchContext& context,
+                                                         std::error_condition& errc) {
+    System::MsgDownloadLogsSend result{};
+    if (context.transport != RequestTransport::kHttp || context.principal.empty()) {
+        errc = util::ErrorEnum::InvalidParam;
+        return result;
+    }
+    errc = system_op_.ExportLogsForDownload(result.filePath, result.fileName);
+    return result;
 }
 
 // Upgrade

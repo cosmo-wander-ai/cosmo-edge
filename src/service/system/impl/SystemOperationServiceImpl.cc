@@ -23,6 +23,10 @@ namespace cosmo::service {
 
 namespace fs = std::filesystem;
 
+namespace {
+    std::mutex log_export_mutex;
+}
+
 void SystemOperationServiceImpl::RebootDevice(const std::string& reason) {
     reboot_mgr_.Reboot(reason);
 }
@@ -38,8 +42,7 @@ void SystemOperationServiceImpl::ResetDevice(const std::string& reason) {
 
 cosmo::util::ErrorEnum SystemOperationServiceImpl::ExportLogs(std::string& fileName, std::string& fileUrl) {
     // Limit peak snapshot storage when multiple users request an export.
-    static std::mutex export_mutex;
-    const std::lock_guard<std::mutex> lock(export_mutex);
+    const std::lock_guard<std::mutex> lock(log_export_mutex);
     fileName.clear();
     fileUrl.clear();
     auto timestamp      = cosmo::util::GetMilliseconds();
@@ -84,6 +87,27 @@ cosmo::util::ErrorEnum SystemOperationServiceImpl::ExportLogs(std::string& fileN
 
     fileName = archive_name;
     fileUrl  = (fs::path(cosmo::path::GetWebAcessPath(timestamp)) / fileName).string();
+    return {};
+}
+
+cosmo::util::ErrorEnum SystemOperationServiceImpl::ExportLogsForDownload(std::string& filePath,
+                                                                         std::string& fileName) {
+    const std::lock_guard<std::mutex> lock(log_export_mutex);
+    filePath.clear();
+    fileName.clear();
+    const auto temporary_root = fs::path(cosmo::path::GetTemporaryDirPath());
+    const auto archive_name   = "IedLog" + std::to_string(cosmo::util::GetMilliseconds()) + "_" +
+                              cosmo::util::GenerateUUID() + ".tar";
+    const auto archive_path = temporary_root / archive_name;
+    std::string error;
+    if (!CreateLogArchive(fs::path(cosmo::path::GetLogPath()).lexically_normal(),
+                          fs::path(cosmo::path::GetCfgPath()).lexically_normal(), temporary_root,
+                          archive_path, error)) {
+        LOG_ERRO("Log export failed: {}", error);
+        return cosmo::util::ErrorEnum::SysErr;
+    }
+    filePath = archive_path.string();
+    fileName = archive_name;
     return {};
 }
 

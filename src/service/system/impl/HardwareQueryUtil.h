@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+#include <iosfwd>
 #include <string>
 #include <utility>
 #include <vector>
@@ -7,6 +9,13 @@
 #include "util/dto/CosmoFwd.h"
 
 namespace cosmo::service::detail {
+
+struct AxMemoryUsage {
+    int64_t cmmTotalBytes{0};
+    int64_t cmmAvailableBytes{-1};
+    int64_t linuxAllocatedBytes{0};
+    int64_t bootAllocatedBytes{0};
+};
 
 // Static utility for querying hardware and OS-level system information.
 // Extracted from DeviceInfoServiceImpl to separate platform-specific
@@ -39,6 +48,13 @@ public:
 
     // Read /proc/meminfo for MemTotal and MemAvailable.
     static cosmo::MsgMemoryInfo QueryMemoryUtilization();
+
+    // Interpret AX CMM counters and verify disjoint Linux/CMM boot allocations.
+    static AxMemoryUsage ParseAxMemoryUsage(std::istream& cmm, std::istream& cmdline, std::istream& iomem,
+                                            int64_t linux_total_bytes);
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+    static AxMemoryUsage QueryAxMemoryUsage(int64_t linux_total_bytes);
+#endif
 
     // Query disk usage via statfs() on the application base directory.
     static cosmo::MsgDiskInfo QueryDiskUtilization();

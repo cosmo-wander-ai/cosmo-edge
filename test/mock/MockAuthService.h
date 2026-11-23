@@ -18,6 +18,7 @@ public:
     MAKE_MOCK3(ChangePasswd,
                cosmo::util::ErrorEnum(const std::string&, const std::string&, const std::string&), override);
     MAKE_MOCK1(IsValidToken, bool(const std::string&), override);
+    MAKE_MOCK1(RevokeToken, bool(const std::string&), override);
     MAKE_CONST_MOCK0(IsDefaultPassword, bool(), override);
 };
 

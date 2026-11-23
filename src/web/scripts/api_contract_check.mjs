@@ -39,6 +39,11 @@ assert.equal(api.getUploadCapabilities(), result)
 assert.deepEqual(JSON.parse(JSON.stringify(calls.pop())), {
   url: '/gtw/cwai/atomic/model/uploadCapabilities', method: 'post', data: {}, silentError: true
 })
+assert.equal(api.logout(), result)
+assert.deepEqual(JSON.parse(JSON.stringify(calls.pop())), {
+  url: '/gtw/cwai/login/Logout', method: 'post', data: {}, timeout: 5000,
+  silentError: true, suppressAuthRedirect: true
+})
 assert.equal(api.exportAlgorithmLayout(), '/gtw/cwai/algorithm/layout/export')
 assert.equal(api.queryModelAuthorization(), result)
 assert.deepEqual(JSON.parse(JSON.stringify(calls.pop())), {

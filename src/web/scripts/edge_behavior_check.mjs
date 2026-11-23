@@ -38,7 +38,7 @@ for (const platform of platforms) {
   const navigations = []
   const router = { replace: target => navigations.push(target) }
   const login = await mountComponent('views/LoginPage.vue', {
-    mocks: { 'vue-router': { useRouter: () => router }, 'js-md5': { default: value => `hashed:${value}` } },
+    mocks: { 'vue-router': { useRouter: () => router, useRoute: () => ({ query: {} }) }, 'js-md5': { default: value => `hashed:${value}` } },
     globals: globalsFor(storage),
     api: {
       dologin: async data => { assert.deepEqual(plain(data), { account: 'operator', pwd: 'hashed:password' }); return { resData: { mtk: 'new-token', account: 'operator' } } },
@@ -65,12 +65,13 @@ for (const platform of platforms) {
       'js-md5': { default: value => value }, '@/components/OnboardingGuide.vue': empty,
       '@/components/eventBus.js': { default: { $on() {}, $off() {}, $emit() {} } }
     },
-    globals: globalsFor(storage), api: { boxGetLogo: async () => ({ resData: {} }) }
+    globals: globalsFor(storage), api: { boxGetLogo: async () => ({ resData: {} }), logout: async () => ({ resCode: 1 }) }
   })
   try {
     layout.all(n => n.props.class === 'user-info')[0].props.onClick({ stopPropagation() {} })
     await settle(layout)
     layout.all(n => n.props.class === 'dropdown-item danger')[0].props.onClick()
+    await settle(layout)
     assert.equal(storage.values.has('platformType'), false, 'logout clears the old key')
     assert.equal(storage.values.has('mtk'), false)
     assert.equal(navigations.at(-1), '/boxLogin')

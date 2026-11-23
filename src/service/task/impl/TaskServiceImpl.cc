@@ -11,6 +11,9 @@
 #include "flow/common/AlgDataRecord.h"
 #include "flow/task/TaskBase.h"
 #include "flow/task/TaskBaseParam.h"
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+#include "flow/detect/AxeraGraphAdmission.h"
+#endif
 #include "service/algorithm/IActionService.h"
 #include "service/algorithm/IAlgorithmQuery.h"
 #include "service/detail/ServiceRegistry.h"
@@ -237,6 +240,16 @@ bool TaskServiceImpl::TaskStart(const std::string& channelId, const std::string&
         }
     }
 
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+    if (!task_el->is_started.load(std::memory_order_acquire)) {
+        const auto& start_graph = need_refresh ? latest_alg : task_el->action_alg;
+        if (start_graph && !axera_graph_admission::Admits(start_graph->algorithmCode, start_graph->category,
+                                                          start_graph->workFlow)) {
+            LOG_WARN("Channel:{} Task:{} AX model/scene admission failed", channelId, taskId);
+            return false;
+        }
+    }
+#endif
     // No algorithm refresh needed; start current task directly
     if (!need_refresh) {
         return task_base_->TaskStart(task_el);

@@ -162,6 +162,23 @@ bool AuthServiceImpl::IsValidToken(const std::string& token) {
     return ResolvePrincipal(token, principal);
 }
 
+bool AuthServiceImpl::RevokeToken(const std::string& token) {
+    std::lock_guard<std::shared_mutex> lock(mtx_);
+    const auto it = token_user_.find(token);
+    if (it == token_user_.end()) {
+        return false;
+    }
+    const auto [begin, end] = token_time_.equal_range(it->second.createdAt);
+    for (auto time_it = begin; time_it != end; ++time_it) {
+        if (time_it->second == token) {
+            token_time_.erase(time_it);
+            break;
+        }
+    }
+    token_user_.erase(it);
+    return true;
+}
+
 bool AuthServiceImpl::ResolvePrincipal(const std::string& token, std::string& principal) {
     principal.clear();
     auto now = Clock::now();

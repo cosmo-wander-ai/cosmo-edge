@@ -43,6 +43,7 @@
         :node-data="detailPanelNodeData"
         :atomic-list="atomicList"
         :scene-params="algorithmMetadata.params || []"
+        :graph-context="graphCandidateContext"
         :position="screenPanelPosition"
         :viewport="editorViewport"
         :docked="panelDocked"
@@ -100,6 +101,7 @@ import {
 } from './layoutGeometry.js'
 
 const props = defineProps({
+  atomicCode: { type: String, default: '' },
   width: {
     type: Number,
     default: 0
@@ -132,6 +134,11 @@ const customMetadata = computed(() =>
 )
 const nodes = ref([])
 const edges = ref([])
+const graphCandidateContext = computed(() => ({
+  sceneId: String(props.atomicCode || props.algorithmData?.algorithmCode || ''),
+  category: String(props.algorithmData?.algorithmCategory || ''),
+  algorithmProcessdata: JSON.stringify(collectFlowData(nodes.value, edges.value).items)
+}))
 const activeEdgeId = ref(null)
 const closeEdgeMenu = () => { activeEdgeId.value = null }
 const nodeTypes = {

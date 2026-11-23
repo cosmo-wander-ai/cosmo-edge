@@ -24,6 +24,7 @@ public:
     cosmo::util::ErrorEnum ChangePasswd(const std::string& token, const std::string& passwdMd5Old,
                                         const std::string& passwdMd5New) override;
     bool IsValidToken(const std::string& token) override;
+    bool RevokeToken(const std::string& token) override;
     bool ResolvePrincipal(const std::string& token, std::string& principal) override;
     bool IsDefaultPassword() const override;
 

@@ -24,6 +24,9 @@ export default {
       data
     })
   },
+  queryGraphModelCandidates: data => request({
+    url: '/gtw/cwai/Model/QueryGraphModelCandidates', method: 'post', data
+  }),
   // 编排算法详情接口
   algorithmLayoutDetail: (data) => {
     return request({

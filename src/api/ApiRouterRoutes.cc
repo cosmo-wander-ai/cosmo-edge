@@ -10,9 +10,11 @@
 
 #include "api/ApiRouter.h"
 #include "api/ApiRouterInternal.h"
+#include "api/FaceLibraryImagePath.h"
 #include "nlohmann/json.hpp"
 #include "service/detail/ServiceRegistry.h"
 #include "service/network/IAuthService.h"
+#include "util/CipherUtil.h"
 #include "util/Log.h"
 #include "util/PathUtil.h"
 
@@ -89,6 +91,66 @@ namespace {
         return true;
     }
 
+    std::string ReadEventImage(const std::string& body) {
+        const auto failure = [] {
+            return nlohmann::json{{"resCode", 0}, {"resMsg", "Image unavailable"}}.dump();
+        };
+        const auto request = nlohmann::json::parse(body, nullptr, false);
+        if (!request.is_object() || !request.contains("path") || !request["path"].is_string())
+            return failure();
+        const auto value = request["path"].get<std::string>();
+        const fs::path requested(value);
+        if (!requested.is_absolute() || requested.lexically_normal().string() != value)
+            return failure();
+
+        std::vector<std::string> parts;
+        for (const auto& part : requested.relative_path())
+            parts.push_back(part.string());
+        const auto digits = [](const std::string& text, size_t size) {
+            return text.size() == size && std::all_of(text.begin(), text.end(),
+                                                      [](unsigned char c) { return c >= '0' && c <= '9'; });
+        };
+        if (parts.size() != 5 || parts[0] != "event" || !digits(parts[1], 4) || !digits(parts[2], 2) ||
+            !digits(parts[3], 2) || !path::IsSafePathComponent(parts[4]))
+            return failure();
+        const auto extension = fs::path(parts[4]).extension().string();
+        if (extension != ".jpg" && extension != ".jpeg" && extension != ".png")
+            return failure();
+
+        // Resolve each component under the managed root without following links.
+        ScopedFd root(
+            open(path::GetEventRootPath(false).c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+        if (root.Get() < 0)
+            return failure();
+        ScopedFd year(openat(root.Get(), parts[1].c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+        if (year.Get() < 0)
+            return failure();
+        ScopedFd month(openat(year.Get(), parts[2].c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+        if (month.Get() < 0)
+            return failure();
+        ScopedFd day(openat(month.Get(), parts[3].c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+        if (day.Get() < 0)
+            return failure();
+        ScopedFd file(openat(day.Get(), parts[4].c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
+        struct stat info {};
+        if (file.Get() < 0 || fstat(file.Get(), &info) != 0 || !S_ISREG(info.st_mode) || info.st_size <= 0 ||
+            info.st_size > 8 * 1024 * 1024)
+            return failure();
+        std::string bytes(static_cast<size_t>(info.st_size), '\0');
+        size_t done = 0;
+        while (done < bytes.size()) {
+            const auto count = read(file.Get(), bytes.data() + done, bytes.size() - done);
+            if (count <= 0)
+                return failure();
+            done += static_cast<size_t>(count);
+        }
+        const auto mime = extension == ".png" ? "image/png" : "image/jpeg";
+        return nlohmann::json{
+            {"resCode", 1},
+            {"resData", {{"dataUrl", std::string("data:") + mime + ";base64," + util::EncBase64(bytes)}}}}
+            .dump();
+    }
+
 }  // namespace
 
 void ApiRouter::RegisterModelRoutes() {
@@ -96,6 +158,7 @@ void ApiRouter::RegisterModelRoutes() {
     ROUTE("/gtw/cwai/atomic/Model/", kAuth, model_handler_, Model, Page);
     ROUTE_CONTEXT("/gtw/cwai/atomic/Model/", kAuth, model_handler_, Model, Upload);
     ROUTE("/gtw/cwai/atomic/Model/", kAuth, model_handler_, Model, List);
+    ROUTE("/gtw/cwai/Model/", kAuth, model_handler_, Model, QueryGraphModelCandidates);
     ROUTE_CONTEXT("/gtw/cwai/atomic/Model/", kAuth, model_handler_, Model, Add);
     url_map_[util::ToLower("/gtw/cwai/atomic/Model/UploadTemp")] = {
         kAuth,
@@ -141,10 +204,19 @@ void ApiRouter::RegisterScheduleRoutes() {
 
 void ApiRouter::RegisterEventRoutes() {
     // ── Event ──────────────────────────────────────────────────────────
+    url_map_[util::ToLower("/gtw/cwai/Event/ReadImage")] = {
+        kAuth, {}, [](const RequestDispatchContext& context, const std::string& body, std::error_condition&) {
+            // MQTT's existing kAuth admission does not establish an HTTP user identity.
+            if (context.transport != RequestTransport::kHttp || context.principal.empty())
+                return nlohmann::json{{"resCode", 0}, {"resMsg", "Image unavailable"}}.dump();
+            return ReadEventImage(body);
+        }};
     ROUTE("/gtw/cwai/Event/", kAuth, event_handler_, Event, Page);
     ROUTE("/gtw/cwai/Event/", kAuth, event_handler_, Event, Delete);
     ROUTE("/gtw/cwai/Event/", kAuth, event_handler_, Event, LayaReviewPage);
     ROUTE("/gtw/cwai/Event/", kAuth, event_handler_, Event, ExportAlarm);
+    ROUTE_CONTEXT("/gtw/cwai/Event/", kAuth, event_handler_, Event, DownloadAlarm);
+    file_download_routes_.insert(util::ToLower("/gtw/cwai/Event/DownloadAlarm"));
     ROUTE("/gtw/cwai/Event/", kAuth, event_handler_, Event, QueryPassengerFlowNumber);
 }
 
@@ -205,6 +277,8 @@ void ApiRouter::RegisterSystemRoutes() {
     ROUTE("/gtw/cwai/System/", kAuth, system_handler_, System, QueryDevRestartParam);
     ROUTE("/gtw/cwai/System/", kAuth, system_handler_, System, ResetSystem);
     ROUTE("/gtw/cwai/System/", kAuth, system_handler_, System, ExportFile);
+    ROUTE_CONTEXT("/gtw/cwai/System/", kAuth, system_handler_, System, DownloadLogs);
+    file_download_routes_.insert(util::ToLower("/gtw/cwai/System/DownloadLogs"));
     ROUTE("/gtw/cwai/System/", kAuth, system_handler_, System, CheckUpgradeSpace);
     ROUTE_CONTEXT("/gtw/cwai/System/", kAuth, system_handler_, System, Upgrade);
     ROUTE("/gtw/cwai/System/", kAuth, system_handler_, System, QueryModelAuthorization);
@@ -238,6 +312,49 @@ void ApiRouter::RegisterSystemRoutes() {
 }
 
 void ApiRouter::RegisterLibraryRoutes() {
+    // Face library images remain denied by nginx; this route requires an
+    // authenticated HTTP principal and reads only managed UUID JPEGs.
+    url_map_[util::ToLower("/gtw/cwai/Library/ReadFaceImage")] = {
+        kAuth, {}, [](const RequestDispatchContext& context, const std::string& body, std::error_condition&) {
+            const auto failure = [] {
+                return nlohmann::json{{"resCode", 0}, {"resMsg", "Image unavailable"}}.dump();
+            };
+            if (context.transport != RequestTransport::kHttp || context.principal.empty())
+                return failure();
+            const auto req = nlohmann::json::parse(body, nullptr, false);
+            if (!req.is_object() || !req.contains("path") || !req["path"].is_string())
+                return failure();
+            const auto value = req["path"].get<std::string>();
+            const fs::path requested(value);
+            if (!requested.is_absolute() || requested.lexically_normal().string() != value)
+                return failure();
+            std::vector<std::string> parts;
+            for (const auto& part : requested.relative_path())
+                parts.push_back(part.string());
+            if (!api::face_library_image::IsImage(parts))
+                return failure();
+            ScopedFd root(
+                open(path::GetFaceLibPhotoDir().c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+            if (root.Get() < 0)
+                return failure();
+            ScopedFd file(openat(root.Get(), parts[2].c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
+            struct stat info {};
+            if (file.Get() < 0 || fstat(file.Get(), &info) != 0 || !S_ISREG(info.st_mode) ||
+                info.st_size <= 0 || info.st_size > 8 * 1024 * 1024)
+                return failure();
+            std::string bytes(static_cast<size_t>(info.st_size), '\0');
+            size_t done = 0;
+            while (done < bytes.size()) {
+                const auto n = read(file.Get(), bytes.data() + done, bytes.size() - done);
+                if (n <= 0)
+                    return failure();
+                done += static_cast<size_t>(n);
+            }
+            return nlohmann::json{
+                {"resCode", 1},
+                {"resData", {{"dataUrl", std::string("data:image/jpeg;base64,") + util::EncBase64(bytes)}}}}
+                .dump();
+        }};
     // ── Face Library ────────────────────────────────────────────────────────
     ROUTE("/gtw/cwai/Library/", kAuth, lib_handler_, Lib, ModifyFaceLib);
     ROUTE_CONTEXT("/gtw/cwai/Library/", kAuth, lib_handler_, Lib, ModifyFacePicLib);
@@ -277,6 +394,8 @@ void ApiRouter::RegisterFileRoutes() {
 void ApiRouter::RegisterAudioRoutes() {
     // ── Audio ──────────────────────────────────────────────────────────
     ROUTE("/gtw/cwai/Audio/", kAuth, audio_handler_, Audio, QueryAudioFile);
+    ROUTE_CONTEXT("/gtw/cwai/Audio/", kAuth, audio_handler_, Audio, DownloadAudioFile);
+    file_download_routes_.insert(util::ToLower("/gtw/cwai/Audio/DownloadAudioFile"));
     ROUTE("/gtw/cwai/Audio/", kAuth, audio_handler_, Audio, DeleteAudioFile);
     ROUTE("/gtw/cwai/Audio/", kAuth, audio_handler_, Audio, ModifyAudioDevice);
     ROUTE("/gtw/cwai/Audio/", kAuth, audio_handler_, Audio, QueryAudioDevice);

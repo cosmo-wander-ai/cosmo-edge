@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 #include <system_error>
 
 #include "service/network/dto/AuthDto.h"
@@ -12,6 +13,7 @@ namespace cosmo {
 class MessageAuthHandler {
 public:
     explicit MessageAuthHandler(service::IAuthService& auth_svc);
+    bool RevokeToken(const std::string& token) const;
 
     [[nodiscard]] Auth::MsgDoLoginSend Handle(Auth::MsgDoLoginRecv&& data, std::error_condition& errc) const;
     [[nodiscard]] Auth::MsgModifyPasswordSend Handle(Auth::MsgModifyPasswordRecv&& data,

@@ -351,7 +351,7 @@ TEST_CASE("Upload consumers bind purpose before invoking business services", "[u
             StageFile(staging, temp.Path(), "owner", service::UploadPurpose::kAudio, "alert.wav", "audio");
         REQUIRE_CALL(audio_service, AudioFileCount()).RETURN(0U);
         REQUIRE_CALL(audio_service, AudioFileMaxCount()).RETURN(10U);
-        REQUIRE_CALL(audio_service, AddAudioFile(upload.server_path)).RETURN(true);
+        REQUIRE_CALL(audio_service, AddAudioFile(upload.server_path)).RETURN(util::ErrorEnum::Success);
         MessageImportFileHandler handler;
         service::MsgImportFileRecv request;
         request.importType = 5;
@@ -359,6 +359,25 @@ TEST_CASE("Upload consumers bind purpose before invoking business services", "[u
         std::error_condition error;
         (void)handler.Handle(std::move(request), HttpContext("owner"), error);
         CHECK(error == util::ErrorEnum::Success);
+        CHECK_FALSE(fs::exists(upload.server_path));
+    }
+
+    SECTION("audio import preserves specific failures") {
+        test::MockAudioService audio_service;
+        test::ScopedServiceOverride<service::IAudioService> audio(audio_service);
+        const auto upload =
+            StageFile(staging, temp.Path(), "owner", service::UploadPurpose::kAudio, "alert.wav", "audio");
+        const auto expected = GENERATE(util::ErrorEnum::ExistedName, util::ErrorEnum::FileMoveFailed);
+        REQUIRE_CALL(audio_service, AudioFileCount()).RETURN(0U);
+        REQUIRE_CALL(audio_service, AudioFileMaxCount()).RETURN(10U);
+        REQUIRE_CALL(audio_service, AddAudioFile(upload.server_path)).RETURN(expected);
+        MessageImportFileHandler handler;
+        service::MsgImportFileRecv request;
+        request.importType = 5;
+        request.uploadId   = upload.upload_id;
+        std::error_condition error;
+        (void)handler.Handle(std::move(request), HttpContext("owner"), error);
+        CHECK(error == expected);
         CHECK_FALSE(fs::exists(upload.server_path));
     }
 

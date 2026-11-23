@@ -18,7 +18,7 @@
           <span>{{ $t('home.updateTime', { time: resourceUpdateTime || '--:--:--' }) }}</span>
         </div>
       </div>
-      <div class="resource-grid">
+      <div class="resource-grid" :class="{ 'resource-grid-ax': hasAxMemorySplit }">
         <div
           v-for="item in displayResourceList"
           :key="item.key"
@@ -26,22 +26,24 @@
         >
           <div class="resource-item-top">
             <span class="resource-label">{{ item.name }}</span>
-            <span class="resource-state" :class="'state-' + item.level">{{ item.statusText }}</span>
+            <span v-if="item.statusText" class="resource-state" :class="'state-' + item.level">{{ item.statusText }}</span>
           </div>
           <div class="resource-value-row">
-            <span class="resource-value">{{ item.usedPercent }}</span>
-            <span v-if="item.isAvailable" class="resource-unit">%</span>
+            <span class="resource-value" :class="{ 'resource-capacity-value': item.capacityOnly }">{{ item.value }}</span>
+            <span v-if="item.isAvailable && !item.capacityOnly" class="resource-unit">%</span>
+            <span v-if="item.isAvailable && !item.capacityOnly && item.totalSize" class="resource-total">{{ $t('resource.memoryTotal', { value: item.totalSize }) }}</span>
           </div>
-          <div class="resource-progress">
+          <div v-if="!item.capacityOnly" class="resource-progress">
             <div
               class="resource-progress-fill"
               :class="'fill-' + item.level"
               :style="{ width: item.safePercent + '%' }"
             ></div>
           </div>
-          <div class="resource-detail">
-            <span>{{ item.usedLabel }}</span>
-            <span>{{ item.unusedLabel }}</span>
+          <div v-if="item.usedLabel || item.unusedLabel || item.allocationLabel" class="resource-detail">
+            <span v-if="item.usedLabel">{{ item.usedLabel }}</span>
+            <span v-if="item.unusedLabel">{{ item.unusedLabel }}</span>
+            <span v-if="item.allocationLabel" class="resource-allocation">{{ item.allocationLabel }}</span>
           </div>
         </div>
       </div>
@@ -197,6 +199,7 @@ import { ref, onMounted, onBeforeUnmount, getCurrentInstance, computed } from 'v
 import { useRouter } from 'vue-router'
 import { t, localeColon, currentLocale } from '@/i18n'
 import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
+import { eventImageUrl, loadEventImageUrl } from '@/utils/eventImage'
 import DetailDialog from '../box/eventQuery/components/detailDialog.vue'
 import VideoFrequency from '@/components/videoPlaying265.vue'
 
@@ -225,13 +228,11 @@ const MEMORY_KEYS = [
   'TPPMemoryUtilization'
 ]
 
-const DISPLAY_RESOURCE_KEYS = [
-  'cpuUtilization',
-  'mergedMemoryUtilization',
-  'npuUtilization',
-  'eMMCUtilization',
-  'packetDiscardUtilization'
-]
+const AX_MEMORY_KEYS = ['memoryAllocationTotal', 'generalMemoryUtilization', 'axCmmMemoryUtilization']
+
+const hasAxMemorySplit = computed(() => resourceList.value.some(item =>
+  item?.key === 'memoryAllocationTotal' || item?.key === 'axCmmMemoryUtilization'
+))
 
 const queryHardwareResource = () => {
   proxy.$API.queryHardwareResource().then((res) => {
@@ -247,74 +248,89 @@ const displayResourceList = computed(() => {
     return map
   }, {})
 
-  const mergedMemory = getMergedMemoryItem()
-  if (mergedMemory) itemMap.mergedMemoryUtilization = mergedMemory
+  const memoryItems = hasAxMemorySplit.value
+    ? AX_MEMORY_KEYS.map(key => itemMap[key] || { key, available: 0 })
+    : [getMergedMemoryItem()]
 
-  return DISPLAY_RESOURCE_KEYS.map(key => itemMap[key])
-    .filter(Boolean)
-    .map(normalizeResourceItem)
+  return [itemMap.cpuUtilization, ...memoryItems, itemMap.npuUtilization, itemMap.eMMCUtilization, itemMap.packetDiscardUtilization]
+    .filter(Boolean).map(normalizeResourceItem)
 })
 
 const getMergedMemoryItem = () => {
-  const memoryItems = dedupeMemoryItems(resourceList.value.filter(item => MEMORY_KEYS.includes(item?.key)))
-  if (!memoryItems.length) return null
+  const reportedItems = resourceList.value.filter(item => MEMORY_KEYS.includes(item?.key))
+  if (!reportedItems.length) return null
+
+  const memoryItems = dedupeMemoryItems(reportedItems.filter(item => item.available !== 0))
 
   const capacityItems = memoryItems
     .map(item => ({
+      item,
       used: parseSizeToMiB(item.usedSize),
       unused: parseSizeToMiB(item.unusedSize),
-      memoryDomain: item.memoryDomain || item.key
+      memoryDomain: getMemoryDomain(item)
     }))
-    .filter(item => item.used !== null && item.unused !== null)
+    .filter(item => item.used !== null && item.unused !== null && item.used + item.unused > 0)
 
   if (capacityItems.length) {
     const used = capacityItems.reduce((sum, item) => sum + item.used, 0)
     const unused = capacityItems.reduce((sum, item) => sum + item.unused, 0)
     const total = used + unused
-    const memoryDomains = new Set(capacityItems.map(item => item.memoryDomain))
-
     return {
       key: 'mergedMemoryUtilization',
-      memoryDomain: memoryDomains.size === 1 ? capacityItems[0].memoryDomain : 'combined',
-      usedPercent: total ? Math.round((used / total) * 100) : 0,
+      memoryDomain: capacityItems.length === 1 ? capacityItems[0].memoryDomain : 'combined',
+      usedPercent: capacityItems.length === 1 ? capacityItems[0].item.usedPercent : Math.round((used / total) * 100),
       usedSize: formatCapacity(used),
-      unusedSize: formatCapacity(unused)
+      unusedSize: formatCapacity(unused),
+      totalSize: formatCapacity(total)
     }
   }
 
-  const percentSum = memoryItems.reduce((sum, item) => sum + toPercentNumber(item.usedPercent), 0)
+  const candidates = memoryItems.length ? memoryItems : reportedItems
+  const primary = candidates.find(item => item.key === 'generalMemoryUtilization') || candidates[0]
   return {
+    ...primary,
     key: 'mergedMemoryUtilization',
-    memoryDomain: memoryItems.length === 1 ? (memoryItems[0].memoryDomain || memoryItems[0].key) : 'combined',
-    usedPercent: Math.round(percentSum / memoryItems.length),
-    usedSize: t('resource.usedLabel'),
-    unusedSize: t('resource.unusedLabel')
+    memoryDomain: getMemoryDomain(primary)
   }
 }
+
+const getMemoryDomain = (item) => item.memoryDomain || (item.key === 'generalMemoryUtilization' ? 'system' : item.key)
 
 const dedupeMemoryItems = (items) => {
   const seenDomains = new Set()
   return items.filter(item => {
-    if (!item?.memoryDomain) return true
-    if (seenDomains.has(item.memoryDomain)) return false
-    seenDomains.add(item.memoryDomain)
+    const domain = getMemoryDomain(item)
+    if (seenDomains.has(domain)) return false
+    seenDomains.add(domain)
     return true
   })
 }
 
 const normalizeResourceItem = (item) => {
-  const isAvailable = item.available !== 0
+  const name = getResourceName(item)
+  const capacityOnly = item.key === 'memoryAllocationTotal'
+  const isAvailable = capacityOnly ? item.available === 1 && Boolean(item.totalSize) : item.available !== 0
   if (!isAvailable) {
     return {
       ...item,
-      name: getResourceName(item),
-      isAvailable: false,
-      usedPercent: '--',
+      name,
+      capacityOnly,
+      isAvailable,
+      value: '--',
       safePercent: 0,
       level: 'unavailable',
       statusText: t('resource.unavailable'),
-      usedLabel: t('resource.unavailable'),
-      unusedLabel: ''
+      usedLabel: AX_MEMORY_KEYS.includes(item.key) ? '' : t('resource.unavailable')
+    }
+  }
+  if (capacityOnly) {
+    return {
+      ...item,
+      name,
+      capacityOnly,
+      isAvailable,
+      value: item.totalSize,
+      allocationLabel: item.memoryDomain === 'boot-allocation' ? t('resource.memoryBootAllocationBasis') : ''
     }
   }
 
@@ -323,14 +339,17 @@ const normalizeResourceItem = (item) => {
 
   return {
     ...item,
-    name: getResourceName(item),
-    isAvailable: true,
-    usedPercent,
+    name,
+    isAvailable,
+    value: usedPercent,
     safePercent: Math.min(Math.max(usedPercent, 0), 100),
     level: levelInfo.level,
     statusText: levelInfo.text,
     usedLabel: getResourceUsedLabel(item),
-    unusedLabel: getResourceUnusedLabel(item)
+    unusedLabel: getResourceUnusedLabel(item),
+    allocationLabel: item.key === 'generalMemoryUtilization' && item.allocatedSize && item.allocatedSize !== item.totalSize
+      ? t('resource.memoryBootAllocated', { value: item.allocatedSize })
+      : ''
   }
 }
 
@@ -340,6 +359,9 @@ const getResourceName = (item) => {
     mergedMemoryUtilization: item.memoryDomain === 'system'
       ? t('resource.systemMemoryUsage')
       : t('resource.memoryUsage'),
+    memoryAllocationTotal: t('resource.deviceMemoryTotal'),
+    generalMemoryUtilization: t('resource.systemMemory'),
+    axCmmMemoryUtilization: t('resource.axCmmMemory'),
     npuUtilization: t('resource.npuUsage'),
     eMMCUtilization: t('resource.emmcUsage'),
     packetDiscardUtilization: t('resource.packetLoss')
@@ -355,6 +377,9 @@ const getResourceLevelInfo = (key, percentage) => {
     return { level: 'high', text: t('resource.highPacketLoss') }
   }
 
+  if ((key === 'mergedMemoryUtilization' || AX_MEMORY_KEYS.includes(key)) && percentage <= 70) {
+    return { level: 'low', text: '' }
+  }
   if (percentage <= 0) return { level: 'idle', text: t('resource.idle') }
   if (percentage <= 30) return { level: 'low', text: t('resource.lowLoad') }
   if (percentage <= 70) return { level: 'medium', text: t('resource.mediumLoad') }
@@ -414,9 +439,24 @@ const formatResourceTime = (date) => {
 
 // ─── 任务列表 ───
 const taskList = ref([])
+let taskRequestInFlight = false
+let taskRefreshPending = false
+let taskRequestVersion = 0
+let homeDisposed = false
+const taskEventCounts = new Map()
+const taskEventRequests = new Map()
+let eventCountDay = ''
+let lastEventCountRefresh = 0
 
 const loadTaskList = () => {
+  if (taskRequestInFlight) {
+    taskRefreshPending = true
+    return
+  }
+  taskRequestInFlight = true
+  const requestVersion = ++taskRequestVersion
   proxy.$API.getChannelList({ pageNum: 1, pageSize: 100 }).then(res => {
+    if (homeDisposed) return
     const rows = res?.resData?.rows || []
     const taskMap = {}
 
@@ -432,7 +472,7 @@ const loadTaskList = () => {
               ...task,
               taskState: task.status, // We use the first found active status
               channels: [],
-              todayEvents: 0
+              todayEvents: taskEventCounts.get(task.algorithmId) || 0
             }
           } else {
             // Upgrade grouped status to running if at least one channel is running
@@ -455,14 +495,25 @@ const loadTaskList = () => {
       ...grouped,
       channelCount: grouped.channels.length
     }))
-    
     // Attempt fetching today's events for each active algorithm
     const startOfDay = new Date()
     startOfDay.setHours(0, 0, 0, 0)
     const endOfDay = new Date()
     endOfDay.setHours(23, 59, 59, 999)
-    
+    const day = startOfDay.toDateString()
+    if (day !== eventCountDay) {
+      eventCountDay = day
+      lastEventCountRefresh = 0
+      taskEventCounts.clear()
+      finalTasks.forEach(task => { task.todayEvents = 0 })
+    }
+    const refreshCounts = Date.now() - lastEventCountRefresh >= 60000
+    if (refreshCounts) lastEventCountRefresh = Date.now()
+    // Task state must not wait for the per-task event count requests.
+    taskList.value = finalTasks
+
     Promise.all(finalTasks.map(task => {
+      if (!refreshCounts && taskEventCounts.has(task.algorithmId)) return Promise.resolve()
       const params = {
         timeBegin: startOfDay.getTime(),
         timeEnd: endOfDay.getTime(),
@@ -470,13 +521,30 @@ const loadTaskList = () => {
         pageSize: 1,
         algorithmCodes: [task.algorithmId]
       }
-      return proxy.$API.boxQueryEvent(params).then(eventRes => {
-        task.todayEvents = eventRes?.resData?.total || 0
-      }).catch(() => {})
-    })).finally(() => {
-      taskList.value = finalTasks
+      const key = `${day}:${task.algorithmId}`
+      if (!taskEventRequests.has(key)) {
+        const request = proxy.$API.boxQueryEvent(params).then(eventRes => {
+          const total = eventRes?.resData?.total || 0
+          if (eventCountDay === day) taskEventCounts.set(task.algorithmId, total)
+          return total
+        }).catch(() => null).finally(() => taskEventRequests.delete(key))
+        taskEventRequests.set(key, request)
+      }
+      return taskEventRequests.get(key).then(total => {
+        if (total !== null) task.todayEvents = total
+      })
+    })).then(() => {
+      if (!homeDisposed && requestVersion === taskRequestVersion) {
+        taskList.value = [...finalTasks]
+      }
     })
-  }).catch(() => {})
+  }).catch(() => {}).finally(() => {
+    taskRequestInFlight = false
+    if (taskRefreshPending && !homeDisposed) {
+      taskRefreshPending = false
+      loadTaskList()
+    }
+  })
 }
 
 const toggleTask = (taskGroup) => {
@@ -620,10 +688,11 @@ const formatEventDateTime = (t) => {
   return `${date} ${time}`
 }
 
-const getEventImage = (evt) => evt.detectedPicture || evt.fullPicture || ''
+const getEventImage = (evt) => eventImageUrl(evt.detectedPicture || evt.fullPicture || '')
 
-const previewEventImages = (evt) => {
-  const images = [evt.detectedPicture, evt.fullPicture].filter(Boolean)
+const previewEventImages = async (evt) => {
+  const paths = [evt.detectedPicture, evt.fullPicture].filter(Boolean)
+  const images = (await Promise.all(paths.map(loadEventImageUrl))).filter(Boolean)
   if (images.length) proxy.$imgView(images)
 }
 
@@ -689,10 +758,14 @@ onMounted(() => {
   loadRecentEvents()
   getSystemConfig()
   connectEventWs()
-  resourceTimer = setInterval(queryHardwareResource, 5000)
+  resourceTimer = setInterval(() => {
+    queryHardwareResource()
+    loadTaskList()
+  }, 5000)
 })
 
 onBeforeUnmount(() => {
+  homeDisposed = true
   if (resourceTimer) clearInterval(resourceTimer)
   if (eventWs) eventWs.close()
 })
@@ -781,6 +854,10 @@ onBeforeUnmount(() => {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
+.resource-grid-ax {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
 .resource-item {
   min-width: 0;
   padding: 0 20px;
@@ -816,6 +893,7 @@ onBeforeUnmount(() => {
 .resource-value-row {
   display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
   margin-top: 7px;
 }
 
@@ -827,9 +905,21 @@ onBeforeUnmount(() => {
   font-variant-numeric: tabular-nums;
 }
 
+.resource-value.resource-capacity-value {
+  font-size: 25px;
+  overflow-wrap: anywhere;
+}
+
 .resource-unit {
   margin-left: 3px;
   font-size: 15px;
+  color: var(--text-secondary);
+}
+
+.resource-total {
+  margin-inline-start: auto;
+  padding-inline-start: 6px;
+  font-size: 12px;
   color: var(--text-secondary);
 }
 
@@ -861,6 +951,10 @@ onBeforeUnmount(() => {
 
 .resource-detail span {
   overflow-wrap: anywhere;
+}
+
+.resource-allocation {
+  flex-basis: 100%;
 }
 
 .state-idle, .state-medium {
@@ -1439,6 +1533,16 @@ onBeforeUnmount(() => {
   text-align: center;
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+@media (max-width: 1370px) {
+  .resource-grid-ax {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    row-gap: 20px;
+  }
+  .resource-grid-ax .resource-item:nth-child(4n) {
+    border-right: 0;
+  }
 }
 
 @media (max-width: 1130px) {

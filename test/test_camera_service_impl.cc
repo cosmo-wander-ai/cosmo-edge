@@ -641,3 +641,66 @@ TEST_CASE("CameraServiceImpl: QueryUsbCameraList via Dependency Injection", "[Ca
 
     std::filesystem::remove_all(testDevDir);
 }
+
+TEST_CASE("CameraServiceImpl: deleted camera config is removed before explicit ID reuse",
+          "[CameraService][camera-config-cleanup]") {
+    const auto root = std::filesystem::temp_directory_path() /
+                      ("cosmo_camera_delete_config_" +
+                       std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directories(root);
+    {
+        cosmo::test::ScopedPathOverride paths(root.string(), root.string());
+        CameraServiceDependencies dependencies;
+        CameraServiceImpl svc;
+        svc.InitCameraEntities();
+        MsgCameraInfo config;
+        config.videoChannelId = "RT0000000777";
+        config.channelName    = "test camera";
+        config.url            = "rtsp://example.invalid/test";
+        std::string id;
+        REQUIRE(svc.Add(config, id) == util::ErrorEnum::Success);
+        REQUIRE(id == config.videoChannelId);
+        const auto main_root   = std::filesystem::path(path::GetCfgPath("camera"));
+        const auto backup_root = std::filesystem::path(path::GetBackupCfgPath("camera"));
+        const auto config_dir  = main_root / id;
+        const auto backup_dir  = backup_root / id;
+        const auto other_dir   = main_root / "RT0000000888";
+        std::filesystem::create_directories(config_dir / "old-scene");
+        std::filesystem::create_directories(backup_dir / "old-scene");
+        std::filesystem::create_directories(other_dir);
+        std::ofstream(config_dir / "taskList.json")
+            << R"([{"algorithmCode":"old-scene","algorithmName":"old task","switch":false}])";
+        std::ofstream(config_dir / "old-scene" / "param.json") << "{\"old\":true}";
+        std::ofstream(config_dir / "old-scene" / "area.json") << "[]";
+        std::ofstream(backup_dir / "old-scene" / "param.json") << "{}";
+        std::ofstream(other_dir / "keep.json") << "{}";
+
+        SECTION("successful delete removes configs before reuse") {
+            REQUIRE(svc.Delete(id) == util::ErrorEnum::Success);
+            REQUIRE_FALSE(std::filesystem::exists(config_dir));
+            REQUIRE_FALSE(std::filesystem::exists(backup_dir));
+            REQUIRE(std::filesystem::exists(other_dir / "keep.json"));
+            std::string reused;
+            REQUIRE(svc.Add(config, reused) == util::ErrorEnum::Success);
+            REQUIRE(reused == id);
+            REQUIRE(svc.GetTasks(reused).empty());
+            REQUIRE_FALSE(std::filesystem::exists(config_dir / "taskList.json"));
+            REQUIRE_FALSE(std::filesystem::exists(config_dir / "old-scene" / "param.json"));
+            REQUIRE_FALSE(std::filesystem::exists(config_dir / "old-scene" / "area.json"));
+        }
+        SECTION("failed persistence retains both config trees") {
+            const auto list       = main_root / "cameraList.json";
+            const auto saved_list = main_root / "cameraList-test-saved.json";
+            std::filesystem::rename(list, saved_list);
+            std::filesystem::create_directory(list);
+            REQUIRE(svc.Delete(id) == util::ErrorEnum::SysErr);
+            REQUIRE(std::filesystem::exists(config_dir / "taskList.json"));
+            REQUIRE(std::filesystem::exists(config_dir / "old-scene" / "param.json"));
+            REQUIRE(std::filesystem::exists(backup_dir / "old-scene" / "param.json"));
+            REQUIRE(std::filesystem::exists(other_dir / "keep.json"));
+            std::filesystem::remove(list);
+            std::filesystem::rename(saved_list, list);
+        }
+    }
+    std::filesystem::remove_all(root);
+}

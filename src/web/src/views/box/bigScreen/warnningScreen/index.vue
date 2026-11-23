@@ -14,7 +14,7 @@
             <div v-if="checkPropertyKey(currentSocketData, 'recognition') && currentSocketData.property.recognition.matchDegree != '-1'" class="warn-two-body">
               <div class="event-image-container">
                 <div class="event-image-item">
-                  <el-image :src="currentSocketData.detectedPicture" fit="contain">
+                  <el-image :src="eventImageUrl(currentSocketData.detectedPicture)" fit="contain">
                     <template #error>
                       <div class="image-slot"><img src="@/assets/error-image.png"></div>
                     </template>
@@ -22,7 +22,7 @@
                   <span class="image-label">{{ t('event.captureImage') }}</span>
                 </div>
                 <div class="event-image-item">
-                  <el-image :src="currentSocketData.property.recognition.LibImage" fit="contain">
+                  <el-image :src="eventImageUrl(currentSocketData.property.recognition.LibImage)" fit="contain">
                     <template #error>
                       <div class="image-slot"><img src="@/assets/error-image.png"></div>
                     </template>
@@ -38,7 +38,7 @@
             </div>
             
             <div v-else class="warn-one-body">
-              <el-image :src="currentSocketData.fullPicture" fit="contain">
+              <el-image :src="eventImageUrl(currentSocketData.fullPicture)" fit="contain">
                 <template #error>
                   <div class="image-slot"><img src="@/assets/error-image.png"></div>
                 </template>
@@ -174,7 +174,7 @@
               <div class="event-item" :class="{ 'has-comparison': checkPropertyKey(event, 'recognition') && event.property.recognition.matchDegree != '-1' }" @click="eventDetail(event)">
                 <div v-if="checkPropertyKey(event,'recognition') && event.property.recognition.matchDegree != '-1'" class="event-image2">
                   <div class="event-image2-body">
-                    <el-image :src="event.detectedPicture" fit="contain">
+                    <el-image :src="eventImageUrl(event.detectedPicture)" fit="contain">
                       <template #error>
                         <div class="image-slot">
                           <img src="@/assets/error-image.png">
@@ -185,7 +185,7 @@
                   </div>
 
                   <div class="event-image2-body">
-                    <el-image :src="event.property.recognition.LibImage" fit="contain">
+                    <el-image :src="eventImageUrl(event.property.recognition.LibImage)" fit="contain">
                       <template #error>
                         <div class="image-slot">
                           <img src="@/assets/error-image.png">
@@ -201,7 +201,7 @@
                   </div>
                 </div>
                 <div v-else class="event-image">
-                  <el-image :src="event.fullPicture" fit="contain">
+                  <el-image :src="eventImageUrl(event.fullPicture)" fit="contain">
                     <template #error>
                       <div class="image-slot">
                         <img src="@/assets/error-image.png">
@@ -269,6 +269,7 @@
   </div>
 </template>
 <script setup>
+import { eventImageUrl } from '@/utils/eventImage'
 import { computed, ref, watch, onMounted, onBeforeUnmount, getCurrentInstance } from 'vue'
 import beepOgg from '@/assets/beep.ogg'
 import { Search, Setting, FullScreen, Back, Refresh, ArrowLeft, ArrowRight, VideoCamera, Monitor, Bell } from '@element-plus/icons-vue'

@@ -8,6 +8,7 @@
 #include <charconv>
 #include <cstdint>
 #include <initializer_list>
+#include <nlohmann/json.hpp>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -20,8 +21,69 @@
 #include "service/path/IUploadStagingService.h"
 #include "util/ErrorCode.h"
 #include "util/VideoInfo.h"
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+#include "flow/detect/NativeRequiredConfiguration.h"
+#include "flow/detect/PersonTemplateGraph.h"
+#include "flow/detect/TrustedBenchmarkPerson.h"
+#include "flow/detect/TrustedPersonMetadata.h"
+#include "flow/detect/TrustedPersonReference.h"
+#include "service/algorithm/impl/ActionModelParams.h"
+#endif
 
 namespace cosmo {
+Model::MsgQueryGraphModelCandidatesSend MessageModelHandler::Handle(
+    Model::MsgQueryGraphModelCandidatesRecv&& data, std::error_condition& errc) const {
+    Model::MsgQueryGraphModelCandidatesSend out;
+    errc = util::ErrorEnum::Success;
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+    out.passthrough = false;
+#ifdef COSMO_AXERA_SCENARIOBENCH_CANDIDATE
+    if (!native_face::ProcessRequires("9275710") ||
+        (data.sceneId != "930927510" && data.sceneId != "930007463") ||
+        !axera_graph_admission::VerifyTrustedBenchmarkPerson())
+#endif
+        out.denied.push_back({"9275710", "validate.graphBenchmarkUnavailable"});
+
+    out.denied.push_back({"1001003", "validate.graphPersonNeedChain"});
+
+    // Parse only a bounded graph. A malformed, unfinished or stale draft
+    // cannot make an AX-only model selectable.
+    if (data.algorithmProcessdata.empty() || data.algorithmProcessdata.size() > 1024 * 1024 ||
+        data.sceneId.empty() || data.targetNodeId.empty())
+        return out;
+    try {
+        auto actions = nlohmann::json::parse(data.algorithmProcessdata).get<std::vector<ActionNode>>();
+        for (auto& action : actions) {
+            if (!service::action_model_params::Extract(action, true))
+                return out;
+        }
+        if (!person_template_contract::MatchesCandidateGraph(actions, data.category, data.targetNodeId))
+            return out;
+#ifdef COSMO_AXERA_PERSON_ROUTE_CANDIDATE
+        out.denied.back().reason = "validate.graphPersonContractUnavailable";
+        if (native_face::ProcessRequires("1001003")) {
+            const auto routes = person_template_contract::ResolveTrustedPersonRoutes(data.sceneId);
+            if (routes.reusable_reference) {
+                const auto models = model_service_.QueryAtomicModels("", "", "");
+                const auto* model =
+                    person_template_contract::CompatibleMetadata(models, routes.minimum_confidence);
+                if (model) {
+                    out.allowed.push_back("1001003");
+                    out.allowedModels.push_back(
+                        {"1001003", "PedestrianDetection", model->modelType, model->label});
+                    out.denied.pop_back();
+                }
+            }
+        }
+#endif
+    } catch (const std::exception&) {
+        // A draft that cannot be parsed is ineligible, without exposing data.
+    }
+#else
+    (void)data;
+#endif
+    return out;
+}
 namespace {
 
     template <typename T>

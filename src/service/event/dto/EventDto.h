@@ -47,6 +47,14 @@ namespace Event {
     void to_json(nlohmann::json& j, const MsgExportAlarmRecv& v);
     void from_json(const nlohmann::json& j, MsgExportAlarmRecv& v);
 
+    struct MsgDownloadAlarmRecv : public MsgExportAlarmRecv {};
+    struct MsgDownloadAlarmSend : public MsgSendHead {
+        std::string filePath;
+        std::string fileName;
+    };
+    void from_json(const nlohmann::json& j, MsgDownloadAlarmRecv& v);
+    void to_json(nlohmann::json& j, const MsgDownloadAlarmSend& v);
+
     // Query
     struct MsgPageSend : public MsgSendHead {
         struct ResData {

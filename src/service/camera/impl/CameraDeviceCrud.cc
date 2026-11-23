@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <iomanip>  // std::setw, std::setfill
+#include <iterator>
 #include <sstream>  // std::ostringstream
 
 #include "service/camera/impl/CameraServiceImpl.h"
@@ -15,6 +16,7 @@
 #include "util/FileUtil.h"
 #include "util/Log.h"
 #include "util/PaginationHelper.h"
+#include "util/PathUtil.h"
 #include "util/dto/ChannelStatusDto.h"
 
 namespace cosmo::service {
@@ -229,6 +231,7 @@ util::ErrorEnum CameraServiceImpl::Delete(const std::string& videoChannelId) {
     CameraEntityPtr target;
     bool need_remove_file = false;
     std::string file_to_remove;
+    size_t camera_index = 0;
 
     target = GetCamera(videoChannelId);
     if (!target) {
@@ -252,11 +255,30 @@ util::ErrorEnum CameraServiceImpl::Delete(const std::string& videoChannelId) {
             return util::ErrorEnum::CameraNotExist;
         }
         LOG_INFO("Deleting camera: {}/{}", target->videoChannelId, target->channelName);
+        camera_index = static_cast<size_t>(std::distance(cameras_.begin(), it));
         cameras_.erase(it);
+    }
+
+    if (!SaveConfig()) {
+        std::lock_guard<std::mutex> command_lock(target->command_mtx_);
+        std::lock_guard<std::shared_mutex> lock(mtx_);
+        target->deleting_ = false;
+        cameras_.insert(cameras_.begin() + std::min(camera_index, cameras_.size()), target);
+        return util::ErrorEnum::SysErr;
     }
 
     // Destroy channel tasks (stop algo tasks + channel task)
     DestroyCameraChannel(target);
+
+    // The camera ID can be explicitly reused while the service is running.
+    if (path::IsSafePathComponent(videoChannelId)) {
+        const auto config = std::filesystem::path(path::GetCfgPath(conf_file_path_)) / videoChannelId;
+        const auto backup = std::filesystem::path(path::GetBackupCfgPath(conf_file_path_)) / videoChannelId;
+        if (!util::RemovePath(config.string()))
+            LOG_WARN("[{}] Failed to remove deleted camera configuration", videoChannelId);
+        if (!util::RemovePath(backup.string()))
+            LOG_WARN("[{}] Failed to remove deleted camera backup configuration", videoChannelId);
+    }
 
     // Perform potentially slow file operations (lockless)
     if (need_remove_file) {
@@ -269,9 +291,6 @@ util::ErrorEnum CameraServiceImpl::Delete(const std::string& videoChannelId) {
         }
     }
 
-    // Save config (thread-safe)
-    if (!SaveConfig())
-        return util::ErrorEnum::SysErr;
     if (static_cast<MsgCameraType>(target->channelType) == MsgCameraType::MsgCameraTypeOnvif &&
         ServiceRegistry::Instance().Has<IOnvifService>()) {
         try {

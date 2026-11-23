@@ -175,6 +175,19 @@ void ApiRouter::RegisterCoreRoutes() {
 
     // ── Login (No Auth) ─────────────────────────────────────────────────
     ROUTE("/gtw/cwai/login/", kNoAuth, auth_handler_, Auth, DoLogin);
+    url_map_[util::ToLower("/gtw/cwai/login/Logout")] = {
+        kAuth,
+        {},
+        [this](const RequestDispatchContext& context, const std::string&, std::error_condition& errc) {
+            if (context.transport != RequestTransport::kHttp ||
+                !auth_handler_->RevokeToken(context.credential)) {
+                errc = util::ErrorEnum::AuthFailed;
+                return detail::ErroResult("Session is not active", errc);
+            }
+            MsgSendHead result{};
+            result.resCode = kServerRspSuccess;
+            return nlohmann::json(result).dump();
+        }};
     url_map_[util::ToLower("/gtw/cwai/login/ModifyPassword")] = {
         kAuth,
         {},

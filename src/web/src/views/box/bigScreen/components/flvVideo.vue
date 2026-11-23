@@ -525,6 +525,20 @@ const getrequestLiveStream = (reason = 'prop-sync') => {
   const currentOperationSession = pendingStreamSession || activeStreamSession || latestDesiredSession
   const supersedesPlayback = currentOperationSession &&
     !sameStreamKey(currentOperationSession, session)
+
+  // Once the tile names a different channel, its previous picture must not
+  // remain visible while the replacement viewer is being opened or after it
+  // fails. Algorithm-only switches may still retain their same-channel player.
+  if (activeStreamSession && activeStreamSession.channelId !== session.channelId) {
+    const previousSession = activeStreamSession
+    activeStreamSession = null
+    clearHeartbeat()
+    destroyVideo()
+    isShowLoading.value = true
+    isShowStopPreview.value = false
+    void stopStreamSession(previousSession)
+  }
+
   pendingStreamSession = session
   latestDesiredSession = session
   const generation = ++streamRequestGeneration

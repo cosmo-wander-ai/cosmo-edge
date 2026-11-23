@@ -44,21 +44,23 @@ std::ostream& WriteExportCsvHeader(std::ostream& os, ExportType type, bool is_en
     switch (type) {
         case ExportType::Behavior:
             if (is_en) {
-                os << "\"No.\",";
+                os << "\"No.\",\"Event ID\",";
                 os << "\"Full Image\",\"Alarm Type\",\"Channel Name\",\"Area Name\",\"Alarm "
                       "Time\",\"Status\"\n";
             } else {
-                os << "\"序号\",";
+                os << "\"序号\",\"事件ID\",";
                 os << "\"全景照\",\"告警类型\",\"通道名称\",\"区域名称\",\"告警时间\",\"状态\"\n";
             }
             break;
         case ExportType::Recognize:
             if (is_en) {
-                os << "\"No.\",\"Event Type\",\"Face Capture\",\"Face Base Image\",\"Full Image\",\"Face "
+                os << "\"No.\",\"Event ID\",\"Event Type\",\"Face Capture\",\"Face Base Image\",\"Full "
+                      "Image\",\"Face "
                       "Library\",\"Similarity\","
                       "\"Name\",\"ID\",\"Channel Name\",\"Capture Time\",\"Status\"\n";
             } else {
-                os << "\"序号\",\"事件类型\",\"人脸抓拍照\",\"人脸底库照\",\"全景照\",\"所属脸库\","
+                os << "\"序号\",\"事件ID\",\"事件类型\",\"人脸抓拍照\",\"人脸底库照\",\"全景照\","
+                      "\"所属脸库\","
                       "\"相似度\","
                       "\"人员姓名\",\"人员编号\",\"通道名称\",\"抓拍时间\",\"状态\"\n";
             }
@@ -131,7 +133,6 @@ void WriteCsvRowRecognize(std::ostream& os, const MsgEventUnit& el, const std::s
     if (!el.property.empty()) {
         if (!util::DecodeJson(el.property, para)) {
             LOG_WARN("Failed to decode property JSON for event {}", el.id);
-            return;
         }
     }
 
@@ -141,9 +142,9 @@ void WriteCsvRowRecognize(std::ostream& os, const MsgEventUnit& el, const std::s
     auto lib_image   = para.recognition.LibImage.empty() ? "" : (http_dir + para.recognition.LibImage);
     auto full_pic    = el.fullPicture.empty() ? "" : (http_dir + el.fullPicture);
 
-    os << "\"" << index << "\t\",\"" << EscapeCsvText(alg_name) << "\t\",\"" << EscapeCsvText(detected)
-       << "\t\",\"" << EscapeCsvText(lib_image) << "\t\",\"" << EscapeCsvText(full_pic) << "\t\",\""
-       << EscapeCsvText(para.recognition.matchLibName) << "\t\",\"";
+    os << "\"" << index << "\t\",\"" << EscapeCsvText(el.id) << "\",\"" << EscapeCsvText(alg_name)
+       << "\t\",\"" << EscapeCsvText(detected) << "\t\",\"" << EscapeCsvText(lib_image) << "\t\",\""
+       << EscapeCsvText(full_pic) << "\t\",\"" << EscapeCsvText(para.recognition.matchLibName) << "\t\",\"";
 
     if (para.recognition.matchDegree != -1.0f) {
         os << para.recognition.matchDegree;
@@ -151,8 +152,7 @@ void WriteCsvRowRecognize(std::ostream& os, const MsgEventUnit& el, const std::s
 
     os << "\t\",\"" << EscapeCsvText(para.recognition.matchName) << "\t\",\""
        << EscapeCsvText(para.recognition.personCode) << "\t\",\"" << EscapeCsvText(el.channelName)
-       << "\t\",\"" << time_string << "\t\",\"" << ReportStatusText(el.reportStatus, is_en) << "\t\",\""
-       << "\t\"\n";
+       << "\t\",\"" << time_string << "\t\",\"" << ReportStatusText(el.reportStatus, is_en) << "\t\"\n";
 }
 
 void WriteCsvRowBehavior(std::ostream& os, const MsgEventUnit& el, const std::string& http_dir, size_t index,
@@ -161,21 +161,22 @@ void WriteCsvRowBehavior(std::ostream& os, const MsgEventUnit& el, const std::st
     auto full_pic    = el.fullPicture.empty() ? "" : (http_dir + el.fullPicture);
     auto alg_name    = alg_query.GetAlgorithmName(el.algorithmCode);
 
-    os << "\"" << index << "\t\",\"" << EscapeCsvText(full_pic) << "\t\",\"" << EscapeCsvText(alg_name)
-       << "\t\",\"" << EscapeCsvText(el.channelName) << "\t\",\"" << EscapeCsvText(el.areaName) << "\t\",\""
-       << time_string << "\t\",\"" << ReportStatusText(el.reportStatus, is_en) << "\t\",\"" << "\t\"\n";
+    os << "\"" << index << "\t\",\"" << EscapeCsvText(el.id) << "\",\"" << EscapeCsvText(full_pic)
+       << "\t\",\"" << EscapeCsvText(alg_name) << "\t\",\"" << EscapeCsvText(el.channelName) << "\t\",\""
+       << EscapeCsvText(el.areaName) << "\t\",\"" << time_string << "\t\",\""
+       << ReportStatusText(el.reportStatus, is_en) << "\t\"\n";
 }
 
 // ── Full CSV export orchestration ───────────────────────────────────
 
 std::string ExportAlarmRecordsToCsv(const std::vector<MsgEventUnit>& records, ExportType export_type,
                                     const std::string& host_ip, service::IAlgorithmQuery& alg_query,
-                                    const std::string& language) {
-    auto date = util::DateTime(util::GetMilliseconds() / 1000);
-    auto csv_name =
-        date.Date().ToYMD() + "_" + date.Time().ToHMS() + "_" + util::GenerateUUID().substr(0, 4) + ".csv";
-    auto timestamp       = util::GetMilliseconds();
-    auto local_dir       = cosmo::path::GetWebLocalPath(timestamp);
+                                    const std::string& language, bool managed_download) {
+    auto date      = util::DateTime(util::GetMilliseconds() / 1000);
+    auto csv_name  = date.Date().ToYMD() + "_" + date.Time().ToHMS() + "_" + util::GenerateUUID() + ".csv";
+    auto timestamp = util::GetMilliseconds();
+    auto local_dir =
+        managed_download ? cosmo::path::GetTemporaryDirPath() : cosmo::path::GetWebLocalPath(timestamp);
     auto full_path       = (std::filesystem::path(local_dir) / csv_name).string();
     auto web_access_dir  = cosmo::path::GetWebAcessPath(timestamp);
     auto web_access_path = (std::filesystem::path(web_access_dir) / csv_name).string();
@@ -204,7 +205,10 @@ std::string ExportAlarmRecordsToCsv(const std::vector<MsgEventUnit>& records, Ex
         }
     }
 
-    return web_access_path;
+    out_file.close();
+    if (!out_file)
+        return {};
+    return managed_download ? full_path : web_access_path;
 }
 
 }  // namespace cosmo

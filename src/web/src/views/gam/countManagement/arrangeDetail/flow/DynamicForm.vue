@@ -70,9 +70,9 @@
           />
           <div v-else-if="item.type.includes('modelSelect')">
             <el-select v-model="item.value" class="form-content" @change="modelSelectChange" :placeholder="t('validate.pleaseSelect', { name: '' })" filterable :filter-method="filterModelOptions" @visible-change="handleModelSelectVisibility" size="small">
-              <el-option v-for="obj in filteredModelOptions" :key="obj.model.atomicCode" :label="obj.label" :value="obj.model.atomicCode" :title="obj.display.description" class="model-select-option">
+              <el-option v-for="obj in filteredModelOptions" :key="obj.model.atomicCode" :label="obj.label" :value="obj.model.atomicCode" :title="obj.reason || obj.display.description" :disabled="obj.disabled" class="model-select-option">
                 <span class="model-option-title">{{ obj.label }}</span>
-                <span v-if="obj.display.subtitle" class="model-option-subtitle">{{ obj.display.subtitle }}</span>
+                <span v-if="obj.reason || obj.display.subtitle" class="model-option-subtitle">{{ obj.reason || obj.display.subtitle }}</span>
               </el-option>
             </el-select>
             <div v-if="isDetectorNode && (inferenceSizeOptions.length || inferenceInputSize)" class="inference-input-size">
@@ -83,6 +83,7 @@
               <div>{{ t('glossary.inputSizeNextStart') }}</div>
               <div v-if="!inferenceSizeValid" role="alert">{{ t('glossary.invalidInputSize') }}</div>
             </div>
+            <div v-if="item.type === 'modelSelect_detector' && graphCandidateStatus !== 'ready'" class="model-option-subtitle">{{ t(graphCandidateStatus === 'pending' ? 'validate.graphModelChecking' : 'validate.graphModelUnavailable') }}</div>
           </div>
 
           <div v-else-if="item.type === 'trackSelect'">
@@ -297,6 +298,7 @@
 </template>
 
 <script setup>
+import { graphModelOptions, allowedAdditionalModels, createLatestRequest } from './graphModelPolicy.js'
 import VisualQuestionEditor from '@/components/VisualQuestionEditor.vue'
 import { matchesParamDependency } from '@/utils/taskParamOwnership'
 import { ref, onMounted, onBeforeUnmount, getCurrentInstance, watch, computed, toRef, inject } from 'vue'
@@ -337,6 +339,7 @@ import {
 
 // Props
 const props = defineProps({
+  graphContext: { type: Object, default: () => ({}) },
   flowData: {
     type: Object,
     default: () => ({})
@@ -489,6 +492,10 @@ const modelFilterQuery = ref('')
 const trackFilterQuery = ref('')
 let modelDisplayRequest = 0
 let modelListRequest = 0
+const graphCandidateRequest = createLatestRequest()
+const graphCandidateStatus = ref('pending')
+const graphCandidateResult = ref(null)
+const graphAdditionalModels = ref([])
 let disposed = false
 
 const modelDisplay = (model) => resolvePresetModelDisplay(
@@ -500,10 +507,17 @@ const matchesModelSearch = (display, query) =>
   !query || String(display.searchText || '').toLowerCase().includes(query)
 const filterModelOptions = (query) => { modelFilterQuery.value = String(query || '').trim().toLowerCase() }
 const filterTrackOptions = (query) => { trackFilterQuery.value = String(query || '').trim().toLowerCase() }
-const filteredModelOptions = computed(() => atomicModelList.value.map(model => {
-  const display = modelDisplay(model)
-  return { model, display, label: `${display.title}（${model.atomicCode}）` }
-}).filter(option => matchesModelSearch(option.display, modelFilterQuery.value)))
+const filteredModelOptions = computed(() => {
+  const detector = modelSelectType.value.split('_').slice(1).join('_') === 'detector'
+  const candidates = detector
+    ? graphModelOptions(atomicModelList.value, graphAdditionalModels.value, graphCandidateResult.value, graphCandidateStatus.value)
+    : atomicModelList.value.map(model => ({ model, disabled: false, reason: '' }))
+  return candidates.map(candidate => {
+    const display = modelDisplay(candidate.model)
+    const reason = candidate.reason?.startsWith('validate.') ? t(candidate.reason) : candidate.reason
+    return { ...candidate, reason, display, label: `${display.title}（${candidate.model.atomicCode}）` }
+  }).filter(option => matchesModelSearch(option.display, modelFilterQuery.value))
+})
 const filteredTrackOptions = computed(() => options.value.map(option => {
   const model = props.atomicList.find(item => item.atomicCode === option.value)
   const display = modelDisplay(model || { atomicCode: option.value, atomicName: option.name })
@@ -621,6 +635,7 @@ onMounted(() => {
   })
   if (modelSelect) {
     modelSelectType.value = modelSelect.type
+    if (modelSelect.type.split('_').slice(1).join('_') === 'detector') refreshGraphCandidates()
     // 快照保存的 labelList，供 getModelSelectList 回显 used（响应式 props 会被异步 config-change 覆盖）
     savedWebLabelList.value =
       _.get(props.configObject, 'webConfig.labelList', []) || []
@@ -801,6 +816,7 @@ onBeforeUnmount(() => {
   disposed = true
   modelDisplayRequest += 1
   modelListRequest += 1
+  graphCandidateRequest.invalidate()
   emitConfigChange.cancel()
 })
 
@@ -945,6 +961,46 @@ const handleremove = () => {
     param.value = JSON.stringify(list)
   }
 }
+
+// The server checks graph/host model identity; the client never infers admission.
+const refreshGraphCandidates = async () => {
+  const request = graphCandidateRequest.next()
+  graphCandidateStatus.value = 'pending'
+  graphAdditionalModels.value = []
+  try {
+    const context = { ...props.graphContext }
+    if (!context.sceneId || !context.category || !context.targetNodeId || !context.algorithmProcessdata) throw new Error('missing graph context')
+    const response = await $API.queryGraphModelCandidates(context)
+    if (disposed || !graphCandidateRequest.current(request)) return
+    const result = response?.resData
+    if (response?.resCode !== 1 || !result || typeof result.passthrough !== 'boolean' || !Array.isArray(result.allowed) || !Array.isArray(result.allowedModels) || !Array.isArray(result.denied)) throw new Error('invalid admission response')
+    let models = []
+    if (!result.passthrough) {
+      // Permitted native metadata is supplied by the server after checking
+      // the trusted reference; never replace it with a same-code user model.
+      models = allowedAdditionalModels(result.allowedModels, result)
+      const all = await $API.atomicModelList({ modelName: '', modelType: '', filePath: '' }).catch(() => null)
+      if (disposed || !graphCandidateRequest.current(request)) return
+      const deniedCodes = new Set(result.denied.map(item => String(item.modelCode)))
+      const unavailable = all?.resCode === 1 && Array.isArray(all?.resData?.list)
+        ? all.resData.list.filter(item => deniedCodes.has(String(item.atomicCode))) : []
+      models = [...models, ...unavailable]
+    }
+    if (disposed || !graphCandidateRequest.current(request)) return
+    graphCandidateResult.value = result
+    graphAdditionalModels.value = models
+    graphCandidateStatus.value = 'ready'
+  } catch (_) {
+    if (!disposed && graphCandidateRequest.current(request)) {
+      graphCandidateResult.value = null
+      graphAdditionalModels.value = []
+      graphCandidateStatus.value = 'error'
+    }
+  }
+}
+watch(() => JSON.stringify(props.graphContext), () => {
+  if (modelSelectType.value.split('_').slice(1).join('_') === 'detector') refreshGraphCandidates()
+})
 
 // Methods
 const getModelSelectList = (code, type) => {
@@ -1114,7 +1170,9 @@ const handleTreeSelectData = () => {
 
 const modelSelectChange = (val) => {
   labelList.value = []
-  const atomic = _.find(atomicModelList.value, { atomicCode: val })
+  const atomic = _.find([...graphAdditionalModels.value, ...atomicModelList.value], { atomicCode: val })
+  if (!atomic) return
+  if (!atomicModelList.value.some(model => String(model.atomicCode) === String(val))) atomicModelList.value.push(atomic)
   selectedAtomic.value = atomic
   if (isDetectorNode.value)
     inferenceInputSize.value = defaultInputSizeValue(atomic)

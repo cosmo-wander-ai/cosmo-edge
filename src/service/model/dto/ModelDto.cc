@@ -9,6 +9,36 @@
 
 // Model CRUD and upload serialization (Component in ModelDto_Component.cc)
 namespace cosmo::Model {
+void from_json(const nlohmann::json& j, MsgQueryGraphModelCandidatesRecv& v) {
+    from_json(j, static_cast<MsgRecvHead&>(v));
+    JSON_OPT(j, v, sceneId);
+    JSON_OPT(j, v, category);
+    JSON_OPT(j, v, targetNodeId);
+    JSON_OPT(j, v, algorithmProcessdata);
+}
+void to_json(nlohmann::json& j, const MsgQueryGraphModelCandidatesRecv& v) {
+    to_json(j, static_cast<const MsgRecvHead&>(v));
+    j["sceneId"]              = v.sceneId;
+    j["category"]             = v.category;
+    j["targetNodeId"]         = v.targetNodeId;
+    j["algorithmProcessdata"] = v.algorithmProcessdata;
+}
+void to_json(nlohmann::json& j, const GraphModelDenial& v) {
+    j = {{"modelCode", v.modelCode}, {"reason", v.reason}};
+}
+void to_json(nlohmann::json& j, const GraphModelItem& v) {
+    j = {{"atomicCode", v.atomicCode},
+         {"atomicName", v.atomicName},
+         {"modelType", v.modelType},
+         {"label", v.label}};
+}
+void to_json(nlohmann::json& j, const MsgQueryGraphModelCandidatesSend& v) {
+    to_json(j, static_cast<const MsgSendHead&>(v));
+    j["resData"] = {{"passthrough", v.passthrough},
+                    {"allowed", v.allowed},
+                    {"allowedModels", v.allowedModels},
+                    {"denied", v.denied}};
+}
 void to_json(nlohmann::json& j, const MsgPageRecv& v) {
     to_json(j, static_cast<const MsgRecvHead&>(v));
     j["modelName"] = v.modelName;

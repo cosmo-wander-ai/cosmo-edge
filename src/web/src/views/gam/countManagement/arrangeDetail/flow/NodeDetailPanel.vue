@@ -43,6 +43,7 @@
           :configObject="nodeData.configObject"
           :atomicList="atomicList"
           :sceneParams="sceneParams"
+          :graphContext="{ ...graphContext, targetNodeId: nodeId }"
           @config-change="handleConfigChange"
           @picture-match-param-change="emit('picture-match-param-change', $event)"
         ></dynamic-form>
@@ -62,6 +63,7 @@ import { getDetailPanelSize } from './layoutGeometry.js'
 
 const props = defineProps({
   nodeId: { type: String, required: true },
+  graphContext: { type: Object, default: () => ({}) },
   nodeData: { type: Object, default: () => ({}) },
   atomicList: { type: Array, default: () => [] },
   sceneParams: { type: Array, default: () => [] },

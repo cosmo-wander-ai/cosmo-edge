@@ -9,6 +9,16 @@
             <el-icon class="pic_tip" @click="dialogVisibleother=true"><QuestionFilled /></el-icon>
           </div>
         </el-form-item>
+        <el-form-item v-if="isAxera && nativePreview" :label="currentLocale === 'en-US' ? 'Face area' : '人脸区域'">
+          <div class="native-face-field">
+            <p>{{ currentLocale === 'en-US' ? 'Use one 1920×1080 baseline JFIF JPEG (4:2:0, without EXIF/ICC). Drag a box around the face. Quality and pose are not checked.' : '请上传一张 1920×1080 的基线 JFIF JPEG（4:2:0，不含 EXIF/ICC），在图片上拖框标出人脸。本方式不检查画质和角度。' }}</p>
+            <div class="native-face-image" @pointerdown.prevent="startNativeBox" @pointermove.prevent="moveNativeBox" @pointerup.prevent="finishNativeBox" @pointercancel="cancelNativeBox">
+              <img :src="nativePreview" draggable="false" @load="checkNativeDimensions" />
+              <div v-if="nativeBox" class="native-face-box" :style="nativeBoxStyle"></div>
+            </div>
+            <p v-if="nativeBox">{{ nativeBox.join(', ') }}</p>
+          </div>
+        </el-form-item>
         <el-form-item :label="t('basePic.personName') + localeColon" prop="personName">
           <miniInput class="mv-el-input" v-model="ruleFormData.personName" :placeholder="t('placeholder.enter')" />
         </el-form-item>
@@ -78,7 +88,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, onMounted, getCurrentInstance, nextTick } from 'vue'
+import { ref, reactive, computed, watch, onMounted, getCurrentInstance, nextTick } from 'vue'
 import { QuestionFilled } from '@element-plus/icons-vue'
 import Upload from '@/components/Upload.vue'
 import miniInput from '@/components/miniInput.vue'
@@ -119,6 +129,35 @@ const ruleFormData = reactive({
 
 const fileList = ref([])
 const pendingFiles = new Map()
+const isAxera = ref(false)
+const backendKnown = ref(false)
+const nativeDimensionsOk = ref(false)
+const nativeBox = ref(null)
+const nativeStart = ref(null)
+const nativePreview = computed(() => fileList.value.find(item => pendingFiles.has(item)) || '')
+const nativeBoxStyle = computed(() => {
+  if (!nativeBox.value) return {}
+  const [x0, y0, x1, y1] = nativeBox.value
+  return { left: `${x0 / 1920 * 100}%`, top: `${y0 / 1080 * 100}%`, width: `${(x1-x0) / 1920 * 100}%`, height: `${(y1-y0) / 1080 * 100}%` }
+})
+function pointOnNativeImage(event) {
+  const rect = event.currentTarget.getBoundingClientRect()
+  if (!rect.width || !rect.height) return null
+  return [Math.round(Math.max(0, Math.min(1, (event.clientX-rect.left)/rect.width))*1920), Math.round(Math.max(0, Math.min(1, (event.clientY-rect.top)/rect.height))*1080)]
+}
+function startNativeBox(event) {
+  if (!nativeDimensionsOk.value) return
+  nativeStart.value = pointOnNativeImage(event)
+  if (nativeStart.value) { nativeBox.value = [...nativeStart.value, ...nativeStart.value]; event.currentTarget.setPointerCapture(event.pointerId) }
+}
+function moveNativeBox(event) {
+  if (!nativeStart.value) return
+  const end = pointOnNativeImage(event)
+  if (end) nativeBox.value = [Math.min(nativeStart.value[0],end[0]), Math.min(nativeStart.value[1],end[1]), Math.max(nativeStart.value[0],end[0]), Math.max(nativeStart.value[1],end[1])]
+}
+function finishNativeBox(event) { moveNativeBox(event); nativeStart.value = null }
+function cancelNativeBox() { nativeStart.value = null; nativeBox.value = null }
+function checkNativeDimensions(event) { nativeDimensionsOk.value = event.target.naturalWidth === 1920 && event.target.naturalHeight === 1080 }
 
 // Validation functions
 function validatePass(rule, value, callback) {
@@ -237,6 +276,12 @@ function onProgress(file, index) {
     return proxy.$message.error(t('api.error.UpLoadDataEmpty'))
   }
 
+  if (isAxera.value && file.type !== 'image/jpeg') return proxy.$message.error(currentLocale.value === 'en-US' ? 'Choose a JFIF JPEG image.' : '请选择 JFIF JPEG 图片。')
+  const existingNew = fileList.value.filter(item => pendingFiles.has(item)).length
+  const replacingNew = Number.isInteger(index) && pendingFiles.has(fileList.value[index])
+  if (isAxera.value && existingNew && !replacingNew) return proxy.$message.error(currentLocale.value === 'en-US' ? 'Upload one new face image at a time.' : '每次只能上传一张新的人脸图片。')
+  nativeBox.value = null
+  nativeDimensionsOk.value = false
   const previewUrl = URL.createObjectURL(file)
   if (index || index === 0) {
     releasePendingFile(fileList.value[index])
@@ -261,10 +306,15 @@ function clearPendingFiles() {
     URL.revokeObjectURL(previewUrl)
   }
   pendingFiles.clear()
+  nativeBox.value = null
+  nativeStart.value = null
+  nativeDimensionsOk.value = false
 }
 
 function onDelete(previewUrl) {
   releasePendingFile(previewUrl)
+  nativeBox.value = null
+  nativeDimensionsOk.value = false
 }
 
 async function submitForm() {
@@ -274,6 +324,12 @@ async function submitForm() {
     return
   }
 
+  if (!backendKnown.value) return proxy.$message.error(currentLocale.value === 'en-US' ? 'Device capabilities are still loading.' : '设备能力信息尚未加载完成。')
+  const newPictures = fileList.value.filter(item => pendingFiles.has(item))
+  if (isAxera.value && newPictures.length) {
+    const box = nativeBox.value
+    if (newPictures.length !== 1 || !nativeDimensionsOk.value || !box || box[2]-box[0] < 2 || box[3]-box[1] < 2) return proxy.$message.error(currentLocale.value === 'en-US' ? 'Use one 1920×1080 JFIF JPEG and draw a face box.' : '请上传一张 1920×1080 的 JFIF JPEG 并框选人脸。')
+  }
   const stagedUploads = []
   try {
     for (const previewUrl of fileList.value) {
@@ -297,6 +353,7 @@ async function submitForm() {
       pictureUploadIds: stagedUploads.map(upload => upload.uploadId),
       retainPictureId: fileList.value.filter(item => !pendingFiles.has(item))
     }
+    if (isAxera.value && newPictures.length) params.nativeFaceRoi = nativeBox.value
     if (!props.data?.personId) delete params.personId
 
     await proxy.$API.modifyFacePicLib(params)
@@ -320,10 +377,23 @@ async function submitForm() {
 // Lifecycle
 onMounted(() => {
   initData()
+  if (!proxy.$API.queryDeviceInfo) { backendKnown.value = true; return }
+  proxy.$API.queryDeviceInfo().then(res => {
+    const list = res?.resData?.devInfoList || []
+    const backend = (list.find(item => item.key === 'acceleratorBackend')?.value || '').toLowerCase()
+    const device = (list.find(item => item.key === 'deviceType')?.value || '').toLowerCase()
+    isAxera.value = backend === 'axera' || device.includes('ax650')
+    backendKnown.value = true
+  }).catch(() => { backendKnown.value = false })
 })
 </script>
 
 <style scoped lang="scss">
+.native-face-field { width: 100%; line-height: 1.5; }
+.native-face-image { position: relative; width: 100%; touch-action: none; cursor: crosshair; user-select: none; }
+.native-face-image img { display: block; width: 100%; pointer-events: none; }
+.native-face-box { position: absolute; box-sizing: border-box; border: 2px solid #e84b46; background: rgba(232, 75, 70, 0.12); pointer-events: none; }
+
 .pro {
   padding-left: 110px;
   font-size: 14px;

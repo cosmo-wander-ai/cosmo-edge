@@ -201,6 +201,16 @@ const system = {
       data,
     })
   },
+  logout() {
+    return request({
+      url: '/gtw/cwai/login/Logout',
+      method: 'post',
+      data: {},
+      timeout: 5000,
+      silentError: true,
+      suppressAuthRedirect: true
+    })
+  },
   queryModelAuthorization() {
     return request({ url: '/gtw/cwai/System/QueryModelAuthorization', method: 'post', data: {} })
   },

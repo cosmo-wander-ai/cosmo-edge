@@ -14,6 +14,7 @@
 #include "service/network/IHttpClient.h"
 #include "support/ScopedPathOverride.h"
 #include "support/ScopedServiceOverride.h"
+#include "util/ErrorCode.h"
 
 using namespace cosmo::service;
 namespace fs = std::filesystem;
@@ -136,4 +137,30 @@ TEST_CASE("AudioServiceImpl: GetAudioFileWebPath with non-existent id returns em
 
     auto path = sut.GetAudioFileWebPath("nonexistent-id");
     REQUIRE(path.empty());
+}
+
+TEST_CASE("AudioServiceImpl: duplicate uploads preserve the original file", "[AudioService]") {
+    AudioTestFixture fix;
+    AudioServiceImpl sut;
+    fs::create_directories(fix.testDir + "/first");
+    fs::create_directories(fix.testDir + "/second");
+    const auto first     = fix.testDir + "/first/alert.wav";
+    const auto duplicate = fix.testDir + "/second/alert.wav";
+    std::ofstream(first, std::ios::binary) << "original-audio";
+    std::ofstream(duplicate, std::ios::binary) << "different-audio";
+    REQUIRE(sut.AddAudioFile(first) == cosmo::util::ErrorEnum::Success);
+    REQUIRE(sut.AddAudioFile(duplicate) == cosmo::util::ErrorEnum::ExistedName);
+    int total          = 0;
+    const auto matches = sut.QueryAudioFiles(total, "alert.wav", {}, 1, 10);
+    REQUIRE(total == 1);
+    REQUIRE(matches.size() == 1);
+    std::string path, name;
+    REQUIRE(sut.PrepareAudioDownload(matches[0].id, path, name));
+    std::ifstream saved(path, std::ios::binary);
+    CHECK(std::string((std::istreambuf_iterator<char>(saved)), std::istreambuf_iterator<char>()) ==
+          "original-audio");
+    CHECK(sut.AddAudioFile(fix.testDir + "/missing.wav") == cosmo::util::ErrorEnum::FileOpenFailed);
+    const auto unique = fix.testDir + "/second/unique.wav";
+    std::ofstream(unique, std::ios::binary) << "unique-audio";
+    CHECK(sut.AddAudioFile(unique) == cosmo::util::ErrorEnum::Success);
 }

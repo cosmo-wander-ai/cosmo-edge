@@ -2,13 +2,20 @@
 
 #include "service/media/impl/AudioServiceImpl.h"
 
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 #include <algorithm>
+#include <array>
+#include <cerrno>
 #include <filesystem>
 #include <fstream>
 #include <nlohmann/json.hpp>
 
 #include "service/detail/ServiceRegistry.h"
 #include "service/network/IHttpClient.h"
+#include "util/ErrorCode.h"
 #include "util/JsonFileUtil.h"
 #include "util/LimitedTypeJson.h"
 #include "util/Log.h"
@@ -161,6 +168,78 @@ std::string AudioServiceImpl::GetAudioFileWebPath(const std::string& id) {
     return "";
 }
 
+bool AudioServiceImpl::PrepareAudioDownload(const std::string& id, std::string& file_path,
+                                            std::string& file_name) {
+    file_path.clear();
+    file_name.clear();
+    std::shared_lock<std::shared_mutex> lock(audio_mtx_);
+    const auto it = std::find_if(audio_info_list_.begin(), audio_info_list_.end(),
+                                 [&id](const auto& audio) { return audio.id == id; });
+    if (it == audio_info_list_.end() || !cosmo::path::IsSafePathComponent(it->fileName)) {
+        return false;
+    }
+    // The packaged default can be a symlink in audioMng; use its fixed source.
+    const auto source = id == default_audio_id_ ? default_audio_file_name_ : GetAudioPath(*it);
+    const int input   = open(source.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+    if (input < 0) {
+        return false;
+    }
+    struct stat info {};
+    if (fstat(input, &info) != 0 || !S_ISREG(info.st_mode) || info.st_size <= 0) {
+        close(input);
+        return false;
+    }
+    const auto destination =
+        fs::path(cosmo::path::GetTemporaryDirPath()) / ("audio-download-" + cosmo::util::GenerateUUID());
+    const int output = open(destination.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+    if (output < 0) {
+        close(input);
+        return false;
+    }
+    bool success = true;
+    std::array<char, 64 * 1024> buffer{};
+    for (;;) {
+        const auto count = read(input, buffer.data(), buffer.size());
+        if (count < 0 && errno == EINTR) {
+            continue;
+        }
+        if (count < 0) {
+            success = false;
+            break;
+        }
+        if (count == 0) {
+            break;
+        }
+        ssize_t written = 0;
+        while (written < count) {
+            const auto n = write(output, buffer.data() + written, count - written);
+            if (n < 0 && errno == EINTR) {
+                continue;
+            }
+            if (n <= 0) {
+                success = false;
+                break;
+            }
+            written += n;
+        }
+        if (!success) {
+            break;
+        }
+    }
+    close(input);
+    if (close(output) != 0) {
+        success = false;
+    }
+    if (!success) {
+        std::error_code ec;
+        fs::remove(destination, ec);
+        return false;
+    }
+    file_path = destination.string();
+    file_name = it->fileName;
+    return true;
+}
+
 bool AudioServiceImpl::RemoveAudioFile(const std::string& id, std::string& msg) {
     LOG_INFO("Remove Id:{}", id);
     std::string json_to_save;
@@ -188,7 +267,7 @@ bool AudioServiceImpl::RemoveAudioFile(const std::string& id, std::string& msg) 
     return true;
 }
 
-bool AudioServiceImpl::AddAudioFile(const std::string& file_name) {
+std::error_condition AudioServiceImpl::AddAudioFile(const std::string& file_name) {
     fs::path filePath{file_name};
     LOG_INFO("Add {} ", file_name);
     cosmo::AlarmAudioInfo info;
@@ -209,13 +288,13 @@ bool AudioServiceImpl::AddAudioFile(const std::string& file_name) {
                                    [&](const auto& a) { return a.name == filePath.filename(); });
             if (it != audio_info_list_.end()) {
                 LOG_WARN("{} In Audio List, Cant Add It.", file_name);
-                return false;
+                return util::ErrorEnum::ExistedName;
             }
 
             fs::rename(filePath, audio_file_path, err);
             if (err) {
                 LOG_ERRO("Rename {} to {} failed: {}", filePath.string(), audio_file_path, err.message());
-                return false;
+                return util::ErrorEnum::FileMoveFailed;
             }
 
             audio_info_list_.push_back(info);
@@ -223,10 +302,10 @@ bool AudioServiceImpl::AddAudioFile(const std::string& file_name) {
         }
         SaveJsonToFile(audio_db_file_, json_to_save);
         LOG_INFO("Add {} Ok Id:{}", file_name, info.id);
-        return true;
+        return util::ErrorEnum::Success;
     }
     LOG_WARN("Add {} But File Not Exist", file_name);
-    return false;
+    return util::ErrorEnum::FileOpenFailed;
 }
 
 size_t AudioServiceImpl::AudioFileCount() const {

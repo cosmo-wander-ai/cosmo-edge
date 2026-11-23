@@ -310,7 +310,7 @@ void RtmpCodecConfig::SetParameters(const std::vector<uint8_t>& extradata) {
     bool parsed = false;
     switch (codec_type_) {
         case media::VideoCodecType::kH264:
-            parsed = ParseAvcC(extradata);
+            parsed = extradata[0] == 1 ? ParseAvcC(extradata) : ParseAnnexBAvc(extradata);
             break;
         case media::VideoCodecType::kH265:
             parsed = ParseHevcC(extradata);
@@ -321,6 +321,52 @@ void RtmpCodecConfig::SetParameters(const std::vector<uint8_t>& extradata) {
     if (!parsed) {
         LOG_WARN("SetParameters: reject malformed codec extradata ({} bytes)", extradata.size());
     }
+}
+
+bool RtmpCodecConfig::ParseAnnexBAvc(const std::vector<uint8_t>& data) {
+    // FFmpeg's RTSP demuxer can supply SPS/PPS as Annex B rather than avcC.
+    // Accumulate locally so an incomplete record never replaces valid sets.
+    size_t offset = 0;
+    size_t prefix = 0;
+    if (!FindAnnexBStartCode(data.data(), data.size(), 0, offset, prefix) || offset != 0) {
+        return false;
+    }
+    std::vector<uint8_t> parsed_sps;
+    std::vector<uint8_t> parsed_pps;
+    while (true) {
+        const auto nal_start = offset + prefix;
+        size_t next_offset   = 0;
+        size_t next_prefix   = 0;
+        const bool has_next =
+            FindAnnexBStartCode(data.data(), data.size(), nal_start, next_offset, next_prefix);
+        const auto nal_end = has_next ? next_offset : data.size();
+        if (nal_start >= nal_end || (data[nal_start] & 0x80) != 0) {
+            return false;
+        }
+        const auto nal_type = data[nal_start] & 0x1f;
+        if (nal_type == 7 || nal_type == 8) {
+            auto& destination = nal_type == 7 ? parsed_sps : parsed_pps;
+            if (!AppendParameterSet(destination, data, nal_start, nal_end - nal_start)) {
+                return false;
+            }
+        } else if (nal_type != 6 && nal_type != 9) {
+            // SEI and access-unit delimiters may accompany parameter sets;
+            // picture slices do not belong in codec extradata.
+            return false;
+        }
+        if (!has_next) {
+            break;
+        }
+        offset = next_offset;
+        prefix = next_prefix;
+    }
+    if (parsed_sps.empty() || parsed_pps.empty()) {
+        return false;
+    }
+    sps_ = std::move(parsed_sps);
+    pps_ = std::move(parsed_pps);
+    LOG_INFO("ParseAnnexBAvc: extracted SPS({}B) PPS({}B)", sps_.size(), pps_.size());
+    return true;
 }
 
 bool RtmpCodecConfig::ParseAvcC(const std::vector<uint8_t>& data) {
