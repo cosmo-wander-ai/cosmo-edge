@@ -228,6 +228,9 @@ struct Reader {
         struct Headers {
             uint8_t** bytes{};
             uint32_t* sizes{};
+            Headers()                          = default;
+            Headers(const Headers&)            = delete;
+            Headers& operator=(const Headers&) = delete;
             ~Headers() {
                 if (bytes && sizes)
                     for (size_t i = 0; sizes[i]; ++i)

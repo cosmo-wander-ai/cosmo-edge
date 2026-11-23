@@ -358,14 +358,14 @@ VideoDecoderRockchip::~VideoDecoderRockchip() {
     VideoDecoderRockchip::Close();
 }
 
-VideoDecoderCapability VideoDecoderRockchip::Probe(VideoCodecType type) {
+VideoDecoderCapability VideoDecoderRockchip::ProbeCapability(VideoCodecType type) {
     VideoDecoderCapability capability;
     capability.backend        = "rockchip-mpp-rga";
     capability.implementation = "rockchip-mpp-vpu";
 
     const auto coding = ToMppCoding(type);
     if (coding == MPP_VIDEO_CodingUnused) {
-        const auto cpu            = VideoDecoderCpu::Probe(type);
+        const auto cpu            = VideoDecoderCpu::ProbeCapability(type);
         capability.available      = cpu.available;
         capability.backend        = cpu.available ? "ffmpeg-software-fallback" : capability.backend;
         capability.implementation = cpu.available ? cpu.implementation : std::string{};
@@ -385,7 +385,7 @@ VideoDecoderCapability VideoDecoderRockchip::Probe(VideoCodecType type) {
         return capability;
     }
 
-    const auto cpu = VideoDecoderCpu::Probe(type);
+    const auto cpu = VideoDecoderCpu::ProbeCapability(type);
     if (cpu.available) {
         capability.available      = true;
         capability.backend        = "ffmpeg-software-fallback";
@@ -412,7 +412,7 @@ bool VideoDecoderRockchip::Open() {
         return true;
     }
 
-    const auto cpu_capability = VideoDecoderCpu::Probe(codec_type_);
+    const auto cpu_capability = VideoDecoderCpu::ProbeCapability(codec_type_);
     if (!cpu_capability.available) {
         LOG_WARN("{} MPP decoder open failed and FFmpeg fallback is unavailable: {}", idx_name_,
                  cpu_capability.detail);
@@ -436,7 +436,7 @@ bool VideoDecoderRockchip::OpenMpp() {
         return false;
     }
 
-    const auto capability = Probe(codec_type_);
+    const auto capability = ProbeCapability(codec_type_);
     if (!capability.available || capability.implementation != "rockchip-mpp-vpu") {
         LOG_WARN("{} MPP decoder admission failed: {}", idx_name_, capability.detail);
         return false;

@@ -32,7 +32,7 @@ public:
     VideoFramePtr GetFrame() override;
     DecodedVideoFrame GetDecodedFrame() override;
 
-    static VideoDecoderCapability Probe(VideoCodecType type);
+    static VideoDecoderCapability ProbeCapability(VideoCodecType type);
 
 private:
     bool OpenMpp();

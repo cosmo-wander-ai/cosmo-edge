@@ -9,7 +9,7 @@ std::unique_ptr<VideoDecoder> VideoDecoder::Create(size_t name, void* media_hand
 }
 
 VideoDecoderCapability VideoDecoder::Probe(VideoCodecType type) {
-    return VideoDecoderRockchip::Probe(type);
+    return VideoDecoderRockchip::ProbeCapability(type);
 }
 
 }  // namespace cosmo::media

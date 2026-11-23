@@ -91,7 +91,7 @@ namespace {
 
     bool ReadLengthNal(VideoCodecType codec, const std::vector<uint8_t>& data, size_t& at,
                        unsigned expected_type, std::vector<Nal>& nals) {
-        if (at > data.size() || data.size() - at < 2)
+        if (at >= data.size() || data.size() - at < 2)
             return false;
         const size_t size = (static_cast<size_t>(data[at]) << 8) | data[at + 1];
         at += 2;
@@ -140,11 +140,11 @@ namespace {
             return false;
         size_t at = 23;
         for (unsigned array = 0; array < data[22]; ++array) {
-            if (at > data.size() || data.size() - at < 3)
+            if (at >= data.size() || data.size() - at < 3)
                 return false;
-            const unsigned type  = data[at++] & 63;
-            const unsigned count = (static_cast<unsigned>(data[at]) << 8) | data[at + 1];
-            at += 2;
+            const unsigned type  = data[at] & 63;
+            const unsigned count = (static_cast<unsigned>(data[at + 1]) << 8) | data[at + 2];
+            at += 3;
             for (unsigned i = 0; i < count; ++i)
                 if (!ReadLengthNal(codec, data, at, type, nals))
                     return false;
