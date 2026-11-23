@@ -61,8 +61,9 @@ public:
     virtual void OSDDrawLines(std::vector<std::pair<util::Point, util::Point>> lines, const Color& color,
                               int lineWidth)   = 0;
     virtual void OSDDrawLinesFine(std::vector<std::pair<util::Point, util::Point>> lines, const Color& color,
-                                  int lineWidth) {
-        OSDDrawLines(std::move(lines), color, lineWidth);
+                                  int lineWidth, uint8_t opacity = 255) {
+        if (opacity > 0)
+            OSDDrawLines(std::move(lines), color, lineWidth);
     }
     virtual void OSDDrawFilledRect(const util::Box&, const Color&, uint8_t) {}
     virtual void OSDDrawText(int x, int y, const std::string& text, const Color& color,

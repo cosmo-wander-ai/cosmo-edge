@@ -3,6 +3,7 @@
 // pipeline duration statistics, and data retrieval from the local cache.
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <limits>
 #include <set>
@@ -34,6 +35,31 @@ StreamViewerOverview::OverviewInfo StreamViewerOverview::GetOverviewDataFromLoca
     const uint64_t frameIdx       = frame->GetFrameIndex();
     const int64_t frameStreamIdx  = frame->GetStreamIndex();
 
+    const auto mergeLines = [&](const std::vector<StreamOverviewLine>& lines) {
+        for (const auto& line : lines) {
+            auto& group = info.attrLines[PackLineKey(line.attrPriority, line.color)];
+            group.color = line.color;
+            switch (line.attrPriority) {
+                case VideoOverviewAttrPriority::kBoxEdge:
+                    group.fine      = true;
+                    group.lineWidth = 1;
+                    group.opacity   = 180;
+                    break;
+                case VideoOverviewAttrPriority::kBoxCorner:
+                    group.fine          = true;
+                    group.lineWidth     = 3;
+                    group.cornerOutline = true;
+                    break;
+                case VideoOverviewAttrPriority::kBox:
+                    group.fine = true;
+                    break;
+                default:
+                    break;
+            }
+            group.lines.push_back(line.line);
+        }
+    };
+
     // ── Pass 1: exact frame index match, merge results from different pipeline stages ──
     bool exactFound = false;
     for (const auto& overviews : infos_.overviews) {
@@ -45,16 +71,7 @@ StreamViewerOverview::OverviewInfo StreamViewerOverview::GetOverviewDataFromLoca
         }
         exactFound = true;
         // merge lines (do not clear, accumulate results from multiple stages)
-        for (const auto& line : overviews.lines) {
-            uint32_t key = PackLineKey(line.attrPriority, line.color);
-            auto& group  = info.attrLines[key];
-            group.color  = line.color;
-            if (line.attrPriority == VideoOverviewAttrPriority::kBox) {
-                group.lineWidth = 2;
-                group.fine      = true;
-            }
-            group.lines.push_back(line.line);
-        }
+        mergeLines(overviews.lines);
         // merge texts
         info.texts.insert(info.texts.end(), overviews.texts.begin(), overviews.texts.end());
     }
@@ -75,16 +92,7 @@ StreamViewerOverview::OverviewInfo StreamViewerOverview::GetOverviewDataFromLoca
             }
             bestDuration = duration;
             info.attrLines.clear();
-            for (const auto& line : overviews.lines) {
-                uint32_t key = PackLineKey(line.attrPriority, line.color);
-                auto& group  = info.attrLines[key];
-                group.color  = line.color;
-                if (line.attrPriority == VideoOverviewAttrPriority::kBox) {
-                    group.lineWidth = 2;
-                    group.fine      = true;
-                }
-                group.lines.push_back(line.line);
-            }
+            mergeLines(overviews.lines);
             info.texts = overviews.texts;
         }
     }
@@ -134,10 +142,13 @@ StreamViewerOverview::OverviewInfo StreamViewerOverview::GetOverviewDataFromLoca
     if (!areaLines.empty()) {
         // Align with the media accent of the console while retaining the exact
         // configured area geometry. This is independent of the viewer's theme.
-        media::Color areaColor{168, 164, 255};
-        uint32_t key              = PackLineKey(VideoOverviewAttrPriority::kArea, areaColor);
-        info.attrLines[key].color = areaColor;
-        info.attrLines[key].lines = areaLines;
+        constexpr media::Color areaColor{168, 164, 255};
+        auto& group     = info.attrLines[PackLineKey(VideoOverviewAttrPriority::kArea, areaColor)];
+        group.color     = areaColor;
+        group.lineWidth = 1;
+        group.fine      = true;
+        group.opacity   = 135;
+        group.lines     = std::move(areaLines);
     }
 
     return info;
@@ -308,8 +319,10 @@ VideoFramePtr StreamViewerOverview::FrameOverview(VideoFramePtr frame, OverviewI
             const auto end = std::min(offset + kLinesPerBatch, group.lines.size());
             std::vector<std::pair<util::Point, util::Point>> batch(group.lines.begin() + offset,
                                                                    group.lines.begin() + end);
+            if (group.cornerOutline)
+                osd.OSDDrawLinesFine(batch, {17, 42, 46}, group.lineWidth + 2, 232);
             if (group.fine)
-                osd.OSDDrawLinesFine(std::move(batch), group.color, group.lineWidth);
+                osd.OSDDrawLinesFine(std::move(batch), group.color, group.lineWidth, group.opacity);
             else
                 osd.OSDDrawLines(std::move(batch), group.color, group.lineWidth);
         }
@@ -510,15 +523,36 @@ util::Box StreamViewerOverview::StabilizeTargetPanel(int trackId, const util::Bo
     return panel;
 }
 
+// Attribute columns are independent measurements. Emphasize a single clear reading
+// only when it alone exceeds half scale at the displayed precision. This changes no decisions.
+static const StreamOverviewTextEl::TargetLabel* ProminentJointAttribute(
+    const std::vector<const StreamOverviewTextEl::TargetLabel*>& labels) {
+    const StreamOverviewTextEl::TargetLabel* prominent = nullptr;
+    size_t measured                                    = 0;
+    for (const auto* label : labels) {
+        if (!label->jointAttribute)
+            continue;
+        if (!label->score)
+            return nullptr;
+        ++measured;
+        if (std::lround(*label->score * 1000.0F) <= 500)
+            continue;
+        if (prominent)
+            return nullptr;
+        prominent = label;
+    }
+    return measured > 1 ? prominent : nullptr;
+}
+
 void StreamViewerOverview::DrawTargetPanel(const StreamOverviewText& text,
                                            const std::vector<util::Box>& targetBoxes,
                                            std::vector<util::Box>& occupiedLabels) {
     constexpr int kMargin = 4, kPadding = 8, kColumnGap = 14;
-    // Keep small text readable in the encoded preview without changing the translucent surface.
-    constexpr int kPrimaryFont = 17, kSecondaryFont = 14;
-    constexpr int kPrimaryScoreFont = 15, kSecondaryScoreFont = 14;
-    constexpr int kIdFont = 13, kPercentFont = 12, kSizeHeight = 13;
-    constexpr int kPrimaryHeight = 29, kSecondaryHeight = 18, kSinglePrimaryHeight = 21, kIdHeight = 19;
+    constexpr int kPrimaryFont = 20, kSecondaryFont = 17, kProminentFont = 19;
+    constexpr int kPrimaryScoreFont = 18;
+    constexpr int kIdFont = 13, kPercentFont = 15, kSizeHeight = 13;
+    constexpr int kPrimaryHeight = 33, kSecondaryHeight = 24, kSinglePrimaryHeight = 23, kIdHeight = 19;
+    constexpr int kOverflowHeight = kSecondaryFont + 2;
     if (width_ < 34 || height_ < 40)
         return;
     auto& osd = service::ServiceRegistry::Instance().Get<service::IVideoFrameOSD>();
@@ -536,6 +570,7 @@ void StreamViewerOverview::DrawTargetPanel(const StreamOverviewText& text,
     }
     if (sourceRows.empty())
         return;
+    const auto* prominent = ProminentJointAttribute(sourceRows);
     // Reserve a complete 100.0% column, independent of the current measured score.
     // Each digit has a fixed advance; decimal and percent remain separate small fields.
     const auto digitAdvance = [&](int font) {
@@ -552,9 +587,9 @@ void StreamViewerOverview::DrawTargetPanel(const StreamOverviewText& text,
     };
     struct Row {
         std::string label, id, number;
-        int font{kSecondaryFont}, scoreFont{kSecondaryScoreFont}, scoreWidth{0}, height{kSecondaryHeight},
+        int font{kSecondaryFont}, scoreFont{kSecondaryFont}, scoreWidth{0}, height{kSecondaryHeight},
             idWidth{0};
-        bool stacked{false}, omittedScore{false};
+        bool stacked{false}, omittedScore{false}, prominent{false};
     };
     std::vector<Row> rows;
     int contentWidth = 0, contentHeight = 0;
@@ -562,18 +597,21 @@ void StreamViewerOverview::DrawTargetPanel(const StreamOverviewText& text,
     const int padding          = std::min(kPadding, std::max(2, (width_ - 26) / 2));
     const int maxContentWidth  = std::min(320, width_ - kMargin * 2) - padding * 2;
     const int maxContentHeight = height_ - kMargin * 2 - padding * 2;
-    if (maxContentHeight < kSecondaryHeight)
+    if (maxContentHeight < kOverflowHeight)
         return;
     size_t visibleRows = 0;
     for (size_t i = 0; i < sourceRows.size(); ++i) {
         const auto& value = *sourceRows[i];
         Row row;
-        row.label     = value.label;
-        row.id        = value.trackId >= 0 ? COSMO_FORMAT("#{}", value.trackId) : "";
-        row.font      = std::min(i == 0 ? kPrimaryFont : kSecondaryFont, maxContentWidth - 2);
-        row.scoreFont = i == 0 ? kPrimaryScoreFont : kSecondaryScoreFont;
-        row.height    = i == 0 ? (sourceRows.size() > 1 ? kPrimaryHeight : kSinglePrimaryHeight)
-                               : (i + 1 == sourceRows.size() ? kSecondaryFont : kSecondaryHeight);
+        row.label = value.label;
+        row.id    = value.trackId >= 0 ? COSMO_FORMAT("#{}", value.trackId) : "";
+        // Reserve space for the largest attribute style even when a later frame highlights another row.
+        const int attributeFont = value.jointAttribute ? kProminentFont : kSecondaryFont;
+        row.prominent           = &value == prominent;
+        row.font                = std::min(i == 0 ? kPrimaryFont : attributeFont, maxContentWidth - 2);
+        row.scoreFont           = i == 0 ? kPrimaryScoreFont : attributeFont;
+        row.height              = i == 0 ? (sourceRows.size() > 1 ? kPrimaryHeight : kSinglePrimaryHeight)
+                                         : (i + 1 == sourceRows.size() ? row.font + 2 : kSecondaryHeight);
         if (value.score)
             row.number = COSMO_FORMAT("{:.1f}", *value.score * 100.0F);
         if (!row.number.empty()) {
@@ -581,6 +619,12 @@ void StreamViewerOverview::DrawTargetPanel(const StreamOverviewText& text,
             const int markerWidth = GetFineTextWidth("…", row.font);
             row.stacked           = row.scoreWidth + kColumnGap + markerWidth > maxContentWidth;
             if (row.stacked) {
+                // Narrow frames can still show the full score on its own line using a smaller type size.
+                while (row.scoreWidth > maxContentWidth && row.scoreFont > kIdFont) {
+                    --row.scoreFont;
+                    row.scoreWidth =
+                        numberWidth("100.0", row.scoreFont) + 3 + GetFineTextWidth("%", kPercentFont);
+                }
                 row.height = std::max(row.font, kIdHeight) + row.scoreFont + 6;
                 if (row.scoreWidth > maxContentWidth) {
                     row.omittedScore = true;
@@ -604,21 +648,26 @@ void StreamViewerOverview::DrawTargetPanel(const StreamOverviewText& text,
             if (row.id.empty())
                 row.label = FitFineTextToWidth("…", row.font, labelBudget);
         }
-        const int reservedOverflow = i + 1 < sourceRows.size() ? kSecondaryHeight : 0;
+        const int reservedOverflow = i + 1 < sourceRows.size() ? kOverflowHeight : 0;
         if (contentHeight + row.height + reservedOverflow > maxContentHeight)
             break;
         contentWidth =
             std::max(contentWidth, std::max(GetFineTextWidth(row.label, row.font) + idSpace + scoreSpace,
                                             row.stacked ? row.scoreWidth : 0));
+        if (i > 0 && value.jointAttribute && !row.prominent) {
+            row.font      = std::min(row.font, kSecondaryFont);
+            row.scoreFont = std::min(row.scoreFont, kSecondaryFont);
+        }
         contentHeight += row.height;
         rows.push_back(std::move(row));
         ++visibleRows;
     }
     if (visibleRows < sourceRows.size()) {
         Row row;
-        row.label = FitFineTextToWidth(COSMO_FORMAT("+{}", sourceRows.size() - visibleRows), kSecondaryFont,
-                                       maxContentWidth);
-        row.font  = kSecondaryFont;
+        row.height = kOverflowHeight;
+        row.label  = FitFineTextToWidth(COSMO_FORMAT("+{}", sourceRows.size() - visibleRows), kSecondaryFont,
+                                        maxContentWidth);
+        row.font   = kSecondaryFont;
         if (row.label.empty()) {
             row.font  = std::min(kSecondaryFont, maxContentWidth - 2);
             row.label = FitFineTextToWidth("…", row.font, maxContentWidth);
@@ -638,46 +687,47 @@ void StreamViewerOverview::DrawTargetPanel(const StreamOverviewText& text,
                               panelHeight};
     const auto panel = StabilizeTargetPanel(trackId, preferred, box, targetBoxes, occupiedLabels);
     occupiedLabels.push_back(panel);
-    osd.OSDDrawRoundedRect(panel, {52, 50, 71}, 145, 5);
-    osd.OSDDrawRoundedRectOutline(panel, {180, 177, 210}, 59, 5);
+    osd.OSDDrawRoundedRect(panel, {33, 33, 45}, 209, 5);
+    osd.OSDDrawRoundedRectOutline(panel, {225, 224, 238}, 117, 5);
     int rowY = panel.y + padding;
     for (size_t i = 0; i < rows.size(); ++i) {
-        const auto& row = rows[i];
+        const auto& row        = rows[i];
+        const media::Color ink = row.prominent ? media::Color{255, 255, 255}
+                                 : i == 0      ? media::Color{249, 250, 252}
+                                               : media::Color{223, 226, 235};
         if (!row.label.empty())
-            osd.OSDDrawTextFine(panel.x + padding, rowY, row.label,
-                                i == 0 ? media::Color{245, 246, 251} : media::Color{228, 230, 240}, row.font);
+            osd.OSDDrawTextFine(panel.x + padding, rowY, row.label, ink, row.font);
         if (!row.id.empty()) {
             const int idX =
                 panel.x + padding + GetFineTextWidth(row.label, row.font) + (row.label.empty() ? 0 : 10);
-            osd.OSDDrawRoundedRectOutline({idX, rowY - 1, row.idWidth, kIdHeight}, {179, 173, 208}, 64, 4);
-            osd.OSDDrawTextFine(idX + 5, rowY + 2, row.id, {220, 212, 238}, kIdFont);
+            osd.OSDDrawRoundedRectOutline({idX, rowY, row.idWidth, kIdHeight}, {222, 221, 236}, 117, 4);
+            osd.OSDDrawTextFine(idX + 5, rowY + 3, row.id, {228, 228, 237}, kIdFont);
         }
         if (!row.number.empty()) {
             const int numberY = rowY + (row.stacked ? std::max(row.font, kIdHeight) + 2 : i == 0 ? 1 : 0);
             const int right   = panel.x + panel.width - padding;
             if (row.omittedScore) {
-                osd.OSDDrawTextFine(right - row.scoreWidth, numberY, "…", {230, 233, 243}, row.scoreFont);
+                osd.OSDDrawTextFine(right - row.scoreWidth, numberY, "…", ink, row.scoreFont);
             } else {
                 const int percentWidth = GetFineTextWidth("%", kPercentFont);
                 const int numberRight  = right - percentWidth - 3;
                 int cursor             = numberRight - numberWidth(row.number, row.scoreFont);
-                const auto color       = i == 0 ? media::Color{240, 242, 250} : media::Color{230, 233, 243};
                 for (char ch : row.number) {
                     const std::string glyph(1, ch);
                     const int glyphWidth = GetFineTextWidth(glyph, row.scoreFont);
                     const int advance = ch == '.' ? std::max(3, glyphWidth - 2) : digitAdvance(row.scoreFont);
-                    osd.OSDDrawTextFine(cursor + (advance - glyphWidth) / 2, numberY, glyph, color,
+                    osd.OSDDrawTextFine(cursor + (advance - glyphWidth) / 2, numberY, glyph, ink,
                                         row.scoreFont);
                     cursor += advance;
                 }
                 osd.OSDDrawTextFine(right - percentWidth, numberY + row.scoreFont - kPercentFont, "%",
-                                    {212, 215, 231}, kPercentFont);
+                                    row.prominent ? ink : media::Color{214, 217, 229}, kPercentFont);
             }
         }
         if (i == 0 && rows.size() > 1 && !row.stacked)
             osd.OSDDrawRoundedRect(
                 {panel.x + padding, rowY + kPrimaryHeight - 5, panel.width - padding * 2, 1}, {184, 181, 212},
-                33, 0);
+                54, 0);
         rowY += row.height;
     }
     if (dimensions) {

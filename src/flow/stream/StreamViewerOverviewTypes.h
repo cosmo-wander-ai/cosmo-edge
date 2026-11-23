@@ -13,7 +13,9 @@
 struct cosmo::StreamViewerOverview::AttrLines {
     cosmo::media::Color color{200, 200, 200};
     int lineWidth{2};
-    bool fine{false};  // target geometry omits the legacy dark halo
+    bool fine{false};
+    uint8_t opacity{255};
+    bool cornerOutline{false};
     std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> lines;
 };
 

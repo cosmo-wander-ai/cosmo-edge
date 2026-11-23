@@ -17,6 +17,7 @@ struct OsdLineGroup {
     Color color;
     int width{2};
     bool fine{false};  // fine target geometry omits the legacy dark halo
+    uint8_t opacity{255};
 };
 
 // Composite antialiased lines directly into contiguous I420 planes. Luma is

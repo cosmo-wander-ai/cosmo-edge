@@ -91,6 +91,7 @@ void StreamViewerOverview::AddTextToLocal(int64_t streamIndex, uint64_t index, i
                 text.targetLabel->label == posTextValue.targetLabel->label &&
                 text.targetLabel->score == posTextValue.targetLabel->score &&
                 text.targetLabel->trackId == posTextValue.targetLabel->trackId) {
+                posTextValue.targetLabel->jointAttribute |= text.targetLabel->jointAttribute;
                 return;
             }
             continue;
@@ -119,7 +120,7 @@ void StreamViewerOverview::AddTextToLocal(int64_t streamIndex, uint64_t index, i
 }
 
 void StreamViewerOverview::AddLineToLocal(int64_t streamIndex, uint64_t index, int64_t timestamp,
-                                          StreamOverviewLine& line) {
+                                          const StreamOverviewLine& line) {
     if (!live_stream_) {
         if ((streamIndex < frame_identity_.streamIndex) || (index < frame_identity_.index)) {
             return;
@@ -144,15 +145,12 @@ void StreamViewerOverview::AddLineToLocal(int64_t streamIndex, uint64_t index, i
 
     auto& overview = *it;
     auto lineIt = std::find_if(overview.lines.begin(), overview.lines.end(), [&line](const auto& localLine) {
-        return (localLine.line.first.x == line.line.first.x) &&
+        return localLine.attrPriority == line.attrPriority && (localLine.line.first.x == line.line.first.x) &&
                (localLine.line.first.y == line.line.first.y) &&
                (localLine.line.second.x == line.line.second.x) &&
                (localLine.line.second.y == line.line.second.y);
     });
     if (lineIt != overview.lines.end()) {
-        if (lineIt->attrPriority > line.attrPriority) {
-            lineIt->attrPriority = line.attrPriority;
-        }
         return;
     }
 
@@ -172,7 +170,7 @@ void StreamViewerOverview::LiveDataHandTarget(int64_t streamIndex, uint64_t inde
 
     // A target's label or confidence is not an alarm state. Keep ordinary
     // detections a consistent cyan rather than hashing classes into warning colors.
-    const media::Color boxColor{91, 205, 214};
+    constexpr media::Color boxColor{110, 236, 239};
 
     // ── update EMA smooth state (record only, does not change stored coordinates) ──
     if (target.trackId >= 0) {
@@ -213,49 +211,45 @@ void StreamViewerOverview::LiveDataHandTarget(int64_t streamIndex, uint64_t inde
     util::Point pointTR(drawX + drawW, drawY);
     util::Point pointBR(drawX + drawW, drawY + drawH);
     util::Point pointBL(drawX, drawY + drawH);
-    VideoOverviewAttrPriority attrPriority = VideoOverviewAttrPriority::kBox;
-
-    int minSide = std::min(drawW, drawH);
+    const auto addStroke = [&](VideoOverviewAttrPriority style, util::Point from, util::Point to) {
+        AddLineToLocal(streamIndex, index, timestamp, {style, {from, to}, boxColor});
+    };
+    const int minSide = std::min(drawW, drawH);
     if (target.oriented_corners) {
         for (const auto& edge : GetQuadOsdLines(*target.oriented_corners, width_, height_)) {
-            StreamOverviewLine line{attrPriority, edge, boxColor};
-            AddLineToLocal(streamIndex, index, timestamp, line);
+            addStroke(VideoOverviewAttrPriority::kBox, edge.first, edge.second);
         }
     } else if (minSide < 30) {
         // small targets keep full rectangle, avoid cramped corner brackets
-        StreamOverviewLine line1{attrPriority, {pointTL, pointTR}, boxColor};
-        StreamOverviewLine line2{attrPriority, {pointTR, pointBR}, boxColor};
-        StreamOverviewLine line3{attrPriority, {pointBR, pointBL}, boxColor};
-        StreamOverviewLine line4{attrPriority, {pointBL, pointTL}, boxColor};
-        AddLineToLocal(streamIndex, index, timestamp, line1);
-        AddLineToLocal(streamIndex, index, timestamp, line2);
-        AddLineToLocal(streamIndex, index, timestamp, line3);
-        AddLineToLocal(streamIndex, index, timestamp, line4);
+        addStroke(VideoOverviewAttrPriority::kBox, pointTL, pointTR);
+        addStroke(VideoOverviewAttrPriority::kBox, pointTR, pointBR);
+        addStroke(VideoOverviewAttrPriority::kBox, pointBR, pointBL);
+        addStroke(VideoOverviewAttrPriority::kBox, pointBL, pointTL);
     } else {
-        // corner bracket detection box — only draw L-shaped marks at 4 corners, cleaner look
-        const int cornerLen = std::clamp(minSide / 6, 6, 18);
+        const int cornerLen = std::clamp(minSide / 6, 6, 30);
         // The integer-coordinate line interface approximates a 3px quarter arc
         // through its rounded 45-degree point (1,1). Two distinct segments keep
         // the fine rasterizer's round caps without repeated or zero-length edges.
         const int radius = 3;
         auto corner      = [&](util::Point p, int dx, int dy) {
-            StreamOverviewLine horizontal{
-                attrPriority, {{p.x + dx * radius, p.y}, {p.x + dx * cornerLen, p.y}}, boxColor};
-            StreamOverviewLine bendStart{
-                attrPriority, {{p.x + dx * radius, p.y}, {p.x + dx, p.y + dy}}, boxColor};
-            StreamOverviewLine bendEnd{
-                attrPriority, {{p.x + dx, p.y + dy}, {p.x, p.y + dy * radius}}, boxColor};
-            StreamOverviewLine vertical{
-                attrPriority, {{p.x, p.y + dy * radius}, {p.x, p.y + dy * cornerLen}}, boxColor};
-            AddLineToLocal(streamIndex, index, timestamp, horizontal);
-            AddLineToLocal(streamIndex, index, timestamp, bendStart);
-            AddLineToLocal(streamIndex, index, timestamp, bendEnd);
-            AddLineToLocal(streamIndex, index, timestamp, vertical);
+            constexpr auto style = VideoOverviewAttrPriority::kBoxCorner;
+            const util::Point horizontal(p.x + dx * radius, p.y);
+            const util::Point bend(p.x + dx, p.y + dy);
+            const util::Point vertical(p.x, p.y + dy * radius);
+            addStroke(style, horizontal, {p.x + dx * cornerLen, p.y});
+            addStroke(style, horizontal, bend);
+            addStroke(style, bend, vertical);
+            addStroke(style, vertical, {p.x, p.y + dy * cornerLen});
         };
         corner(pointTL, 1, 1);
         corner(pointTR, -1, 1);
         corner(pointBR, -1, -1);
         corner(pointBL, 1, -1);
+        constexpr auto edge = VideoOverviewAttrPriority::kBoxEdge;
+        addStroke(edge, {pointTL.x + cornerLen, pointTL.y}, {pointTR.x - cornerLen, pointTR.y});
+        addStroke(edge, {pointTR.x, pointTR.y + cornerLen}, {pointBR.x, pointBR.y - cornerLen});
+        addStroke(edge, {pointBL.x + cornerLen, pointBL.y}, {pointBR.x - cornerLen, pointBR.y});
+        addStroke(edge, {pointTL.x, pointTL.y + cornerLen}, {pointBL.x, pointBL.y - cornerLen});
     }
 
     bool trackIdShown = false;
@@ -269,7 +263,8 @@ void StreamViewerOverview::LiveDataHandTarget(int64_t streamIndex, uint64_t inde
         util::Point pos(drawX, drawY);  // label position follows smoothed box
         StreamOverviewTextEl text;
         text.attrPriority = VideoOverviewAttrPriority::kConfidence;
-        text.targetLabel  = StreamOverviewTextEl::TargetLabel{confidence.label, std::nullopt, -1};
+        text.targetLabel =
+            StreamOverviewTextEl::TargetLabel{confidence.label, std::nullopt, -1, confidence.jointAttribute};
 
         // Keep label and track ID without suggesting confidence is alarm severity.
         text.hasColor = true;

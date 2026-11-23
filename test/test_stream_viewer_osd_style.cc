@@ -44,6 +44,7 @@ public:
         std::vector<std::pair<util::Point, util::Point>> segments;
         media::Color color;
         int width;
+        uint8_t opacity{255};
     };
     std::vector<Lines> lines;
     std::vector<std::string> texts;
@@ -108,9 +109,10 @@ public:
         lines.push_back({std::move(segments), color, width});
     }
     void OSDDrawLinesFine(std::vector<std::pair<util::Point, util::Point>> segments,
-                          const media::Color& color, int width) override {
+                          const media::Color& color, int width, uint8_t opacity) override {
         ++fineLineCalls;
         OSDDrawLines(std::move(segments), color, width);
+        lines.back().opacity = opacity;
     }
     void OSDDrawFilledRect(const util::Box& rect, const media::Color&, uint8_t) override {
         filledRects.push_back(rect);
@@ -320,7 +322,7 @@ TEST_CASE("Live target label pairs original labels and aligned scores within a b
     viewer.FrameOverview(nullptr, data);
     CHECK(osd.filledRects.size() == 1);  // one subtle header separator, no accent bar
     REQUIRE(osd.roundedRects.size() == 1);
-    CHECK(osd.roundedOpacity.front() == 145);
+    CHECK(osd.roundedOpacity.front() == 209);
     const auto panel = osd.roundedRects.front();
     CHECK(panel.x >= 0);
     CHECK(panel.y >= 0);
@@ -335,31 +337,30 @@ TEST_CASE("Live target label pairs original labels and aligned scores within a b
     CHECK(osd.textX[0] == osd.textX[2]);
     CHECK(osd.textY[0] + 1 == osd.textY[1]);
     CHECK(osd.textY[2] == osd.textY[3]);
-    CHECK(osd.textFont[1] == 15);
-    CHECK(osd.textFont[3] == 14);
+    CHECK(osd.textFont[1] == 18);
+    CHECK(osd.textFont[3] == 17);
     std::vector<int> percentX;
     for (size_t i = 0; i < osd.glyphs.size(); ++i)
         if (osd.glyphs[i] == "%") {
-            CHECK(osd.glyphFont[i] == 12);
+            CHECK(osd.glyphFont[i] == 15);
             percentX.push_back(osd.glyphX[i]);
         }
-    // Small secondary fields keep their hierarchy while remaining bright on the
-    // unchanged translucent surface. Check actual paint calls, including digits.
+    // Inspect the drawn label, number and percent fields on the higher-contrast card.
     for (size_t i = 0; i < osd.glyphs.size(); ++i) {
-        const auto expected = osd.glyphs[i] == "person"       ? media::Color{245, 246, 251}
-                              : osd.glyphs[i] == "raw 7% #x"  ? media::Color{228, 230, 240}
+        const auto expected = osd.glyphs[i] == "person"       ? media::Color{249, 250, 252}
+                              : osd.glyphs[i] == "raw 7% #x"  ? media::Color{223, 226, 235}
                               : osd.glyphs[i] == "120x200 px" ? media::Color{226, 230, 239}
-                              : osd.glyphs[i] == "%"          ? media::Color{212, 215, 231}
-                              : osd.glyphY[i] == osd.textY[1] ? media::Color{240, 242, 250}
-                                                              : media::Color{230, 233, 243};
+                              : osd.glyphs[i] == "%"          ? media::Color{214, 217, 229}
+                              : osd.glyphY[i] == osd.textY[1] ? media::Color{249, 250, 252}
+                                                              : media::Color{223, 226, 235};
         CHECK(osd.glyphColor[i].red == expected.red);
         CHECK(osd.glyphColor[i].green == expected.green);
         CHECK(osd.glyphColor[i].blue == expected.blue);
     }
     REQUIRE(percentX.size() == 2);
     CHECK(percentX[0] == percentX[1]);
-    CHECK(osd.textFont[0] == 17);
-    CHECK(osd.textFont[2] == 14);
+    CHECK(osd.textFont[0] == 20);
+    CHECK(osd.textFont[2] == 17);
     CHECK(osd.textFont[4] == 13);
     // The target extends beyond the right edge. The size caption may sit beside
     // its bottom edge after the panel occupies the default below-box position.
@@ -440,6 +441,8 @@ TEST_CASE("Live OSD keeps area geometry and timing adaptation without drawing di
     CHECK(polygon.color.red == 168);
     CHECK(polygon.color.green == 164);
     CHECK(polygon.color.blue == 255);
+    CHECK(polygon.opacity > 0);
+    CHECK(polygon.opacity < 200);
     CHECK(polygon.segments[0].first.x == 64);
     CHECK(polygon.segments[0].first.y == 36);
     CHECK(polygon.segments[0].second.x == 512);
@@ -524,11 +527,12 @@ TEST_CASE("Live OSD displays only measured, valid confidence scores", "[stream][
     source->picWidth  = 640;
     source->picHeight = 360;
     AiDetectRstEl target;
-    target.trackId     = 7;
-    target.box         = {100, 90, 120, 200};
-    target.confidence  = {"person", "detector", 0.92F, AiAnnotationSource::Detection};
-    target.classifyRst = {
-        {"helmet", "classifier", 0.86F, AiAnnotationSource::Classification},
+    target.trackId                  = 7;
+    target.box                      = {100, 90, 120, 200};
+    target.confidence               = {"person", "detector", 0.92F, AiAnnotationSource::Detection};
+    target.hasJointPersonAttributes = true;
+    target.classifyRst              = {
+        {"helmet", "detector", 0.86F, AiAnnotationSource::Classification},
         {"vlm verdict", "vlm", 1.0F, AiAnnotationSource::Unknown},
         {"placeholder", "classifier", 1.0F, AiAnnotationSource::Unknown},
         {"invalid", "detector", 1.25F, AiAnnotationSource::Detection},
@@ -544,6 +548,9 @@ TEST_CASE("Live OSD displays only measured, valid confidence scores", "[stream][
     CHECK_FALSE(liveTarget.confidence[2].scoreMeasured);
     CHECK_FALSE(liveTarget.confidence[3].scoreMeasured);
     CHECK_FALSE(liveTarget.confidence[4].scoreMeasured);
+    CHECK_FALSE(liveTarget.confidence[0].jointAttribute);
+    CHECK(liveTarget.confidence[1].jointAttribute);
+    CHECK_FALSE(liveTarget.confidence[2].jointAttribute);
 
     // Keep the existing externally visible JSON shape; decoded historical data
     // cannot claim measurement provenance, including when an object is reused.
@@ -551,10 +558,12 @@ TEST_CASE("Live OSD displays only measured, valid confidence scores", "[stream][
     REQUIRE(json.size() == 2);
     CHECK(json.contains("label"));
     CHECK(json.contains("confidence"));
-    auto decoded = liveTarget.confidence[0];
+    auto decoded = liveTarget.confidence[1];
     REQUIRE(decoded.scoreMeasured);
+    REQUIRE(decoded.jointAttribute);
     json.get_to(decoded);
     CHECK_FALSE(decoded.scoreMeasured);
+    CHECK_FALSE(decoded.jointAttribute);
     CHECK(decoded.confidence == Catch::Approx(0.92F));
 
     test::MockTaskService tasks;
@@ -570,15 +579,6 @@ TEST_CASE("Live OSD displays only measured, valid confidence scores", "[stream][
 
     REQUIRE(viewer.infos_.overviews.size() == 1);
     const auto& drawn = viewer.infos_.overviews.front();
-    REQUIRE(drawn.lines.size() == 16);
-    CHECK(drawn.lines[0].line.first.x == 103);
-    CHECK(drawn.lines[0].line.second.x == 118);  // shorter bracket and 2 px softened corner
-    CHECK(drawn.lines[3].line.second.y == 108);
-    for (const auto& line : drawn.lines) {
-        CHECK(line.color.red == 91);
-        CHECK(line.color.green == 205);
-        CHECK(line.color.blue == 214);
-    }
     REQUIRE(drawn.texts.size() == 1);
     const auto& labels = drawn.texts.front().posTexts;
     REQUIRE(labels.size() == 6);
@@ -593,6 +593,8 @@ TEST_CASE("Live OSD displays only measured, valid confidence scores", "[stream][
     REQUIRE(labels[0].targetLabel->score);
     CHECK(*labels[0].targetLabel->score == Catch::Approx(0.92F));
     CHECK(labels[0].targetLabel->trackId == 7);
+    CHECK_FALSE(labels[0].targetLabel->jointAttribute);
+    CHECK(labels[2].targetLabel->jointAttribute);
     CHECK_FALSE(labels[3].targetLabel->score);
     CHECK_FALSE(labels[5].targetLabel->score);
 }
@@ -616,6 +618,50 @@ TEST_CASE("Very small live targets keep a legible full outline", "[stream][osd][
     REQUIRE(viewer.infos_.overviews[0].lines.size() == 4);
     CHECK(viewer.infos_.overviews[0].lines[0].line.first.x == 0);
     CHECK(viewer.infos_.overviews[0].lines[0].line.second.x == 12);
+}
+
+TEST_CASE("Live target box connects the emphasized corners on exact and nearest frames",
+          "[stream][osd][target-box]") {
+    test::MockTaskService tasks;
+    ALLOW_CALL(tasks, GetTaskFrameInfo(trompeloeil::_, trompeloeil::_, trompeloeil::_, trompeloeil::_,
+                                       trompeloeil::_, trompeloeil::_))
+        .RETURN(true);
+    test::ScopedServiceOverride<service::ITaskQuery> registration(tasks);
+    CapturingOSD osd;
+    test::ScopedServiceOverride<service::IVideoFrameOSD> osdRegistration(osd);
+    StreamViewerOverview viewer("camera", "algorithm");
+    viewer.width_  = 640;
+    viewer.height_ = 360;
+    MsgTarget target{};
+    target.aiBox = {100, 90, 318, 244};
+    target.confidence.push_back({"person", .614F, true});
+    viewer.LiveDataHandTarget(0, 8, 1000, target);
+    const int currentIndex = GENERATE(8, 9);
+    auto frame = std::make_shared<media::VideoFrame>(640, 360, media::PixelFormat::PIXEL_I420, currentIndex,
+                                                     1000, [] { return VideoFramePtr{}; });
+    frame->SetStreamIndex(0);
+    const auto info = viewer.GetOverviewDataFromLocal(frame);
+    viewer.FrameOverview(frame, info);
+    REQUIRE(osd.lines.size() == 3);
+    const auto& edges    = osd.lines[0];
+    const auto& outlines = osd.lines[1];
+    const auto& corners  = osd.lines[2];
+    REQUIRE(edges.segments.size() == 4);
+    CHECK(edges.width == 1);
+    CHECK(edges.opacity == 180);
+    REQUIRE(corners.segments.size() == 16);
+    REQUIRE(outlines.segments.size() == corners.segments.size());
+    CHECK(outlines.width == 5);
+    CHECK(corners.width == 3);
+    CHECK(outlines.color.green < corners.color.green);
+    CHECK(corners.opacity == 255);
+    // The first top corner extends for 30 source pixels; the connector starts exactly
+    // at its tip and meets the opposite corner's tip, without filling the rest of the box.
+    CHECK(corners.segments.front().second.x == 130);
+    CHECK(edges.segments.front().first.x == corners.segments.front().second.x);
+    CHECK(edges.segments.front().second.x == corners.segments[4].second.x);
+    CHECK(edges.segments.front().first.y == 90);
+    CHECK(edges.segments.front().second.y == 90);
 }
 
 TEST_CASE("Live target panels preserve all raw results and report physical overflow",
@@ -652,7 +698,11 @@ TEST_CASE("Live target panels preserve all raw results and report physical overf
     osd.texts.clear();
     viewer.height_ = 100;
     viewer.FrameOverview(nullptr, info);
-    CHECK(std::find(osd.texts.begin(), osd.texts.end(), "+10") != osd.texts.end());
+    // Each displayed model row contributes its label and score; the other two items
+    // are the omission count and the dimensions caption. Account for every source row.
+    REQUIRE(osd.texts.size() >= 4);
+    const size_t visible = (osd.texts.size() - 2) / 2;
+    CHECK(osd.texts[osd.texts.size() - 2] == "+" + std::to_string(target.confidence.size() - visible));
     CHECK(viewer.infos_.overviews.front().texts.front().posTexts.size() == 13);
     const auto panel = osd.roundedRects.back();
     CHECK(panel.y >= 0);
@@ -708,7 +758,7 @@ TEST_CASE("Very narrow panels keep scores paired or explicitly omit them without
     WidthRenderer renderer;
     test::ScopedServiceOverride<media::IOsdTextRenderer> textRegistration(renderer);
     StreamViewerOverview viewer("camera", "algorithm");
-    viewer.width_  = GENERATE(20, 34, 60, 110);
+    viewer.width_  = GENERATE(20, 34, 60, 110, 128);
     viewer.height_ = 180;
     MsgTarget target{};
     target.trackId = 7;
@@ -726,7 +776,7 @@ TEST_CASE("Very narrow panels keep scores paired or explicitly omit them without
     } else {
         REQUIRE(osd.texts.size() == 3);
         CHECK_FALSE(osd.texts[0].empty());
-        CHECK(osd.texts[1] == (viewer.width_ == 110 ? "92.0%" : "…"));
+        CHECK(osd.texts[1] == (viewer.width_ >= 110 ? "92.0%" : "…"));
         CHECK(osd.textY[1] > osd.textY[0]);  // paired two-line fallback within one panel
         for (size_t i = 0; i < osd.texts.size(); ++i) {
             CHECK(osd.textX[i] >= 0);
@@ -1050,16 +1100,16 @@ TEST_CASE("Target IDs are independently styled and score columns do not resize w
     CHECK(osd.texts[1] == "#0");
     CHECK(osd.textFont[1] == 13);
     REQUIRE(osd.glyphs[1] == "#0");
-    CHECK(osd.glyphColor[1].red == 220);
-    CHECK(osd.glyphColor[1].green == 212);
-    CHECK(osd.glyphColor[1].blue == 238);
+    CHECK(osd.glyphColor[1].red == 228);
+    CHECK(osd.glyphColor[1].green == 228);
+    CHECK(osd.glyphColor[1].blue == 237);
     CHECK(osd.texts[2] == "9.9%");
     REQUIRE(osd.outlines.size() == 2);  // panel and independent ID marker
     const auto width   = osd.roundedRects.back().width;
     const auto percent = std::find(osd.glyphs.begin(), osd.glyphs.end(), "%") - osd.glyphs.begin();
     REQUIRE(static_cast<size_t>(percent) < osd.glyphs.size());
     const int percentX = osd.glyphX[percent];
-    CHECK(osd.glyphFont[percent] == 12);
+    CHECK(osd.glyphFont[percent] == 15);
     info.texts[0].posTexts[0].targetLabel->score = 1.F;
     viewer.FrameOverview(nullptr, info);
     CHECK(osd.roundedRects.back().width == width);
@@ -1068,6 +1118,50 @@ TEST_CASE("Target IDs are independently styled and score columns do not resize w
     CHECK(osd.glyphX.back() == percentX);
     CHECK(info.texts[0].posTexts[0].targetLabel->label == "raw #x");
     CHECK(*info.texts[0].posTexts[0].targetLabel->score == Catch::Approx(1.F));
+}
+
+TEST_CASE("Live card emphasizes a measured joint attribute and keeps model display order",
+          "[stream][osd][target-panel]") {
+    test::MockTaskService tasks;
+    ALLOW_CALL(tasks, GetTaskFrameInfo(trompeloeil::_, trompeloeil::_, trompeloeil::_, trompeloeil::_,
+                                       trompeloeil::_, trompeloeil::_))
+        .RETURN(true);
+    test::ScopedServiceOverride<service::ITaskQuery> registration(tasks);
+    CapturingOSD osd;
+    test::ScopedServiceOverride<service::IVideoFrameOSD> osdRegistration(osd);
+    StreamViewerOverview viewer("camera", "algorithm");
+    viewer.width_  = 1280;
+    viewer.height_ = 720;
+    MsgTarget target{};
+    target.trackId    = -1;
+    target.aiBox      = {300, 180, 150, 240};
+    target.confidence = {{"person", 1.F, true},     {"smoking", .01F, true, true}, {"sleep", 0.F, true, true},
+                         {"fall", 0.F, true, true}, {"normal", .99F, true, true},  {"other", 1.F, true}};
+    bool emphasize    = false;
+    SECTION("The header and an unrelated classifier may both score higher") {
+        emphasize = true;
+    }
+    SECTION("Two attributes displaying the same score receive the same style") {
+        target.confidence[1].confidence = .50002F;
+        target.confidence[4].confidence = .50001F;
+    }
+    SECTION("Independent classifier outputs retain ordinary styling") {
+        for (auto& confidence : target.confidence)
+            confidence.jointAttribute = false;
+    }
+    viewer.LiveDataHandTarget(0, 8, 1000, target);
+    StreamViewerOverview::OverviewInfo info;
+    info.texts = viewer.infos_.overviews.front().texts;
+    viewer.FrameOverview(nullptr, info);
+    REQUIRE(osd.texts.size() == target.confidence.size() * 2 + 1);
+    for (size_t i = 0; i < target.confidence.size(); ++i) {
+        CHECK(osd.texts[2 * i] == target.confidence[i].label);
+        if (i == 0)
+            continue;
+        const auto font = emphasize && target.confidence[i].label == "normal" ? 19 : 17;
+        CHECK(osd.textFont[2 * i] == font);
+        CHECK(osd.textFont[2 * i + 1] == font);
+    }
 }
 
 TEST_CASE("Tracked target panels retain their anchor through transient collisions",

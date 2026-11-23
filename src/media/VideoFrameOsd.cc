@@ -200,9 +200,9 @@ namespace media {
     }
 
     void VideoFrameProcSophon::OSDDrawLinesFine(std::vector<std::pair<util::Point, util::Point>> lines,
-                                                const Color& color, int lineWidth) {
-        if (t_osdFrame && !lines.empty() && lineWidth > 0)
-            t_osdLines.push_back({std::move(lines), color, lineWidth, true});
+                                                const Color& color, int lineWidth, uint8_t opacity) {
+        if (t_osdFrame && !lines.empty() && lineWidth > 0 && opacity > 0)
+            t_osdLines.push_back({std::move(lines), color, lineWidth, true, opacity});
     }
 
     void VideoFrameProcSophon::OSDDrawRoundedRect(const util::Box& rect, const Color& color, uint8_t opacity,

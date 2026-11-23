@@ -37,7 +37,7 @@ public:
     void OSDDrawLines(std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> lines,
                       const cosmo::media::Color& color, int lineWidth) override;
     void OSDDrawLinesFine(std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> lines,
-                          const cosmo::media::Color& color, int lineWidth) override;
+                          const cosmo::media::Color& color, int lineWidth, uint8_t opacity = 255) override;
     void OSDDrawTextFine(int x, int y, const std::string& text, const cosmo::media::Color& color,
                          int pixelHeight) override;
     void OSDDrawRoundedRect(const cosmo::util::Box& rect, const cosmo::media::Color& color, uint8_t opacity,

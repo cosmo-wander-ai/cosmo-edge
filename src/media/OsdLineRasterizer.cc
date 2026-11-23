@@ -188,7 +188,7 @@ void RasterizeOsdLinesI420(uint8_t* y, uint8_t* u, uint8_t* v, int width, int he
             for (const auto& line : group.lines)
                 draw(line, outerWidth, outline, 150);
         for (const auto& line : group.lines)
-            draw(line, group.width, color, 255);
+            draw(line, group.width, color, group.opacity);
     }
 }
 
@@ -215,7 +215,7 @@ void RasterizeOsdLinesRgb(uint8_t* rgb, int width, int height, bool bgr,
                 draw(line, outer, {16, 16, 16}, 150);
         }
         for (const auto& line : group.lines)
-            draw(line, group.width, group.color, 255);
+            draw(line, group.width, group.color, group.opacity);
     }
 }
 

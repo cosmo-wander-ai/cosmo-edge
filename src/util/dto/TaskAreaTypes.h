@@ -75,6 +75,7 @@ struct MsgAiConfidence {
     // Internal live-preview provenance; deliberately excluded from JSON.
     // Scores decoded from older messages remain unverified.
     bool scoreMeasured{false};
+    bool jointAttribute{false};  // From the attribute head of the same person detection.
     friend void to_json(nlohmann::json& j, const MsgAiConfidence& v);
     friend void from_json(const nlohmann::json& j, MsgAiConfidence& v);
 };
