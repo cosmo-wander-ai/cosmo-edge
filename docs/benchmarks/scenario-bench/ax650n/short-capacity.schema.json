@@ -16,7 +16,7 @@
       "type": "array", "minItems": 1,
       "items": {
         "type": "object", "additionalProperties": false,
-        "required": ["id", "series", "workload", "targetFps", "channels", "plannedHoldSeconds", "sampleSpanSeconds", "result", "minimumNodeFps", "reason", "sourceSha256", "sourceMetricsSha256", "sourceAuditSha256", "cpuPeakPercent", "memoryPeakPercent", "acceleratorPeakPercent", "diskPeakPercent", "decodeDiscardDelta", "classifierForwardSuccessDelta"],
+        "required": ["id", "series", "workload", "targetFps", "channels", "plannedHoldSeconds", "sampleSpanSeconds", "result", "minimumNodeFps", "reason", "sourceSha256", "sourceMetricsSha256", "sourceAuditSha256", "cpuPeakPercent", "memoryPeakPercent", "acceleratorPeakPercent", "diskPeakPercent", "decodeDiscardDelta", "classifierForwardSuccessDelta", "classifierForwardFailureDelta", "classifierNonForwardFailureDelta"],
         "properties": {
           "id": { "type": "string", "minLength": 1 },
           "series": { "type": "string", "minLength": 1 },
@@ -36,7 +36,9 @@
           "acceleratorPeakPercent": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
           "diskPeakPercent": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
           "decodeDiscardDelta": { "type": ["integer", "null"], "minimum": 0 },
-          "classifierForwardSuccessDelta": { "type": ["integer", "null"], "minimum": 0 }
+          "classifierForwardSuccessDelta": { "type": ["integer", "null"], "minimum": 0 },
+          "classifierForwardFailureDelta": { "type": ["integer", "null"], "minimum": 0 },
+          "classifierNonForwardFailureDelta": { "type": ["integer", "null"], "minimum": 0 }
         }
       }
     }

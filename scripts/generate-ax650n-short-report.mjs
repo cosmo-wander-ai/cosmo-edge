@@ -26,8 +26,10 @@ export function validateShortCapacity(data) {
     }
     if (item.sampleSpanSeconds !== null && !(item.sampleSpanSeconds >= 0)) throw new Error(`invalid sample span: ${item.id}`);
     if (item.minimumNodeFps !== null && !(item.minimumNodeFps >= 0)) throw new Error(`invalid FPS: ${item.id}`);
-    for (const field of ['cpuPeakPercent', 'memoryPeakPercent', 'acceleratorPeakPercent', 'diskPeakPercent', 'decodeDiscardDelta', 'classifierForwardSuccessDelta']) {
+    for (const field of ['cpuPeakPercent', 'memoryPeakPercent', 'acceleratorPeakPercent', 'diskPeakPercent', 'decodeDiscardDelta', 'classifierForwardSuccessDelta', 'classifierForwardFailureDelta', 'classifierNonForwardFailureDelta']) {
       if (item[field] !== null && !(Number.isFinite(item[field]) && item[field] >= 0)) throw new Error(`invalid ${field}: ${item.id}`);
+      if (item[field] !== null && field.endsWith('Percent') && item[field] > 100) throw new Error(`invalid ${field}: ${item.id}`);
+      if (item[field] !== null && field.endsWith('Delta') && !Number.isInteger(item[field])) throw new Error(`invalid ${field}: ${item.id}`);
     }
     if (item.result === 'PASS' && item.minimumNodeFps === null) throw new Error(`missing passing FPS: ${item.id}`);
     if (item.result === 'PASS' && item.reason !== null) throw new Error(`passing point has a stop reason: ${item.id}`);
@@ -54,13 +56,13 @@ export function renderShortCapacity(data, locale) {
       entry.memoryPeakPercent === null ? '—' : `${entry.memoryPeakPercent}%`,
       entry.acceleratorPeakPercent === null ? '—' : `${entry.acceleratorPeakPercent}%`,
       entry.diskPeakPercent === null ? '—' : `${entry.diskPeakPercent}%`,
-      entry.decodeDiscardDelta ?? '—', entry.classifierForwardSuccessDelta ?? '—', entry.result, entry.reason ?? '—',
+      entry.decodeDiscardDelta ?? '—', `${entry.classifierForwardSuccessDelta ?? '—'} / ${entry.classifierForwardFailureDelta ?? '—'}`, entry.result, entry.reason ?? '—',
     ]);
     const title = series === 'v7' ? (zh ? '混合任务 · v7' : 'Mixed workload · v7') : series === 'legacy-d97e' ? (zh ? '此前单任务 · d97e' : 'Earlier single-task measurements · d97e') : series;
     const boundary = maxPassing === null ? '' : `<p>${zh ? `本构建最高已通过混合固定点：${maxPassing} 路` : `Highest passing fixed point: ${maxPassing} channels`}</p>`;
     const identity = engineSha256 ? `<p>SHA-256: <code>${engineSha256}</code></p>` : '';
     return `<h2>${title}</h2>` + identity + boundary +
-      table(zh ? ['任务', '目标 FPS', '路数', '计划持载', '样本跨度', '最低独立节点 FPS', 'CPU 峰值', '内存峰值', '加速器峰值', '磁盘峰值', '解码新增丢弃', '分类成功前向', '结果', '说明'] : ['Workload', 'Target FPS', 'Channels', 'Planned hold', 'Sample span', 'Minimum independent node FPS', 'CPU peak', 'Memory peak', 'Accelerator peak', 'Disk peak', 'Decode discard delta', 'Classifier forward success', 'Result', 'Note'], rows);
+      table(zh ? ['任务', '目标 FPS', '路数', '计划持载', '样本跨度', '最低独立节点 FPS', 'CPU 峰值', '内存峰值', '加速器峰值', '磁盘峰值', '解码新增丢弃', '分类前向成功 / 失败', '结果', '说明'] : ['Workload', 'Target FPS', 'Channels', 'Planned hold', 'Sample span', 'Minimum independent node FPS', 'CPU peak', 'Memory peak', 'Accelerator peak', 'Disk peak', 'Decode discard delta', 'Classifier forward success / failure', 'Result', 'Note'], rows);
   }).join('');
   const body = `<h1>AX650N · ${zh ? '短时容量观测' : 'Short-run capacity observation'}</h1>` +
     notice(zh ? '各档为独立固定点；通过点是已测下界，不是精确容量上限或推荐路数。不同构建的结果分开呈现。' : 'Each row is an independent fixed point. Passing points are observed lower bounds, not exact maximum capacity or recommended loads. Different builds are shown separately.') +

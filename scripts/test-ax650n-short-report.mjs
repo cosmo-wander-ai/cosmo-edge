@@ -20,8 +20,10 @@ test('preserves the measured lower bound and incomplete fixed points', () => {
   assert.equal(v7.find((item) => item.id === 'v7-mixed-30ch').decodeDiscardDelta, 502 + 900 + 549);
   const integrated = data.observations.find((item) => item.id === 'integrated-4de3-mixed-25ch');
   assert.equal(integrated.result, 'PASS');
-  assert.equal(integrated.minimumNodeFps, 4.739);
+  assert.equal(integrated.minimumNodeFps, 4.7391610204);
   assert.equal(integrated.classifierForwardSuccessDelta, 5300);
+  assert.equal(integrated.classifierForwardFailureDelta, 0);
+  assert.equal(integrated.classifierNonForwardFailureDelta, 0);
   assert.equal(integrated.sampleSpanSeconds, 27.009);
 });
 
