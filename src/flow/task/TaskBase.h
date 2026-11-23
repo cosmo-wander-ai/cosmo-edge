@@ -67,6 +67,7 @@ struct TaskElement {
     // snapshots race-free without holding the lifecycle mutex for their full duration.
     std::atomic<bool> is_started{false};
     std::atomic<bool> deletion_pending{false};  // Graph teardown has started; never restart it.
+    bool camera_owned_channel{false};           // Set only by the dedicated camera channel factory.
     std::string channelId;                      // Channel ID
     std::string channelName;                    // Channel name
     std::string taskId;                         // Task ID globally unique

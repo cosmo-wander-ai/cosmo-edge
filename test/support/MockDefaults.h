@@ -16,6 +16,8 @@ inline void AllowTaskMutationSuccess(MockTaskService& mock, NamedExpectations& e
     expectations.push_back(
         NAMED_ALLOW_CALL(mock, TaskCreate(trompeloeil::_, trompeloeil::_, trompeloeil::_, trompeloeil::_))
             .RETURN(cosmo::util::ErrorEnum::Success));
+    expectations.push_back(NAMED_ALLOW_CALL(mock, TaskCreateCameraChannel(trompeloeil::_, trompeloeil::_))
+                               .RETURN(cosmo::util::ErrorEnum::Success));
     expectations.push_back(NAMED_ALLOW_CALL(mock, TaskChannelSetUrl(trompeloeil::_, trompeloeil::_)));
     expectations.push_back(NAMED_ALLOW_CALL(mock, TaskStop(trompeloeil::_)).RETURN(true));
     expectations.push_back(

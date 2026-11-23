@@ -18,6 +18,8 @@ public:
                cosmo::util::ErrorEnum(const std::string&, const std::string&, const std::string&,
                                       cosmo::ActionAlgPtr),
                override);
+    MAKE_MOCK2(TaskCreateCameraChannel, cosmo::util::ErrorEnum(const std::string&, const std::string&),
+               override);
     MAKE_MOCK1(TaskDelete, cosmo::util::ErrorEnum(const std::string&), override);
     MAKE_MOCK2(ProcessTaskCreate, cosmo::MsgTaskCreateSend(cosmo::MsgTaskCreateRecv&, std::error_condition&),
                override);

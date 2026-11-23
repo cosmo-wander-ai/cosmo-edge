@@ -421,14 +421,17 @@ void CameraServiceImpl::InitCameraChannel(CameraEntityPtr camera) {
         LOG_WARN("[{}] Invalid camera source {}", camera->videoChannelId, camera->url);
     }
 
-    LoadCameraTaskList(camera);
-
-    ActionAlgPtr action_alg   = std::make_shared<ActionAlg>();
-    action_alg->algorithmCode = "Channel";
     // Create a channel task for frame capture (RTSP streams or local video files).
     // Actual Start is deferred until an analysis task is enabled, saving NPU and bandwidth.
-    ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskCreate(
-        camera->videoChannelId, camera->videoChannelId, camera->channel_task_, action_alg);
+    const auto status = ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskCreateCameraChannel(
+        camera->videoChannelId, camera->videoChannelId);
+    if (status != util::ErrorEnum::Success && status != util::ErrorEnum::Created) {
+        LOG_WARN("[{}] Camera channel task creation failed: {}", camera->videoChannelId,
+                 static_cast<int>(status));
+        camera->channel_task_.clear();
+        return;
+    }
+    LoadCameraTaskList(camera);
     ServiceRegistry::Instance().Get<ITaskChannel>().TaskChannelSetUrl(camera->videoChannelId,
                                                                       camera->channel_url_);
     LOG_INFO("[{}] CameraChannel Init", camera->videoChannelId);
@@ -462,11 +465,19 @@ void CameraServiceImpl::DestroyCameraChannel(CameraEntityPtr camera) {
         }
         camera->tasks_.clear();
     }
+    auto& lifecycle = ServiceRegistry::Instance().Get<ITaskLifecycle>();
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    // Release the metadata task's channel reference before the last native
+    // analysis tries to close its decoder and release the reservation.
+    lifecycle.TaskStop(camera->channel_task_);
+#endif
     task_units.clear();
 
-    // 3. Finally stop/delete the channel task (all algorithm tasks are cleaned up)
-    ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskStop(camera->channel_task_);
-    ServiceRegistry::Instance().Get<ITaskLifecycle>().TaskDelete(camera->channel_task_);
+    // 3. Delete the channel task after all analysis tasks have been cleaned up.
+#if !defined(COSMO_NN_USE_AXERA_BACKEND) || !defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    lifecycle.TaskStop(camera->channel_task_);
+#endif
+    lifecycle.TaskDelete(camera->channel_task_);
     LOG_INFO("[{}] CameraChannel Delete", camera->videoChannelId);
 }
 

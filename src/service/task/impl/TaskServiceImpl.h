@@ -30,6 +30,8 @@ public:
 
     cosmo::util::ErrorEnum TaskCreate(const std::string& channelId, const std::string& channelName,
                                       const std::string& taskId, cosmo::ActionAlgPtr actionAlg) override;
+    cosmo::util::ErrorEnum TaskCreateCameraChannel(const std::string& channelId,
+                                                   const std::string& channelName) override;
     cosmo::util::ErrorEnum TaskDelete(const std::string& taskId) override;
 
     cosmo::MsgTaskCreateSend ProcessTaskCreate(cosmo::MsgTaskCreateRecv& data,

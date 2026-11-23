@@ -491,7 +491,7 @@ TEST_CASE("CameraServiceImpl: concurrent explicit-id Add creates one camera",
     cosmo::test::ScopedPathOverride path_override(test_base, test_base);
 
     CameraServiceDependencies mocks;
-    ALLOW_CALL(mocks.taskSvc, TaskCreate(trompeloeil::_, trompeloeil::_, trompeloeil::_, trompeloeil::_))
+    ALLOW_CALL(mocks.taskSvc, TaskCreateCameraChannel(trompeloeil::_, trompeloeil::_))
         .RETURN(cosmo::util::ErrorEnum::Success);
     ALLOW_CALL(mocks.taskSvc, TaskChannelSetUrl(trompeloeil::_, trompeloeil::_));
 

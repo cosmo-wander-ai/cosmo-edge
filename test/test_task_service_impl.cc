@@ -65,6 +65,30 @@ TEST_CASE("TaskServiceImpl: TaskCreate lifecycle", "[TaskService]") {
     }
 }
 
+TEST_CASE("TaskServiceImpl: Camera channel requires its dedicated factory", "[TaskService][camera-channel]") {
+    TaskCreationDependency dependencies;
+    TaskServiceImpl svc;
+    const std::string channel = "ch1";
+    const auto task_id        = channel + "-ChannelTask";
+
+    SECTION("the camera can recreate a deleted channel task") {
+        REQUIRE(svc.TaskCreateCameraChannel(channel, "camera") == cosmo::util::ErrorEnum::Success);
+        CHECK(svc.TaskCreateCameraChannel(channel, "new name") == cosmo::util::ErrorEnum::Created);
+        CHECK(svc.TaskCount() == 1);
+        REQUIRE(svc.TaskDelete(task_id) == cosmo::util::ErrorEnum::Success);
+        CHECK(svc.TaskCreateCameraChannel(channel, "camera") == cosmo::util::ErrorEnum::Success);
+    }
+    SECTION("a generic task cannot claim the camera's reserved identity") {
+        auto algorithm           = std::make_shared<cosmo::ActionAlg>();
+        algorithm->algorithmCode = "Channel";
+        REQUIRE(svc.TaskCreate(channel, "camera", task_id, algorithm) == cosmo::util::ErrorEnum::Success);
+        CHECK(svc.TaskCreateCameraChannel(channel, "camera") == cosmo::util::ErrorEnum::Failed);
+        CHECK(svc.TaskCount() == 1);
+        REQUIRE(svc.TaskDelete(task_id) == cosmo::util::ErrorEnum::Success);
+        CHECK(svc.TaskCreateCameraChannel(channel, "camera") == cosmo::util::ErrorEnum::Success);
+    }
+}
+
 TEST_CASE("TaskServiceImpl: TaskDelete lifecycle", "[TaskService]") {
     TaskCreationDependency dependencies;
     TaskServiceImpl svc;

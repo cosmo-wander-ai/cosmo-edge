@@ -422,6 +422,7 @@ TaskElementPtr TaskBase::TaskCreateCameraChannel(const std::string& channelId,
         return nullptr;
     }
 #endif
+    task->camera_owned_channel = true;
     return task;
 }
 

@@ -37,6 +37,10 @@ public:
     virtual cosmo::util::ErrorEnum TaskCreate(const std::string& channelId, const std::string& channelName,
                                               const std::string& taskId, cosmo::ActionAlgPtr actionAlg) = 0;
 
+    /// Create the camera service's internal channel task with the reserved channel identity.
+    virtual cosmo::util::ErrorEnum TaskCreateCameraChannel(const std::string& channelId,
+                                                           const std::string& channelName) = 0;
+
     /// Delete a video analysis task.
     /// @param taskId Task identifier to delete.
     /// @return ErrorEnum::kSuccess on success.

@@ -53,6 +53,14 @@ void TaskServiceImpl::Shutdown() {
         }
         tasks_.clear();
     }
+    // Drop the camera bookkeeping references before stopping the analysis
+    // tasks, so the last native analysis can close its channel reservation.
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    for (const auto& task : tasks) {
+        if (task && task->camera_owned_channel && task->is_started.load(std::memory_order_acquire))
+            (void)task_base_->TaskStop(task);
+    }
+#endif
     auto stop_and_delete = [this, &tasks](bool channel_tasks) {
         for (auto& task : tasks) {
             if (!task || (task->GetAlgId() == "Channel") != channel_tasks) {
@@ -152,6 +160,31 @@ cosmo::util::ErrorEnum TaskServiceImpl::TaskCreate(const std::string& channelId,
     return cosmo::util::ErrorEnum::Success;
 }
 
+cosmo::util::ErrorEnum TaskServiceImpl::TaskCreateCameraChannel(const std::string& channelId,
+                                                                const std::string& channel_name) {
+    if (channelId.empty())
+        return util::ErrorEnum::InvalidParam;
+    std::lock_guard<std::recursive_mutex> lifecycle_lock(lifecycle_mtx_);
+    if (shutting_down_.load(std::memory_order_acquire))
+        return util::ErrorEnum::SysErr;
+    const auto task_id = channelId + "-ChannelTask";
+    {
+        std::shared_lock<std::shared_mutex> lock(mtx_);
+        if (const auto it = tasks_.find(task_id); it != tasks_.end()) {
+            const auto& existing = it->second;
+            return existing && existing->channelId == channelId && existing->camera_owned_channel
+                       ? util::ErrorEnum::Created
+                       : util::ErrorEnum::Failed;
+        }
+    }
+    auto task = task_base_->TaskCreateCameraChannel(channelId, channel_name);
+    if (!task)
+        return util::ErrorEnum::ActionFailed;
+    std::lock_guard<std::shared_mutex> lock(mtx_);
+    tasks_.emplace(task_id, std::move(task));
+    return util::ErrorEnum::Success;
+}
+
 cosmo::util::ErrorEnum TaskServiceImpl::TaskDelete(const std::string& taskId) {
     if (taskId.empty()) {
         LOG_INFO("Task:{} Empty", taskId);
@@ -170,8 +203,8 @@ cosmo::util::ErrorEnum TaskServiceImpl::TaskDelete(const std::string& taskId) {
             return cosmo::util::ErrorEnum::NotInit;
         }
     }
-    // Ensure task is fully stopped before deletion (thread terminated, queue unregistered)
-    if (task_el->is_started.load(std::memory_order_acquire) && !task_base_->TaskStop(task_el)) {
+    // A native task can be marked stopped while the channel still holds its reservation.
+    if (!TaskStop(taskId)) {
         LOG_WARN("Stop {} Before Delete Failed", taskId);
         return cosmo::util::ErrorEnum::Failed;
     }
@@ -327,14 +360,45 @@ bool TaskServiceImpl::TaskStop(const std::string& taskId) {
             return false;
         }
         task_el = it->second;
+        if (!task_el)
+            return false;
         if (!task_el->is_started.load(std::memory_order_acquire)) {
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+            if (!task_el->native_face_reservation && !task_el->camera_owned_channel)
+                return true;
+#else
             return true;
+#endif
         }
         // Do not set is_started = false here; TaskBase::TaskStop manages that
     }
 
-    // Sync algorithm params to algorithm instance
-    return task_base_->TaskStop(task_el);
+    if (!task_base_->TaskStop(task_el))
+        return false;
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    if (task_el->camera_owned_channel) {
+        std::vector<cosmo::TaskElementPtr> pending;
+        {
+            std::shared_lock<std::shared_mutex> lock(mtx_);
+            for (const auto& [id, task] : tasks_) {
+                if (!task || id == taskId || task->channelId != task_el->channelId)
+                    continue;
+                if (task->is_started.load(std::memory_order_acquire))
+                    return true;
+                if (task->native_face_reservation)
+                    pending.push_back(task);
+            }
+        }
+
+        // Stopping the metadata task releases its remaining channel reference.
+        // TaskBase can now close the decoder and release pending reservations.
+        bool clean = true;
+        for (const auto& task : pending)
+            clean = task_base_->TaskStop(task) && clean;
+        return clean;
+    }
+#endif
+    return true;
 }
 
 void TaskServiceImpl::TaskChannelSetUrl(const std::string& channelId, const std::string& url) {
