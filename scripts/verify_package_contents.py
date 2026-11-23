@@ -70,10 +70,8 @@ RKNN_LICENSE_FILES = {
 MODEL_GUARD_TERMS_FILE = "share/licenses/cosmo-model-guard/ARTIFACT-TERMS.md"
 MODEL_GUARD_RUNTIME_FILE = "lib/libcosmo_model_guard.so.2.0.0"
 MODEL_GUARD_RKNN_RUNTIME_FILE = "lib/libcosmo_model_guard_rknn.so.1.0.0"
-MODEL_GUARD_RKNN_RUNTIME_FILES = {
-    "rk3576": MODEL_GUARD_RKNN_RUNTIME_FILE,
-    "rk3588": "lib/libcosmo_model_guard_rknn.so.1.1.0",
-}
+MODEL_GUARD_RKNN_V260_RUNTIME_FILE = "lib/libcosmo_model_guard_rknn.so.1.1.0"
+MODEL_GUARD_RKNN_RUNTIME_FILES = (MODEL_GUARD_RKNN_RUNTIME_FILE, MODEL_GUARD_RKNN_V260_RUNTIME_FILE)
 MODEL_GUARD_RUNTIME_HASH_FILE = "share/cosmo-model-guard/runtime.sha256"
 MODEL_GUARD_RKNN_SDK_MANIFEST_FILE = "share/cosmo-model-guard/SDK-MANIFEST.json"
 MODEL_GUARD_RKNN_HEADER_FILE = "share/cosmo-model-guard/cosmo_model_guard_rknn_v1.h"
@@ -178,7 +176,7 @@ def verify_runtime_license_bundle(
     required = set(REQUIRED_LICENSE_FILES)
     if target_chip in ROCKCHIP_CHIPS:
         required.update(RKNN_LICENSE_FILES)
-    rknn_runtimes = set(MODEL_GUARD_RKNN_RUNTIME_FILES.values()) & contents.keys()
+    rknn_runtimes = set(MODEL_GUARD_RKNN_RUNTIME_FILES) & contents.keys()
     if MODEL_GUARD_RUNTIME_FILE in contents or rknn_runtimes:
         required.add(MODEL_GUARD_TERMS_FILE)
 
@@ -273,11 +271,14 @@ def verify_runtime_license_bundle(
             if manifest["components"] != components:
                 raise PackageAuditError("Sophon SDK component hashes do not match the release manifest")
     if rknn_runtimes:
-        rknn_runtime = MODEL_GUARD_RKNN_RUNTIME_FILES.get(target_chip)
-        if profile != "production-release" or rknn_runtimes != {rknn_runtime}:
-            raise PackageAuditError(
-                "RKNN Model Guard must match the protected package target"
-            )
+        if (
+            profile != "production-release"
+            or target_chip not in ("rk3576", "rk3588")
+            or len(rknn_runtimes) != 1
+            or (target_chip == "rk3588" and MODEL_GUARD_RKNN_V260_RUNTIME_FILE not in rknn_runtimes)
+        ):
+            raise PackageAuditError("RKNN Model Guard must match the protected package target")
+        rknn_runtime, = rknn_runtimes
         terms = b" ".join(contents[MODEL_GUARD_TERMS_FILE].lower().split())
         for marker in (
             b"explicitly authorized cosmoedge fork",
@@ -306,29 +307,26 @@ def verify_runtime_license_bundle(
         )
         if any(name not in contents for name in required_sdk_components):
             raise PackageAuditError("RKNN Model Guard SDK component is missing")
-        expected_components = {
-            "include/cosmo_model_guard_rknn_v1.h": content_sha256(
-                contents[MODEL_GUARD_RKNN_HEADER_FILE]
-            ),
-            rknn_runtime: content_sha256(
-                contents[rknn_runtime]
-            ),
-            "bin/cosmo-model-provision": content_sha256(
-                contents["bin/cosmo-model-provision"]
-            ),
-        }
-        if target_chip == "rk3588":
+        if not isinstance(sdk_manifest, dict):
+            raise PackageAuditError("RKNN Model Guard SDK manifest must be an object")
+        if rknn_runtime == MODEL_GUARD_RKNN_V260_RUNTIME_FILE:
             if (
                 sdk_manifest.get("release_id") != "cmg-sdk-v2.6.0-rknn-abi1"
                 or sdk_manifest.get("guard_version") != [2, 6, 0]
                 or sdk_manifest.get("minimum_glibc") != "2.31"
                 or sdk_manifest.get("soname") != "libcosmo_model_guard_rknn.so.1"
                 or sdk_manifest.get("symbol_version") != "CMGR_1.0"
-                or sdk_manifest.get("targets", {}).get("rockchip-rk3588-aarch64") != 4
-                or sdk_manifest.get("binding_profiles", {}).get("rk3588-otp-id-v1") != 4
+                or sdk_manifest.get("platform_detection") != "device-tree-compatible"
+                or sdk_manifest.get("targets") != {"rockchip-rk3576-aarch64": 2, "rockchip-rk3588-aarch64": 4}
+                or sdk_manifest.get("binding_profiles") != {"rk3576-otp-id-v1": 2, "rk3588-otp-id-v1": 4}
             ):
-                raise PackageAuditError("RK3588 Model Guard SDK manifest mismatch")
+                raise PackageAuditError("Model Guard v2.6.0 SDK manifest mismatch")
             return
+        expected_components = {
+            "include/cosmo_model_guard_rknn_v1.h": content_sha256(contents[MODEL_GUARD_RKNN_HEADER_FILE]),
+            rknn_runtime: content_sha256(contents[rknn_runtime]),
+            "bin/cosmo-model-provision": content_sha256(contents["bin/cosmo-model-provision"]),
+        }
         source = sdk_manifest.get("source", {})
         if (
             sdk_manifest.get("release_id") != "cmg-sdk-v2.4.0-rknn-abi1"
@@ -604,7 +602,11 @@ def verify_package(
     if profile == "production-release":
         if effective_chip == "rv1126b":
             raise PackageAuditError("Protected RV1126B packages are unsupported")
-        guard = MODEL_GUARD_RKNN_RUNTIME_FILES.get(effective_chip, MODEL_GUARD_RUNTIME_FILE)
+        guard = MODEL_GUARD_RUNTIME_FILE
+        if effective_chip in ("rk3576", "rk3588"):
+            guard = MODEL_GUARD_RKNN_V260_RUNTIME_FILE
+            if effective_chip == "rk3576" and MODEL_GUARD_RKNN_RUNTIME_FILE in contents:
+                guard = MODEL_GUARD_RKNN_RUNTIME_FILE
         runtime = entries.get(guard)
         if runtime is None or not runtime.isreg():
             raise PackageAuditError(

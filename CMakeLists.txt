@@ -362,44 +362,41 @@ if(COSMO_MODEL_GUARD AND COSMO_MODEL_GUARD_PLATFORM STREQUAL "rknn")
         message(FATAL_ERROR
             "The protected RKNN build requires Python 3 and target readelf/nm")
     endif()
-    set(COSMO_MODEL_GUARD_SDK_ROOT
-        "${CMAKE_SOURCE_DIR}/prebuild/model-guard-v2-rknn-abi1"
-        CACHE PATH "Verified Cosmo Model Guard RKNN ABI 1 SDK root")
+    set(COSMO_MODEL_GUARD_SDK_ROOT "" CACHE PATH
+        "Verified Cosmo Model Guard RKNN ABI 1 SDK root")
+    if(NOT COSMO_MODEL_GUARD_SDK_ROOT)
+        set(COSMO_MODEL_GUARD_SDK_ROOT "/opt/cosmo/model-guard-rknn")
+    endif()
     get_filename_component(COSMO_MODEL_GUARD_SDK_ROOT
         "${COSMO_MODEL_GUARD_SDK_ROOT}" ABSOLUTE)
+
+    set(COSMO_MODEL_GUARD_SDK_CHECKSUM_FILE "" CACHE FILEPATH
+        "Checksum list delivered with the production RKNN Guard SDK")
+    if(NOT COSMO_MODEL_GUARD_SDK_CHECKSUM_FILE)
+        set(COSMO_MODEL_GUARD_SDK_CHECKSUM_FILE "${COSMO_MODEL_GUARD_SDK_ROOT}/sdk-files.sha256")
+    endif()
+    set(COSMO_MODEL_GUARD_SDK_CHECKSUM_SHA256 "" CACHE STRING
+        "Approved SHA-256 of the production RKNN Guard SDK checksum list")
+    if(NOT COSMO_MODEL_GUARD_SDK_CHECKSUM_SHA256)
+        # Checksum list for the approved Model Guard v2.6.0 RKNN SDK.
+        set(COSMO_MODEL_GUARD_SDK_CHECKSUM_SHA256
+            "a67af6d23060a93d21d1b13167f75a77c9864608ddae5479908cf85c97ce9ae9")
+    endif()
+
     set(MODEL_GUARD_RKNN_V1_HEADER
         "${COSMO_MODEL_GUARD_SDK_ROOT}/include/cosmo_model_guard_rknn_v1.h")
-    set(MODEL_GUARD_RKNN_V1_LIBRARY_NAME "libcosmo_model_guard_rknn.so.1.0.0")
-    set(MODEL_GUARD_RKNN_V1_TARGET_ARGS --target-chip "${COSMO_TARGET_CHIP_NORMALIZED}")
-    if(COSMO_TARGET_CHIP_NORMALIZED STREQUAL "rk3588")
-        set(MODEL_GUARD_RKNN_V1_LIBRARY_NAME "libcosmo_model_guard_rknn.so.1.1.0")
-        set(COSMO_MODEL_GUARD_SDK_CHECKSUM_FILE "" CACHE FILEPATH
-            "Checksum list delivered with the production RK3588 Guard SDK")
-        set(COSMO_MODEL_GUARD_SDK_CHECKSUM_SHA256 "" CACHE STRING
-            "Approved SHA-256 of the production RK3588 Guard SDK checksum list")
-        list(APPEND MODEL_GUARD_RKNN_V1_TARGET_ARGS
-            "--checksum-file=${COSMO_MODEL_GUARD_SDK_CHECKSUM_FILE}"
-            "--checksum-sha256=${COSMO_MODEL_GUARD_SDK_CHECKSUM_SHA256}")
-        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-            "${COSMO_MODEL_GUARD_SDK_CHECKSUM_FILE}"
-            "${COSMO_MODEL_GUARD_SDK_ROOT}/README.md")
-    endif()
-    set(MODEL_GUARD_RKNN_V1_LIBRARY
-        "${COSMO_MODEL_GUARD_SDK_ROOT}/lib/${MODEL_GUARD_RKNN_V1_LIBRARY_NAME}")
+    set(MODEL_GUARD_RKNN_V1_SONAME_LINK
+        "${COSMO_MODEL_GUARD_SDK_ROOT}/lib/libcosmo_model_guard_rknn.so.1")
     set(MODEL_GUARD_RKNN_V1_PROVISION_TOOL
         "${COSMO_MODEL_GUARD_SDK_ROOT}/bin/cosmo-model-provision")
     set(MODEL_GUARD_RKNN_V1_SDK_MANIFEST
         "${COSMO_MODEL_GUARD_SDK_ROOT}/SDK-MANIFEST.json")
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-        "${MODEL_GUARD_RKNN_V1_HEADER}"
-        "${MODEL_GUARD_RKNN_V1_LIBRARY}"
-        "${MODEL_GUARD_RKNN_V1_PROVISION_TOOL}"
-        "${MODEL_GUARD_RKNN_V1_SDK_MANIFEST}"
-        "${CMAKE_SOURCE_DIR}/scripts/verify_model_guard_rknn_v1_sdk.py")
     execute_process(
         COMMAND "${COSMO_PYTHON3_EXECUTABLE}" -I -B
                 "${CMAKE_SOURCE_DIR}/scripts/verify_model_guard_rknn_v1_sdk.py"
-                ${MODEL_GUARD_RKNN_V1_TARGET_ARGS}
+                --target-chip "${COSMO_TARGET_CHIP_NORMALIZED}"
+                "--checksum-file=${COSMO_MODEL_GUARD_SDK_CHECKSUM_FILE}"
+                "--checksum-sha256=${COSMO_MODEL_GUARD_SDK_CHECKSUM_SHA256}"
                 --admission-profile "${COSMO_MODEL_GUARD_BUILD_PROFILE}"
                 --sdk-root "${COSMO_MODEL_GUARD_SDK_ROOT}"
                 --readelf "${CMAKE_READELF}"
@@ -411,8 +408,24 @@ if(COSMO_MODEL_GUARD AND COSMO_MODEL_GUARD_PLATFORM STREQUAL "rknn")
         ERROR_STRIP_TRAILING_WHITESPACE)
     if(NOT MODEL_GUARD_RKNN_V1_VERIFY_RESULT EQUAL 0)
         message(FATAL_ERROR
-            "RKNN production build requires a usable Model Guard SDK.\n"
+            "RKNN production build requires a usable Model Guard SDK at "
+            "${COSMO_MODEL_GUARD_SDK_ROOT}.\n"
             "${MODEL_GUARD_RKNN_V1_VERIFY_ERROR}")
+    endif()
+    file(READ_SYMLINK "${MODEL_GUARD_RKNN_V1_SONAME_LINK}" MODEL_GUARD_RKNN_V1_LIBRARY_NAME)
+    set(MODEL_GUARD_RKNN_V1_LIBRARY
+        "${COSMO_MODEL_GUARD_SDK_ROOT}/lib/${MODEL_GUARD_RKNN_V1_LIBRARY_NAME}")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        "${MODEL_GUARD_RKNN_V1_HEADER}"
+        "${MODEL_GUARD_RKNN_V1_LIBRARY}"
+        "${MODEL_GUARD_RKNN_V1_SONAME_LINK}"
+        "${MODEL_GUARD_RKNN_V1_PROVISION_TOOL}"
+        "${MODEL_GUARD_RKNN_V1_SDK_MANIFEST}"
+        "${COSMO_MODEL_GUARD_SDK_ROOT}/README.md"
+        "${CMAKE_SOURCE_DIR}/scripts/verify_model_guard_rknn_v1_sdk.py")
+    if(EXISTS "${COSMO_MODEL_GUARD_SDK_CHECKSUM_FILE}")
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+            "${COSMO_MODEL_GUARD_SDK_CHECKSUM_FILE}")
     endif()
     add_library(cosmo_model_guard_rknn_v1 SHARED IMPORTED GLOBAL)
     set_target_properties(cosmo_model_guard_rknn_v1 PROPERTIES

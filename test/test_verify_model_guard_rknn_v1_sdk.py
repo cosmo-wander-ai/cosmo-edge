@@ -23,13 +23,15 @@ class RealSdkChecks(unittest.TestCase):
         self.assertIsNotNone(nm, 'nm is required')
         return ['--readelf', readelf, '--nm', nm]
 
-    def verify(self, kind, root, success=True):
+    def verify(self, kind, root, success=True, *, target_chip=None):
         script, profile = (('verify_model_guard_v2_sdk.py', 'public-runtime')
                            if kind == 'sophon' else
                            ('verify_model_guard_rknn_v1_sdk.py', 'production-release'))
-        result = subprocess.run([sys.executable, str(ROOT / 'scripts' / script),
-                                 '--sdk-root', str(root), '--admission-profile', profile,
-                                 *self.tools()], text=True, capture_output=True)
+        command = [sys.executable, str(ROOT / 'scripts' / script),
+                   '--sdk-root', str(root), '--admission-profile', profile, *self.tools()]
+        if target_chip is not None:
+            command.extend(('--target-chip', target_chip))
+        result = subprocess.run(command, text=True, capture_output=True)
         if success:
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         else:
@@ -38,7 +40,10 @@ class RealSdkChecks(unittest.TestCase):
 
     def test_bundled_sophon_and_rknn_with_real_elf_tools(self):
         self.verify('sophon', ROOT / 'prebuild/model-guard-v2')
-        self.verify('rknn', ROOT / 'prebuild/model-guard-v2-rknn-abi1')
+        rknn_sdk = ROOT / 'prebuild/model-guard-v2-rknn-abi1'
+        self.verify('rknn', rknn_sdk)
+        wrong_chip = self.verify('rknn', rknn_sdk, False, target_chip='rk3588')
+        self.assertIn('unsupported Model Guard RKNN SDK runtime for rk3588', wrong_chip.stderr)
 
     def test_rknn_manifest_equivalent_format_and_rejecting_identity(self):
         with tempfile.TemporaryDirectory() as temporary:

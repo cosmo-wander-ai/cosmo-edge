@@ -317,13 +317,14 @@ Sophon or Rockchip device behavior.
 | --- | --- | --- |
 | BM1688 | Supported | Supported with the Sophon Guard SDK |
 | CV186X | Supported | Supported with the Sophon Guard SDK |
-| RK3576 | Supported | Supported with the RKNN Guard SDK |
+| RK3576 | Supported | Model Guard v2.6.0 RKNN SDK by default |
+| RK3588 | Supported | Model Guard v2.6.0 RKNN SDK by default |
 | RV1126B | Supported | Unsupported; rejected by configuration and package auditing |
 | x86 / macOS Preview | CPU development mode | Model Guard unsupported |
 
 Open uses plaintext models without device authorization or provisioning tools. Protected uses
 the target platform's Guard runtime and `cosmo-model-provision`; protected models require
-device authorization. All three supported Protected targets export to
+device authorization. All supported Protected targets export to
 `build_output/production-release/<chip>/`. Open directories are listed in the platform sections above.
 
 Both profiles use `cosmo-V<version>-<32-char-md5>.tar.gz` and the same upgrade lifecycle.
@@ -361,11 +362,11 @@ controlled inputs and must not enter the public repository.
 
 ### RK3576 Protected Build
 
-Use Linux x86_64 / Bash and the same Rockchip Compose entry. The default SDK is
-`prebuild/model-guard-v2-rknn-abi1/` (Model Guard v2.4 RKNN ABI 1), containing the matching
-header, `libcosmo_model_guard_rknn.so.1.0.0`, provisioning tool, and manifest. Configuration
-validates the SDK; package auditing checks the runtime, provisioner, and model policy.
-A Sophon SDK cannot replace this RKNN SDK.
+RK3576 and RK3588 Protected builds share the Model Guard v2.6.0 RKNN ABI 1 SDK. On the
+Linux x86_64 build host, place the matching `sdk-files.sha256` in the approved SDK's root
+and mount that directory read-only at `/opt/cosmo/model-guard-rknn` in the container.
+The build verifies the pinned checksum list and the hashes of its components, including
+the header, `libcosmo_model_guard_rknn.so.1.1.0`, and the provisioning tool.
 
 This command **updates the application while retaining installed models**. Deployment relies on
 the device's existing authorization and models; compilation does not require a device connection:
@@ -374,7 +375,8 @@ the device's existing authorization and models; compilation does not require a d
 COSMO_TARGET_CHIP=rk3576 \
 COSMO_MODEL_GUARD_BUILD_PROFILE=production-release \
 COSMO_PACKAGE_MODELS=preserve \
-  ./scripts/docker-compose.sh -f docker-compose.rockchip.yml run --rm cosmo-rockchip-package
+  ./scripts/docker-compose.sh -f docker-compose.rockchip.yml run --rm \
+    -v /ABS/model-guard-rknn:/opt/cosmo/model-guard-rknn:ro cosmo-rockchip-package
 ```
 
 After success, verify and take the package from this directory:
@@ -391,10 +393,16 @@ matching RK3576 encrypted models and resources through `COSMO_RKNN_MODELS_DIR` a
 The repository's default plaintext `.rknn` models cannot be used directly in a Protected
 package; the package audit rejects them.
 
-`COSMO_MODEL_GUARD_SDK_ROOT` may override the RKNN SDK path, subject to the same compatibility
-checks. Its accompanying terms govern fork authorization and distribution. Build support does
-not establish device acceptance for this run. Changing the chip parameter to RV1126B does
-not produce a supported Protected package.
+Set `COSMO_MODEL_GUARD_SDK_ROOT` to override the SDK path inside the container. To select
+the previous v2.4 SDK explicitly on RK3576, use `/workspace/prebuild/model-guard-v2-rknn-abi1`.
+The SDK's accompanying terms govern its use and distribution.
+
+### RK3588 Protected Build
+
+Use the same SDK mount and `production-release` profile with `COSMO_TARGET_CHIP=rk3588`.
+Set `COSMO_ROCKCHIP_BUILDER_IMAGE` to the builder image matching the RK3588 lock. Mount
+the target ABI sysroot read-only at the container path given by `COSMO_ABI_TARGET_SYSROOT`.
+The package and ABI report are in `build_output/production-release/rk3588/`.
 
 ### Builder Images, Cache, and Custom Models
 

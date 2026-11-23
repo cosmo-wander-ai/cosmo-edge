@@ -442,15 +442,25 @@ class BuildEntrypointTests(unittest.TestCase):
         self.assertIn('builder-lock.rk3588-glibc231.json', result.stderr)
         self.assertEqual(self.calls(), [])
 
-    def test_rk3588_protected_request_rejected_before_build_cleanup(self):
+    def test_rockchip_protected_delegates_sdk_defaults_to_cmake(self):
         self.env['COSMO_MODEL_GUARD_BUILD_PROFILE'] = 'production-release'
-        sentinel = self.root / 'build_rknn/install/previous-install'
-        sentinel.parent.mkdir(parents=True)
-        sentinel.write_text('keep previous candidate')
-        result = self.run_script('build_rockchip_package.sh', '--chip', 'rk3588', success=False)
-        self.assertIn('only the public-runtime CV candidate profile', result.stderr)
-        self.assertEqual(self.calls(), [])
-        self.assertEqual(sentinel.read_text(), 'keep previous candidate')
+        for key in ('COSMO_MODEL_GUARD_SDK_ROOT', 'COSMO_MODEL_GUARD_SDK_CHECKSUM_FILE',
+                    'COSMO_MODEL_GUARD_SDK_CHECKSUM_SHA256'):
+            self.env.pop(key, None)
+        abi_sysroot = self.root / 'target-abi-sysroot'
+        abi_sysroot.mkdir()
+        self.env['COSMO_ABI_TARGET_SYSROOT'] = str(abi_sysroot)
+        for chip in ('rk3576', 'rk3588'):
+            with self.subTest(chip=chip):
+                self.reset_outputs()
+                self.configure_rockchip(chip)
+                self.fixture(chip, 'production-release')
+                self.run_script('build_rockchip_package.sh', '--chip', chip, '--models', 'preserve')
+                args = next(c['argv'] for c in self.calls() if c['tool'] == 'cmake')
+                for name in ('COSMO_MODEL_GUARD_SDK_ROOT', 'COSMO_MODEL_GUARD_SDK_CHECKSUM_FILE',
+                             'COSMO_MODEL_GUARD_SDK_CHECKSUM_SHA256'):
+                    self.assertIn('-D' + name + '=', args)
+                self.assert_export(chip, 'production-release')
 
     def test_rk3588_missing_abi_target_or_failed_gate_cannot_export(self):
         self.configure_rockchip('rk3588')
