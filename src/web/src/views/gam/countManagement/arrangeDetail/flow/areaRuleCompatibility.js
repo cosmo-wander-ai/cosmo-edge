@@ -85,8 +85,48 @@ export const mergeParamsPreservingUnknown = (original, generated) => {
   return result
 }
 
-export const mergeMetaParamsPreservingUnknown = (original, generated) =>
-  mergeParamsPreservingUnknown(original, generated)
+// The runtime reads config.params and the channel reads webConfig.metaDataParams.
+// Keep known, inactive branch inputs in editor storage for a later switch back.
+export const separateInactiveAreaRuleFields = (config, definitions, sceneParams = []) => {
+  const rule = getParamValue(config.params, 'areaAlarmType')
+  if (rule === '' || inferAreaRuleUiType(config.params) === AREA_RULE_UI_TYPES.UNKNOWN) return config
+  const branches = new Map(definitions
+    .filter(field => field?.dependsOn?.key === 'areaAlarmType')
+    .map(field => [field.key, String(field.dependsOn.value)]))
+  if (!branches.size) return config
+
+  const web = config.webConfig || {}
+  const history = web.inactiveAreaRule || {}
+  const split = (fields, previous) => {
+    const active = []
+    const inactive = []
+    const liveKeys = new Set((Array.isArray(fields) ? fields : []).map(field => field.key))
+    for (const field of mergeParamsPreservingUnknown(previous, fields)) {
+      const owner = branches.get(field.key)
+      if (owner === String(rule) || (owner === undefined && liveKeys.has(field.key))) {
+        active.push(field)
+      } else {
+        inactive.push(field)
+      }
+    }
+    return { active, inactive }
+  }
+  const params = split(config.params, history.params)
+  const metadata = split(web.metaDataParams, history.metaDataParams)
+  if (!params.inactive.length && !metadata.inactive.length && !web.inactiveAreaRule) return config
+  const nextWeb = { ...web, metaDataParams: metadata.active }
+  // Scene-level overrides are separate from generated node descriptors. Mixing
+  // them makes two nodes that share one channel field report conflicting schemas.
+  const inactiveKeys = new Set(metadata.inactive.map(field => field.key))
+  const sceneHistory = mergeParamsPreservingUnknown(history.sceneParams,
+    (Array.isArray(sceneParams) ? sceneParams : []).filter(field => inactiveKeys.has(field.key)))
+  if (params.inactive.length || metadata.inactive.length || sceneHistory.length) {
+    nextWeb.inactiveAreaRule = { params: params.inactive, metaDataParams: metadata.inactive, sceneParams: sceneHistory }
+  } else {
+    delete nextWeb.inactiveAreaRule
+  }
+  return { ...config, params: params.active, webConfig: nextWeb }
+}
 
 const AREA_RULE_FIELD_KEYS = Object.freeze({
   inputAreaType: 'decisionRegion',

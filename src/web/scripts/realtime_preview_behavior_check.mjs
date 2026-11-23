@@ -10,6 +10,10 @@ const hasClass = (node, name) => String(node.props.class || '').split(/\s+/).inc
 for (const protocol of ['httpflv', 'webrtc']) {
   // The first player omits fitMode to exercise the production prop default.
   const fits = Vue.reactive([undefined, 'contain'])
+  const tasks = Vue.ref([])
+  const firstOverlay = Vue.ref('')
+  let failRaw = false
+  let overlayOpens = 0
   const fullscreen = Vue.ref(null)
   const transports = [], timers = new Map(), calls = { request: [], stop: [], heartbeat: [] }
   let timerId = 0
@@ -58,6 +62,7 @@ for (const protocol of ['httpflv', 'webrtc']) {
     api: {
       async boxRequestLiveStream(params) {
         calls.request.push(params)
+        if (failRaw && params.channelId === 'channel-0' && !params.algorithmId) throw new Error('Raw stream unavailable')
         return { resData: { stream: { protocol, flvUrl: '/fixture/live.flv', webrtcUrl: '/fixture/whep', httpPort: 8080, rtcApiPort: 1985, keepAliveInterval: 10 } } }
       },
       async boxStreamKeepAlive(params) { calls.heartbeat.push(params) },
@@ -65,7 +70,10 @@ for (const protocol of ['httpflv', 'webrtc']) {
     },
     message: { error: message => assert.fail(message) },
     wrap: Player => ({ setup: () => () => Vue.h('fixture-wall', {}, fits.map((fit, index) => Vue.h(Player, {
-      key: index, index, channelId: `channel-${index}`, cameraName: `Camera ${index}`, runAlgorithmId: '', taskList: [],
+      key: index, index, channelId: `channel-${index}`, cameraName: `Camera ${index}`, taskList: tasks.value,
+      runAlgorithmId: index === 0 ? firstOverlay.value : '',
+      onRunAlgorithmIdChange: ({ runAlgorithmId }) => { if (index === 0) firstOverlay.value = runAlgorithmId },
+      onRefreshTasks: () => overlayOpens++,
       ...(fit === undefined ? {} : { fitMode: fit }), 'onUpdate:fitMode': value => { fits[index] = value },
       isFullScreen: fullscreen.value === index ? index : null,
       onFullScreen: event => { fullscreen.value = event.isFullScreen ? index : null }
@@ -81,6 +89,16 @@ for (const protocol of ['httpflv', 'webrtc']) {
     assert.equal(originalVideo.length, 2)
     assert.equal(calls.request.length, 2)
     assert.equal(transports.length, 2)
+    tasks.value = [
+      { algorithmId: 1, algorithmName: 'Old', enableStatus: 0 },
+      { algorithmId: 2, algorithmName: 'New', enableStatus: 1 }
+    ]
+    await flush()
+    const select = view.all(node => node.type === 'el-select' && node.props.id === 'onboarding-overlay-select')[0]
+    assert.deepEqual(view.all(node => node.type === 'el-option', select).map(node => node.props.value), ['', '2'])
+    select.props.onVisibleChange(true)
+    select.props.onVisibleChange(false)
+    assert.equal(overlayOpens, 1, 'opening the overlay selector requests fresh channel tasks')
     diagnosticButtons()[0].props.onClick({ stopPropagation() {} })
     await flush()
     assert.equal(view.all(node => hasClass(node, 'live-diagnostics')).length, 1, 'diagnostics opens only in the selected player')
@@ -119,11 +137,20 @@ for (const protocol of ['httpflv', 'webrtc']) {
     assert.equal(calls.heartbeat.length, heartbeatCount, 'fit and fullscreen do not restart heartbeat')
     assert.equal(transports.length, 2, 'fit and fullscreen do not create transports')
     assert.ok(transports.every(player => player.starts === 1 && player.stops === 0 && player.destroys === 0))
+    firstOverlay.value = '2'
+    await flush()
+    assert.equal(calls.stop.length, 1, 'selecting the overlay retires the first raw viewer')
+    failRaw = true
+    tasks.value = []
+    firstOverlay.value = ''
+    await flush()
+    assert.equal(firstOverlay.value, '', 'a failed raw fallback cannot restore the retired overlay')
+    assert.equal(calls.stop.length, 2, 'the disabled overlay viewer is released once')
   } finally {
     view.unmount()
     await flush()
   }
-  assert.equal(calls.stop.length, 2, 'normal unmount releases each viewer once')
+  assert.equal(calls.stop.length, 3, 'normal unmount releases exactly the remaining viewer')
   assert.equal(timers.size, 0, 'normal cleanup clears all viewer timers')
 }
 // Mount the actual wall as well: the parent supplies fitMode explicitly, so a
@@ -132,24 +159,41 @@ const channels = Array.from({ length: 4 }, (_, index) => ({
   videoChannelId: `fixture-channel-${index}`, channelName: `Camera ${index}`,
   channelStatus: 1, channelType: 1, taskList: []
 }))
-const storage = new Map([['playedCameraList', JSON.stringify(channels.map(channel => ({
-  id: channel.videoChannelId, name: channel.channelName, taskList: [], runAlgorithmId: ''
-})))]])
+const task = (algorithmId, enableStatus) => ({ algorithmId, algorithmName: algorithmId, enableStatus })
+const taskA = task('A', 1)
+const taskB = task('B', 1)
+channels[0].taskList = [taskA, taskB]
+const savedWindows = [channels[0], channels[0], channels[0], channels[3]].map((channel, index) => ({
+  id: channel.videoChannelId, name: 'Old name', taskList: [taskA], runAlgorithmId: ['A', 'B', '', ''][index]
+}))
+const storage = new Map([['playedCameraList', JSON.stringify(savedWindows)]])
+const listeners = new Map()
+const pageDocument = {
+  hidden: false,
+  addEventListener: (name, fn) => listeners.set(name, fn),
+  removeEventListener(name, fn) { if (listeners.get(name) === fn) listeners.delete(name) }
+}
+let channelQueries = 0
+let delayedResponse
+let deferQuery = false
 const noContent = { default: { render: () => null } }
 const wallTimers = new Map()
 let wallTimerId = 0
-const scheduleWall = callback => { const id = ++wallTimerId; wallTimers.set(id, callback); return id }
+const scheduleWall = (callback, delay) => { const id = ++wallTimerId; wallTimers.set(id, { callback, delay }); return id }
 const wall = await mountComponent('views/box/bigScreen/warnningScreen/index.vue', {
   mocks: {
     '@/assets/beep.ogg': { default: '' },
     '@/assets/error-image.png': { default: '' },
     '@element-plus/icons-vue': Object.fromEntries(['Search', 'Setting', 'FullScreen', 'Back', 'Refresh', 'ArrowLeft', 'ArrowRight', 'VideoCamera', 'Monitor', 'Bell'].map(name => [name, name])),
     '../components/flvVideo.vue': { default: {
-      props: ['fitMode', 'index', 'isFullScreen'], emits: ['update:fitMode', 'fullScreen'],
+      props: ['fitMode', 'index', 'isFullScreen', 'taskList', 'channelId', 'runAlgorithmId'], emits: ['update:fitMode', 'fullScreen', 'refresh-tasks', 'runAlgorithmIdChange', 'stop'],
       setup(props, { emit }) {
         return () => Vue.h('fixture-preview', { ...props,
           chooseFit: value => emit('update:fitMode', value),
-          maximize: () => emit('fullScreen')
+          maximize: () => emit('fullScreen'),
+          openOverlay: () => emit('refresh-tasks'),
+          selectOverlay: id => emit('runAlgorithmIdChange', { index: props.index, channelId: props.channelId, runAlgorithmId: id }),
+          close: () => emit('stop', props.index)
         })
       }
     } },
@@ -164,7 +208,7 @@ const wall = await mountComponent('views/box/bigScreen/warnningScreen/index.vue'
   globals: {
     localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) },
     window: { addEventListener() {}, removeEventListener() {} },
-    document: { addEventListener() {}, removeEventListener() {} },
+    document: pageDocument,
     WebSocket: class { close() {} },
     setTimeout: scheduleWall, clearTimeout: id => wallTimers.delete(id),
     setInterval: scheduleWall, clearInterval: id => wallTimers.delete(id),
@@ -172,7 +216,11 @@ const wall = await mountComponent('views/box/bigScreen/warnningScreen/index.vue'
   },
   api: {
     async queryPopUpParam() { return { resData: { popUpSwitch: 0, audioPlay: 0, popUpDuration: 2 } } },
-    async getChannelList() { return { resData: { rows: channels } } },
+    async getChannelList() {
+      channelQueries++
+      if (deferQuery) await new Promise(resolve => { delayedResponse = resolve })
+      return { resData: { rows: structuredClone(channels) } }
+    },
     async boxQueryEvent() { return { resData: { rows: [], total: 0 } } },
     async algorithmInquire() { return { resData: { rows: [] } } },
     bigScreenWs: () => 'ws://fixture.invalid/events'
@@ -183,6 +231,43 @@ const wallFits = () => previews().map(node => node.props.fitMode)
 try {
   await wall.settle()
   assert.deepEqual(wallFits(), ['contain', 'contain', 'contain', 'contain'], 'all four real wall slots open without cropping')
+  const overlays = () => previews().slice(0, 3).map(node => node.props.runAlgorithmId)
+  const taskLists = () => previews().slice(0, 3).map(node => Array.from(node.props.taskList, t => [t.algorithmId, t.enableStatus]))
+  assert.deepEqual(overlays(), ['A', 'B', ''], 'restore valid choices and raw video independently')
+  assert.deepEqual(taskLists(), Array(3).fill([['A', 1], ['B', 1]]), 'discard the stale task catalog from every cached window')
+
+  channels[0].taskList = [task('A', 0), taskB, task('C', 1)]
+  const poll = Array.from(wallTimers.values()).find(timer => timer.delay === 30000).callback
+  pageDocument.hidden = true
+  listeners.get('visibilitychange')()
+  poll()
+  assert.equal(channelQueries, 1, 'hidden pages do not poll channels')
+  pageDocument.hidden = false
+  deferQuery = true
+  listeners.get('visibilitychange')()
+  previews()[0].props.openOverlay()
+  poll()
+  assert.equal(channelQueries, 2, 'concurrent refresh triggers share one channel request')
+  delayedResponse()
+  await wall.settle()
+  assert.deepEqual(taskLists(), Array(3).fill([['A', 0], ['B', 1], ['C', 1]]))
+  assert.deepEqual(overlays(), ['', 'B', ''], 'only the disabled selection reverts to raw video')
+
+  previews()[1].props.openOverlay()
+  assert.equal(channelQueries, 3)
+  previews()[1].props.selectOverlay('C')
+  delayedResponse()
+  await wall.settle()
+  assert.deepEqual(overlays(), ['', 'C', ''], 'an in-flight response respects a newer selection')
+
+  wall.all(node => node.props.id === 'onboarding-camera-toggle')[0].props.onClick({ stopPropagation() {} })
+  await wall.settle()
+  wall.all(node => node.type === 'button' && node.props.title === 'action.refresh')[0].props.onClick()
+  assert.equal(channelQueries, 4, 'manual refresh rechecks the channel list')
+  delayedResponse()
+  await wall.settle()
+  assert.deepEqual(overlays(), ['', 'C', ''])
+  assert.ok(JSON.parse(storage.get('playedCameraList')).every(slot => !('taskList' in slot)), 'persist choices without a stale catalog')
   previews()[1].props.chooseFit('cover')
   await wall.settle()
   assert.deepEqual(wallFits(), ['contain', 'cover', 'contain', 'contain'], 'an explicit crop choice affects only its own window')
@@ -202,8 +287,19 @@ try {
   screenButtons()[1].props.onClick()
   await wall.settle()
   assert.deepEqual(wallFits(), ['contain', 'cover', 'contain', 'contain'], 'four-screen restores the independent modes')
+  poll()
+  previews()[3].props.close()
+  delayedResponse()
+  await wall.settle()
+  assert.equal(previews().length, 3, 'refresh must not reopen a window closed while the request was pending')
+  poll()
 } finally {
   wall.unmount()
 }
+const layoutAfterExit = storage.get('playedCameraList')
+delayedResponse()
+await wall.settle()
+assert.equal(storage.get('playedCameraList'), layoutAfterExit, 'a late response cannot rewrite a closed wall')
+assert.equal(listeners.has('visibilitychange'), false)
 assert.equal(wallTimers.size, 0, 'wall cleanup clears its timers')
 console.log('Realtime display checks passed: full-frame defaults in the real player and wall, independent fit modes, retained video/FLV/WebRTC viewers and heartbeat, single/four/fullscreen presentation, normal cleanup. Transports are controlled; device layout remains a separate check.')
