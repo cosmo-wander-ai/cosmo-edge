@@ -17,9 +17,12 @@ export const loadBehaviorModule = async (entry, { mocks = {}, globals = {}, env 
     if (!id.endsWith('.vue')) return source
     const { descriptor, errors } = parse(source, { filename: id })
     if (errors.length) throw errors[0]
-    const script = compileScript(descriptor, { id, inlineTemplate: true })
+    // The in-memory renderer inspects individual nodes and cannot parse
+    // Vue's pre-serialized static HTML/SVG fragments like a browser does.
+    const compilerOptions = { hoistStatic: false }
+    const script = compileScript(descriptor, { id, inlineTemplate: true, templateOptions: { compilerOptions } })
     if (descriptor.scriptSetup) return script.content
-    const template = compileTemplate({ source: descriptor.template.content, filename: id, id })
+    const template = compileTemplate({ source: descriptor.template.content, filename: id, id, compilerOptions })
     if (template.errors.length) throw template.errors[0]
     return `${rewriteDefault(script.content, '__component')}\n${template.code}\n__component.render = render; export default __component`
   }

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { h, ref, reactive, provide, inject, getCurrentInstance } from 'vue'
+import dagre from 'dagre'
 import lodash from 'lodash'
 import { mergeTaskParamSchemasByKey } from '../src/utils/taskParamOwnership.js'
 import { mountComponent } from './helpers/mount_behavior_component.mjs'
@@ -81,8 +82,8 @@ assert.deepEqual(collectMetaDataParams(libraryMetadataNodes), [
 ], 'saving excludes stale/irrelevant bindings, keeps the match-node values and preserves an explicitly cleared pair threshold')
 assert.deepEqual(libraryMetadataNodes, beforeCollection, 'metadata collection must not mutate editor state')
 
-// Render real node, edge, picker and detail-panel SFCs. Only the Vue Flow
-// renderer/geometry and Element Plus controls are substituted by the harness.
+// Render the real components and run Dagre layout. Vue Flow's DOM renderer
+// and Element Plus controls are substituted by the harness.
 for (const linkage of [false, true]) {
   const graphs = []
   const flowKey = Symbol('testFlow')
@@ -150,7 +151,7 @@ for (const linkage of [false, true]) {
     '@vue-flow/background': { Background: empty.default },
     '@vue-flow/controls': { Controls: empty.default },
     '@vue-flow/core/dist/style.css': {}, '@vue-flow/controls/dist/style.css': {},
-    dagre: { default: {} }, lodash: { default: lodash },
+    dagre: { default: dagre }, lodash: { default: lodash },
     uuid: { v4: () => `id-${++id}` },
     '@/components/eventBus.js': { default: {
       $on(name) { assert.ok(!/^(flow|edgeMenu):/.test(name), 'graph listeners must be canvas-scoped') },
@@ -174,7 +175,7 @@ for (const linkage of [false, true]) {
         ? h(component, { ...props, key: index, ref: value => { canvases[index] = value } }) : null))
     }),
     globals: {
-      requestAnimationFrame() {},
+      requestAnimationFrame(callback) { return Promise.resolve().then(callback) },
       document: {
         addEventListener(name, callback) { documentListeners.add(callback) },
         removeEventListener(name, callback) { documentListeners.delete(callback) }
@@ -218,6 +219,10 @@ for (const linkage of [false, true]) {
   }
   try {
     assert.equal(graphs.length, 2, 'each canvas owns a flow instance')
+    for (const graph of graphs) {
+      const actions = graph.nodes.filter(node => node.type === 'customForm')
+      assert.ok(actions[0].position.x < actions[1].position.x, 'successive actions occupy separate columns')
+    }
     assert.deepEqual(savedItems().map(item => item.configObject), [config, config], 'untouched node JSON round-trips')
     assert.equal(savedItems()[0].actionName, linkage ? 'Saved action' : 'Canonical action', 'page-specific action names are preserved')
     for (const node of graphs[0].nodes.filter(node => node.type === 'customForm')) {

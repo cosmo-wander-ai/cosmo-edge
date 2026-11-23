@@ -40,8 +40,8 @@ defineProps({
   color: var(--flow-stage-label);
   text-align: center;
   font-size: 12px;
-  font-weight: 500;
-  line-height: 18px;
+  font-weight: 550;
+  line-height: 1.45;
   white-space: nowrap;
 }
 
@@ -60,7 +60,7 @@ defineProps({
   position: absolute;
   top: -1px;
   left: 50%;
-  width: 22px;
+  width: 18px;
   height: 2px;
   transform: translateX(-50%);
   background: var(--flow-stage-accent);

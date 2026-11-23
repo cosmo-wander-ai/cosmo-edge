@@ -3,7 +3,7 @@
     class="action-node"
     :data-flow-stage="props.data?.stage"
     :class="{ selected: props.data?.selected }"
-    :style="{ width: `${FLOW_NODE_SIZE.width}px`, height: `${FLOW_NODE_SIZE.height}px` }"
+    :style="{ width: `${nodeSize.width}px`, height: `${nodeSize.height}px` }"
   >
     <button
       type="button"
@@ -20,7 +20,7 @@
 
     <div class="node-card" @click.stop="handleClick">
       <div class="node-icon-wrapper">
-        <FlowNodeIcon :kind="iconKey" />
+        <FlowNodeIcon :kind="iconKey" :scene="Boolean(editor?.sceneLayout)" />
       </div>
       <div class="node-name" :title="resolveResourceActionName(nodeActionDetail)">
         <span class="node-name-text">{{ resolveResourceActionName(nodeActionDetail) }}</span>
@@ -57,6 +57,7 @@ const nodeActionDetail = computed(() => props.data?.actionDetail)
 const iconKey = computed(() => getIconInfo(nodeActionDetail.value?.actionId).key)
 
 const editor = inject(flowEditorKey)
+const nodeSize = computed(() => editor?.sceneLayout?.value.node ?? FLOW_NODE_SIZE)
 let mounted = true
 onBeforeUnmount(() => { mounted = false })
 

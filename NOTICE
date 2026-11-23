@@ -60,6 +60,13 @@ Permissive licenses (MIT, BSD, Apache-2.0, zlib, BSL-1.0, public domain)
       University of California. All rights reserved.
       Source: 3rd/pcap/include/pcap/pcap.h
 
+- Lucide 1.17.0 (scene workflow icons)
+      License: ISC, with the Feather-derived maximize, minus, plus, square
+               and upload icons under MIT.
+      Copyright (c) 2026 Lucide Icons and Contributors.
+      Copyright (c) 2013-present Cole Bemis.
+      License text bundled with the web UI: src/web/public/licenses/lucide.txt
+
 - nlohmann/json 3.12.0
       License: MIT License.
       SPDX-FileCopyrightText: 2013 - 2025 Niels Lohmann <https://nlohmann.me>

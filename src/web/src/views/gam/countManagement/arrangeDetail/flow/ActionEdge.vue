@@ -4,7 +4,7 @@
     <div class="edge-action-wrapper" :style="{
         transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
       }">
-      <button type="button" class="edge-action-button" :aria-label="t('action.addComponent')" :aria-expanded="menuVisible" @click.stop="handleClick">
+      <button type="button" class="edge-action-button" :data-source-type="sourceNode?.type" :aria-label="t('action.addComponent')" :aria-expanded="menuVisible" @click.stop="handleClick">
         +
       </button>
       <div v-if="menuVisible" class="edge-menu">
@@ -58,6 +58,7 @@ const props = defineProps({
     type: String,
     required: true
   },
+  sourceNode: Object,
   style: Object,
   markerEnd: [String, Object],
   data: Object

@@ -1,19 +1,29 @@
 <template>
-  <div class="page">
+  <div class="page scene-flow" :style="{ '--scene-icon-tile': `${sceneLayout.tileSize}px`, '--scene-label-size': `${sceneLayout.fontSize}px` }">
     <div ref="toolbarRef" class="flow-toolbar">
       <slot name="toolbar" />
       <div class="flow-view-tools">
         <button type="button" class="flow-zoom-button" :title="t('glossary.flowZoomOut')" :aria-label="t('glossary.flowZoomOut')" :disabled="currentViewport.zoom <= minZoom" @click="zoomOut">
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12" /></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12h14" />
+          </svg>
         </button>
         <span class="flow-zoom-value" aria-live="polite">{{ Math.round(currentViewport.zoom * 100) }}%</span>
         <button type="button" class="flow-zoom-button" :title="t('glossary.flowZoomIn')" :aria-label="t('glossary.flowZoomIn')" :disabled="currentViewport.zoom >= maxZoom" @click="zoomIn">
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12M10 4v12" /></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12h14" />
+            <path d="M12 5v14" />
+          </svg>
         </button>
         <span class="flow-tool-separator" aria-hidden="true" />
         <button type="button" class="flow-view-button" :title="t('glossary.flowActualSize')" @click="restoreReadingView">{{ t('glossary.flowActualSize') }}</button>
         <button type="button" class="flow-view-button" @click="centerView">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5" /></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+            <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+            <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+            <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+          </svg>
           <span>{{ t('glossary.flowFitOverview') }}</span>
         </button>
       </div>
@@ -31,7 +41,7 @@
           @pane-click="handlePaneClick"
           @move="handleViewportMove"
         >
-          <Background pattern-color="var(--flow-grid)" gap="16" />
+          <Background pattern-color="var(--flow-grid)" :gap="16" :size="1.55" />
         </VueFlow>
       </div>
 
@@ -96,7 +106,8 @@ import {
   getFlowFitZoom,
   getFlowReadingViewport,
   getFlowLayoutSpacing,
-  getFlowNodeDimensions
+  getFlowNodeDimensions,
+  getSceneFlowLayout
 } from './layoutGeometry.js'
 
 const props = defineProps({
@@ -132,6 +143,8 @@ const customMetadata = computed(() =>
 )
 const nodes = ref([])
 const edges = ref([])
+const viewportWidth = ref(globalThis.innerWidth || props.width)
+const sceneLayout = computed(() => getSceneFlowLayout(props.width, viewportWidth.value))
 const activeEdgeId = ref(null)
 const closeEdgeMenu = () => { activeEdgeId.value = null }
 const nodeTypes = {
@@ -150,12 +163,16 @@ const defaultEdgeOptions = {
 const { onPaneReady, minZoom, maxZoom } = useVueFlow()
 const flowInstance = ref(null)
 const templateVersion = ref(0)
-const hasFitViewOnce = ref(false)
+const viewportInitialized = ref(false)
+let viewMode = 'reading'
+const initializeSceneViewport = () => {
+  if (viewportInitialized.value || !flowInstance.value || !Object.keys(columnCenterX.value).length) return
+  viewportInitialized.value = true
+  if (viewMode === 'reading') restoreReadingView()
+}
 onPaneReady((instance) => {
   flowInstance.value = instance
-  nextTick(() => {
-    if (nodes.value.length) restoreReadingView()
-  })
+  nextTick(initializeSceneViewport)
 })
 
 const addDialogVisible = ref(false)
@@ -198,20 +215,7 @@ const getNodeDimensions = (node) => {
     }
   }
   // Card and terminal dimensions match their rendered components.
-  return getFlowNodeDimensions(node)
-}
-
-const getLayoutSpacing = () => {
-  // 依据当前节点最大尺寸动态计算间距，避免展开后遮挡
-  let maxW = 0
-  let maxH = 0
-  nodes.value.filter((node) => !isStageGroupNode(node)).forEach((n) => {
-    const d = getNodeDimensions(n)
-    if (d.width > maxW) maxW = d.width
-    if (d.height > maxH) maxH = d.height
-  })
-  // LR 布局下：nodesep 控制纵向间距，ranksep 控制横向间距
-  return getFlowLayoutSpacing({ width: maxW, height: maxH })
+  return getFlowNodeDimensions(node, sceneLayout.value)
 }
 
 const applyLayout = () => {
@@ -219,16 +223,14 @@ const applyLayout = () => {
   const dagreGraph = new dagre.graphlib.Graph()
   dagreGraph.setDefaultEdgeLabel(() => ({}))
 
-  const spacing = getLayoutSpacing()
   dagreGraph.setGraph({
     rankdir: layoutDirection,
-    nodesep: spacing.nodesep,
-    ranksep: spacing.ranksep
+    nodesep: getFlowLayoutSpacing(sceneLayout.value.node).nodesep,
+    ranksep: sceneLayout.value.gap
   })
 
   layoutNodes.forEach((node) => {
-    const dimensions = getNodeDimensions(node)
-    dagreGraph.setNode(node.id, dimensions)
+    dagreGraph.setNode(node.id, getNodeDimensions(node))
   })
 
   edges.value.forEach((edge) => {
@@ -320,13 +322,7 @@ const applyLayout = () => {
   const nextNodes = [...stageNodes, ...positioned]
   nodes.value = nextNodes
 
-  if (!hasFitViewOnce.value && positioned.length && flowInstance.value) {
-    requestAnimationFrame(() => {
-      if (!flowInstance.value) return
-      restoreReadingView()
-      hasFitViewOnce.value = true
-    })
-  }
+  if (!viewportInitialized.value && positioned.length) nextTick(initializeSceneViewport)
 }
 
 // ---- 浮动配置面板状态 ----
@@ -342,7 +338,9 @@ const toolbarRef = ref(null)
 const toolbarHeight = ref(49)
 const editorViewport = computed(() => ({ width: props.width, height: Math.max(1, props.height - toolbarHeight.value) }))
 const dockedPanelSize = computed(() => getDockedPanelSize(detailPanelNodeData.value?.actionId, editorViewport.value))
-const floatingPanelSize = computed(() => getReadingFloatingPanelSize(detailPanelNodeData.value?.actionId, editorViewport.value, currentViewport.value.zoom))
+const floatingPanelSize = computed(() => getReadingFloatingPanelSize(
+  detailPanelNodeData.value?.actionId, editorViewport.value, currentViewport.value.zoom, sceneLayout.value.node.width
+))
 const canvasViewport = computed(() => ({
   width: Math.max(1, props.width - (detailPanelNodeId.value && panelDocked.value ? dockedPanelSize.value.width : 0)),
   height: editorViewport.value.height
@@ -352,6 +350,7 @@ let toolbarObserver = null
 onMounted(() => {
   // Account for a wrapped toolbar at narrow widths and in longer translations.
   const measureToolbar = () => {
+    viewportWidth.value = globalThis.innerWidth || props.width
     const measuredHeight = toolbarRef.value?.getBoundingClientRect?.().height
     if (measuredHeight > 0) toolbarHeight.value = measuredHeight
   }
@@ -363,11 +362,18 @@ onMounted(() => {
 })
 onBeforeUnmount(() => toolbarObserver?.disconnect())
 
-const zoomIn = () => flowInstance.value?.zoomIn({ duration: 200 })
-const zoomOut = () => flowInstance.value?.zoomOut({ duration: 200 })
+const zoomIn = () => {
+  viewMode = 'manual'
+  flowInstance.value?.zoomIn({ duration: 200 })
+}
+const zoomOut = () => {
+  viewMode = 'manual'
+  flowInstance.value?.zoomOut({ duration: 200 })
+}
 
 /** VueFlow 视口移动/缩放时更新坐标 */
 const handleViewportMove = (payload) => {
+  if (payload?.event?.sourceEvent || payload?.event?.type === 'wheel') viewMode = 'manual'
   const transform = payload?.flowTransform || payload
   if (transform && [transform.x, transform.y, transform.zoom].every(Number.isFinite)) {
     currentViewport.value = { x: transform.x, y: transform.y, zoom: transform.zoom }
@@ -512,22 +518,29 @@ const focusNode = (nodeId) => {
   })
 }
 
+const sceneBounds = () => {
+  const bounds = getFlowBounds(nodes.value, getNodeDimensions)
+  // Balance the 36px stage heading above the row with its 10px bottom inset.
+  if (nodes.value.some(isStageGroupNode)) bounds.maxY += 10
+  return bounds
+}
+
 const restoreReadingView = () => {
-  const visibleNodes = nodes.value.filter((node) => !isStageGroupNode(node))
-  if (!visibleNodes.length) return
+  if (!nodes.value.length) return
+  viewMode = 'reading'
   if (detailPanelNodeId.value) {
     currentViewport.value = { ...currentViewport.value, zoom: 1 }
     focusNode(detailPanelNodeId.value)
     return
   }
-  setFlowViewport(getFlowReadingViewport(getFlowBounds(visibleNodes, getNodeDimensions), canvasViewport.value))
+  setFlowViewport(getFlowReadingViewport(sceneBounds(), canvasViewport.value, sceneLayout.value.inset))
 }
 
 const centerView = () => {
-  const visibleNodes = nodes.value.filter((node) => !isStageGroupNode(node))
-  if (!visibleNodes.length) return
-  const bounds = getFlowBounds(visibleNodes, getNodeDimensions)
-  const zoom = getFlowFitZoom(bounds, canvasViewport.value)
+  if (!nodes.value.length) return
+  viewMode = 'overview'
+  const bounds = sceneBounds()
+  const zoom = getFlowFitZoom(bounds, canvasViewport.value, 1, sceneLayout.value.inset)
   setFlowViewport({
     x: canvasViewport.value.width / 2 - (bounds.minX + bounds.maxX) / 2 * zoom,
     y: canvasViewport.value.height / 2 - (bounds.minY + bounds.maxY) / 2 * zoom,
@@ -535,14 +548,18 @@ const centerView = () => {
   })
 }
 
-watch(
-  () => [props.width, props.height, toolbarHeight.value],
-  () => {
-    if (detailPanelNodeId.value) {
-      nextTick(() => requestAnimationFrame(() => focusNode(detailPanelNodeId.value)))
-    }
+watch([sceneLayout, () => props.height, toolbarHeight], ([layout], [previousLayout]) => {
+  if (layout !== previousLayout) {
+    columnCenterX.value = {}
+    applyLayout()
   }
-)
+  if (detailPanelNodeId.value) {
+    nextTick(() => requestAnimationFrame(() => focusNode(detailPanelNodeId.value)))
+  } else if (viewportInitialized.value && viewMode !== 'manual') {
+    if (viewMode === 'overview') centerView()
+    else restoreReadingView()
+  }
+})
 
 const handleEdgeMenuFocus = (nodeId) => {
   requestAnimationFrame(() => {
@@ -586,6 +603,7 @@ const deleteFollowing = (operation) => {
 }
 
 provide(flowEditorKey, {
+  sceneLayout,
   customMetadata: readonly(customMetadata),
   nodes: readonly(nodes),
   edges: readonly(edges),
@@ -693,7 +711,7 @@ const buildStageGroupNodes = (positionedNodes) => {
       const maxX = Math.max(...boxes.map((box) => box.x + box.width))
       // Stage labels track the card edges, leaving room for the connector controls.
       const padX = 0
-      const bracketHeight = 32
+      const bracketHeight = 36
       const width = maxX - minX + padX * 2
       const height = bracketHeight
       return {
@@ -701,7 +719,7 @@ const buildStageGroupNodes = (positionedNodes) => {
         type: 'stageGroup',
         position: {
           x: minX - padX,
-          y: minY - bracketHeight - 8
+          y: minY - bracketHeight
         },
         data: {
           isStageGroup: true,
@@ -802,7 +820,8 @@ const addComponentFromDialog = (type, label, action) => {
 }
 
 const rebuildFlowGraph = () => {
-  hasFitViewOnce.value = false
+  viewportInitialized.value = false
+  viewMode = 'reading'
   const items = Array.isArray(newFlowData.value) ? newFlowData.value : []
   columnCenterX.value = {}
   lockedCenterY.value = {}
@@ -1031,6 +1050,88 @@ watch(
   min-width: 0;
 }
 
+.scene-flow :deep(.action-node) {
+  border-radius: 6px;
+  container: scene-card / inline-size;
+}
+
+.scene-flow :deep(.action-node .node-card) {
+  gap: 5px;
+  padding: 4px 1px;
+}
+
+.scene-flow :deep(.node-icon-wrapper) {
+  width: var(--scene-icon-tile);
+  height: var(--scene-icon-tile);
+  border-radius: 7px;
+}
+
+.scene-flow :deep(.node-icon-wrapper svg) {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.8;
+}
+
+.scene-flow :deep(.node-name) {
+  height: auto;
+  font-size: var(--scene-label-size);
+  line-height: 1.35;
+}
+
+@container scene-card (max-width: 110px) {
+  .scene-flow :deep(.node-name-text) {
+    -webkit-line-clamp: 1;
+  }
+}
+
+.scene-flow :deep(.start-node),
+.scene-flow :deep(.end-node) {
+  gap: 3px;
+  padding: 0 5px;
+  box-shadow: none;
+}
+
+.scene-flow :deep(.node-icon svg) {
+  width: 16px;
+  height: 16px;
+}
+
+.scene-flow :deep(.start-label),
+.scene-flow :deep(.end-label) {
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.scene-flow :deep(.edge-action-button) {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  font: 400 10px/10px Arial, sans-serif;
+  box-shadow: none;
+}
+
+/* Keep the insertion control easy to hit at the smaller visible diameter. */
+.scene-flow :deep(.edge-action-button::before) {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+}
+
+/* The first connector starts at the inner edge of the outlined terminal. */
+.scene-flow :deep(.edge-action-button[data-source-type='start']) {
+  left: -1px;
+}
+
+.scene-flow :deep(.vue-flow__handle:not(:hover):not(.connecting):not(.valid)) {
+  opacity: 0;
+}
+
+.scene-flow :deep(.vue-flow__edge-path) {
+  stroke-width: 1;
+}
+
 .flow-view-tools {
   display: flex;
   align-items: center;
@@ -1074,7 +1175,7 @@ watch(
   height: 16px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.6;
+  stroke-width: 1.7;
 }
 
 .flow-zoom-value {
