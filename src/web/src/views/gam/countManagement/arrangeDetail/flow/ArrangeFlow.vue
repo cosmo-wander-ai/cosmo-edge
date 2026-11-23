@@ -609,49 +609,18 @@ const getNodeTypeForAction = (action) => {
   return 'customForm'
 }
 
+const stageTitleKeys = {
+  input: 'glossary.inputProcessing',
+  detect: 'glossary.modelInference',
+  rule: 'glossary.ruleJudgment',
+  output: 'glossary.alertOutput'
+}
+
 const getActionStage = (actionId = '') => {
-  // 输入处理
-  if (actionId === 'BA_00001') {
-    return {
-      key: 'input',
-      title: t('glossary.inputProcessing'),
-      titleKey: 'glossary.inputProcessing',
-      fill: 'transparent',
-      stroke: 'var(--flow-stage-input-line)',
-      color: 'var(--flow-stage-input)'
-    }
-  }
-  // 模型推理 (AA/DA/PA/PDA 前缀 + BA_00009混合目标关联)
-  if (/^(AA|DA|PA|PDA)_/.test(actionId) || actionId === 'BA_00009') {
-    return {
-      key: 'detect',
-      title: t('glossary.modelInference'),
-      titleKey: 'glossary.modelInference',
-      fill: 'transparent',
-      stroke: 'var(--flow-stage-model-line)',
-      color: 'var(--flow-stage-model)'
-    }
-  }
-  // 告警输出 (事件上报/抓拍/特征上报)
-  if (['BA_00004', 'BA_00006', 'BA_10004'].includes(actionId)) {
-    return {
-      key: 'output',
-      title: t('glossary.alertOutput'),
-      titleKey: 'glossary.alertOutput',
-      fill: 'transparent',
-      stroke: 'var(--flow-stage-output-line)',
-      color: 'var(--flow-stage-output)'
-    }
-  }
-  // 规则判断 (默认 — 筛选/灵敏度/判断类)
-  return {
-    key: 'rule',
-    title: t('glossary.ruleJudgment'),
-    titleKey: 'glossary.ruleJudgment',
-    fill: 'transparent',
-    stroke: 'var(--flow-stage-rule-line)',
-    color: 'var(--flow-stage-rule)'
-  }
+  if (actionId === 'BA_00001') return 'input'
+  if (/^(AA|DA|PA|PDA)_/.test(actionId) || actionId === 'BA_00009') return 'detect'
+  if (['BA_00004', 'BA_00006', 'BA_10004'].includes(actionId)) return 'output'
+  return 'rule'
 }
 
 const getOrderedActionNodes = (positionedNodes) => {
@@ -698,9 +667,9 @@ const getOrderedActionNodes = (positionedNodes) => {
 const buildStageGroupNodes = (positionedNodes) => {
   const segments = []
   getOrderedActionNodes(positionedNodes).forEach((node) => {
-    const stage = getActionStage(node.data?.actionId || '')
+    const stage = node.data.stage
     const previous = segments[segments.length - 1]
-    if (previous && previous.stage.key === stage.key) {
+    if (previous && previous.stage === stage) {
       previous.nodes.push(node)
     } else {
       segments.push({ stage, nodes: [node] })
@@ -728,7 +697,7 @@ const buildStageGroupNodes = (positionedNodes) => {
       const width = maxX - minX + padX * 2
       const height = bracketHeight
       return {
-        id: `stage-group-${index}-${segment.stage.key}`,
+        id: `stage-group-${index}-${segment.stage}`,
         type: 'stageGroup',
         position: {
           x: minX - padX,
@@ -736,11 +705,8 @@ const buildStageGroupNodes = (positionedNodes) => {
         },
         data: {
           isStageGroup: true,
-          title: segment.stage.title,
-          titleKey: segment.stage.titleKey,
-          fill: segment.stage.fill,
-          stroke: segment.stage.stroke,
-          color: segment.stage.color,
+          stage: segment.stage,
+          titleKey: stageTitleKeys[segment.stage],
           width,
           height
         },
@@ -814,6 +780,7 @@ const addComponentFromDialog = (type, label, action) => {
       actionId: action?.id ?? action?.actionId,
       actionName: action?.actionName,
       actionType: action?.actionType,
+      stage: getActionStage(action?.id ?? action?.actionId),
       // businessCategory: action?.businessCategory,
       description: action?.description,
 
@@ -873,6 +840,7 @@ const rebuildFlowGraph = () => {
       position: { x: 0, y: 0 },
       data: {
         templateVersion: templateVersion.value,
+        stage: getActionStage(item.actionId),
         label: canonicalName || t('glossary.node'),
         actionId: item.actionId,
         actionName: canonicalName,
@@ -1031,7 +999,7 @@ watch(
   height: 100%;
   display: flex;
   flex-direction: column;
-  background-color: var(--flow-canvas);
+  background-color: var(--flow-scene-canvas);
 }
 
 .flow-toolbar {

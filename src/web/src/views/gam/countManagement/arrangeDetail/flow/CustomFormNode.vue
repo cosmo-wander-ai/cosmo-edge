@@ -1,6 +1,7 @@
 <template>
   <div
     class="action-node"
+    :data-flow-stage="props.data?.stage"
     :class="{ selected: props.data?.selected }"
     :style="{ width: `${FLOW_NODE_SIZE.width}px`, height: `${FLOW_NODE_SIZE.height}px` }"
   >
@@ -122,12 +123,12 @@ const handleDelete = () => {
   flex-shrink: 0;
   border-radius: 8px;
   background: var(--flow-node-icon-bg);
-  color: var(--flow-node-text);
+  color: var(--flow-stage-accent, var(--flow-node-text));
   transition: color 0.2s;
 }
 
 .action-node.selected .node-icon-wrapper {
-  color: var(--flow-node-icon-selected);
+  color: var(--flow-stage-accent, var(--flow-node-icon-selected));
 }
 
 .node-name {
