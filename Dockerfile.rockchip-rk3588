@@ -1,0 +1,103 @@
+# syntax=docker/dockerfile:1.7
+# RK3588 public CV builder for a glibc 2.31 target. Existing supported-platform
+# builders are unchanged. Pass a measured Debian RepoDigest as BULLSEYE_BASE;
+# the SDK image must be the admitted existing Rockchip builder RepoDigest.
+ARG BULLSEYE_BASE=debian:bullseye-slim@sha256:e5b6442dd2e9684cf5e87d8338b5968f3b348636fc0be6d7850a381e3731a2bd
+ARG ROCKCHIP_SDK_IMAGE
+FROM ${ROCKCHIP_SDK_IMAGE} AS admitted-sdk
+FROM ${BULLSEYE_BASE} AS rockchip-rk3588-builder
+ARG BULLSEYE_BASE
+ARG ROCKCHIP_SDK_IMAGE
+ARG BUILD_JOBS=8
+ARG APT_SOURCE_MODE=snapshot
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Default to fixed snapshots; live and mirror-ustc are explicit availability
+# fallbacks using signed Bullseye suites and archived security packages, not
+# current security maintenance or reproducible snapshots. Only the archived
+# security source disables Valid-Until; APT signature verification stays enabled.
+# Source mode, source URLs and resolved package versions are retained as evidence.
+RUN --mount=type=cache,id=cosmo-rk3588-bullseye-20260803-${APT_SOURCE_MODE}-archives,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=cosmo-rk3588-bullseye-20260803-${APT_SOURCE_MODE}-lists,target=/var/lib/apt,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean \
+    && printf 'Acquire::ForceIPv4 "true";\nAcquire::Retries "5";\nAcquire::http::Timeout "60";\nAcquire::http::Pipeline-Depth "0";\nBinary::apt::APT::Keep-Downloaded-Packages "true";\n' > /etc/apt/apt.conf.d/99-cosmo-downloads \
+    && case "$APT_SOURCE_MODE" in \
+         snapshot) printf 'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20260803T000000Z/ bullseye main\ndeb [check-valid-until=no] http://snapshot.debian.org/archive/debian-security/20260803T000000Z/ bullseye-security main\n' > /etc/apt/sources.list ;; \
+         live) printf 'deb http://deb.debian.org/debian bullseye main\ndeb [check-valid-until=no] http://archive.debian.org/debian-security bullseye-security main\n' > /etc/apt/sources.list ;; \
+         mirror-ustc) printf 'deb http://mirrors.ustc.edu.cn/debian bullseye main\ndeb [check-valid-until=no] http://archive.debian.org/debian-security bullseye-security main\n' > /etc/apt/sources.list ;; \
+         *) echo "Invalid APT_SOURCE_MODE: $APT_SOURCE_MODE (expected snapshot, live or mirror-ustc)" >&2; exit 2 ;; \
+       esac \
+    && dpkg --add-architecture arm64 \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+       ca-certificates curl git make pkg-config python3 python3-pip file patch xz-utils \
+       autoconf automake libtool perl debianutils \
+       gcc g++ gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+       binutils-aarch64-linux-gnu libc6-dev-arm64-cross \
+       zlib1g-dev:arm64 libssl-dev:arm64
+# Keep this argument and COPY after APT so wheel source changes retain its cache.
+ARG CMAKE_WHEEL_SOURCE=pypi
+COPY config/rockchip-build/builder-lock.rk3588-glibc231.json /opt/cosmo/rockchip-builder-lock.json
+COPY scripts/build_rk3588_dependencies.sh /opt/cosmo/build_rk3588_dependencies.sh
+# Fixed wheel identity, no package index resolution; SRS also requires autotools.
+RUN CMAKE_WHEEL_SOURCE="${CMAKE_WHEEL_SOURCE}" bash /opt/cosmo/build_rk3588_dependencies.sh --install-cmake \
+    && for tool in cmake perl automake autoconf autoreconf libtoolize which patch make; do \
+         command -v "$tool" || exit 1; \
+       done
+
+# Reuse the admitted toolchain assets; do not reuse its Ubuntu-built target
+# libraries. Execute host tools here so an incompatible copied tool fails early.
+COPY --from=admitted-sdk /usr/local/node/ /usr/local/node/
+COPY --from=admitted-sdk /usr/local/cargo/ /usr/local/cargo/
+COPY --from=admitted-sdk /usr/local/rustup/ /usr/local/rustup/
+COPY --from=admitted-sdk /opt/rknn/ /opt/rknn/
+# Reuse only the locked official RGA assets, never the SDK's target MPP build.
+COPY --from=admitted-sdk /opt/rockchip-media/rv1126b/include/rga/ /opt/rockchip-media/rk3588/include/rga/
+COPY --from=admitted-sdk /opt/rockchip-media/rv1126b/lib/librga.so /opt/rockchip-media/rk3588/lib/librga.so
+COPY --from=admitted-sdk /opt/rockchip-media/rv1126b/share/licenses/rockchip-media/librga/COPYING /opt/rockchip-media/rk3588/share/licenses/rockchip-media/librga/COPYING
+ENV PATH=/usr/local/node/bin:/usr/local/cargo/bin:$PATH \
+    CARGO_HOME=/usr/local/cargo RUSTUP_HOME=/usr/local/rustup \
+    CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+    CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
+    CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++
+RUN set -eux; \
+    test "$(node --version)" = v20.11.0; \
+    rustc --version | grep '^rustc 1.95.0 '; \
+    cargo --version; \
+    rustup target list --installed | grep -x aarch64-unknown-linux-gnu; \
+    printf 'export PATH=/usr/local/node/bin:/usr/local/cargo/bin:$PATH\n' > /etc/profile.d/cosmo-host-tools.sh
+
+COPY config/rknn/toolchain-lock.json /opt/cosmo/config/rknn/toolchain-lock.json
+COPY config/rknn/platforms/rk3588.json /opt/cosmo/config/rknn/platforms/rk3588.json
+COPY config/rockchip-media/runtime-lock.json /opt/cosmo/config/rockchip-media/runtime-lock.json
+COPY tools/rknn/media_sysroot_lock.py /usr/local/bin/cosmo-rockchip-media-lock
+COPY cmake/patch_ffmpeg_flv_hevc.cmake /opt/cosmo/patch_ffmpeg_flv_hevc.cmake
+# Explicit transport fallback for the same SHA256-locked release archive.
+# Keep this argument after APT so switching sources preserves its cached layer.
+ARG FFMPEG_SOURCE=official
+ARG MPP_SOURCE_MODE=git
+ARG MPP_ARCHIVE_URL
+RUN BULLSEYE_BASE="${BULLSEYE_BASE}" ROCKCHIP_SDK_IMAGE="${ROCKCHIP_SDK_IMAGE}" \
+    BUILD_JOBS="${BUILD_JOBS}" APT_SOURCE_MODE="${APT_SOURCE_MODE}" \
+    FFMPEG_SOURCE="${FFMPEG_SOURCE}" MPP_SOURCE_MODE="${MPP_SOURCE_MODE}" \
+    MPP_ARCHIVE_URL="${MPP_ARCHIVE_URL}" \
+    bash /opt/cosmo/build_rk3588_dependencies.sh
+
+ENV RKNN_ROOT=/opt/rknn \
+    RKLLM_ROOT=/opt/rknn \
+    COSMO_RKLLM_REQUIRED=OFF \
+    COSMO_MODEL_GUARD_BUILD_PROFILE=public-runtime \
+    COSMO_FFMPEG_ROOT=/opt/ffmpeg-glibc231 \
+    ROCKCHIP_MEDIA_ROOT=/opt/rockchip-media/rk3588 \
+    COSMO_TARGET_CHIP=rk3588 \
+    COSMO_ROCKCHIP_BUILDER_LOCK=/opt/cosmo/rockchip-builder-lock.json
+LABEL org.opencontainers.image.title="CosmoEdge RK3588 glibc 2.31 CV builder" \
+      org.opencontainers.image.source="https://github.com/cosmo-wander-ai/cosmo-edge" \
+      io.cosmo.rockchip.targets="rk3588" \
+      io.cosmo.rockchip.apt-source-mode="${APT_SOURCE_MODE}" \
+      io.cosmo.rockchip.cmake-wheel-source="${CMAKE_WHEEL_SOURCE}" \
+      io.cosmo.rockchip.ffmpeg-source="${FFMPEG_SOURCE}" \
+      io.cosmo.rockchip.mpp-source-mode="${MPP_SOURCE_MODE}" \
+      io.cosmo.rockchip.glibc-baseline="2.31"
+WORKDIR /workspace
+CMD ["/bin/bash"]

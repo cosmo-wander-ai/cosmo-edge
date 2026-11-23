@@ -5,6 +5,7 @@
 #include <filesystem>
 
 #include "api/ApiRouterInternal.h"
+#include "api/MessageWifiHandler.h"
 #include "service/algorithm/IAlgorithmCrud.h"
 #include "service/algorithm/IAlgorithmLayout.h"
 #include "service/algorithm/IAlgorithmQuery.h"
@@ -29,6 +30,7 @@
 #include "service/modelguard/IModelAuthorizationService.h"
 #include "service/network/IAuthService.h"
 #include "service/network/INetworkConfig.h"
+#include "service/network/IWifiConfig.h"
 #include "service/onboarding/IOnboardingService.h"
 #include "service/system/IConfigNetworkService.h"
 #include "service/system/IConfigReadService.h"
@@ -197,6 +199,21 @@ void ApiRouter::RegisterNetworkRoutes() {
     ROUTE("/gtw/cwai/network/", kAuth, network_handler_, Network, ModifyNetDns);
     ROUTE("/gtw/cwai/network/", kAuth, network_handler_, Network, NetworkQualityCheck);
     ROUTE("/gtw/cwai/network/", kAuth, network_handler_, Network, IpAccessibleCheck);
+    if (from_ == MessageFromType::MessageFromHttp) {
+        for (const std::string action :
+             {"queryNetworkStatus", "scanWifi", "connectWifi", "queryWifiOperation", "confirmWifiConfig",
+              "disconnectWifi", "forgetWifi"}) {
+            url_map_[util::ToLower("/gtw/cwai/network/" + action)] = {
+                kAuth,
+                {},
+                [action](const RequestDispatchContext& context, const std::string& body,
+                         std::error_condition& error) {
+                    MessageWifiHandler handler(
+                        service::ServiceRegistry::Instance().Get<service::IWifiConfig>());
+                    return handler.Handle(action, context, body, error);
+                }};
+        }
+    }
 }
 
 void ApiRouter::RegisterAlgorithmRoutes() {

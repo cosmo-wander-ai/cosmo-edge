@@ -361,6 +361,8 @@ umask 022
         'Wants=network-online.target' \
         'After=network-online.target docker.service' \
         '' \
+        'Wants=rc-local.service' \
+        'After=rc-local.service' \
         '[Service]' \
         'Type=simple' \
         'User=root' \

@@ -82,19 +82,25 @@ void StreamViewerOverview::ProcessPersonCountAlarm(const MsgRecAlarm& aiData) {
 }
 
 void StreamViewerOverview::ProcessPassFlowAlarm(const MsgRecAlarm& aiData) {
+    // Filtered records do not carry valid cumulative counts.
+    if (!aiData.alarm) {
+        return;
+    }
+
     StreamOverviewText text;
     text.pos = util::Point(width_ - 300, 300);
     StreamOverviewTextEl posText;
-    int inAlarm  = 0;
-    int outAlarm = 0;
-    if (!pass_flow_info_.record && aiData.enterTotalCount > 0) {
+    // A task restart resets cumulative counts while the preview can remain alive.
+    if (!pass_flow_info_.record || aiData.enterTotalCount < pass_flow_info_.lastEnterNumber ||
+        aiData.leaveTotalCount < pass_flow_info_.lastLeaveNumber) {
         pass_flow_info_.enterNumber = aiData.enterTotalCount;
         pass_flow_info_.leaveNumber = aiData.leaveTotalCount;
         pass_flow_info_.record      = true;
-    } else {
-        inAlarm  = aiData.enterTotalCount - pass_flow_info_.enterNumber;
-        outAlarm = aiData.leaveTotalCount - pass_flow_info_.leaveNumber;
     }
+    pass_flow_info_.lastEnterNumber = aiData.enterTotalCount;
+    pass_flow_info_.lastLeaveNumber = aiData.leaveTotalCount;
+    const auto inAlarm              = aiData.enterTotalCount - pass_flow_info_.enterNumber;
+    const auto outAlarm             = aiData.leaveTotalCount - pass_flow_info_.leaveNumber;
 
     posText.text         = "IN : " + std::to_string(inAlarm);
     posText.attrPriority = VideoOverviewAttrPriority::kPassFlow;

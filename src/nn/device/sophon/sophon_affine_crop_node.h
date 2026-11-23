@@ -67,7 +67,6 @@ private:
 
     const int landmark_data_len = 10;
 
-    const size_t matrix_len = 6;
     std::vector<float> host_matrixs;
 };
 

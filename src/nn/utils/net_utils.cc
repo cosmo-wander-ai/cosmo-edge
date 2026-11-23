@@ -29,6 +29,8 @@
 
 namespace cosmo::nn {
 
+Size::Size(int w) : Size(w, 0) {}
+
 Size::Size(int w, int h) : width(w), height(h) {}
 
 static ObjectInfo ScaleSize(const ObjectInfo& info, Size old_, Size new_) {
@@ -130,7 +132,7 @@ float NetUtils::Sigmoid(float x) {
     return 1.0 / (1.0 + Exp(-x, 10));
 }
 
-void NetUtils::SwapYUV_I420toYUV_NV12(unsigned char* i420bytes, unsigned char* nv12bytes, int width,
+void NetUtils::SwapYUV_I420toYUV_NV12(const unsigned char* i420bytes, unsigned char* nv12bytes, int width,
                                       int height) {
     int nLenY = width * height;
     int nLenU = nLenY / 4;
@@ -197,10 +199,10 @@ void NetUtils::NMS(std::vector<ObjectInfo>& input, std::vector<ObjectInfo>& outp
     }
 }
 
-Status NetUtils::PickDetectionObjects(std::shared_ptr<Blob>& blob, std::vector<Size> input_sizes,
+Status NetUtils::PickDetectionObjects(std::shared_ptr<Blob>& blob, const std::vector<Size>& input_sizes,
                                       Size net_input_size, std::vector<int> selected_indcies,
-                                      std::vector<float> selected_thresholds,
-                                      std::vector<std::string> selected_label,
+                                      const std::vector<float>& selected_thresholds,
+                                      const std::vector<std::string>& selected_label,
                                       std::vector<std::vector<ObjectInfoV1>>& detects) {
     auto desc   = blob->GetBlobDesc();
     auto dims   = desc.dims;
@@ -280,17 +282,17 @@ Status NetUtils::PickDetectionObjects(std::shared_ptr<Blob>& blob, std::vector<S
             extracted_objs.emplace_back(obj_info);
         }
 
-        for (auto& obj : extracted_objs) {
-            obj = AdjustSize(obj, net_input_size, input_sizes.at(b), 2);
-        }
+        std::transform(
+            extracted_objs.begin(), extracted_objs.end(), extracted_objs.begin(),
+            [&](const ObjectInfoV1& obj) { return AdjustSize(obj, net_input_size, input_sizes.at(b), 2); });
 
         detects.push_back(extracted_objs);
     }
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
-ObjectInfo NetUtils::AdjustSize(ObjectInfo& info, Size old_, Size new_, int gravity) {
+ObjectInfo NetUtils::AdjustSize(const ObjectInfo& info, Size old_, Size new_, int gravity) {
     float old_aspect = old_.height / (float)(old_.width + FLT_EPSILON);
     float new_aspect = new_.height / (float)(new_.width + FLT_EPSILON);
 
@@ -327,7 +329,7 @@ ObjectInfo NetUtils::AdjustSize(ObjectInfo& info, Size old_, Size new_, int grav
     }
 }
 
-ObjectInfoV1 NetUtils::AdjustSize(ObjectInfoV1& info_v1, Size old_, Size new_, int gravity) {
+ObjectInfoV1 NetUtils::AdjustSize(const ObjectInfoV1& info_v1, Size old_, Size new_, int gravity) {
     ObjectInfo info;
     info.x1 = info_v1.x1;
     info.x2 = info_v1.x2;
@@ -391,7 +393,7 @@ Status NetUtils::GenerateCropResizeParam(CropResize* crop_resize, int left, int 
         param.dst_height = crop_resize->dsize[0];
         param.dst_width  = crop_resize->dsize[1];
         param.val        = crop_resize->color.at(0);
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     }
 
     // Unified signed ratio: negative or 0 means crop, positive means expand
@@ -418,14 +420,14 @@ Status NetUtils::GenerateCropResizeParam(CropResize* crop_resize, int left, int 
     param.dst_height = crop_resize->dsize[0];
     param.dst_width  = crop_resize->dsize[1];
     param.val        = crop_resize->color.at(0);
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
-Status NetUtils::ParseDetectionOutput(std::vector<std::shared_ptr<Blob>>& blobs,
-                                      std::vector<Size>& image_sizes, Size net_input_size,
-                                      std::vector<int>& selected_indcies,
-                                      std::vector<float>& selected_thresholds,
-                                      std::vector<std::string>& selected_label,
+Status NetUtils::ParseDetectionOutput(const std::vector<std::shared_ptr<Blob>>& blobs,
+                                      const std::vector<Size>& image_sizes, Size net_input_size,
+                                      const std::vector<int>& selected_indcies,
+                                      const std::vector<float>& selected_thresholds,
+                                      const std::vector<std::string>& selected_label,
                                       std::vector<std::vector<ObjectInfoV1>>& detects) {
     auto blob_count = blobs.size();
     if (blob_count != 1)
@@ -512,12 +514,12 @@ Status NetUtils::ParsePersonAttributesOutput(const std::vector<std::shared_ptr<B
         }
         detects.push_back(std::move(objects));
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
-Status NetUtils::ParseClassificationOutput(std::vector<std::shared_ptr<Blob>>& blobs,
+Status NetUtils::ParseClassificationOutput(const std::vector<std::shared_ptr<Blob>>& blobs,
                                            std::vector<int>& selected_indcies,
-                                           std::vector<std::string>& selected_label,
+                                           const std::vector<std::string>& selected_label,
                                            std::vector<std::vector<ObjectInfoV1>>& outputs) {
     auto blob_count = blobs.size();
     if (blob_count != 1)
@@ -588,10 +590,11 @@ Status NetUtils::ParseClassificationOutput(std::vector<std::shared_ptr<Blob>>& b
         return Status(COSMO_NN_ERR_INVALID_INPUT, "Unsupported blob shape");
     }
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
-Status NetUtils::ParseKeypointOutput(std::vector<std::shared_ptr<Blob>>& blobs, std::vector<Rect>& rects,
+Status NetUtils::ParseKeypointOutput(const std::vector<std::shared_ptr<Blob>>& blobs,
+                                     const std::vector<Rect>& rects,
                                      std::vector<std::vector<ObjectInfoV1>>& outputs) {
     auto blob_count = blobs.size();
     if (blob_count != 1)
@@ -616,7 +619,7 @@ Status NetUtils::ParseKeypointOutput(std::vector<std::shared_ptr<Blob>>& blobs, 
         std::vector<ObjectInfoV1> _obj_infos = {obj_info};
         outputs.push_back(_obj_infos);
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 std::string NetUtils::TokenizerDecode(void* handle, std::vector<int>& ids) {
@@ -674,10 +677,10 @@ namespace {
 
 }  // namespace
 
-Status NetUtils::ParseDINOOutput(std::vector<std::shared_ptr<Blob>>& blobs, void* tokenizer_handle,
-                                 std::vector<Size>& input_sizes, std::vector<int>& padding_input_ids,
-                                 float text_threshold, float box_threshold,
-                                 std::vector<std::vector<ObjectInfoV1>>& detects) {
+Status NetUtils::ParseDINOOutput(const std::vector<std::shared_ptr<Blob>>& blobs, void* tokenizer_handle,
+                                 const std::vector<Size>& input_sizes,
+                                 const std::vector<int>& padding_input_ids, float text_threshold,
+                                 float box_threshold, std::vector<std::vector<ObjectInfoV1>>& detects) {
     detects.clear();
     if (blobs.size() < 2 || !blobs[0] || !blobs[1])
         return Status(COSMO_NN_ERR_PARAM, "GroundingDINO output requires logits and boxes");
@@ -767,10 +770,10 @@ Status NetUtils::ParseDINOOutput(std::vector<std::shared_ptr<Blob>>& blobs, void
         }
         detects.push_back(std::move(objects));
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
-Status NetUtils::GetImageSize(DimsVector dims, DataFormat layout, Size& size) {
+Status NetUtils::GetImageSize(const DimsVector& dims, DataFormat layout, Size& size) {
     if (dims.size() != 4)
         return Status(COSMO_NN_ERR_PARAM, "dims size must be 4");
 
@@ -783,11 +786,11 @@ Status NetUtils::GetImageSize(DimsVector dims, DataFormat layout, Size& size) {
     } else {
         return Status(COSMO_NN_ERR_PARAM, "GetImageSize: unsupported layout");
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
-void NetUtils::CalculateWarpAffineMatrix(std::vector<std::pair<float, float>>& src_points,
-                                         std::vector<std::pair<float, float>>& dst_points,
+void NetUtils::CalculateWarpAffineMatrix(const std::vector<std::pair<float, float>>& src_points,
+                                         const std::vector<std::pair<float, float>>& dst_points,
                                          std::vector<float>& matrix) {
     Eigen::Matrix<float, 8, 6> A;
     Eigen::Matrix<float, 8, 1> B;
@@ -808,7 +811,7 @@ void NetUtils::CalculateWarpAffineMatrix(std::vector<std::pair<float, float>>& s
     }
 }
 
-void NetUtils::WarpAffineMatrixInverse(std::vector<float>& matrix, std::vector<float>& inverse) {
+void NetUtils::WarpAffineMatrixInverse(const std::vector<float>& matrix, std::vector<float>& inverse) {
     auto m00 = matrix.at(0);
     auto m01 = matrix.at(1);
     auto m02 = matrix.at(2);
@@ -866,7 +869,8 @@ void NetUtils::MaskScale(uint8_t* src, size_t src_width, size_t src_height, uint
     }
 }
 
-Status NetUtils::WarpAffine(std::shared_ptr<Blob> blob, std::vector<std::pair<float, float>>& src_points,
+Status NetUtils::WarpAffine(std::shared_ptr<Blob> blob,
+                            const std::vector<std::pair<float, float>>& src_points,
                             std::shared_ptr<Blob>& out_blob, float x_scale, float y_scale) {
     if (src_points.size() != 4)
         return Status(COSMO_NN_ERR_INVALID_INPUT, "src_points and dst_points size must be 4");
@@ -994,7 +998,7 @@ Status NetUtils::WarpAffine(std::shared_ptr<Blob> blob, std::vector<std::pair<fl
     bm_dev_free(pbmhandle);
 #endif
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

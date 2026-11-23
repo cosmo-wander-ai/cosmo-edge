@@ -1,11 +1,13 @@
 // AlgMp4Record — single MP4 recording task with NALU parsing and file upload.
 
 #pragma once
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
 
 #include "flow/common/AlgDataUnit.h"
+#include "media/DecoderParameterSets.h"
 
 typedef void* MP4FileHandle;
 typedef uint32_t MP4TrackId;
@@ -30,12 +32,17 @@ public:
     bool RecodeFrame(VideoPacketPtr frame);
 
     int64_t GetRecordFrames();
+    // A timed first sample is buffered until the next DTS fixes its duration.
+    [[nodiscard]] bool HasStarted() const;
     // Input cursor, including valid parameter-only packets.
     int64_t GetLastIndex();
     int64_t GetEventTime();
     int64_t GetTaskStartFrameSeq();
     std::string GetEventName();
     [[nodiscard]] bool IsReady() const;
+    // Called only after the queue worker has joined. The temporary file is
+    // retained and will not be published when shutdown dropped pending data.
+    void MarkIncomplete();
 
 private:
     // NALU-type handlers extracted from RecodeFrame (DEBT-011)
@@ -45,7 +52,9 @@ private:
     struct FrameScan;
     bool ScanFrame(const uint8_t* data, size_t size, FrameScan* scan) const;
     bool TransformFrame(const uint8_t* data, size_t size, const FrameScan& scan);
-    bool WriteVideoSample(int64_t seq, bool is_sync);
+    bool WriteVideoSample(int64_t seq, bool is_sync, uint64_t duration, uint64_t offset);
+    bool FlushTimedSample(uint64_t duration);
+    bool FinalizePresentationDuration();
 
     void SetTrack(const uint8_t* sps, size_t size);
     std::string GetPath();
@@ -60,6 +69,8 @@ private:
     bool is_vps_ready_{false};
     bool is_sps_ready_{false};
     bool is_pps_ready_{false};
+    bool parameter_sets_configured_{false};
+    media::DecoderParameterSets parameter_sets_;
 
     media::VideoCodecType source_type_;
     std::string channel_id_;
@@ -77,7 +88,6 @@ private:
     int64_t last_time_{0};
     int64_t last_index_{-1};  // Start sequence may be 0
     int64_t event_time_{0};
-    int64_t alarm_timestamp_{0};
     int64_t event_index_{0};
     int64_t stream_index_{-1};
     int64_t record_frames_{0};
@@ -94,6 +104,21 @@ private:
     MsgAlarmVideoOverviewInfo overview_info_;                 // Region data for UploadOverviewFile
     RetroDirect retro_direct_{RetroDirect::RetroDirectNone};  // No direction
     std::vector<uint8_t> sample_buffer_;  // Reused after each synchronous MP4WriteSample call
+    std::vector<uint8_t> pending_sample_;
+    bool timing_mode_set_{false};
+    bool timed_{false};
+    bool pending_sync_{false};
+    int source_time_base_num_{0};
+    int source_time_base_den_{0};
+    int64_t timing_origin_dts_{0};
+    int64_t pending_seq_{0};
+    int64_t pending_dts_{0};
+    uint64_t pending_offset_{0};
+    uint64_t pending_duration_{0};
+    uint64_t last_duration_{0};
+    uint64_t decode_duration_{0};
+    uint64_t presentation_end_{0};
+    uint64_t presentation_start_{std::numeric_limits<uint64_t>::max()};
 };
 
 }  // namespace cosmo

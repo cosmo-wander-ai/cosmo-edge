@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <exception>
 #include <memory>
+#include <stdexcept>
 #include <string_view>
 #include <utility>
 
@@ -79,6 +80,7 @@
 #include "service/network/IHttpLifecycle.h"
 #include "service/network/IMqttLifecycle.h"
 #include "service/network/INetworkConfig.h"
+#include "service/network/IWifiConfig.h"
 #include "service/network/impl/AuthServiceImpl.h"
 #include "service/network/impl/ClientMessageServiceImpl.h"
 #include "service/network/impl/DeviceDiscoveryServiceImpl.h"
@@ -86,6 +88,7 @@
 #include "service/network/impl/HttpLifecycleServiceImpl.h"
 #include "service/network/impl/MqttLifecycleServiceImpl.h"
 #include "service/network/impl/NetworkConfigServiceImpl.h"
+#include "service/network/impl/WifiConfigServiceImpl.h"
 #include "service/onboarding/IOnboardingService.h"
 #include "service/onboarding/impl/OnboardingServiceImpl.h"
 #include "service/onvif/impl/OnvifServiceImpl.h"
@@ -123,7 +126,12 @@
 
 namespace cosmo::app {
 
-void SwDevicePreInit() {
+void SwDevicePreInit(const runtime::RuntimeOptions& options) {
+    if (options.isolated) {
+        cosmo::path::OverrideRootPaths(options.data_dir, options.app_dir);
+        cosmo::path::Init();
+        return;
+    }
     cosmo::path::OverrideRootPaths(
         cosmo::util::GetEnvOrDefault("COSMO_DATA_DIR", cosmo::runtime::kDefaultDataDir),
         cosmo::util::GetEnvOrDefault("COSMO_APP_DATA_DIR", cosmo::runtime::kDefaultAppDataDir));
@@ -188,6 +196,8 @@ static void RegisterInfrastructureServices() {
             []() { return std::make_unique<cosmo::ApiRouter>(cosmo::MessageFromType::MessageFromMqtt); }));
     registry.Register<cosmo::service::INetworkConfig>(
         std::make_unique<cosmo::service::NetworkConfigServiceImpl>());
+
+    registry.Register<cosmo::service::IWifiConfig>(std::make_unique<cosmo::service::WifiConfigServiceImpl>());
 
     registry.Register<cosmo::service::IDeviceDiscoveryService>(
         std::make_unique<cosmo::service::DeviceDiscoveryServiceImpl>());
@@ -257,8 +267,11 @@ static void RegisterBusinessServices() {
     registry.Register<cosmo::service::ISystemOperationService>(
         std::make_unique<cosmo::service::SystemOperationServiceImpl>());
     registry.Register<cosmo::service::IModelService>(std::make_unique<cosmo::service::ModelServiceImpl>());
+    // Public validation must not borrow a provisioner from the host installation.
     registry.Register<cosmo::service::IModelAuthorizationService>(
-        std::make_unique<cosmo::service::ModelAuthorizationServiceImpl>());
+        runtime::IsIsolatedRuntime()
+            ? std::make_unique<cosmo::service::ModelAuthorizationServiceImpl>(std::string{})
+            : std::make_unique<cosmo::service::ModelAuthorizationServiceImpl>());
     auto& modelImpl = registry.Get<cosmo::service::IModelService>();
     registry.Set<cosmo::service::IModelQuery>(static_cast<cosmo::service::IModelQuery*>(&modelImpl));
     registry.Set<cosmo::service::IModelPathMapping>(
@@ -331,15 +344,17 @@ static void RegisterBusinessServices() {
 
 static void InitializeServices() {
     auto& registry = cosmo::service::ServiceRegistry::Instance();
-    try {
-        registry.Get<cosmo::service::IGb28181Management>().Init();
-    } catch (const std::exception&) {
-        LOG_ERRO("{}", "GB28181 management unavailable; restore its configuration and key together");
-    }
-    try {
-        registry.Get<cosmo::service::IOnvifService>().Init();
-    } catch (const std::exception&) {
-        LOG_ERRO("{}", "ONVIF configuration unavailable; restore its configuration and key together");
+    if (!runtime::IsIsolatedRuntime()) {
+        try {
+            registry.Get<cosmo::service::IGb28181Management>().Init();
+        } catch (const std::exception&) {
+            LOG_ERRO("{}", "GB28181 management unavailable; restore its configuration and key together");
+        }
+        try {
+            registry.Get<cosmo::service::IOnvifService>().Init();
+        } catch (const std::exception&) {
+            LOG_ERRO("{}", "ONVIF configuration unavailable; restore its configuration and key together");
+        }
     }
 
     // OSD TrueType text renderer initialization
@@ -351,10 +366,14 @@ static void InitializeServices() {
         "data/SOURCEHANSANSCN-REGULAR.OTF",                                // dev env (project root)
     };
     bool fontLoaded = false;
-    for (const auto& fp : kFontPaths) {
-        if (osd.Init(std::string(fp))) {
-            fontLoaded = true;
-            break;
+    if (runtime::IsIsolatedRuntime()) {
+        fontLoaded = osd.Init(cosmo::path::GetAppBaseDir() + "/font/SOURCEHANSANSCN-REGULAR.OTF");
+    } else {
+        for (const auto& fp : kFontPaths) {
+            if (osd.Init(std::string(fp))) {
+                fontLoaded = true;
+                break;
+            }
         }
     }
     if (!fontLoaded) {
@@ -366,6 +385,7 @@ static void InitializeServices() {
     registry.Get<cosmo::service::IAlgorithmService>().Init();
 
     registry.Get<cosmo::service::INetworkConfig>().Init();
+    registry.Get<cosmo::service::IWifiConfig>().Init();
 
     registry.Get<cosmo::service::IDbService>().Init();
 
@@ -381,30 +401,40 @@ static void InitializeServices() {
     registry.Get<cosmo::service::IMqttLifecycle>().MqttStart();
 }
 
-static void InitializeExternalComponents() {
+static void InitializeExternalComponents(const runtime::RuntimeOptions& options) {
     using namespace constants;
 
     // Storage space periodic cleanup
     cosmo::service::ServiceRegistry::Instance().Get<cosmo::service::IStorageCleanService>().Start();
 
     // HTTP Server Init
-    const int http_port = cosmo::util::GetEnvIntOrDefault("COSMO_HTTP_PORT", kDefaultHttpPort);
+    const char* bind_host = options.isolated ? "127.0.0.1" : "0.0.0.0";
+    const int http_port   = options.isolated
+                                ? options.http_port
+                                : cosmo::util::GetEnvIntOrDefault("COSMO_HTTP_PORT", kDefaultHttpPort);
     cosmo::service::ServiceRegistry::Instance().Get<cosmo::service::IHttpLifecycle>().InitHttpServer(
-        "0.0.0.0", static_cast<uint16_t>(http_port));
+        bind_host, static_cast<uint16_t>(http_port));
 
     // uWebSockets Server Init
-    const int websocket_port = cosmo::util::GetEnvIntOrDefault("COSMO_WEBSOCKET_PORT", kDefaultWebSocketPort);
-    cosmo::service::ServiceRegistry::Instance().Get<cosmo::service::IEventNotifier>().InitializeWebSocket(
-        "0.0.0.0", websocket_port);
+    const int websocket_port =
+        options.isolated ? options.websocket_port
+                         : cosmo::util::GetEnvIntOrDefault("COSMO_WEBSOCKET_PORT", kDefaultWebSocketPort);
+    const bool websocket_started =
+        cosmo::service::ServiceRegistry::Instance().Get<cosmo::service::IEventNotifier>().InitializeWebSocket(
+            bind_host, websocket_port);
+    if (options.isolated && !websocket_started) {
+        throw std::runtime_error("isolated WebSocket listener failed to start");
+    }
 
     // Device discovery multicast service (async init with retry).
     cosmo::service::ServiceRegistry::Instance().Get<cosmo::service::IDeviceDiscoveryService>().Start();
 
 #ifndef COSMO_DEV_MODE
-    // Hardware watchdog — feeds /dev/watchdog to prevent system reset on hang.
-    // Disabled in development builds (COSMO_DEV_MODE) to avoid device resets during debugging.
-    if (!cosmo::service::ServiceRegistry::Instance().Get<cosmo::service::IWatchDogService>().Start()) {
-        LOG_ERRO("{}", "Hardware watchdog failed to start; watchdog protection is unavailable");
+    if (!options.isolated) {
+        // Hardware watchdog is disabled in development builds and isolated runs.
+        if (!cosmo::service::ServiceRegistry::Instance().Get<cosmo::service::IWatchDogService>().Start()) {
+            LOG_ERRO("{}", "Hardware watchdog failed to start; watchdog protection is unavailable");
+        }
     }
 #else
     LOG_WARN("{}", "Watchdog disabled (COSMO_DEV_MODE build)");
@@ -439,6 +469,9 @@ static void StopExternalComponents() {
     }
     if (registry.Has<cosmo::service::IMqttLifecycle>()) {
         stop("MQTT client", [&registry]() { registry.Get<cosmo::service::IMqttLifecycle>().MqttShutdown(); });
+    }
+    if (registry.Has<cosmo::service::IWifiConfig>()) {
+        stop("Wi-Fi worker", [&registry]() { registry.Get<cosmo::service::IWifiConfig>().Stop(); });
     }
     if (registry.Has<cosmo::service::INetworkConfig>()) {
         stop("network configuration worker",
@@ -488,13 +521,13 @@ static void StopExternalComponents() {
     }
 }
 
-void SwDeviceInit() {
+void SwDeviceInit(const runtime::RuntimeOptions& options) {
     cosmo::util::ProcessShutdown::ResetForStartup();
     RegisterInfrastructureServices();
     RegisterBusinessServices();
     cosmo::service::ServiceRegistry::Instance().CompleteRegistration();
     InitializeServices();
-    InitializeExternalComponents();
+    InitializeExternalComponents(options);
 }
 
 void SwDeviceRun() {

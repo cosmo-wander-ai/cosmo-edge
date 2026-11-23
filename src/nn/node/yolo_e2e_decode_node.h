@@ -10,7 +10,9 @@ namespace cosmo::nn {
  * Input may be an already-decoded [batch, box_num, 6] tensor with
  * (x1, y1, x2, y2, score, class_id), or, with raw_output=true, a raw head
  * [batch, 4 + classes, N] containing pixel center xywh and class probabilities. The raw path performs
- * class-aware NMS. Output: [batch, top_k, 6]   with (cx, cy, w, h, score, class_id) in xywh-center format,
+ * class-aware NMS. With auto_detect_output, the actual input shape selects the layout, preferring
+ * decoded rows when the last dimension is six. Output: [batch, top_k, 6]
+ * with (cx, cy, w, h, score, class_id) in xywh-center format,
  *         compatible with the framework's PickDetectionObjects / AdjustSize.
  * The person-attribute pipeline uses decoded pixel rows with six detection columns plus configured scores.
  * The independent attribute scores following class_id pass through unchanged.
@@ -22,23 +24,29 @@ public:
 
     virtual void LoadParam(Op* op) override;
     virtual Status InferTopShapes() override;
+    virtual bool NeedBottomShapesInfered() override;
+    virtual Status InferTopShapesWithBottoms(std::vector<DimsVector> dims,
+                                             std::vector<DataType> types) override;
     virtual Status Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
                            std::vector<std::shared_ptr<Blob>>& top_blobs) override;
     virtual size_t GetBottomCount() override;
     virtual size_t GetTopCount() override;
 
 private:
-    float base_conf         = 0.25f;
-    float nms_threshold_    = 0.7f;
-    int top_k               = 300;
-    bool raw_output_        = false;
-    bool person_attributes_ = false;
-    bool valid_params_      = false;
-    int top_col             = 6;
+    float base_conf          = 0.25f;
+    float nms_threshold_     = 0.7f;
+    int top_k                = 300;
+    bool raw_output_         = false;
+    bool auto_detect_output_ = false;
+    bool person_attributes_  = false;
+    bool valid_params_       = false;
+    int top_col              = 6;
 
     // Net input dimensions for denormalizing coordinates
     int input_width_  = 0;
     int input_height_ = 0;
+
+    Status ValidateLayout(const DimsVector& dims, bool& raw_output) const;
 };
 
 }  // namespace cosmo::nn

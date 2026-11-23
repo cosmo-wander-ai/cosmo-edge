@@ -137,8 +137,6 @@ private:
     struct LlmReviewResult {
         bool parseSuccess{false};
         bool is_valid{true};
-        float confidence{0.0f};
-        std::string reason;
     };
     bool IsTypedAlarmProvider() const;
     void InvalidateVisualAlarmPlan();

@@ -4,12 +4,39 @@
 
 #include <syscall.h>
 
+#include <cstdlib>
+#include <cstring>
+
 #include "util/Log.h"
 #include "util/TimeUtil.h"
 #include "util/UuidUtil.h"
 #include "util/VideoInfo.h"
 
 namespace cosmo::mem {
+
+I420PoolLimit ResolveI420PoolLimit(const char* chip, const char* setting) {
+    constexpr size_t kDefault = 200;
+    constexpr size_t kMaximum = 400;
+    if (!chip || std::strcmp(chip, "rk3588") != 0 || !setting) {
+        return {kDefault, false};
+    }
+    size_t value = 0;
+    if (!*setting) {
+        return {kDefault, true};
+    }
+    for (const char* p = setting; *p; ++p) {
+        if (*p < '0' || *p > '9') {
+            return {kDefault, true};
+        }
+        const size_t digit = static_cast<size_t>(*p - '0');
+        if (value > (kMaximum - digit) / 10) {
+            return {kDefault, true};
+        }
+        value = value * 10 + digit;
+    }
+    return value >= kDefault && value <= kMaximum ? I420PoolLimit{value, false}
+                                                  : I420PoolLimit{kDefault, true};
+}
 
 FixedBlockPool::~FixedBlockPool() {
     if ((used_blocks_.size() > 0) || (idle_blocks_.size() > 0))
@@ -30,8 +57,20 @@ FixedBlockPool::FixedBlockPool(size_t size) {
         free_step_    = 8;
         malloc_thres_ = 10;
         free_thres_   = 20;
-        max_limit_    = 200;
-        min_limit_    = 30;
+        // The environment override is honored only by a build explicitly
+        // identified as RK3588. It is frozen when this pool is constructed.
+#ifdef COSMO_RKNN_TARGET_CHIP
+        const auto limit =
+            ResolveI420PoolLimit(COSMO_RKNN_TARGET_CHIP, std::getenv("COSMO_RK3588_I420_POOL_BLOCKS"));
+#else
+        const auto limit = ResolveI420PoolLimit(nullptr, nullptr);
+#endif
+        max_limit_ = limit.blocks;
+        min_limit_ = 30;
+        if (limit.invalid) {
+            LOG_WARN("Invalid COSMO_RK3588_I420_POOL_BLOCKS; using {} blocks", max_limit_);
+        }
+        LOG_INFO("I420 pool block limit: {} ({} bytes per block)", max_limit_, size);
     } else if (size == media::kVideoDefaultWidth * media::kVideoDefaultHeightAlign * 3) {
         malloc_step_  = 10;
         free_step_    = 8;

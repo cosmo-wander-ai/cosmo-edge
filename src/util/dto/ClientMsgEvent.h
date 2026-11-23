@@ -254,7 +254,6 @@ struct CMsgOnEventsRsp : public MsgSendHead {};
 // Analysis machine reporting face event interface
 struct CMsgFaceEventReq : public MsgRecvHead {
     std::string messageId;
-    std::string devId;           // Device ID
     std::string taskId;          // Task ID
     std::string videoChannelId;  // Channel
     std::string timestamp;       // UTC timestamp ms
@@ -263,9 +262,7 @@ struct CMsgFaceEventReq : public MsgRecvHead {
     std::string algorithmName;   // Algorithm name
     std::string recordId;        // Alarm record ID (trackId?)
 
-    std::string featureUrl;  // Face feature file
-    AiFeature feature;       // Feature value used during face comparison;
-    std::string image;       // URL of face image
+    std::string image;  // URL of face image
 };
 
 // Analysis machine reporting face event interface response

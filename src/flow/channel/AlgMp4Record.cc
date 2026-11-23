@@ -4,6 +4,7 @@
 
 #include <filesystem>
 
+#include "media/Mp4Presentation.h"
 #include "media/VideoUtil.h"
 #include "mp4v2/mp4v2.h"
 #include "mp4v2/track.h"
@@ -30,7 +31,7 @@ AlgMp4Record::AlgMp4Record(media::VideoCodecType streamType, const RecordParam& 
                            int width, int height) {
     recording_lease_ = service::AlarmMediaLease::StartRecording(recordParam.recordId);
     if (!recording_lease_) {
-        LOG_WARN("[MP4 TASK] Event is being deleted; recording was not started");
+        LOG_WARN("{}", "[MP4 TASK] Event is being deleted; recording was not started");
         return;
     }
     track_id_  = MP4_INVALID_TRACK_ID;
@@ -78,8 +79,27 @@ bool AlgMp4Record::IsReady() const {
     return static_cast<bool>(recording_lease_);
 }
 
+void AlgMp4Record::MarkIncomplete() {
+    write_failed_ = true;
+}
+
+bool AlgMp4Record::FinalizePresentationDuration() {
+    return media::FinalizeMp4Presentation(mp4_handle_, track_id_, decode_duration_, presentation_start_,
+                                          presentation_end_);
+}
+
 AlgMp4Record::~AlgMp4Record() {
     if (mp4_handle_) {
+        if (timed_ && !pending_sample_.empty() && !write_failed_) {
+            const auto duration = pending_duration_ != 0 ? pending_duration_ : last_duration_;
+            if (duration == 0 || !FlushTimedSample(duration)) {
+                write_failed_ = true;
+            }
+        }
+        if (!write_failed_ && record_frames_ > 0 && !FinalizePresentationDuration()) {
+            write_failed_ = true;
+            LOG_ERRO("[MP4 TASK] {} {} cannot finalize presentation duration", task_id_, event_name_);
+        }
         LOG_INFO(
             "[MP4 TASK] {} {} stop. Frame Start/Event/End at {}/{}/{} Duration Pre/After: {}/{} ms "
             "recordFrame:{} DataSize:{} WriteSize:{}",

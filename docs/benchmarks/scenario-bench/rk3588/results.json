@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "platform": "RK3588",
+  "environment": {
+    "device": "RK3588",
+    "architecture": "aarch64",
+    "os": "Ubuntu 20.04.6 LTS",
+    "runtime": "RKNN; Rockchip MPP / RGA",
+    "build": "glibc 2.31"
+  },
+  "conditions": {
+    "video": "1080p24 H.264 本地循环 / local loop",
+    "stepSeconds": 30,
+    "fpsTargets": [24, 10, 7, 5],
+    "summaryZh": "参照 1.1 方法逐路递增，每档 30 秒，约每 3 秒采样；使用替代 1080p24 本地循环视频及 RK3588 FP16 安全帽分类模型，低频告警，关闭预览、录像和 HTTP 推送。FPS 达标率门槛 80%，遥测缺失率 0，平均丢弃率上限 5%，关键路径上限 200 ms，检测节点上限 150 ms。15 分钟结果为另行进行的持续负载验证。",
+    "summaryEn": "Following the 1.1 ramp method, channels increase one at a time with 30-second steps and samples approximately every 3 seconds. The run used a replacement 1080p24 local-loop video and an RK3588 FP16 helmet classifier, with infrequent alarms and preview, recording and HTTP push disabled. Gates are 80% of target FPS, zero missing telemetry, at most 5% average discard, 200 ms critical-path latency and 150 ms detector latency. The 15-minute result is a separate sustained-load observation."
+  },
+  "singleWorkloads": [
+    {
+      "workloadZh": "人员检测",
+      "workloadEn": "Person detection",
+      "version": "16135b37",
+      "results": {"24": "6", "10": "16*", "7": "22*", "5": "30"},
+      "detailsZh": "30 秒阶梯。24 FPS 按逐任务计数口径 6 路通过、7 路未通过；引擎原生口径 8 路通过、9 路未通过。10 FPS 的 17 路和 7 FPS 的 23 路因 MPP copy-out 失败中止，前序已完成档为阶段性观测。5 FPS 的 31 路平均丢弃率 5.82%。",
+      "detailsEn": "30-second ramp. At 24 FPS, the per-task count check passed at 6 channels and failed at 7; native metrics passed at 8 and failed at 9. At 10 FPS the 17-channel step and at 7 FPS the 23-channel step stopped after MPP copy-out failures; completed preceding steps are provisional observations. At 5 FPS, the 31-channel step had 5.82% average discard."
+    },
+    {
+      "workloadZh": "未佩戴安全帽分析",
+      "workloadEn": "No-safety-helmet analysis",
+      "version": "16135b37",
+      "results": {"24": "—", "10": "—", "7": "—", "5": "—"},
+      "detailsZh": "四种目标帧率在单路首档均未达到门槛；分类器真实运行。",
+      "detailsEn": "The first single-channel step did not meet the gate at any of the four target frame rates; classifier inference was running."
+    },
+    {
+      "workloadZh": "人员检测（15 分钟）",
+      "workloadEn": "Person detection (15 minutes)",
+      "version": "abe4d4bb",
+      "results": {"24": "—", "10": "—", "7": "—", "5": "29"},
+      "detailsZh": "5 FPS、29 路持续测试覆盖 901.549 秒；30 路约 879 秒时发生 MPP copy-out 失败并中止。",
+      "detailsEn": "At 5 FPS, 29 channels covered 901.549 seconds; the 30-channel run stopped after an MPP copy-out failure at approximately 879 seconds."
+    }
+  ],
+  "mixedWorkloads": [
+    {
+      "workloadZh": "人员检测 + 未佩戴安全帽分析",
+      "workloadEn": "Person detection + no-safety-helmet analysis",
+      "version": "8e8a4d89",
+      "modelStages": 3,
+      "targetFps": 5,
+      "passingChannels": "15",
+      "bindings": "30/30",
+      "detailsZh": "I420 + CPU 裁剪诊断版：1–15 路通过 30 秒检查，16 路安全帽关键路径为 221.6 ms；15 路额外完成 901.577 秒持续观测，30 个相互重叠窗口通过。测试使用 CPU 回退。",
+      "detailsEn": "I420 + CPU-crop diagnostic build: channels 1–15 passed the 30-second checks; at 16 channels the helmet critical path was 221.6 ms. A separate 15-channel sustained observation covered 901.577 seconds with 30 overlapping passing windows. CPU fallback was used."
+    },
+    {
+      "workloadZh": "人员检测 + 未佩戴安全帽分析",
+      "workloadEn": "Person detection + no-safety-helmet analysis",
+      "version": "0148048b",
+      "modelStages": 3,
+      "targetFps": 5,
+      "passingChannels": "16*",
+      "bindings": "32/32",
+      "detailsZh": "优化产品版：1–16 路完成 30 秒检查；17 路约 19 秒时 MPP copy-out 失败，触发保护中止。测试使用 CPU 回退。",
+      "detailsEn": "Optimized product build: channels 1–16 completed the 30-second checks; at approximately 19 seconds the 17-channel step stopped on MPP copy-out failures. CPU fallback was used."
+    }
+  ],
+  "functionalSource": {
+    "summaryZh": "单路功能验证使用 OpenCV vtest.avi 转码的 1080p25 H.264 循环视频，以及 Mixtile 公开的 RK3588 YOLOv8n 检测模型（SHA-256 defa25aea179be4da5c5c5826e0be26833b9f818f86b6519620f52f6df3b6a17）。功能验证与容量测试使用的素材及引擎版本分别记录。",
+    "summaryEn": "Single-channel functional checks used a 1080p25 H.264 loop transcoded from OpenCV vtest.avi and Mixtile's public RK3588 YOLOv8n detector (SHA-256 defa25aea179be4da5c5c5826e0be26833b9f818f86b6519620f52f6df3b6a17). Functional checks and capacity measurements identify their respective inputs and engine versions."
+  },
+  "functionalValidation": [
+    {
+      "areaZh": "人员检测任务",
+      "areaEn": "Person detection task",
+      "engine": "450fbc4f",
+      "resultZh": "单路任务约 57 秒采样中，MPP 解码、RKNN 检测推理和下游节点持续推进。",
+      "resultEn": "In approximately 57 seconds of single-channel sampling, MPP decoding, RKNN detector inference and downstream nodes progressed."
+    },
+    {
+      "areaZh": "区域事件及告警图片",
+      "areaEn": "Region event and alarm images",
+      "engine": "450fbc4f",
+      "resultZh": "HTTP 接收端收到带人员框的区域事件；同一事件关联的原图、全图、目标图三张归档图片的大小和 SHA-256 均与索引一致。",
+      "resultEn": "The HTTP receiver obtained a region event with person boxes. The three archived original, full-frame and detected-target images for that event matched their indexed sizes and SHA-256 hashes."
+    },
+    {
+      "areaZh": "原始预览",
+      "areaEn": "Raw preview",
+      "engine": "7bb211b4",
+      "resultZh": "候选 5 的 1080p25 H.264 样本为 15.24 秒、377 帧，完整解码无错误；首、中、后段画面经核查。",
+      "resultEn": "The candidate 5 1080p25 H.264 sample was 15.24 seconds and 377 frames, decoded without errors, with first, middle and late frames visually checked."
+    },
+    {
+      "areaZh": "带框预览",
+      "areaEn": "Annotated preview",
+      "engine": "450fbc4f",
+      "resultZh": "1080p、约 10 FPS 的 14.94 秒样本完成解码；检查画面可见人员检测框及区域叠加。",
+      "resultEn": "A 14.94-second 1080p sample at approximately 10 FPS decoded successfully; inspected frames showed person boxes and the region overlay."
+    },
+    {
+      "areaZh": "事件录像",
+      "areaEn": "Event recording",
+      "engine": "7bb211b4",
+      "resultZh": "候选 5 的单路 H.264 MP4 样本为 8.48 秒、212 帧，完整解码无错误；时间戳及首、中、后段画面已核查。事件前后录制时长的精确覆盖尚未验证。",
+      "resultEn": "The candidate 5 single-channel H.264 MP4 sample was 8.48 seconds and 212 frames, decoded without errors, with timestamps and first, middle and late frames checked. Exact pre-event and post-event coverage was not verified."
+    }
+  ],
+  "longRun": {
+    "status": "observed-not-accepted",
+    "engine": "9849224dca254ae1755a26dec3312961c0e541bfdff3ffb8a3e950afc27529e4",
+    "durationHours": 48,
+    "channels": 15,
+    "tasks": 30,
+    "nodes": 45,
+    "completeWindows": 5760,
+    "passingWindows": 5760,
+    "samples": 69122,
+    "gateGroups": 15,
+    "queues": 45,
+    "queueDiscardDelta": 0,
+    "observedBypassZero": true,
+    "summaryZh": "48 小时观测完成，5760 个完整窗口通过；完整验收待复核。重放记录中 45 个队列的丢弃增量为 0，15 组 gate 观测旁路为 0。",
+    "summaryEn": "The 48-hour observation completed with all 5,760 complete windows passing; full acceptance remains under review. Replay records showed zero discard increment across 45 queues and zero observed bypass across 15 gate groups.",
+    "conditionsZh": "15 路本地循环 1080p24 H.264 视频，每路同时运行人员检测和未佩戴安全帽分析，各 5 FPS；低频告警，录像和 HTTP 推送关闭。图像处理使用 CPU 回退。完整验收还需核对基线恢复、gate 清理、事件保全、源与逐 ROI NPU 等环节。",
+    "conditionsEn": "Fifteen local-loop 1080p24 H.264 channels each ran person detection and no-safety-helmet analysis at 5 FPS. Alarms were infrequent; recording and HTTP push were disabled. Image processing used CPU fallback. Full acceptance still requires review of baseline restoration, gate cleanup, event preservation, source qualification and per-ROI NPU execution."
+  }
+}

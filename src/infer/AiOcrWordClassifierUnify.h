@@ -37,7 +37,7 @@ public:
     [[nodiscard]] util::ErrorEnum GetMaxBatchSize(size_t& value) const;
 
     [[nodiscard]] util::ErrorEnum WarpAffine(std::shared_ptr<cosmo::nn::Blob> blob,
-                                             std::vector<std::pair<float, float>>& src_points,
+                                             const std::vector<std::pair<float, float>>& src_points,
                                              std::shared_ptr<cosmo::nn::Blob>& out_blob);
 
     [[nodiscard]] util::ErrorEnum WarpAffine(const VideoFramePtr& in_image, const AiLandmarkData& landmark,

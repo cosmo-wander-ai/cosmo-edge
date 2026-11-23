@@ -41,7 +41,7 @@ Status DinoDecodeNode::InferTopShapes() {
     top_blob_data_types = {DataType::DATA_TYPE_FLOAT, DataType::DATA_TYPE_FLOAT};
     top_blob_shapes     = {{1, 900, 256}, {1, 900, 4}};
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 bool DinoDecodeNode::NeedBottomShapesInfered() {
@@ -63,7 +63,7 @@ Status DinoDecodeNode::InferTopShapesWithBottoms(std::vector<DimsVector> dims, s
     top_blob_data_types = {DataType::DATA_TYPE_FLOAT, DataType::DATA_TYPE_FLOAT};
     top_blob_shapes     = {{batch, num_boxes, num_tokens}, {batch, num_boxes, 4}};
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status DinoDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
@@ -115,7 +115,7 @@ Status DinoDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
     shared_resource->box_threshold  = box_threshold;
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

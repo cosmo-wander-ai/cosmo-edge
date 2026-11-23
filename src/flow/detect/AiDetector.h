@@ -90,11 +90,14 @@ public:
         return instance_fps_budget_;
     }
 
-    std::string GetName() const {
+    std::string GetDetectorName() const {
         return name_;
     }
     std::string GetAlgCode() const {
         return alg_code_;
+    }
+    std::optional<InferenceInputSize> GetInputSize() const {
+        return input_size_;
     }
 
 protected:
@@ -102,6 +105,8 @@ protected:
     void run() override;
 
 private:
+    using AlgActionBase::GetName;
+
     // taskId/streamIndex keep camelCase to avoid shadowing AlgActionBase members task_id/stream_index.
     void HandFrames(std::vector<AlgDataPtr> alg_datas);
     bool ValidKey(MsgDynamicKeyValue& param);
@@ -135,6 +140,7 @@ private:
 
 private:
     std::string alg_code_;
+    std::optional<InferenceInputSize> input_size_;
     std::string name_;
     int init_retry_count_{0};
     int64_t last_init_fail_time_ms_{0};

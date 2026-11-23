@@ -1,19 +1,24 @@
 # Common (backend-agnostic) source files
 set(MEDIA_COMMON_SRC
     Color.h
+    DecoderParameterSets.cc      DecoderParameterSets.h
     EncodedImageInfo.cc           EncodedImageInfo.h
     FileDemuxStrategy.cc         FileDemuxStrategy.h
     IDemuxStrategy.h
     NetworkDemuxStrategy.cc      NetworkDemuxStrategy.h
     IOsdTextRenderer.h
     IVideoFrameProc.h
+    LocalLoopCodecGuard.cc       LocalLoopCodecGuard.h
+    LocalLoopTimeline.cc         LocalLoopTimeline.h
     MosaicPixels.cc             MosaicPixels.h
     OsdTextRenderer.cc           OsdTextRenderer.h
     OsdLineRasterizer.cc         OsdLineRasterizer.h
     PixelFormat.h
     PixelFormatUtils.cc          PixelFormatUtils.h
+    PacketTime.cc                PacketTime.h
     PreviewPipelineMetrics.cc    PreviewPipelineMetrics.h
     RtspDemuxStrategy.cc         RtspDemuxStrategy.h
+    TimestampMath.h
     UsbDemuxStrategy.cc          UsbDemuxStrategy.h
     VideoCodecType.h
     VideoDecoder.cc              VideoDecoder.h

@@ -31,10 +31,10 @@ Recommended tools:
 - Git and a GitHub account.
 - Node.js / npm for the docs site and frontend builds.
 - Docker Desktop or Docker Engine with Docker Compose V2.
-- For C++ backend work: Bash, CMake, a C++ compiler, `pkg-config`, `clang-format`, and any system packages reported by `scripts/build_cpu_test.sh`.
+- For C++ builds and tests, use the [supported build container](../guide/build.md#cpu-test-build); host-side formatting can use `clang-format`.
 - Optional: `cppcheck` for local static analysis.
 
-Windows contributors can start with the Docker and PowerShell paths. The native C++ test scripts are written for a Bash environment.
+Windows contributors use the listed Docker and PowerShell entries; the CPU test path documents a Linux x86_64 host.
 
 ## Recommended Workflow
 
@@ -89,10 +89,9 @@ git add -u
 
 Build and run the CPU-backend tests:
 
-```bash
-bash scripts/build_cpu_test.sh
-./build_cpu/cosmo-tests
-```
+Follow the [CPU test path](../guide/build.md#cpu-test-build) on a Linux x86_64 host.
+Build the test binary in the supported container, then run it. That section maintains the
+image, runtime libraries, and result checks.
 
 Optional static analysis:
 
@@ -105,9 +104,9 @@ bash scripts/static_analysis.sh --cppcheck --staged
 Linux:
 
 ```bash
-docker compose -f docker-compose.x86.yml up -d --build
-docker compose -f docker-compose.x86.yml ps
-docker compose -f docker-compose.x86.yml down
+./scripts/docker-compose.sh -f docker-compose.x86.yml up -d --build
+./scripts/docker-compose.sh -f docker-compose.x86.yml ps
+./scripts/docker-compose.sh -f docker-compose.x86.yml down
 ```
 
 Windows PowerShell / CMD:
@@ -175,7 +174,7 @@ bash scripts/static_analysis.sh --cppcheck --staged --profile commit
 | Unsure whether to run all checks or only a subset | Use the validation reference and pick the smallest relevant set. |
 | No Sophon device available | Docs, frontend, x86 Docker, and CPU test builds do not require Sophon hardware. |
 | `docker compose` is unavailable | Install Docker Compose V2, or replace commands with `docker-compose` in older environments. |
-| C++ dependencies are missing | Run `bash scripts/build_cpu_test.sh` first and install the packages reported by the script. |
+| C++ dependencies are missing | Confirm the documented builder image and runtime-library paths, then inspect the build log. |
 | Formatting check fails | Run `bash scripts/format_check.sh --staged --fix`, then stage the updated files again. |
 
 If a change affects public APIs, deployment scripts, model formats, or pipeline semantics, describe the design and compatibility impact in the PR. You can also discuss it in an issue first. Line count does not require an issue.

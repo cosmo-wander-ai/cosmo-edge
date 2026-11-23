@@ -13,6 +13,7 @@
 #include "nn/utils/net_utils.h"
 #include "nn/utils/profiler.h"
 #include "nn/utils/rect.h"
+#include "util/InferenceInputSize.h"
 
 namespace cosmo::nn {
 
@@ -60,6 +61,8 @@ struct PUBLIC PipelineConfig {
     std::vector<PipelineLabelInfo> labels;
 
     std::string extra_config_json;
+    InferenceInputSizes input_sizes;
+    std::optional<InferenceInputSize> requested_input_size;
     std::vector<std::string> person_attributes;
 };
 

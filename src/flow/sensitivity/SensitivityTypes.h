@@ -51,12 +51,9 @@ struct cosmo::Sensitivity::AreaTargetData {
     std::string name;
     bool historyFull{false};
     std::deque<AreaIdDataEl> history;
-
-    std::map<std::string, cosmo::Sensitivity::AreaTargetData> areas;
 };
 
 struct cosmo::Sensitivity::TargetSensitivityDetCount {
-    std::string areaId;
     std::string areaName;
     bool inArea{false};
     size_t detectCount{0};

@@ -64,11 +64,6 @@ struct MsgRunTime {
 void to_json(nlohmann::json& j, const MsgRunTime& r);
 void from_json(const nlohmann::json& j, MsgRunTime& r);
 
-struct MsgTaskRunTime {
-    int weekDay{0};  // 1-6: Mon-Sat, 0: Sun
-    std::vector<MsgRunTime> runTime;
-};
-
 struct MsgAiConfidence {
     std::string label;
     float confidence{0.0};
@@ -160,7 +155,6 @@ struct MsgTaskConfig {
     std::vector<MsgTaskArea> areas;
     std::vector<MsgTaskArea> shieldedAreas;
     std::vector<MsgDynamicKeyValue> params;
-    //    std::vector<MsgTaskRunTime> runTimes;
     friend void to_json(nlohmann::json& j, const MsgTaskConfig& v);
     friend void from_json(const nlohmann::json& j, MsgTaskConfig& v);
 };

@@ -37,8 +37,7 @@ private:
 private:
     std::shared_mutex mtx_;
     AiDetectorUnifyPtr inst_;  // Detector inference instance
-    size_t handle_frames_{0};
-    size_t filter_frames_{0};
+    std::optional<InferenceInputSize> input_size_;
     PDetectorParam params_;
     util::ErrorEnum action_status_{util::ErrorEnum::Success};
     util::DurationStat duration_stat_;

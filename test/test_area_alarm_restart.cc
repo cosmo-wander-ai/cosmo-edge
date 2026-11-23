@@ -7,8 +7,25 @@
 #undef private
 
 #include "flow/alarm/AreaAlarmInternalTypes.h"
+#include "flow/alarm/AreaAlarmMng.h"
 
 using namespace cosmo;
+
+TEST_CASE("Area alarm manager uses concrete flow metadata for lookup and deletion", "[AreaAlarm]") {
+    ActionNode action;
+    action.flowActionId = "action-flow";
+    AreaAlarmMng manager;
+    auto alarm = manager.GetInst("task", action);
+    REQUIRE(alarm);
+    alarm->action_info_.flowActionId = "alarm-flow";
+    CHECK(static_cast<const AlgActionBase&>(*alarm).GetFlowActionId() == "action-flow");
+    CHECK(alarm->GetAlarmFlowActionId() == "alarm-flow");
+
+    action.flowActionId = "alarm-flow";
+    CHECK(manager.GetInst("task", action) == alarm);
+    CHECK(manager.DeleteInst(alarm));
+    CHECK(manager.GetInst("task", action) != alarm);
+}
 
 TEST_CASE("AreaAlarm stop-start clears runtime history and rebuilds configured areas",
           "[AreaAlarm][task-parameters][restart]") {

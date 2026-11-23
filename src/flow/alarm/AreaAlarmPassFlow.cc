@@ -107,10 +107,11 @@ void AreaAlarm::PassFlowCount(PassFlowAreaTargets& areaData, const std::deque<Ai
 
 void AreaAlarm::HandPassFlowCalc() {
     for (auto& pair : pass_flow_areas_map_) {
-        for (auto& targetPair : pair.second.target_map) {
+        PassFlowAreaTargets& area = pair.second;
+        for (auto& targetPair : area.target_map) {
             // Target left the area or trackId disappeared
-            if (!TargetInArea(targetPair.second.target, pair.second.associated_area)) {
-                PassFlowCount(pair.second, targetPair.second.history, pair.second.area_id);
+            if (!TargetInArea(targetPair.second.target, area.associated_area)) {
+                PassFlowCount(area, targetPair.second.history, area.area_id);
                 // Counting complete — clear history data
                 targetPair.second.history.clear();
             }
@@ -121,10 +122,9 @@ void AreaAlarm::HandPassFlowCalc() {
 void AreaAlarm::HandPassFlowAddHistory(AlgDataPtr /*algData*/, DataDetTrackClassifyPtr input) {
     for (auto& pair : pass_flow_areas_map_) {
         for (auto& target : input->targets) {
-            auto& trackIdData    = pair.second.target_map[target.trackId];
-            trackIdData.track_id = target.trackId;
-            trackIdData.detected = true;
-            trackIdData.target   = target;
+            PassFlowTrackIdData& trackIdData = pair.second.target_map[target.trackId];
+            trackIdData.detected             = true;
+            trackIdData.target               = target;
             trackIdData.history.push_back(target);
         }
     }

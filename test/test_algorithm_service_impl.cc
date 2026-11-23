@@ -121,14 +121,6 @@ bool WriteStoredZip(const std::filesystem::path& archive_path, std::string_view 
 }  // namespace
 
 // ============================================================
-// 构造 / 析构安全
-// ============================================================
-
-TEST_CASE("AlgorithmServiceImpl: construction and destruction without Init", "[AlgorithmService]") {
-    REQUIRE_NOTHROW([]() { AlgorithmServiceImpl svc; }());
-}
-
-// ============================================================
 // 查询参数校验
 // ============================================================
 

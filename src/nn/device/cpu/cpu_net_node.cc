@@ -139,7 +139,7 @@ Status CpuNetNode::LoadWeight(const char* data, size_t size) {
         }
     }
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status CpuNetNode::InferTopShapes() {
@@ -185,6 +185,8 @@ Status CpuNetNode::InferTopShapes() {
             for (size_t i = 0; i < probe_out.size() && i < output_shapes_.size(); i++)
                 output_shapes_[i] = probe_out[i].GetTensorTypeAndShapeInfo().GetShape();
         } catch (...) {
+            if (!input_sizes_.empty())
+                return Status(COSMO_NN_ERR_NET, "Selected input size shape probe failed");
             // Probe failed; fall through with original shapes (best-effort)
         }
     }
@@ -208,7 +210,7 @@ Status CpuNetNode::InferTopShapes() {
             dt = DATA_TYPE_UINT8;
         top_blob_data_types.push_back(dt);
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status CpuNetNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
@@ -370,7 +372,7 @@ Status CpuNetNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
     }
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

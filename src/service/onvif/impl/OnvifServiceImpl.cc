@@ -13,6 +13,7 @@
 #include "util/CipherUtil.h"
 #include "util/Log.h"
 #include "util/PathUtil.h"
+#include "util/RuntimeIsolation.h"
 #include "util/UuidUtil.h"
 
 namespace cosmo::service {
@@ -84,6 +85,9 @@ namespace {
 }  // namespace
 
 void OnvifServiceImpl::Init() {
+    if (runtime::IsIsolatedRuntime()) {
+        return;
+    }
     if (curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK)
         throw std::runtime_error("network_error");
     directory_ = path::GetCfgPath("onvif");
@@ -163,10 +167,16 @@ Json OnvifServiceImpl::Interfaces() const {
     return onvif::Interfaces();
 }
 Json OnvifServiceImpl::Discover(const std::string& address, int timeoutMs) {
+    if (runtime::IsIsolatedRuntime()) {
+        throw std::runtime_error("isolated_runtime");
+    }
     Slot slot(active_requests_);
     return onvif::Discover(address, timeoutMs);
 }
 Json OnvifServiceImpl::Probe(const Json& request) {
+    if (runtime::IsIsolatedRuntime()) {
+        throw std::runtime_error("isolated_runtime");
+    }
     Slot slot(active_requests_);
     auto config = ReadRequest(request, request.value("source", ""));
     return onvif::Client(config).Probe();
@@ -197,6 +207,9 @@ std::string OnvifServiceImpl::SaveManaged(const Json& request, const std::string
     return SaveSource(request, source, true);
 }
 std::string OnvifServiceImpl::SaveSource(const Json& request, const std::string& source, bool managed) {
+    if (runtime::IsIsolatedRuntime()) {
+        throw std::runtime_error("isolated_runtime");
+    }
     if (!ready_)
         throw std::runtime_error("storage_error");
     // Serialize configuration transactions only; readers and network work never take writer_mtx_.
@@ -276,7 +289,7 @@ OnvifSourceResult OnvifServiceImpl::Resolve(const std::string& source, const std
             result.error = "source_not_found";
             return result;
         }
-        auto& entry     = it->second;
+        Entry& entry    = it->second;
         result.revision = entry.revision;
         if (!entry.uri.empty()) {
             result.mediaUrl = entry.uri;
@@ -303,7 +316,7 @@ OnvifSourceResult OnvifServiceImpl::Resolve(const std::string& source, const std
                 it->second.resolving = false;
             return {{}, "configuration_changed", 0};
         }
-        auto& entry     = it->second;
+        Entry& entry    = it->second;
         entry.resolving = false;
         entry.uri       = result.mediaUrl;
         entry.error     = result.error;

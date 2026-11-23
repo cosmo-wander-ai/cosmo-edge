@@ -74,8 +74,8 @@ cd cosmo-edge
 Linux:
 
 ```bash
-docker compose -f docker-compose.x86.yml up -d --build
-docker compose -f docker-compose.x86.yml ps
+./scripts/docker-compose.sh -f docker-compose.x86.yml up -d --build
+./scripts/docker-compose.sh -f docker-compose.x86.yml ps
 ```
 
 Windows PowerShell:
@@ -127,7 +127,7 @@ Rockchip NPU deployment, or production performance evidence.
 
 ### 1.3 Path C: A Provisioned Edge Device
 
-This section demonstrates first connection using a provisioned BM1688 device. Follow the delivery instructions for other models; see the [platform support table](https://www.cosmowander.ai/releases/v1.1/#platform-and-installation-boundary). The images show an earlier BM1688 dual-Ethernet device. Use the actual label and delivery list for its enclosure, connectors and specifications.
+This section demonstrates first connection using a provisioned BM1688 device. Follow the delivery instructions for other models; see the [platform support table](/en/guide/build#build-path-overview). The images show an earlier BM1688 dual-Ethernet device. Use the actual label and delivery list for its enclosure, connectors and specifications.
 
 ![Example BM1688 edge-device connector panel](images/img_01.webp)
 
@@ -196,7 +196,7 @@ The goal is the same on macOS or Linux: assign an unused `192.168.100.x/24` addr
 <details id="self-deploy" class="start-path">
 <summary>Deploy on your edge hardware</summary>
 
-Check [platforms and installation paths](https://www.cosmowander.ai/releases/v1.1/#platform-and-installation-boundary), confirm the target chip and base system, then follow the [deployment guide](/en/guide/deployment). The package must match your chip and prepared Linux environment; it is not an operating-system image for arbitrary hardware.
+Check [platforms and installation paths](/en/guide/build#build-path-overview), confirm the target chip and base system, then follow the [deployment guide](/en/guide/deployment). The package must match your chip and prepared Linux environment; it is not an operating-system image for arbitrary hardware.
 
 After installation, confirm that the console is reachable and the models and scenario for this example are available, then continue with sign-in and first detection below.
 
@@ -359,37 +359,18 @@ Open **Event Center** and query by channel, service, and time range. An event is
 <details class="start-path">
 <summary>Additional: build a Sophon upgrade package from source</summary>
 
-To build an upgrade package from source, select the target chip with the
-`--chip <model>` option at the repository root:
+On the build host, use the [Build Guide](/en/guide/build#sophon-artifacts) to select BM1688 or
+CV186X, then Linux Bash or Windows PowerShell. Run only the group matching that target.
+The default Open build selects the chip's model resources automatically.
 
-```bash
-# BM1688
-./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package --chip bm1688
+Verify `TARGET_CHIP` and `SHA256SUMS` in `build_output/public-runtime/<chip>/` and use the
+manifest's actual filename. Complete BM1688 and CV186X packages are not interchangeable.
 
-# CV186X
-./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package --chip cv186x
-
-find build_output/public-runtime -mindepth 2 -maxdepth 2 -type f -print
-```
-
-Omitting the chip argument defaults to `bm1688`. The build script selects the
-matching model resource directory; you do not need to provide a model path.
-
-The model resources in the package must match the target chip. BM1688 and
-CV186X artifacts are not interchangeable.
-
-Use the one package name reported by the build for installation. To install it
-over SSH on a prepared Sophon Linux device, follow the
-[Deployment Guide: SSH Installation Path](/en/guide/deployment#ssh-installation-path).
-That section is the single source of truth for transfer, extraction, installation,
-reboot, base-system prerequisites, and recovery boundaries.
-
-When CosmoEdge is already running, you can instead open **System Management →
-System Maintenance → Software Upgrade** and upload the same package. Keep power
-connected during installation. After reboot and sign-in, verify that **Software
-Version** matches the package version. The SSH installer targets a Sophon device
-with its base Linux system already prepared; it is not an OS-image installer for
-arbitrary blank hardware.
+Then follow the [SSH installation path](/en/guide/deployment#ssh-installation-path) for transfer,
+installation, and reboot. Existing CosmoEdge devices can also upload the same archive through
+**System Management → System Maintenance → Software Upgrade**. After recovery, match the
+software version to the package before completing first detection. Base-system, backup, and
+recovery requirements are maintained in the Deployment Guide.
 
 </details>
 
@@ -463,8 +444,8 @@ Complete every item that applies to the selected deployment path before treating
 Check in this order:
 
 ```bash
-docker compose -f docker-compose.x86.yml ps
-docker compose -f docker-compose.x86.yml logs --tail=200
+./scripts/docker-compose.sh -f docker-compose.x86.yml ps
+./scripts/docker-compose.sh -f docker-compose.x86.yml logs --tail=200
 docker system df
 ```
 

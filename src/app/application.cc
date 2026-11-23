@@ -159,7 +159,9 @@ void LogInit(const std::string& name, const std::string& basedir, const std::str
     cosmo::log::SetPrintLevel(LOG_LEVEL_INFO);
 }
 
-int Application::run(const char* base_dir) {
+int Application::run(const char* base_dir, const runtime::RuntimeOptions& options) {
+    runtime::ValidateRuntimeOptions(options);
+    const runtime::RuntimeIsolationScope isolation(options.isolated);
     // DeviceContext must outlive all services — created before SwDeviceInit,
     // destroyed after SwDeviceDestroy. Declared here (not constructed) so the
     // teardown after the catch still sees it; construction moved inside try so a
@@ -181,19 +183,23 @@ int Application::run(const char* base_dir) {
         // per-thread arena fragmentation (see ConfigureAllocator comment).
         ConfigureAllocator();
 
-        SwDevicePreInit();
+        SwDevicePreInit(options);
 
         // Log initialization
         LogInit(app_name_, cosmo::path::GetLogPath(), cosmo::util::GetAbbrVersion());
 
         LOG_INFO("{} Version:{}", cosmo::util::GetProgramDesc(), cosmo::util::GetAbbrVersion());
 
+        if (options.isolated) {
+            LOG_WARN("{}", "Isolated runtime: loopback HTTP/WS; host management disabled");
+        }
+
         // Construct after LogInit so a bm_dev_request failure is logged to a configured glog.
         device_ctx = std::make_unique<cosmo::mem::DeviceContext>();
 
         // Register DeviceContext via non-owning Set (it outlives ServiceRegistry)
         cosmo::service::ServiceRegistry::Instance().Set<cosmo::mem::IDeviceContext>(device_ctx.get());
-        SwDeviceInit();
+        SwDeviceInit(options);
 
         auto& http_lifecycle =
             cosmo::service::ServiceRegistry::Instance().Get<cosmo::service::IHttpLifecycle>();

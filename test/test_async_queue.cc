@@ -35,25 +35,110 @@ TEST_CASE("AsyncQueue Insert and processor callback", "[AsyncQueue]") {
     }
 }
 
-TEST_CASE("AsyncQueue full queue discard (non-force)", "[AsyncQueue]") {
-    AsyncQueue<int> queue("full_async", 3);
-    // Don't set processor, so items accumulate
-    // Note: AsyncQueue's run() loop processes items, so we need to be careful
-    // Insert rapidly to fill
-    queue.Insert(1);
-    queue.Insert(2);
-    queue.Insert(3);
-    // This may succeed or fail depending on timing — just verify no crash
-    queue.Insert(4);
-    REQUIRE(true);
-}
-
 TEST_CASE("AsyncQueue Stop", "[AsyncQueue]") {
     AsyncQueue<int> queue("stop_async", 5);
 
     queue.Stop();
     REQUIRE_FALSE(queue.IsRunning());
     REQUIRE_FALSE(queue.Insert(1));
+}
+
+TEST_CASE("AsyncQueue drain closes input and preserves FIFO including reserved marker",
+          "[AsyncQueue][drain]") {
+    std::mutex mutex;
+    std::condition_variable changed;
+    bool entered = false, release = false;
+    std::vector<int> processed;
+    AsyncQueue<int> queue("drain", 2);
+    struct ReleaseOnExit {
+        std::mutex& mutex;
+        std::condition_variable& changed;
+        bool& release;
+        ~ReleaseOnExit() {
+            std::lock_guard<std::mutex> lock(mutex);
+            release = true;
+            changed.notify_all();
+        }
+    } release_on_exit{mutex, changed, release};
+    queue.SetProcessor([&](int&& value) {
+        std::unique_lock<std::mutex> lock(mutex);
+        processed.push_back(value);
+        if (value == 1) {
+            entered = true;
+            changed.notify_all();
+            changed.wait(lock, [&] { return release; });
+        }
+    });
+    REQUIRE(queue.Insert(1));
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        REQUIRE(changed.wait_for(lock, std::chrono::seconds(5), [&] { return entered; }));
+    }
+    REQUIRE(queue.Insert(2));
+    REQUIRE(queue.Insert(3));
+    REQUIRE_FALSE(queue.Insert(4));
+    REQUIRE(queue.InsertReserved(-1));
+    REQUIRE_FALSE(queue.InsertReserved(-1));
+    auto finished =
+        std::async(std::launch::async, [&] { return queue.StopAndDrainFor(std::chrono::seconds(5)); });
+    while (queue.IsRunning())
+        std::this_thread::yield();
+    const bool rejected = !queue.Insert(5);
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        release = true;
+    }
+    changed.notify_all();
+    const bool drained = finished.get();
+    queue.stop();
+    CHECK(rejected);
+    CHECK(drained);
+    const std::vector<int> expected{1, 2, 3, -1};
+    CHECK(processed == expected);
+}
+
+TEST_CASE("AsyncQueue drain deadline does not abandon an active callback", "[AsyncQueue][drain]") {
+    std::mutex mutex;
+    std::condition_variable changed;
+    bool entered = false, release = false;
+    std::vector<int> processed;
+    AsyncQueue<int> queue("drain-timeout", 2);
+    struct ReleaseOnExit {
+        std::mutex& mutex;
+        std::condition_variable& changed;
+        bool& release;
+        ~ReleaseOnExit() {
+            std::lock_guard<std::mutex> lock(mutex);
+            release = true;
+            changed.notify_all();
+        }
+    } release_on_exit{mutex, changed, release};
+    queue.SetProcessor([&](int&& value) {
+        std::unique_lock<std::mutex> lock(mutex);
+        processed.push_back(value);
+        entered = true;
+        changed.notify_all();
+        changed.wait(lock, [&] { return release; });
+    });
+    REQUIRE(queue.Insert(1));
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        REQUIRE(changed.wait_for(lock, std::chrono::seconds(5), [&] { return entered; }));
+    }
+    REQUIRE(queue.Insert(2));
+    CHECK_FALSE(queue.StopAndDrainFor(std::chrono::milliseconds(20)));
+    auto joined              = std::async(std::launch::async, [&] { queue.stop(); });
+    const bool still_running = joined.wait_for(std::chrono::milliseconds(20)) != std::future_status::ready;
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        release = true;
+    }
+    changed.notify_all();
+    joined.get();
+    CHECK(still_running);
+    const std::vector<int> expected{1};
+    CHECK(processed == expected);
+    CHECK(queue.RestSize() == 1);
 }
 
 TEST_CASE("AsyncQueue stop finishes the active callback and retains queued ownership until destruction",
@@ -137,17 +222,4 @@ TEST_CASE("AsyncQueue Status", "[AsyncQueue]") {
     REQUIRE(info.name == "status_async");
     REQUIRE(info.status.insertCount == 2);
     REQUIRE(info.queSize == 10);
-}
-
-TEST_CASE("AsyncQueue KeyInQueue", "[AsyncQueue]") {
-    AsyncQueue<std::string> queue("key_async", 10);
-    // Don't set processor so items stay in queue
-    queue.SetChecker([](const std::string& item, const std::string& key) { return item == key; });
-
-    queue.Insert(std::string("hello"));
-
-    // Item might already be processed, so just check no crash
-    std::string key = "hello";
-    queue.KeyInQueue(key);  // May or may not find it
-    REQUIRE(true);
 }

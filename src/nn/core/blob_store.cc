@@ -52,7 +52,7 @@ Status BlobStore::RemoveBlobByName(std::string name) {
         }
     }
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 void BlobStore::GetBlob(std::string name, std::shared_ptr<Blob>& b) {
@@ -88,7 +88,7 @@ Status BlobStore::FreeBlob(std::shared_ptr<Blob>& blob) {
 
     auto handle = blob->GetHandle();
     if (!handle.base)
-        return COSMO_NN_OK;  // Skip if never allocated / already freed
+        return Status{COSMO_NN_OK};  // Skip if never allocated / already freed
 
     auto desc        = blob->GetBlobDesc();
     auto device_type = desc.device_type;
@@ -130,7 +130,7 @@ Status BlobStore::AllocaBlob(std::shared_ptr<Blob>& blob) {
     }
 
     blob->SetHandle(handle);
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status BlobStore::AllocaAllBlobs() {
@@ -140,7 +140,7 @@ Status BlobStore::AllocaAllBlobs() {
             return status;
         }
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

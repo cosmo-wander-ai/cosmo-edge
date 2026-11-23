@@ -183,7 +183,7 @@ std::vector<PoolStatusDto> AppInfoServiceImpl::GetMemoryPoolStatus() {
         dto.idle_cnt  = s.idle_cnt;
         dto.used_cnt  = s.used_cnt;
         for (auto& b : s.used_nodes_status) {
-            dto.used_nodes_status.push_back({b.thread_id, b.duration, b.malloc_timepoint});
+            dto.used_nodes_status.push_back({b.thread_id, b.duration});
         }
         result.push_back(std::move(dto));
     }

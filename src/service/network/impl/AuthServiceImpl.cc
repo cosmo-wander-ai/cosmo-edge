@@ -183,8 +183,9 @@ bool AuthServiceImpl::ResolvePrincipal(const std::string& token, std::string& pr
         }
     }
     token_time_.emplace(now, token);
-    it->second.createdAt = now;
-    principal            = it->second.userName;
+    TokenEntry& entry = it->second;
+    entry.createdAt   = now;
+    principal         = entry.userName;
     return true;
 }
 

@@ -19,6 +19,7 @@
 #include "media/VideoEncoder.h"
 #include "media/VideoFrame.h"
 #include "media/VideoFrameProcRockchip.h"
+#include "media/VideoUtil.h"
 #include "mem/AllocatorCpu.h"
 #include "mem/MemoryPoolMng.h"
 #if defined(COSMO_NN_USE_RKNN_BACKEND)
@@ -150,6 +151,94 @@ TEST_CASE("Rockchip RGA performs admitted host-buffer conversions and resize",
     const auto after = cosmo::media::GetPreviewPipelineMetrics().Snapshot();
     CHECK(after.rga_frames - before.rga_frames == 3);
     CHECK(after.rga_failures - before.rga_failures == 0);
+}
+
+TEST_CASE("Rockchip MPP decodes H264 with out-of-band headers after reconnect",
+          "[media][rockchip][decoder][decoder-headers][.device]") {
+    constexpr int width  = 640;
+    constexpr int height = 360;
+    REQUIRE(cosmo::media::VideoDecoder::Probe(cosmo::media::VideoCodecType::kH264).implementation ==
+            "rockchip-mpp-vpu");
+    auto encoder = cosmo::media::VideoEncoder::Create(nullptr);
+    encoder->Set(cosmo::media::VideoCodecType::kH264, width, height);
+    REQUIRE(encoder->Open());
+    std::vector<uint8_t> image(static_cast<size_t>(width) * height * 3 / 2, 128);
+    std::fill_n(image.begin(), static_cast<size_t>(width) * height, 48);
+    std::vector<uint8_t> extradata;
+    std::vector<std::vector<uint8_t>> packets;
+    bool have_sps = false, have_pps = false;
+    for (int index = 0; index < 32; ++index) {
+        auto packet = encoder->SendYUVFrame(image.data());
+        REQUIRE(packet);
+        std::vector<uint8_t> stripped;
+        for (size_t offset = 0; offset < packet->data.size();) {
+            const auto* begin = packet->data.data() + offset;
+            const auto size   = cosmo::media::SeparateHVideoFrame(begin, packet->data.size() - offset);
+            REQUIRE(size > 0);
+            REQUIRE(size <= packet->data.size() - offset);
+            const auto type = cosmo::media::GetH264FrameType(begin, size);
+            if (type == cosmo::media::HFrameType::SPS || type == cosmo::media::HFrameType::PPS) {
+                bool& seen = type == cosmo::media::HFrameType::SPS ? have_sps : have_pps;
+                if (!seen)
+                    extradata.insert(extradata.end(), begin, begin + size);
+                seen = true;
+            } else {
+                stripped.insert(stripped.end(), begin, begin + size);
+            }
+            offset += size;
+        }
+        if (!stripped.empty())
+            packets.push_back(std::move(stripped));
+    }
+    REQUIRE(have_sps);
+    REQUIRE(have_pps);
+    REQUIRE_FALSE(packets.empty());
+    auto decoder = cosmo::media::VideoDecoder::Create(0, nullptr);
+    decoder->SetCodecType(cosmo::media::VideoCodecType::kH264, width, height);
+    decoder->SetCodecExtradata(extradata);
+    const auto before = cosmo::media::GetPreviewPipelineMetrics().Snapshot();
+    REQUIRE(decoder->Open());
+    for (int generation = 0; generation < 2; ++generation) {
+        if (generation != 0) {
+            decoder->SetCodecExtradata(extradata);
+            REQUIRE(decoder->ReuseForStreamRestart(cosmo::media::VideoCodecType::kH264, width, height));
+        }
+        size_t outputs          = 0;
+        const auto check_output = [&](cosmo::media::DecodedVideoFrame output) {
+            if (!output.HasFrame())
+                return;
+            CHECK(output.GetWidth() == width);
+            CHECK(output.GetHeight() == height);
+            auto native = output.ExportNativeBuffer();
+            REQUIRE(native);
+            CHECK(native->Valid());
+            ++outputs;
+            output.Discard();
+        };
+        for (size_t index = 0; index < packets.size(); ++index) {
+            bool accepted = false;
+            check_output(decoder->DecodeFrame(packets[index].data(), packets[index].size(),
+                                              static_cast<int64_t>(index + 1), accepted));
+            REQUIRE(accepted);
+        }
+        for (int attempt = 0; attempt < 8; ++attempt)
+            check_output(decoder->GetDecodedFrame());
+        REQUIRE(outputs > 0);
+    }
+    const auto after = cosmo::media::GetPreviewPipelineMetrics().Snapshot();
+    CHECK(after.mpp_decoded_frames > before.mpp_decoded_frames);
+    CHECK(after.mpp_decode_failures == before.mpp_decode_failures);
+    CHECK(after.mpp_decode_fallbacks == before.mpp_decode_fallbacks);
+}
+
+TEST_CASE("Rockchip preserves the software fallback for non-MPP codecs",
+          "[media][rockchip][decoder][decoder-headers]") {
+    auto decoder = cosmo::media::VideoDecoder::Create(0, nullptr);
+    decoder->SetCodecType(cosmo::media::VideoCodecType::kMjpeg, 64, 64);
+    decoder->SetCodecExtradata({1, 2, 3});  // AVC/HEVC header parsing must not run for MJPEG.
+    REQUIRE(decoder->Open());
+    CHECK(decoder->IsOpened());
+    CHECK(decoder->Close());
 }
 
 TEST_CASE("Rockchip MPP decodes its H264 output through the Copy-out boundary",

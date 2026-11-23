@@ -176,11 +176,13 @@ run_cppcheck() (
             fi
             # Keep assertions enabled and model their evaluated expressions.
             # Catch2's own analysis mode preserves mutually exclusive sections.
+            # Define the compiler attribute probe for cppcheck's preprocessor.
             TEST_ARGS+=(
                 -I "$PROJECT_ROOT/test"
                 -UCATCH_CONFIG_DISABLE
                 -UCATCH_CONFIG_PREFIX_ALL
                 -DCATCH_CONFIG_EXPERIMENTAL_STATIC_ANALYSIS_SUPPORT
+                '-D__has_cpp_attribute(x)=0'
                 "--include=$PROJECT_ROOT/tools/cppcheck/Catch2Model.h"
             )
             break
@@ -189,19 +191,27 @@ run_cppcheck() (
     local JOBS
     JOBS=$(nproc) || return $?
     local EXIT_CODE=0
-    cppcheck \
-        --std=c++17 \
-        --language=c++ \
-        --enable="$ENABLE" \
-        --error-exitcode=1 \
-        --inline-suppr \
-        "${SUPPRESSION_ARGS[@]}" \
-        "${TEST_ARGS[@]}" \
-        --quiet \
-        --template='{file}:{line}: [{severity}] {id}: {message}' \
-        -I "$PROJECT_ROOT/src" \
-        -j"$JOBS" \
-        "${FILES[@]}" 2>&1 || EXIT_CODE=$?
+    # Standalone host analysis has no CMake compile definitions; select the CPU backend.
+    local ARGS=(
+        --std=c++17
+        --language=c++
+        -DCOSMO_NN_USE_CPU_BACKEND
+        --enable="$ENABLE"
+        --inline-suppr
+        "${SUPPRESSION_ARGS[@]}"
+        "${TEST_ARGS[@]}"
+        --quiet
+        -I "$PROJECT_ROOT/src"
+        -j"$JOBS"
+        "${FILES[@]}"
+    )
+    if [[ "$PROFILE" == full ]]; then
+        python3 "$PROJECT_ROOT/tools/cppcheck/verify_members.py" "$PROJECT_ROOT" "$JOBS" \
+            "${ARGS[@]}" 2>&1 || EXIT_CODE=$?
+    else
+        cppcheck --error-exitcode=1 --template='{file}:{line}: [{severity}] {id}: {message}' \
+            "${ARGS[@]}" 2>&1 || EXIT_CODE=$?
+    fi
 
     echo ""
     if [[ $EXIT_CODE -eq 0 ]]; then

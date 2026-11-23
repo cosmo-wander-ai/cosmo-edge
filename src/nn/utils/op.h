@@ -106,6 +106,9 @@ public:
     // pixel xywh and class probabilities; the default is decoded [B, N, 6].
     bool raw_output = false;
 
+    // Internal YOLO26 pipeline flag; never serialized into model params.
+    bool auto_detect_output = false;
+
     // Decoded person-attribute row width, including the six detection columns.
     int person_attribute_columns = 10;
 

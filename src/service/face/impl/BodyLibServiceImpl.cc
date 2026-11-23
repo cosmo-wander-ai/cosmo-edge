@@ -182,7 +182,7 @@ void BodyLibServiceImpl::FetchLibData(const std::string& lib_id,
 
     // Convert db:: result to Msg types for cache storage
     persons.clear();
-    for (auto& r : result.person_list) {
+    for (db::PersonRecogRecord& r : result.person_list) {
         MsgQueryPersonPicturesS::Person p{};
         p.id          = r.id;
         p.pictureName = r.picture_name;

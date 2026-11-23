@@ -136,11 +136,13 @@ public:
     static bool IsSupportedDataType(AlgDataType dataType);
     static DataDetTrackClassifyPtr ResolveInputData(const AlgDataPtr& algData);
 
-    [[nodiscard]] std::string GetFlowActionId() const {
+    [[nodiscard]] std::string GetAlarmFlowActionId() const {
         return action_info_.flowActionId;
     };
 
 private:
+    using AlgActionBase::GetFlowActionId;
+
     class TrackIdAreaDataUnit;
     class TrackIdAreaData;
     class TrackIdData;
@@ -245,4 +247,8 @@ private:
     std::chrono::steady_clock::time_point report_time_point_;
 };
 using AreaAlarmPtr = std::shared_ptr<AreaAlarm>;
+
+inline std::string InstanceFlowActionId(const AreaAlarm& alarm) {
+    return alarm.GetAlarmFlowActionId();
+}
 }  // namespace cosmo

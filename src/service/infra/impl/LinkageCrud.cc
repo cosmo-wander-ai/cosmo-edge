@@ -80,6 +80,9 @@ cosmo::util::ErrorEnum LinkageServiceImpl::Add(const std::string& name, const st
     if (!storage.workflow.empty() && !task) {
         return cosmo::util::ErrorEnum::ParameterException;
     }
+    if (OutputStatus(storage) != "ready") {
+        return cosmo::util::ErrorEnum::AlarmOutputUnavailable;
+    }
     const std::string new_id = cosmo::util::GenerateUUID();
     std::lock_guard<std::shared_mutex> lock(mtx_);
 
@@ -141,6 +144,9 @@ cosmo::util::ErrorEnum LinkageServiceImpl::Update(const std::string& name, const
     if (!task) {
         return cosmo::util::ErrorEnum::ParameterException;
     }
+    if (OutputStatus(storage) != "ready") {
+        return cosmo::util::ErrorEnum::AlarmOutputUnavailable;
+    }
     std::lock_guard<std::shared_mutex> lock(mtx_);
     auto it = std::find_if(
         config_.strategies.begin(), config_.strategies.end(),
@@ -182,6 +188,9 @@ cosmo::util::ErrorEnum LinkageServiceImpl::Switch(std::string& id, bool is_open)
         std::find_if(config_.strategies.begin(), config_.strategies.end(),
                      [&](const cosmo::LinkageStrategyConfigUnit& cfg) { return cfg.strategy_id == id; });
     if (it != config_.strategies.end()) {
+        if (is_open && OutputStatus(it->strategy) != "ready") {
+            return cosmo::util::ErrorEnum::AlarmOutputUnavailable;
+        }
         if (it->is_open != is_open) {
             const std::string strategy_name = it->name;
             auto next_config                = config_;
@@ -210,6 +219,7 @@ std::vector<cosmo::LinkageStrategyOutputUnit> LinkageServiceImpl::Query(int page
         std::string name;
         std::string workflow;
         bool status;
+        std::string output_status;
     };
     std::vector<MatchInfo> matches;
     {
@@ -231,7 +241,8 @@ std::vector<cosmo::LinkageStrategyOutputUnit> LinkageServiceImpl::Query(int page
                 if (!cosmo::util::EncodeJson(info.strategy.workflow, workflow)) {
                     continue;
                 }
-                matches.push_back({info.strategy_id, info.name, std::move(workflow), info.is_open});
+                matches.push_back({info.strategy_id, info.name, std::move(workflow), info.is_open,
+                                   OutputStatus(info.strategy)});
             }
         }
     }
@@ -241,13 +252,37 @@ std::vector<cosmo::LinkageStrategyOutputUnit> LinkageServiceImpl::Query(int page
     infos.reserve(matches.size());
     for (auto& m : matches) {
         cosmo::LinkageStrategyOutputUnit unit;
-        unit.id       = m.id;
-        unit.name     = m.name;
-        unit.status   = m.status;
-        unit.workFlow = std::move(m.workflow);
+        unit.id           = m.id;
+        unit.name         = m.name;
+        unit.status       = m.status;
+        unit.outputStatus = std::move(m.output_status);
+        unit.workFlow     = std::move(m.workflow);
         infos.push_back(std::move(unit));
     }
     return infos;
+}
+
+std::vector<cosmo::AlarmOutputStatus> LinkageServiceImpl::GetAlarmOutputs() {
+    std::vector<cosmo::AlarmOutputStatus> outputs;
+    for (const auto& channel : alarm_outputs_->Channels()) {
+        outputs.push_back({channel.id, alarm_outputs_->Status(channel.id)});
+    }
+    return outputs;
+}
+
+std::string LinkageServiceImpl::OutputStatus(const cosmo::linkage::LinkageStrategyWorkflow& strategy) const {
+    for (const auto& node : strategy.workflow) {
+        if (cosmo::linkage::ClassifyLinkAgeActionId(node.action_id) !=
+            cosmo::linkage::LinkAgeActionKind::kAlarmOutput)
+            continue;
+        cosmo::linkage::LinkAgeAlarmOutputParam param;
+        if (!cosmo::linkage::ParseAlarmOutputParam(node, param))
+            return "invalid";
+        const auto status = alarm_outputs_->Status(param.channel);
+        if (status != "ready")
+            return status;
+    }
+    return "ready";
 }
 
 // Get device-supported strategies

@@ -21,14 +21,11 @@ struct Sam2SegmenterChannel {
 
 struct Sam2SegmenterParamEl {
     std::string task_id;
-    std::string atomic_code;
-    float fps{1.0};
     Sam2InputType input_type{Sam2InputType::BOX};
 };
 
 struct Sam2SegmenterParam {
     int param_modify_sign{0};
-    int param_active_sign{-1};
     std::vector<Sam2SegmenterParamEl> param;
 };
 

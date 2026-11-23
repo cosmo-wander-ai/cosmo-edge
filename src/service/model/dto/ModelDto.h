@@ -6,6 +6,7 @@
 #include <system_error>
 #include <vector>
 
+#include "util/InferenceInputSize.h"
 #include "util/dto/ServerMsgTypes.h"
 
 namespace cosmo {
@@ -322,6 +323,8 @@ namespace Model {
         std::string atomicName;
         std::string label;
         std::vector<MsgAtomicModelLabel> labelList;
+        std::vector<InferenceInputSize> inputSizes;
+        InferenceInputSize defaultInputSize;
         std::vector<MsgAtomicModelBehaviorScore> behaviorScores;
         friend void to_json(nlohmann::json& j, const MsgAtomicModel& v);
         friend void from_json(const nlohmann::json& j, MsgAtomicModel& v);

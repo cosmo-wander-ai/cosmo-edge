@@ -2,6 +2,7 @@
 
 #ifdef COSMO_NN_USE_RKNN_BACKEND
 
+#include <array>
 #include <cstdint>
 #include <mutex>
 #include <string>
@@ -67,6 +68,8 @@ public:
     Status Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
                    std::vector<std::shared_ptr<Blob>>& top_blobs) override;
     bool EnsureRgaBoundInput(int height, int width, std::string& reason) override;
+    bool FillRgaBoundInput(uint64_t generation, const std::array<uint8_t, 3>& color,
+                           std::string& reason) override;
 
 private:
     enum class BoundInputMode : uint8_t {
@@ -76,6 +79,7 @@ private:
     };
 
     Status QueryTensorAttributes();
+    Status PrepareInputSize();
     Status PrepareInput(const Blob& blob, std::vector<float>& nhwc, int& height, int& width) const;
     Status PrepareNativeCompatibilityInput(const Blob& blob, std::vector<float>& nhwc, int& height,
                                            int& width) const;

@@ -179,17 +179,16 @@ profile. RKLLM Runtime v1.3.0 comes from a pinned official Rockchip commit.
 The base resource directory supplies common actions, layouts, and fonts; the
 RKNN resource directory supplies the RK3576 algorithms and models.
 
-```bash
-./scripts/docker-compose.sh -f docker-compose.rockchip.yml pull cosmo-rockchip-package
-COSMO_TARGET_CHIP=rk3576 ./scripts/docker-compose.sh \
-  -f docker-compose.rockchip.yml run --rm cosmo-rockchip-package
-sha256sum build_output/rk3576/cosmo-*.tar.gz
-```
+Open build commands, target verification, and output locations are maintained in the
+[RK3576 build entry](./build.md#rk3576). Run it in Bash on a Linux x86_64 host;
+default output is `build_output/rk3576/`. RK3576 also supports Protected: see
+[RK3576 Protected Build](./build.md#rk3576-protected-build) for SDK and encrypted-model
+prerequisites and commands. Its output is `build_output/production-release/rk3576/`.
+RV1126B currently does not support Protected.
 
-The shared image and pinned official RKLLM files are public and require no
-`docker login`; the helper selects Compose V2/V1. This command builds a
-Release package with the Rockchip media backend and leaves the aarch64 test
-binary at `build_rknn/cosmo-tests`; it does not enable `COSMO_DEV_MODE`.
+After verification, use the [shared SSH installation entry](./deployment.md#ssh-installation-path)
+for host transfer, device installation, backups, reboot, and recovery. The build produces
+aarch64 programs including `build_rknn/cosmo-tests` but does not run them or enable `COSMO_DEV_MODE`.
 
 RKLLM is mandatory for a formal RK3576 package. A missing header,
 `librkllmrt.so`, or license fails configuration instead of silently producing a

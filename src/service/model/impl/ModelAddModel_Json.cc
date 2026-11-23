@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "nlohmann/json.hpp"
+#include "nn/utils/yolo26_output_layout.h"
 #include "service/model/impl/ModelConfigParser.h"
 #include "util/Log.h"
 #include "util/NnBackendConstants.h"
@@ -56,12 +57,11 @@ namespace {
 
         // End-to-end decoded output [1, top_k, 6/7] carries no class-count info;
         // labels must be provided explicitly at import time.
-        if ((modelType == "yolo26_det" || modelType == "yolo26_obb_det") && shape.size() == 3 &&
-            (shape[2] == 6 || shape[2] == 7))
+        if (modelType == "yolo26_obb_det" && shape.size() == 3 && (shape[2] == 6 || shape[2] == 7))
             return 0;
 
         const auto class_field_count = [&]() {
-            if (modelType == "yolov5_det" || modelType == "yolo26_det")
+            if (modelType == "yolov5_det")
                 return 5;
             if (modelType == "yolo26_obb_det")
                 return 6;  // 4 box + 1 score + 1 angle
@@ -93,6 +93,15 @@ namespace {
         return class_count_from_dim(candidate_dim, class_fields);
     }
 
+    bool HasYoloV5RawHeads(const nlohmann::json& outputs) {
+        if (outputs.size() != 3)
+            return false;
+        return std::all_of(outputs.begin(), outputs.end(), [](const auto& output) {
+            const auto shape = ReadShape(output);
+            return shape.size() == 5 && shape[1] == 3 && shape[4] >= 6;
+        });
+    }
+
     int InferClassCount(const nlohmann::json& doc, const std::string& modelType) {
         if (!IsDetectionModel(modelType) && !IsClassifyModel(modelType))
             return 0;
@@ -105,7 +114,29 @@ namespace {
         if (!modelObj.contains("outputs") || !modelObj["outputs"].is_array() || modelObj["outputs"].empty())
             return 0;
 
-        for (const auto& output : modelObj["outputs"]) {
+        const auto& outputs = modelObj["outputs"];
+        if (modelType == "yolov5_det" && HasYoloV5RawHeads(outputs))
+            return ReadShape(outputs.front()).back() - 5;
+
+        if (modelType == "yolo26_det") {
+            std::optional<bool> raw_output;
+            if (modelObj.contains("params") && modelObj["params"].is_object()) {
+                const auto& params = modelObj["params"];
+                if (params.contains("raw_output")) {
+                    if (!params["raw_output"].is_boolean())
+                        return 0;
+                    raw_output = params["raw_output"].get<bool>();
+                }
+            }
+            if (outputs.size() != 1)
+                return 0;
+            const auto shape = ReadShape(outputs[0]);
+            return nn::ResolveYolo26OutputLayout(shape, raw_output) == nn::Yolo26OutputLayout::kRaw
+                       ? shape[1] - 4
+                       : 0;
+        }
+
+        for (const auto& output : outputs) {
             const int class_count = InferClassCountFromShape(modelType, ReadShape(output));
             if (class_count > 0)
                 return class_count;
@@ -443,21 +474,13 @@ namespace {
                                     nlohmann::json::array({373, 326})})});
     }
 
-    bool IsYoloV5RawHeadOutputShape(const nlohmann::json& output) {
-        const auto shape = ReadShape(output);
-        return shape.size() == 5 && shape[1] == 3 && shape[4] >= 6;
-    }
-
     void ConfigureYoloV5Postprocess(nlohmann::json& modelObj, const std::string& modelType) {
         if (modelType != "yolov5_det")
             return;
         if (!modelObj.contains("outputs") || !modelObj["outputs"].is_array())
             return;
 
-        const auto& outputs = modelObj["outputs"];
-        if (outputs.size() != 3)
-            return;
-        if (!std::all_of(outputs.begin(), outputs.end(), IsYoloV5RawHeadOutputShape))
+        if (!HasYoloV5RawHeads(modelObj["outputs"]))
             return;
 
         if (!modelObj.contains("params") || !modelObj["params"].is_object())

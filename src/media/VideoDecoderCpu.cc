@@ -41,7 +41,7 @@ namespace media {
         return opened_;
     }
 
-    VideoDecoderCapability VideoDecoderCpu::Probe(VideoCodecType type) {
+    VideoDecoderCapability VideoDecoderCpu::ProbeCapability(VideoCodecType type) {
         VideoDecoderCapability capability;
         capability.backend  = "ffmpeg-software";
         const auto codec_id = ToAvCodecId(type);

@@ -61,6 +61,7 @@ DataType AlgDataQueue<DataType, QueueType>::Pop() {
     if (m_isRunning && !m_queue.empty()) {
         auto data = std::move(m_queue.front());
         m_queue.pop();
+        m_stats.hold_count = m_queue.size();
         m_stats.RecordProcess();
         return data;
     }

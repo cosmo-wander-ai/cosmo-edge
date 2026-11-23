@@ -81,7 +81,6 @@ private:
     // :: AudioDevice state
     mutable std::shared_mutex device_mtx_;
     std::string device_db_file_;
-    size_t max_dev_count_{1000};
     std::vector<cosmo::AudioDeviceInfo> device_info_list_;
 };
 

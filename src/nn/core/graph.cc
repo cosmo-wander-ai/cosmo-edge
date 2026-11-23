@@ -209,7 +209,7 @@ Status Graph::BuildPreprocessChain(ModelInfo& model, size_t input_idx,
                                      prev_output_names, prev_output_shapes, used_prev_outputs,
                                      matched_blob)) {
             preprocess_output_blobs.push_back(matched_blob);
-            return COSMO_NN_OK;
+            return Status{COSMO_NN_OK};
         }
     }
 
@@ -228,7 +228,7 @@ Status Graph::BuildPreprocessChain(ModelInfo& model, size_t input_idx,
             return Status(COSMO_NN_ERR_NODE_CREATE,
                           "IdentityNode created but has no top blobs for input: " + input_name);
         }
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     }
 
     bool first_calculate_node  = true;
@@ -283,7 +283,7 @@ Status Graph::BuildPreprocessChain(ModelInfo& model, size_t input_idx,
                       "Preprocess node created but has no top blobs for input: " + input_name);
     }
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 // ---------------------------------------------------------------------------
@@ -405,6 +405,7 @@ Status Graph::WireNetNode(const ModelInfo& model, const std::vector<std::string>
     net_ptr->SetNetworkInputNames(actual_input_names);
     net_ptr->SetNetworkOutputNames(actual_output_names);
     net_ptr->SetInputContract(model.input_contract);
+    net_ptr->SetInputSizes(model.input_sizes, model.selected_input_size);
 
     // Insert copy nodes right before net_node (after all preprocess nodes)
     std::move(new_copy_nodes.begin(), new_copy_nodes.end(), std::back_inserter(nodes));
@@ -464,7 +465,7 @@ Status Graph::WireNetNode(const ModelInfo& model, const std::vector<std::string>
         }
     }
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 // ---------------------------------------------------------------------------
@@ -477,7 +478,7 @@ Status Graph::BuildPostprocessChain(const ModelInfo& model,
 
     if (std::all_of(output_node_infos.begin(), output_node_infos.end(),
                     [](const OutputNodeInfo& info) { return !info.op; }))
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
 
     // Postprocess nodes should only use current model's outputs, not all previous models' outputs
     std::vector<std::string> postprocess_input_blobs = current_model_output_blobs;
@@ -503,7 +504,7 @@ Status Graph::BuildPostprocessChain(const ModelInfo& model,
         output_blob_names = postprocess_input_blobs;  // Update global output_blob_names for next model
     }
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status Graph::MakeUp(CombinedModelInfo& info) {
@@ -575,7 +576,7 @@ Status Graph::MakeUp(CombinedModelInfo& info) {
 Status Graph::AddCombinedModelNode(const CombinedModelInfo& info) {
     auto model_count = info.models.size();
     if (model_count < 2)
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
 
     if (info.reduce == "concat") {
         int count   = NodeTypeUtils::TypedNodeCount(nodes, NODE_CONCAT);
@@ -605,7 +606,7 @@ Status Graph::AddCombinedModelNode(const CombinedModelInfo& info) {
         return Status(COSMO_NN_ERR_UNSUPPORT_NET, "invalid reduce type");
     }
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status Graph::LoadWeight(const std::string& model_path) {
@@ -674,7 +675,7 @@ Status Graph::LoadWeight(const std::string& model_path) {
                 return attach_status;
             }
         }
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     }
 
     // A protected CEMC decision is handled above and every failure returns.
@@ -787,7 +788,7 @@ Status Graph::LoadWeight(const std::string& model_path) {
                 return attach_status;
             }
         }
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     }
     if (selected_action != ModelLoadAction::kNativeRawRknn)
         return Status(COSMO_NN_ERR_LOAD_MODEL, "RKNN model loader action is not available");
@@ -916,7 +917,7 @@ Status Graph::LoadWeight(const std::string& model_path) {
         RETURN_ON_FAIL(net_ptr->LoadWeight(model_data.get(), static_cast<size_t>(model_size)));
     }
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 #else
     // Sophon: .nn model file has a header wrapping one or more bmodel segments.
     std::array<char, kPlainNnHeaderSize> header_data{};
@@ -989,7 +990,7 @@ Status Graph::LoadWeight(const std::string& model_path) {
     }
 
     stream.close();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 #endif
 }
 
@@ -1051,7 +1052,7 @@ Status Graph::InferTopDesc() {
 
         node_idx++;
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 void Graph::AddInputNodeIfNecessary(Node* node) {
@@ -1171,7 +1172,7 @@ Status Graph::Forward(std::vector<std::vector<std::shared_ptr<Blob>>>& params_) 
             profiler->ReportNodeTime(node->GetNodeName().c_str(), node->GetInferTime() / 1000);
     }
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 std::vector<std::shared_ptr<Blob>> Graph::Output() {

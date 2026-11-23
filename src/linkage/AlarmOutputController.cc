@@ -16,6 +16,7 @@
 
 #include "util/FileUtil.h"
 #include "util/Log.h"
+#include "util/RuntimeIsolation.h"
 
 namespace cosmo::linkage {
 namespace {
@@ -54,8 +55,9 @@ namespace {
 
     std::unique_ptr<AlarmOutputPin> OpenPin(const AlarmOutputChannel& channel) {
 #ifdef __linux__
-        const auto path = "/sys/class/gpio/gpio" + std::to_string(channel.gpio);
-        if (ReadAttribute(path + "/direction") != "out") {
+        const auto path     = "/sys/class/gpio/gpio" + std::to_string(channel.gpio);
+        const auto inverted = ReadAttribute(path + "/active_low");
+        if (ReadAttribute(path + "/direction") != "out" || (inverted != "0" && inverted != "1")) {
             LOG_ERRO("AlarmOut {}: board GPIO is not exported as an output", channel.id);
             return nullptr;
         }
@@ -76,6 +78,7 @@ std::vector<AlarmOutputChannel> LoadAlarmOutputChannels(const std::string& file)
     constexpr size_t kMaxConfigBytes = 64 * 1024;
     const auto content               = cosmo::util::ReadFile(file, kMaxConfigBytes + 1);
     if (content.empty()) {
+        LOG_WARN("{}", "AlarmOut board mapping is missing, empty or unreadable; outputs unavailable");
         return {};
     }
     if (content.size() > kMaxConfigBytes) {
@@ -122,7 +125,23 @@ AlarmOutputController::~AlarmOutputController() {
     Stop();
 }
 
+std::string AlarmOutputController::Status(int channel) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (stopped_)
+        return "stopped";
+    const auto mapping = std::find_if(channels_.begin(), channels_.end(),
+                                      [channel](const auto& item) { return item.id == channel; });
+    if (mapping == channels_.end())
+        return "unmapped";
+    // Do not cache probes: a later permission or direction change must be visible.
+    return factory_(*mapping) ? "ready" : "gpioUnavailable";
+}
+
 bool AlarmOutputController::Pulse(int channel, std::chrono::milliseconds duration) {
+    if (cosmo::runtime::IsIsolatedRuntime()) {
+        LOG_WARN("AlarmOut {} is disabled in isolated runtime", channel);
+        return false;
+    }
     if (duration.count() <= 0 || duration > std::chrono::seconds(600)) {
         return false;
     }

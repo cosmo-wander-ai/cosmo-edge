@@ -190,6 +190,7 @@ def _onnx_check_command(
     report_path: Path,
     *,
     checker_only: bool,
+    input_shape: tuple[str, list[int]] | None = None,
 ) -> list[str]:
     command = [
         python,
@@ -198,6 +199,9 @@ def _onnx_check_command(
     ]
     if checker_only:
         command.append("--checker-only")
+    if input_shape is not None:
+        name, shape = input_shape
+        command.extend(["--shape", f"{name}={','.join(map(str, shape))}"])
     command.extend(["--json", str(report_path)])
     return command
 
@@ -495,6 +499,8 @@ def execute_conversion(
                 conversion_input,
                 runtime_check_path,
                 checker_only=False,
+                input_shape=(parameters["spec"]["input"]["name"], parameters["inputShapes"][0])
+                if parameters.get("inputSizes") else None,
             ),
             cwd=PROJECT_ROOT,
             log_path=logs_dir / "S2-conversion-input-runtime-check.log",
@@ -589,6 +595,8 @@ def execute_conversion(
         ]
         if parameters["quantization"] == "INT8":
             build_command.extend(["--quantize", "--dataset", str(dataset_path)])
+        if parameters.get("inputSizes"):
+            build_command.extend(["--input-sizes", json.dumps(parameters["inputSizes"])])
         _run_stage(
             build_command,
             cwd=work_dir,
@@ -908,7 +916,7 @@ def verify_conversion(
             for item in deliverables
         ],
         "",
-        "Conversion completion does not imply RV1126B device or production acceptance.",
+        "Conversion completion does not imply target-device or production acceptance.",
         "",
     ]
     common._write_private_text(run_dir / "evidence.md", "\n".join(lines))

@@ -13,7 +13,7 @@ namespace media {
     }
 
     VideoDecoderCapability VideoDecoder::Probe(VideoCodecType type) {
-        return VideoDecoderCpu::Probe(type);
+        return VideoDecoderCpu::ProbeCapability(type);
     }
 
 }  // namespace media

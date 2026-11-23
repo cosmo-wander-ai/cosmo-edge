@@ -23,6 +23,9 @@ AiLandmark::~AiLandmark() {
     LOG_INFO("{}[{} {}] Delete", kTag, task_id, uuid);
 }
 
+AiLandmark::AiLandmark(const std::string& a_task_id, ActionNode& action)
+    : AiLandmark(a_task_id, action.atomicCode, action) {}
+
 AiLandmark::AiLandmark(const std::string& a_task_id, const std::string& alg_code, ActionNode& action)
     : AlgActionBase(AlgActionType::AlgActionAiLandmark, action, "", a_task_id), alg_code_(alg_code) {
     action_status = util::ErrorEnum::ActionReady;

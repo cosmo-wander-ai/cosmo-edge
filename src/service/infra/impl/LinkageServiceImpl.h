@@ -45,7 +45,7 @@ namespace cosmo::service {
 
 class LinkageServiceImpl : public ILinkageService {
 public:
-    LinkageServiceImpl();
+    explicit LinkageServiceImpl(std::shared_ptr<cosmo::linkage::AlarmOutputController> alarm_outputs = {});
     ~LinkageServiceImpl() override;
 
     void Stop() override;
@@ -59,6 +59,8 @@ public:
                                                         size_t& total) override;
     cosmo::util::ErrorEnum Switch(std::string& id, bool enable) override;
     bool ReadSupportedStorage(int& total_size, std::vector<cosmo::StorageList>& vec_data) override;
+
+    std::vector<cosmo::AlarmOutputStatus> GetAlarmOutputs() override;
 
     bool IsAudioDeviceInUse(const std::string& audio_device_id) override;
     bool IsAudioFileInUse(const std::string& audio_file_id) override;
@@ -76,6 +78,8 @@ private:
     cosmo::linkage::LinkAgeTaskPtr MakeTask(const std::string& name,
                                             cosmo::linkage::LinkageStrategyWorkflow& strategy);
     bool ValidateWorkflow(const cosmo::linkage::LinkageStrategyWorkflow& strategy) const;
+
+    std::string OutputStatus(const cosmo::linkage::LinkageStrategyWorkflow& strategy) const;
 
     void DoAlarm(const std::string& channel_id, const std::string& alg_id);
 

@@ -2,6 +2,7 @@
 // JSON field names MUST match the external search tool protocol — do NOT rename JSON fields.
 #pragma once
 
+#include <cstdint>
 #include <nlohmann/json_fwd.hpp>
 #include <string>
 #include <vector>
@@ -14,6 +15,9 @@ namespace cosmo::service {
 // Base message fields shared by all discovery commands.
 struct DiscoveryBaseMsg {
     std::string from;  // Sender IP (DHCP fallback: unicast to peer)
+    // Receive metadata is local-only and must never be accepted from JSON.
+    unsigned receive_interface_index{0};
+    uint32_t receive_local_address{0};
     std::string cmd;
     std::string type;
     std::string reqId;

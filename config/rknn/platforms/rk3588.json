@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "chip": "rk3588",
+  "display_name": "RK3588",
+  "backend": "rknn",
+  "toolchain_lock": "../toolchain-lock.json",
+  "conversion": {
+    "target_platform": "rk3588"
+  },
+  "runtime": {
+    "architecture": "aarch64",
+    "default_core_mode": "auto",
+    "npu_core_count": 3
+  },
+  "media": {
+    "default_backend": "rockchip",
+    "cpu_fallback": true,
+    "runtime_lock": "../../rockchip-media/runtime-lock.json",
+    "runtime_profile": "rk3588-glibc231-v1",
+    "require_sealed_sysroot": true
+  },
+  "packaging": {
+    "directory_token": "RK3588",
+    "resource_template_directory": "data/resource/aiboxresource_rknn",
+    "resource_overlay_directory": "output/platform-artifacts/rk3588/resource-overlay",
+    "resource_manifest_required": true,
+    "legacy_models_directory": "output/platform-artifacts/rk3588/resource-overlay/models"
+  },
+  "device": {
+    "compatible_tokens": ["rk3588"]
+  },
+  "qualification": {
+    "status": "unverified",
+    "requires_target_bound_evidence": true
+  }
+}

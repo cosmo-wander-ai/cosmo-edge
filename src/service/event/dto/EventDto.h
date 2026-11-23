@@ -90,8 +90,6 @@ namespace Event {
         struct TimePoint {
             uint64_t hour{0};
             std::string timeString;
-            std::string channelId;
-            std::string algorithmCode;
             int enterNumber{0};
             int leaveNumber{0};
             friend void to_json(nlohmann::json& j, const TimePoint& v);

@@ -79,6 +79,12 @@ namespace media {
         }
     }
 
+    bool VideoDemuxer::CanContinueLocalLoop() const {
+        return local_clean_eof_ && !local_loop_first_packet_ && local_loop_candidate_ &&
+               local_timeline_started_ && local_codec_guard_.Eligible() && opened_ && ready_ && fmt_ctx_ &&
+               filename_ == opened_filename_ && strategy_ && strategy_->SupportsRepeat();
+    }
+
     void VideoDemuxer::CloseStream(bool bRepeat) {
         // Looping playback requires VoD file
         if (bRepeat && !StopRequested() && opened_ && ready_ && filename_ == opened_filename_ && strategy_ &&
@@ -99,7 +105,7 @@ namespace media {
         opened_filename_.clear();
         {
             std::lock_guard<std::mutex> lock(metadata_mtx_);
-            extradata_.clear();
+            extradata_.reset();
         }
         width_.store(0, std::memory_order_relaxed);
         height_.store(0, std::memory_order_relaxed);
@@ -109,10 +115,11 @@ namespace media {
     }
 
     void VideoDemuxer::ResetStreamState() {
-        opened_ = false;
-        ready_  = false;
-        end_    = false;
-        pts_    = 0;
+        opened_          = false;
+        ready_           = false;
+        end_             = false;
+        local_clean_eof_ = false;
+        pts_             = 0;
         stream_opened_cnt_ += 1;
         frame_index_      = 0;
         packet_index_     = 0;
@@ -154,6 +161,8 @@ namespace media {
         // Looping playback requires VoD file
         if (bRepeat && opened_ && ready_ && fmt_ctx_ && filename_ == opened_filename_ && strategy_ &&
             strategy_->SupportsRepeat()) {
+            const bool continue_local       = CanContinueLocalLoop();
+            const int64_t previous_sequence = abs_packet_index_;
             ResetStreamState();
             opened_ = true;
             ready_  = true;
@@ -179,6 +188,14 @@ namespace media {
                 av_bsf_flush(bsf_ctx_);
             }
 
+            if (continue_local) {
+                abs_packet_index_        = previous_sequence;
+                local_loop_first_packet_ = true;
+            } else {
+                local_loop_candidate_ = false;
+                local_logical_stream_ = stream_opened_cnt_;
+            }
+
             return util::ErrorEnum::Success;
         }
 
@@ -186,6 +203,14 @@ namespace media {
         // cannot be reused as a fresh input, even if the URL is unchanged.
         CloseStream();
         ResetStreamState();
+        local_codec_guard_.Reset();
+        local_timeline_.Reset();
+        local_file_source_       = false;
+        local_loop_candidate_    = false;
+        local_timeline_started_  = false;
+        local_loop_first_packet_ = false;
+        local_rate_setting_      = video_force_fps_;
+        local_logical_stream_    = stream_opened_cnt_;
 
         // Release old strategy and its resources before creating a new one
         strategy_.reset();
@@ -201,6 +226,12 @@ namespace media {
         if (ret == util::ErrorEnum::Success && fmt_ctx_ && !StopRequested()) {
             opened_          = true;
             opened_filename_ = filename_;
+            // FileDemuxStrategy also accepts HTTP: only an absolute, local
+            // filesystem path is eligible for the seamless repeat route.
+            local_file_source_ = !filename_.empty() && filename_[0] == '/' &&
+                                 filename_.find("://") == std::string::npos && strategy_->SupportsRepeat() &&
+                                 !strategy_->IsLive();
+            local_loop_candidate_ = local_file_source_;
         } else {
             // Ensure fmt_ctx_ is freed on failure — some OpenInput implementations
             // may partially allocate the context before failing.

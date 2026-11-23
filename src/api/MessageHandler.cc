@@ -406,7 +406,7 @@ MsgQueryDeviceMemStatusSend MessageHandler::Handle(MsgQueryDeviceMemStatusRecv&&
         poolStatus.freeCnt   = vram_pool.idle_cnt;
         retData.totalMalloc += (vram_pool.used_cnt + vram_pool.idle_cnt) * vram_pool.pool_size;
         retData.totalInUsing += vram_pool.used_cnt * vram_pool.pool_size;
-        for (auto& vram_node : vram_pool.used_nodes_status) {
+        for (const service::BlockStatusDto& vram_node : vram_pool.used_nodes_status) {
             DeviceMemStatus node;
             node.threadId  = vram_node.thread_id;
             node.duration  = vram_node.duration;

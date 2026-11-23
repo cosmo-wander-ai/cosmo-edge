@@ -8,6 +8,7 @@
 #include "nn/utils/net_utils.h"
 #include "nn/utils/profiler.h"
 #include "nn/utils/rect.h"
+#include "util/InferenceInputSize.h"
 
 namespace cosmo::nn {
 
@@ -20,6 +21,7 @@ public:
         std::string tokenizer_path;
         std::string word_table_path;
         int device_id = 0;
+        std::optional<InferenceInputSize> input_size;
     };
 
     DefaultComponent(const Options& options, std::string json_path, std::string model_path,
@@ -45,12 +47,12 @@ public:
     std::string GetModelType() const;
 
     Status SetThreshold(int id, float threshold);
-    Status SetThreshold(std::string label, float threshold);
+    Status SetThreshold(const std::string& label, float threshold);
     Status GetThreshold(int id, float* threshold);
-    Status GetThreshold(std::string label, float* threshold);
+    Status GetThreshold(const std::string& label, float* threshold);
 
     Status GetCategoryInfo(int class_id, CategoryInfo& info);
-    Status GetCategoryInfo(std::string label, CategoryInfo& info);
+    Status GetCategoryInfo(const std::string& label, CategoryInfo& info);
 
     std::vector<float> GetScoreLevels() const;
     std::vector<std::string> GetSelectedClassnames() const;

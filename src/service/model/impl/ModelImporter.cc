@@ -22,7 +22,7 @@
 #include "util/ErrorCode.h"
 #include "util/Exception.h"
 #include "util/Exec.h"
-#include "util/JsonFileUtil.h"
+#include "util/InferenceInputSize.h"
 #include "util/NnBackendConstants.h"
 #include "util/PathUtil.h"
 #include "util/ResourceBudget.h"
@@ -191,6 +191,12 @@ util::ErrorEnum ModelImportExporter::ImportFlatArchive(const std::string& temp_d
     std::string version   = "V1.0.0";
     try {
         auto doc = nlohmann::json::parse(cfgBuf.str());
+        InferenceInputSizes sizes;
+        std::string size_error;
+        if (!ReadInferenceInputSizes(doc, sizes, size_error)) {
+            LOG_WARN("Invalid imported input sizes: {}", size_error);
+            return util::ErrorEnum::InvalidParam;
+        }
         if (HasInvalidPersonAttributeOutput(doc)) {
             LOG_WARN("{}", "[ImportModel] Invalid person attribute output declaration in config.json");
             fs::remove_all(temp_dir, ec);
@@ -299,11 +305,21 @@ util::ErrorEnum ModelImportExporter::ImportDirectoryArchive(const std::string& t
             LOG_WARN("[ImportModel] Skipping directory without config.json: {}", sub_dir_name);
             continue;
         }
-
-        nlohmann::json config;
-        if (util::JsonFileUtil::ReadJsonFile(sub_dir + "/config.json", config) == util::ErrorEnum::Success &&
-            HasInvalidPersonAttributeOutput(config)) {
-            LOG_WARN("[ImportModel] Invalid person attribute output declaration in {}", sub_dir_name);
+        try {
+            std::ifstream config_stream(sub_dir + "/config.json");
+            const auto doc = nlohmann::json::parse(config_stream);
+            InferenceInputSizes sizes;
+            std::string size_error;
+            if (!ReadInferenceInputSizes(doc, sizes, size_error)) {
+                LOG_WARN("Invalid imported input sizes: {}", size_error);
+                continue;
+            }
+            if (HasInvalidPersonAttributeOutput(doc)) {
+                LOG_WARN("[ImportModel] Invalid person attribute output declaration in {}", sub_dir_name);
+                continue;
+            }
+        } catch (const nlohmann::json::exception& error) {
+            LOG_WARN("Invalid model configuration: {}", error.what());
             continue;
         }
 

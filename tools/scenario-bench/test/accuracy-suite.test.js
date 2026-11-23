@@ -110,6 +110,36 @@ test('loads and fingerprints a measurement suite without leaking absolute paths'
   }
 });
 
+for (const targetChip of ['bm1688', 'cv186x', 'rk3576', 'rk3588', 'rv1126b']) {
+  test(`suite loader and published schema admit ${targetChip}`, () => {
+    const f = fixture({ mutateSuite: (suite) => { suite.targetPlatforms = [targetChip]; } });
+    try {
+      const loaded = loadAccuracySuite({ suitePath: f.suitePath, dataRoot: f.dataRoot });
+      assert.deepEqual(loaded.targetPlatforms, [targetChip]);
+      assert.equal(loaded.cases.length, 2);
+      assert.match(loaded.identity.suiteSha256, /^[a-f0-9]{64}$/);
+      const schema = JSON.parse(fs.readFileSync(
+        new URL('../accuracy/schema/suite.schema.json', import.meta.url), 'utf8',
+      ));
+      assert.ok(schema.properties.targetPlatforms.items.enum.includes(targetChip));
+    } finally {
+      fs.rmSync(f.root, { recursive: true, force: true });
+    }
+  });
+}
+
+test('RK3588 admission does not accept unknown target platforms', () => {
+  const f = fixture({ mutateSuite: (suite) => { suite.targetPlatforms = ['rk9999']; } });
+  try {
+    assert.throws(
+      () => loadAccuracySuite({ suitePath: f.suitePath, dataRoot: f.dataRoot }),
+      /unsupported target platform: rk9999/,
+    );
+  } finally {
+    fs.rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
 test('rejects duplicate case ids and paths that escape the private data root', () => {
   const duplicate = fixture({ cases: [
     { id: 'same', task: 'helmet', file: 'videos/positive.mp4', sha256: sha256(Buffer.from('positive-video')), expectation: { minEvents: 1 } },

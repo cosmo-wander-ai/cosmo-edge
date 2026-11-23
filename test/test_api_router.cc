@@ -14,6 +14,7 @@
 #include "util/ErrorCode.h"
 #include "util/Exception.h"
 #include "util/MsgBaseTypes.h"  // For MessageFromType
+#include "util/RuntimeIsolation.h"
 
 // 为了测试，我们需要使用 ApiRouter 的基本结构
 using namespace cosmo;
@@ -355,5 +356,89 @@ TEST_CASE("ApiRouter: alarm deletion is authenticated and returns per-event resu
         REQUIRE(router.DispatchRequest("/gtw/cwai/event/delete", "valid", R"({"ids":[1]})", response));
         const auto body = nlohmann::json::parse(response);
         CHECK(body["resCode"] == kServerRspFailed);
+    }
+}
+
+TEST_CASE("ApiRouter: Wi-Fi management requires the HTTP session", "[ApiRouter][wifi-handler]") {
+    cosmo::test::ApiRouterTestDependencies mocks;
+    ApiRouter http_router(MessageFromType::MessageFromHttp);
+    ApiRouter mqtt_router(MessageFromType::MessageFromMqtt);
+    ALLOW_CALL(mocks.authSvc, IsValidToken("invalid-wifi-token")).RETURN(false);
+
+    for (const std::string action : {"queryNetworkStatus", "scanWifi", "connectWifi", "queryWifiOperation",
+                                     "confirmWifiConfig", "disconnectWifi", "forgetWifi"}) {
+        CAPTURE(action);
+        const auto uri = "/gtw/cwai/network/" + action;
+        CHECK(http_router.SupportsRoute(uri));
+        CHECK_FALSE(mqtt_router.SupportsRoute(uri));
+
+        RequestDispatchContext context;
+        context.uri         = uri;
+        context.transport   = RequestTransport::kHttp;
+        context.http_method = "POST";
+        context.credential  = "invalid-wifi-token";
+        context.principal   = "forged-admin";
+        CHECK(http_router.InspectRequest(context, true) == RequestAdmission::kUnauthorized);
+        CHECK(context.principal.empty());
+        std::string response;
+        CHECK_FALSE(http_router.DispatchRequest(
+            context, R"({"messageFrom":0,"mtk":"forged-body-token","password":"write-only-secret"})",
+            response));
+        CHECK(response.find("Auth Failed") != std::string::npos);
+        CHECK(response.find("write-only-secret") == std::string::npos);
+
+        context.transport  = RequestTransport::kMqtt;
+        context.credential = "forged-body-token";
+        CHECK(http_router.InspectRequest(context, true) == RequestAdmission::kUnauthorized);
+        CHECK(mqtt_router.InspectRequest(context, true) == RequestAdmission::kRouteNotFound);
+    }
+}
+
+TEST_CASE("ApiRouter refuses isolated host operations before invoking services",
+          "[ApiRouter][runtime-isolation]") {
+    cosmo::test::ApiRouterTestDependencies mocks;
+    ALLOW_CALL(mocks.authSvc, IsValidToken("isolated-test")).RETURN(true);
+    const runtime::RuntimeIsolationScope isolated(true);
+    ApiRouter router(MessageFromType::MessageFromHttp);
+    for (const auto* route : {"/gtw/cwai/network/ModifyNetCard",
+                              "/gtw/cwai/network/ModifyNetDns",
+                              "/gtw/cwai/System/NTPDate",
+                              "/gtw/cwai/System/ModifyTime",
+                              "/gtw/cwai/System/ResetSystem",
+                              "/gtw/cwai/System/Upgrade",
+                              "/gtw/cwai/System/CheckUpgradeSpace",
+                              "/gtw/cwai/System/ResetDevRestartParam",
+                              "/gtw/cwai/System/ModifyDevRestartParam",
+                              "/gtw/cwai/System/SetMqttAdapterParam",
+                              "/gtw/cwai/System/ModifyIotNetworkParam",
+                              "/gtw/cwai/System/ModifyRunModeParam",
+                              "/gtw/cwai/Camera/Gb28181Manage",
+                              "/gtw/cwai/Camera/OnvifDiscover",
+                              "/gtw/cwai/Camera/OnvifProbe",
+                              "/gtw/cwai/network/queryNetworkStatus",
+                              "/gtw/cwai/network/scanWifi",
+                              "/gtw/cwai/network/connectWifi",
+                              "/gtw/cwai/network/queryWifiOperation",
+                              "/gtw/cwai/network/confirmWifiConfig",
+                              "/gtw/cwai/network/disconnectWifi",
+                              "/gtw/cwai/network/forgetWifi",
+                              "/gtw/cwai/Camera/OnvifSave"}) {
+        INFO(route);
+        std::string response;
+        REQUIRE_FALSE(router.DispatchRequest(route, "isolated-test", "{}", response));
+        const auto json = nlohmann::json::parse(response);
+        CHECK(json["resMsg"][0]["msgCode"] ==
+              std::to_string(static_cast<int>(util::ErrorEnum::OperationNotSupport)));
+    }
+    // The real inference/video/alarm routes remain registered and admission
+    // still requires credentials; isolated mode does not bypass authorization.
+    for (const auto* route : {"/v1/cwai/aihost/TaskCreate", "/gtw/cwai/Camera/Add",
+                              "/gtw/cwai/atomic/Model/Add", "/gtw/cwai/System/SetAlarmVideoDuration"}) {
+        INFO(route);
+        RequestDispatchContext context;
+        context.uri        = route;
+        context.credential = "isolated-test";
+        context.transport  = RequestTransport::kHttp;
+        CHECK(router.InspectRequest(context, true) == RequestAdmission::kAllowed);
     }
 }

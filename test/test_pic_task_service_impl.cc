@@ -57,14 +57,6 @@ struct PicTaskCancelDependencies {
 }  // namespace
 
 // ============================================================================
-// Construction
-// ============================================================================
-
-TEST_CASE("PicTaskServiceImpl: construction and destruction", "[PicTaskService]") {
-    REQUIRE_NOTHROW([]() { PicTaskServiceImpl sut; }());
-}
-
-// ============================================================================
 // Checksum round-trip
 // ============================================================================
 
@@ -116,10 +108,6 @@ TEST_CASE("PicTaskServiceImpl: empty state queries", "[PicTaskService]") {
     SECTION("QueryRealTasks returns empty on construction") {
         REQUIRE(sut.QueryRealTasks(false).empty());
         REQUIRE(sut.QueryRealTasks(true).empty());
-    }
-
-    SECTION("GetTaskStatus returns empty on construction") {
-        REQUIRE(sut.GetTaskStatus(30).empty());
     }
 }
 

@@ -17,6 +17,7 @@ public:
     ~AiDetectorUnify();
 
     util::ErrorEnum Init();
+    util::ErrorEnum Init(std::optional<InferenceInputSize> input_size);
 
     util::ErrorEnum Detect(const std::vector<VideoFramePtr>& images, std::vector<AiConfidence> conf_thres,
                            std::vector<std::vector<AiDetectRstEl>>& results);

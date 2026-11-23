@@ -9,6 +9,7 @@
       </div>
     </div>
 
+    <el-alert v-if="outputWarning" :title="outputWarning" type="warning" :closable="false" show-icon />
     <div class="editor-container">
       <aside class="strategy-sidebar">
         <div class="sidebar-header">
@@ -60,12 +61,14 @@
 <script setup>
 import {
   ref,
+  computed,
   reactive,
   onMounted,
   onBeforeUnmount,
   nextTick,
   getCurrentInstance
 } from 'vue'
+import { withAlarmOutputChoices } from '@/utils/alarmOutputReadiness.js'
 import ArrangeFlow from '../components/ArrangeFlow.vue'
 import { Plus, EditPen, Delete } from '@element-plus/icons-vue'
 import { t, localeColon, currentLocale } from '@/i18n'
@@ -78,6 +81,16 @@ const containerRef = ref(null)
 const width = ref(0)
 const height = ref(600)
 
+const alarmOutputs = ref(null)
+const outputWarning = computed(() => {
+  if (activeStrategy.value?.outputStatus && activeStrategy.value.outputStatus !== 'ready') {
+    return t(`linkageStrategy.outputStatus.${activeStrategy.value.outputStatus}`)
+  }
+  if (Array.isArray(alarmOutputs.value) && !alarmOutputs.value.some(item => item.status === 'ready')) {
+    return t('linkageStrategy.outputUnavailable')
+  }
+  return ''
+})
 const actionList = ref([])
 const strategyList = ref([])
 const activeStrategy = ref(null)
@@ -121,10 +134,8 @@ onMounted(() => {
   window.addEventListener('resize', handleResize)
   // 加载可编排动作
   $API.boxActionList({}).then((res) => {
-    actionList.value = (res?.resData?.strages || []).map((item) => ({
-      ...item,
-      actionType: item.actionType || item.businessCategory
-    }))
+    alarmOutputs.value = res?.resData?.alarmOutputs ?? null
+    actionList.value = withAlarmOutputChoices(res?.resData?.strages || [], alarmOutputs.value)
     queryStrategyList()
   })
 })
@@ -142,6 +153,7 @@ const queryStrategyList = (opt = {}) => {
       id: item.id || item.strategyId || idx,
       name: item.name || item.strategyName || String(idx + 1),
       enabled: item.status === true || item.enabled === true,
+      outputStatus: item.outputStatus || 'ready',
       workFlow: item.workFlow || item.workFLoW || '[]'
     }))
     if (strategyList.value.length > 0) {

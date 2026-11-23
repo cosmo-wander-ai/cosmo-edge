@@ -78,6 +78,8 @@ enum class ErrorEnum : uint32_t {
 
     UnknownOperation,  // Unknown operation
 
+    AlarmOutputUnavailable = 0x2100,  // Board mapping or GPIO is unavailable
+
     AuthFailed = 0x2715,     // Authentication failed (10005) Same as algorithm repository
     LoginFailed,             // Login failed
     NotLogin,                // Not logged in

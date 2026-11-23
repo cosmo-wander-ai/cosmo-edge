@@ -183,6 +183,7 @@ bool AlgChannelDemux::OpenStream() {
     is_url_changed_ = false;
     auto ret        = demuxer_.OpenStream(is_need_repeat_);
     if (util::ErrorEnum::Success != ret) {
+        EndPendingLocalRepeat();
         if (util::ErrorEnum::DemuxOpenStreamUnauthorized == ret) {
             action_status_ = util::ErrorEnum::DemuxOpenStreamUnauthorized;
             SetStatusInfo(service::camera::AlgDemuxStatus::AlgDemuxOpenUnauthorized);
@@ -194,11 +195,13 @@ bool AlgChannelDemux::OpenStream() {
     }
 
     if (util::ErrorEnum::Success != demuxer_.FindStream(is_need_repeat_)) {
+        EndPendingLocalRepeat();
         action_status_ = util::ErrorEnum::DemuxGetStreamFail;
         SetStatusInfo(service::camera::AlgDemuxStatus::AlgDemuxOpenFailed);
         return false;
     }
     if (!is_running_.load() || util::ProcessShutdown::Requested()) {
+        EndPendingLocalRepeat();
         demuxer_.CloseStream();
         return false;
     }
@@ -220,6 +223,18 @@ bool AlgChannelDemux::OpenStream() {
     // frame read before StreamEnd) to avoid a transient gap.
     LOG_INFO("{}{} Stream Opened", kTag, channel_id_);
     return true;
+}
+
+void AlgChannelDemux::EndPendingLocalRepeat() {
+    if (!pending_local_recording_)
+        return;
+    auto end   = std::make_shared<media::VideoPacket>();
+    end->index = -1;
+    if (recorder_ && recorder_->TaskFrame(end)) {
+        pending_local_recording_ = false;
+    } else {
+        LOG_ERRO("{}:{} pending recording end remains unverified", kTag, channel_id_);
+    }
 }
 
 void AlgChannelDemux::CloseStream() {
@@ -260,6 +275,20 @@ void AlgChannelDemux::HandleStream() {
         return;
     }
     if (media::ReadFrameStatus::Success != ret) {
+        if (ret == media::ReadFrameStatus::UnsafeLocalContinuity) {
+            auto end   = std::make_shared<media::VideoPacket>();
+            end->index = -1;
+            if (recorder_->TaskFrame(end))
+                pending_local_recording_ = false;
+            else
+                LOG_ERRO("{}:{} recording end after local continuity failure remains unverified", kTag,
+                         channel_id_);
+            demuxer_.CloseStream();
+            is_need_repeat_ = true;
+            SetStatusInfo(service::camera::AlgDemuxStatus::AlgDemuxReadFailed);
+            action_status_ = util::ErrorEnum::DemuxReadStreamFail;
+            return;
+        }
         if (media::ReadFrameStatus::StreamEnd == ret) {
             const bool is_live_stream = IsLiveStream();
             const auto disposition =
@@ -278,8 +307,11 @@ void AlgChannelDemux::HandleStream() {
                 // A loop boundary is not terminal. Keep the last Reading state
                 // and successful action status until OpenStream publishes the
                 // next Opened/Reading transition.
-                frame_packet->index = -1;
-                recorder_->TaskFrame(frame_packet);
+                pending_local_recording_ = demuxer_.CanContinueLocalLoop();
+                if (!pending_local_recording_) {
+                    frame_packet->index = -1;
+                    recorder_->TaskFrame(frame_packet);
+                }
                 return;
             }
 
@@ -293,6 +325,7 @@ void AlgChannelDemux::HandleStream() {
             recorder_->TaskFrame(frame_packet);
             return;
         }
+        EndPendingLocalRepeat();
         SetStatusInfo(service::camera::AlgDemuxStatus::AlgDemuxReadFailed);
         action_status_ = util::ErrorEnum::DemuxReadStreamFail;
         return;
@@ -307,7 +340,8 @@ void AlgChannelDemux::HandleStream() {
     data->firstTimePoint      = frame_packet->time_point;
     action_status_            = util::ErrorEnum::Success;
     if (recorder_) {
-        recorder_->TaskFrame(frame_packet);
+        if (recorder_->TaskFrame(frame_packet))
+            pending_local_recording_ = false;
     }
     {
         // Distribute to display viewer.

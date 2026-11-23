@@ -321,7 +321,7 @@ Status Qwen3VLRunner::ConfigureEvaluation(const EvaluationOptions& options) {
     impl_->evaluation                   = true;
     impl_->evaluation_options           = options;
     impl_->config.evaluation_square_448 = true;
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 int Qwen3VLRunner::GetContextLength() const {
@@ -458,7 +458,7 @@ Status Qwen3VLRunner::Init(const std::string& model_path, const std::string& tok
               << " seqlen=" << impl_->config.SEQLEN << " max_input=" << impl_->config.MAX_INPUT_LENGTH
               << " max_pixels=" << impl_->config.MAX_PIXELS << " max_patches=" << impl_->config.MAX_PATCHES
               << std::endl;
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 // Templated inference loop, avoids Qwen3VL / Qwen3.5 code duplication
@@ -529,9 +529,10 @@ Status Qwen3VLRunner::RunImpl(Model& model, Qwen3VLRunner::Impl& impl,
             tokens.size() >= static_cast<size_t>(model.SEQLEN))
             return Status(COSMO_NN_ERR_INVALID_INPUT, "input tokens exceed max length");
 
-        result.input_tokens = static_cast<int>(tokens.size());
-        if (impl.evaluation && !impl.evaluation_options.input_dump_prefix.empty()) {
-            const auto& prefix = impl.evaluation_options.input_dump_prefix;
+        result.input_tokens                         = static_cast<int>(tokens.size());
+        const EvaluationOptions& evaluation_options = impl.evaluation_options;
+        if (impl.evaluation && !evaluation_options.input_dump_prefix.empty()) {
+            const auto& prefix = evaluation_options.input_dump_prefix;
             std::ofstream pixels_file(prefix + ".pixels.f32", std::ios::binary);
             pixels_file.write(reinterpret_cast<const char*>(pixel_values.data()),
                               static_cast<std::streamsize>(pixel_values.size() * sizeof(float)));
@@ -646,7 +647,7 @@ Status Qwen3VLRunner::RunImpl(Model& model, Qwen3VLRunner::Impl& impl,
                 .count();
         text_outputs[i][0] = impl.evaluation ? result.raw_output : FilterOutput(text);
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status Qwen3VLRunner::Run(const std::vector<std::vector<std::shared_ptr<Blob>>>& inputs) {

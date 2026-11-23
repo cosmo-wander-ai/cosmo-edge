@@ -3,6 +3,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "media/NativeVideoBuffer.h"
 #include "media/VideoCodecType.h"
@@ -73,6 +74,12 @@ namespace media {
 
         void SetCodecType(VideoCodecType type, int valWidth, int valHeight);
 
+        // Optional out-of-band headers for packet-only backends. Legacy CPU
+        // and Sophon retain their existing packet behavior.
+        virtual void SetCodecExtradata(const std::vector<uint8_t>& extradata) {
+            (void)extradata;
+        }
+
         virtual bool Open()  = 0;
         virtual bool Close() = 0;
 
@@ -117,7 +124,6 @@ namespace media {
 
     protected:
         std::string idx_name_;
-        std::string url_;
 
         VideoCodecType codec_type_{VideoCodecType::kInvalid};
 

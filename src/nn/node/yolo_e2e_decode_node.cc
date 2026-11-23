@@ -8,6 +8,7 @@
 #include "nn/utils/dims_vector_utils.h"
 #include "nn/utils/op.h"
 #include "nn/utils/person_attribute_layout.h"
+#include "nn/utils/yolo26_output_layout.h"
 #include "nn/utils/yolo26_raw_postprocess.h"
 #include "util/Log.h"
 
@@ -46,18 +47,19 @@ void YoloE2EDecodeNode::LoadParam(Op* op) {
     if (!post)
         return;
 
-    person_attributes_ = post->name == "yolo26_person_attributes_postprocess";
-    top_col            = person_attributes_ ? post->person_attribute_columns : 6;
-    top_k              = post->top_k;
-    base_conf          = post->nms_detection_conf;
-    nms_threshold_     = post->nms_threshold;
-    raw_output_        = post->raw_output;
-    input_width_       = post->input_width;
-    input_height_      = post->input_height;
-    valid_params_ =
-        top_k > 0 && std::isfinite(base_conf) && base_conf >= 0.f && base_conf <= 1.f &&
-        (!person_attributes_ || (!raw_output_ && top_col > kPersonAttributeDetectionColumns)) &&
-        (!raw_output_ || (std::isfinite(nms_threshold_) && nms_threshold_ >= 0.f && nms_threshold_ <= 1.f));
+    person_attributes_  = post->name == "yolo26_person_attributes_postprocess";
+    top_col             = person_attributes_ ? post->person_attribute_columns : 6;
+    top_k               = post->top_k;
+    base_conf           = post->nms_detection_conf;
+    nms_threshold_      = post->nms_threshold;
+    raw_output_         = post->raw_output;
+    auto_detect_output_ = !person_attributes_ && post->auto_detect_output;
+    input_width_        = post->input_width;
+    input_height_       = post->input_height;
+    valid_params_       = top_k > 0 && std::isfinite(base_conf) && base_conf >= 0.f && base_conf <= 1.f &&
+                    (!person_attributes_ || (!raw_output_ && top_col > kPersonAttributeDetectionColumns)) &&
+                    (auto_detect_output_ || !raw_output_ ||
+                     (std::isfinite(nms_threshold_) && nms_threshold_ >= 0.f && nms_threshold_ <= 1.f));
 }
 
 Status YoloE2EDecodeNode::InferTopShapes() {
@@ -67,7 +69,41 @@ Status YoloE2EDecodeNode::InferTopShapes() {
         return Status(COSMO_NN_ERR_PARAM, "Invalid YOLO E2E decoder parameters");
     top_blob_shapes     = {{max_batch, top_k, top_col}};
     top_blob_data_types = {DataType::DATA_TYPE_FLOAT};
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
+}
+
+bool YoloE2EDecodeNode::NeedBottomShapesInfered() {
+    return auto_detect_output_;
+}
+
+Status YoloE2EDecodeNode::InferTopShapesWithBottoms(std::vector<DimsVector> dims,
+                                                    std::vector<DataType> types) {
+    RETURN_ON_FAIL(InferTopShapes());
+    if (dims.size() != 1 || types.size() != 1 || types[0] != DATA_TYPE_FLOAT)
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "YOLO E2E expects one float32 output");
+    bool raw_output = false;
+    RETURN_ON_FAIL(ValidateLayout(dims[0], raw_output));
+    if (dims[0][0] > max_batch)
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "YOLO E2E batch exceeds output capacity");
+    return Status{COSMO_NN_OK};
+}
+
+Status YoloE2EDecodeNode::ValidateLayout(const DimsVector& dims, bool& raw_output) const {
+    if (person_attributes_) {
+        if (dims.size() != 3 || dims[0] <= 0 || dims[1] <= 0 || dims[2] != top_col)
+            return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid YOLO26 person attribute output layout");
+        raw_output = false;
+        return Status{COSMO_NN_OK};
+    }
+
+    const auto override = auto_detect_output_ ? std::nullopt : std::optional<bool>(raw_output_);
+    const auto layout   = ResolveYolo26OutputLayout(dims, override);
+    if (layout == Yolo26OutputLayout::kInvalid)
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid YOLO E2E output layout for raw_output mode");
+    raw_output = layout == Yolo26OutputLayout::kRaw;
+    if (raw_output && (!std::isfinite(nms_threshold_) || nms_threshold_ < 0.f || nms_threshold_ > 1.f))
+        return Status(COSMO_NN_ERR_PARAM, "Invalid YOLO raw output NMS threshold");
+    return Status{COSMO_NN_OK};
 }
 
 size_t YoloE2EDecodeNode::GetBottomCount() {
@@ -89,8 +125,8 @@ Status YoloE2EDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blo
     const auto& bottom_dim = bottom_blob->GetBlobDesc().dims;
     const auto& top_dim    = top_blob->GetBlobDesc().dims;
     const int batch        = bottom_dim[0];
-    if ((raw_output_ && bottom_dim[1] <= 4) || (!raw_output_ && bottom_dim[2] != top_col))
-        return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid YOLO E2E output layout for raw_output mode");
+    bool raw_output        = false;
+    RETURN_ON_FAIL(ValidateLayout(bottom_dim, raw_output));
     if (batch > max_batch || top_dim[0] < batch || top_dim[1] != top_k || top_dim[2] != top_col)
         return Status(COSMO_NN_ERR_INVALID_INPUT, "YOLO E2E output capacity is insufficient");
 
@@ -103,8 +139,8 @@ Status YoloE2EDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blo
     std::fill(top_ptr, top_ptr + DimsVectorUtils::Count(top_dim), 0.f);
 
     // Raw BCN outputs contain pixel center xywh and C-4 class probabilities.
-    // Select explicitly: [B, 6, 6] cannot identify the layout from shape alone.
-    if (raw_output_) {
+    // Ambiguous six-candidate layouts require an explicit raw override.
+    if (raw_output) {
         const int channel_count   = bottom_dim.at(1);
         const int candidate_count = bottom_dim.at(2);
         for (int b = 0; b < batch; ++b) {
@@ -123,7 +159,7 @@ Status YoloE2EDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blo
             }
         }
         timer.Stop();
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     }
 
     int box_num = bottom_dim.at(1);
@@ -215,7 +251,7 @@ Status YoloE2EDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blo
     }
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

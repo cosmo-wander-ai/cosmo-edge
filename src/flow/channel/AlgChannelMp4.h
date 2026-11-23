@@ -1,6 +1,8 @@
 // AlgChannelMp4 — pre-record buffer and MP4 recording task manager.
 
 #pragma once
+#include <atomic>
+#include <chrono>
 #include <list>
 #include <mutex>
 #include <queue>
@@ -17,7 +19,8 @@ using AlgMp4RecordPtr = std::shared_ptr<AlgMp4Record>;
 
 class AlgChannelMp4 {
 public:
-    explicit AlgChannelMp4(const std::string& channel);
+    explicit AlgChannelMp4(const std::string& channel,
+                           std::chrono::milliseconds drain_timeout = std::chrono::seconds(5));
     ~AlgChannelMp4();
 
     // Insert a new frame into the pre-record buffer.
@@ -61,12 +64,12 @@ private:
 private:
     std::string channel_id_;
     std::mutex mtx_frame_que_;
+    bool closing_{false};
+    std::atomic<bool> callback_failed_{false};
+    const std::chrono::milliseconds drain_timeout_;
     std::thread thr_;
     bool is_wait_i_frame_{false};  // Log throttle flag.
 
-    bool is_need_delete_frame_{false};   // Pending frame deletion.
-    int64_t delete_to_index_{0};         // Delete up to this index.
-    int64_t delete_to_timestamp_{0};     // Delete up to this timestamp.
     int64_t last_i_frame_timestamp_{0};  // Last I-frame timestamp for auto-aging.
     int64_t last_remove_timestamp_{0};   // Timestamp of last aging removal.
     int64_t last_index_{0};

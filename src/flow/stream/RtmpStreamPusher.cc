@@ -20,7 +20,7 @@ namespace {
 
 RtmpStreamPusher::RtmpStreamPusher(media::VideoCodecType origin_type, const std::string& url, int width,
                                    int height, float fps)
-    : push_url_(url), first_frame_flag_(ATOMIC_FLAG_INIT) {
+    : push_url_(url), codec_type_(origin_type) {
     if ((width > 1920) || (height > 1088)) {
         // In case of 400w input, decode to 1080P. Reference: CopyYUV420SPLimitArea
         LOG_WARN("Push Src is {}x{} But Max Support is 1080P Modify To 1080P.", width, height);
@@ -48,6 +48,11 @@ RtmpStreamPusher::~RtmpStreamPusher() {
 }
 
 void RtmpStreamPusher::SetVideoAttr(int width, int height, float fps) {
+    std::lock_guard<std::mutex> lock(output_mtx_);
+    SetVideoAttrLocked(width, height, fps);
+}
+
+void RtmpStreamPusher::SetVideoAttrLocked(int width, int height, float fps) {
     if ((width < 64) || (height < 64) || (fps < 0.1f))
         return;
     width_  = width;
@@ -166,16 +171,16 @@ void RtmpStreamPusher::CloseOutput() {
         }
         avformat_free_context(outctx_);
     }
-    outctx_    = nullptr;
-    outstream_ = nullptr;
-    outindex_  = 0;
+    outctx_         = nullptr;
+    outstream_      = nullptr;
+    outindex_       = 0;
+    header_written_ = false;
     SetStreamReady(false);
 }
 
 bool RtmpStreamPusher::ReopenOutput() {
     CloseOutput();
     output_failed_.store(false);
-    first_frame_flag_.clear();
     packet_writer_->ResetCounter();
 
     int ret = InitOutput();
@@ -208,7 +213,6 @@ bool RtmpStreamPusher::PushHeader() {
         RecordFailure("write-header", ret);
         output_failed_.store(true);
         CloseOutput();
-        first_frame_flag_.clear();
         return false;
     } else {
         LOG_INFO("{}", "avformat_write_header success");
@@ -229,6 +233,42 @@ void RtmpStreamPusher::PushFrame(const uint8_t* data, size_t size) {
     if (stopping_.load(std::memory_order_relaxed)) {
         return;
     }
+    PushFrameLocked(data, size);
+}
+
+void RtmpStreamPusher::PushPacket(const media::VideoPacket& packet) {
+    if (packet.data.empty() || stopping_.load(std::memory_order_acquire))
+        return;
+    std::lock_guard<std::mutex> output_lock(output_mtx_);
+    if (stopping_.load(std::memory_order_relaxed))
+        return;
+    if (packet.codec_type != codec_type_) {
+        LOG_WARN("{}", "Raw preview codec changed; viewer must be recreated");
+        CloseOutput();
+        output_failed_.store(true);
+        return;
+    }
+    if (!raw_stream_index_ || *raw_stream_index_ != packet.stream_idx) {
+        const bool reconnect = raw_stream_index_.has_value();
+        raw_stream_index_    = packet.stream_idx;
+        SetVideoAttrLocked(packet.GetWidth(), packet.GetHeight(), packet.GetFPS());
+        // Never reuse the preceding stream's parameter sets after reconnect,
+        // including when the new stream has absent or malformed extradata.
+        codec_config_  = std::make_unique<RtmpCodecConfig>(codec_type_, width_, height_, fps_);
+        packet_writer_ = std::make_unique<RtmpPacketWriter>(fps_);
+        if (packet.codec_extradata && !packet.codec_extradata->empty())
+            codec_config_->SetParameters(*packet.codec_extradata);
+        if (reconnect) {
+            CloseOutput();
+            output_failed_.store(true);
+        }
+        LOG_INFO("Raw preview stream generation={} reconnect={} codecParameters={}", packet.stream_idx,
+                 reconnect, codec_config_->HasParameters());
+    }
+    PushFrameLocked(packet.data.data(), packet.data.size(), &packet);
+}
+
+void RtmpStreamPusher::PushFrameLocked(const uint8_t* data, size_t size, const media::VideoPacket* source) {
     const auto publish_started_at = std::chrono::steady_clock::now();
     debug_info_.recvFrames += 1;
 
@@ -258,7 +298,15 @@ void RtmpStreamPusher::PushFrame(const uint8_t* data, size_t size) {
         return;
     }
 
-    // Wait for I-frame during error recovery
+    // Neither a fresh connection nor a reconnect may publish an unconfigured IDR.
+    if (main_type == media::HFrameType::I && !codec_config_->HasParameters()) {
+        if (skip_count_++ <= 3) {
+            LOG_WARN("PushFrame skip: I-frame before codec parameters at frame #{}", debug_info_.recvFrames);
+        }
+        return;
+    }
+
+    // Wait for a parameterized I-frame during error recovery or source reconnect.
     if (output_failed_.load()) {
         if (main_type != media::HFrameType::I) {
             return;
@@ -268,31 +316,27 @@ void RtmpStreamPusher::PushFrame(const uint8_t* data, size_t size) {
         }
     }
 
-    // Write header on first I-frame
-    if (main_type == media::HFrameType::I && !codec_config_->HasParameters()) {
-        if (skip_count_++ <= 3) {
-            LOG_WARN("PushFrame skip: I-frame before codec parameters at frame #{}", debug_info_.recvFrames);
-        }
-        return;
-    }
-
-    if (main_type == media::HFrameType::I && !first_frame_flag_.test_and_set()) {
+    // A preceding P-frame must not mark the header as written.
+    if (!header_written_) {
+        if (main_type != media::HFrameType::I)
+            return;
         LOG_INFO("first I-frame received, pushing header: size={}", out_size);
         if (!PushHeader()) {
             return;
         }
+        header_written_ = true;
     }
 
     // Only push I and P frames
     if (main_type == media::HFrameType::I || main_type == media::HFrameType::P) {
-        if (first_frame_flag_.test_and_set()) {
+        if (header_written_) {
             bool is_key_frame = (main_type == media::HFrameType::I);
-            int ret = packet_writer_->WriteFrame(outctx_, outindex_, out_data, out_size, is_key_frame);
+            int ret =
+                packet_writer_->WriteFrame(outctx_, outindex_, out_data, out_size, is_key_frame, source);
             if (ret < 0) {
                 RecordFailure("write-frame", ret);
                 output_failed_.store(true);
                 CloseOutput();
-                first_frame_flag_.clear();
             } else {
                 debug_info_.sendFrames += 1;
                 if (SetStreamReady(true)) {
@@ -306,8 +350,6 @@ void RtmpStreamPusher::PushFrame(const uint8_t* data, size_t size) {
                                               std::chrono::steady_clock::now() - publish_started_at)
                                               .count()));
             }
-        } else {
-            first_frame_flag_.clear();
         }
     } else if (skip_count_++ <= 3) {
         LOG_WARN("PushFrame skip: frameMainType={} (not I/P) at frame #{}", static_cast<int>(main_type),

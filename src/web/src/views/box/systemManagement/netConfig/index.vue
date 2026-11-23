@@ -3,6 +3,7 @@
     <header class="network-heading">
       <h1>{{ t('nav.networkSettings') }}</h1>
     </header>
+    <el-alert v-if="networkStatusError" :title="t('wifi.statusQueryFailed')" type="warning" :closable="false" show-icon class="network-status-error" />
     <el-tabs v-model="activeName">
       <el-tab-pane :label="t('systemManage.networkPortSettings')" name="network">
         <div class="network-container" v-if="activeName === 'network'">
@@ -15,7 +16,7 @@
                     <path d="M6.5 7.5h11v7h-2v2h-2v2h-3v-2h-2v-2h-2zM9 7.5v3m3-3v3m3-3v3" />
                   </svg>
                   <span class="title-content">{{ item.ethName }}</span>
-                  <el-button :type="item.isEdit ? 'primary' : undefined" size="small" :class="item.isEdit ? 'network-save' : 'network-edit'" @click="handleEdit(item,index)">{{ item.isEdit ? t('action.save') : t('action.edit') }}</el-button>
+                  <el-button :type="item.isEdit ? 'primary' : undefined" size="small" :class="item.isEdit ? 'network-save' : 'network-edit'" :disabled="networkBusy" @click="handleEdit(item,index)">{{ item.isEdit ? t('action.save') : t('action.edit') }}</el-button>
                 </div>
               </div>
               <div class="card-content">
@@ -62,10 +63,13 @@
             </el-form-item>
           </el-form>
           <div class="dns-footer">
-            <el-button @click="handleCancel" size="small">{{ t('action.reset') }}</el-button>
-            <el-button type="primary" @click="handleDnsSave" size="small">{{ t('action.save') }}</el-button>
+            <el-button :disabled="networkBusy" @click="handleCancel" size="small">{{ t('action.reset') }}</el-button>
+            <el-button type="primary" :disabled="networkBusy" @click="handleDnsSave" size="small">{{ t('action.save') }}</el-button>
           </div>
         </div>
+      </el-tab-pane>
+      <el-tab-pane v-if="networkStatus.available" :label="t('wifi.title')" name="wifi">
+        <WifiSettings :status="networkStatus" @busy="wifiBusy = $event" @refresh="refreshNetworkStatus" />
       </el-tab-pane>
       <el-tab-pane :label="t('systemManage.networkDetection')" name="detect">
         <div class="detect-container" v-if="activeName === 'detect'">
@@ -120,14 +124,50 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, onMounted, getCurrentInstance } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, onActivated, onDeactivated, getCurrentInstance } from 'vue'
 import { ElLoading } from 'element-plus'
 import { t, localeColon, currentLocale } from '@/i18n'
 import { isValidOptionalDnsAddress } from '@/utils/networkValidation'
+import WifiSettings from './WifiSettings.vue'
 
 const { proxy } = getCurrentInstance()
 
 const activeName = ref('network')
+const networkStatus = ref({ available: false, busy: false })
+const networkStatusError = ref(false)
+const wifiBusy = ref(false)
+const networkBusy = computed(() => wifiBusy.value || networkStatus.value.busy)
+let statusTimer
+let statusInFlight = false
+let pageActive = true
+
+async function refreshNetworkStatus() {
+  if (!pageActive || statusInFlight) return
+  clearTimeout(statusTimer)
+  statusInFlight = true
+  try {
+    const { resData } = await proxy.$API.queryNetworkStatus()
+    if (pageActive) {
+      networkStatus.value = resData
+      networkStatusError.value = false
+      if (!resData.available && activeName.value === 'wifi') activeName.value = 'network'
+    }
+  } catch {
+    if (pageActive) networkStatusError.value = true
+  } finally {
+    statusInFlight = false
+    if (pageActive) statusTimer = setTimeout(refreshNetworkStatus, 3000)
+  }
+}
+
+function stopStatusPolling() {
+  pageActive = false
+  clearTimeout(statusTimer)
+}
+
+onBeforeUnmount(stopStatusPolling)
+onDeactivated(stopStatusPolling)
+onActivated(() => { pageActive = true; refreshNetworkStatus() })
 const netCardList = ref([])
 const oldCardList = ref([])
 const dnsFormRef = ref(null)
@@ -307,6 +347,7 @@ const submitApi = (item, params, index) => {
 
 // 编辑
 const handleEdit = (item, index) => {
+  if (networkBusy.value) return
   if (netCardList.value[index].isEdit) {
     const params = {
       netCard: {}
@@ -384,6 +425,7 @@ const handleCancel = () => {
 
 // DNS 保存
 const handleDnsSave = () => {
+  if (networkBusy.value) return
   dnsFormRef.value?.validate((valid) => {
     if (valid) {
       const params = {
@@ -430,6 +472,7 @@ watch(activeName, (val) => {
 
 // 生命周期
 onMounted(() => {
+  refreshNetworkStatus()
   queryNetCard()
   queryNetDns()
 })
@@ -437,6 +480,7 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .net-config {
+  .network-status-error { margin-bottom: 16px; }
   padding: 0;
   background: transparent;
 

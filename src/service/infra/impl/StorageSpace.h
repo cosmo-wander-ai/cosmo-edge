@@ -30,7 +30,6 @@ private:
     void IdleOperationFunction();
 
     std::shared_mutex mtx_;
-    std::string conf_file_name_{"StorageSpaceParam.json"};
     std::string record_base_path_;
     size_t index_{0};
     int64_t removed_timestamp_{0};  // Timestamp used for aging out events

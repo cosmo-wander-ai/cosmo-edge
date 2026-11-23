@@ -22,6 +22,7 @@
 #include "nn/node/node_type_utils.h"
 #include "nn/utils/nv12_bt709_full_to_rgb.h"
 #include "nn/utils/op.h"
+#include "nn/utils/rknn_bound_input_padding.h"
 #include "util/Log.h"
 
 namespace cosmo::nn {
@@ -432,7 +433,7 @@ Status RknnResizeNode::InferTopShapes() {
     shared_resource->net_input_h = out_height_;
     top_blob_shapes              = {{1, out_height_, out_width_, 3}};
     top_blob_data_types          = {DataType::DATA_TYPE_UINT8};
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 size_t RknnResizeNode::GetBottomCount() {
@@ -605,16 +606,40 @@ bool RknnResizeNode::ResizeWithRga(const Blob& bottom, Blob& top, bool allow_bou
             media::SetRgaYuvToRgbColorSpace(source, target, yuv_color_space);
         }
 
-        const auto fill_started = MetricsClock::now();
         const im_rect full_target{0, 0, out_width_, out_height_};
         const int fill_color = (padding_color_[0] << 16) | (padding_color_[1] << 8) | padding_color_[2];
-        last_status          = imfill_t(target, full_target, fill_color, 1);
-        GetInferencePipelineMetrics().RecordRknnRgaFill(ElapsedNanoseconds(fill_started));
-        if (!media::RockchipRgaSucceeded(last_status))
-            return false;
+        bool cpu_padding     = false;
+#if defined(COSMO_RKNN_TARGET_CHIP)
+        cpu_padding = bound_target && UseCpuRgaBoundPadding(COSMO_RKNN_TARGET_CHIP);
+#endif
+        if (cpu_padding) {
+            std::string reason;
+            const std::array<uint8_t, 3> color{static_cast<uint8_t>(padding_color_[0]),
+                                               static_cast<uint8_t>(padding_color_[1]),
+                                               static_cast<uint8_t>(padding_color_[2])};
+            if (!shared_resource->rknn_bound_input_provider->FillRgaBoundInput(rga_bound_target_generation_,
+                                                                               color, reason)) {
+                last_status = IM_STATUS_FAILED;
+                LogRgaBoundInputFallbackOnce(reason);
+                return false;
+            }
+            static std::atomic_flag padding_logged = ATOMIC_FLAG_INIT;
+            if (!padding_logged.test_and_set(std::memory_order_relaxed)) {
+                LOG_INFO(
+                    "RKNN bound RGB padding uses CPU fill and cache sync before RGA resize/CSC; "
+                    "target={}x{} stride={}; CPU padding and native INT8 transform remain active",
+                    out_width_, out_height_, target_width_stride);
+            }
+        } else {
+            const auto fill_started = MetricsClock::now();
+            last_status             = imfill_t(target, full_target, fill_color, 1);
+            GetInferencePipelineMetrics().RecordRknnRgaFill(ElapsedNanoseconds(fill_started));
+            if (!media::RockchipRgaSucceeded(last_status))
+                return false;
+        }
 
         const float scale        = std::min(static_cast<float>(out_width_) / visible_width,
-                                                static_cast<float>(out_height_) / visible_height);
+                                            static_cast<float>(out_height_) / visible_height);
         const int resized_width  = static_cast<int>(visible_width * scale);
         const int resized_height = static_cast<int>(visible_height * scale);
         const int offset_x       = (out_width_ - resized_width) / 2;
@@ -769,7 +794,7 @@ Status RknnResizeNode::ResizeSingle(const std::shared_ptr<Blob>& bottom, const s
     top_desc.data_format  = DATA_FORMAT_NHWC;
     top_desc.image_format = detector_contract_ ? IMAGE_RGB : bottom_desc.image_format;
     top->SetBlobDesc(top_desc);
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status RknnResizeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
@@ -802,7 +827,7 @@ Status RknnResizeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
     }
     top_blobs[0]->SetBlobDesc(top_desc);
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 RknnCropResizeNode::RknnCropResizeNode() : CpuCropResizeNode() {
@@ -1109,7 +1134,7 @@ Status RknnCropResizeNode::Forward(std::vector<std::shared_ptr<Blob>>& image_blo
     timer.Start();
     if (ForwardWithRga(image_blobs, rect_blobs, top_blobs)) {
         timer.Stop();
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     }
     InvalidateRgaBoundFrame();
     timer.Stop();
@@ -1172,7 +1197,7 @@ Status RknnNormalizeNode::InferTopShapesWithBottoms(std::vector<DimsVector> dims
         top_blob_shapes     = {{dims[0][0], dims[0][3], dims[0][1], dims[0][2]}};
         top_blob_data_types = {DataType::DATA_TYPE_FLOAT};
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 size_t RknnNormalizeNode::GetBottomCount() {
@@ -1221,7 +1246,7 @@ Status RknnNormalizeNode::ForwardNative(const Blob& bottom, Blob& top) {
     GetInferencePipelineMetrics().RecordRknnPreprocessFastHit();
     top_desc.image_format = is_bgr_ ? IMAGE_BGR : IMAGE_RGB;
     top.SetBlobDesc(top_desc);
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status RknnNormalizeNode::ForwardFloat(const Blob& bottom, Blob& top) {
@@ -1255,7 +1280,7 @@ Status RknnNormalizeNode::ForwardFloat(const Blob& bottom, Blob& top) {
                 (static_cast<float>(batch_source[source_offset + third_channel]) - mean_[2]) * scale_[2];
         }
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status RknnNormalizeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,

@@ -50,6 +50,27 @@ namespace {
         CHECK(node->GetTopBlobShapes() == std::vector<DimsVector>{{2, 7, 6}});
     }
 
+    TEST_CASE("YOLOv8 enables RKNN direct candidates only for square inputs",
+              "[nn][rknn][yolov8][direct-candidates]") {
+        const auto [width, height, use_direct] = GENERATE(table<int, int, bool>({
+            {640, 640, true},
+            {640, 320, false},
+            {320, 640, false},
+        }));
+        CAPTURE(width, height);
+
+        SharedResource shared;
+        YoloV8DecodeNode node;
+        node.SetSharedResource(&shared);
+        YoloPost op;
+        op.input_width  = width;
+        op.input_height = height;
+        node.LoadParam(&op);
+
+        REQUIRE(bool(node.InferTopShapes()));
+        CHECK(shared.yolov8_direct_postprocess.configured == use_direct);
+    }
+
     TEST_CASE("NN affine crop rejects missing dimensions before using shared resources",
               "[nn][initialization]") {
         AffineNode node;

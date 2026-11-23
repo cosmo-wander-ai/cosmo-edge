@@ -79,10 +79,11 @@ TEST_CASE("MsgThread concurrent stop is idempotent", "[network][msg-thread][conc
 
 TEST_CASE("MsgThread may restart after a completed stop", "[network][msg-thread][lifecycle]") {
     CountingMsgThread worker;
-    REQUIRE(worker.start());
+    cosmo::util::Thread& thread = worker;
+    REQUIRE(thread.start());
     worker.Stop();
 
-    REQUIRE(worker.start());
+    REQUIRE(thread.start());
     REQUIRE(worker.Put(cosmo::MsgEnvelope(1, nullptr)) == 1);
     worker.DrainAndStop();
 

@@ -96,16 +96,22 @@ ${INSTALLPATH}/scripts/run_start.sh start /data/cwaiuserdata/log/logs/INTE_RUN_c
 
 | 变量 / 参数 | 默认值 | 说明 |
 | --- | --- | --- |
-| `COSMO_TARGET_CHIP` | `rk3576` | `rk3576` 或 `rv1126b`；Compose 将它传给 `--chip` |
-| `COSMO_PACKAGE_MODELS` | `include` | `include` 或仅用于代码/结构验证的 `preserve` |
+| `COSMO_TARGET_CHIP` | `rk3576` | `rk3576`、`rk3588` 或 `rv1126b`，由 Compose 传给 `--chip` |
+| `COSMO_MODEL_GUARD_BUILD_PROFILE` | `public-runtime` | Open，RK3576 和 RK3588 可选 `production-release` |
+| `COSMO_MODEL_GUARD_SDK_ROOT` | `prebuild/model-guard-v2.6.0-rknn-abi1/` | Model Guard v2.6.0 RKNN SDK，覆盖路径须在容器内可访问 |
+| `COSMO_MODEL_GUARD_SDK_CHECKSUM_FILE` | SDK 根目录的 `sdk-files.sha256` | v2.6.0 SDK 的配套校验清单 |
+| `COSMO_MODEL_GUARD_SDK_CHECKSUM_SHA256` | 源码固定的清单 SHA-256 | 显式使用另一份获准 SDK 时提供其清单的已核准 SHA-256 |
+| `COSMO_PACKAGE_MODELS` | `include` | `include` 携带模型；`preserve` 保留设备已有模型，不用于空白设备初始化 |
 | `COSMO_BUILD_JOBS` | `4` | 交叉构建并行度 |
 | `COSMO_ROCKCHIP_BUILDER_IMAGE` | 仓库固定 digest 的 GHCR 镜像 | 受控覆盖构建镜像 |
 | `COSMO_RKNN_ARTIFACT_MANIFEST` | 平台 profile 中的清单 | 选择带来源、哈希、用途和许可证的模型 bundle；商业/专有输入应指向 ignored 任务目录中的独立清单 |
 
 构建器还使用与 Sophon 相同的 npm 缓存/重试变量。RV1126B 的 `include` 构建会从
 选定 artifact manifest 生成并校验 `output/platform-artifacts/rv1126b/resource-overlay`；
-`preserve` 只验证代码和包结构，不能替代设备验收。仓库默认清单是 AGPL-3.0
+`preserve` 不携带模型，构建结果不能替代模型交付或设备验收。仓库默认清单是 AGPL-3.0
 社区示例，不属于商业模型交付；商业/专有模型必须使用独立清单和许可记录。
+
+Protected 命令和各芯片支持范围见[高级构建选项](./build.md#高级构建选项)。
 
 ## 资源目录
 
@@ -126,10 +132,11 @@ ${INSTALLPATH}/scripts/run_start.sh start /data/cwaiuserdata/log/logs/INTE_RUN_c
 | 路径 | 说明 |
 | --- | --- |
 | `/appfs/cosmo_wander/cwai_data` | 默认应用安装目录 |
-| `/data/cwaiuserdata` | 默认用户数据根目录 |
-| `/data/cwaiuserdata/log/logs` | 应用日志 |
-| `/data/cwaiuserdata/upgrade` | 升级暂存目录 |
-| `/data/cwaiuserdata/tmp/*` | nginx 临时目录 |
+| `/data/cwaiuserdata` | Sophon 和 x86 默认用户数据根；x86 挂载命名卷 |
+| `/userdata/cwaiuserdata` | RK3576 / RV1126B 默认用户数据根 |
+| `<数据根>/log/logs` | 应用日志 |
+| `<数据根>/upgrade` | 升级暂存目录 |
+| `<数据根>/tmp/*` | nginx 临时目录 |
 
 设备部署可以通过 `COSMO_APP_DATA_DIR` 和 `COSMO_DATA_DIR` 覆盖应用/数据根目录；覆盖值必须是
 受控的绝对路径，并与服务配置和持久化策略一致。
@@ -137,7 +144,7 @@ ${INSTALLPATH}/scripts/run_start.sh start /data/cwaiuserdata/log/logs/INTE_RUN_c
 ## 告警输出联动
 
 在联动策略的“业务处理”中添加“告警输出联动”，接在绑定算法的告警数据节点之后。
-组件参数为逻辑输出通道（1–64）和持续时长（1–600 秒，默认 5 秒）。通道编号范围不代表
+组件参数为逻辑输出通道（1–64）和持续时长（1–600 秒，默认 5 秒）。页面只列出当前已配置且可访问的输出通道。通道编号范围不代表
 设备实际输出数量。同一通道重复告警会延长保持时间，到期后复位，各通道独立计时。
 
 板卡接线配置位于用户数据根目录下的 `conf/linkAge/alarmOutputs.json`，修改后需重启应用。
@@ -168,15 +175,35 @@ GPIO 的 `value` 文件具有写权限，且板卡已将其设为输出方向；
 
 ### 部署与启动状态
 
-应用加载映射时不会主动复位所有引脚；缺少映射也不会将已有硬件输出置为空闲。
-板卡初始化必须在应用启动前完成 GPIO 导出、方向设置和空闲电平设置，并确保冷启动、
-应用重启及升级后的初始化顺序一致。例如，高电平有效的输出应初始化为 0。
-如果板卡通过独立服务初始化 GPIO，应用服务应在该服务完成初始化后再启动。
+标准启动流程在旧引擎停止后，优先使用包内显式选择的板卡配置；未选择时调用
+`scripts/prepare_alarm_outputs.py`：检查全部映射的
+GPIO 方向和极性，然后将输出设为空闲，再启动引擎。板卡仍须先完成 GPIO 导出和方向设置。
+安装生成的应用服务排在 `rc-local.service` 之后；使用其他 GPIO 初始化服务时，需相应配置启动顺序。
 
-通用应用包不预设板卡引脚或改写板卡启动脚本。同为 RK3576 等芯片的不同整机也可能有不同
-接线和有效电平。板卡专用升级流程应核对实际板型、现有映射及启动配置，备份改动文件，
-在应用停止后设置空闲电平，并在安装失败时恢复配置。保留已有模型、授权和策略启停状态；
-关闭的策略需要明确开启后才能触发联动。
+已有 `alarmOutputs.json`（包括空数组）始终保留，不会被默认值覆盖。配置缺失时，仅为
+同时满足下列特征的四路 PhotoMOS 板卡生成通道 1–4 → GPIO 96–99、高电平有效的映射：
+设备树同时声明 `rockchip,rk3576-evb1-v10` 和 `rockchip,rk3576`，且 `rc.local` 包含
+四个独立的 `RLY_CTL0_GPIO3_A0` 至 `RLY_CTL3_GPIO3_A3` 注释及对应 GPIO 的唯一电平赋值，且这四路的内核 `active_low=0`。
+该路径同时把这些启动赋值调整为 0；映射写入失败会恢复启动脚本。不能仅凭 RK3576 芯片名称套用这些引脚。
+BM1688/CV186X 的已适配四路板卡需在构建时设置
+`-DCOSMO_ALARM_OUTPUT_BOARD=sophon-four-relay-v1`（默认 `none`）。包内标记使启动流程改用
+`scripts/prepare_sophon_alarm_outputs.py`，核对 GPIO 控制器、占用和引脚复用后导出缺失引脚，
+初始化为低电平，并仅在映射缺失时创建配置。复用不符会报错，不会自动切换引脚功能。
+自定义或禁用映射不会被覆盖；初始化失败只记录警告，应用继续启动，由公共状态检查报告不可用通道。
+
+| 适配板卡 | 输出通道 1 / 2 / 3 / 4 的 GPIO | 有效电平 |
+| --- | --- | --- |
+| 上述 RK3576 四路板卡 | 96 / 97 / 98 / 99 | 高 |
+| 显式选择的 BM1688 四路板卡 | 389 / 390 / 480 / 347 | 高 |
+| 显式选择的 CV186X 四路板卡 | 389 / 390 / 480 / 347 | 高 |
+
+三款使用同一套联动、持续时间和状态检查逻辑；表格只适用于匹配的板卡，不代表同芯片所有整机。
+升级包仍按目标芯片分别构建。ALARM IN 不在此功能范围内。其他板型由设备管理员按原理图配置映射，再重启应用。
+
+保存含输出节点的策略及启用策略前，后台会检查该通道映射、输出方向、内核极性和写权限，
+不可用时返回 `AlarmOutputUnavailable`。启动时遇到硬件不可用的旧策略仍保留原内容和启停设置，
+页面单独显示异常原因，避免把“已启用”误认为“输出正常”。可关闭此类策略，但不能重新启用，直到检查通过。
+检查不会触发输出；读取映射的引擎自身也不会更改 GPIO 状态。检查通过只代表控制接口可访问，不能替代端子测量。
 
 ### 联动验收与排查
 

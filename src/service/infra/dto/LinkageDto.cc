@@ -8,18 +8,28 @@
 #include "util/LimitedTypeJson.h"
 
 namespace cosmo {
+void to_json(nlohmann::json& j, const AlarmOutputStatus& v) {
+    j = {{"channel", v.channel}, {"status", v.status}};
+}
+void from_json(const nlohmann::json& j, AlarmOutputStatus& v) {
+    JSON_OPT(j, v, channel);
+    JSON_OPT(j, v, status);
+}
+
 void from_json(const nlohmann::json& j, LinkageStrategyOutputUnit& v) {
     JSON_OPT(j, v, id);
     JSON_OPT(j, v, name);
     JSON_OPT(j, v, workFlow);
     JSON_OPT(j, v, status);
+    JSON_OPT(j, v, outputStatus);
 }
 
 void to_json(nlohmann::json& j, const LinkageStrategyOutputUnit& v) {
-    j["id"]       = v.id;
-    j["name"]     = v.name;
-    j["workFlow"] = v.workFlow;
-    j["status"]   = v.status;
+    j["id"]           = v.id;
+    j["name"]         = v.name;
+    j["workFlow"]     = v.workFlow;
+    j["status"]       = v.status;
+    j["outputStatus"] = v.outputStatus;
 }
 }  // namespace cosmo
 
@@ -117,10 +127,12 @@ void from_json(const nlohmann::json& j, MsgSwitchRecv& v) {
 
 void from_json(const nlohmann::json& j, MsgStoragesSend::ResData& v) {
     JSON_OPT_KEY(j, v, "strages", storages);
+    JSON_OPT(j, v, alarmOutputs);
 }
 
 void to_json(nlohmann::json& j, const MsgStoragesSend::ResData& v) {
-    j["strages"] = v.storages;
+    j["strages"]      = v.storages;
+    j["alarmOutputs"] = v.alarmOutputs;
 }
 
 void from_json(const nlohmann::json& j, MsgAddSend::ResData& v) {

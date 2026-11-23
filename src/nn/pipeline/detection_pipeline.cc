@@ -68,21 +68,17 @@ static Status DetectionForward(
         RETURN_ON_FAIL(NetUtils::GetImageSize(dims, layout, size));
         image_sizes.push_back(size);
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
-static Status DetectionParseOutput(std::vector<std::shared_ptr<Blob>> output_blobs,
+static Status DetectionParseOutput(const std::vector<std::shared_ptr<Blob>>& output_blobs,
                                    const std::vector<Size>& image_sizes, const Size& net_input_size,
                                    const std::vector<int>& indices, const std::vector<float>& thresholds,
                                    const std::vector<std::string>& classnames,
                                    std::vector<std::vector<ObjectInfoV1>>& outputs) {
     outputs.clear();
-    std::vector<Size> image_sizes_copy       = image_sizes;
-    std::vector<int> indices_copy            = indices;
-    std::vector<float> thresholds_copy       = thresholds;
-    std::vector<std::string> classnames_copy = classnames;
-    return NetUtils::ParseDetectionOutput(output_blobs, image_sizes_copy, net_input_size, indices_copy,
-                                          thresholds_copy, classnames_copy, outputs);
+    return NetUtils::ParseDetectionOutput(output_blobs, image_sizes, net_input_size, indices, thresholds,
+                                          classnames, outputs);
 }
 
 // ============================= YOLOv5 =====================================
@@ -122,8 +118,8 @@ Status YoloV5DetPipeline::Init(const PipelineConfig& config, const std::string& 
         int v5_input_w = 640, v5_input_h = 640;
         std::vector<int> input_size = pipeline_utils::ReadIntArray(p, "input_size", {}, 2);
         if (input_size.size() >= 2) {
-            v5_input_w = input_size[0];
-            v5_input_h = input_size[1];
+            v5_input_h = input_size[0];
+            v5_input_w = input_size[1];
         }
 
         for (size_t i = 0; i < mc.outputs.size(); i++) {
@@ -213,8 +209,8 @@ Status YoloV8DetPipeline::Init(const PipelineConfig& config, const std::string& 
         int post_input_w = 640, post_input_h = 640;
         std::vector<int> input_size = pipeline_utils::ReadIntArray(p, "input_size", {}, 2);
         if (input_size.size() >= 2) {
-            post_input_w = input_size[0];
-            post_input_h = input_size[1];
+            post_input_h = input_size[0];
+            post_input_w = input_size[1];
         }
 
         for (size_t i = 0; i < mc.outputs.size(); i++) {
@@ -265,21 +261,37 @@ Status Yolo26DetPipeline::Init(const PipelineConfig& config, const std::string& 
     model_info_.reduce        = config.reduce;
     model_info_.type          = "yolo26_det";
 
+    InferenceInputSize selected;
+    std::string size_error;
+    if (!ResolveInferenceInputSize(config.input_sizes, config.requested_input_size, selected, size_error))
+        return Status(COSMO_NN_ERR_INVALID_CFG, size_error);
+
     for (const auto& mc : config.models) {
-        nlohmann::json p = pipeline_utils::ParseJsonObject(mc.params_json);
+        nlohmann::json p     = pipeline_utils::ParseJsonObject(mc.params_json);
+        const bool has_sizes = !config.input_sizes.sizes.empty();
+        if (has_sizes)
+            p["input_size"] = {selected.height, selected.width};
         if (p.contains("raw_output") && !p["raw_output"].is_boolean())
             return Status(COSMO_NN_ERR_INVALID_CFG, "YOLO E2E raw_output must be a boolean");
+        if (mc.outputs.size() != 1)
+            return Status(COSMO_NN_ERR_INVALID_CFG, "YOLO26 detection expects one output");
         ModelInfo model;
         model.name      = mc.name;
         model.filename  = mc.file_name;
         model.file_md5  = mc.file_md5;
         model.max_batch = mc.max_batch;
         max_batch_      = mc.max_batch;
+        if (has_sizes) {
+            model.input_sizes         = config.input_sizes.sizes;
+            model.selected_input_size = selected;
+        }
 
         for (const auto& in_def : mc.inputs) {
             InputNodeInfo input;
-            input.name      = in_def.name;
-            input.shape     = in_def.shape;
+            input.name  = in_def.name;
+            input.shape = in_def.shape;
+            if (has_sizes)
+                input.shape = {1, 3, selected.height, selected.width};
             input.data_type = in_def.data_type;
             input.ops       = MakeDetPreprocess(p);
             model.input_node_infos.push_back(std::move(input));
@@ -292,8 +304,8 @@ Status Yolo26DetPipeline::Init(const PipelineConfig& config, const std::string& 
         int e2e_input_w = 640, e2e_input_h = 640;
         std::vector<int> input_size = pipeline_utils::ReadIntArray(p, "input_size", {}, 2);
         if (input_size.size() >= 2) {
-            e2e_input_w = input_size[0];
-            e2e_input_h = input_size[1];
+            e2e_input_h = input_size[0];
+            e2e_input_w = input_size[1];
         }
 
         for (size_t i = 0; i < mc.outputs.size(); i++) {
@@ -302,11 +314,14 @@ Status Yolo26DetPipeline::Init(const PipelineConfig& config, const std::string& 
             output.name      = out_def.name;
             output.shape     = out_def.shape;
             output.data_type = out_def.data_type;
-            if (i == 0)
-                output.op =
+            if (i == 0) {
+                auto post =
                     pipeline_utils::MakeYoloE2EPostOp(conf_thresh, top_k, e2e_input_w, e2e_input_h,
                                                       pipeline_utils::ReadFloat(p, "nms_threshold", 0.7f),
                                                       pipeline_utils::ReadBool(p, "raw_output", false));
+                post->auto_detect_output = !p.contains("raw_output");
+                output.op                = std::move(post);
+            }
             model.output_node_infos.push_back(std::move(output));
         }
         model_info_.models.push_back(std::move(model));
@@ -521,7 +536,7 @@ Status Yolo26ObbPipeline::Forward(std::initializer_list<std::vector<std::shared_
     }
     RETURN_ON_FAIL(RunGraph(inputs));
     image_transforms_ = std::move(transforms);
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status Yolo26ObbPipeline::ParseDetectionOutput(std::vector<std::vector<ObjectInfoV1>>& outputs) {
@@ -577,8 +592,8 @@ Status GenericDetectorPipeline::Init(const PipelineConfig& config, const std::st
                 int gd_input_w = 640, gd_input_h = 640;
                 std::vector<int> input_size = pipeline_utils::ReadIntArray(p, "input_size", {}, 2);
                 if (input_size.size() >= 2) {
-                    gd_input_w = input_size[0];
-                    gd_input_h = input_size[1];
+                    gd_input_h = input_size[0];
+                    gd_input_w = input_size[1];
                 }
                 if (post_type == "yolov8") {
                     output.op = pipeline_utils::MakeYoloV8PostOp(nms_thresh, conf_thresh, top_k, gd_input_w,

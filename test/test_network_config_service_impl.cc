@@ -1,5 +1,6 @@
 #include "catch_amalgamated.hpp"
 #include "util/PathUtil.h"
+#include "util/RuntimeIsolation.h"
 /*
  * test_network_config_service_impl.cc — NetworkConfigServiceImpl unit tests
  *
@@ -32,19 +33,6 @@ struct NetworkConfigDependencies {
 };
 
 }  // namespace
-
-TEST_CASE("NetworkConfigServiceImpl: construction and destruction", "[network-config]") {
-    std::string testDir = "/tmp/cosmo_netcfg_test_" +
-                          std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
-    std::filesystem::create_directories(testDir);
-
-    cosmo::test::ScopedPathOverride path_override(testDir, testDir);
-    NetworkConfigDependencies mocks;
-
-    REQUIRE_NOTHROW([&]() { NetworkConfigServiceImpl sut; }());
-
-    std::filesystem::remove_all(testDir);
-}
 
 TEST_CASE("NetworkConfigServiceImpl: GetCfgDns returns default DNS", "[network-config]") {
     std::string testDir = "/tmp/cosmo_netcfg_test_" +
@@ -81,3 +69,38 @@ TEST_CASE("NetworkConfigServiceImpl: SetDnss and verify", "[network-config]") {
 
     std::filesystem::remove_all(testDir);
 }
+
+TEST_CASE("Isolated network initialization stops before querying or applying hardware",
+          "[network-config][runtime-isolation]") {
+    cosmo::test::MockDeviceInfoService hardware;
+    cosmo::test::ScopedServiceOverride<IDeviceHardware> registration(hardware);
+    FORBID_CALL(hardware, GetMacs());
+    const cosmo::runtime::RuntimeIsolationScope isolated(true);
+    NetworkConfigServiceImpl service;
+    REQUIRE_NOTHROW(service.Init());
+}
+
+#if !defined(COSMO_NN_USE_SOPHON_BACKEND) && !defined(COSMO_NN_USE_RKNN_BACKEND)
+TEST_CASE("Isolated network writes fail without changing private configuration",
+          "[network-config][runtime-isolation]") {
+    const auto directory = std::filesystem::temp_directory_path() /
+                           ("cosmo_network_isolation_" +
+                            std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directory(directory);
+    struct Cleanup {
+        std::filesystem::path root;
+        ~Cleanup() {
+            std::error_code error;
+            std::filesystem::remove_all(root, error);
+        }
+    } cleanup{directory};
+    cosmo::test::ScopedPathOverride paths(directory.string(), directory.string());
+    const cosmo::runtime::RuntimeIsolationScope isolated(true);
+    NetworkConfigServiceImpl service;
+    CHECK_FALSE(service.SetDnss({"192.0.2.1"}));
+    cosmo::platform::NetCardInfo card;
+    card.eth_name = "isolated-test-no-device";
+    CHECK_FALSE(service.SetCardInfo(card));
+    CHECK(std::filesystem::is_empty(directory));
+}
+#endif

@@ -84,43 +84,45 @@ The dev server starts on `http://localhost:3000`. All `/gtw`, `/event`, `/weblog
 
 ### Production Build
 
+Inside the repository-supported x86 build container, enter the frontend from the repository root:
+
 ```bash
 cd src/web
 npm ci
+npm test
 npm run build
 ```
 
-`prebuild` runs API/request contracts, component behavior, image-scenario and other feature checks, followed by `npm run i18n:check`. Any failure blocks Vite packaging. `Component behavior checks passed` reports only one completed stage.
+`npm test` independently runs API/request contracts and component behavior tests.
+The `prebuild` hook for `npm run build` runs only `npm run i18n:check`, followed by Vite
+packaging. A successful build does not mean behavior tests have run.
 
 ### Resource Checks in the CMake Staging Directory
 
-`cmake/web_frontend.cmake` copies the frontend to `<build>/web/web_unified`, installs locked dependencies, and runs the full build with `COSMO_REPO_ROOT` pointing to the repository source root. Checks reading source resources such as `data/resource/` must prefer this variable and use script-relative fallback only for direct source-tree runs. Library-node and pair checks use:
+`cmake/web_frontend.cmake` copies the frontend to `<build>/web/web_unified`, installs locked
+dependencies, runs `resource-i18n:check`, and then runs `npm run build` (including prebuild's
+`i18n:check`). The resource check uses `AIBOX_RESOURCE_DIR` to select this build's resources.
+Behavior tests do not run in the copied directory; execute `npm test` separately in the source project.
 
-```js
-const repositoryRoot = process.env.COSMO_REPO_ROOT || fileURLToPath(new URL('../../../', import.meta.url))
-const actionsPath = path.join(repositoryRoot, 'data/resource/aiboxresource_bm1688/layout/actions.json')
-```
-
-Import `path` from `node:path` and `fileURLToPath` from `node:url`. If `Dual-image comparison UI checks passed` is followed by a missing `<build>/data/resource/.../actions.json`, check whether the script still resolves resources relative to its copied location. A source-tree `npm run build` alone cannot cover this case. In a configured build environment, verify the actual target:
+In the configured target build container, verify the actual target (this example uses Sophon's `build/`):
 
 ```bash
 cmake --build build --target web_frontend -j6
 ```
 
-This target installs dependencies, runs prebuild checks, and packages with Vite. It depends on the engine target, so C++ compilation may run first. Resolve resources through the source root; no manual copy into `build/data` is needed.
+The target depends on the engine and may build C++ first. No manual copy into `build/data` is needed.
 
 ## Available Scripts
 
-| Script                    | Purpose                                                  |
-| ------------------------- | -------------------------------------------------------- |
-| `npm run dev`             | Start Vite dev server                                    |
-| `npm run build`           | Production build after all prebuild feature and i18n checks           |
-| `npm run preview`         | Preview the production build locally                     |
-| `npm run i18n:check`      | Run all 5 i18n validation scripts                        |
-| `npm run resource-i18n:check` | Check resource i18n sync status                      |
-| `npm run resource-i18n:sync`  | Sync resource i18n keys from the aiboxResource source (review diff before committing) |
-
-The i18n validators cover: short-scope correctness, locale key consistency, glossary synchronization, dialog action button labels, and unused-key detection.
+| Script | Purpose |
+| --- | --- |
+| `npm run dev` | Start the Vite development server |
+| `npm test` | Run behavior and contract tests independently |
+| `npm run build` | Check i18n, then build for production |
+| `npm run preview` | Preview the production build locally |
+| `npm run i18n:check` | Check bilingual key consistency, short-form keys, and translation keys used by source |
+| `npm run resource-i18n:check` | Check resource i18n synchronization |
+| `npm run resource-i18n:sync` | Synchronize resource i18n keys; review the diff before committing |
 
 ## Adding a New Page
 

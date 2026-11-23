@@ -74,6 +74,16 @@ ParsedModelConfig ModelConfigParser::Parse(const std::string& config_path) {
     }
 
     // Parse I/O shapes
+    std::string size_error;
+    try {
+        if (!ReadInferenceInputSizes(doc, result.input_sizes, size_error)) {
+            LOG_WARN("Invalid input sizes: {}", size_error);
+            return result;
+        }
+    } catch (const nlohmann::json::exception& error) {
+        LOG_WARN("Invalid input sizes: {}", error.what());
+        return result;
+    }
     result.input  = ParseIoShape(doc, "inputs", "1");
     result.output = ParseIoShape(doc, "outputs", "5");
 

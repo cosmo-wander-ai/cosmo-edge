@@ -5,6 +5,7 @@
 #include "bmruntime_interface.h"
 #endif
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -46,6 +47,11 @@ class RknnBoundInputProvider {
 public:
     virtual ~RknnBoundInputProvider()                                            = default;
     virtual bool EnsureRgaBoundInput(int height, int width, std::string& reason) = 0;
+    virtual bool FillRgaBoundInput(uint64_t /*generation*/, const std::array<uint8_t, 3>& /*color*/,
+                                   std::string& reason) {
+        reason = "CPU padding is not supported by this bound input provider";
+        return false;
+    }
 };
 
 // Optional graph-local sidecar for RKNN/RGA input hand-off. The provider owns

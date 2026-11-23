@@ -18,7 +18,7 @@ namespace {
     }
 
     VisualDecisionResult Unknown(const Json& identity, const std::string& reason) {
-        return {identity, visual::Failure(identity, reason)};
+        return {identity, visual::Failure(identity, reason), {}};
     }
 }  // namespace
 
@@ -275,12 +275,14 @@ void VisualDecisionServiceImpl::Work() {
                         const auto imageSha    = visual::Sha256(image.jpeg.data(), image.jpeg.size());
                         if (nativeInference_)
                             result = {wire,
-                                      nativeInference_(wire, job->questions, job->run, image, job->deadline)};
+                                      nativeInference_(wire, job->questions, job->run, image, job->deadline),
+                                      {}};
                         else
                             result = {wire,
                                       visual::ValidateResponse(
                                           wire, job->questions, options_.release, imageSha,
-                                          transport_(options_.socketPath, wire, image.jpeg, job->deadline))};
+                                          transport_(options_.socketPath, wire, image.jpeg, job->deadline)),
+                                      {}};
                     }
                 }
             } catch (const std::exception& e) {

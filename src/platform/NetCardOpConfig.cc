@@ -17,6 +17,7 @@
 #include "platform/NetCardOpInternal.h"
 #include "platform/NetworkManagerConfig.h"
 #include "platform/PlatformConstants.h"
+#include "platform/WifiPlatform.h"
 #include "util/Exec.h"
 #include "util/FileUtil.h"
 #include "util/Log.h"
@@ -324,6 +325,12 @@ bool GetNetProtoShellFile(const std::string& eth_name) {
         [](const auto& argv, auto& out) { return cosmo::util::Exec(argv, out); });
     return manager.IsDhcp(eth_name);
 #else
+    if (HasWirelessInterface()) {
+        const auto index = if_nametoindex(eth_name.c_str());
+        if (index && std::filesystem::exists("/run/systemd/netif/leases/" + std::to_string(index))) {
+            return true;
+        }
+    }
     std::ifstream file(kDhclientLeases);
     if (file.is_open()) {
         std::string line;

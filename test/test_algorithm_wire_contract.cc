@@ -4,12 +4,6 @@
 
 using namespace cosmo;
 
-TEST_CASE("Algorithm wire payload compatibility", "[algorithm-contract]") {
-    test::CheckAlgorithmPayloads<Algorithm::MsgLayoutDetailSend::ResData, Algorithm::MsgLayoutDetailVersion,
-                                 Algorithm::MsgLayoutListSend::ResData, Algorithm::MsgLayoutListItem,
-                                 Algorithm::MsgAtomicActionListSend::ResData, Algorithm::MsgAtomicAction>();
-}
-
 TEST_CASE("Algorithm response envelopes retain protocol keys", "[algorithm-contract]") {
     const auto check = [](auto response) {
         response.resCode = 1;

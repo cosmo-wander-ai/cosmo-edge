@@ -15,6 +15,8 @@ next:
 
 ## 通用响应
 
+告警输出接口的附加字段见下方“告警输出可用性”。
+
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `resCode` | number | CWAI 响应码，`1` 成功，`0` 失败 |
@@ -31,6 +33,18 @@ next:
 | `resData` | object | 业务响应数据 |
 
 `messageKey`、`details`、`recommendedAction` 和 `retryAfterSeconds` 仅在适用时返回；`retryable` 为 `false` 时也可能省略。客户端必须把缺失字段按“未提供额外提示”处理，不能把它解释成新的失败。
+
+## 告警输出可用性
+
+`/gtw/cwai/AlarmStrage/Storages` 在原有 `resData.strages` 外增加 `resData.alarmOutputs`，
+每项包含逻辑 `channel`（整数）和 `status`（`ready`、`gpioUnavailable` 或 `stopped`）。
+只列出本机映射中的通道，空数组代表未配置可列出的通道；不返回 GPIO 地址，也不触发输出。
+旧服务不含此字段，客户端应保留原有表单行为。
+
+`/gtw/cwai/AlarmStrage/Page` 的每个策略增加 `outputStatus`：`ready`、`unmapped`、
+`gpioUnavailable`、`stopped` 或 `invalid`。原 `status` 仍表示持久化的策略启用设置，
+不表示物理触点状态。无输出节点的策略返回 `ready`。
+保存或启用不可用的输出策略返回 `AlarmOutputUnavailable`（错误枚举值 `0x2100`）。
 
 ## 分片上传字段
 

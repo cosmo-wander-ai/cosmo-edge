@@ -16,6 +16,7 @@
 
 #include "glog/logging.h"
 #include "util/Exec.h"
+#include "util/RuntimeIsolation.h"
 
 namespace cosmo::log {
 
@@ -242,6 +243,14 @@ namespace {
             auto appName = fs::path(szAppName).filename();
             create_directories(fs::path(logDir));
             google::InitGoogleLogging(appName.c_str());
+            if (cosmo::runtime::IsIsolatedRuntime()) {
+                // Keep the private data tree restartable under the no-alias
+                // admission rule; rotated log files remain ordinary files.
+                for (const auto severity :
+                     {google::GLOG_INFO, google::GLOG_WARNING, google::GLOG_ERROR, google::GLOG_FATAL}) {
+                    google::SetLogSymlink(severity, "");
+                }
+            }
             FLAGS_log_dir      = logDir;
             FLAGS_max_log_size = 10;
 

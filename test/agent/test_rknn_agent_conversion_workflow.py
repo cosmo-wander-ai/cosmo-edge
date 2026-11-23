@@ -130,6 +130,24 @@ with mock.patch.object(dispatch, 'workflow_family', return_value=family), \
             self.assertNotEqual(rv["profilePath"], rk["profilePath"])
             self.assertEqual(rv["toolchainLockPath"], rk["toolchainLockPath"])
 
+    def test_rk3588_conversion_loads_target_profile_without_device_acceptance(self):
+        contract = make_contract()
+        contract["parameters"]["targetChip"] = "rk3588"
+        contract["parameters"]["toolchainChip"] = "rk3588"
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory)
+            (run_dir / "inputs").mkdir()
+            (run_dir / "inputs/model.onnx").write_bytes(b"fixture")
+            (run_dir / "inputs/sample.mp4").write_bytes(b"fixture-video")
+            parameters = conversion.conversion_parameters(contract, run_dir)
+            self.assertEqual(parameters["profile"]["conversion"]["target_platform"], "rk3588")
+            self.assertEqual(parameters["profile"]["runtime"]["default_core_mode"], "auto")
+            self.assertEqual(parameters["profile"]["qualification"]["status"], "unverified")
+            self.assertTrue(parameters["profile"]["media"]["require_sealed_sysroot"])
+            contract["parameters"]["platformProfile"] = "config/rknn/platforms/rk3576.json"
+            with self.assertRaisesRegex(core.WorkflowError, "profile chip does not match"):
+                conversion.conversion_parameters(contract, run_dir)
+
     def test_classifier_calibration_declares_shared_person_detector_contract(self):
         contract = make_contract()
         contract["parameters"]["modelName"] = "helmet"

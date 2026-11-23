@@ -62,10 +62,14 @@ namespace {
     }
 }  // namespace
 
-LinkageServiceImpl::LinkageServiceImpl()
+LinkageServiceImpl::LinkageServiceImpl(std::shared_ptr<cosmo::linkage::AlarmOutputController> alarm_outputs)
     : alarm_outputs_(
-          std::make_shared<cosmo::linkage::AlarmOutputController>(cosmo::linkage::LoadAlarmOutputChannels(
-              (std::filesystem::path(cosmo::path::GetCfgPath("linkAge")) / "alarmOutputs.json").string()))),
+          alarm_outputs
+              ? std::move(alarm_outputs)
+              : std::make_shared<cosmo::linkage::AlarmOutputController>(
+                    cosmo::linkage::LoadAlarmOutputChannels(
+                        (std::filesystem::path(cosmo::path::GetCfgPath("linkAge")) / "alarmOutputs.json")
+                            .string()))),
       async_queue_("Linkage Alarm QUE", 100) {
     LoadConfig();
     const std::string linkage_storages_file_path = cosmo::path::GetLinkageStoragesJsonPath();

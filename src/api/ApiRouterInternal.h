@@ -104,8 +104,9 @@ namespace detail {
                 auto j = nlohmann::json::parse(jsonStr);
                 j.get_to(p);
             }
-            p.messageFrom = from;
-            auto ret      = handler.Handle(std::move(p), errc);
+            MsgRecvHead& request = p;
+            request.messageFrom  = from;
+            auto ret             = handler.Handle(std::move(p), errc);
             if (errc == util::ErrorEnum::Success) {
                 ret.resCode = kServerRspSuccess;
                 MsgResBase resMsg;
@@ -146,8 +147,9 @@ namespace detail {
                 auto j = nlohmann::json::parse(jsonStr);
                 j.get_to(p);
             }
-            p.messageFrom = from;
-            auto ret      = handler.Handle(std::move(p), context, errc);
+            MsgRecvHead& request = p;
+            request.messageFrom  = from;
+            auto ret             = handler.Handle(std::move(p), context, errc);
             if (errc == util::ErrorEnum::Success) {
                 ret.resCode = kServerRspSuccess;
                 MsgResBase resMsg;

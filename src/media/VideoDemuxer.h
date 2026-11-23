@@ -11,6 +11,8 @@
 #include <vector>
 
 #include "media/IDemuxStrategy.h"
+#include "media/LocalLoopCodecGuard.h"
+#include "media/LocalLoopTimeline.h"
 #include "media/VideoPacket.h"
 #include "util/ErrorCode.h"
 
@@ -33,12 +35,13 @@ namespace media {
     constexpr int kH265NalSps = 33;
 
     enum class ReadFrameStatus {
-        Success = 0,       // Success
-        StreamNotOpen,     // Stream not open
-        StreamEnd,         // Stream end reached
-        EmptyFrame,        // Empty frame, need to read next frame
-        NotGetIFrame,      // I-Frame not obtained after opening stream
-        ResolutionChange,  // Stream resolution changed
+        Success = 0,            // Success
+        StreamNotOpen,          // Stream not open
+        StreamEnd,              // Stream end reached
+        EmptyFrame,             // Empty frame, need to read next frame
+        NotGetIFrame,           // I-Frame not obtained after opening stream
+        ResolutionChange,       // Stream resolution changed
+        UnsafeLocalContinuity,  // Local input cannot safely continue this generation.
     };
 
     class VideoDemuxer {
@@ -76,7 +79,7 @@ namespace media {
 
         std::vector<uint8_t> GetCodecExtradata() const {
             std::lock_guard<std::mutex> lock(metadata_mtx_);
-            return extradata_;
+            return extradata_ ? *extradata_ : std::vector<uint8_t>{};
         }
 
         bool IsLiveStream() const {
@@ -87,6 +90,10 @@ namespace media {
         util::ErrorEnum OpenStream(bool repeat = false, int pullTimeoutSec = 5, int delayMs = 200);
         util::ErrorEnum FindStream(bool repeat = false);  // Get stream
         ReadFrameStatus Demux(VideoPacketPtr pkt);
+
+        // Only an admitted, still-open local file may carry recordings across
+        // a repeat. A failed seek/new stream retains the normal boundary.
+        bool CanContinueLocalLoop() const;
 
     private:
         // Frame rate control for local files
@@ -140,11 +147,21 @@ namespace media {
         int64_t start_pts_{0};                                    // For calculating frame rate
 
         std::unique_ptr<IDemuxStrategy> strategy_;
-        std::atomic<bool> is_live_{false};  // Read by status queries during reconnect.
-        std::vector<uint8_t> extradata_;    // Cached codec extradata (avcC/hevcC) from FindStream
+        std::atomic<bool> is_live_{false};                       // Read by status queries during reconnect.
+        std::shared_ptr<const std::vector<uint8_t>> extradata_;  // Annex B/avcC/hvcC snapshot from FindStream
         bool opened_{false};
         bool ready_{false};
         bool end_{false};
+
+        LocalLoopCodecGuard local_codec_guard_;
+        LocalLoopTimeline local_timeline_;
+        bool local_file_source_{false};
+        bool local_loop_candidate_{false};
+        bool local_timeline_started_{false};
+        bool local_loop_first_packet_{false};
+        bool local_clean_eof_{false};
+        float local_rate_setting_{-1.0f};
+        int64_t local_logical_stream_{0};
 
         bool key_frame_detected_;
         std::atomic<bool> stop_requested_{false};

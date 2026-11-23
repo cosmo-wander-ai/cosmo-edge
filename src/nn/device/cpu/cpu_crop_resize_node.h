@@ -36,6 +36,9 @@ protected:
 
     static void BilinearResize(const uint8_t* src, int src_w, int src_h, int channels, uint8_t* dst,
                                int dst_w, int dst_h);
+    static void BilinearResizeStrided(const uint8_t* src, int src_w, int src_h, int channels,
+                                      size_t src_stride, uint8_t* dst, int dst_w, int dst_h,
+                                      size_t dst_stride);
 
     std::string type;
     std::vector<float> h_top_crop;

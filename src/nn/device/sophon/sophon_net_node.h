@@ -61,6 +61,9 @@ private:
 
     /// Allocate device memory for all output tensors. Rolls back on failure.
     Status AllocateOutputDeviceMemory();
+    Status PrepareInputSize();
+    Status ProbeInputSize();
+    Status CheckInputSizeOutputs();
 
     /// Copy a single output tensor to a top blob (CPU or device).
     Status CopyOutputToBlob(const std::shared_ptr<Blob>& top_blob, int tensor_idx);
@@ -75,14 +78,14 @@ private:
     const bm_net_info_t* m_netinfo = nullptr;
     int m_output_num               = 0;  // Cached output count to avoid dangling m_netinfo in destructor
     std::vector<uint32_t> tensor_size_vec;
+    std::vector<size_t> tensor_capacity_vec_;
+    std::vector<bm_shape_t> selected_output_shapes_;
+    int selected_stage_{0};
 
     static std::mutex sophon_net_mutex;
     uint32_t batch_size = 1;
     netInfos netInfo_;
     size_t input_tensor_size = 0;
-
-    std::vector<const char*> bottom_tensor_names;
-    std::vector<const char*> top_tensor_names;
 };
 
 }  // namespace cosmo::nn

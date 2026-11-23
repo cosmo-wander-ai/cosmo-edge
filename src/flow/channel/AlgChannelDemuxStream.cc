@@ -224,6 +224,7 @@ void AlgChannelDemux::run() {
 
         if (is_url_changed_) {
             LOG_INFO("{}:{} CloseStream URL Change", kTag, channel_id_);
+            EndPendingLocalRepeat();
             is_need_repeat_ = false;
             CloseStream();
             streamOpened = false;
@@ -243,6 +244,7 @@ void AlgChannelDemux::run() {
     // The process gate can stop this worker before its owner reaches Stop().
     // Keep is_running_ set until Stop() has joined the thread.
     is_need_repeat_ = false;
+    EndPendingLocalRepeat();
     CloseStream();
     ClearLastFrame();
     LOG_INFO("THREAD [{}] Stop ", Name());

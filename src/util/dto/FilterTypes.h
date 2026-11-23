@@ -11,7 +11,6 @@ struct MsgAiDetFrame {
     int64_t streamIndex{0};
     int64_t index{0};
     int64_t timestamp{0};
-    bool bMsgReq{false};  // Message queue retrieval — avoid duplicate fetching
     std::vector<MsgTarget> targets;
     friend void to_json(nlohmann::json& j, const MsgAiDetFrame& v);
     friend void from_json(const nlohmann::json& j, MsgAiDetFrame& v);
@@ -33,7 +32,6 @@ struct MsgAiFilterFrame {
     int64_t streamIndex{0};
     int64_t index{0};
     int64_t timestamp{0};
-    bool bMsgReq{false};  // Message queue retrieval — avoid duplicate fetching
     bool bInputArea{false};
     std::string actionFlowId;
     std::vector<MsgFilterArea> areas;

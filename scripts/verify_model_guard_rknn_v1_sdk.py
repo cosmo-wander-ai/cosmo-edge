@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the exact Model Guard v2.4 RKNN ABI 1 SDK."""
+"""Admit the production Model Guard RKNN ABI 1 SDK for the selected chip."""
 
 from __future__ import annotations
 
@@ -166,10 +166,54 @@ def verify_manifest(data: bytes, component_hashes: dict[str, str]) -> str:
     return tree
 
 
+def verify_v260_sdk(
+    root: pathlib.Path, manifest: bytes, checksum_file: str, approved_checksum: str, components: dict[str, str]
+) -> None:
+    if not re.fullmatch(r"[0-9a-f]{64}", approved_checksum):
+        fail("Model Guard v2.6.0 requires an approved production SDK checksum-list SHA-256")
+    checksums = pathlib.Path(checksum_file)
+    if not checksums.is_absolute():
+        fail("Model Guard v2.6.0 requires an absolute SDK checksum-list path")
+    for directory in {root, root.parent, root.parent.parent, checksums.parent}:
+        if any(marker in directory.name or (directory / marker).exists()
+               for marker in ("SYNTHETIC-TEST-ONLY", "TEST_FIXTURE_DO_NOT_DEPLOY")):
+            fail("a marked Model Guard test fixture cannot satisfy production admission")
+    contents = checked_file(checksums, 128 * 1024)
+    if hashlib.sha256(contents).hexdigest() != approved_checksum:
+        fail("Model Guard v2.6.0 SDK checksum list does not match the approved SHA-256")
+    expected = dict(components)
+    for name in ("README.md", "SDK-MANIFEST.json"):
+        expected[name] = hashlib.sha256(checked_file(root / name, 128 * 1024)).hexdigest()
+    declared = {}
+    for line in contents.decode("ascii").splitlines():
+        match = re.fullmatch(r"([0-9a-f]{64})  (?:\./)?(.+)", line)
+        if not match or match[2] in declared:
+            fail("Model Guard v2.6.0 SDK checksum list contains a malformed or duplicate entry")
+        declared[match[2]] = match[1]
+    if declared != expected:
+        fail("Model Guard v2.6.0 SDK components do not match the approved checksum list")
+    document = json.loads(manifest.decode("utf-8"))
+    if (
+        not isinstance(document, dict)
+        or document.get("release_id") != "cmg-sdk-v2.6.0-rknn-abi1"
+        or document.get("guard_version") != [2, 6, 0]
+        or document.get("minimum_glibc") != "2.31"
+        or document.get("soname") != "libcosmo_model_guard_rknn.so.1"
+        or document.get("symbol_version") != "CMGR_1.0"
+        or document.get("platform_detection") != "device-tree-compatible"
+        or document.get("targets") != {"rockchip-rk3576-aarch64": 2, "rockchip-rk3588-aarch64": 4}
+        or document.get("binding_profiles") != {"rk3576-otp-id-v1": 2, "rk3588-otp-id-v1": 4}
+    ):
+        fail("Model Guard v2.6.0 SDK manifest target or ABI mismatch")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--admission-profile", choices=("production-release",), required=True)
     parser.add_argument("--sdk-root", required=True)
+    parser.add_argument("--target-chip", choices=("rk3576", "rk3588"), default="rk3576")
+    parser.add_argument("--checksum-file", default="")
+    parser.add_argument("--checksum-sha256", default="")
     parser.add_argument("--readelf", required=True)
     parser.add_argument("--nm", required=True)
     arguments = parser.parse_args()
@@ -178,7 +222,16 @@ def main() -> int:
     if not root.is_absolute() or not root.is_dir():
         fail("SDK root must be an existing absolute directory")
     header_path = root / "include/cosmo_model_guard_rknn_v1.h"
-    library_path = root / "lib/libcosmo_model_guard_rknn.so.1.0.0"
+    soname_link = root / "lib/libcosmo_model_guard_rknn.so.1"
+    if not soname_link.is_symlink():
+        fail(f"SDK linker alias is invalid: {soname_link}")
+    library_name = os.readlink(soname_link)
+    unified_sdk = library_name == "libcosmo_model_guard_rknn.so.1.1.0"
+    if not unified_sdk and (
+        arguments.target_chip != "rk3576" or library_name != "libcosmo_model_guard_rknn.so.1.0.0"
+    ):
+        fail(f"unsupported Model Guard RKNN SDK runtime for {arguments.target_chip}")
+    library_path = soname_link.parent / library_name
     provision_path = root / "bin/cosmo-model-provision"
     manifest_path = root / "SDK-MANIFEST.json"
     header = checked_file(header_path, 128 * 1024)
@@ -187,20 +240,23 @@ def main() -> int:
     manifest = checked_file(manifest_path, 128 * 1024)
     if any(path in library or path in provision for path in FORBIDDEN_CERTIFICATE_DIRECTORIES):
         fail("Model Guard RKNN SDK embeds a fixed certificate directory")
-    checked_symlink(root / "lib/libcosmo_model_guard_rknn.so.1", library_path.name)
     checked_symlink(root / "lib/libcosmo_model_guard_rknn.so", "libcosmo_model_guard_rknn.so.1")
     if (root / "share/cosmo-model-guard/TEST_FIXTURE_DO_NOT_DEPLOY").exists():
         fail("a marked Model Guard test fixture cannot satisfy production admission")
     verify_header(header)
     verify_library(library_path, pathlib.Path(arguments.readelf), pathlib.Path(arguments.nm))
-    source_tree = verify_manifest(
-        manifest,
-        {
-            "include/cosmo_model_guard_rknn_v1.h": hashlib.sha256(header).hexdigest(),
-            "lib/libcosmo_model_guard_rknn.so.1.0.0": hashlib.sha256(library).hexdigest(),
-            "bin/cosmo-model-provision": hashlib.sha256(provision).hexdigest(),
-        },
-    )
+    component_hashes = {
+        "include/cosmo_model_guard_rknn_v1.h": hashlib.sha256(header).hexdigest(),
+        library_path.relative_to(root).as_posix(): hashlib.sha256(library).hexdigest(),
+        "bin/cosmo-model-provision": hashlib.sha256(provision).hexdigest(),
+    }
+    if unified_sdk:
+        verify_v260_sdk(root, manifest, arguments.checksum_file, arguments.checksum_sha256, component_hashes)
+        sdk_profile = f"model-guard-v2.6.0-production-{arguments.target_chip}-rknn-abi1"
+    else:
+        source_tree = verify_manifest(manifest, component_hashes)
+        print(f"source_tree={source_tree}")
+        sdk_profile = "model-guard-v2.4.0-production-rk3576-rknn-abi1"
     verify_stripped_elf(provision_path, pathlib.Path(arguments.readelf))
     executable_header = run_tool(pathlib.Path(arguments.readelf), ["-h", str(provision_path)])
     if re.search(r"^\s*Type:\s+(?:DYN|EXEC)\b", executable_header, re.MULTILINE) is None:
@@ -211,14 +267,13 @@ def main() -> int:
     print(f"header_sha256={hashlib.sha256(header).hexdigest()}")
     print(f"library_sha256={hashlib.sha256(library).hexdigest()}")
     print(f"provision_tool_sha256={hashlib.sha256(provision).hexdigest()}")
-    print(f"source_tree={source_tree}")
-    print("sdk_profile=model-guard-v2.4.0-production-rk3576-rknn-abi1")
+    print(f"sdk_profile={sdk_profile}")
     return 0
 
 
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (OSError, RuntimeError) as error:
-        print(f"Model Guard v2.4 RKNN ABI 1 SDK verification failed: {error}", file=sys.stderr)
+    except (OSError, RuntimeError, ValueError) as error:
+        print(f"Model Guard RKNN ABI 1 SDK verification failed: {error}", file=sys.stderr)
         raise SystemExit(1)

@@ -31,10 +31,10 @@ next:
 - Git 和 GitHub 账号。
 - Node.js / npm，用于文档站和前端构建。
 - Docker Desktop 或 Docker Engine，并启用 Docker Compose V2。
-- C++ 后端开发需要 Bash、CMake、C++ 编译器、`pkg-config`、`clang-format`，以及 `scripts/build_cpu_test.sh` 提示的系统依赖。
+- C++ 构建和测试使用[仓库支持的构建容器](../guide/build.md#cpu-测试构建)；宿主机可使用 `clang-format` 做格式检查。
 - 可选：`cppcheck`，用于本地静态分析。
 
-Windows 开发者可以优先使用 Docker 和 PowerShell 路径；C++ 原生测试脚本仍按 Bash 环境设计。
+Windows 开发者使用已列出的 Docker 和 PowerShell 入口；CPU 测试路径按 Linux x86_64 宿主机说明。
 
 ## 推荐流程
 
@@ -89,10 +89,8 @@ git add -u
 
 CPU 后端测试构建：
 
-```bash
-bash scripts/build_cpu_test.sh
-./build_cpu/cosmo-tests
-```
+按[构建指南的 CPU 测试路径](../guide/build.md#cpu-测试构建)，在 Linux x86_64 宿主机的
+构建容器内先生成测试程序，再执行测试。该节统一维护镜像、运行库和结果判定方式。
 
 可选静态分析：
 
@@ -105,9 +103,9 @@ bash scripts/static_analysis.sh --cppcheck --staged
 Linux:
 
 ```bash
-docker compose -f docker-compose.x86.yml up -d --build
-docker compose -f docker-compose.x86.yml ps
-docker compose -f docker-compose.x86.yml down
+./scripts/docker-compose.sh -f docker-compose.x86.yml up -d --build
+./scripts/docker-compose.sh -f docker-compose.x86.yml ps
+./scripts/docker-compose.sh -f docker-compose.x86.yml down
 ```
 
 Windows PowerShell / CMD:
@@ -175,7 +173,7 @@ bash scripts/static_analysis.sh --cppcheck --staged --profile commit
 | 不知道该跑全部检查还是部分检查 | 按“验证命令速查”选择和改动相关的最小集合。 |
 | 没有 Sophon 设备 | 文档、前端、x86 Docker、CPU 测试构建都不要求 Sophon 硬件。 |
 | `docker compose` 不存在 | 安装 Docker Compose V2，或在旧环境中使用 `docker-compose` 替换命令。 |
-| C++ 依赖缺失 | 先运行 `bash scripts/build_cpu_test.sh`，按脚本报错补系统包。 |
+| C++ 依赖缺失 | 先确认使用了构建指南中的镜像和运行库路径，再检查构建日志。 |
 | 格式检查失败 | 运行 `bash scripts/format_check.sh --staged --fix`，然后重新 `git add`。 |
 
 如果修改影响公共 API、部署脚本、模型格式或流水线语义，请在 PR 中说明设计和兼容影响；也可以选择先开 issue 讨论。修改行数不设 issue 门槛。

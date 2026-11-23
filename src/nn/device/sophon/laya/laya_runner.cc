@@ -195,7 +195,7 @@ Status LayaRunner::Init(const std::string& model_path, const std::string& tokeni
             offset += parsed.header.model_sizes[i];
         }
         impl_ = std::move(state);
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     } catch (const std::bad_alloc&) {
         return Status(COSMO_NN_ERR_OUT_OF_MEMORY, "Laya initialization ran out of memory");
     } catch (const std::exception& error) {
@@ -221,7 +221,7 @@ Status LayaRunner::PrepareText(const std::string& input, std::string& output) {
                             {"image_position", q.image_position}});
         }
         output = nlohmann::json{{"backend", "laya_v"}, {"questions", rows}}.dump();
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     } catch (const std::exception& error) {
         return Status(COSMO_NN_ERR_INVALID_INPUT, error.what());
     }
@@ -304,7 +304,7 @@ Status LayaRunner::Run(const std::vector<std::vector<std::shared_ptr<Blob>>>& in
             else
                 outputs_.push_back({rows[0].at("top1") == "true" ? "是" : "否"});
         }
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     } catch (const std::bad_alloc&) {
         outputs_.clear();
         return Status(COSMO_NN_ERR_OUT_OF_MEMORY, "Laya inference ran out of memory");

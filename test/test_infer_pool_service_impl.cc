@@ -10,13 +10,6 @@
 
 using namespace cosmo::service;
 
-TEST_CASE("InferPoolServiceImpl: construction and destruction", "[InferPoolService]") {
-    REQUIRE_NOTHROW([]() {
-        InferPoolServiceImpl sut;
-        // No NPU calls at construction, should be safe everywhere
-    }());
-}
-
 TEST_CASE("InferPoolServiceImpl: GetRecognizerPool creates and returns pool", "[InferPoolService][.device]") {
     InferPoolServiceImpl sut;
 

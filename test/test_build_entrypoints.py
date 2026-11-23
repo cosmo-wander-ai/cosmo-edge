@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Run original build entrypoints with JSON-recording tool doubles.
 
-Only compiler/tool boundaries are faked. Package verification consumes real tar
-archives; these fixtures do not demonstrate a compiled or admitted SDK.
+Compiler/tool boundaries, including the ABI gate, are faked. Package content
+verification consumes real tar archives; these fixtures do not demonstrate a
+compiled or ABI-admitted SDK. The ABI gate has separate ELF fixture tests.
 """
 import hashlib
 import io
@@ -43,6 +44,19 @@ if stage == 'package':
     elif mode == 'symlink': (output / fixture.name).symlink_to(fixture)
 '''
 
+FAKE_ABI_GATE = r'''import hashlib, json, os, pathlib, sys
+args = sys.argv[1:]
+package = pathlib.Path(args[args.index('--package-root') + 1])
+engine_sha256 = hashlib.sha256((package / 'bin/cosmo-engine').read_bytes()).hexdigest()
+package_chip = (package / 'share/cosmo/target-chip.txt').read_text().strip()
+with open(os.environ['CALL_LOG'], 'a') as log:
+    log.write(json.dumps({'tool':'elf_abi_gate.py', 'argv':args, 'package_chip':package_chip,
+                         'engine_sha256':engine_sha256})+'\n')
+if os.environ.get('FAIL_STAGE') == 'abi': sys.exit(43)
+report = pathlib.Path(args[args.index('--report') + 1])
+report.write_text(json.dumps({'status':'PASS', 'fixture':True})+'\n')
+'''
+
 
 class BuildEntrypointTests(unittest.TestCase):
     def setUp(self):
@@ -50,7 +64,7 @@ class BuildEntrypointTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         for directory in ('scripts', 'fake-bin', 'config/rknn/platforms',
-                          'config/rockchip-build', 'tools/rknn'):
+                          'config/rockchip-build', 'tools/rknn', 'tools/package'):
             (self.root / directory).mkdir(parents=True, exist_ok=True)
         for script in ('build.sh', 'build_sophon_package.sh', 'build_rknn.sh',
                        'build_rockchip_package.sh', 'verify_package_contents.py',
@@ -58,13 +72,14 @@ class BuildEntrypointTests(unittest.TestCase):
             shutil.copy2(REPOSITORY / 'scripts' / script, self.root / 'scripts' / script)
         for chip in ('bm1688', 'cv186x', 'x86'):
             (self.root / 'data/resource' / ('aiboxresource_' + chip)).mkdir(parents=True)
-        for chip in ('rk3576', 'rv1126b'):
+        for chip in ('rk3576', 'rk3588', 'rv1126b'):
             shutil.copy2(REPOSITORY / f'config/rknn/platforms/{chip}.json',
                          self.root / f'config/rknn/platforms/{chip}.json')
         for name in ('media_sysroot_lock.py', 'stage_platform_resources.py'):
             (self.root / 'tools/rknn' / name).write_text(
                 "import json,os,sys\nwith open(os.environ['CALL_LOG'],'a') as f: f.write(json.dumps({'tool':sys.argv[0].split('/')[-1],'argv':sys.argv[1:]})+'\\n')\n")
         self.write_executable('fake-bin/cmake', FAKE_CMAKE)
+        (self.root / 'tools/package/elf_abi_gate.py').write_text(FAKE_ABI_GATE)
         # SDK admission uses real ELF inspection, even though CMake is a double.
         for tool in ('readelf', 'nm'):
             executable = shutil.which('aarch64-linux-gnu-' + tool) or shutil.which(tool)
@@ -90,8 +105,8 @@ class BuildEntrypointTests(unittest.TestCase):
         path.chmod(0o755)
 
     def fixture(self, chip, profile='public-runtime', mismatch=None):
-        rockchip = chip in ('rk3576', 'rv1126b')
-        lock = json.loads((REPOSITORY / 'config/rockchip-build/builder-lock.json').read_text())
+        rockchip = chip in ('rk3576', 'rk3588', 'rv1126b')
+        lock = json.loads((REPOSITORY / self.lock_path(chip)).read_text())
         policy = lock['targets'].get(chip)
         package = self.fixture_case.make_package(
             profile, b'CEMCfixture' if profile == 'production-release' else b'plain',
@@ -104,7 +119,10 @@ class BuildEntrypointTests(unittest.TestCase):
             with tarfile.open(temporary, 'w:gz') as target:
                 for member, data in members:
                     target.addfile(member, io.BytesIO(data) if data is not None else None)
+                existing = {member.name for member, _ in members}
                 for name in policy['required_package_paths']:
+                    if 'cosmo-V1.5.0/' + name in existing:
+                        continue
                     data = (json.dumps({'runtime_profile': policy['media_runtime_profile']}).encode()
                             if name.endswith('.json') else b'policy fixture')
                     member = tarfile.TarInfo('cosmo-V1.5.0/' + name)
@@ -116,8 +134,14 @@ class BuildEntrypointTests(unittest.TestCase):
         self.env['ARCHIVE_FIXTURE'] = str(package)
         return package
 
-    def configure_rockchip(self):
-        lock = json.loads((REPOSITORY / 'config/rockchip-build/builder-lock.json').read_text())
+    @staticmethod
+    def lock_path(chip):
+        filename = ('builder-lock.rk3588-glibc231.json' if chip == 'rk3588'
+                    else 'builder-lock.json')
+        return Path('config/rockchip-build') / filename
+
+    def configure_rockchip(self, chip='rk3576'):
+        lock = json.loads((REPOSITORY / self.lock_path(chip)).read_text())
         for key in ('rknn_root', 'rkllm_root'):
             lock['common'][key] = str(self.root / key)
         for chip, target in lock['targets'].items():
@@ -132,7 +156,7 @@ class BuildEntrypointTests(unittest.TestCase):
                 file = Path(root) / name
                 file.parent.mkdir(parents=True, exist_ok=True)
                 file.touch()
-        path = self.root / 'config/rockchip-build/builder-lock.json'
+        path = self.root / self.lock_path(chip)
         path.write_text(json.dumps(lock))
         image_lock = self.root / 'image-lock.json'
         shutil.copy2(path, image_lock)
@@ -356,6 +380,107 @@ class BuildEntrypointTests(unittest.TestCase):
                     prefix = Path(profile) / chip if profile == 'production-release' else Path(chip)
                     self.assertEqual((self.root / 'export' / prefix / 'MEDIA_RUNTIME_PROFILE').read_text().strip(),
                                      lock['targets'][chip]['media_runtime_profile'])
+                    self.assertFalse(any(c['tool'] == 'elf_abi_gate.py' for c in self.calls()))
+
+    def test_rk3588_isolated_builder_and_abi_gate_export(self):
+        lock = self.configure_rockchip('rk3588')
+        self.fixture('rk3588')
+        abi_sysroot = self.root / 'target ABI sysroot'
+        abi_sysroot.mkdir()
+        self.env['COSMO_ABI_TARGET_SYSROOT'] = str(abi_sysroot)
+        for name in ('COSMO_FFMPEG_ROOT', 'COSMO_TOOLCHAIN_ROOT', 'COSMO_TARGET_SYSROOT'):
+            self.env[name] = str(self.root / (name.lower() + ' with spaces'))
+        self.env['COSMO_BUILD_JOBS'] = '3'
+        self.run_script('build_rockchip_package.sh', '--chip', 'rk3588', '--models', 'preserve')
+        calls = self.calls()
+        configure = next(c for c in calls if c['tool'] == 'cmake')
+        for name in ('COSMO_FFMPEG_ROOT', 'COSMO_TOOLCHAIN_ROOT', 'COSMO_TARGET_SYSROOT'):
+            self.assertIn('-D' + name + '=' + self.env[name], configure['argv'])
+        for value in ('-DCOSMO_TARGET_CHIP=rk3588', '-DCOSMO_MODEL_GUARD_BUILD_PROFILE=public-runtime',
+                      '-DCOSMO_RKLLM_REQUIRED=OFF', '-DBUILD_VLM_EVAL=OFF',
+                      '-DCOSMO_PACKAGE_MODELS=preserve', '-DBUILD_TESTS=ON',
+                      '-DCOSMO_RKNN_ROOT=' + lock['common']['rknn_root']):
+            self.assertIn(value, configure['argv'])
+        self.assertEqual(configure['env']['COSMO_ABI_TARGET_SYSROOT'], str(abi_sysroot))
+        self.assertFalse(any(a.startswith('-DCOSMO_MODEL_GUARD_SDK_ROOT=') for a in configure['argv']))
+        compile_calls = [c for c in calls if c['tool'] == 'cmake' and '--build' in c['argv']]
+        self.assertTrue(any('-j3' in c['argv'] for c in compile_calls))
+        gates = [c for c in calls if c['tool'] == 'elf_abi_gate.py']
+        self.assertEqual(len(gates), 1)
+        audited_root = Path(gates[0]['argv'][1])
+        self.assertEqual(audited_root.name, 'cosmo-V1.5.0')
+        self.assertTrue(audited_root.parent.name.startswith('abi-audit.'))
+        self.assertEqual(audited_root.parent.parent, self.root / 'build_rknn')
+        self.assertEqual(gates[0]['package_chip'], 'rk3588')
+        self.assertEqual(gates[0]['engine_sha256'], hashlib.sha256(b'#!/bin/sh\n').hexdigest())
+        self.assertEqual(gates[0]['argv'], [
+            '--package-root', str(audited_root),
+            '--target-arch', 'aarch64', '--max-glibc', '2.31',
+            '--target-sysroot', str(abi_sysroot),
+            '--report', str(self.root / 'build_rknn/elf-abi-report.json'),
+        ])
+        package_index = next(i for i, c in enumerate(calls)
+                             if c['tool'] == 'cmake' and 'package_all' in c['argv'])
+        self.assertGreater(calls.index(gates[0]), package_index)
+        self.assert_export('rk3588', 'public-runtime')
+        output = self.root / 'export/rk3588'
+        self.assertEqual((output / 'elf-abi-report.json').read_bytes(),
+                         (self.root / 'build_rknn/elf-abi-report.json').read_bytes())
+        self.assertEqual((output / 'MEDIA_RUNTIME_PROFILE').read_text().strip(), 'rk3588-glibc231-v1')
+        self.assertFalse(audited_root.parent.exists(), 'the temporary ABI audit extraction must be removed')
+
+    def test_rk3588_does_not_fall_back_to_legacy_builder_lock(self):
+        self.configure_rockchip('rk3588')
+        legacy = self.root / self.lock_path('rk3576')
+        shutil.copy2(REPOSITORY / self.lock_path('rk3576'), legacy)
+        shutil.copy2(legacy, self.env['COSMO_ROCKCHIP_BUILDER_LOCK'])
+        result = self.run_script('build_rockchip_package.sh', '--chip', 'rk3588', success=False)
+        self.assertIn('builder image lock does not match', result.stderr)
+        self.assertEqual(self.calls(), [])
+        (self.root / self.lock_path('rk3588')).unlink()
+        result = self.run_script('build_rockchip_package.sh', '--chip', 'rk3588', success=False)
+        self.assertIn('builder-lock.rk3588-glibc231.json', result.stderr)
+        self.assertEqual(self.calls(), [])
+
+    def test_rockchip_protected_delegates_sdk_defaults_to_cmake(self):
+        self.env['COSMO_MODEL_GUARD_BUILD_PROFILE'] = 'production-release'
+        for key in ('COSMO_MODEL_GUARD_SDK_ROOT', 'COSMO_MODEL_GUARD_SDK_CHECKSUM_FILE',
+                    'COSMO_MODEL_GUARD_SDK_CHECKSUM_SHA256'):
+            self.env.pop(key, None)
+        abi_sysroot = self.root / 'target-abi-sysroot'
+        abi_sysroot.mkdir()
+        self.env['COSMO_ABI_TARGET_SYSROOT'] = str(abi_sysroot)
+        for chip in ('rk3576', 'rk3588'):
+            with self.subTest(chip=chip):
+                self.reset_outputs()
+                self.configure_rockchip(chip)
+                self.fixture(chip, 'production-release')
+                self.run_script('build_rockchip_package.sh', '--chip', chip, '--models', 'preserve')
+                args = next(c['argv'] for c in self.calls() if c['tool'] == 'cmake')
+                for name in ('COSMO_MODEL_GUARD_SDK_ROOT', 'COSMO_MODEL_GUARD_SDK_CHECKSUM_FILE',
+                             'COSMO_MODEL_GUARD_SDK_CHECKSUM_SHA256'):
+                    self.assertIn('-D' + name + '=', args)
+                self.assert_export(chip, 'production-release')
+
+    def test_rk3588_missing_abi_target_or_failed_gate_cannot_export(self):
+        self.configure_rockchip('rk3588')
+        self.fixture('rk3588')
+        self.env.pop('COSMO_ABI_TARGET_SYSROOT', None)
+        result = self.run_script('build_rockchip_package.sh', '--chip', 'rk3588',
+                                 '--models', 'preserve', success=False)
+        self.assertIn('requires COSMO_ABI_TARGET_SYSROOT', result.stderr)
+        self.assertEqual(self.calls(), [])
+        self.assertFalse(any(c['tool'] == 'elf_abi_gate.py' for c in self.calls()))
+        self.assertFalse((self.root / 'export').exists())
+        self.reset_outputs()
+        self.env['COSMO_ABI_TARGET_SYSROOT'] = str(self.root / 'ABI target')
+        Path(self.env['COSMO_ABI_TARGET_SYSROOT']).mkdir()
+        self.env['FAIL_STAGE'] = 'abi'
+        self.run_script('build_rockchip_package.sh', '--chip', 'rk3588',
+                        '--models', 'preserve', success=False)
+        self.assertEqual(len([c for c in self.calls() if c['tool'] == 'elf_abi_gate.py']), 1)
+        self.assertFalse((self.root / 'export').exists())
+        self.assertEqual(list((self.root / 'build_rknn').glob('abi-audit.*')), [])
 
     def test_rockchip_development_resource_overrides(self):
         self.configure_rockchip()

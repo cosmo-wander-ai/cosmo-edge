@@ -10,12 +10,20 @@
 
 namespace cosmo {
 
+struct AlarmOutputStatus {
+    int channel{0};
+    std::string status;
+    friend void to_json(nlohmann::json& j, const AlarmOutputStatus& v);
+    friend void from_json(const nlohmann::json& j, AlarmOutputStatus& v);
+};
+
 /// Linkage strategy output unit — query result for a single strategy.
 struct LinkageStrategyOutputUnit {
     std::string id;
     std::string name;
     std::string workFlow;
     bool status{false};
+    std::string outputStatus{"ready"};
     friend void to_json(nlohmann::json& j, const LinkageStrategyOutputUnit& v);
     friend void from_json(const nlohmann::json& j, LinkageStrategyOutputUnit& v);
 };
@@ -26,6 +34,7 @@ namespace Linkage {
     struct MsgStoragesSend : public MsgSendHead {
         struct ResData {
             std::vector<StorageList> storages;
+            std::vector<AlarmOutputStatus> alarmOutputs;
             friend void to_json(nlohmann::json& j, const ResData& v);
             friend void from_json(const nlohmann::json& j, ResData& v);
         } resData;

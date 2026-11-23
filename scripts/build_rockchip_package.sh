@@ -9,7 +9,7 @@ while (($#)); do
     case "$1" in
         --chip)
             if (($# < 2)); then
-                echo "ERROR: --chip requires rk3576 or rv1126b" >&2
+                echo "ERROR: --chip requires rk3576, rk3588 or rv1126b" >&2
                 exit 2
             fi
             chip="$2"
@@ -24,7 +24,7 @@ while (($#)); do
             shift 2
             ;;
         -h|--help)
-            echo "Usage: $0 [--chip <rk3576|rv1126b>] [--models <include|preserve>]"
+            echo "Usage: $0 [--chip <rk3576|rk3588|rv1126b>] [--models <include|preserve>]"
             exit 0
             ;;
         *)
@@ -35,9 +35,9 @@ while (($#)); do
 done
 
 case "${chip}" in
-    rk3576|rv1126b) ;;
+    rk3576|rk3588|rv1126b) ;;
     *)
-        echo "ERROR: unsupported Rockchip target '${chip}'; expected rk3576 or rv1126b" >&2
+        echo "ERROR: unsupported Rockchip target '${chip}'; expected rk3576, rk3588 or rv1126b" >&2
         exit 2
         ;;
 esac
@@ -60,6 +60,9 @@ if [ -z "${PROJECT_ROOT_PATH:-}" ]; then
     PROJECT_ROOT_PATH=$(cd "$(dirname "$0")/.." && pwd -P)
 fi
 builder_lock="${PROJECT_ROOT_PATH}/config/rockchip-build/builder-lock.json"
+if [ "${chip}" = "rk3588" ]; then
+    builder_lock="${PROJECT_ROOT_PATH}/config/rockchip-build/builder-lock.rk3588-glibc231.json"
+fi
 image_lock="${COSMO_ROCKCHIP_BUILDER_LOCK:-/opt/cosmo/rockchip-builder-lock.json}"
 if [ ! -f "${builder_lock}" ]; then
     echo "ERROR: Rockchip builder lock is missing: ${builder_lock}" >&2
@@ -103,12 +106,30 @@ test -f "${media_root}/include/rockchip/rk_mpi.h"
 test -f "${media_root}/include/rga/im2d.h"
 test -f "${media_root}/lib/librockchip_mpp.so"
 test -f "${media_root}/lib/librga.so"
+audit_options=()
+if [ "${chip}" = "rk3588" ] && [ "${build_profile}" = "production-release" ] &&
+        [ -n "${COSMO_RK3588_RKLLM_ROOT:-}" ]; then
+    rkllm_root="${COSMO_RK3588_RKLLM_ROOT}"
+    rkllm_required=ON
+    audit_options+=(--rk3588-with-rkllm)
+fi
 if [ "${rkllm_required}" = "ON" ]; then
     test -f "${rkllm_root}/include/rkllm.h"
     test -f "${rkllm_root}/lib/librkllmrt.so"
     test -f "${rkllm_root}/LICENSE"
 else
     rkllm_root="${rknn_root}"
+fi
+
+if [ "${chip}" = "rk3588" ]; then
+    if [ -z "${COSMO_ABI_TARGET_SYSROOT:-}" ]; then
+        echo "ERROR: RK3588 package admission requires COSMO_ABI_TARGET_SYSROOT" >&2
+        exit 1
+    fi
+    if [ ! -d "${COSMO_ABI_TARGET_SYSROOT}" ]; then
+        echo "ERROR: ABI target sysroot is not a directory: ${COSMO_ABI_TARGET_SYSROOT}" >&2
+        exit 1
+    fi
 fi
 
 rm -rf "${PROJECT_ROOT_PATH}/build_rknn"
@@ -132,7 +153,23 @@ python3 "${PROJECT_ROOT_PATH}/scripts/verify_package_contents.py" \
     --archive "$(cd "$(dirname "${package}")" && pwd -P)/$(basename "${package}")" \
     --build-profile "${build_profile}" \
     --target-chip "${chip}" \
-    --target-policy-lock "${builder_lock}"
+    --target-policy-lock "${builder_lock}" "${audit_options[@]}"
+
+if [ "${chip}" = "rk3588" ]; then
+    abi_root="$(mktemp -d "${PROJECT_ROOT_PATH}/build_rknn/abi-audit.XXXXXX")"
+    trap 'rm -rf -- "${abi_root}"' EXIT
+    tar --no-same-owner -xzf "${package}" -C "${abi_root}"
+    abi_package_roots=("${abi_root}"/*)
+    if ((${#abi_package_roots[@]} != 1)) || [ ! -d "${abi_package_roots[0]}" ]; then
+        echo "ERROR: ABI audit requires exactly one extracted package root" >&2
+        exit 1
+    fi
+    python3 "${PROJECT_ROOT_PATH}/tools/package/elf_abi_gate.py" \
+        --package-root "${abi_package_roots[0]}" \
+        --target-arch aarch64 --max-glibc 2.31 \
+        --target-sysroot "${COSMO_ABI_TARGET_SYSROOT}" \
+        --report "${PROJECT_ROOT_PATH}/build_rknn/elf-abi-report.json"
+fi
 
 output_root="${COSMO_BUILD_OUTPUT_ROOT:-/build_output}"
 if [ "${build_profile}" = "production-release" ]; then
@@ -143,6 +180,9 @@ fi
 rm -rf "${output_dir}"
 mkdir -p "${output_dir}"
 cp -f -- "${package}" "${output_dir}/"
+if [ "${chip}" = "rk3588" ]; then
+    cp -- "${PROJECT_ROOT_PATH}/build_rknn/elf-abi-report.json" "${output_dir}/"
+fi
 printf '%s\n' "${chip}" > "${output_dir}/TARGET_CHIP"
 printf '%s\n' "${media_runtime}" > "${output_dir}/MEDIA_RUNTIME_PROFILE"
 (

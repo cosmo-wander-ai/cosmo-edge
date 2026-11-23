@@ -380,7 +380,7 @@ namespace pipeline_utils {
         if (device == DEVICE_SOPHON_TPU && input.width % 64 != 0)
             return Status(COSMO_NN_ERR_INVALID_CFG,
                           "Sophon OBB input width must be a multiple of 64 for the current resize backend");
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     }
 
     Status MakeObbResizeTransform(Size source, Size input, int gravity, DeviceType device,
@@ -395,7 +395,7 @@ namespace pipeline_utils {
         if (gravity == 0) {
             transform.scale_x = static_cast<float>(input.width) / source.width;
             transform.scale_y = static_cast<float>(input.height) / source.height;
-            return COSMO_NN_OK;
+            return Status{COSMO_NN_OK};
         }
         if (device == DEVICE_SOPHON_TPU && gravity == 2) {
             // Sophon ResizeFrame crops a centered source rectangle before resize.
@@ -411,7 +411,7 @@ namespace pipeline_utils {
             transform.scale_y  = static_cast<float>(input.height) / crop_height;
             transform.offset_x = -((source.width - crop_width) / 2) * transform.scale_x;
             transform.offset_y = -((source.height - crop_height) / 2) * transform.scale_y;
-            return COSMO_NN_OK;
+            return Status{COSMO_NN_OK};
         }
 
         const float scale = std::min(static_cast<float>(input.width) / source.width,
@@ -434,7 +434,7 @@ namespace pipeline_utils {
             transform.offset_y = (input.height - height) / 2;
         }
         // Host gravity 2 is top-left letterbox; its offsets remain zero.
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     }
 
     std::unique_ptr<DinoEncoder> MakeDinoEncoderOp(int dst_width, int dst_height, bool is_bgr,
@@ -532,6 +532,9 @@ namespace pipeline_utils {
             config.algorithm_code = ReadString(root, "algorithm_code", std::string());
             config.version        = ReadString(root, "version", std::string("V1"));
             config.reduce         = ReadString(root, "reduce", std::string());
+            std::string size_error;
+            if (!ReadInferenceInputSizes(root, config.input_sizes, size_error))
+                return Status(COSMO_NN_ERR_INVALID_CFG, size_error);
 
             const nlohmann::json* models_json = FindObjectMember(root, "models");
             if (!models_json || !models_json->is_array() || models_json->empty())
@@ -604,7 +607,7 @@ namespace pipeline_utils {
             if (extra_config)
                 config.extra_config_json = extra_config->dump();
 
-            return COSMO_NN_OK;
+            return Status{COSMO_NN_OK};
         } catch (const nlohmann::json::exception& e) {
             return Status(COSMO_NN_ERR_JSON_PARSE, e.what());
         }

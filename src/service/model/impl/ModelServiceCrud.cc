@@ -51,6 +51,12 @@ std::string ModelServiceImpl::GenerateUniqueModelCode() {
 }
 
 void ModelServiceImpl::ValidateModelOutputFormat(const nlohmann::json& doc) {
+    InferenceInputSizes sizes;
+    std::string size_error;
+    if (!ReadInferenceInputSizes(doc, sizes, size_error))
+        throw cosmo::util::ErrorMessage(
+            cosmo::util::make_error_condition(cosmo::util::ErrorEnum::ParameterException),
+            size_error.c_str());
     std::string model_type;
     if (doc.contains("model_type") && doc["model_type"].is_string())
         model_type = doc["model_type"].get<std::string>();

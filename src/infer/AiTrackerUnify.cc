@@ -10,12 +10,14 @@
 
 namespace cosmo {
 AiTrackerUnify::AiTrackerUnify(const std::string& atomic_code, std::vector<std::string> labels,
-                               std::vector<AiConfidence> confidence, int max_width, int max_height)
+                               std::vector<AiConfidence> confidence, int max_width, int max_height,
+                               nn::ClassMatchMode class_match_mode)
     : atomic_code_(atomic_code),
       max_width_(max_width),
       max_height_(max_height),
       tracker_(std::make_shared<cosmo::nn::TrackerWrap>()) {
     if (tracker_) {
+        track_config_.class_match_mode = class_match_mode;
         cosmo::nn::Rect2f region(0.0f, 0.0f, static_cast<float>(max_width), static_cast<float>(max_height));
         auto ret = tracker_->SetRegion(region);
         LOG_INFO("Track SetRegion {}x{} Get:{}", max_width_, max_height_, ret.description());

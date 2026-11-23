@@ -21,6 +21,7 @@
 #include "nn/core/inference_pipeline_metrics.h"
 #include "nn/device/rknn/rknn_yolov8_adapter.h"
 #include "nn/node/node_type_utils.h"
+#include "nn/utils/rknn_bound_input_padding.h"
 #include "util/Log.h"
 
 namespace cosmo::nn {
@@ -628,6 +629,43 @@ bool RknnNetNode::EnsureRgaBoundInput(int height, int width, std::string& reason
     return true;
 }
 
+bool RknnNetNode::FillRgaBoundInput(uint64_t generation, const std::array<uint8_t, 3>& color,
+                                    std::string& reason) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (context_ == 0 || !bound_input_memory_ || bound_input_mode_ != BoundInputMode::RgaNativeInt8 ||
+        !shared_resource) {
+        reason = "RKNN RGB padding requires an active RGA-bound input";
+        return false;
+    }
+    auto& target = shared_resource->rknn_bound_input_target;
+    if (target.owner == this)
+        target.frame_ready = false;
+    const auto expected_stride = static_cast<int>(
+        bound_input_attr_.w_stride == 0 ? bound_input_attr_.dims[2] : bound_input_attr_.w_stride);
+    if (target.virtual_address != bound_input_memory_->virt_addr || target.fd != bound_input_memory_->fd ||
+        target.bytes != bound_input_memory_->size || target.width_stride != expected_stride ||
+        !target.Matches(static_cast<int>(bound_input_attr_.dims[1]),
+                        static_cast<int>(bound_input_attr_.dims[2]))) {
+        reason = "RKNN RGB padding target differs from the bound allocation";
+        return false;
+    }
+    const auto sync = [&](bool from_device, std::string& sync_reason) {
+        const auto started = MetricsClock::now();
+        const int result =
+            rknn_mem_sync(context_, bound_input_memory_,
+                          from_device ? RKNN_MEMORY_SYNC_FROM_DEVICE : RKNN_MEMORY_SYNC_TO_DEVICE);
+        GetInferencePipelineMetrics().RecordRknnBoundInputSync(ElapsedNanoseconds(started),
+                                                               result == RKNN_SUCC);
+        if (result != RKNN_SUCC) {
+            sync_reason = std::string("RKNN RGB padding sync ") + (from_device ? "from" : "to") +
+                          " device failed with RKNN code " + std::to_string(result);
+            return false;
+        }
+        return true;
+    };
+    return FillRknnBoundRgbPadding(target, this, generation, color, sync, reason);
+}
+
 size_t RknnNetNode::TensorElementCount(const rknn_tensor_attr& attr) const {
     if (attr.n_elems != 0)
         return attr.n_elems;
@@ -665,7 +703,8 @@ Status RknnNetNode::QueryTensorAttributes() {
         input_attrs_[index]       = {};
         input_attrs_[index].index = index;
         result =
-            rknn_query(context_, RKNN_QUERY_INPUT_ATTR, &input_attrs_[index], sizeof(input_attrs_[index]));
+            rknn_query(context_, input_sizes_.empty() ? RKNN_QUERY_INPUT_ATTR : RKNN_QUERY_CURRENT_INPUT_ATTR,
+                       &input_attrs_[index], sizeof(input_attrs_[index]));
         if (result != RKNN_SUCC)
             return RknnError("RKNN_QUERY_INPUT_ATTR", result);
     }
@@ -676,8 +715,9 @@ Status RknnNetNode::QueryTensorAttributes() {
     for (uint32_t index = 0; index < io_count_.n_output; ++index) {
         output_attrs_[index]       = {};
         output_attrs_[index].index = index;
-        result =
-            rknn_query(context_, RKNN_QUERY_OUTPUT_ATTR, &output_attrs_[index], sizeof(output_attrs_[index]));
+        result                     = rknn_query(context_,
+                            input_sizes_.empty() ? RKNN_QUERY_OUTPUT_ATTR : RKNN_QUERY_CURRENT_OUTPUT_ATTR,
+                                                &output_attrs_[index], sizeof(output_attrs_[index]));
         if (result != RKNN_SUCC)
             return RknnError("RKNN_QUERY_OUTPUT_ATTR", result);
         auto shape = TensorShape(output_attrs_[index]);
@@ -707,7 +747,53 @@ Status RknnNetNode::QueryTensorAttributes() {
     detector_model_   = yolov8_heads_ && input.n_dims == 4 && input.fmt == RKNN_TENSOR_NHWC &&
                       input.dims[0] == 1 && input.dims[1] == 640 && input.dims[2] == 640 &&
                       input.dims[3] == 3;
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
+}
+
+Status RknnNetNode::PrepareInputSize() {
+    if (input_sizes_.empty())
+        return Status{COSMO_NN_OK};
+    rknn_input_output_num count{};
+    if (rknn_query(context_, RKNN_QUERY_IN_OUT_NUM, &count, sizeof(count)) != RKNN_SUCC ||
+        count.n_input != 1 || count.n_output != 1)
+        return Status(COSMO_NN_ERR_INVALID_CFG, "Dynamic YOLO26 expects one input and one output");
+    rknn_tensor_attr input{};
+    int result = rknn_query(context_, RKNN_QUERY_INPUT_ATTR, &input, sizeof(input));
+    if (result != RKNN_SUCC)
+        return RknnError("RKNN_QUERY_INPUT_ATTR", result);
+    if (input.n_dims != 4 || (input.fmt != RKNN_TENSOR_NHWC && input.fmt != RKNN_TENSOR_NCHW))
+        return Status(COSMO_NN_ERR_INVALID_CFG, "Dynamic detector requires a 4D image input");
+    rknn_input_range range{};
+    result = rknn_query(context_, RKNN_QUERY_INPUT_DYNAMIC_RANGE, &range, sizeof(range));
+    if (result != RKNN_SUCC)
+        return RknnError("RKNN_QUERY_INPUT_DYNAMIC_RANGE", result);
+    if (range.n_dims != 4 || range.fmt != input.fmt)
+        return Status(COSMO_NN_ERR_INVALID_CFG, "RKNN dynamic input layout is inconsistent");
+    const int height_axis  = input.fmt == RKNN_TENSOR_NHWC ? 1 : 2;
+    const int width_axis   = height_axis + 1;
+    const int channel_axis = input.fmt == RKNN_TENSOR_NHWC ? 3 : 1;
+    if (range.shape_number == 0 || range.shape_number > RKNN_MAX_DYNAMIC_SHAPE_NUM)
+        return Status(COSMO_NN_ERR_INVALID_CFG, "RKNN model has no supported dynamic input sizes");
+    for (const auto& size : input_sizes_) {
+        bool found = false;
+        for (uint32_t i = 0; i < range.shape_number; ++i) {
+            const auto* dims = range.dyn_range[i];
+            if (dims[0] == 1 && dims[channel_axis] == 3 &&
+                dims[height_axis] == static_cast<uint32_t>(size.height) &&
+                dims[width_axis] == static_cast<uint32_t>(size.width))
+                found = true;
+        }
+        if (!found)
+            return Status(COSMO_NN_ERR_INVALID_CFG, "Declared size is absent from the RKNN artifact");
+    }
+    input.dims[0]            = 1;
+    input.dims[channel_axis] = 3;
+    input.dims[height_axis]  = selected_input_size_.height;
+    input.dims[width_axis]   = selected_input_size_.width;
+    result                   = rknn_set_input_shapes(context_, 1, &input);
+    if (result != RKNN_SUCC)
+        return RknnError("rknn_set_input_shapes", result);
+    return Status{COSMO_NN_OK};
 }
 
 Status RknnNetNode::LoadWeight(const char* data, size_t size) {
@@ -768,7 +854,9 @@ Status RknnNetNode::InitializeLoadedContext(uint64_t context_sequence) {
         DestroyContext();
         return RknnError("RKNN_QUERY_SDK_VERSION", result);
     }
-    auto status = QueryTensorAttributes();
+    auto status = PrepareInputSize();
+    if (status)
+        status = QueryTensorAttributes();
     if (!status) {
         DestroyContext();
         return status;
@@ -798,7 +886,7 @@ Status RknnNetNode::InitializeLoadedContext(uint64_t context_sequence) {
         RknnOutputAdapterName(output_adapter_contract_.kind), native_yolov8_outputs_,
         IsRknnRgbUint8InputContract(input_contract_), RknnCoreModeName(core_mode),
         static_cast<int>(core_mask), configure_core_mask, context_sequence);
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 DeviceType RknnNetNode::GetTopBlobDeviceType() {
@@ -814,7 +902,7 @@ Status RknnNetNode::InferTopShapes() {
     if (yolov8_heads_) {
         top_blob_shapes.push_back({1, 4 + yolov8_class_count_, yolov8_point_count_});
         top_blob_data_types.push_back(DATA_TYPE_FLOAT);
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     }
     for (const auto& attr : output_attrs_) {
         auto shape = TensorShape(attr);
@@ -824,7 +912,7 @@ Status RknnNetNode::InferTopShapes() {
         // rknn_outputs_get(want_float=1) always materializes float output.
         top_blob_data_types.push_back(DATA_TYPE_FLOAT);
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status RknnNetNode::PrepareInput(const Blob& blob, std::vector<float>& nhwc, int& height, int& width) const {
@@ -874,7 +962,7 @@ Status RknnNetNode::PrepareInput(const Blob& blob, std::vector<float>& nhwc, int
                     source[static_cast<size_t>(channel) * plane + pixel];
         }
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status RknnNetNode::PrepareNativeCompatibilityInput(const Blob& blob, std::vector<float>& nhwc, int& height,
@@ -901,7 +989,7 @@ Status RknnNetNode::PrepareNativeCompatibilityInput(const Blob& blob, std::vecto
     constexpr float kNormalizeScale = 0.00392157f;
     for (size_t index = 0; index < count; ++index)
         nhwc[index] = static_cast<float>(static_cast<int>(source[index]) + 128) * kNormalizeScale;
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status RknnNetNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
@@ -1257,7 +1345,7 @@ Status RknnNetNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
     result = release_outputs();
     if (result != RKNN_SUCC)
         return finish(RknnError("rknn_outputs_release", result));
-    return finish(COSMO_NN_OK);
+    return finish(Status{COSMO_NN_OK});
 }
 
 }  // namespace cosmo::nn

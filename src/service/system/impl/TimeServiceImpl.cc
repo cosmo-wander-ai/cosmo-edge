@@ -25,6 +25,7 @@
 #include "util/JsonStructUtil.h"
 #include "util/LimitedTypeJson.h"
 #include "util/PathUtil.h"
+#include "util/RuntimeIsolation.h"
 #include "util/TimeUtil.h"
 
 namespace cosmo::service {
@@ -305,7 +306,7 @@ TimeServiceImpl::~TimeServiceImpl() {
 
 int64_t TimeServiceImpl::NtpCalibrate(const std::string& host, int port,
                                       const std::shared_ptr<NtpOperation>& operation) {
-    if (operation == nullptr || operation->IsCancelled()) {
+    if (runtime::IsIsolatedRuntime() || operation == nullptr || operation->IsCancelled()) {
         return 0;
     }
 
@@ -391,6 +392,9 @@ void TimeServiceImpl::StopNtpTimer() {
 }
 
 bool TimeServiceImpl::StartNtpTimer(int interval_min, const std::string& host, int port) {
+    if (runtime::IsIsolatedRuntime()) {
+        return false;
+    }
     int interval_sec = interval_min * 60;
     if (interval_sec < kMinSyncIntervalSec) {
         interval_sec = kMinSyncIntervalSec;
@@ -502,6 +506,9 @@ void TimeServiceImpl::LoadConfig() {
         LOG_ERRO("{}", "Embedded timezone list does not contain the default timezone");
     }
 
+    if (runtime::IsIsolatedRuntime()) {
+        ntp_persist_->enable = 0;
+    }
     if (ntp_persist_->enable == 1 &&
         !StartNtpTimer(ntp_persist_->interval, ntp_persist_->ntp_server, ntp_persist_->ntp_port)) {
         LOG_ERRO("{}", "Failed to restore persisted NTP timer");
@@ -620,6 +627,9 @@ TimeStatus TimeServiceImpl::GetTimeStatus(std::vector<TimeZoneItem>& zones) {
 }
 
 util::ErrorEnum TimeServiceImpl::SyncNtp(const NtpConfig& config, int time_zone_id) {
+    if (runtime::IsIsolatedRuntime()) {
+        return util::ErrorEnum::OperationNotSupport;
+    }
     if (time_zone_id < 1 || time_zone_id > 95 || config.enable < 0 || config.enable > 2) {
         return cosmo::util::ErrorEnum::InvalidParam;
     }
@@ -692,6 +702,9 @@ util::ErrorEnum TimeServiceImpl::SyncNtp(const NtpConfig& config, int time_zone_
 }
 
 cosmo::util::ErrorEnum TimeServiceImpl::SetTime(int64_t timestamp, int time_zone_id) {
+    if (runtime::IsIsolatedRuntime()) {
+        return util::ErrorEnum::OperationNotSupport;
+    }
     std::lock_guard<std::mutex> lock(mutex_);
     if (timestamp <= 0 || time_zone_id < 1 || time_zone_id > 95) {
         return cosmo::util::ErrorEnum::InvalidParam;

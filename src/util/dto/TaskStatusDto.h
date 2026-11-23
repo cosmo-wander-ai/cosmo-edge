@@ -88,8 +88,6 @@ struct ActionRuntimeSon {
 
 struct ActionRuntimeInfo {
     std::string actionId;
-    std::string channelId;
-    bool bChannelReuse{false};  // NOTE: currently always false; mirrored to ClientMsgError for JSON output
     float maxTaskFps{0.0};
     std::string queueName;
     std::vector<ActionRuntimeSon> sons;
@@ -97,16 +95,6 @@ struct ActionRuntimeInfo {
 
 struct TaskStatus {
     std::string channelId;
-    std::string taskId;
-    std::string streamUrl;         // Video stream URL
-    std::string algorithmId;       // Algorithm ID
-    std::string algorithmName;     // Algorithm name
-    std::string algorithmVersion;  // Algorithm version
-    std::vector<AlgActionDataQueueStatusDto> queStatus;
-    std::vector<ActionRuntimeInfo> actionInfo;
-};
-
-struct PTaskStatus {
     std::string taskId;
     std::string streamUrl;         // Video stream URL
     std::string algorithmId;       // Algorithm ID

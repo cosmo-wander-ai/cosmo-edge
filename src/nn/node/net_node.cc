@@ -37,15 +37,20 @@ void NetNode::SetInputContract(std::string contract) {
     input_contract_ = std::move(contract);
 }
 
+void NetNode::SetInputSizes(std::vector<InferenceInputSize> sizes, InferenceInputSize selected) {
+    input_sizes_         = std::move(sizes);
+    selected_input_size_ = selected;
+}
+
 Status NetNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blob,
                         std::vector<std::shared_ptr<Blob>>& params,
                         std::vector<std::shared_ptr<Blob>>& top_blobs) {
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status NetNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blob,
                         std::vector<std::shared_ptr<Blob>>& top_blobs) {
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

@@ -38,6 +38,8 @@ jobs:
               python3 test/test_package_profile.py
               python3 test/test_runtime_supervisor.py
               bash test/test_runtime_paths.sh
+              python3 test/test_prepare_alarm_outputs.py
+              python3 test/test_sophon_alarm_output_startup.py
               bash test/test_rk3576_startup_defaults.sh
               bash test/test_legacy_migration_installer.sh
               python3 test/test_upgrade_model_storage.py
@@ -47,6 +49,8 @@ jobs:
               python3 test/test_srs_gb28181_audio.py \
                 "$audio_test_dir/srs-source/src/app/srs_app_gb28181.cpp"
               python3 test/test_srs_gb28181_frames.py \
+                "$audio_test_dir/srs-source/src/app/srs_app_gb28181.cpp"
+              python3 test/test_srs_gb28181_rtmp_control.py \
                 "$audio_test_dir/srs-source/src/app/srs_app_gb28181.cpp"
               python3 test/test_verify_model_guard_v2_sdk.py
               python3 test/test_verify_model_guard_rknn_v1_sdk.py

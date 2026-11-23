@@ -14,7 +14,6 @@ namespace cosmo::service {
 struct BlockStatusDto {
     pid_t thread_id{0};
     int64_t duration{0};
-    int64_t malloc_timepoint{0};
 };
 
 struct PoolStatusDto {

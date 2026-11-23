@@ -9,6 +9,7 @@
 
 #include "util/Exec.h"
 #include "util/Log.h"
+#include "util/RuntimeIsolation.h"
 #include "util/TimingConstants.h"
 
 namespace {
@@ -17,6 +18,10 @@ constexpr char kModelAuthorizationDirectory[] = "model-guard";
 
 // Execute an immediate system reboot via the `reboot` command.
 void ImmReboot() {
+    if (cosmo::runtime::IsIsolatedRuntime()) {
+        LOG_WARN("{}", "System reboot is disabled in isolated runtime");
+        return;
+    }
     if (!cosmo::platform::SupportsSystemReboot()) {
         LOG_WARN("{}", "System reboot is disabled on the current backend.");
         return;
@@ -31,6 +36,10 @@ void ImmReboot() {
 namespace cosmo::platform {
 
 std::error_code ClearFactoryResetData(const std::string& baseDir) {
+    if (cosmo::runtime::IsIsolatedRuntime()) {
+        LOG_WARN("{}", "Factory-reset data deletion is disabled in isolated runtime");
+        return std::make_error_code(std::errc::operation_not_permitted);
+    }
     std::error_code ec;
     for (std::filesystem::directory_iterator entry(baseDir, ec), end; !ec && entry != end;) {
         const auto path = entry->path();
@@ -54,6 +63,10 @@ void RebootManager::JoinPendingLocked() {
 }
 
 void RebootManager::Reboot(const std::string& reason) {
+    if (cosmo::runtime::IsIsolatedRuntime()) {
+        LOG_WARN("{}", "System reboot is disabled in isolated runtime");
+        return;
+    }
     LOG_INFO("REBOOT:{}", reason);
     sync();
     cosmo::log::FlushLog();
@@ -67,6 +80,10 @@ void RebootManager::Reboot(const std::string& reason) {
 }
 
 void RebootManager::Reset(const std::string& reason, const std::string& baseDir) {
+    if (cosmo::runtime::IsIsolatedRuntime()) {
+        LOG_WARN("{}", "Factory reset is disabled in isolated runtime");
+        return;
+    }
     LOG_INFO("ResetSystem:{}", reason);
     sync();
     cosmo::log::FlushLog();

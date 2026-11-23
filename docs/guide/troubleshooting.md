@@ -26,7 +26,7 @@ http://127.0.0.1:8080
 - **Linux**:
 
   ```bash
-  docker compose -f docker-compose.x86.yml ps
+  ./scripts/docker-compose.sh -f docker-compose.x86.yml ps
   ```
 
 - **Windows (PowerShell/CMD)**:
@@ -46,7 +46,7 @@ http://127.0.0.1:8080
 - **Linux**:
 
   ```bash
-  docker compose -f docker-compose.x86.yml logs -f
+  ./scripts/docker-compose.sh -f docker-compose.x86.yml logs -f
   ```
 
 - **Windows (PowerShell/CMD)**:
@@ -137,7 +137,7 @@ git check-attr text eol -- 3rd/mp4v2-2.0.0/configure 3rd/openssl-3.5.3/config 3r
 - **Linux**:
 
   ```bash
-  docker compose -f docker-compose.x86.yml up -d --build
+  ./scripts/docker-compose.sh -f docker-compose.x86.yml up -d --build
   ```
 
 - **Windows (PowerShell/CMD)**:
@@ -150,7 +150,8 @@ Sophon 的完整构建入口、profile 和输出约定以[构建指南](./build.
 例如，默认 BM1688 Open 构建完成后可直接检查芯片目录：
 
 ```bash
-./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package
+./scripts/docker-compose.sh -f docker-compose.sophon.yml \
+  run --rm cosmo-sophon-package --chip bm1688
 cat build_output/public-runtime/bm1688/TARGET_CHIP
 (cd build_output/public-runtime/bm1688 && sha256sum -c SHA256SUMS)
 ```
@@ -171,10 +172,11 @@ Sophon 产物不会直接写在 `build_output/` 根目录。每个
 如果构建失败，请重新运行同一入口并检查末尾日志：
 
 ```bash
-./scripts/docker-compose.sh -f docker-compose.sophon.yml run --rm cosmo-sophon-package --chip cv186x 2>&1 | tail -50
+./scripts/docker-compose.sh -f docker-compose.sophon.yml \
+  run --rm cosmo-sophon-package --chip cv186x 2>&1 | tail -50
 ```
 
-检查 BM1688 构建时把末尾型号改为 `bm1688`，或省略型号。
+检查 BM1688 构建时把末尾型号改为 `bm1688`，与原失败命令保持一致。
 
 常见问题：
 
@@ -183,9 +185,9 @@ Sophon 产物不会直接写在 `build_output/` 根目录。每个
 - `COSMO_MODEL_GUARD_BUILD_PROFILE` 取值不受支持——只接受
   `public-runtime` 和 `production-release`。
 - 芯片型号不受支持——只接受 `bm1688` 和 `cv186x`；省略时默认 `bm1688`。
-- 在非受控发布环境选择 `production-release`——缺少正式 SDK、设备初始化、
-  信任身份、签发者或发布引导输入时按设计拒绝构建。普通源码修改应使用
-  默认 Open（内部配置 `public-runtime`），不要绕过正式发布检查。
+- 选择 `production-release` 后缺少配套 SDK 或仍使用明文预设模型——按
+  [高级构建选项](./build.md#高级构建选项)核对目标 SDK、模型策略和输出目录。
+  设备授权是模型使用的前提，不等于构建时需要连接设备。
 
 ## 受保护 preset 无法加载
 

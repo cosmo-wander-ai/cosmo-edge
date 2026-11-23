@@ -173,12 +173,6 @@ TEST_CASE("LiveStreamServiceImpl: 视频流管理核心逻辑", "[live-stream]")
         REQUIRE_FALSE(gate->channel_lease_acquired);
     }
 
-    SECTION("SetViewCounts 不发生崩溃") {
-        sut.SetViewCounts(16);
-        // 这仅仅是个 setter，保证无异常抛出即可
-        REQUIRE(true);
-    }
-
     SECTION("Last ready viewer releases its preview lease exactly once") {
         cosmo::ActionNode action;
         auto channel = std::make_shared<cosmo::AlgChannel>("channel_1", "task_1", action, "rtsp://url");

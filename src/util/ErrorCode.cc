@@ -113,6 +113,7 @@ std::string ErrorCategory::message(int code) const {
         CaseStr(PersonPicQualityIllegal, "工服照片质量不合格");
         CaseStr(DecodeFailed, "图像解码失败");
         CaseStr(EncodeFailed, "编码路数超过上线");
+        CaseStr(AlarmOutputUnavailable, "告警输出不可用，请检查板卡映射和 GPIO 初始化");
         CaseStr(UnknownOperation, "操作类型错误");
 
         CaseStr(AuthFailed, "鉴权失败");
@@ -318,6 +319,7 @@ std::string ErrorEnumName(ErrorEnum code) {
         CaseName(PersonPicSizeIllegal);
         CaseName(DecodeFailed);
         CaseName(EncodeFailed);
+        CaseName(AlarmOutputUnavailable);
         CaseName(UnknownOperation);
         CaseName(AuthFailed);
         CaseName(LoginFailed);

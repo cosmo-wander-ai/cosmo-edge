@@ -77,12 +77,4 @@ struct CMsgHeartBeatReq : public MsgRecvHead {
 void to_json(nlohmann::json& j, const CMsgHeartBeatReq& r);
 void from_json(const nlohmann::json& j, CMsgHeartBeatReq& r);
 
-// Heartbeat response
-struct CMsgHeartBeatRsp : public MsgSendHead {
-    struct {
-        std::string user;
-        std::string token;
-    } resData;
-};
-
 }  // namespace cosmo

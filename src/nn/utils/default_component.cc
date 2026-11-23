@@ -26,6 +26,9 @@ DefaultComponent::DefaultComponent(const Options& options, std::string json_path
     status = pipeline_utils::ParsePipelineConfig(json_content, config);
     if (!bool(status))
         throw std::invalid_argument("Failed to parse pipeline config: " + std::string(status.description()));
+    config.requested_input_size = options.input_size;
+    if (options.input_size && config.model_type != "yolo26_det")
+        throw std::invalid_argument("Input size selection is supported only for YOLO26 detection");
 
     auto& registry = ModelPipelineRegistry::Instance();
     if (!registry.Has(config.model_type)) {
@@ -76,7 +79,7 @@ Status DefaultComponent::SetThreshold(int id, float threshold) {
     return pipeline_->SetThreshold(id, threshold);
 }
 
-Status DefaultComponent::SetThreshold(std::string label, float threshold) {
+Status DefaultComponent::SetThreshold(const std::string& label, float threshold) {
     return pipeline_->SetThreshold(label, threshold);
 }
 
@@ -84,7 +87,7 @@ Status DefaultComponent::GetThreshold(int id, float* threshold) {
     return pipeline_->GetThreshold(id, threshold);
 }
 
-Status DefaultComponent::GetThreshold(std::string label, float* threshold) {
+Status DefaultComponent::GetThreshold(const std::string& label, float* threshold) {
     return pipeline_->GetThreshold(label, threshold);
 }
 
@@ -92,7 +95,7 @@ Status DefaultComponent::GetCategoryInfo(int class_id, CategoryInfo& info) {
     return pipeline_->GetCategoryInfo(class_id, info);
 }
 
-Status DefaultComponent::GetCategoryInfo(std::string label, CategoryInfo& info) {
+Status DefaultComponent::GetCategoryInfo(const std::string& label, CategoryInfo& info) {
     return pipeline_->GetCategoryInfo(label, info);
 }
 

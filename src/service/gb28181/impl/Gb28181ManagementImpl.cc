@@ -25,6 +25,7 @@
 #include "util/Log.h"
 #include "util/PathUtil.h"
 #include "util/ProcessShutdown.h"
+#include "util/RuntimeIsolation.h"
 
 namespace cosmo::service {
 namespace {
@@ -1066,6 +1067,9 @@ struct Gb28181ManagementImpl::Impl {
 Gb28181ManagementImpl::Gb28181ManagementImpl() : impl_(std::make_unique<Impl>()) {}
 Gb28181ManagementImpl::~Gb28181ManagementImpl() = default;
 void Gb28181ManagementImpl::Init() {
+    if (runtime::IsIsolatedRuntime()) {
+        return;
+    }
     auto& state       = *impl_;
     state.http_       = &ServiceRegistry::Instance().Get<IHttpClient>();
     state.store_      = std::make_unique<gb::ConfigStore>(path::GetCfgPath("gb28181"));

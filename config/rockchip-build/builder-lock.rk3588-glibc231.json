@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "image_repository": "cosmo-edge-build-env-rk3588-glibc231",
+  "scope": "RK3588 public-runtime CV candidate; no RKLLM qualification",
+  "common": {
+    "architecture": "linux/amd64",
+    "target_architecture": "aarch64",
+    "glibc_max": "2.31",
+    "rknn_root": "/opt/rknn",
+    "rkllm_root": "/opt/rknn",
+    "ffmpeg_root": "/opt/ffmpeg-glibc231"
+  },
+  "sources": {
+    "base": {
+      "repository": "docker.io/library/debian",
+      "variant": "bullseye-slim",
+      "identity": "required BULLSEYE_BASE RepoDigest, recorded in builder-versions.json",
+      "revision": "sha256:e5b6442dd2e9684cf5e87d8338b5968f3b348636fc0be6d7850a381e3731a2bd"
+    },
+    "host_tools": {
+      "identity": "required admitted ROCKCHIP_SDK_IMAGE RepoDigest, recorded in builder-versions.json",
+      "node": "20.11.0",
+      "rust": "1.95.0"
+    },
+    "apt_snapshot": "20260803T000000Z",
+    "apt_source_modes": {
+      "default": "snapshot",
+      "allowed": ["snapshot", "live", "mirror-ustc"],
+      "live_suites": ["bullseye", "bullseye-security"],
+      "live_repositories": ["http://deb.debian.org/debian", "http://archive.debian.org/debian-security"],
+      "mirror_ustc_repositories": ["http://mirrors.ustc.edu.cn/debian", "http://archive.debian.org/debian-security"],
+      "security_archive": "Bullseye LTS ended on 2026-08-31. Live and mirror-ustc use the official archived bullseye-security suite, not currently maintained security updates. Only that archived source sets check-valid-until=no; APT signature verification remains enabled.",
+      "evidence": "builder-versions.json records the actual mode and source URLs; evidence/dpkg-packages.tsv freezes resolved versions. Live and mirror-ustc modes use archived security packages and retain APT signature verification but are not reproducible package snapshots."
+    },
+    "cmake": "3.22.1",
+    "cmake_wheel": {
+      "filename": "cmake-3.22.1-py2.py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "sha256": "99cd7a3a33f6b78cb211334e120ed8d22f80c614d349e2b93fd958e0e9b89f7e",
+      "size_bytes": 22653575,
+      "default_source": "pypi",
+      "sources": {
+        "pypi": "https://files.pythonhosted.org/packages/26/e5/be65a604a2af840654e5b874d389dcefea6c617a59c474e51846b259a3bb/cmake-3.22.1-py2.py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+        "tuna": "https://pypi.tuna.tsinghua.edu.cn/packages/26/e5/be65a604a2af840654e5b874d389dcefea6c617a59c474e51846b259a3bb/cmake-3.22.1-py2.py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+      },
+      "evidence": "evidence/cmake-wheel.json records the selected download source and verified artifact hash; the PyPI URL remains the primary artifact identity."
+    },
+    "ffmpeg": {
+      "url": "https://ffmpeg.org/releases/ffmpeg-4.4.6.tar.xz",
+      "sha256": "2290461f467c08ab801731ed412d8e724a5511d6c33173654bd9c1d2e25d0617",
+      "default_source": "official",
+      "sources": {
+        "official": "https://ffmpeg.org/releases/ffmpeg-4.4.6.tar.xz",
+        "macports": "https://distfiles.macports.org/ffmpeg/ffmpeg-4.4.6.tar.xz",
+        "macports-aliyun": "https://mirrors.aliyun.com/macports/distfiles/ffmpeg/ffmpeg-4.4.6.tar.xz",
+        "macports-tuna": "https://mirrors.tuna.tsinghua.edu.cn/macports/distfiles/ffmpeg/ffmpeg-4.4.6.tar.xz"
+      },
+      "evidence": "All download sources must match the same official release SHA256. evidence/ffmpeg-source.json, ffmpeg-manifest.json and builder-versions.json record the selected source and actual URL.",
+      "patch": "cmake/patch_ffmpeg_flv_hevc.cmake",
+      "patch_sha256": "cb474cb8800943b9e23569f9aae29215547278467dba8d047cd5573d949b3ed0"
+    },
+    "mpp": {
+      "repository": "https://github.com/rockchip-linux/mpp",
+      "revision": "c08762ebfadeb4e986d2fed993bc7a54862d3ebe",
+      "default_source_mode": "git",
+      "source_modes": ["git", "archive"],
+      "source_date_epoch": 1786432684,
+      "commit_metadata": {
+        "url": "https://api.github.com/repos/rockchip-linux/mpp/commits/c08762ebfadeb4e986d2fed993bc7a54862d3ebe",
+        "committer_date": "2026-08-11T07:18:04Z",
+        "tree": "35ceb2042ad9941b21c604885983264bd48d35da"
+      },
+      "archive": {
+        "url": "https://codeload.github.com/rockchip-linux/mpp/tar.gz/c08762ebfadeb4e986d2fed993bc7a54862d3ebe",
+        "sha256": "82da3d7ea5926021d48fcaf56cde2e6cb39c3eaad11e06f3cf2a9bfbb3133852",
+        "size_bytes": 4247425,
+        "content_tree_sha1": "35ceb2042ad9941b21c604885983264bd48d35da",
+        "identity_verification": "The downloaded archive's content tree was independently reconstructed and matched the official commit API tree. This binds the locked archive SHA256 to the source tree; it is not a Git checkout. The builder rechecks the archive SHA256 rather than repeating that tree reconstruction."
+      },
+      "evidence": "Git mode verifies HEAD and commit epoch; archive mode verifies the locked official GitHub archive SHA256 and does not claim a Git checkout. Optional MPP_ARCHIVE_URL changes transport only; actual and primary URLs are retained in evidence/rockchip-source-mpp.json and builder-versions.json. Archive builds retain upstream's missing-VCS version text, so binary equality with Git builds is not claimed."
+    },
+    "rga": {
+      "repository": "https://github.com/airockchip/librga",
+      "revision": "2b32edcb97b601b25683e2941d888c8515da6d55",
+      "acquisition": "admitted-sdk",
+      "sdk_path": "/opt/rockchip-media/rv1126b",
+      "evidence": "Only include/rga, lib/librga.so and the librga license are copied from the RepoDigest-bound SDK. The rk3588 media runtime lock and seal verify required header, library, ELF and license identities. evidence/rockchip-source-rga.json and builder-versions.json record the SDK and official source provenance."
+    }
+  },
+  "targets": {
+    "rk3588": {
+      "media_runtime_profile": "rk3588-glibc231-v1",
+      "media_root": "/opt/rockchip-media/rk3588",
+      "rkllm_required": false,
+      "required_package_paths": [
+        "share/cosmo/platform/rockchip-media-manifest.json",
+        "share/licenses/rockchip-media/mpp/Apache-2.0",
+        "share/licenses/rockchip-media/mpp/MIT",
+        "share/licenses/rockchip-media/librga/COPYING",
+        "licenses/ffmpeg/manifest.json"
+      ],
+      "forbidden_package_paths": [
+        "lib/librkllmrt.so",
+        "share/licenses/rkllm/LICENSE"
+      ]
+    }
+  }
+}

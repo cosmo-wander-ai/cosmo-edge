@@ -61,7 +61,9 @@ class PUBLIC Status {
 public:
     ~Status();
 
-    Status(int c = COSMO_NN_OK, std::string message = "OK");
+    Status();
+    explicit Status(int c);
+    Status(int c, std::string message);
 
     Status& operator=(int c);
 
