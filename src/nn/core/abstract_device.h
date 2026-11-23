@@ -14,7 +14,7 @@ class AbstractDevice {
 public:
     explicit AbstractDevice(DeviceType type);
 
-    virtual ~AbstractDevice(){};
+    virtual ~AbstractDevice() {};
 
     virtual BlobMemorySizeInfo Calculate(BlobDesc& desc) = 0;
 
