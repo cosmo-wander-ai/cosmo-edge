@@ -13,7 +13,7 @@
   "type": "module",
   "scripts": {
     "docs:dev": "vitepress dev docs",
-    "docs:build": "vitepress build docs && node scripts/copy-static-benchmark-assets.mjs && node scripts/generate-v1.1-benchmark-pages.mjs",
+    "docs:build": "vitepress build docs && node scripts/copy-static-benchmark-assets.mjs && node scripts/generate-v1.1-benchmark-pages.mjs && node scripts/generate-ax650n-short-report.mjs",
     "docs:preview": "vitepress preview docs",
     "gitee:readme:generate": "node scripts/generate-gitee-readme.mjs",
     "gitee:readme:check": "node scripts/generate-gitee-readme.mjs --check",

@@ -669,7 +669,7 @@ function renderStepTable(locale, item) {
   return table(headers, rows);
 }
 
-function page(locale, title, nav, body) {
+export function page(locale, title, nav, body) {
   return `<!doctype html>
 <html lang="${locale}">
 <head>
@@ -717,7 +717,7 @@ function individualCaseNav(locale) {
   return `<nav class="report-nav" aria-label="Report navigation">${anchor(`../../../../report${zh ? '.zh-CN' : ''}.html`, zh ? '多平台报告' : 'Multi-platform report')}${anchor(`../../report${zh ? '.zh-CN' : ''}.html`, zh ? '平台概览' : 'Platform overview')}${anchor(`../report${zh ? '.zh-CN' : ''}.html`, zh ? '用例索引' : 'Case index')}${anchor(`report${zh ? '' : '.zh-CN'}.html`, zh ? 'English' : '中文')}</nav>`;
 }
 
-function table(headers, rows) {
+export function table(headers, rows) {
   return `<div class="table" tabindex="0" role="region" aria-label="Scrollable data table"><table><thead><tr>${headers.map((item) => `<th>${escapeHtml(item)}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((item) => `<td${statusAttribute(item)}>${renderCell(item)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 
@@ -738,7 +738,7 @@ function anchor(href, text) {
   return `<a href="${escapeHtml(href)}">${escapeHtml(text)}</a>`;
 }
 
-function notice(text, extraClass = '') {
+export function notice(text, extraClass = '') {
   return `<p class="notice${extraClass ? ` ${extraClass}` : ''}">${escapeHtml(text)}</p>`;
 }
 
