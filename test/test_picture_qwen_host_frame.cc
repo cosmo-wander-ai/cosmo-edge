@@ -1,6 +1,8 @@
 #include "catch_amalgamated.hpp"
 
 #if defined(COSMO_MEDIA_USE_CPU_BACKEND)
+#include <algorithm>
+
 #include "flow/qwen3vl/PQwen3VLWorker.h"
 #include "media/IOsdTextRenderer.h"
 #include "mem/AllocatorCpu.h"
@@ -8,7 +10,12 @@
 #include "mem/MemoryPoolMng.h"
 #include "service/ai/ILlmInferService.h"
 #include "service/media/impl/VideoFrameServiceImpl.h"
+#include "service/path/impl/FileServiceImpl.h"
 #include "support/ScopedServiceOverride.h"
+
+#define private public
+#include "flow/task/PTaskBase.h"
+#undef private
 
 namespace {
 class PictureDeviceContext final : public cosmo::mem::IDeviceContext {
@@ -73,7 +80,100 @@ public:
         return !fail_transfer && VideoFrameServiceImpl::EnsureHostData(frame);
     }
 };
+
+class PictureOverlay final : public cosmo::service::VideoFrameServiceImpl {
+public:
+    VideoFramePtr CopyJpegSrcFrame(VideoFramePtr frame) override {
+        ++copies;
+        return copies == 1 ? frame : synced_frame;
+    }
+    VideoFramePtr DrawLines(VideoFramePtr frame,
+                            std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>>,
+                            const cosmo::media::Color& color, int) override {
+        draw_colors.push_back(color);
+        if (color.red == 255)
+            data->chanDataDetect.detRet = next_detections;
+        return frame;
+    }
+    bool EnsureHostData(VideoFramePtr) override {
+        ++host_transfers;
+        return true;
+    }
+    std::vector<u_char> EncodeJpeg(const VideoFramePtr frame, int) override {
+        encoded_frame = frame;
+        return {1, 2, 3};
+    }
+
+    cosmo::AlgDataPtr data;
+    cosmo::DataDetTrackClassifyPtr next_detections;
+    VideoFramePtr synced_frame, encoded_frame;
+    std::vector<cosmo::media::Color> draw_colors;
+    int copies{0};
+    int host_transfers{0};
+};
 }  // namespace
+
+TEST_CASE("Full picture overlays reread detections before the next drawing stage", "[picture][host]") {
+    using namespace cosmo;
+
+    PictureDeviceContext device;
+    PictureTextRenderer renderer;
+    test::ScopedServiceOverride<mem::IDeviceContext> device_registration(device);
+    test::ScopedServiceOverride<media::IOsdTextRenderer> renderer_registration(renderer);
+    mem::MemoryPoolMng pool(std::make_unique<mem::AllocatorCpu>(), {64 * 64 * 3});
+    mem::SetMemoryPoolContext(&pool);
+    struct ContextReset {
+        ~ContextReset() {
+            mem::SetMemoryPoolContext(nullptr);
+        }
+    } reset;
+
+    const bool i420   = GENERATE(false, true);
+    const bool empty  = GENERATE(false, true);
+    const auto format = i420 ? media::PixelFormat::PIXEL_I420 : media::PixelFormat::PIXEL_BGR8;
+    auto original     = std::make_shared<media::VideoFrame>(64, 64, format);
+    REQUIRE(original->Active());
+    const auto data_size = i420 ? 64 * 64 * 3 / 2 : 64 * 64 * 3;
+    std::fill_n(original->GetData(), data_size, 0);
+
+    PictureOverlay overlay;
+    overlay.data                    = std::make_shared<AlgData>();
+    overlay.data->chanDataDec.frame = original;
+    if (!empty) {
+        overlay.data->chanDataDetect.detRet = std::make_shared<DataDetTrackClassify>();
+        overlay.data->chanDataDetect.detRet->targets.emplace_back().box = {4, 4, 20, 20};
+        overlay.next_detections = std::make_shared<DataDetTrackClassify>();
+        auto& target            = overlay.next_detections->targets.emplace_back();
+        target.landmark.landmark.emplace_back(10, 10);
+        target.mask = {std::vector<uint8_t>(64 * 64, 255), 64, 64};
+    }
+    overlay.synced_frame = std::make_shared<media::VideoFrame>(64, 64, format);
+    REQUIRE(overlay.synced_frame->Active());
+    service::FileServiceImpl files;
+    test::ScopedServiceOverride<service::IFileService> file_registration(files);
+    test::ScopedServiceOverride<service::IVideoFrameOSD> osd_registration(overlay);
+    test::ScopedServiceOverride<service::IVideoFrameTransform> transform_registration(overlay);
+    test::ScopedServiceOverride<service::IVideoFrameCodec> codec_registration(overlay);
+
+    PTaskBase task;
+    MsgPTaskDetectPicRecv request;
+    MsgPTaskDetectPicSend response;
+    task.DetTargetHandFullPicture(overlay.data, request, response);
+
+    CHECK(response.resData.fullPicture == "data:image/jpeg;base64,AQID");
+    if (empty) {
+        CHECK(overlay.draw_colors.empty());
+    } else {
+        REQUIRE(overlay.draw_colors.size() == 2);
+        CHECK(overlay.draw_colors[0].red == 255);
+        CHECK(overlay.draw_colors[1].green == 255);
+        CHECK(original->GetData()[i420 ? 0 : 1] != 0);
+    }
+    const bool synced = i420 && !empty;
+    CHECK(overlay.host_transfers == (synced ? 1 : 0));
+    CHECK(overlay.copies == (synced ? 2 : 1));
+    CHECK(overlay.encoded_frame == (synced ? overlay.synced_frame : original));
+}
 #endif
 
 TEST_CASE("Picture Qwen accepts host-backed frames and rejects failed transfers", "[qwen][picture][host]") {

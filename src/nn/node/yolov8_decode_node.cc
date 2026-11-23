@@ -65,7 +65,7 @@ Status YoloV8DecodeNode::InferTopShapes() {
                                                       input_height_};
     }
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 size_t YoloV8DecodeNode::GetBottomCount() {
@@ -322,7 +322,7 @@ Status YoloV8DecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blob
 
     timer.Stop();
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status YoloV8DecodeNode::ForwardDirectCandidates(std::shared_ptr<Blob>& top_blob) {
@@ -357,7 +357,7 @@ Status YoloV8DecodeNode::ForwardDirectCandidates(std::shared_ptr<Blob>& top_blob
         output[valid_count * top_col + 5] = static_cast<float>(candidate.class_id);
         ++valid_count;
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 void YoloV8DecodeNode::NmsDirectCandidates(std::vector<Yolov8Candidate>& candidates) {

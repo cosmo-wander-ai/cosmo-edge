@@ -65,7 +65,7 @@ Status YoloE2EDecodeNode::InferTopShapes() {
         return Status(COSMO_NN_ERR_PARAM, "Invalid YOLO E2E decoder parameters");
     top_blob_shapes     = {{max_batch, top_k, top_col}};
     top_blob_data_types = {DataType::DATA_TYPE_FLOAT};
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 bool YoloE2EDecodeNode::NeedBottomShapesInfered() {
@@ -81,7 +81,7 @@ Status YoloE2EDecodeNode::InferTopShapesWithBottoms(std::vector<DimsVector> dims
     RETURN_ON_FAIL(ValidateLayout(dims[0], raw_output));
     if (dims[0][0] > max_batch)
         return Status(COSMO_NN_ERR_INVALID_INPUT, "YOLO E2E batch exceeds output capacity");
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status YoloE2EDecodeNode::ValidateLayout(const DimsVector& dims, bool& raw_output) const {
@@ -92,7 +92,7 @@ Status YoloE2EDecodeNode::ValidateLayout(const DimsVector& dims, bool& raw_outpu
     raw_output = layout == Yolo26OutputLayout::kRaw;
     if (raw_output && (!std::isfinite(nms_threshold_) || nms_threshold_ < 0.f || nms_threshold_ > 1.f))
         return Status(COSMO_NN_ERR_PARAM, "Invalid YOLO raw output NMS threshold");
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 size_t YoloE2EDecodeNode::GetBottomCount() {
@@ -148,7 +148,7 @@ Status YoloE2EDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blo
             }
         }
         timer.Stop();
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     }
 
     int box_num = bottom_dim.at(1);
@@ -220,7 +220,7 @@ Status YoloE2EDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blo
     }
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

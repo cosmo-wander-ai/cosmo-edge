@@ -64,9 +64,6 @@ private:
     std::thread thr_;
     bool is_wait_i_frame_{false};  // Log throttle flag.
 
-    bool is_need_delete_frame_{false};   // Pending frame deletion.
-    int64_t delete_to_index_{0};         // Delete up to this index.
-    int64_t delete_to_timestamp_{0};     // Delete up to this timestamp.
     int64_t last_i_frame_timestamp_{0};  // Last I-frame timestamp for auto-aging.
     int64_t last_remove_timestamp_{0};   // Timestamp of last aging removal.
     int64_t last_index_{0};

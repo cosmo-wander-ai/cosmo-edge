@@ -79,7 +79,7 @@ Status DefaultComponent::SetThreshold(int id, float threshold) {
     return pipeline_->SetThreshold(id, threshold);
 }
 
-Status DefaultComponent::SetThreshold(std::string label, float threshold) {
+Status DefaultComponent::SetThreshold(const std::string& label, float threshold) {
     return pipeline_->SetThreshold(label, threshold);
 }
 
@@ -87,7 +87,7 @@ Status DefaultComponent::GetThreshold(int id, float* threshold) {
     return pipeline_->GetThreshold(id, threshold);
 }
 
-Status DefaultComponent::GetThreshold(std::string label, float* threshold) {
+Status DefaultComponent::GetThreshold(const std::string& label, float* threshold) {
     return pipeline_->GetThreshold(label, threshold);
 }
 
@@ -95,7 +95,7 @@ Status DefaultComponent::GetCategoryInfo(int class_id, CategoryInfo& info) {
     return pipeline_->GetCategoryInfo(class_id, info);
 }
 
-Status DefaultComponent::GetCategoryInfo(std::string label, CategoryInfo& info) {
+Status DefaultComponent::GetCategoryInfo(const std::string& label, CategoryInfo& info) {
     return pipeline_->GetCategoryInfo(label, info);
 }
 

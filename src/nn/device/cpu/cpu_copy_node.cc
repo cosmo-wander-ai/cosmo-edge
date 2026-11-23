@@ -37,7 +37,7 @@ Status CpuCopyNode::InferTopShapesWithBottoms(std::vector<DimsVector> bottoms_di
                                               std::vector<DataType> bottoms_types) {
     top_blob_shapes     = {bottoms_dims.at(0)};
     top_blob_data_types = {bottoms_types.at(0)};
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status CpuCopyNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
@@ -86,7 +86,7 @@ Status CpuCopyNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
     }
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

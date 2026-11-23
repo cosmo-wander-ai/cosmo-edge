@@ -38,7 +38,7 @@ std::string DeviceTypeToString(DeviceType val) {
 }
 
 template <>
-std::string VectorToString(std::vector<int8_t> val) {
+std::string VectorToString(const std::vector<int8_t>& val) {
     if (val.empty())
         return "";
     std::stringstream stream;

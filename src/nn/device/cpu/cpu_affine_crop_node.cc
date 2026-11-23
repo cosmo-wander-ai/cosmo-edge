@@ -46,7 +46,7 @@ Status CpuAffineCropNode::InferTopShapes() {
 
     top_blob_shapes     = {{max_batch, dst_height, dst_width, 3}};  // NHWC
     top_blob_data_types = {DataType::DATA_TYPE_UINT8};
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 size_t CpuAffineCropNode::GetTopCount() {
@@ -127,7 +127,7 @@ Status CpuAffineCropNode::CalculateMatrix(float* landmark, std::vector<float>& m
     matrix.push_back(a4);
     matrix.push_back(ty);
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status CpuAffineCropNode::Forward(std::vector<std::shared_ptr<Blob>>& image_blobs,
@@ -206,12 +206,12 @@ Status CpuAffineCropNode::Forward(std::vector<std::shared_ptr<Blob>>& image_blob
     }
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status CpuAffineCropNode::Forward(std::vector<std::shared_ptr<Blob>>& /*bottom_blobs*/,
                                   std::vector<std::shared_ptr<Blob>>& /*top_blobs*/) {
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

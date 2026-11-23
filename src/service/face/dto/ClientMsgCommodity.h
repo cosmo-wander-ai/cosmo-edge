@@ -13,17 +13,14 @@
 namespace cosmo {
 
 struct CMsgFeatureSetElement {
-    bool bLocalFile{false};
     std::string token;  // Unique identifier for the item
     std::string url;    // Item image relative URL
-    std::string uri;    // Fully assembled URL
     int status;         // Status: 0 = enabled, 1 = disabled (server delete state: 0 = not deleted)
     friend void to_json(nlohmann::json& j, const CMsgFeatureSetElement& v);
     friend void from_json(const nlohmann::json& j, CMsgFeatureSetElement& v);
 };
 
 struct CMsgFeatureSetInfo {
-    std::string setToken;   // Group ID
     int64_t version{0};     // Latest version (13-digit timestamp)
     float threshold{-1.0};  // Matching threshold
     std::string name;       // Group name

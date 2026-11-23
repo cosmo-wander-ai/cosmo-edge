@@ -52,7 +52,7 @@ public:
     void ActionInfo(std::vector<ActionRuntimeInfo>& actionInfo);
 
     [[nodiscard]] std::string GetName() const {
-        return name_;
+        return decoder_name_;
     }
     [[nodiscard]] std::string GetUuid() const {
         return uuid_;
@@ -108,7 +108,7 @@ private:
     mutable std::mutex mtx_;
     AlgChannel& channel_inst_;
     std::string channel_id_;
-    std::string name_;
+    std::string decoder_name_;
     std::string uuid_;
     // Image capture state.
     std::condition_variable cap_cond_;
@@ -121,7 +121,6 @@ private:
     int64_t decode_count_{0};
     uint64_t decoder_stream_reuse_count_{0};
     int64_t cap_image_stream_index_{-1};
-    float fps_{0.0};
     std::atomic<bool> is_running_{false};
     int64_t consecutive_decode_failures_{0};  // Consecutive decode failure count
     static constexpr int64_t kMaxConsecutiveDecodeFailures =
@@ -135,8 +134,5 @@ private:
     std::vector<ChannelTaskViewerQueue> viewer_queue_;
     std::deque<AlgFrameInfo> frame_info_;
     std::shared_ptr<AlgDataQueue<AlgDataPtr>> dec_queue_;
-
-    int width_{0};
-    int height_{0};
 };
 }  // namespace cosmo

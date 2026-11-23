@@ -192,20 +192,26 @@ run_cppcheck() (
     JOBS=$(nproc) || return $?
     local EXIT_CODE=0
     # Standalone host analysis has no CMake compile definitions; select the CPU backend.
-    cppcheck \
-        --std=c++17 \
-        --language=c++ \
-        -DCOSMO_NN_USE_CPU_BACKEND \
-        --enable="$ENABLE" \
-        --error-exitcode=1 \
-        --inline-suppr \
-        "${SUPPRESSION_ARGS[@]}" \
-        "${TEST_ARGS[@]}" \
-        --quiet \
-        --template='{file}:{line}: [{severity}] {id}: {message}' \
-        -I "$PROJECT_ROOT/src" \
-        -j"$JOBS" \
-        "${FILES[@]}" 2>&1 || EXIT_CODE=$?
+    local ARGS=(
+        --std=c++17
+        --language=c++
+        -DCOSMO_NN_USE_CPU_BACKEND
+        --enable="$ENABLE"
+        --inline-suppr
+        "${SUPPRESSION_ARGS[@]}"
+        "${TEST_ARGS[@]}"
+        --quiet
+        -I "$PROJECT_ROOT/src"
+        -j"$JOBS"
+        "${FILES[@]}"
+    )
+    if [[ "$PROFILE" == full ]]; then
+        python3 "$PROJECT_ROOT/tools/cppcheck/verify_members.py" "$PROJECT_ROOT" "$JOBS" \
+            "${ARGS[@]}" 2>&1 || EXIT_CODE=$?
+    else
+        cppcheck --error-exitcode=1 --template='{file}:{line}: [{severity}] {id}: {message}' \
+            "${ARGS[@]}" 2>&1 || EXIT_CODE=$?
+    fi
 
     echo ""
     if [[ $EXIT_CODE -eq 0 ]]; then

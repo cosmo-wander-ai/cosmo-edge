@@ -153,14 +153,14 @@ Status SAM2Pipeline::Forward(std::initializer_list<std::vector<std::shared_ptr<B
             }
         }
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status SAM2Pipeline::ParseSegmentationOutput(std::vector<std::vector<uint8_t>>& outputs) {
     outputs.clear();
     auto output_blobs = GetGraphOutput();
     if (output_blobs.size() != 1)
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
 
     auto blob       = output_blobs.at(0);
     auto desc       = blob->GetBlobDesc();
@@ -198,7 +198,7 @@ Status SAM2Pipeline::ParseSegmentationOutput(std::vector<std::vector<uint8_t>>& 
             outputs.push_back(resized);
         }
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 // ========================= GroundingDINO ==================================
@@ -274,7 +274,7 @@ Status DinoPipeline::Forward(std::initializer_list<std::vector<std::shared_ptr<B
         RETURN_ON_FAIL(NetUtils::GetImageSize(dims, layout, size));
         image_sizes_.push_back(size);
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status DinoPipeline::ParseDetectionOutput(std::vector<std::vector<ObjectInfoV1>>& outputs) {
@@ -320,7 +320,7 @@ Status Qwen3VLPipeline::Init(const PipelineConfig& config, const std::string& mo
         return status;
     }
     runner_ = qwen_runner;
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 #else
     return Status(COSMO_NN_ERR_NET, "Qwen3VL requires COSMO_NN_USE_SOPHON_BACKEND");
 #endif
@@ -346,7 +346,7 @@ int Qwen3VLPipeline::GetMaxBatchSize() const {
 Status Qwen3VLPipeline::ParseTextOutput(std::vector<std::vector<std::string>>& outputs) {
 #ifdef COSMO_NN_USE_SOPHON_BACKEND
     outputs = Qwen3VLRunner_GetTextOutputs(reinterpret_cast<Qwen3VLRunner*>(runner_));
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 #else
     return Status(COSMO_NN_ERR_NET, "Qwen3VL requires COSMO_NN_USE_SOPHON_BACKEND");
 #endif
@@ -377,7 +377,7 @@ Status Qwen3_5Pipeline::Init(const PipelineConfig& config, const std::string& mo
         return status;
     }
     runner_ = qwen_runner;
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 #else
     return Status(COSMO_NN_ERR_NET, "Qwen3_5 requires COSMO_NN_USE_SOPHON_BACKEND");
 #endif
@@ -403,7 +403,7 @@ int Qwen3_5Pipeline::GetMaxBatchSize() const {
 Status Qwen3_5Pipeline::ParseTextOutput(std::vector<std::vector<std::string>>& outputs) {
 #ifdef COSMO_NN_USE_SOPHON_BACKEND
     outputs = Qwen3VLRunner_GetTextOutputs(reinterpret_cast<Qwen3VLRunner*>(runner_));
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 #else
     return Status(COSMO_NN_ERR_NET, "Qwen3_5 requires COSMO_NN_USE_SOPHON_BACKEND");
 #endif
@@ -493,14 +493,14 @@ Status SegmentationPipeline::Forward(std::initializer_list<std::vector<std::shar
             }
         }
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status SegmentationPipeline::ParseSegmentationOutput(std::vector<std::vector<uint8_t>>& outputs) {
     outputs.clear();
     auto output_blobs = GetGraphOutput();
     if (output_blobs.size() != 1)
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
 
     auto blob       = output_blobs.at(0);
     auto desc       = blob->GetBlobDesc();
@@ -538,7 +538,7 @@ Status SegmentationPipeline::ParseSegmentationOutput(std::vector<std::vector<uin
             outputs.push_back(resized);
         }
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 // ========================= OCR ============================================
@@ -614,7 +614,7 @@ Status OcrPipeline::Init(const PipelineConfig& config, const std::string& model_
     const auto add_ctc_tokens = [&params](const char* key, bool prepend,
                                           std::vector<std::string>& words) -> Status {
         if (!params.contains(key))
-            return COSMO_NN_OK;
+            return Status{COSMO_NN_OK};
         if (!params[key].is_array())
             return Status(COSMO_NN_ERR_PARAM, "OCR CTC tokens must be an array");
 
@@ -628,7 +628,7 @@ Status OcrPipeline::Init(const PipelineConfig& config, const std::string& model_
             words.insert(words.begin(), tokens.begin(), tokens.end());
         else
             words.insert(words.end(), tokens.begin(), tokens.end());
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     };
     auto status = add_ctc_tokens("ctc_prepend_tokens", true, ocr_words_);
     if (!status)
@@ -688,7 +688,7 @@ Status DecodeOcrCtc(const float* logits, int batch, int time, int classes,
         }
         results[i] = std::vector<char>(str.begin(), str.end());
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status OcrPipeline::ParseOcrOutput(std::vector<std::vector<char>>& results) {

@@ -123,9 +123,7 @@ struct AiAttribute {
 
 // OCR result attached to a detected target by the landmark-driven OCR action.
 struct AiOcrValue {
-    std::string atomic_code;  // Code
-    std::string value;        // Label
-    float confidence{0.0};    // Label confidence
+    std::string value;  // Label
 };
 
 struct AiLandmarkData {

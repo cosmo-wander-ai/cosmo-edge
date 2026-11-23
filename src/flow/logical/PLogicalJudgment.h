@@ -38,8 +38,6 @@ private:
 
 private:
     std::shared_mutex mtx_;
-    size_t handle_frames_{0};
-    size_t filter_frames_{0};
     LogicCalc logic_;
     PALogicalJudgmentParam params_;
     LogicCalcEngine calc_engine_;

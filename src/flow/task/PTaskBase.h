@@ -116,7 +116,7 @@ private:
                                        const MsgPTaskDetectPicRecv& request, MsgPTaskDetectPicSend& response,
                                        AlgDataPtr& rendered, AlgDataPtr reference,
                                        AlgDataPtr* referenceRendered, bool referencePass);
-    void UploadImage(std::vector<uint8_t>& data, const std::string& url, const std::string& sign);
+    void UploadImage(const std::vector<uint8_t>& data, const std::string& url, const std::string& sign);
     void DetTargetHandFullPicture(AlgDataPtr algData, MsgPTaskDetectPicRecv& data,
                                   MsgPTaskDetectPicSend& retData);
     std::shared_mutex m_mtx;

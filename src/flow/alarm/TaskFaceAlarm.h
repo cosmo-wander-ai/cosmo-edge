@@ -43,11 +43,13 @@ public:
     // GetQueue() is provided by AlgActionBase (returns shared_ptr)
     void HandFrame(AlgDataPtr algData) override;
 
-    std::string GetTaskId() {
+    std::string GetFaceAlarmTaskId() const {
         return m_taskId;
     };
 
 private:
+    using AlgActionBase::GetTaskId;
+
     void EventFaceRecord(const CMsgFaceEventReq &eventData);
 
     bool FillAlarmData(AlgDataPtr algData);

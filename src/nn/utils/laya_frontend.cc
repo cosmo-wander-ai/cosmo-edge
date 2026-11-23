@@ -91,7 +91,7 @@ namespace {
         return sign * std::ldexp(float(1024 + fraction), int(exponent) - 25);
     }
     std::vector<float> Linear(const std::vector<float>& input, const Heads& heads, const std::string& name) {
-        const auto& weight = heads.at(name + ".weight");
+        const Tensor& weight = heads.at(name + ".weight");
         Require(weight.shape.size() == 2 && weight.shape[1] == input.size(), "linear shape: " + name);
         using Matrix = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
         Eigen::Map<const Matrix> w(weight.data.data(), weight.shape[0], weight.shape[1]);

@@ -2,6 +2,7 @@
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <type_traits>
 #include <vector>
 
 #include "catch_amalgamated.hpp"
@@ -10,6 +11,35 @@
 
 namespace cosmo::nn {
 namespace {
+
+    static_assert(std::is_constructible_v<Status, int> && !std::is_convertible_v<int, Status>);
+    static_assert(std::is_constructible_v<Size, int> && !std::is_convertible_v<int, Size>);
+
+    TEST_CASE("Net utilities accept read-only inputs and preserve output aliasing", "[nn][geometry]") {
+        Size size{8, 6};
+        REQUIRE(static_cast<bool>(NetUtils::GetImageSize({1, 3, 2, 4}, DATA_FORMAT_NCHW, size)));
+        CHECK(size.width == 4);
+        CHECK(size.height == 2);
+
+        const std::array<unsigned char, 12> i420{1, 2, 3, 4, 5, 6, 7, 8, 40, 41, 60, 61};
+        std::array<unsigned char, 12> nv12{};
+        NetUtils::SwapYUV_I420toYUV_NV12(i420.data(), nv12.data(), 4, 2);
+        CHECK(nv12 == std::array<unsigned char, 12>{1, 2, 3, 4, 5, 6, 7, 8, 40, 60, 41, 61});
+
+        std::vector<float> matrix{1, 0, 3, 0, 1, 4};
+        NetUtils::WarpAffineMatrixInverse(matrix, matrix);
+        CHECK(matrix == std::vector<float>{1, 0, -3, 0, 1, -4});
+    }
+
+    TEST_CASE("Explicit status construction preserves code and message", "[nn][status]") {
+        Status ok;
+        Status error{COSMO_NN_ERR_PARAM};
+        Status detailed{COSMO_NN_ERR_PARAM, "bad input"};
+        CHECK(ok == COSMO_NN_OK);
+        CHECK(error == COSMO_NN_ERR_PARAM);
+        CHECK(error.description().find("msg: OK") != std::string::npos);
+        CHECK(detailed.description().find("msg: bad input") != std::string::npos);
+    }
 
     constexpr float kPi = 3.14159265358979323846f;
 

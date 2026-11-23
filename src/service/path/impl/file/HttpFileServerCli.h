@@ -21,12 +21,8 @@ enum class FileServerClientType {
 
 /// Credential and endpoint information for the file server.
 struct FileServerAppInfo {
-    std::string bucket;
     std::string user;
     std::string token;
-    std::string file_url;
-    std::string uuid;
-    std::string content_range;
     bool is_https = true;
 };
 

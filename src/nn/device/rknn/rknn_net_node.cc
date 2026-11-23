@@ -709,12 +709,12 @@ Status RknnNetNode::QueryTensorAttributes() {
     detector_model_   = yolov8_heads_ && input.n_dims == 4 && input.fmt == RKNN_TENSOR_NHWC &&
                       input.dims[0] == 1 && input.dims[1] == 640 && input.dims[2] == 640 &&
                       input.dims[3] == 3;
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status RknnNetNode::PrepareInputSize() {
     if (input_sizes_.empty())
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     rknn_input_output_num count{};
     if (rknn_query(context_, RKNN_QUERY_IN_OUT_NUM, &count, sizeof(count)) != RKNN_SUCC ||
         count.n_input != 1 || count.n_output != 1)
@@ -755,7 +755,7 @@ Status RknnNetNode::PrepareInputSize() {
     result                   = rknn_set_input_shapes(context_, 1, &input);
     if (result != RKNN_SUCC)
         return RknnError("rknn_set_input_shapes", result);
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status RknnNetNode::LoadWeight(const char* data, size_t size) {
@@ -848,7 +848,7 @@ Status RknnNetNode::InitializeLoadedContext(uint64_t context_sequence) {
         RknnOutputAdapterName(output_adapter_contract_.kind), native_yolov8_outputs_,
         IsRknnRgbUint8InputContract(input_contract_), RknnCoreModeName(core_mode),
         static_cast<int>(core_mask), configure_core_mask, context_sequence);
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 DeviceType RknnNetNode::GetTopBlobDeviceType() {
@@ -864,7 +864,7 @@ Status RknnNetNode::InferTopShapes() {
     if (yolov8_heads_) {
         top_blob_shapes.push_back({1, 4 + yolov8_class_count_, yolov8_point_count_});
         top_blob_data_types.push_back(DATA_TYPE_FLOAT);
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     }
     for (const auto& attr : output_attrs_) {
         auto shape = TensorShape(attr);
@@ -874,7 +874,7 @@ Status RknnNetNode::InferTopShapes() {
         // rknn_outputs_get(want_float=1) always materializes float output.
         top_blob_data_types.push_back(DATA_TYPE_FLOAT);
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status RknnNetNode::PrepareInput(const Blob& blob, std::vector<float>& nhwc, int& height, int& width) const {
@@ -924,7 +924,7 @@ Status RknnNetNode::PrepareInput(const Blob& blob, std::vector<float>& nhwc, int
                     source[static_cast<size_t>(channel) * plane + pixel];
         }
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status RknnNetNode::PrepareNativeCompatibilityInput(const Blob& blob, std::vector<float>& nhwc, int& height,
@@ -951,7 +951,7 @@ Status RknnNetNode::PrepareNativeCompatibilityInput(const Blob& blob, std::vecto
     constexpr float kNormalizeScale = 0.00392157f;
     for (size_t index = 0; index < count; ++index)
         nhwc[index] = static_cast<float>(static_cast<int>(source[index]) + 128) * kNormalizeScale;
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status RknnNetNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
@@ -1307,7 +1307,7 @@ Status RknnNetNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
     result = release_outputs();
     if (result != RKNN_SUCC)
         return finish(RknnError("rknn_outputs_release", result));
-    return finish(COSMO_NN_OK);
+    return finish(Status{COSMO_NN_OK});
 }
 
 }  // namespace cosmo::nn

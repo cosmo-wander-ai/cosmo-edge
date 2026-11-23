@@ -251,7 +251,7 @@ util::ErrorEnum AiOcrWordClassifierUnify::Forward(const std::vector<VideoFramePt
 }
 
 util::ErrorEnum AiOcrWordClassifierUnify::WarpAffine(std::shared_ptr<cosmo::nn::Blob> blob,
-                                                     std::vector<std::pair<float, float>>& src_points,
+                                                     const std::vector<std::pair<float, float>>& src_points,
                                                      std::shared_ptr<cosmo::nn::Blob>& out_blob) {
     auto status = cosmo::nn::NetUtils::WarpAffine(blob, src_points, out_blob);
     if (!bool(status)) {

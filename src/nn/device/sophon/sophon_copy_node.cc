@@ -39,7 +39,7 @@ Status SophonCopyNode::InferTopShapesWithBottoms(std::vector<DimsVector> bottoms
                                                  std::vector<DataType> bottoms_types) {
     top_blob_shapes     = {bottoms_dims.at(0)};
     top_blob_data_types = {bottoms_types.at(0)};
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 DeviceType SophonCopyNode::GetTopBlobDeviceType() {
@@ -117,7 +117,7 @@ Status SophonCopyNode::Forward(std::vector<std::shared_ptr<Blob>> &bottom_blobs,
         return Status(COSMO_NN_ERR_INVALID_INPUT, "invalid from and to");
     }
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

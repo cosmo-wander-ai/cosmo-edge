@@ -35,7 +35,7 @@ void CpuYoloDecodeNPUNode::LoadParam(Op* op) {
 Status CpuYoloDecodeNPUNode::InferTopShapes() {
     top_blob_shapes     = {{max_batch, top_k, top_col}};
     top_blob_data_types = {DataType::DATA_TYPE_FLOAT};
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 size_t CpuYoloDecodeNPUNode::GetBottomCount() {
@@ -167,7 +167,7 @@ Status CpuYoloDecodeNPUNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_
     }
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

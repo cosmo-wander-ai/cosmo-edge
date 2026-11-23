@@ -18,7 +18,7 @@ cosmo::DataAlarmUnit MakeAlarm(int trackId, std::string trackIdText, std::string
     unit.trackId      = trackId;
     unit.strTrackId   = trackIdText;
     unit.box          = box;
-    unit.boxs.push_back(box);
+    unit.boxs.emplace_back(box);
 
     cosmo::CMsgOnEventsTarget target;
     target.label      = "no-helmet";

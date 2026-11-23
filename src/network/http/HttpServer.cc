@@ -814,10 +814,14 @@ struct evhttp_request* HttpServer::FindRequest(HttpRequestToken token) const {
 
 void HttpServer::CompleteRequest(HttpRequestToken token, const struct evhttp_request* req) {
     auto it = active_requests_.find(token);
-    if (it == active_requests_.end() || it->second->request != req) {
+    if (it == active_requests_.end()) {
         return;
     }
-    evhttp_connection_set_closecb(it->second->connection, nullptr, nullptr);
+    const RequestContext& context = *it->second;
+    if (context.request != req) {
+        return;
+    }
+    evhttp_connection_set_closecb(context.connection, nullptr, nullptr);
     active_requests_.erase(it);
 }
 

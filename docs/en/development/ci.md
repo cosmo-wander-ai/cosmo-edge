@@ -127,7 +127,8 @@ bash scripts/static_analysis.sh --all
 
 Notes:
 
-- The hook, CI, and manual cppcheck checks all use this script. `--profile full` (the default) enables warning, style, performance, and portability; `--profile commit` retains the commit check's warning category. Both include the default error checks. All enabled, unsuppressed diagnostics and tool errors return failure.
+- The hook, CI, and manual cppcheck checks all use this script. `--profile full` (the default) enables warning, style, performance, and portability. `--profile commit` enables warning. Both include the default error checks.
+- The `full` profile uses Python 3 to verify `unusedStructMember` findings in project headers. A candidate is resolved only when Cppcheck's symbol data links a project reference to that declaration. Remaining enabled diagnostics and tool errors fail the check. Set `COSMO_CPPCHECK_REPORT_DIR` to an existing private directory to retain the raw XML, exit status, and field reference evidence.
 - `--staged` checks staged `.h` / `.cc` files; `--base-ref REF` checks changed files under `src` / `test` between REF and HEAD. These options are mutually exclusive. CI passes the computed merge-base to `--base-ref`; deleted files are excluded.
 - Direct `--cppcheck` invocation fails if the tool is missing. The hook and `--all` skip unavailable tools; `--all` aggregates failures from the checks it runs.
 - `clang-tidy` depends on `build/compile_commands.json` and requires the corresponding build configuration to be completed first.

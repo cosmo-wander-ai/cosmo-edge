@@ -120,7 +120,7 @@ namespace {
         if (ret != BM_SUCCESS) {
             return Status(COSMO_NN_ERR_SOPHON_INFER_ERR, "bmcv crop resize failed");
         }
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     }
 
 }  // namespace
@@ -166,7 +166,7 @@ Status SophonCropResizeNode::InferTopShapes() {
     const int aligned_w = ALIGN(dst_width, 64);
     top_blob_shapes     = {{max_batch, dst_height, aligned_w, 3}};
     top_blob_data_types = {DataType::DATA_TYPE_UINT8};
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 DeviceType SophonCropResizeNode::GetTopBlobDeviceType() {
@@ -254,7 +254,7 @@ Status SophonCropResizeNode::PrepareRect(std::shared_ptr<Blob> host_rect, Size i
         calculated_rects.push_back(static_cast<int32_t>(right - left));
         calculated_rects.push_back(static_cast<int32_t>(bottom - top));
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status SophonCropResizeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
@@ -279,7 +279,7 @@ Status SophonCropResizeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_
     top_blob->SetBlobDesc(top_desc);
     RETURN_ON_FAIL(Forward(bottom_blobs, params, top_blob));
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status SophonCropResizeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
@@ -363,7 +363,7 @@ Status SophonCropResizeNode::Forward(std::vector<std::shared_ptr<Blob>>& image_b
                                          destination, output_width, output_height, gravity, color));
         }
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

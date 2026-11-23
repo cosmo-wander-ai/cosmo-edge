@@ -182,7 +182,7 @@ void StreamViewerOverview::LiveDataHandTarget(int64_t streamIndex, uint64_t inde
         float bh = static_cast<float>(target.aiBox.height);
         auto it  = smoothed_boxes_.find(target.trackId);
         if (it != smoothed_boxes_.end()) {
-            auto& sb             = it->second;
+            SmoothedBox& sb      = it->second;
             sb.x                 = kEmaAlpha * bx + (1.0f - kEmaAlpha) * sb.x;
             sb.y                 = kEmaAlpha * by + (1.0f - kEmaAlpha) * sb.y;
             sb.w                 = kEmaAlpha * bw + (1.0f - kEmaAlpha) * sb.w;

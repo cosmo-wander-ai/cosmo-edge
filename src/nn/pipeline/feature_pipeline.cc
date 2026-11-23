@@ -160,7 +160,7 @@ Status FeaturePipeline::ParseFeatureOutput(std::vector<std::vector<float>>& outp
             b_data[j] /= norm;
         outputs[i] = std::vector<float>(b_data, b_data + feature_len);
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 REGISTER_MODEL_PIPELINE("feature", FeaturePipeline);

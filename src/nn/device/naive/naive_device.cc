@@ -37,14 +37,14 @@ Status NaiveDevice::Allocate(void** handle, unsigned long* phy, BlobMemorySizeIn
     }
     memset(*handle, 0, static_cast<size_t>(size));
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status NaiveDevice::Free(void* handle, unsigned long phy) {
     if (handle) {
         free(handle);
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status NaiveDevice::CopyToDevice(BlobHandle* dst, const BlobHandle* src, BlobDesc& desc, void* queue) {
@@ -59,7 +59,7 @@ Status NaiveDevice::CopyToDevice(BlobHandle* dst, const BlobHandle* src, BlobDes
 
     memcpy(reinterpret_cast<char*>(dst->base), reinterpret_cast<char*>(src->base),
            static_cast<size_t>(size_in_bytes));
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status NaiveDevice::CopyFromDevice(BlobHandle* dst, const BlobHandle* src, BlobDesc& desc, void* queue) {
@@ -74,7 +74,7 @@ Status NaiveDevice::CopyFromDevice(BlobHandle* dst, const BlobHandle* src, BlobD
 
     memcpy(reinterpret_cast<char*>(dst->base), reinterpret_cast<char*>(src->base),
            static_cast<size_t>(size_in_bytes));
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 TypeDeviceRegister<NaiveDevice> g_naive_device_register(DEVICE_NAIVE);

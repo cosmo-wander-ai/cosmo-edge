@@ -65,7 +65,7 @@ Status SplitNode::InferTopShapesWithBottoms(std::vector<DimsVector> dims, std::v
         top_blob_shapes.push_back(dims_i);
     }
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status SplitNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
@@ -117,7 +117,7 @@ Status SplitNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
     }
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

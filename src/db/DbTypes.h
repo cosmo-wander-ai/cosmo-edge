@@ -16,8 +16,6 @@ struct LibInfo {
     int type{-1};
     double threshold{0.0};
     int max_capacity{0};
-    int stranger_alarm{0};
-    float stranger_threshold{0.0};
 };
 
 // ---------------------------------------------------------------------------

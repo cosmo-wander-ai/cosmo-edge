@@ -24,7 +24,7 @@ Status ModelInfoUtils::LoadJson(const std::string& json_path, std::string& file_
     file.read(content.data(), size);
     file.close();
     file_content.assign(content.data(), static_cast<size_t>(size));
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status ModelInfoUtils::GetInputShapesMap(const ModelInfo& model_info_, ShapesMap& shapes) {
@@ -52,7 +52,7 @@ Status ModelInfoUtils::GetInputShapesMap(const ModelInfo& model_info_, ShapesMap
         shapes[name] = shape;
     }
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 void ModelInfoUtils::GetSelectedThreshold(const CombinedModelInfo& info,

@@ -442,11 +442,6 @@ bool PicTaskServiceImpl::GetTaskParam(const std::string& taskId, cosmo::MsgTaskC
     return true;
 }
 
-std::vector<cosmo::PTaskStatus> PicTaskServiceImpl::GetTaskStatus(unsigned int /*durationSec*/) {
-    std::vector<cosmo::PTaskStatus> task_statuss;
-    return task_statuss;
-}
-
 bool PicTaskServiceImpl::TasksHaveChange(const std::string& nodeAlgorithmCheckSum) {
     std::shared_lock<std::shared_mutex> lock(mtx_);
     return node_algorithm_check_sum_ != nodeAlgorithmCheckSum;

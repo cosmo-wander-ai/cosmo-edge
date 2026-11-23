@@ -52,7 +52,7 @@ Status SophonSequenceNode::InferTopShapes() {
         return Status(COSMO_NN_ERR_PARAM, "Sequence dimensions are not configured");
     top_blob_shapes     = {{max_batch, 3, dst_height, dst_width}};
     top_blob_data_types = {DataType::DATA_TYPE_FLOAT};
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 DeviceType SophonSequenceNode::GetTopBlobDeviceType() {
@@ -98,7 +98,7 @@ Status SophonSequenceNode::PrepareRect(std::shared_ptr<Blob> host_rect, Size ima
         calculated_rects.push_back(x2 - x1 + 1);
         calculated_rects.push_back(y2 - y1 + 1);
     }
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 Status SophonSequenceNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blob,
@@ -265,7 +265,7 @@ Status SophonSequenceNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_bl
 #endif
     }
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

@@ -77,7 +77,6 @@ private:
     int64_t last_time_{0};
     int64_t last_index_{-1};  // Start sequence may be 0
     int64_t event_time_{0};
-    int64_t alarm_timestamp_{0};
     int64_t event_index_{0};
     int64_t stream_index_{-1};
     int64_t record_frames_{0};

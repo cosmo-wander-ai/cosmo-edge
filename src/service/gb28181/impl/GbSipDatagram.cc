@@ -64,9 +64,10 @@ std::string SipDatagram::Replay(const Message& request, const std::string& wire,
     const auto it = replies_.find(Key(request));
     if (it == replies_.end())
         return "";
-    if (it->second.hash != Md5(wire))
+    const Reply& reply = it->second;
+    if (reply.hash != Md5(wire))
         throw std::runtime_error("invalid_sip");
-    return it->second.wire;
+    return reply.wire;
 }
 void SipDatagram::Remember(const Message& request, const std::string& wire, const std::string& response,
                            Time now) {
@@ -102,7 +103,7 @@ std::vector<std::string> SipDatagram::Due(Time now) {
     Expire(now);
     std::vector<std::string> result;
     for (auto it = pending_.begin(); it != pending_.end();) {
-        auto& item = it->second;
+        Pending& item = it->second;
         if (item.expires <= now) {
             it = pending_.erase(it);
             continue;

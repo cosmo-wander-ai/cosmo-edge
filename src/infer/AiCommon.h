@@ -80,7 +80,6 @@ struct AiGroupEl {
     int groupId{-1};
     std::string groupIdInfo;
     bool bLogicResult{false};
-    double distance{-1.0};
     AiDetectRstEl genTarget;
     std::vector<AiDetectRstEl> srcTargets;
 };

@@ -49,7 +49,7 @@ Status SAMDecodeNode::InferTopShapes() {
 
     top_blob_data_types = {DataType::DATA_TYPE_UINT8};
     top_blob_shapes     = {{1, out_h, out_w}};
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 bool SAMDecodeNode::NeedBottomShapesInfered() {
@@ -87,7 +87,7 @@ Status SAMDecodeNode::InferTopShapesWithBottoms(std::vector<DimsVector> dims, st
     top_blob_data_types = {DataType::DATA_TYPE_UINT8};
     top_blob_shapes     = {{batch, out_h, out_w}};
 
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 void SAMDecodeNode::ResizeMask(float* input_mask, int in_h, int in_w, uint8_t* output_mask, int out_h,
@@ -244,7 +244,7 @@ Status SAMDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
     }
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

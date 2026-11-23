@@ -40,18 +40,29 @@ private:
     };
 
     struct CreationReservation {
-        explicit CreationReservation(InstancePool& owner) : pool(owner) {}
+        explicit CreationReservation(InstancePool& owner) : pool_(owner) {}
         ~CreationReservation() {
-            if (active) {
-                std::lock_guard<std::mutex> lock(pool.mtx_);
-                --pool.creating_count_;
+            if (active_) {
+                std::lock_guard<std::mutex> lock(pool_.mtx_);
+                CompleteLocked();
             }
         }
         CreationReservation(const CreationReservation&)            = delete;
         CreationReservation& operator=(const CreationReservation&) = delete;
 
-        InstancePool& pool;
-        bool active{false};
+        void ReserveLocked() {
+            ++pool_.creating_count_;
+            active_ = true;
+        }
+
+        void CompleteLocked() {
+            --pool_.creating_count_;
+            active_ = false;
+        }
+
+    private:
+        InstancePool& pool_;
+        bool active_{false};
     };
 
     size_t DesiredInstCountLocked() const;
@@ -145,8 +156,7 @@ typename InstancePool<T, PTR>::CreateResult InstancePool<T, PTR>::TryCreateInst(
             // Acquisitions recover an empty pool; registrations control scaling.
             return {CreateStatus::kSkipped, nullptr};
         }
-        ++creating_count_;
-        reservation.active = true;
+        reservation.ReserveLocked();
     }
 
     inst           = std::make_shared<T>(atomic_code, cfg_path, model_path);
@@ -171,9 +181,9 @@ typename InstancePool<T, PTR>::CreateResult InstancePool<T, PTR>::TryCreateInst(
             using_insts_.push_back(inst);
             TrimFreeInstsLocked(retired);
         }
-        --creating_count_;
-        reservation.active = false;
+        reservation.CompleteLocked();
     }
+    retired.clear();
     // No potentially throwing logging after publishing a borrow to its caller.
     return {CreateStatus::kCreated, purpose == CreatePurpose::kAcquire ? std::move(inst) : PTR{}};
 }

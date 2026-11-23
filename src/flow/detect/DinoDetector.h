@@ -20,8 +20,6 @@ struct DinoDetectorChannel {
 
 struct DinoDetectorParamEl {
     std::string task_id;
-    std::string atomic_code;
-    float fps{1.0};
     std::string prompt{"person"};  // Detection prompt for GroundingDINO
     float box_confidence{0.3f};    // Query/object confidence threshold
     float text_confidence{0.25f};  // Prompt-token matching threshold
@@ -29,7 +27,6 @@ struct DinoDetectorParamEl {
 
 struct DinoDetectorParam {
     int param_modify_sign{0};
-    int param_active_sign{-1};
     std::vector<DinoDetectorParamEl> param;
 };
 
@@ -111,7 +108,6 @@ private:
     size_t batch_count_{1};                          // Batch size for inference
     std::vector<DinoDetectorChannel> channel_list_;  // Channels/tasks using this detector
     bool is_detector_inst_init_{false};
-    int sign_register_{0};
     DinoDetectorParam params_;
     std::map<std::string, TaskBaseArea> task_areas_;
     std::map<std::string, OverviewRecordAiRstPtr> overview_rec_insts_;

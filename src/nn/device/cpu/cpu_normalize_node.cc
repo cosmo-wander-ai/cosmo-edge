@@ -50,7 +50,7 @@ Status CpuNormalizeNode::InferTopShapesWithBottoms(std::vector<DimsVector> dims,
 
     top_blob_shapes     = {DimsVectorUtils::NHWC2NCHW(bottom_shape)};
     top_blob_data_types = {DataType::DATA_TYPE_FLOAT};
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 size_t CpuNormalizeNode::GetBottomCount() {
@@ -133,7 +133,7 @@ Status CpuNormalizeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blob
     }
 
     timer.Stop();
-    return COSMO_NN_OK;
+    return Status{COSMO_NN_OK};
 }
 
 }  // namespace cosmo::nn

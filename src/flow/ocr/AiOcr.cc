@@ -101,7 +101,7 @@ bool AiOcr::HandleTarget(const VideoFramePtr& frame, AiDetectRstEl& target, Data
         return false;
     }
 
-    target.ocrRst.push_back({alg_code_, text, 0.0F});
+    target.ocrRst.push_back({text});
     for (const auto& area : target.areaSign.areas) {
         DataAlarmUnit unit;
         unit.flowActionId = GetFlowActionId();

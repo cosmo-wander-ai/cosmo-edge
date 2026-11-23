@@ -32,7 +32,7 @@ Status LayaPipeline::ParseTextOutput(std::vector<std::vector<std::string>>& outp
 #ifdef COSMO_NN_USE_SOPHON_BACKEND
     if (runner_) {
         outputs = runner_->Outputs();
-        return COSMO_NN_OK;
+        return Status{COSMO_NN_OK};
     }
 #endif
     return Status(COSMO_NN_ERR_GRAPH_NOT_INIT, "Laya is not initialized");
