@@ -595,7 +595,7 @@ void StreamViewerOverview::DrawTargetPanel(const StreamOverviewText& text,
     int contentWidth = 0, contentHeight = 0;
     // Preserve readable padding where possible; exceptionally narrow frames use a compact fallback.
     const int padding          = std::min(kPadding, std::max(2, (width_ - 26) / 2));
-    const int maxContentWidth  = std::min(320, width_ - kMargin * 2) - padding * 2;
+    const int maxContentWidth  = std::min(384, width_ - kMargin * 2) - padding * 2;
     const int maxContentHeight = height_ - kMargin * 2 - padding * 2;
     if (maxContentHeight < kOverflowHeight)
         return;
