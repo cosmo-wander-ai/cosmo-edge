@@ -46,16 +46,6 @@ size_t LogFormatArg(const char*, const char*, int, int, int, fmt::string_view, f
 }  // namespace cosmo::log
 
 namespace cosmo::media {
-VideoDecoder::VideoDecoder(size_t) {}
-VideoDecoder::~VideoDecoder() = default;
-void VideoDecoder::SetCodecType(VideoCodecType type, int width, int height) {
-    codec_type_ = type;
-    width_      = static_cast<size_t>(width);
-    height_     = static_cast<size_t>(height);
-}
-DecodedVideoFrame VideoDecoder::GetDecodedFrame() {
-    return {};
-}
 VideoFrame::VideoFrame(int width, int height, PixelFormat format, uint64_t index, int64_t timestamp)
     : active_(true),
       size_(static_cast<size_t>(width) * height * 3 / 2),
@@ -72,6 +62,15 @@ VideoFrame::~VideoFrame() {
 }
 bool VideoFrame::Active() const {
     return active_;
+}
+size_t VideoFrame::GetWidth() const {
+    return width_;
+}
+size_t VideoFrame::GetHeight() const {
+    return height_;
+}
+PixelFormat VideoFrame::GetPixelFormat() const {
+    return pixel_fmt_;
 }
 size_t VideoFrame::GetSize() const {
     return size_;
@@ -102,6 +101,13 @@ AX_S32 AX_SYS_MemAlloc(AX_U64* physical, AX_VOID** vir, AX_U32 bytes, AX_U32, co
         return -1;
     *physical = reinterpret_cast<AX_U64>(*vir);
     ++fake.allocations;
+    return 0;
+}
+AX_S32 AX_SYS_MemAllocCached(AX_U64* physical, AX_VOID** vir, AX_U32 bytes, AX_U32 align,
+                             const AX_S8* token) {
+    return AX_SYS_MemAlloc(physical, vir, bytes, align, token);
+}
+AX_S32 AX_SYS_MflushCache(AX_U64, AX_VOID*, AX_U32) {
     return 0;
 }
 AX_S32 AX_SYS_MemFree(AX_U64, AX_VOID* vir) {
@@ -301,27 +307,37 @@ TEST_CASE("AX native frame checks half-open physical plane ranges", "[media][axe
     }
 }
 
-TEST_CASE("AX native return failure retains frame and retries teardown on owner thread",
-          "[media][axera][mock]") {
-    fake              = FakeVdec{};
-    fake.failure_mode = 9;
-    std::vector<uint8_t> packet{1, 2, 3};
-    cosmo::media::VideoDecoderAxera decoder(9);
-    decoder.SetCodecType(cosmo::media::VideoCodecType::kH264, 144, 144);
-    REQUIRE(decoder.Open());
-    REQUIRE(decoder.SendPacket(packet.data(), packet.size(), 7));
-    auto frame = decoder.GetNativeFrame();
-    REQUIRE(frame);
-    CHECK(frame->format == cosmo::media::NativeVideoBufferFormat::NV21);
-    frame.reset();
-    fake.fail_release = true;
-    CHECK_FALSE(decoder.Close());
-    CHECK(fake.released_frames == 0);
-    CHECK(fake.frees == 0);
-    fake.fail_release = false;
-    REQUIRE(decoder.Close());
-    CHECK(fake.released_frames == 1);
-    CHECK(fake.allocations == fake.frees);
+TEST_CASE("AX native release failure quarantines a frame with uncertain ownership", "[media][axera][mock]") {
+    // Quarantine deliberately retains the process-wide SDK lease. Exercise that
+    // failure in a child so successful decoder cases start with their own SYS state.
+    const auto child = fork();
+    REQUIRE(child >= 0);
+    if (child == 0) {
+        fake              = FakeVdec{};
+        fake.failure_mode = 9;
+        const std::vector<uint8_t> packet{1, 2, 3};
+        {
+            cosmo::media::VideoDecoderAxera decoder(9);
+            decoder.SetCodecType(cosmo::media::VideoCodecType::kH264, 144, 144);
+            if (!decoder.Open() || !decoder.SendPacket(packet.data(), packet.size(), 7))
+                std::_Exit(2);
+            auto frame = decoder.GetNativeFrame();
+            if (!frame || frame->format != cosmo::media::NativeVideoBufferFormat::NV21)
+                std::_Exit(3);
+            frame.reset();
+            fake.fail_release = true;
+            if (decoder.Close() || fake.released_frames || fake.frees)
+                std::_Exit(4);
+            fake.fail_release = false;
+            if (decoder.Close() || fake.released_frames || fake.frees)
+                std::_Exit(5);
+        }
+        std::_Exit(fake.released_frames || fake.frees || fake.deinit ? 6 : 0);
+    }
+    int status = 0;
+    REQUIRE(waitpid(child, &status, 0) == child);
+    REQUIRE(WIFEXITED(status));
+    CHECK(WEXITSTATUS(status) == 0);
 }
 
 TEST_CASE("AX native lease outlives decoder without SDK calls on consumer thread", "[media][axera][mock]") {
