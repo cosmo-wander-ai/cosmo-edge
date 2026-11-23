@@ -116,7 +116,10 @@ VideoTask::MsgQuerySwitchSend MessageVideoTaskHandler::Handle(VideoTask::MsgQuer
 VideoTask::MsgSaveOrUpdateSend MessageVideoTaskHandler::Handle(VideoTask::MsgSaveOrUpdateRecv&& data,
                                                                std::error_condition& errc) {
     VideoTask::MsgSaveOrUpdateSend retData{};
-    errc = task_config_.SaveOrUpdateTask(data.channelId, data.algorithmId, data.taskConfig, data.scheduleId);
+    errc = data.preserveEnableState ? task_config_.SaveTaskPreservingState(data.channelId, data.algorithmId,
+                                                                           data.taskConfig, data.scheduleId)
+                                    : task_config_.SaveOrUpdateTask(data.channelId, data.algorithmId,
+                                                                    data.taskConfig, data.scheduleId);
     return retData;
 }
 
@@ -329,11 +332,21 @@ namespace {
 
         for (auto& queue_status : src.queStatus) {
             ActionStatus action;
-            action.actionId           = queue_status.actionId;
-            action.name               = queue_status.queueStatus.name;
-            std::error_condition qerr = queue_status.actionStatus;
-            action.statusCode         = std::to_string(qerr.value());
-            action.statusDesc         = qerr.message();
+            action.actionId                    = queue_status.actionId;
+            action.name                        = queue_status.queueStatus.name;
+            action.flowActionId                = queue_status.flowActionId;
+            action.inferenceInstanceId         = queue_status.inferenceInstanceId;
+            action.classifierForwardSuccess    = queue_status.classifierForwardSuccess;
+            action.classifierForwardFailure    = queue_status.classifierForwardFailure;
+            action.classifierEmptyCandidates   = queue_status.classifierEmptyCandidates;
+            action.classifierNonForwardFailure = queue_status.classifierNonForwardFailure;
+            action.faceOutputOverflowCount     = queue_status.faceOutputOverflowCount;
+            action.faceOutputCapacity          = queue_status.faceOutputCapacity;
+            action.personOutputOverflowCount   = queue_status.personOutputOverflowCount;
+            action.personOutputCapacity        = queue_status.personOutputCapacity;
+            std::error_condition qerr          = queue_status.actionStatus;
+            action.statusCode                  = std::to_string(qerr.value());
+            action.statusDesc                  = qerr.message();
             action.statusDescKey =
                 "api.error." + util::ErrorEnumName(static_cast<util::ErrorEnum>(qerr.value()));
             action.holdCount          = queue_status.queueStatus.holdCount;

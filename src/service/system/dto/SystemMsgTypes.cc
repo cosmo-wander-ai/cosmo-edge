@@ -430,11 +430,27 @@ void to_json(nlohmann::json& j, const MsgHwInfo& v) {
 }
 
 void from_json(const nlohmann::json& j, ActionStatus& v) {
+    auto read_count = [&j](const char* key) -> std::optional<uint64_t> {
+        const auto it = j.find(key);
+        if (it == j.end() || it->is_null())
+            return std::nullopt;
+        return it->get<uint64_t>();
+    };
     JSON_OPT(j, v, statusCode);
     JSON_OPT(j, v, statusDesc);
     JSON_OPT(j, v, statusDescKey);
     JSON_OPT(j, v, actionId);
     JSON_OPT(j, v, name);
+    JSON_OPT(j, v, flowActionId);
+    JSON_OPT(j, v, inferenceInstanceId);
+    v.classifierForwardSuccess    = read_count("classifierForwardSuccess");
+    v.classifierForwardFailure    = read_count("classifierForwardFailure");
+    v.classifierEmptyCandidates   = read_count("classifierEmptyCandidates");
+    v.classifierNonForwardFailure = read_count("classifierNonForwardFailure");
+    v.faceOutputOverflowCount     = read_count("faceOutputOverflowCount");
+    v.faceOutputCapacity          = read_count("faceOutputCapacity");
+    v.personOutputOverflowCount   = read_count("personOutputOverflowCount");
+    v.personOutputCapacity        = read_count("personOutputCapacity");
     JSON_OPT(j, v, holdCount);
     JSON_OPT(j, v, alarmCount);
     JSON_OPT(j, v, insertCount);
@@ -451,8 +467,28 @@ void to_json(nlohmann::json& j, const ActionStatus& v) {
     j["statusDesc"] = v.statusDesc;
     if (!v.statusDescKey.empty())
         j["statusDescKey"] = v.statusDescKey;
-    j["actionId"]           = v.actionId;
-    j["name"]               = v.name;
+    j["actionId"] = v.actionId;
+    j["name"]     = v.name;
+    if (!v.flowActionId.empty())
+        j["flowActionId"] = v.flowActionId;
+    if (!v.inferenceInstanceId.empty())
+        j["inferenceInstanceId"] = v.inferenceInstanceId;
+    if (v.classifierForwardSuccess)
+        j["classifierForwardSuccess"] = *v.classifierForwardSuccess;
+    if (v.classifierForwardFailure)
+        j["classifierForwardFailure"] = *v.classifierForwardFailure;
+    if (v.classifierEmptyCandidates)
+        j["classifierEmptyCandidates"] = *v.classifierEmptyCandidates;
+    if (v.classifierNonForwardFailure)
+        j["classifierNonForwardFailure"] = *v.classifierNonForwardFailure;
+    if (v.faceOutputOverflowCount)
+        j["faceOutputOverflowCount"] = *v.faceOutputOverflowCount;
+    if (v.faceOutputCapacity)
+        j["faceOutputCapacity"] = *v.faceOutputCapacity;
+    if (v.personOutputOverflowCount)
+        j["personOutputOverflowCount"] = *v.personOutputOverflowCount;
+    if (v.personOutputCapacity)
+        j["personOutputCapacity"] = *v.personOutputCapacity;
     j["holdCount"]          = v.holdCount;
     j["alarmCount"]         = v.alarmCount;
     j["insertCount"]        = v.insertCount;

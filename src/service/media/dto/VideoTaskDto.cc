@@ -127,8 +127,9 @@ void from_json(const nlohmann::json& j, MsgQueryStrategySend& v) {
 void to_json(nlohmann::json& j, const MsgSaveOrUpdateRecv& v) {
     to_json(j, static_cast<const MsgRecvHead&>(v));
     to_json(j, static_cast<const MsgChannelTask&>(v));
-    j["taskConfig"] = v.taskConfig;
-    j["scheduleId"] = v.scheduleId;
+    j["taskConfig"]          = v.taskConfig;
+    j["scheduleId"]          = v.scheduleId;
+    j["preserveEnableState"] = v.preserveEnableState;
 }
 
 void from_json(const nlohmann::json& j, MsgSaveOrUpdateRecv& v) {
@@ -136,6 +137,7 @@ void from_json(const nlohmann::json& j, MsgSaveOrUpdateRecv& v) {
     from_json(j, static_cast<MsgChannelTask&>(v));
     JSON_OPT(j, v, taskConfig);
     JSON_OPT(j, v, scheduleId);
+    JSON_OPT(j, v, preserveEnableState);
 }
 
 void to_json(nlohmann::json& j, const MsgSelectConfigByAlgorithmIdRecv& v) {

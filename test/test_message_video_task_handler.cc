@@ -738,10 +738,20 @@ TEST_CASE("VideoTaskHandler: RunningDetail with tasks", "[video-task-handler]") 
     ts.taskId    = "task1";
     // Add enough queue statuses to pass the kMinActionStatusCount filter (> 2)
     cosmo::AlgActionDataQueueStatusDto qs1, qs2, qs3;
-    qs1.actionId = "a1";
-    qs2.actionId = "a2";
-    qs3.actionId = "a3";
-    ts.queStatus = {qs1, qs2, qs3};
+    qs1.actionId                    = "a1";
+    qs1.flowActionId                = "classifier-flow";
+    qs1.inferenceInstanceId         = "classifier-instance";
+    qs1.classifierForwardSuccess    = 19;
+    qs1.classifierForwardFailure    = 0;
+    qs1.classifierEmptyCandidates   = 3;
+    qs1.classifierNonForwardFailure = 2;
+    qs2.actionId                    = "a2";
+    qs2.faceOutputOverflowCount     = 0;
+    qs2.faceOutputCapacity          = 64;
+    qs2.personOutputOverflowCount   = 5;
+    qs2.personOutputCapacity        = 300;
+    qs3.actionId                    = "a3";
+    ts.queStatus                    = {qs1, qs2, qs3};
 
     REQUIRE_CALL(f.mocks.taskSvc, GetTaskStatus(trompeloeil::_, trompeloeil::_))
         .RETURN(std::vector<cosmo::TaskStatus>{ts});
@@ -750,6 +760,25 @@ TEST_CASE("VideoTaskHandler: RunningDetail with tasks", "[video-task-handler]") 
     REQUIRE(ret.resData.status.size() == 1);
     REQUIRE(ret.resData.status[0].taskId == "task1");
     REQUIRE(ret.resData.status[0].actionStatus.size() == 3);
+
+    const nlohmann::json response = ret;
+    const auto& actions           = response.at("resData").at("status").at(0).at("actionStatus");
+    CHECK(actions[0].at("statusDescKey") == "api.error.Success");
+    CHECK(actions[0].at("flowActionId") == "classifier-flow");
+    CHECK(actions[0].at("inferenceInstanceId") == "classifier-instance");
+    CHECK(actions[0].at("classifierForwardSuccess") == 19);
+    CHECK(actions[0].at("classifierForwardFailure") == 0);
+    CHECK(actions[0].at("classifierEmptyCandidates") == 3);
+    CHECK(actions[0].at("classifierNonForwardFailure") == 2);
+    CHECK(actions[2].find("classifierForwardFailure") == actions[2].end());
+    CHECK(actions[2].find("faceOutputCapacity") == actions[2].end());
+    CHECK(actions[1].at("faceOutputOverflowCount") == 0);
+    CHECK(actions[1].at("faceOutputCapacity") == 64);
+    CHECK(actions[1].at("personOutputOverflowCount") == 5);
+    CHECK(actions[1].at("personOutputCapacity") == 300);
+
+    const auto round_trip = response.get<cosmo::VideoTask::MsgRunningDetailSend>();
+    CHECK(nlohmann::json(round_trip.resData.status[0].actionStatus) == actions);
 }
 
 TEST_CASE("RunningDetail returns legacy action timings only for explicitly requested tasks",

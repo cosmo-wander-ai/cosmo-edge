@@ -168,6 +168,7 @@ namespace VideoTask {
     struct MsgSaveOrUpdateRecv : public MsgRecvHead, public MsgChannelTask {
         MsgTaskConfig taskConfig;
         std::string scheduleId{std::string(kDefaultScheduleId)};  // Default 24/7
+        bool preserveEnableState{false};
     };
 
     void to_json(nlohmann::json& j, const MsgSaveOrUpdateRecv& v);
@@ -286,7 +287,6 @@ namespace VideoTask {
 
     struct MsgApplyParamsBatchRecv : public MsgSaveOrUpdateRecv {
         std::vector<std::string> targetChannelIds;
-        bool preserveEnableState{false};
     };
 
     void to_json(nlohmann::json& j, const MsgApplyParamsBatchRecv& v);

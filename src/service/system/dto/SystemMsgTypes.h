@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <optional>
+
 #include "util/MsgBaseTypes.h"
 
 namespace cosmo {
@@ -237,6 +239,16 @@ struct ActionStatus {
     std::string statusDescKey;
     std::string actionId;
     std::string name;
+    std::string flowActionId;
+    std::string inferenceInstanceId;
+    std::optional<uint64_t> classifierForwardSuccess;
+    std::optional<uint64_t> classifierForwardFailure;
+    std::optional<uint64_t> classifierEmptyCandidates;
+    std::optional<uint64_t> classifierNonForwardFailure;
+    std::optional<uint64_t> faceOutputOverflowCount;
+    std::optional<uint64_t> faceOutputCapacity;
+    std::optional<uint64_t> personOutputOverflowCount;
+    std::optional<uint64_t> personOutputCapacity;
 
     uint64_t holdCount{0};  // Current queue size (pending packets)
 
