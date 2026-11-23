@@ -267,8 +267,13 @@ VideoTask::MsgApplyParamsBatchSend MessageVideoTaskHandler::Handle(VideoTask::Ms
         targetConfig.shieldedAreas.clear();
         std::error_condition ret = task_config_.QueryTaskArea(channelId, data.algorithmId, targetConfig.areas,
                                                               targetConfig.shieldedAreas);
-        if (util::ErrorEnum::Success == ret) {
-            ret = task_config_.SaveOrUpdateTask(channelId, data.algorithmId, targetConfig, data.scheduleId);
+        // A new binding starts with empty channel-local geometry.
+        // Other area errors still block updates on that channel.
+        if (util::ErrorEnum::Success == ret || util::ErrorEnum::TaskNotExist == ret) {
+            ret = data.preserveEnableState ? task_config_.SaveTaskPreservingState(
+                                                 channelId, data.algorithmId, targetConfig, data.scheduleId)
+                                           : task_config_.SaveOrUpdateTask(channelId, data.algorithmId,
+                                                                           targetConfig, data.scheduleId);
         }
         if (util::ErrorEnum::Success != ret) {
             MsgResultInfo failedEl;

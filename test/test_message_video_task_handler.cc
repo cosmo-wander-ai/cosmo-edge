@@ -600,6 +600,38 @@ TEST_CASE("VideoTaskHandler: ApplyParamsBatch preserves each target's complete r
     }
 }
 
+TEST_CASE("VideoTaskHandler: ApplyParamsBatch creates bindings with local geometry",
+          "[video-task-handler][batch-regions]") {
+    TestFixture f;
+    std::error_condition errc;
+    cosmo::VideoTask::MsgApplyParamsBatchRecv recv;
+    recv.algorithmId      = "alg1";
+    recv.scheduleId       = "schedule";
+    recv.targetChannelIds = {"fresh"};
+    recv.taskConfig.areas.emplace_back();
+
+    REQUIRE_CALL(f.mocks.cameraSvc, QueryTaskArea("fresh", "alg1", trompeloeil::_, trompeloeil::_))
+        .RETURN(cosmo::util::ErrorEnum::TaskNotExist);
+
+    const bool preserve      = GENERATE(false, true);
+    recv.preserveEnableState = preserve;
+    if (!preserve) {
+        REQUIRE_CALL(f.mocks.cameraSvc, SaveOrUpdateTask("fresh", "alg1", trompeloeil::_, "schedule"))
+            .WITH(_3.areas.empty() && _3.shieldedAreas.empty())
+            .RETURN(cosmo::util::ErrorEnum::Success);
+        const auto result = f.handler.Handle(std::move(recv), errc);
+        CHECK(errc == cosmo::util::ErrorEnum::Success);
+        CHECK(result.resData.failedList.empty());
+    } else {
+        REQUIRE_CALL(f.mocks.cameraSvc, SaveTaskPreservingState("fresh", "alg1", trompeloeil::_, "schedule"))
+            .WITH(_3.areas.empty() && _3.shieldedAreas.empty())
+            .RETURN(cosmo::util::ErrorEnum::Success);
+        const auto result = f.handler.Handle(std::move(recv), errc);
+        CHECK(errc == cosmo::util::ErrorEnum::Success);
+        CHECK(result.resData.failedList.empty());
+    }
+}
+
 TEST_CASE("VideoTaskHandler: ApplyParamsBatch skips unreadable target without writing it",
           "[video-task-handler][batch-regions]") {
     TestFixture f;
@@ -608,7 +640,7 @@ TEST_CASE("VideoTaskHandler: ApplyParamsBatch skips unreadable target without wr
     recv.algorithmId      = "alg1";
     recv.targetChannelIds = {"missing", "healthy"};
     REQUIRE_CALL(f.mocks.cameraSvc, QueryTaskArea("missing", "alg1", trompeloeil::_, trompeloeil::_))
-        .RETURN(cosmo::util::ErrorEnum::TaskNotExist);
+        .RETURN(cosmo::util::ErrorEnum::TaskCreateFailed);
     FORBID_CALL(f.mocks.cameraSvc,
                 SaveOrUpdateTask("missing", trompeloeil::_, trompeloeil::_, trompeloeil::_));
     REQUIRE_CALL(f.mocks.cameraSvc, QueryTaskArea("healthy", "alg1", trompeloeil::_, trompeloeil::_))
@@ -620,7 +652,8 @@ TEST_CASE("VideoTaskHandler: ApplyParamsBatch skips unreadable target without wr
     REQUIRE(errc == cosmo::util::ErrorEnum::Success);
     REQUIRE(response.resData.failedList.size() == 1);
     REQUIRE(response.resData.failedList[0].id == "missing");
-    REQUIRE(response.resData.failedList[0].resCode == static_cast<int>(cosmo::util::ErrorEnum::TaskNotExist));
+    REQUIRE(response.resData.failedList[0].resCode ==
+            static_cast<int>(cosmo::util::ErrorEnum::TaskCreateFailed));
 }
 
 // ============================================================================

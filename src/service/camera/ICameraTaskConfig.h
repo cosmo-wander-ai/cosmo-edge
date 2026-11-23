@@ -47,6 +47,13 @@ public:
                                                     const cosmo::MsgTaskConfig& params,
                                                     const std::string& scheduleId) = 0;
 
+    /// Apply parameters and scheduling while preserving the binding's enable state.
+    /// A newly created binding stays disabled until explicitly enabled.
+    virtual cosmo::util::ErrorEnum SaveTaskPreservingState(const std::string&, const std::string&,
+                                                           const cosmo::MsgTaskConfig&, const std::string&) {
+        return cosmo::util::ErrorEnum::InvalidParam;
+    }
+
     /// Query current dynamic parameters for a camera–algorithm task.
     /// @param cameraId    Camera identifier.
     /// @param algorithmId Algorithm identifier.

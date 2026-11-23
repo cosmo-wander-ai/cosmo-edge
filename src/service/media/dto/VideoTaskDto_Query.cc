@@ -51,12 +51,14 @@ void from_json(const nlohmann::json& j, MsgListChannelSend& v) {
 
 void to_json(nlohmann::json& j, const MsgApplyParamsBatchRecv& v) {
     to_json(j, static_cast<const MsgSaveOrUpdateRecv&>(v));
-    j["targetChannelIds"] = v.targetChannelIds;
+    j["targetChannelIds"]    = v.targetChannelIds;
+    j["preserveEnableState"] = v.preserveEnableState;
 }
 
 void from_json(const nlohmann::json& j, MsgApplyParamsBatchRecv& v) {
     from_json(j, static_cast<MsgSaveOrUpdateRecv&>(v));
     j.at("targetChannelIds").get_to(v.targetChannelIds);
+    JSON_OPT(j, v, preserveEnableState);
 }
 
 void to_json(nlohmann::json& j, const MsgApplyParamsBatchSend& v) {

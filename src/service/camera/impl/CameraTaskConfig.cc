@@ -118,9 +118,16 @@ util::ErrorEnum CameraServiceImpl::PrepareTask(const std::string& cameraId, cons
     return SaveTask(cameraId, algorithmId, params, scheduleId, false);
 }
 
+util::ErrorEnum CameraServiceImpl::SaveTaskPreservingState(const std::string& cameraId,
+                                                           const std::string& algorithmId,
+                                                           const MsgTaskConfig& params,
+                                                           const std::string& scheduleId) {
+    return SaveTask(cameraId, algorithmId, params, scheduleId, false, true);
+}
+
 util::ErrorEnum CameraServiceImpl::SaveTask(const std::string& cameraId, const std::string& algorithmId,
                                             const MsgTaskConfig& params, const std::string& scheduleId,
-                                            bool enable) {
+                                            bool enable, bool preserve_enable_state) {
     if (ContainsDuplicateRequestParamKeys(params)) {
         LOG_WARN("[{}/{}] SaveOrUpdate rejected duplicate parameter keys", cameraId, algorithmId);
         return util::ErrorEnum::InvalidParam;
@@ -143,7 +150,8 @@ util::ErrorEnum CameraServiceImpl::SaveTask(const std::string& cameraId, const s
         return util::ErrorEnum::TimeTemplateNotExist;
     }
 
-    bool needs_enable = enable;
+    bool effective_enable = enable;
+    bool needs_enable     = effective_enable;
     {
         std::shared_lock<std::shared_mutex> lock(camera->task_mtx_);
         auto it = std::find_if(camera->tasks_.begin(), camera->tasks_.end(),
@@ -154,10 +162,13 @@ util::ErrorEnum CameraServiceImpl::SaveTask(const std::string& cameraId, const s
                          algorithmId);
                 return util::ErrorEnum::TaskCreateFailed;
             }
-            if (!enable && (*it)->is_enabled_.load(std::memory_order_acquire)) {
+            const bool was_enabled = (*it)->is_enabled_.load(std::memory_order_acquire);
+            if (preserve_enable_state) {
+                effective_enable = was_enabled;
+            } else if (!enable && was_enabled) {
                 return util::ErrorEnum::InvalidParam;
             }
-            needs_enable = enable && !(*it)->is_enabled_.load(std::memory_order_acquire);
+            needs_enable = effective_enable && !was_enabled;
         }
     }
 
@@ -205,12 +216,12 @@ util::ErrorEnum CameraServiceImpl::SaveTask(const std::string& cameraId, const s
         task->data_.taskConfig.params = task->task_->GetParams();
         task->schedule_id_            = scheduleId;
         task->schedule_name_          = scheduleName;
-        task->is_enabled_.store(enable, std::memory_order_release);
+        task->is_enabled_.store(effective_enable, std::memory_order_release);
         if (!SaveCameraTaskList(camera)) {
             task->is_enabled_.store(was_enabled, std::memory_order_release);
             return util::ErrorEnum::SysErr;
         }
-        start_task = enable && !was_enabled;
+        start_task = effective_enable && !was_enabled;
     }
 
     if (start_task) {

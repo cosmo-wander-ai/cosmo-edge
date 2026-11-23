@@ -286,6 +286,7 @@ namespace VideoTask {
 
     struct MsgApplyParamsBatchRecv : public MsgSaveOrUpdateRecv {
         std::vector<std::string> targetChannelIds;
+        bool preserveEnableState{false};
     };
 
     void to_json(nlohmann::json& j, const MsgApplyParamsBatchRecv& v);
