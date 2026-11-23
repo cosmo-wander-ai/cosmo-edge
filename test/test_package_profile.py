@@ -77,7 +77,8 @@ class PackageProfileTests(unittest.TestCase):
                 )
             if profile == "production-release":
                 files.add("bin/cosmo-model-provision")
-            rknn_guard = include_model_guard and target_chip == "rk3576"
+            rknn_runtime = verifier.MODEL_GUARD_RKNN_RUNTIME_FILES.get(target_chip)
+            rknn_guard = include_model_guard and rknn_runtime is not None
             sophon_production = profile == "production-release" and not rknn_guard
             if sophon_production:
                 files.update({SOPHON_MANIFEST_FILE, SOPHON_HEADER_FILE})
@@ -86,7 +87,7 @@ class PackageProfileTests(unittest.TestCase):
             provision_payload = b"#!/bin/sh\n"
             if rknn_guard:
                 files.discard(verifier.MODEL_GUARD_RUNTIME_FILE)
-                files.update({verifier.MODEL_GUARD_RKNN_RUNTIME_FILE,
+                files.update({rknn_runtime,
                               verifier.MODEL_GUARD_RUNTIME_HASH_FILE,
                               verifier.MODEL_GUARD_RKNN_SDK_MANIFEST_FILE,
                               verifier.MODEL_GUARD_RKNN_HEADER_FILE})
@@ -122,13 +123,23 @@ class PackageProfileTests(unittest.TestCase):
                     data = (b"explicitly authorized CosmoEdge fork\n"
                             b"not a general relicensing\n"
                             b"public distribution still requires a separate review\n")
-                elif name == verifier.MODEL_GUARD_RKNN_RUNTIME_FILE:
+                elif name == rknn_runtime:
                     data = guard_payload
                 elif name == verifier.MODEL_GUARD_RKNN_HEADER_FILE:
                     data = header_payload
                 elif name == verifier.MODEL_GUARD_RUNTIME_HASH_FILE:
                     data = (hashlib.sha256(guard_payload).hexdigest() + "  " +
-                            verifier.MODEL_GUARD_RKNN_RUNTIME_FILE + "\n").encode()
+                            rknn_runtime + "\n").encode()
+                elif target_chip == "rk3588" and name == verifier.MODEL_GUARD_RKNN_SDK_MANIFEST_FILE:
+                    data = json.dumps({
+                        "release_id": "cmg-sdk-v2.6.0-rknn-abi1",
+                        "guard_version": [2, 6, 0],
+                        "minimum_glibc": "2.31",
+                        "soname": "libcosmo_model_guard_rknn.so.1",
+                        "symbol_version": "CMGR_1.0",
+                        "targets": {"rockchip-rk3588-aarch64": 4},
+                        "binding_profiles": {"rk3588-otp-id-v1": 4},
+                    }).encode()
                 elif rknn_guard and name == verifier.MODEL_GUARD_RKNN_SDK_MANIFEST_FILE:
                     data = json.dumps({
                         "release_id": "cmg-sdk-v2.4.0-rknn-abi1",
@@ -765,16 +776,24 @@ class PackageProfileTests(unittest.TestCase):
         with self.assertRaisesRegex(verifier.PackageAuditError, "model bundle chip does not match"):
             verifier.verify_package(wrong, "public-runtime", "rk3588")
 
-    def test_rk3588_rejects_protected_and_model_guard_payloads(self):
-        protected = self.make_package(
+    def test_rk3588_protected_requires_target_guard(self):
+        package = self.make_package(
             "production-release", b"CEMCfixture", target_chip="rk3588", platform_chip="rk3588"
         )
-        with self.assertRaisesRegex(verifier.PackageAuditError, "Protected RK3588 packages are unsupported"):
-            verifier.verify_package(protected, "production-release", "rk3588")
+        verifier.verify_package(package, "production-release", "rk3588")
+        runtime = verifier.MODEL_GUARD_RKNN_RUNTIME_FILES["rk3588"]
+        with self.assertRaisesRegex(verifier.PackageAuditError, "target Model Guard runtime"):
+            verifier.verify_package(self.mutate_package(package, {runtime: None}),
+                                    "production-release", "rk3588")
+        with self.assertRaisesRegex(verifier.PackageAuditError, "manifest mismatch"):
+            wrong = self.mutate_package(package, {verifier.MODEL_GUARD_RKNN_SDK_MANIFEST_FILE: b"{}"})
+            verifier.verify_package(wrong, "production-release", "rk3588")
+
+    def test_rk3588_open_rejects_model_guard_payloads(self):
         package = self.make_package(
             "public-runtime", target_chip="rk3588", platform_chip="rk3588"
         )
-        for name in (verifier.MODEL_GUARD_RUNTIME_FILE, verifier.MODEL_GUARD_RKNN_RUNTIME_FILE):
+        for name in (verifier.MODEL_GUARD_RUNTIME_FILE, *verifier.MODEL_GUARD_RKNN_RUNTIME_FILES.values()):
             with self.subTest(name=name):
                 wrong = self.mutate_package(package, {}, additions={name: b"unadmitted-guard"})
                 with self.assertRaisesRegex(verifier.PackageAuditError, "must not contain Model Guard"):

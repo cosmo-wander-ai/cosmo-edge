@@ -61,10 +61,6 @@ if [ -z "${PROJECT_ROOT_PATH:-}" ]; then
 fi
 builder_lock="${PROJECT_ROOT_PATH}/config/rockchip-build/builder-lock.json"
 if [ "${chip}" = "rk3588" ]; then
-    if [ "${build_profile}" != "public-runtime" ]; then
-        echo "ERROR: RK3588 currently supports only the public-runtime CV candidate profile" >&2
-        exit 2
-    fi
     builder_lock="${PROJECT_ROOT_PATH}/config/rockchip-build/builder-lock.rk3588-glibc231.json"
 fi
 image_lock="${COSMO_ROCKCHIP_BUILDER_LOCK:-/opt/cosmo/rockchip-builder-lock.json}"
@@ -110,6 +106,13 @@ test -f "${media_root}/include/rockchip/rk_mpi.h"
 test -f "${media_root}/include/rga/im2d.h"
 test -f "${media_root}/lib/librockchip_mpp.so"
 test -f "${media_root}/lib/librga.so"
+audit_options=()
+if [ "${chip}" = "rk3588" ] && [ "${build_profile}" = "production-release" ] &&
+        [ -n "${COSMO_RK3588_RKLLM_ROOT:-}" ]; then
+    rkllm_root="${COSMO_RK3588_RKLLM_ROOT}"
+    rkllm_required=ON
+    audit_options+=(--rk3588-with-rkllm)
+fi
 if [ "${rkllm_required}" = "ON" ]; then
     test -f "${rkllm_root}/include/rkllm.h"
     test -f "${rkllm_root}/lib/librkllmrt.so"
@@ -150,7 +153,7 @@ python3 "${PROJECT_ROOT_PATH}/scripts/verify_package_contents.py" \
     --archive "$(cd "$(dirname "${package}")" && pwd -P)/$(basename "${package}")" \
     --build-profile "${build_profile}" \
     --target-chip "${chip}" \
-    --target-policy-lock "${builder_lock}"
+    --target-policy-lock "${builder_lock}" "${audit_options[@]}"
 
 if [ "${chip}" = "rk3588" ]; then
     abi_root="$(mktemp -d "${PROJECT_ROOT_PATH}/build_rknn/abi-audit.XXXXXX")"
