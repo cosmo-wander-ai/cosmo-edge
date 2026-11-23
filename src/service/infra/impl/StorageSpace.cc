@@ -206,7 +206,7 @@ void StorageSpace::DoClean() {
 
     std::error_code err;
     auto space_info = fs::space(record_base_path_, err);
-    if (space_info.available + kAvailableSpaceMargin < config_.storage_reserve_space) {
+    if (!err && space_info.available + kAvailableSpaceMargin < config_.storage_reserve_space) {
         try {
             DelSpaceLmtStgy(config_.storage_reserve_space - space_info.available);
         } catch (const SQLite::Exception& error) {

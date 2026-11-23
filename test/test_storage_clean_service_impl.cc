@@ -2,9 +2,7 @@
 /*
  * test_storage_clean_service_impl.cc — StorageCleanServiceImpl unit tests (DEBT-T01)
  *
- * Strategy: Test lifecycle safety (Start/Stop idempotency).
- * Actual cleanup logic depends on StorageSpace and file system state,
- * so we only verify Start/Stop contract and crash safety.
+ * Covers lifecycle safety and storage cleanup failures.
  */
 #include <SQLiteCpp/SQLiteCpp.h>
 
@@ -53,7 +51,7 @@ TEST_CASE("StorageCleanServiceImpl: destructor calls Stop", "[StorageCleanServic
     }());
 }
 
-TEST_CASE("Storage cleanup defers a locked delete and removes files only after retry succeeds",
+TEST_CASE("Storage cleanup preserves alarms when space checks or database deletes fail",
           "[StorageCleanService][storage-lock]") {
     namespace fs = std::filesystem;
     struct Directory {
@@ -88,20 +86,38 @@ TEST_CASE("Storage cleanup defers a locked delete and removes files only after r
 
     cosmo::test::MockAlarmRecordService alarms;
     cosmo::test::ScopedServiceOverride<IAlarmRecordService> registration(alarms);
-    REQUIRE_CALL(alarms, QueryAlarmRecords(trompeloeil::_, 1)).TIMES(2).RETURN(result);
-    REQUIRE_CALL(alarms, RemoveItems(std::vector<std::string>{"retained"}))
-        .TIMES(2)
-        .LR_SIDE_EFFECT(events.RemoveItems(_1));
-    cosmo::StorageSpace cleanup(directory.path.string(),
-                                {fs::space(directory.path).available + 64 * 1024 * 1024});
-    SQLite::Database blocker(dbPath, SQLite::OPEN_READWRITE);
-    blocker.exec("BEGIN IMMEDIATE");
-    REQUIRE_NOTHROW(cleanup.DoClean());
-    REQUIRE(database.execAndGet("SELECT COUNT(*) FROM t_commonEvent").getInt() == 1);
-    REQUIRE(fs::exists(image));
 
-    blocker.exec("ROLLBACK");
-    REQUIRE_NOTHROW(cleanup.DoClean());
-    REQUIRE(database.execAndGet("SELECT COUNT(*) FROM t_commonEvent").getInt() == 0);
-    REQUIRE_FALSE(fs::exists(image));
+    SECTION("A failed space query leaves the existing alarm and its attachment intact") {
+        const auto missingPath = directory.path / "missing";
+        std::error_code error;
+        (void)fs::space(missingPath, error);
+        REQUIRE(error);
+
+        ALLOW_CALL(alarms, QueryAlarmRecords(trompeloeil::_, 1)).RETURN(result);
+        ALLOW_CALL(alarms, RemoveItems(std::vector<std::string>{"retained"}))
+            .LR_SIDE_EFFECT(events.RemoveItems(_1));
+        cosmo::StorageSpace cleanup(missingPath.string());
+        REQUIRE_NOTHROW(cleanup.DoClean());
+        CHECK(database.execAndGet("SELECT COUNT(*) FROM t_commonEvent").getInt() == 1);
+        CHECK(fs::exists(image));
+    }
+
+    SECTION("A locked delete removes files only after retry succeeds") {
+        REQUIRE_CALL(alarms, QueryAlarmRecords(trompeloeil::_, 1)).TIMES(2).RETURN(result);
+        REQUIRE_CALL(alarms, RemoveItems(std::vector<std::string>{"retained"}))
+            .TIMES(2)
+            .LR_SIDE_EFFECT(events.RemoveItems(_1));
+        cosmo::StorageSpace cleanup(directory.path.string(),
+                                    {fs::space(directory.path).available + 64 * 1024 * 1024});
+        SQLite::Database blocker(dbPath, SQLite::OPEN_READWRITE);
+        blocker.exec("BEGIN IMMEDIATE");
+        REQUIRE_NOTHROW(cleanup.DoClean());
+        REQUIRE(database.execAndGet("SELECT COUNT(*) FROM t_commonEvent").getInt() == 1);
+        REQUIRE(fs::exists(image));
+
+        blocker.exec("ROLLBACK");
+        REQUIRE_NOTHROW(cleanup.DoClean());
+        REQUIRE(database.execAndGet("SELECT COUNT(*) FROM t_commonEvent").getInt() == 0);
+        REQUIRE_FALSE(fs::exists(image));
+    }
 }
