@@ -326,7 +326,9 @@ TEST_CASE("ModelServiceImpl: 模型服务核心逻辑", "[model-service]") {
         }
 
         SECTION("The saved declaration determines the ordered person attributes") {
-            const auto modelDir = std::filesystem::path(testModelsDir) / "person_attributes";
+            const auto modelDir =
+                std::filesystem::path(testModelsDir) /
+                (std::string(cosmo::util::kPlatformDirPrefix) + "person_custom_CustomAttributes_V1.0.0");
             std::filesystem::create_directories(modelDir);
             nlohmann::json config = nlohmann::json::parse(
                 R"({"algorithm_code":"person_custom","model_type":"yolo26_person_attributes",
