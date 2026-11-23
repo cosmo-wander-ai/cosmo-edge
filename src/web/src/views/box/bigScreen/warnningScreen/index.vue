@@ -81,7 +81,7 @@
           <div v-if="cameraDrawerVisible" class="camera-list-wrap">
             <div class="title">
               <span>{{ t('event.channelList') }}</span>
-              <button type="button" class="panel-icon" :title="t('action.refresh')" :aria-label="t('action.refresh')" @click="initCameraList"><el-icon><Refresh /></el-icon></button>
+              <button type="button" class="panel-icon" :title="t('action.refresh')" :aria-label="t('action.refresh')" @click="refreshCameraList"><el-icon><Refresh /></el-icon></button>
             </div>
             <div class="exseach">
               <el-input size="small" :placeholder="t('event.searchKeyword')" maxlength="32" v-model="cameraFilterText">
@@ -130,7 +130,7 @@
           <div class="video-wall" :class="'grid-' + screenType">
             <!-- 当screenType为1时，只渲染当前选中的窗口 -->
             <div v-if="screenType === 1" class="video-item video-active video-one">
-              <flv v-if="playedCameraList[currentSelectedIndex].id" v-model:fitMode="windowFitModes[currentSelectedIndex]" :channelId="playedCameraList[currentSelectedIndex].id" :runAlgorithmId="playedCameraList[currentSelectedIndex].runAlgorithmId" :taskList="playedCameraList[currentSelectedIndex].taskList" :cameraName="playedCameraList[currentSelectedIndex].name" :index="currentSelectedIndex" :isFullScreen="isVideoFullScreen" @runAlgorithmIdChange="handleRunAlgorithmIdChange" @stop="handleCameraClose" @fullScreen="handleVideoFullScreen(currentSelectedIndex)"></flv>
+              <flv v-if="playedCameraList[currentSelectedIndex].id" v-model:fitMode="windowFitModes[currentSelectedIndex]" :channelId="playedCameraList[currentSelectedIndex].id" :runAlgorithmId="playedCameraList[currentSelectedIndex].runAlgorithmId" :taskList="playedCameraList[currentSelectedIndex].taskList" :cameraName="playedCameraList[currentSelectedIndex].name" :index="currentSelectedIndex" :isFullScreen="isVideoFullScreen" @refresh-tasks="refreshCameraList" @runAlgorithmIdChange="handleRunAlgorithmIdChange" @stop="handleCameraClose" @fullScreen="handleVideoFullScreen(currentSelectedIndex)"></flv>
               <div class="no-camera" v-else>
                 <el-icon class="empty-camera-icon" aria-hidden="true"><VideoCamera /></el-icon>
                 <span>{{ t('event.noVideoSignal') }}</span>
@@ -138,7 +138,7 @@
             </div>
             <!-- 当screenType为4时，渲染所有四个窗口 -->
             <div v-else v-for="(n,cameraIndex) in screenType" :key="n" class="video-item" :class="{'video-active': cameraIndex === currentSelectedIndex, 'video-one': (cameraIndex === currentSelectedIndex) && (isVideoFullScreen !== null)}" @click="currentSelectedIndex = cameraIndex">
-              <flv v-if="playedCameraList[cameraIndex].id" v-model:fitMode="windowFitModes[cameraIndex]" :channelId="playedCameraList[cameraIndex].id" :runAlgorithmId="playedCameraList[cameraIndex].runAlgorithmId" :taskList="playedCameraList[cameraIndex].taskList" :cameraName="playedCameraList[cameraIndex].name" :index="cameraIndex" :isFullScreen="(cameraIndex === currentSelectedIndex) ? isVideoFullScreen : null" @runAlgorithmIdChange="handleRunAlgorithmIdChange" @stop="handleCameraClose" @fullScreen="handleVideoFullScreen(cameraIndex)"></flv>
+              <flv v-if="playedCameraList[cameraIndex].id" v-model:fitMode="windowFitModes[cameraIndex]" :channelId="playedCameraList[cameraIndex].id" :runAlgorithmId="playedCameraList[cameraIndex].runAlgorithmId" :taskList="playedCameraList[cameraIndex].taskList" :cameraName="playedCameraList[cameraIndex].name" :index="cameraIndex" :isFullScreen="(cameraIndex === currentSelectedIndex) ? isVideoFullScreen : null" @refresh-tasks="refreshCameraList" @runAlgorithmIdChange="handleRunAlgorithmIdChange" @stop="handleCameraClose" @fullScreen="handleVideoFullScreen(cameraIndex)"></flv>
               <div class="no-camera" v-else>
                 <el-icon class="empty-camera-icon" aria-hidden="true"><VideoCamera /></el-icon>
                 <span>{{ t('event.noVideoSignal') }}</span>
@@ -278,7 +278,6 @@ import DetailDialog from '../components/detailDialog.vue'
 import CaptureDialog from '../components/captureDialog.vue'
 import moment from 'moment'
 import TreeSelect from '../components/TreeSelect.vue'
-import _ from 'lodash'
 import { t, localeColon, currentLocale } from '@/i18n'
 import { resolveResourceAlgorithmName } from '@/utils/i18nResource'
 import { formatSimilarity } from '@/utils/format'
@@ -305,12 +304,16 @@ const recordDrawerVisible = ref(true)
 const settingDialogVisible = ref(false)
 const cameraFilterText = ref('')
 const camearList = ref([])
-const playedCameraList = ref(Array(4).fill({
+const emptyWindow = () => ({
   id: '',
   name: '',
   taskList: [],
   runAlgorithmId: ''
-}))
+})
+const playedCameraList = ref(Array.from({ length: 4 }, emptyWindow))
+let layoutRestored = false
+let refreshingCameras = false
+let cameraRefreshTimer = null
 const currentSelectedIndex = ref(0)
 const isVideoFullScreen = ref(null)
 const detailDialogVisible = ref(false)
@@ -402,10 +405,11 @@ watch(cameraFilterText, (val) => {
   tree.value.filter(val)
 })
 
-watch(playedCameraList, (val) => {
-  console.log(val, '=========playedCameraList========')
-  localStorage.setItem('playedCameraList', JSON.stringify(val))
-}, { deep: true })
+// Only the window assignment and overlay choice belong to the saved layout.
+watch(
+  () => JSON.stringify(playedCameraList.value.map(({ id, runAlgorithmId }) => ({ id, runAlgorithmId }))),
+  (layout) => localStorage.setItem('playedCameraList', layout)
+)
 
 // Methods
 const dateFormat = (value) => {
@@ -549,12 +553,7 @@ const switchScreen = (type) => {
 }
 
 const handleCameraClose = (index) => {
-  playedCameraList.value[index] = {
-    id: '',
-    name: '',
-    taskList: [],
-    runAlgorithmId: ''
-  }
+  playedCameraList.value[index] = emptyWindow()
   isVideoFullScreen.value = null
 }
 
@@ -621,116 +620,72 @@ const filterNode = (value, data) => {
   return data.label.indexOf(value) !== -1
 }
 
-const initCameraList = () => {
-  const screenStatusObj = localStorage.getItem('screenStatus')
-  const screenStatus = JSON.parse(screenStatusObj)
-  if (screenStatus) {
-    screenType.value = screenStatus.screenType
-    currentSelectedIndex.value = screenStatus?.currentSelectedIndex || 0
+const readSavedLayout = (key) => {
+  try {
+    return JSON.parse(localStorage.getItem(key))
+  } catch {
+    return null
   }
-
-  console.log(
-    screenType.value,
-    '====this.screenType====',
-    currentSelectedIndex.value
-  )
-
-  const params = {
-    pageNum: 1,
-    pageSize: 1000
-  }
-  $API.getChannelList(params).then((res) => {
-    const { resData } = res
-    let childCameras = []
-    childCameras = resData.rows.map((item) => {
-      const {
-        videoChannelId,
-        channelName,
-        channelStatus,
-        channelType,
-        taskList
-      } = item
-      return {
-        id: videoChannelId,
-        label: channelName,
-        status: channelStatus,
-        channelType: channelType,
-        taskList: taskList
-      }
-    })
-    camearList.value = [
-      {
-        id: -1,
-        labelI18nKey: 'common.all',
-        children: childCameras
-      }
-    ]
-    console.log(camearList.value, '===========')
-    initPlayedCamera(childCameras)
-  })
 }
 
-const initPlayedCamera = (childCameras) => {
-  const playedCameraListStr = localStorage.getItem('playedCameraList')
-  if (playedCameraListStr) {
-    const localPlayedCameraList = JSON.parse(playedCameraListStr)
-    localPlayedCameraList.forEach((item, index) => {
-      const resultCamear = _.find(childCameras, { id: item.id })
-      if (!resultCamear) {
-        localPlayedCameraList[index] = {
-          id: '',
-          name: '',
-          taskList: [],
-          runAlgorithmId: ''
-        }
-      } else {
-        const resultAlgorithm = _.find(resultCamear.taskList, {
-          algorithmId: item.runAlgorithmId
-        })
-        if (!resultAlgorithm) {
-          localPlayedCameraList[index].runAlgorithmId = ''
-        }
-      }
-    })
-    console.log(
-      localPlayedCameraList,
-      '====localPlayedCameraList===='
-    )
-    // 并行初始化所有窗口，不再串行等待 2s
-    localPlayedCameraList.forEach((item, index) => {
-      if (item.id) {
-        playedCameraList.value[index] = item
-      }
-    })
-  }
-
-  // The home page links to this screen with the running task context. Honour
-  // that context after restoring the user's saved layout so "View" opens a
-  // useful OSD preview instead of four empty windows.
-  const routeQuery = proxy.$route?.query || {}
-  const queryValue = (value) => Array.isArray(value) ? value[0] : value
-  const requestedChannelId = queryValue(routeQuery.channelId)
-  const requestedAlgorithmId = queryValue(routeQuery.algorithmId)
-  const requestedCamera = childCameras.find(
-    (camera) => String(camera.id) === String(requestedChannelId || '')
-  )
-
-  if (requestedCamera) {
-    const taskList = Array.isArray(requestedCamera.taskList)
-      ? requestedCamera.taskList
-      : []
-    const requestedTask = taskList.find(
-      (task) => task.enableStatus == 1 &&
-        String(task.algorithmId) === String(requestedAlgorithmId || '')
-    )
-
-    playedCameraList.value[0] = {
-      id: requestedCamera.id,
-      name: requestedCamera.label,
-      taskList,
-      runAlgorithmId: requestedTask ? requestedAlgorithmId : ''
-    }
+const getInitialAssignments = (camerasById) => {
+  const cached = readSavedLayout('playedCameraList')
+  const assignments = Array.isArray(cached) ? cached : [...playedCameraList.value]
+  // The home page can request a particular preview on entry.
+  const query = proxy.$route?.query || {}
+  const single = (value) => Array.isArray(value) ? value[0] : value
+  const channelId = single(query.channelId)
+  if (channelId && camerasById.has(String(channelId))) {
+    assignments[0] = { id: channelId, runAlgorithmId: single(query.algorithmId) }
     currentSelectedIndex.value = 0
+  }
+  return assignments
+}
+
+const refreshCameraList = async () => {
+  if (refreshingCameras || isDestroyed.value) return
+  refreshingCameras = true
+  try {
+    const { resData } = await $API.getChannelList({ pageNum: 1, pageSize: 1000 })
+    if (isDestroyed.value || !Array.isArray(resData?.rows)) return
+    const cameras = resData.rows.map((row) => ({
+      id: row.videoChannelId,
+      label: row.channelName,
+      status: row.channelStatus,
+      channelType: row.channelType,
+      taskList: Array.isArray(row.taskList) ? row.taskList : []
+    }))
+    camearList.value = [{ id: -1, labelI18nKey: 'common.all', children: cameras }]
+    const camerasById = new Map(cameras.map(camera => [String(camera.id), camera]))
+    // Reconcile the current layout on later requests, including edits made during the fetch.
+    const assignments = layoutRestored ? playedCameraList.value : getInitialAssignments(camerasById)
+    layoutRestored = true
+    playedCameraList.value = playedCameraList.value.map((slot, index) => {
+      const assignment = assignments[index]
+      const camera = camerasById.get(String(assignment?.id ?? ''))
+      if (!camera) {
+        // An unlisted channel may still exist on a later page.
+        return slot.id && !(resData.total > cameras.length) ? emptyWindow() : slot
+      }
+      const selected = String(assignment.runAlgorithmId ?? '')
+      const enabled = camera.taskList.some(task => task.enableStatus == 1 && String(task.algorithmId) === selected)
+      return {
+        id: camera.id,
+        name: camera.label,
+        taskList: camera.taskList,
+        runAlgorithmId: enabled ? selected : ''
+      }
+    })
+  } catch (error) {
+    console.warn('[Live display] Could not refresh channels', error)
+  } finally {
+    refreshingCameras = false
+  }
+}
+
+const refreshVisibleCameras = () => {
+  if (!document.hidden && (!layoutRestored || playedCameraList.value.some(slot => slot.id))) {
+    void refreshCameraList()
   }
 }
 
@@ -973,7 +928,15 @@ const checkPropertyKey = (data, key) => {
 // Lifecycle
 onMounted(() => {
   queryPopUpParam()
-  initCameraList()
+  const screen = readSavedLayout('screenStatus')
+  if (screen && [1, 4].includes(screen.screenType)) {
+    screenType.value = screen.screenType
+    const index = Number(screen.currentSelectedIndex)
+    currentSelectedIndex.value = Number.isInteger(index) && index >= 0 && index < 4 ? index : 0
+  }
+  void refreshCameraList()
+  cameraRefreshTimer = setInterval(refreshVisibleCameras, 30000)
+  document.addEventListener('visibilitychange', refreshVisibleCameras)
   queryWarnRecord()
   getAlgorithmInfo()
   updateTime()
@@ -995,6 +958,8 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  clearInterval(cameraRefreshTimer)
+  document.removeEventListener('visibilitychange', refreshVisibleCameras)
   clearAlertTimers()
   timeInterval.value && clearInterval(timeInterval.value)
   socketTimer.value && clearInterval(socketTimer.value)

@@ -77,7 +77,7 @@ import { flowEditorKey } from '@/views/gam/countManagement/arrangeDetail/flow/fl
 import _ from 'lodash'
 import { generateActionId } from './dataTools.js'
 import { addFlowNode, createFlowGraph, deleteFlowNode, deleteFollowingFlow } from '@/utils/graphEdges.js'
-import { attachBehaviorScores, collectFlowData, collectMetaDataParams, createNodeState, updateAtomicList, updateNodeConfig as replaceNodeConfig } from '@/views/gam/countManagement/arrangeDetail/flow/nodeState.js'
+import { attachBehaviorScores, collectFlowData, collectMetaDataParams, getAreaRuleSceneFallbacks, createNodeState, updateAtomicList, updateNodeConfig as replaceNodeConfig } from '@/views/gam/countManagement/arrangeDetail/flow/nodeState.js'
 import { t } from '@/i18n'
 
 import '@vue-flow/core/dist/style.css'
@@ -885,7 +885,7 @@ const rebuildFlowGraph = () => {
           remark: item.remark,
           flowActionId: item.flowActionId,
           inputParamConfig: newInputParamConfig
-        })
+        }, props.algorithmMetadata?.params)
       }
     }
   })
@@ -940,6 +940,7 @@ const clearFlow = () => {
 
 defineExpose({
   saveMetaDataParams,
+  getAreaRuleSceneFallbacks: existing => getAreaRuleSceneFallbacks(nodes.value, existing),
   saveFlowData,
   clearFlow
 })

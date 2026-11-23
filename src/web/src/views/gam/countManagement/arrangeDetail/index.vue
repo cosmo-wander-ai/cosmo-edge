@@ -444,8 +444,9 @@ const handleMetaData = () => {
     .filter((item) => !item.level)
     .map((item) => ({ ...item }))
   const generatedParams = currentParams.filter((item) => item.level)
+  const fallbackParams = flowRef.value.getAreaRuleSceneFallbacks?.(generatedParams) || []
   const mergeResult = mergeTaskParamSchemasByKey(
-    generatedParams,
+    [...generatedParams, ...fallbackParams],
     incomingParams
   )
   const combinedResult = combineTaskParamSources(

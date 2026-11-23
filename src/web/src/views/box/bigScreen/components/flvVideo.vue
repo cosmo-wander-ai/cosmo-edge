@@ -16,8 +16,8 @@
       <div class="camera-name" :title="cameraName">{{ cameraName }}</div>
       <div class="algorithm-control">
         <span class="algorithm-label">{{ t('event.algorithmOverlay') }}{{ localeColon }}</span>
-        <el-select v-model="algorithmId" popper-class="custom-select-popper2 realtime-overlay-popper" class="overlay-select" size="small" id="onboarding-overlay-select" :aria-label="t('event.algorithmOverlay')" @change="overlayAlgorithmChange">
-          <el-option v-for="item in algorithmOverlayList" :label="resolveResourceAlgorithmName(item)" :value="item.algorithmId" :key="item.algorithmId"></el-option>
+        <el-select v-model="algorithmId" popper-class="custom-select-popper2 realtime-overlay-popper" class="overlay-select" size="small" id="onboarding-overlay-select" :aria-label="t('event.algorithmOverlay')" @change="overlayAlgorithmChange" @visible-change="open => open && emit('refresh-tasks')">
+          <el-option v-for="item in algorithmOverlayList" :label="resolveResourceAlgorithmName(item)" :value="String(item.algorithmId)" :key="item.algorithmId"></el-option>
         </el-select>
       </div>
       <div class="player-actions">
@@ -58,7 +58,7 @@ const props = defineProps({
   fitMode: { type: String, default: 'contain', validator: value => ['cover', 'contain'].includes(value) }
 })
 
-const emit = defineEmits(['runAlgorithmIdChange', 'stop', 'fullScreen', 'update:fitMode'])
+const emit = defineEmits(['runAlgorithmIdChange', 'refresh-tasks', 'stop', 'fullScreen', 'update:fitMode'])
 
 const { proxy } = getCurrentInstance()
 const $API = proxy.$API
@@ -454,6 +454,17 @@ const performLiveStreamRequest = async (session, generation, reason) => {
     provisionalHeartbeat?.stop()
     provisionalHeartbeat = null
     await releaseCandidateViewer()
+
+    // A task refresh may have retired the old overlay while switching to raw video.
+    // A failed raw-stream request must not reselect that disabled or deleted task.
+    if (previousSession?.algorithmId && activeStreamSession === previousSession &&
+        previousSession.channelId === props.channelId && Array.isArray(props.taskList) &&
+        !props.taskList.some(task => task.enableStatus == 1 && String(task.algorithmId) === previousSession.algorithmId)) {
+      activeStreamSession = null
+      clearHeartbeat()
+      destroyVideo()
+      await stopStreamSession(previousSession)
+    }
 
     let playerRestored = false
     let playerRecoveryNeeded = false
