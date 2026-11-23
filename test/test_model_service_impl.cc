@@ -11,6 +11,7 @@
 #include "support/MockDefaults.h"
 #include "support/ScopedPathOverride.h"
 #include "support/ScopedServiceOverride.h"
+#include "util/Exception.h"
 #include "util/FileUtil.h"
 #include "util/NnBackendConstants.h"
 #include "util/PathUtil.h"
@@ -271,7 +272,7 @@ TEST_CASE("ModelServiceImpl: 模型服务核心逻辑", "[model-service]") {
             std::filesystem::create_directories(modelDir);
             std::ofstream(modelDir / "config.json")
                 << R"({"algorithm_code":"person_attributes","model_type":"yolo26_person_attributes",
-                       "models":[{"name":"Person Attributes"}],
+                       "models":[{"name":"Person Attributes","outputs":[{"shape":[1,300,10]}]}],
                        "labels":[{"id":"0","name":"person","threshold":[0.25]}]})";
 
             const auto detectors = sut.QueryAtomicModels("Person Attributes", "detector", "");
@@ -295,6 +296,87 @@ TEST_CASE("ModelServiceImpl: 模型服务核心逻辑", "[model-service]") {
             CHECK(sut.QueryAtomicModels("", "detector", "").size() == 2);
             CHECK(sut.QueryAtomicModels("", "classify", "").empty());
             CHECK(sut.QueryAtomicModels("", "yolo26_person_attributes", "").size() == 1);
+        }
+
+        SECTION("Seven person attributes require the matching output layout") {
+            const auto modelDir = std::filesystem::path(testModelsDir) / "person_attributes";
+            std::filesystem::create_directories(modelDir);
+            nlohmann::json configuration = nlohmann::json::parse(
+                R"({"algorithm_code":"person_seven","model_type":"yolo26_person_attributes",
+                    "models":[{"name":"Seven Attributes","outputs":[{"shape":[1,300,13]}]}],
+                    "labels":[{"id":"0","name":"person","threshold":[0.25]}]})");
+            std::ofstream(modelDir / "config.json") << configuration;
+
+            const auto rows = sut.QueryAtomicModels("Seven Attributes", "detector", "");
+            REQUIRE(rows.size() == 1);
+            REQUIRE(rows[0].labelList.size() == 1);
+            CHECK(rows[0].labelList.front().class_name == "person");
+            std::vector<std::string> names;
+            for (const auto& score : rows[0].behaviorScores)
+                names.push_back(score.class_name);
+            const std::vector<std::string> expected{"smoking",   "sleep",    "fall",  "phone_call",
+                                                    "phone_use", "climbing", "normal"};
+            CHECK(names == expected);
+
+            configuration["models"][0]["outputs"][0]["shape"][2] = 12;
+            std::ofstream(modelDir / "config.json") << configuration;
+            const auto unsupported = sut.QueryAtomicModels("Seven Attributes", "detector", "");
+            REQUIRE(unsupported.size() == 1);
+            CHECK(unsupported[0].behaviorScores.empty());
+        }
+
+        SECTION("The saved declaration determines the ordered person attributes") {
+            const auto modelDir = std::filesystem::path(testModelsDir) / "person_attributes";
+            std::filesystem::create_directories(modelDir);
+            nlohmann::json config = nlohmann::json::parse(
+                R"({"algorithm_code":"person_custom","model_type":"yolo26_person_attributes",
+                    "attributes":["smoking","sleep","fall","climbing"],
+                    "models":[{"name":"Custom Attributes","outputs":[{"shape":[1,300,10]}]}],
+                    "labels":[{"id":"0","name":"person","threshold":[0.25]}]})");
+            std::ofstream(modelDir / "config.json") << config;
+            sut.SetModelPathMapping("person_custom", modelDir.string());
+
+            const auto four = sut.QueryAtomicModels("Custom Attributes", "detector", "");
+            REQUIRE(four.size() == 1);
+            CHECK(four[0].atomicCode == "person_custom");
+            REQUIRE(four[0].labelList.size() == 1);
+            CHECK(four[0].labelList[0].class_name == "person");
+            REQUIRE(four[0].behaviorScores.size() == 4);
+            CHECK(four[0].behaviorScores[3].class_name == "climbing");
+            CHECK(four[0].behaviorScores[3].nameCN == "攀爬");
+
+            config["models"][0]["outputs"][0]["shape"] = {-1, -1, 8};
+            config["attributes"]                       = {"custom_activity", "smoking"};
+            ALLOW_CALL(mocks.algSvc, GetAlgorithmsByModelId("person_custom"))
+                .RETURN(std::vector<std::string>{});
+            REQUIRE(sut.SaveModelConfig("person_custom", config.dump()) == cosmo::util::ErrorEnum::Success);
+            const auto custom = sut.QueryAtomicModels("Custom Attributes", "detector", "");
+            REQUIRE(custom.size() == 1);
+            CHECK(custom[0].atomicCode == four[0].atomicCode);
+            REQUIRE(custom[0].behaviorScores.size() == 2);
+            CHECK(custom[0].behaviorScores[0].class_name == "custom_activity");
+            CHECK(custom[0].behaviorScores[0].nameCN == "custom_activity");
+            CHECK(custom[0].behaviorScores[1].class_name == "smoking");
+
+            auto invalid = config;
+            for (const auto& names : {nlohmann::json(), nlohmann::json::array({"smoking"}),
+                                      nlohmann::json::array({"smoking", "smoking"}),
+                                      nlohmann::json::array({"person", "smoking"})}) {
+                invalid["attributes"] = names;
+                CHECK_THROWS_AS(sut.SaveModelConfig("person_custom", invalid.dump()),
+                                cosmo::util::ErrorMessage);
+            }
+            invalid                                        = config;
+            invalid["models"][0]["outputs"][0]["shape"][2] = 8.0;
+            CHECK_THROWS_AS(sut.SaveModelConfig("person_custom", invalid.dump()), cosmo::util::ErrorMessage);
+            invalid["models"][0].erase("outputs");
+            CHECK_THROWS_AS(sut.SaveModelConfig("person_custom", invalid.dump()), cosmo::util::ErrorMessage);
+
+            std::string saved, defaults;
+            bool canExport = false;
+            REQUIRE(sut.GetModelConfig("person_custom", saved, canExport, defaults) ==
+                    cosmo::util::ErrorEnum::Success);
+            CHECK(nlohmann::json::parse(saved) == config);
         }
 
         SECTION("GetModelPathMapping 可以正确返回映射路径") {

@@ -7,6 +7,7 @@
 #include "nn/node/node_type_utils.h"
 #include "nn/utils/dims_vector_utils.h"
 #include "nn/utils/op.h"
+#include "nn/utils/person_attribute_layout.h"
 #include "nn/utils/yolo26_raw_postprocess.h"
 #include "util/Log.h"
 
@@ -46,7 +47,7 @@ void YoloE2EDecodeNode::LoadParam(Op* op) {
         return;
 
     person_attributes_ = post->name == "yolo26_person_attributes_postprocess";
-    top_col            = person_attributes_ ? 10 : 6;
+    top_col            = person_attributes_ ? post->person_attribute_columns : 6;
     top_k              = post->top_k;
     base_conf          = post->nms_detection_conf;
     nms_threshold_     = post->nms_threshold;
@@ -55,7 +56,7 @@ void YoloE2EDecodeNode::LoadParam(Op* op) {
     input_height_      = post->input_height;
     valid_params_ =
         top_k > 0 && std::isfinite(base_conf) && base_conf >= 0.f && base_conf <= 1.f &&
-        (!person_attributes_ || !raw_output_) &&
+        (!person_attributes_ || (!raw_output_ && top_col > kPersonAttributeDetectionColumns)) &&
         (!raw_output_ || (std::isfinite(nms_threshold_) && nms_threshold_ >= 0.f && nms_threshold_ <= 1.f));
 }
 
@@ -126,7 +127,7 @@ Status YoloE2EDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blo
     }
 
     int box_num = bottom_dim.at(1);
-    int box_col = bottom_dim.at(2);  // should be 6 for decoded output
+    int box_col = bottom_dim.at(2);
 
     for (int b = 0; b < batch; b++) {
         const float* src = bottom_ptr + b * box_num * box_col;
@@ -170,7 +171,7 @@ Status YoloE2EDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blo
                 bool valid = std::isfinite(x1) && std::isfinite(y1) && std::isfinite(x2) &&
                              std::isfinite(y2) && x2 > x1 && y2 > y1 && std::isfinite(score) && score > 0.f &&
                              score <= 1.f && score >= base_conf && class_id == 0.f;
-                for (int k = 6; k < 10 && valid; ++k) {
+                for (int k = kPersonAttributeDetectionColumns; k < box_col && valid; ++k) {
                     const float attribute = src[i * box_col + k];
                     valid                 = std::isfinite(attribute) && attribute >= 0.f && attribute <= 1.f;
                 }
@@ -205,8 +206,9 @@ Status YoloE2EDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blo
             dst[valid_count * top_col + 4] = score;
             dst[valid_count * top_col + 5] = class_id;
             if (person_attributes_) {
-                for (int k = 6; k < 10; ++k)
-                    dst[valid_count * top_col + k] = src[i * box_col + k];
+                const auto* source_scores = src + i * box_col + kPersonAttributeDetectionColumns;
+                auto* target_scores       = dst + valid_count * top_col + kPersonAttributeDetectionColumns;
+                std::copy_n(source_scores, box_col - kPersonAttributeDetectionColumns, target_scores);
             }
             valid_count++;
         }

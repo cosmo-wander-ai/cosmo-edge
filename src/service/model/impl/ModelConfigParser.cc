@@ -6,11 +6,14 @@
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
+#include <limits>
 #include <regex>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "nlohmann/json.hpp"
+#include "nn/utils/person_attribute_layout.h"
 #include "util/ErrorCode.h"
 #include "util/JsonFileUtil.h"
 #include "util/Log.h"
@@ -76,9 +79,40 @@ ParsedModelConfig ModelConfigParser::Parse(const std::string& config_path) {
 
     // Parse labels
     result.labels = ParseLabels(doc);
+    if (result.model_type == "yolo26_person_attributes") {
+        auto names = ParsePersonAttributes(doc);
+        if (names)
+            result.person_attributes = std::move(*names);
+    }
 
     result.valid = true;
     return result;
+}
+
+std::optional<std::vector<std::string>> ModelConfigParser::ParsePersonAttributes(const nlohmann::json& doc) {
+    const auto models = doc.find("models");
+    if (models == doc.end() || !models->is_array() || models->size() != 1)
+        return std::nullopt;
+    const auto& model  = models->front();
+    const auto outputs = model.find("outputs");
+    if (outputs == model.end() || !outputs->is_array() || outputs->size() != 1)
+        return std::nullopt;
+    const auto& output = outputs->front();
+    const auto shape   = output.find("shape");
+    if (shape == output.end() || !shape->is_array() || shape->size() != 3)
+        return std::nullopt;
+    for (size_t i = 0; i < shape->size(); ++i) {
+        const auto& dimension = (*shape)[i];
+        if (!dimension.is_number_integer())
+            return std::nullopt;
+        const auto value = dimension.get<double>();
+        if (i < 2 && value == -1)
+            continue;
+        if (value < 1 || value > std::numeric_limits<int>::max())
+            return std::nullopt;
+    }
+    const auto names = doc.find("attributes");
+    return nn::ResolvePersonAttributeNames((*shape)[2].get<int>(), names == doc.end() ? nullptr : &*names);
 }
 
 std::string ModelConfigParser::ParseVersionFromDirName(const std::string& dir_name,

@@ -144,12 +144,13 @@ public:
                                        std::vector<std::string>& selected_label,
                                        std::vector<std::vector<ObjectInfoV1>>& detects);
 
-    // Input is host float [B,N,10]: center xywh, person score, class 0,
-    // and independent smoking/sleep/fall/normal scores, in that order.
+    // Input is host float [B,N,6+K]: center xywh, person score, class 0 and
+    // K scores in attribute_names order. Empty names select a known legacy layout.
     static Status ParsePersonAttributesOutput(const std::vector<std::shared_ptr<Blob>>& blobs,
                                               const std::vector<Size>& image_sizes, Size net_input_size,
                                               float person_threshold, const std::string& person_label,
-                                              std::vector<std::vector<ObjectInfoV1>>& detects);
+                                              std::vector<std::vector<ObjectInfoV1>>& detects,
+                                              const std::vector<std::string>& attribute_names = {});
 
     static Status ParseClassificationOutput(std::vector<std::shared_ptr<Blob>>& blobs,
                                             std::vector<int>& selected_indcies,

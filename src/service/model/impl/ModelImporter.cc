@@ -17,10 +17,12 @@
 #include <system_error>
 
 #include "nlohmann/json.hpp"
+#include "service/model/impl/ModelConfigParser.h"
 #include "util/ArchiveListingValidator.h"
 #include "util/ErrorCode.h"
 #include "util/Exception.h"
 #include "util/Exec.h"
+#include "util/JsonFileUtil.h"
 #include "util/NnBackendConstants.h"
 #include "util/PathUtil.h"
 #include "util/ResourceBudget.h"
@@ -160,6 +162,12 @@ namespace {
         return !ec;
     }
 
+    bool HasInvalidPersonAttributeOutput(const nlohmann::json& config) {
+        const auto type = config.find("model_type");
+        return type != config.end() && *type == "yolo26_person_attributes" &&
+               !detail::ModelConfigParser::ParsePersonAttributes(config);
+    }
+
 }  // namespace
 
 util::ErrorEnum ModelImportExporter::ImportFlatArchive(const std::string& temp_dir,
@@ -183,6 +191,11 @@ util::ErrorEnum ModelImportExporter::ImportFlatArchive(const std::string& temp_d
     std::string version   = "V1.0.0";
     try {
         auto doc = nlohmann::json::parse(cfgBuf.str());
+        if (HasInvalidPersonAttributeOutput(doc)) {
+            LOG_WARN("{}", "[ImportModel] Invalid person attribute output declaration in config.json");
+            fs::remove_all(temp_dir, ec);
+            return util::ErrorEnum::InvalidParam;
+        }
         if (doc.is_object()) {
             if (doc.contains("algorithm_code") && doc["algorithm_code"].is_string())
                 alg_code = doc["algorithm_code"].get<std::string>();
@@ -284,6 +297,13 @@ util::ErrorEnum ModelImportExporter::ImportDirectoryArchive(const std::string& t
         // Validate: must have config.json
         if (!fs::exists(sub_dir + "/config.json")) {
             LOG_WARN("[ImportModel] Skipping directory without config.json: {}", sub_dir_name);
+            continue;
+        }
+
+        nlohmann::json config;
+        if (util::JsonFileUtil::ReadJsonFile(sub_dir + "/config.json", config) == util::ErrorEnum::Success &&
+            HasInvalidPersonAttributeOutput(config)) {
+            LOG_WARN("[ImportModel] Invalid person attribute output declaration in {}", sub_dir_name);
             continue;
         }
 

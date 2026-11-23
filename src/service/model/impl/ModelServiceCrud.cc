@@ -55,6 +55,16 @@ void ModelServiceImpl::ValidateModelOutputFormat(const nlohmann::json& doc) {
     if (doc.contains("model_type") && doc["model_type"].is_string())
         model_type = doc["model_type"].get<std::string>();
 
+    if (model_type == "yolo26_person_attributes") {
+        if (!detail::ModelConfigParser::ParsePersonAttributes(doc)) {
+            throw cosmo::util::ErrorMessage(
+                cosmo::util::make_error_condition(cosmo::util::ErrorEnum::ParameterException),
+                "人体行为模型需要单输出 [batch, top_k, 6 + 属性数]，attributes "
+                "必须按输出顺序提供唯一且匹配的名称");
+        }
+        return;
+    }
+
     if (!doc.contains("models") || !doc["models"].is_array() || doc["models"].empty())
         return;
 
@@ -125,13 +135,6 @@ void ModelServiceImpl::ValidateModelOutputFormat(const nlohmann::json& doc) {
                 cosmo::util::make_error_condition(cosmo::util::ErrorEnum::ParameterException),
                 "当前模型输出格式与 yolov8/yolov9/yolov11/yolov12 "
                 "检测模型不匹配，请确认选择的是检测模型而不是分类模型。添加不成功");
-        }
-    } else if (model_type == "yolo26_person_attributes") {
-        const auto shape = outputs.size() == 1 ? get_shape(outputs[0]) : std::vector<int>{};
-        if (shape.size() != 3 || shape[0] <= 0 || shape[1] <= 0 || shape[2] != 10) {
-            throw cosmo::util::ErrorMessage(
-                cosmo::util::make_error_condition(cosmo::util::ErrorEnum::ParameterException),
-                "人体行为模型需要单输出 [batch, top_k, 10]");
         }
     } else if (model_type == "yolo26_obb_det") {
         // End-to-end OBB: single output with shape [1, top_k, 7]

@@ -96,6 +96,7 @@ public:
 
 private:
     int max_batch_ = 1;
+    std::vector<std::string> attribute_names_;
 };
 
 class Yolo26ObbPipeline : public ModelPipeline {

@@ -1,4 +1,6 @@
-const behaviorKeyPattern = /^filter\.attr\.(smoking|sleep|fall|normal)\.confidence\.min$/
+const behaviorNamePattern = /^[A-Za-z0-9][A-Za-z0-9_-]*$/
+const behaviorKeyPattern = /^filter\.attr\.([^.]+)\.confidence\.min$/
+const isBehaviorName = (name) => typeof name === 'string' && name !== 'person' && behaviorNamePattern.test(name)
 
 export const behaviorFilterOptions = (atomicList, edges, currentNode) => {
   const scopeToUpstream = Array.isArray(edges) && currentNode
@@ -20,7 +22,7 @@ export const behaviorFilterOptions = (atomicList, edges, currentNode) => {
   for (const atomic of atomicList) {
     if (scopeToUpstream && !upstream.has(String(atomic.position))) continue
     for (const score of atomic.behaviorScores || []) {
-      if (score?.nameCN && behaviorKeyPattern.test(`filter.attr.${score.class_name}.confidence.min`)) {
+      if (score?.nameCN && isBehaviorName(score.class_name)) {
         options.set(score.class_name, score)
       }
     }
@@ -30,13 +32,13 @@ export const behaviorFilterOptions = (atomicList, edges, currentNode) => {
 
 export const readBehaviorFilters = (params) => [
   ...new Set((Array.isArray(params) ? params : []).flatMap(param => {
-    const match = behaviorKeyPattern.exec(param?.key)
-    return match ? [match[1]] : []
+    const match = typeof param?.key === 'string' && behaviorKeyPattern.exec(param.key)
+    return match && isBehaviorName(match[1]) ? [match[1]] : []
   }))
 ]
 
 export const buildBehaviorFilterParams = (selected, options, sceneParams, nodeParams, t) =>
-  selected.map((behavior) => {
+  selected.filter(isBehaviorName).map((behavior) => {
     const key = `filter.attr.${behavior}.confidence.min`
     const option = options.find(({ class_name }) => class_name === behavior)
     const scene = sceneParams.find((param) => param.key === key)

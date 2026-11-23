@@ -236,7 +236,7 @@ util::ErrorEnum AiDetectorUnify::Forward(const std::vector<VideoFramePtr>& image
             el.classId                = obj.infos.at(0).class_id + 1;
             el.targetId               = util::GenerateUUID();
             if (joint_person_attributes_) {
-                if (obj.infos.size() != 5 || obj.infos.front().class_id != 0 ||
+                if (obj.infos.size() < 2 || obj.infos.front().class_id != 0 ||
                     obj.infos.front().class_name != "person") {
                     LOG_ERRO("Unexpected person and attribute output from {}", model_path_);
                     return util::ErrorEnum::AI_PARSE_OUTPUT_FAILED;

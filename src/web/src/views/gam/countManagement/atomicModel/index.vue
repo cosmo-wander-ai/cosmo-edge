@@ -351,7 +351,7 @@ const allModelsCount = ref(0)
 const subTypeToMain = {
   yolov5_det: 'detect', yolov8_det: 'detect', yolov9_det: 'detect',
   yolov11_det: 'detect', yolov12_det: 'detect', yolo26_det: 'detect',
-  yolo26_obb_det: 'detect',
+  yolo26_obb_det: 'detect', yolo26_person_attributes: 'detect',
   classify: 'classify', keypoints: 'keypoints', feature: 'feature', ocr: 'ocr',
   dino: 'foundation', sam2: 'foundation', qwen3vl: 'foundation', qwen3_5: 'foundation', laya_v: 'foundation'
 }

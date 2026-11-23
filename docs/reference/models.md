@@ -47,6 +47,14 @@ data/resource/*/model_template
 
 > 完整清单以各 `data/resource/aiboxresource_*/model_template/` 目录下的实际文件为准。
 
+## YOLO26 人体多属性模型
+
+使用 `model_type: "yolo26_person_attributes"` 并将检测标签配置为 `person`（ID `0`）。模型输出形状为 `[B, N, 6 + K]`。每行依次是 `x1, y1, x2, y2, person_score, class_id` 和 `K` 个独立属性分数。属性分数使用 `[0, 1]` 范围。
+
+在模型包的 `config.json` 顶层用 `attributes` 声明属性列的顺序。例如，抽烟、睡岗、跌倒、攀爬四列写成 `"attributes": ["smoking", "sleep", "fall", "climbing"]`，输出最后一维为 `10`。属性 ID 必须互不重复，以 ASCII 字母或数字开头，后续可用字母、数字、连字符和下划线。`person` 保留给检测标签。
+
+为兼容已有模型，省略 `attributes` 时宽度 `10` 沿用 `smoking, sleep, fall, normal`，宽度 `13` 沿用 `smoking, sleep, fall, phone_call, phone_use, climbing, normal`。新模型请显式声明顺序，尤其是沿用相同输出宽度时。任务中的类别筛选按声明的属性 ID 配置独立阈值，人体检测阈值在检测节点设置。
+
 ## 车牌 OCR 模型包
 
 车牌 OCR 仅识别已经由关键点定位的车牌，不包含整图文字检测。模型包由设备资源管理功能安装，公开仓库只提供 `ocr.json` 模板，不提交权重或私有字典。

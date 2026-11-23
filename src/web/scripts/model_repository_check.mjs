@@ -5,6 +5,7 @@ import { i18n, mountComponent } from './helpers/mount_behavior_component.mjs'
 const models = Array.from({ length: 100 }, (_, index) => ({
   modelCode: `other-${index}`, modelName: `Classifier ${index}`, version: 'V1.0.0', isExportable: true
 }))
+models[0] = { modelCode: 'custom-joint', modelName: 'Safety Review', version: 'V1.0.0', isExportable: true }
 models.push({ modelCode: '3000003', modelName: 'MouseDetection', version: 'V6.0.1',
   updateTime: '2026-10-15 12:00:00', inputDim: '1,3,640,640', isExportable: false })
 models.push({ modelCode: 'custom-abc', modelName: 'Detector 3000003 copy', description: 'Customer supplied description',
@@ -13,6 +14,10 @@ const originalModels = JSON.parse(JSON.stringify(models))
 const previousLocale = i18n.currentLocale.value
 i18n.currentLocale.value = 'zh-CN'
 const requests = []
+const subtype = (model) => {
+  if (model.modelCode === 'custom-joint') return 'yolo26_person_attributes'
+  return model.modelCode.startsWith('other-') ? 'classify' : 'yolov5_det'
+}
 const page = await mountComponent('views/gam/countManagement/atomicModel/index.vue', {
   mocks: {
     'vue-router': { useRouter: () => ({ push() {} }) },
@@ -24,8 +29,7 @@ const page = await mountComponent('views/gam/countManagement/atomicModel/index.v
       const start = (params.pageNum - 1) * params.pageSize
       return { resData: { total: models.length, rows: models.slice(start, start + params.pageSize) } }
     },
-    atomicModelList: async ({ modelType }) => ({ resData: { list: models.filter(model =>
-      modelType === (model.modelCode.startsWith('other-') ? 'classify' : 'yolov5_det'))
+    atomicModelList: async ({ modelType }) => ({ resData: { list: models.filter(model => modelType === subtype(model))
       .map(model => ({ atomicCode: model.modelCode, atomicName: model.modelName })) } }),
     algorithmInquire: async () => ({ resData: { rows: [] } })
   }
@@ -51,6 +55,9 @@ try {
   await tab('glossary.modelTypeDetect')
   assert.equal(cards().length, 2)
   assert.ok(texts().includes('V6.0.1'), 'category cards must retain version metadata')
+  await search('Safety Review')
+  assert.equal(cards().length, 1, 'person-attribute models are categorized as detectors regardless of model name')
+  assert.ok(texts(cards()[0]).includes('yolo26_person_attributes'))
   await search('鼠类')
   assert.equal(cards().length, 1, 'Chinese preset names are searchable beyond the first API batch')
   const cardTitle = () => texts(page.all(n => n.props.class === 'card-title', cards()[0])[0])

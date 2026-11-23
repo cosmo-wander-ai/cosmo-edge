@@ -60,6 +60,7 @@ struct PUBLIC PipelineConfig {
     std::vector<PipelineLabelInfo> labels;
 
     std::string extra_config_json;
+    std::vector<std::string> person_attributes;
 };
 
 // ─── Output Category ─────────────────────────────────────────────

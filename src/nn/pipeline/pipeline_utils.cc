@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "nn/node/yolo_obb_decode_node.h"
+#include "nn/utils/person_attribute_layout.h"
 #include "util/Log.h"
 
 namespace cosmo::nn {
@@ -584,6 +585,19 @@ namespace pipeline_utils {
                     label.threshold = threshold ? GetFloatArray(*threshold) : std::vector<float>();
                     config.labels.push_back(label);
                 }
+            }
+
+            config.person_attributes.clear();
+            const nlohmann::json* attributes = FindObjectMember(root, "attributes");
+            if (config.model_type == "yolo26_person_attributes" && attributes) {
+                if (config.models.size() != 1 || config.models[0].outputs.size() != 1 ||
+                    config.models[0].outputs[0].shape.size() != 3)
+                    return Status(COSMO_NN_ERR_INVALID_CFG, "Person attributes require one rank-3 output");
+                auto names = ResolvePersonAttributeNames(config.models[0].outputs[0].shape[2], attributes);
+                if (!names)
+                    return Status(COSMO_NN_ERR_INVALID_CFG,
+                                  "Invalid person attribute names for output shape");
+                config.person_attributes = std::move(*names);
             }
 
             const nlohmann::json* extra_config = FindObjectMember(root, "config");

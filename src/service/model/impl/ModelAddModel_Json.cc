@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "nlohmann/json.hpp"
+#include "service/model/impl/ModelConfigParser.h"
 #include "util/Log.h"
 #include "util/NnBackendConstants.h"
 
@@ -52,9 +53,6 @@ namespace {
     int InferClassCountFromShape(const std::string& modelType, const std::vector<int>& shape) {
         if (shape.empty())
             return 0;
-
-        if (modelType == "yolo26_person_attributes")
-            return shape.size() == 3 && shape[2] == 10 ? 1 : 0;
 
         // End-to-end decoded output [1, top_k, 6/7] carries no class-count info;
         // labels must be provided explicitly at import time.
@@ -98,6 +96,8 @@ namespace {
     int InferClassCount(const nlohmann::json& doc, const std::string& modelType) {
         if (!IsDetectionModel(modelType) && !IsClassifyModel(modelType))
             return 0;
+        if (modelType == "yolo26_person_attributes")
+            return detail::ModelConfigParser::ParsePersonAttributes(doc) ? 1 : 0;
         if (!doc.contains("models") || !doc["models"].is_array() || doc["models"].empty())
             return 0;
 

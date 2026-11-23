@@ -106,6 +106,9 @@ public:
     // pixel xywh and class probabilities; the default is decoded [B, N, 6].
     bool raw_output = false;
 
+    // Decoded person-attribute row width, including the six detection columns.
+    int person_attribute_columns = 10;
+
     // OBB model contract only. Ordinary YOLO decoders retain their own format.
     bool normalized_coordinates = false;
 };

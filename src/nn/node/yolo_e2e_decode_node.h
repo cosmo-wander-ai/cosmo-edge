@@ -12,6 +12,8 @@ namespace cosmo::nn {
  * [batch, 4 + classes, N] containing pixel center xywh and class probabilities. The raw path performs
  * class-aware NMS. Output: [batch, top_k, 6]   with (cx, cy, w, h, score, class_id) in xywh-center format,
  *         compatible with the framework's PickDetectionObjects / AdjustSize.
+ * The person-attribute pipeline uses decoded pixel rows with six detection columns plus configured scores.
+ * The independent attribute scores following class_id pass through unchanged.
  */
 class YoloE2EDecodeNode : public Node {
 public:

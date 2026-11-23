@@ -47,6 +47,14 @@ The templates currently visible include:
 - Qwen3 / Qwen3VL
 - OCR
 
+## YOLO26 Person-Attribute Models
+
+Use `model_type: "yolo26_person_attributes"` and configure `person` as detection label ID `0`. The model output shape is `[B, N, 6 + K]`. Each row contains `x1, y1, x2, y2, person_score, class_id`, followed by `K` independent attribute scores in `[0, 1]`.
+
+Declare the column order in the top-level `attributes` list in the package's `config.json`. For example, `"attributes": ["smoking", "sleep", "fall", "climbing"]` describes four scores and an output width of `10`. IDs must be unique and start with an ASCII letter or digit. The remaining characters can be letters, digits, hyphens, or underscores. `person` is reserved for the detection label.
+
+For existing packages that omit `attributes`, width `10` keeps the order `smoking, sleep, fall, normal` and width `13` keeps `smoking, sleep, fall, phone_call, phone_use, climbing, normal`. Declare the order for new models, especially when reusing an existing output width. Set thresholds for each declared attribute in the task's category filter and set the person confidence threshold on the detection node.
+
 ## License-Plate OCR Package
 
 OCR recognizes plates already located by landmarks; it does not perform full-image text detection. Install the model package through device resources. This repository provides only the `ocr.json` template and never includes weights or private dictionaries.

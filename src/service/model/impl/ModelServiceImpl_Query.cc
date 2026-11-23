@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
+#include <map>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -218,9 +219,16 @@ std::vector<cosmo::Model::MsgAtomicModel> ModelServiceImpl::QueryAtomicModels(co
                 model.labelList.push_back(std::move(label));
             }
 
-            if (cfg.model_type == "yolo26_person_attributes")
-                model.behaviorScores = {
-                    {"smoking", "抽烟"}, {"sleep", "睡岗"}, {"fall", "跌倒"}, {"normal", "正常"}};
+            if (!cfg.person_attributes.empty()) {
+                static const std::map<std::string, std::string> names = {
+                    {"smoking", "抽烟"},      {"sleep", "睡岗"},       {"fall", "跌倒"},
+                    {"phone_call", "打电话"}, {"phone_use", "玩手机"}, {"climbing", "攀爬"},
+                    {"normal", "正常"}};
+                for (const auto& code : cfg.person_attributes) {
+                    const auto name = names.find(code);
+                    model.behaviorScores.push_back({code, name != names.end() ? name->second : code});
+                }
+            }
 
             // Serialize labelList to JSON string for frontend
             if (!model.labelList.empty()) {

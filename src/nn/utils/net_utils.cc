@@ -1,7 +1,6 @@
 #include "nn/utils/net_utils.h"
 
 #include <algorithm>
-#include <array>
 #include <cctype>
 #include <cfloat>
 #include <cstdio>
@@ -18,6 +17,7 @@
 #include "nn/device/sophon/sophon_dino_encode_node.h"
 #endif
 #include "nn/utils/dims_vector_utils.h"
+#include "nn/utils/person_attribute_layout.h"
 #include "tokenizers_c.h"
 
 #ifdef COSMO_NN_USE_SOPHON_BACKEND
@@ -440,7 +440,8 @@ Status NetUtils::ParseDetectionOutput(std::vector<std::shared_ptr<Blob>>& blobs,
 Status NetUtils::ParsePersonAttributesOutput(const std::vector<std::shared_ptr<Blob>>& blobs,
                                              const std::vector<Size>& image_sizes, Size net_input_size,
                                              float person_threshold, const std::string& person_label,
-                                             std::vector<std::vector<ObjectInfoV1>>& detects) {
+                                             std::vector<std::vector<ObjectInfoV1>>& detects,
+                                             const std::vector<std::string>& attribute_names) {
     detects.clear();
     if (blobs.size() != 1 || !blobs[0] || !blobs[0]->GetHandle().base ||
         blobs[0]->GetBlobDesc().data_type != DATA_TYPE_FLOAT ||
@@ -448,16 +449,21 @@ Status NetUtils::ParsePersonAttributesOutput(const std::vector<std::shared_ptr<B
         net_input_size.height <= 0 || !std::isfinite(person_threshold) || person_threshold < 0.f ||
         person_threshold > 1.f || person_label.empty())
         return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid person-attribute parser input");
-    const auto& dims = blobs[0]->GetBlobDesc().dims;
-    if (dims.size() != 3 || dims[0] <= 0 || dims[1] <= 0 || dims[2] != 10 ||
-        image_sizes.size() > static_cast<size_t>(dims[0]) ||
-        static_cast<size_t>(dims[0]) > std::numeric_limits<int>::max() / 10u / dims[1])
-        return Status(COSMO_NN_ERR_INVALID_INPUT, "Expected person-attribute output [B,N,10]");
+    const auto& dims        = blobs[0]->GetBlobDesc().dims;
+    const int row_width     = dims.size() == 3 ? dims[2] : 0;
+    const auto legacy_names = attribute_names.empty() ? ResolvePersonAttributeNames(row_width) : std::nullopt;
+    const auto& names       = legacy_names ? *legacy_names : attribute_names;
+    if (row_width <= kPersonAttributeDetectionColumns ||
+        names.size() != static_cast<size_t>(row_width - kPersonAttributeDetectionColumns) || dims[0] <= 0 ||
+        dims[1] <= 0 || image_sizes.size() > static_cast<size_t>(dims[0]) ||
+        static_cast<size_t>(dims[0]) >
+            std::numeric_limits<int>::max() / static_cast<size_t>(row_width) / dims[1])
+        return Status(COSMO_NN_ERR_INVALID_INPUT,
+                      "Expected [B,N,6+K] output matching person attribute names");
     if (std::any_of(image_sizes.begin(), image_sizes.end(),
                     [](const Size& size) { return size.width <= 0 || size.height <= 0; }))
         return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid original image size");
-    static const std::array<const char*, 4> names = {"smoking", "sleep", "fall", "normal"};
-    const float* data                             = static_cast<const float*>(blobs[0]->GetHandle().base);
+    const float* data = static_cast<const float*>(blobs[0]->GetHandle().base);
     for (size_t batch = 0; batch < image_sizes.size(); ++batch) {
         const Size image = image_sizes[batch];
         // Match AdjustSize's intermediate size while checking its float-to-int
@@ -474,13 +480,13 @@ Status NetUtils::ParsePersonAttributesOutput(const std::vector<std::shared_ptr<B
         const float scale_x = static_cast<int>(mapped_width) / static_cast<float>(net_input_size.width);
         const float scale_y = static_cast<int>(mapped_height) / static_cast<float>(net_input_size.height);
         std::vector<ObjectInfoV1> objects;
-        const float* rows = data + batch * static_cast<size_t>(dims[1]) * 10;
+        const float* rows = data + batch * static_cast<size_t>(dims[1]) * row_width;
         for (int row = 0; row < dims[1]; ++row) {
-            const float* p = rows + static_cast<size_t>(row) * 10;
+            const float* p = rows + static_cast<size_t>(row) * row_width;
             bool valid     = std::isfinite(p[0]) && std::isfinite(p[1]) && std::isfinite(p[2]) &&
                          std::isfinite(p[3]) && p[2] > 0.f && p[3] > 0.f && std::isfinite(p[4]) &&
                          p[4] > 0.f && p[4] <= 1.f && p[4] >= person_threshold && p[5] == 0.f;
-            for (int k = 6; k < 10 && valid; ++k)
+            for (int k = kPersonAttributeDetectionColumns; k < row_width && valid; ++k)
                 valid = std::isfinite(p[k]) && p[k] >= 0.f && p[k] <= 1.f;
             if (!valid)
                 continue;
@@ -499,8 +505,8 @@ Status NetUtils::ParsePersonAttributesOutput(const std::vector<std::shared_ptr<B
                 std::abs(static_cast<double>(obj.y2) * scale_y) >= int_bound)
                 continue;
             obj.infos.push_back({p[4], 0, person_label});
-            for (int k = 0; k < 4; ++k)
-                obj.infos.push_back({p[6 + k], k, names[k]});
+            for (size_t k = 0; k < names.size(); ++k)
+                obj.infos.push_back({p[kPersonAttributeDetectionColumns + k], static_cast<int>(k), names[k]});
             obj = AdjustSize(obj, net_input_size, image, 2);
             objects.push_back(std::move(obj));
         }

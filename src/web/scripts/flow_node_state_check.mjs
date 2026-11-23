@@ -642,6 +642,60 @@ try {
   assert.equal(reopenedBehaviorForm.instance.submitForm().params.some(param => param.key.startsWith('filter.attr.')), false)
 } finally { reopenedBehaviorForm.unmount() }
 
+const sevenScores = [
+  ...behaviorScores.slice(0, 3),
+  { class_name: 'phone_call', nameCN: '打电话' },
+  { class_name: 'phone_use', nameCN: '玩手机' },
+  { class_name: 'climbing', nameCN: '攀爬' },
+  behaviorScores[3]
+]
+const sevenAtomicList = [{ ...detector, behaviorScores: sevenScores }]
+const sevenForm = await mountBehaviorFilter(sevenAtomicList, initialFilter)
+let sevenConfig
+try {
+  const [behaviorSelect] = behaviorSelects(sevenForm)
+  assert.deepEqual(sevenForm.all(node => node.type === 'el-option', behaviorSelect).map(node => node.props.value), sevenScores.map(score => score.class_name))
+  behaviorSelect.props.activate(['phone_call', 'phone_use', 'climbing'])
+  await sevenForm.settle()
+  sevenConfig = plain(sevenForm.instance.submitForm())
+  assert.deepEqual(sevenConfig.params.slice(1).map(({ key, value }) => [key, value]), [
+    ['filter.attr.phone_call.confidence.min', '0.70'],
+    ['filter.attr.phone_use.confidence.min', '0.70'],
+    ['filter.attr.climbing.confidence.min', '0.70']
+  ])
+} finally { sevenForm.unmount() }
+const sevenReopened = await mountBehaviorFilter(sevenAtomicList, sevenConfig, [{ key: 'filter.attr.phone_use.confidence.min', defaultValue: '0.80' }])
+try {
+  const [behaviorSelect] = behaviorSelects(sevenReopened)
+  assert.deepEqual(plain(behaviorSelect.props.modelValue), ['phone_call', 'phone_use', 'climbing'])
+  assert.equal(sevenReopened.instance.submitForm().params.find(param => param.key === 'filter.attr.phone_use.confidence.min').value, '0.80')
+} finally { sevenReopened.unmount() }
+
+const customScoreModel = [{ ...detector, behaviorScores: [
+  { class_name: 'visitor-badge', nameCN: '访客证' },
+  { class_name: 'Hands_Raised2', nameCN: '举手' },
+  { class_name: 'bad.key', nameCN: 'Invalid key' },
+  { class_name: 'person', nameCN: 'Detection label' }
+] }]
+const customFilter = {
+  ...initialFilter,
+  params: [
+    { key: 'filter.attr.visitor-badge.confidence.min', value: '0.82' },
+    { key: 'filter.attr.Hands_Raised2.confidence.min', value: '0.64' },
+    { key: 'filter.attr.bad.key.confidence.min', value: '0.99' },
+    { key: 'filter.attr.person.confidence.min', value: '0.99' }
+  ]
+}
+const customReopened = await mountBehaviorFilter(customScoreModel, customFilter)
+try {
+  const [behaviorSelect] = behaviorSelects(customReopened)
+  assert.deepEqual(customReopened.all(node => node.type === 'el-option', behaviorSelect).map(node => node.props.value), ['visitor-badge', 'Hands_Raised2'])
+  assert.deepEqual(plain(behaviorSelect.props.modelValue), ['visitor-badge', 'Hands_Raised2'])
+  const saved = plain(customReopened.instance.submitForm())
+  assert.deepEqual(saved.params.slice(1), customFilter.params.slice(0, 2))
+  assert.deepEqual(saved.webConfig.labelFilterList.map(item => item.labelCode), ['person'])
+} finally { customReopened.unmount() }
+
 const legacyFilterForm = await mountBehaviorFilter([detector], initialFilter)
 try {
   assert.equal(behaviorSelects(legacyFilterForm).length, 0)
