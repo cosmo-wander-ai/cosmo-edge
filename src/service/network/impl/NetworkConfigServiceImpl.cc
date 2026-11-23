@@ -20,6 +20,7 @@
 #include "util/JsonStructUtil.h"
 #include "util/Log.h"
 #include "util/PathUtil.h"
+#include "util/RuntimeIsolation.h"
 #include "util/SafeParse.h"
 #include "util/TimingConstants.h"
 
@@ -337,6 +338,9 @@ bool NetworkConfigServiceImpl::UpdateNetDnsCfg(std::vector<std::string> dnss) {
 }
 
 bool NetworkConfigServiceImpl::SetCardInfo(const platform::NetCardInfo& info) {
+    if (runtime::IsIsolatedRuntime()) {
+        return false;
+    }
     auto lease = NetworkMutationLease::TryAcquire();
     return lease && ApplyCardInfo(info);
 }
@@ -374,6 +378,9 @@ bool NetworkConfigServiceImpl::ApplyCardInfo(const platform::NetCardInfo& info) 
 }
 
 void NetworkConfigServiceImpl::ApplyCardInfoAsync(const platform::NetCardInfo& info) {
+    if (runtime::IsIsolatedRuntime()) {
+        return;
+    }
     auto lease = NetworkMutationLease::TryAcquire();
     if (!lease) {
         throw util::ErrorMessage(util::ErrorEnum::Failed, "Network configuration is in progress");
@@ -403,6 +410,9 @@ void NetworkConfigServiceImpl::ApplyCardInfoAsync(const platform::NetCardInfo& i
 }
 
 bool NetworkConfigServiceImpl::SetDnss(std::vector<std::string> dnss) {
+    if (runtime::IsIsolatedRuntime()) {
+        return false;
+    }
     auto lease = NetworkMutationLease::TryAcquire();
     if (!lease) {
         throw util::ErrorMessage(util::ErrorEnum::Failed, "Network configuration is in progress");
@@ -425,6 +435,9 @@ bool NetworkConfigServiceImpl::SetDnss(std::vector<std::string> dnss) {
 }
 
 void NetworkConfigServiceImpl::Init() {
+    if (runtime::IsIsolatedRuntime()) {
+        return;
+    }
     GetMacs();
 #ifdef SOPHON_SHARED_NETWORK
     LOG_INFO("{}", "SOPHON_SHARED_NETWORK enabled, skip local network configuration.");

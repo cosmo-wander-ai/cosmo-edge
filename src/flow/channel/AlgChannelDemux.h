@@ -89,6 +89,7 @@ protected:
 private:
     bool OpenStream();
     void CloseStream();
+    void EndPendingLocalRepeat();
     void HandleStream();
     std::string StatusString(service::camera::AlgDemuxStatus status);
     void SetStatusInfo(service::camera::AlgDemuxStatus status);
@@ -106,6 +107,7 @@ private:
     std::atomic<bool> is_url_changed_{false};
     std::atomic<bool> is_need_repeat_{false};
     bool is_have_report_{false};
+    bool pending_local_recording_{false};  // Demux thread only.
     std::atomic<bool> is_opened_{false};
     service::camera::AlgDemuxStatusInfo status_{};
     int video_repeat_count_{1};  // Maximum video repeat count

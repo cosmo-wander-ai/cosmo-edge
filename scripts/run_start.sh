@@ -161,7 +161,7 @@ export COSMO_STREAM_HTTP_PORT="${COSMO_STREAM_HTTP_PORT:-18088}"
 
 # Start nginx
 cosmo_log "$logTag" "Starting nginx..." "$logFile"
-nginx -p "${NGINX_PREFIX}" -c "${NGINX_CONF}"
+"${COSMO_NGINX_BIN:-nginx}" -p "${NGINX_PREFIX}" -c "${NGINX_CONF}"
 
 # This shared launch path runs after boot and package upgrades. Configure the
 # hardware-specific defaults only after startup validation, before the engine.

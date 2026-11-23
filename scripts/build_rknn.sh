@@ -16,7 +16,6 @@ case "${MODEL_GUARD_BUILD_PROFILE}" in
         exit 1
         ;;
 esac
-MODEL_GUARD_SDK_ROOT="${COSMO_MODEL_GUARD_SDK_ROOT:-}"
 DEV_MODE=OFF
 BUILD_TESTS_FLAG=OFF
 BUILD_VLM_EVAL_FLAG=OFF
@@ -29,22 +28,21 @@ while getopts "c:m:r:p:tTE" opt; do
         t) DEV_MODE=ON ;;
         T) BUILD_TESTS_FLAG=ON ;;
         E) BUILD_VLM_EVAL_FLAG=ON; RKLLM_REQUIRED=ON ;;
-        *) echo "Usage: $0 -r <rknn-runtime-root> [-c rk3576|rv1126b] [-p <rockchip-media-root>] [-m <resource-dir>] [-t] [-T] [-E]"; exit 1 ;;
+        *) echo "Usage: $0 -r <rknn-runtime-root> [-c rk3576|rk3588|rv1126b] [-p <rockchip-media-root>] [-m <resource-dir>] [-t] [-T] [-E]"; exit 1 ;;
     esac
 done
 
 if [ -z "${PROJECT_ROOT_PATH:-}" ]; then
     PROJECT_ROOT_PATH=$(cd "$(dirname "$0")/.." && pwd)
 fi
-if [ -z "${MODEL_GUARD_SDK_ROOT}" ]; then
-    MODEL_GUARD_SDK_ROOT="${PROJECT_ROOT_PATH}/prebuild/model-guard-v2-rknn-abi1"
-fi
 MODEL_GUARD_CMAKE_ARGS=(
     -DCOSMO_MODEL_GUARD_BUILD_PROFILE="${MODEL_GUARD_BUILD_PROFILE}"
 )
 if [ "${MODEL_GUARD_BUILD_PROFILE}" = "production-release" ]; then
     MODEL_GUARD_CMAKE_ARGS+=(
-        -DCOSMO_MODEL_GUARD_SDK_ROOT="${MODEL_GUARD_SDK_ROOT}"
+        -DCOSMO_MODEL_GUARD_SDK_ROOT="${COSMO_MODEL_GUARD_SDK_ROOT:-}"
+        -DCOSMO_MODEL_GUARD_SDK_CHECKSUM_FILE="${COSMO_MODEL_GUARD_SDK_CHECKSUM_FILE:-}"
+        -DCOSMO_MODEL_GUARD_SDK_CHECKSUM_SHA256="${COSMO_MODEL_GUARD_SDK_CHECKSUM_SHA256:-}"
     )
 fi
 
@@ -150,7 +148,16 @@ INSTALL_DIR="${BUILD_DIR}/install"
 mkdir -p "${BUILD_DIR}"
 rm -rf "${INSTALL_DIR}"
 
+PLATFORM_CMAKE_ARGS=()
+for variable in COSMO_FFMPEG_ROOT COSMO_TOOLCHAIN_ROOT COSMO_TARGET_SYSROOT; do
+    value="${!variable:-}"
+    if [ -n "${value}" ]; then
+        PLATFORM_CMAKE_ARGS+=("-D${variable}=${value}")
+    fi
+done
+
 cmake -S "${PROJECT_ROOT_PATH}" -B "${BUILD_DIR}" \
+    "${PLATFORM_CMAKE_ARGS[@]}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_DIR}" \
     -DCOSMO_TARGET_ARCH=aarch64 \

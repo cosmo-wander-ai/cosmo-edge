@@ -295,13 +295,14 @@ docker run --rm --platform linux/amd64 \
 | --- | --- | --- |
 | BM1688 | 支持 | 支持，使用 Sophon Guard SDK |
 | CV186X | 支持 | 支持，使用 Sophon Guard SDK |
-| RK3576 | 支持 | 支持，使用 RKNN Guard SDK |
+| RK3576 | 支持 | 支持，默认使用 Model Guard v2.6.0 RKNN SDK |
+| RK3588 | 支持 | 支持，默认使用 Model Guard v2.6.0 RKNN SDK |
 | RV1126B | 支持 | 不支持，配置与包审计均拒绝 |
 | x86 / macOS Preview | CPU 开发模式 | 不支持 Model Guard |
 
 Open 使用明文模型，无需设备授权，也不包含授权工具。Protected 使用对应平台的
-Guard 运行时和 `cosmo-model-provision`，受保护模型需要设备授权。三个受支持目标的
-Protected 产物均位于 `build_output/production-release/<chip>/`；Open 目录见上方各平台小节。
+Guard 运行时和 `cosmo-model-provision`，受保护模型需要设备授权。各目标的
+Protected 产物位于 `build_output/production-release/<chip>/`；Open 目录见上方各平台小节。
 
 两种配置均使用 `cosmo-V<版本号>-<32位md5>.tar.gz` 和同一升级流程；应用包不签名。
 Protected 的 CPack 包可直接用于管理页面升级，不需要离线应用签名步骤。
@@ -333,10 +334,10 @@ Guard 设备证书和模型加密秘密仍是受控输入，不得写入公开�
 
 ### RK3576 Protected 构建
 
-宿主环境为 Linux x86_64 / Bash，使用同一 Rockchip Compose 入口。默认 SDK 为
-`prebuild/model-guard-v2-rknn-abi1/`（Model Guard v2.4 RKNN ABI 1），包含对应头文件、
-`libcosmo_model_guard_rknn.so.1.0.0`、授权工具和清单。构建前校验 SDK，打包后检查运行时、
-授权工具和模型策略；不能用 Sophon SDK 替代。
+RK3576 和 RK3588 的 Protected 构建默认使用仓库内
+`prebuild/model-guard-v2.6.0-rknn-abi1/` 中的 Model Guard v2.6.0 RKNN ABI 1 SDK。
+构建会核对 `sdk-files.sha256` 的固定 SHA-256，以及头文件、
+`libcosmo_model_guard_rknn.so.1.1.0`、授权工具等组件的哈希。
 
 下面是**保留设备已有模型、仅更新应用**的构建命令。该包部署后依赖设备已有的授权和模型；编译时无需连接设备：
 
@@ -359,9 +360,15 @@ cat build_output/production-release/rk3576/TARGET_CHIP
 `COSMO_RKNN_RESOURCE_OVERLAY_DIR` 提供匹配 RK3576 的加密模型及资源目录；这些路径必须
 在容器内可访问。仓库默认明文 `.rknn` 模型不能直接用于 Protected 包，包审计会拒绝。
 
-`COSMO_MODEL_GUARD_SDK_ROOT` 可覆盖 RKNN SDK 路径，但仍必须通过同样的配套校验。
-此 SDK 的 fork 授权和发布边界以其随附说明为准；构建支持不代表本次已完成设备验收。
-RV1126B 当前不能通过改芯片参数得到 Protected 包。
+`COSMO_MODEL_GUARD_SDK_ROOT` 可覆盖容器内 SDK 路径。RK3576 如需显式使用原 v2.4 SDK，
+可设为 `/workspace/prebuild/model-guard-v2-rknn-abi1`。SDK 的使用和分发以随附条款为准。
+
+### RK3588 Protected 构建
+
+沿用上述预置 SDK 及 `production-release` 配置，将 `COSMO_TARGET_CHIP` 设为 `rk3588`，
+通过 `COSMO_ROCKCHIP_BUILDER_IMAGE` 选择与 RK3588 锁文件匹配的镜像，并将目标设备
+ABI sysroot 只读挂载到 `COSMO_ABI_TARGET_SYSROOT` 指定的容器路径。产物和 ABI 审计报告
+位于 `build_output/production-release/rk3588/`。
 
 ### 构建镜像、缓存与自定义模型
 

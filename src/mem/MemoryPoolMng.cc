@@ -102,6 +102,14 @@ void MemoryPoolMng::RealMalloc(BlockOp&& op) {
         return;
     }
 
+    // RealMalloc runs on the pool's single operation worker. A batch may
+    // begin at a non-multiple of the step after a partial failure or free.
+    // Clamp the batch so the configured limit remains a hard ceiling.
+    if (pool->GetMaxLimit() > 0) {
+        step = static_cast<int>(
+            std::min(static_cast<size_t>(step), pool->GetMaxLimit() - pool->TotalBlockCount()));
+    }
+
     for (int i = 0; i < step; i++) {
         auto block_ = allocator_->Allocate(size);
         if (block_) {

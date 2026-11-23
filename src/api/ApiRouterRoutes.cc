@@ -15,6 +15,7 @@
 #include "service/network/IAuthService.h"
 #include "util/Log.h"
 #include "util/PathUtil.h"
+#include "util/RuntimeIsolation.h"
 
 namespace cosmo {
 namespace {
@@ -390,7 +391,13 @@ bool ApiRouter::DispatchRequest(const RequestDispatchContext& context, const std
         return false;
     }
 
-    auto it = url_map_.find(util::ToLower(context.uri));
+    const auto route = util::ToLower(context.uri);
+    if (runtime::IsIsolatedRuntime() && runtime::IsHostManagementRoute(route)) {
+        errc     = util::ErrorEnum::OperationNotSupport;
+        response = detail::ErroResult("Host management is disabled in isolated runtime", errc);
+        return false;
+    }
+    auto it = url_map_.find(route);
     if (it->second.context_func) {
         response = it->second.context_func(authorized_context, message, errc);
     } else {

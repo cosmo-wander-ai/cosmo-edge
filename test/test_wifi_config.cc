@@ -14,6 +14,7 @@
 #include "service/network/NetworkMutation.h"
 #include "service/network/impl/WifiConfigServiceImpl.h"
 #include "support/ScopedPathOverride.h"
+#include "util/RuntimeIsolation.h"
 
 namespace {
 using Json = nlohmann::json;
@@ -260,6 +261,18 @@ TEST_CASE("Devices without Wi-Fi do not create config or start services", "[wifi
     REQUIRE_FALSE(std::filesystem::exists(fixture.options.private_directory));
     REQUIRE_THROWS_WITH(service.Scan(), "wifiUnavailable");
 }
+TEST_CASE("Isolated Wi-Fi skips host initialization", "[wifi][runtime-isolation]") {
+    Fixture fixture;
+    const cosmo::runtime::RuntimeIsolationScope isolated(true);
+    WifiConfigServiceImpl service(fixture.platform, fixture.options);
+
+    service.Init();
+
+    CHECK(fixture.platform->prepare_count == 0);
+    CHECK_FALSE(std::filesystem::exists(fixture.options.private_directory));
+    CHECK_THROWS_WITH(service.Scan(), "wifiUnavailable");
+}
+
 TEST_CASE("Wi-Fi scanning is asynchronous and does not leak credentials", "[wifi]") {
     Fixture fixture;
     WifiConfigServiceImpl service(fixture.platform, fixture.options);

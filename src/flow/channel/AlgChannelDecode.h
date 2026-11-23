@@ -84,6 +84,7 @@ protected:
     void run() override;
 
 private:
+    friend struct ChannelDecodeSequenceTest;
     void HandFrame(AlgDataPtr demuxData);
     bool ValidateFrame(VideoPacketPtr& videoFrame, bool justNeedIFrame);
     void PrepareDecoder(VideoPacketPtr& videoFrame);

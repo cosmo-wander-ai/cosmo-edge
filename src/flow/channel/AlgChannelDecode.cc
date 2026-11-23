@@ -175,6 +175,9 @@ void AlgChannelDecode::PrepareDecoder(VideoPacketPtr& video_frame) {
     const int decoder_height =
         needs_resize ? media::kVideoDefaultHeight : static_cast<int>(video_frame->height);
     const bool stream_restarted = stream_index_ != video_frame->stream_idx;
+    if (stream_restarted || codec_reset_sign_ || !decoder_->IsOpened()) {
+        decoder_->SetCodecExtradata(channel_inst_.GetCodecExtradata());
+    }
 
     // A backend may retain a compatible hardware context across a clean
     // keyframe boundary. CPU/Sophon keep their existing Close/Open behavior.
@@ -354,6 +357,12 @@ void AlgChannelDecode::HandFrame(AlgDataPtr demux_data) {
     auto frame_data = decoded_frame.Materialize();
     duration_stat_.EndSample();
     if (!frame_data || !frame_data->Active()) {
+        // DecodeFrame can successfully consume the current input while its
+        // returned (possibly reordered) output fails host materialization.
+        // Keep validating subsequent packets against the consumed input, not
+        // the older output frame that could not be distributed.
+        if (video_frame->codec_type != media::VideoCodecType::kMjpeg && is_decode_ret)
+            frame_index_ = video_frame->index;
         action_status_ = util::ErrorEnum::DecoderFrameFailed;
         LOG_WARN("{} decoded frame materialization failed at frame:{} stream:{}", decoder_name_,
                  video_frame->index, video_frame->stream_idx);

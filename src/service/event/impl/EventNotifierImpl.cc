@@ -7,6 +7,7 @@
 #include "App.h"
 #include "util/JsonStructUtil.h"
 #include "util/Log.h"
+#include "util/RuntimeIsolation.h"
 #include "util/StringUtil.h"
 
 namespace cosmo::service {
@@ -56,6 +57,11 @@ bool EventNotifierImpl::InitializeWebSocket(const std::string& hostIp, int port)
         }
     });
     server_thread_ = std::thread([this, hostIp, port]() { StartServer(hostIp, port); });
+    if (runtime::IsIsolatedRuntime()) {
+        std::unique_lock<std::mutex> lock(server_mtx_);
+        server_state_cv_.wait(lock, [this]() { return server_state_ != ServerState::kStarting; });
+        return server_state_ == ServerState::kRunning;
+    }
     return true;
 }
 

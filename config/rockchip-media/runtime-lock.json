@@ -129,6 +129,66 @@
         "lib/librockchip_mpp.so": "librockchip_mpp.so.1",
         "lib/librockchip_mpp.so.1": "librockchip_mpp.so.0"
       }
+    },
+    "rk3588-glibc231-v1": {
+      "architecture": "aarch64",
+      "provenance": "rk3588-glibc231-source-build-v1",
+      "sources": {
+        "mpp": {
+          "repository": "https://github.com/rockchip-linux/mpp",
+          "revision": "c08762ebfadeb4e986d2fed993bc7a54862d3ebe",
+          "tag": "1.1.0",
+          "path_mapping": "/usr/src/rockchip/mpp-1.1.0"
+        },
+        "rga": {
+          "repository": "https://github.com/airockchip/librga",
+          "revision": "2b32edcb97b601b25683e2941d888c8515da6d55",
+          "api_version": "1.10.6_[3]",
+          "artifact": "libs/Linux/gcc-aarch64/librga.so"
+        }
+      },
+      "artifacts": {
+        "include/rockchip/rk_mpi.h": {
+          "sha256": "96dbae7d90e91baaac38821fc06c74a327cac888007841fe5937798259193646"
+        },
+        "include/rga/im2d.h": {
+          "sha256": "5ee06891775451c56e6264f5d53db0a4e948e1830287f3a5db4f75c30ac0ff11"
+        },
+        "include/rga/im2d_version.h": {
+          "sha256": "66021285feb75dc1b492345adc074722813b8945dd998357002cf5396872980c"
+        },
+        "lib/librockchip_mpp.so.0": {
+          "elf": {
+            "machine": "AArch64",
+            "soname": "librockchip_mpp.so.1"
+          }
+        },
+        "lib/librga.so": {
+          "sha256": "e150bda757fb5e8a649c429ec7cabaf851aa2a3be554ed494d5519e8790d943b",
+          "elf": {
+            "machine": "AArch64",
+            "soname": "librga.so"
+          }
+        },
+        "share/licenses/rockchip-media/mpp/Apache-2.0": {
+          "sha256": "ed57d96d27be775b22f9571d3724ef84e0d0b8f24b805ec7f87a32189de19a9c"
+        },
+        "share/licenses/rockchip-media/mpp/MIT": {
+          "sha256": "323c587d0ccf10e376f8bf9a7f31fb4ca6078105194b42e0b1e0ee2bc9bde71f"
+        },
+        "share/licenses/rockchip-media/librga/COPYING": {
+          "sha256": "58f1fdcee3211f839f749c1ed97ca87fd56d9d01d729bb74241eca9e2ac710bc"
+        }
+      },
+      "links": {
+        "lib/librockchip_mpp.so": "librockchip_mpp.so.1",
+        "lib/librockchip_mpp.so.1": "librockchip_mpp.so.0"
+      },
+      "target_abi": {
+        "architecture": "aarch64",
+        "maximum_required_glibc": "2.31",
+        "qualification": "unverified; enforced by the complete-package ABI gate before board execution"
+      }
     }
   }
 }

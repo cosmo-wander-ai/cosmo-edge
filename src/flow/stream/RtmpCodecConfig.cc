@@ -310,10 +310,10 @@ void RtmpCodecConfig::SetParameters(const std::vector<uint8_t>& extradata) {
     bool parsed = false;
     switch (codec_type_) {
         case media::VideoCodecType::kH264:
-            parsed = ParseAvcC(extradata);
+            parsed = extradata[0] == 1 ? ParseAvcC(extradata) : ParseAnnexBParameters(extradata);
             break;
         case media::VideoCodecType::kH265:
-            parsed = ParseHevcC(extradata);
+            parsed = extradata[0] == 1 ? ParseHevcC(extradata) : ParseAnnexBParameters(extradata);
             break;
         default:
             break;
@@ -321,6 +321,70 @@ void RtmpCodecConfig::SetParameters(const std::vector<uint8_t>& extradata) {
     if (!parsed) {
         LOG_WARN("SetParameters: reject malformed codec extradata ({} bytes)", extradata.size());
     }
+}
+
+bool RtmpCodecConfig::ParseAnnexBParameters(const std::vector<uint8_t>& data) {
+    size_t offset = 0, length = 0;
+    if (!FindAnnexBStartCode(data.data(), data.size(), 0, offset, length) ||
+        !std::all_of(data.begin(), data.begin() + static_cast<std::ptrdiff_t>(offset),
+                     [](uint8_t value) { return value == 0; })) {
+        return false;
+    }
+
+    // Parse into temporary buffers: a truncated update must never combine new
+    // SPS with old PPS, nor destroy an already usable configuration.
+    std::vector<uint8_t> parsed_vps, parsed_sps, parsed_pps, parsed_sei;
+    bool has_sps = false;
+    for (;;) {
+        const size_t begin = offset + length;
+        size_t next = 0, next_length = 0;
+        const bool more = FindAnnexBStartCode(data.data(), data.size(), begin, next, next_length);
+        size_t end      = more ? next : data.size();
+        while (end > begin && data[end - 1] == 0)
+            --end;
+        if (end <= begin || (data[begin] & 0x80) != 0)
+            return false;
+
+        std::vector<uint8_t>* destination = nullptr;
+        if (codec_type_ == media::VideoCodecType::kH265) {
+            if (end - begin < 2 || (data[begin + 1] & 7) == 0)
+                return false;
+            const auto type = (data[begin] >> 1) & 0x3f;
+            has_sps         = has_sps || type == 33;
+            destination     = type == 32                 ? &parsed_vps
+                              : type == 33               ? &parsed_sps
+                              : type == 34               ? &parsed_pps
+                              : type == 39 || type == 40 ? &parsed_sei
+                                                         : nullptr;
+        } else {
+            const auto type = data[begin] & 0x1f;
+            if (type == 0)
+                return false;
+            has_sps     = has_sps || type == 7;
+            destination = type == 7 || type == 13 ? &parsed_sps
+                          : type == 8             ? &parsed_pps
+                          : type == 6             ? &parsed_sei
+                                                  : nullptr;
+        }
+        if (destination && !AppendParameterSet(*destination, data, begin, end - begin))
+            return false;
+        if (!more)
+            break;
+        offset = next;
+        length = next_length;
+    }
+    if (!has_sps || parsed_pps.empty() ||
+        (codec_type_ == media::VideoCodecType::kH265 && parsed_vps.empty()) ||
+        parsed_vps.size() + parsed_sps.size() + parsed_pps.size() + parsed_sei.size() > kMaxExtradataBytes) {
+        return false;
+    }
+    vps_ = std::move(parsed_vps);
+    sps_ = std::move(parsed_sps);
+    pps_ = std::move(parsed_pps);
+    sei_ = std::move(parsed_sei);
+    LOG_INFO("ParseAnnexBParameters: extracted VPS({}B) SPS({}B) PPS({}B)", vps_.size(), sps_.size(),
+             pps_.size());
+    return true;
 }
 
 bool RtmpCodecConfig::ParseAvcC(const std::vector<uint8_t>& data) {

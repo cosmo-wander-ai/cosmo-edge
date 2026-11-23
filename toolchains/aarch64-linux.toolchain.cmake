@@ -1,25 +1,30 @@
-# set cross-compiled system type, it's better not use the type which cmake cannot recognized.
-SET ( CMAKE_SYSTEM_NAME Linux )
-SET ( CMAKE_SYSTEM_PROCESSOR aarch64 )
+# Linux aarch64 cross compilation. The default uses the host distribution's
+# cross toolchain; an SDK can provide a compiler prefix and a complete sysroot.
+set(CMAKE_SYSTEM_NAME Linux)
+set(CMAKE_SYSTEM_PROCESSOR aarch64)
 
-SET ( CMAKE_C_COMPILER /usr/bin/aarch64-linux-gnu-gcc CACHE PATH "C compiler path" FORCE)
-SET ( CMAKE_CXX_COMPILER /usr/bin/aarch64-linux-gnu-g++ CACHE PATH "C++ compiler path" FORCE)
-
-SET( CMAKE_AR /usr/bin/aarch64-linux-gnu-ar CACHE PATH "ar path" FORCE)
-SET( CMAKE_STRIP /usr/bin/aarch64-linux-gnu-strip CACHE PATH "strip path" FORCE)
-SET( CMAKE_RANLIB /usr/bin/aarch64-linux-gnu-ranlib CACHE PATH "ranlib path" FORCE)
-
-
-# set searching rules for cross-compiler
-SET ( CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER )
-SET ( CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY )
-SET ( CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY )
-
-# set ${CMAKE_C_FLAGS} and ${CMAKE_CXX_FLAGS}flag for cross-compiled process
-# SET ( CMAKE_CXX_FLAGS "-std=c++11 -fPIC ${CMAKE_CXX_FLAGS}" )
-
-# other settings
+set(COSMO_TOOLCHAIN_ROOT "$ENV{COSMO_TOOLCHAIN_ROOT}" CACHE PATH "Cross-toolchain prefix")
+set(COSMO_TARGET_SYSROOT "$ENV{COSMO_TARGET_SYSROOT}" CACHE PATH "Complete target sysroot")
+if(COSMO_TOOLCHAIN_ROOT)
+    set(_cosmo_cross_bin "${COSMO_TOOLCHAIN_ROOT}/bin")
+else()
+    set(_cosmo_cross_bin /usr/bin)
+endif()
+set(CMAKE_C_COMPILER "${_cosmo_cross_bin}/aarch64-linux-gnu-gcc" CACHE FILEPATH "C compiler")
+set(CMAKE_CXX_COMPILER "${_cosmo_cross_bin}/aarch64-linux-gnu-g++" CACHE FILEPATH "C++ compiler")
+set(CMAKE_AR "${_cosmo_cross_bin}/aarch64-linux-gnu-ar" CACHE FILEPATH "Archiver")
+set(CMAKE_STRIP "${_cosmo_cross_bin}/aarch64-linux-gnu-strip" CACHE FILEPATH "Strip")
+set(CMAKE_RANLIB "${_cosmo_cross_bin}/aarch64-linux-gnu-ranlib" CACHE FILEPATH "Ranlib")
+if(COSMO_TARGET_SYSROOT)
+    if(NOT IS_DIRECTORY "${COSMO_TARGET_SYSROOT}")
+        message(FATAL_ERROR "Target sysroot does not exist: ${COSMO_TARGET_SYSROOT}")
+    endif()
+    set(CMAKE_SYSROOT "${COSMO_TARGET_SYSROOT}")
+    list(APPEND CMAKE_FIND_ROOT_PATH "${COSMO_TARGET_SYSROOT}")
+endif()
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 add_definitions(-D__ARM_NEON)
-
-# add_compile_options(-std=c++17)
 add_compile_options(-fPIC)

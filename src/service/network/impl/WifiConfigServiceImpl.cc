@@ -8,6 +8,7 @@
 #include <stdexcept>
 
 #include "util/PathUtil.h"
+#include "util/RuntimeIsolation.h"
 
 namespace cosmo::service {
 namespace {
@@ -105,6 +106,9 @@ void WifiConfigServiceImpl::RestorePending(bool report_interrupted) {
                   {"scanResults", nlohmann::json::array()}};
 }
 void WifiConfigServiceImpl::Init() {
+    if (runtime::IsIsolatedRuntime()) {
+        return;
+    }
     std::lock_guard<std::mutex> lifecycle(lifecycle_mutex_);
     if (initialized_)
         return;

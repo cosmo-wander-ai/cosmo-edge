@@ -457,6 +457,8 @@ build/
 # The approved RKNN Model Guard SDK is a checked-in build dependency.
 !prebuild/model-guard-v2-rknn-abi1/bin/
 !prebuild/model-guard-v2-rknn-abi1/bin/cosmo-model-provision
+!prebuild/model-guard-v2.6.0-rknn-abi1/bin/
+!prebuild/model-guard-v2.6.0-rknn-abi1/bin/cosmo-model-provision
 
 # The complete Sophon SDK is authorized for this CosmoEdge fork.
 !prebuild/model-guard-v2/bin/

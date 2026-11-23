@@ -20,6 +20,7 @@
 #include "platform/WifiPlatform.h"
 #include "service/network/impl/DeviceDiscoveryReceivePolicy.h"
 #include "util/ErrorCode.h"
+#include "util/RuntimeIsolation.h"
 #include "util/TimingConstants.h"
 
 namespace cosmo::service {
@@ -68,6 +69,9 @@ DeviceDiscoveryServiceImpl::~DeviceDiscoveryServiceImpl() {
 }
 
 void DeviceDiscoveryServiceImpl::Start() {
+    if (runtime::IsIsolatedRuntime()) {
+        return;
+    }
     std::lock_guard<std::mutex> lock(thread_mtx_);
     if (stop_.load(std::memory_order_acquire) || init_thread_.joinable()) {
         return;

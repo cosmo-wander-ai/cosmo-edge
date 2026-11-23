@@ -13,6 +13,7 @@
 
 #include "platform/PlatformConstants.h"
 #include "util/Log.h"
+#include "util/RuntimeIsolation.h"
 #include "util/TimingConstants.h"
 
 namespace cosmo::platform {
@@ -102,6 +103,10 @@ void WatchDog::run() {
 }
 
 bool WatchDog::Start() {
+    if (cosmo::runtime::IsIsolatedRuntime()) {
+        LOG_WARN("{}", "Hardware watchdog is disabled in isolated runtime");
+        return false;
+    }
     if (!kHardwareWatchdogEnabled) {
         LOG_INFO("{}", "Hardware watchdog disabled for this build");
         return true;

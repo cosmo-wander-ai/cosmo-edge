@@ -1,0 +1,13 @@
+{
+  "release_id": "cmg-sdk-v2.6.0-rknn-abi1",
+  "guard_version": [2, 6, 0],
+  "minimum_glibc": "2.31",
+  "soname": "libcosmo_model_guard_rknn.so.1",
+  "symbol_version": "CMGR_1.0",
+  "platform_detection": "device-tree-compatible",
+  "targets": {"rockchip-rk3576-aarch64": 2, "rockchip-rk3588-aarch64": 4},
+  "binding_profiles": {"rk3576-otp-id-v1": 2, "rk3588-otp-id-v1": 4},
+  "rknn_build_runtime": "2.3.2",
+  "runtime_policy": "caller-supplied-compatible-librknnrt",
+  "offline_tool_included": false
+}

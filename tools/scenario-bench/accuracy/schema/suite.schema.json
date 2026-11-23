@@ -21,7 +21,7 @@
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
-      "items": { "enum": ["bm1688", "cv186x", "rk3576", "rv1126b"] }
+      "items": { "enum": ["bm1688", "cv186x", "rk3576", "rk3588", "rv1126b"] }
     },
     "defaults": {
       "type": "object",

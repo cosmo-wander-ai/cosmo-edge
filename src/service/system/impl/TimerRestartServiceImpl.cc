@@ -13,6 +13,7 @@
 #include "util/DateTimeFormat.h"
 #include "util/FormatString.h"
 #include "util/Log.h"
+#include "util/RuntimeIsolation.h"
 
 namespace cosmo::service {
 
@@ -22,6 +23,9 @@ TimerRestartServiceImpl::~TimerRestartServiceImpl() {
 }
 
 void TimerRestartServiceImpl::Start() {
+    if (runtime::IsIsolatedRuntime()) {
+        return;
+    }
     std::lock_guard<std::mutex> lock(lifecycle_mtx_);
     if (stop_requested_ || timer_) {
         return;

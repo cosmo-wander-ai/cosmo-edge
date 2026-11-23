@@ -25,6 +25,7 @@
 #include "service/system/IDeviceHardware.h"
 #include "util/JsonStructUtil.h"
 #include "util/Log.h"
+#include "util/RuntimeIsolation.h"
 #include "util/SafeParse.h"
 #include "util/UuidUtil.h"
 #include "util/Version.h"
@@ -190,6 +191,9 @@ void MqttLifecycleServiceImpl::MqttStop() {
 }
 
 void MqttLifecycleServiceImpl::MqttStart() {
+    if (runtime::IsIsolatedRuntime()) {
+        return;
+    }
     std::lock_guard<std::recursive_mutex> lifecycle_lock(lifecycle_mtx_);
     if (shutting_down_.load(std::memory_order_acquire)) {
         return;

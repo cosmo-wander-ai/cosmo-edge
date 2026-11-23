@@ -20,6 +20,7 @@ add_library(cosmo_util OBJECT
     NToL.cc              NToL.h
     PeriodicTimer.cc     PeriodicTimer.h
     ResourceBudget.cc    ResourceBudget.h
+    RuntimeIsolation.cc  RuntimeIsolation.h
     RtspUrlUtil.cc       RtspUrlUtil.h
     ScoreCalc.cc         ScoreCalc.h
     StringUtil.cc        StringUtil.h

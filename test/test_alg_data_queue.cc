@@ -2,6 +2,7 @@
 /*
  * test_alg_data_queue.cc - AlgDataQueue 单元测试
  */
+#include <atomic>
 #include <chrono>
 #include <thread>
 #include <vector>
@@ -92,6 +93,36 @@ TEST_CASE("AlgDataQueue Status reporting", "[AlgDataQueue]") {
     REQUIRE(info.status.insertCount == 2);
     REQUIRE(info.status.processCount == 1);
     REQUIRE(info.queLength == 1);
+    REQUIRE(info.status.holdCount == 1);
+    REQUIRE(info.status.holdCountMax == 2);
+}
+
+TEST_CASE("AlgDataQueue current hold count follows dequeue and stop", "[AlgDataQueue]") {
+    AlgDataQueue<int> queue("hold_count_q", 2);
+    auto check = [&](size_t expected, size_t peak) {
+        AlgDataQueueInfo info;
+        REQUIRE(queue.Status(info));
+        CHECK(info.queLength == expected);
+        CHECK(info.status.holdCount == expected);
+        CHECK(info.status.holdCountMax == peak);
+    };
+
+    check(0, 0);
+    REQUIRE(queue.Insert(1));
+    REQUIRE(queue.Insert(2));
+    CHECK_FALSE(queue.Insert(3));
+    check(2, 2);
+    REQUIRE(queue.Insert(3, true));
+    check(2, 2);
+    CHECK(queue.Pop() == 2);
+    check(1, 2);
+    CHECK(queue.Pop() == 3);
+    CHECK(queue.Pop() == 0);
+    check(0, 2);
+    REQUIRE(queue.Insert(4));
+    queue.Stop();
+    queue.Resume();
+    check(0, 2);
 }
 
 TEST_CASE("AlgDataQueue WaitForData timeout", "[AlgDataQueue]") {
@@ -165,4 +196,37 @@ TEST_CASE("AlgDataQueue concurrent access", "[AlgDataQueue]") {
     consumer.join();
 
     REQUIRE(consumed == N);
+}
+
+TEST_CASE("AlgDataQueue snapshot reports current hold during concurrent access", "[AlgDataQueue]") {
+    AlgDataQueue<int> queue("snapshot_q", 20);
+    std::atomic<bool> started{false};
+    std::atomic<bool> done{false};
+    std::thread producer([&]() {
+        while (!started.load())
+            std::this_thread::yield();
+        for (int i = 0; i < 5000; ++i)
+            queue.Insert(i + 1, true);
+        done.store(true);
+    });
+    std::thread consumer([&]() {
+        while (!started.load())
+            std::this_thread::yield();
+        while (!done.load() || queue.RestSize() != 0)
+            queue.Pop();
+    });
+    started.store(true);
+    bool consistent = true;
+    for (int i = 0; i < 5000; ++i) {
+        AlgDataQueueInfo status;
+        if (!queue.Status(status) || status.status.holdCount != status.queLength)
+            consistent = false;
+    }
+    producer.join();
+    consumer.join();
+    CHECK(consistent);
+    AlgDataQueueInfo final_status;
+    REQUIRE(queue.Status(final_status));
+    CHECK(final_status.queLength == 0);
+    CHECK(final_status.status.holdCount == 0);
 }

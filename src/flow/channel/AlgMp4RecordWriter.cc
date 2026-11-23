@@ -7,6 +7,7 @@
 #include <limits>
 
 #include "flow/channel/AlgMp4Record.h"
+#include "media/PacketTime.h"
 #include "mp4v2/mp4v2.h"
 #include "mp4v2/track.h"
 #include "util/Log.h"
@@ -198,14 +199,28 @@ bool AlgMp4Record::HandlePps(const uint8_t* frame_data, size_t frame_size, int64
     return false;
 }
 
-bool AlgMp4Record::WriteVideoSample(int64_t seq, bool is_sync) {
+bool AlgMp4Record::WriteVideoSample(int64_t seq, bool is_sync, uint64_t duration, uint64_t offset) {
+    // MP4 stts remains the decode timeline; track the composition end separately.
+    constexpr auto limit = std::numeric_limits<uint64_t>::max();
+    if (duration == 0 || offset > limit - decode_duration_ ||
+        duration > limit - (decode_duration_ + offset) || duration > limit - decode_duration_) {
+        write_failed_ = true;
+        return false;
+    }
+    const uint64_t end = decode_duration_ + offset + duration;
     try {
         const bool written = MP4WriteSample(mp4_handle_, track_id_, sample_buffer_.data(),
                                             static_cast<uint32_t>(sample_buffer_.size()),
-                                            static_cast<MP4Duration>(kTimeScale / fps_), 0, is_sync);
+                                            static_cast<MP4Duration>(duration), 0, is_sync);
         const auto samples = MP4GetTrackNumberOfSamples(mp4_handle_, track_id_);
-        if (written && static_cast<int64_t>(samples) == record_frames_ + 1) {
+        // This vendor's MP4WriteSample treats offset 1 as an ADTS marker.
+        // Set composition offset afterwards, including the valid 1-tick case.
+        if (written && static_cast<int64_t>(samples) == record_frames_ + 1 &&
+            (offset == 0 || MP4SetSampleRenderingOffset(mp4_handle_, track_id_, samples, offset))) {
             ++record_frames_;
+            decode_duration_ += duration;
+            presentation_end_   = std::max(presentation_end_, end);
+            presentation_start_ = std::min(presentation_start_, decode_duration_ - duration + offset);
             total_size_ += static_cast<int64_t>(sample_buffer_.size());
             return true;
         }
@@ -219,6 +234,17 @@ bool AlgMp4Record::WriteVideoSample(int64_t seq, bool is_sync) {
     write_failed_ = true;
     sample_buffer_.clear();
     return false;
+}
+
+bool AlgMp4Record::FlushTimedSample(uint64_t duration) {
+    if (duration == 0 || duration > std::numeric_limits<uint32_t>::max()) {
+        write_failed_ = true;
+        return false;
+    }
+    sample_buffer_.swap(pending_sample_);
+    const bool result = WriteVideoSample(pending_seq_, pending_sync_, duration, pending_offset_);
+    pending_sample_.clear();
+    return result;
 }
 
 bool AlgMp4Record::RecodeFrame(VideoPacketPtr frame) {
@@ -241,9 +267,26 @@ bool AlgMp4Record::RecodeFrame(VideoPacketPtr frame) {
         return false;
     }
     data_size_ += static_cast<int64_t>(frame->GetSize());
+    std::string header_error;
+    if (!parameter_sets_configured_) {
+        const std::vector<uint8_t> empty;
+        if (!parameter_sets_.Configure(source_type_, frame->codec_extradata ? *frame->codec_extradata : empty,
+                                       header_error)) {
+            LOG_ERRO("[MP4 TASK] {} {} invalid codec configuration: {}", task_id_, event_name_, header_error);
+            write_failed_ = true;
+            return false;
+        }
+        parameter_sets_configured_ = true;
+    }
+    const uint8_t* input = nullptr;
+    size_t input_size    = 0;
+    if (!parameter_sets_.Prepare(frame->GetData(), frame->GetSize(), input, input_size, header_error)) {
+        LOG_WARN("[MP4 TASK] {} {} Frame:{} cannot prepare headers: {}", task_id_, event_name_,
+                 frame->GetSequence(), header_error);
+        return false;
+    }
     FrameScan scan;
-    if (!ScanFrame(frame->GetData(), frame->GetSize(), &scan) ||
-        !TransformFrame(frame->GetData(), frame->GetSize(), scan)) {
+    if (!ScanFrame(input, input_size, &scan) || !TransformFrame(input, input_size, scan)) {
         LOG_WARN("[MP4 TASK] {} {} Frame:{} invalid Annex-B input", task_id_, event_name_,
                  frame->GetSequence());
         return false;
@@ -270,7 +313,64 @@ bool AlgMp4Record::RecodeFrame(VideoPacketPtr frame) {
         sample_buffer_.clear();
         return false;
     }
-    return WriteVideoSample(seq, scan.is_sync);
+    const bool has_time_base = frame->time_base_num != 0 || frame->time_base_den != 0;
+    const auto missing_time  = std::numeric_limits<int64_t>::min();
+    const bool complete_time = has_time_base && frame->pts != missing_time && frame->dts != missing_time;
+    const bool timed         = timing_mode_set_ ? timed_ : complete_time;
+    if (!timing_mode_set_ && has_time_base && !complete_time)
+        LOG_WARN("[MP4 TASK] {} {} source timestamps unavailable; using legacy synthetic CFR timing",
+                 task_id_, event_name_);
+    if (timed && !timing_mode_set_ && !scan.is_sync) {
+        // Header NALs in a P packet are not a random access picture.
+        return false;
+    }
+    if (timed) {
+        media::PacketTime time;
+        std::string reason;
+        if ((timing_mode_set_ && (source_time_base_num_ != frame->time_base_num ||
+                                  source_time_base_den_ != frame->time_base_den)) ||
+            !media::RescalePacketTime(
+                frame->pts, frame->dts, frame->duration, frame->time_base_num, frame->time_base_den,
+                timing_mode_set_ ? timing_origin_dts_ : frame->dts, kTimeScale, time, reason) ||
+            time.pts - time.dts > std::numeric_limits<uint32_t>::max() ||
+            (!pending_sample_.empty() && time.dts <= pending_dts_)) {
+            LOG_ERRO("[MP4 TASK] {} {} invalid source timestamps: {}", task_id_, event_name_, reason);
+            write_failed_ = true;
+            return false;
+        }
+        if (!timing_mode_set_) {
+            timing_origin_dts_    = frame->dts;
+            source_time_base_num_ = frame->time_base_num;
+            source_time_base_den_ = frame->time_base_den;
+        }
+        if (!pending_sample_.empty()) {
+            auto current        = std::move(sample_buffer_);
+            const auto duration = static_cast<uint64_t>(time.dts - pending_dts_);
+            if (!FlushTimedSample(duration))
+                return false;
+            last_duration_ = duration;
+            sample_buffer_ = std::move(current);
+        }
+        pending_sample_   = std::move(sample_buffer_);
+        pending_seq_      = seq;
+        pending_sync_     = scan.is_sync;
+        pending_dts_      = time.dts;
+        pending_offset_   = static_cast<uint64_t>(time.pts - time.dts);
+        pending_duration_ = static_cast<uint64_t>(time.duration);
+        timing_mode_set_  = true;
+        timed_            = true;
+    } else {
+        timing_mode_set_ = true;
+        timed_           = false;
+        if (!WriteVideoSample(seq, scan.is_sync, static_cast<uint64_t>(kTimeScale / fps_), 0))
+            return false;
+    }
+    if (input != frame->GetData()) {
+        LOG_INFO("[MP4 TASK] {} {} seeded out-of-band parameter sets: bytes={} Frame:{}", task_id_,
+                 event_name_, parameter_sets_.HeaderBytes(), seq);
+    }
+    parameter_sets_.Commit();
+    return !timed || record_frames_ > 0;
 }
 
 int64_t AlgMp4Record::GetLastIndex() {
@@ -279,6 +379,10 @@ int64_t AlgMp4Record::GetLastIndex() {
 
 int64_t AlgMp4Record::GetRecordFrames() {
     return record_frames_;
+}
+
+bool AlgMp4Record::HasStarted() const {
+    return record_frames_ > 0 || !pending_sample_.empty();
 }
 
 int64_t AlgMp4Record::GetEventTime() {

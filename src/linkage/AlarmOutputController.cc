@@ -16,6 +16,7 @@
 
 #include "util/FileUtil.h"
 #include "util/Log.h"
+#include "util/RuntimeIsolation.h"
 
 namespace cosmo::linkage {
 namespace {
@@ -137,6 +138,10 @@ std::string AlarmOutputController::Status(int channel) {
 }
 
 bool AlarmOutputController::Pulse(int channel, std::chrono::milliseconds duration) {
+    if (cosmo::runtime::IsIsolatedRuntime()) {
+        LOG_WARN("AlarmOut {} is disabled in isolated runtime", channel);
+        return false;
+    }
     if (duration.count() <= 0 || duration > std::chrono::seconds(600)) {
         return false;
     }

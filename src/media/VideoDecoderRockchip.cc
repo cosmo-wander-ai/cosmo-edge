@@ -358,14 +358,14 @@ VideoDecoderRockchip::~VideoDecoderRockchip() {
     VideoDecoderRockchip::Close();
 }
 
-VideoDecoderCapability VideoDecoderRockchip::Probe(VideoCodecType type) {
+VideoDecoderCapability VideoDecoderRockchip::ProbeCapability(VideoCodecType type) {
     VideoDecoderCapability capability;
     capability.backend        = "rockchip-mpp-rga";
     capability.implementation = "rockchip-mpp-vpu";
 
     const auto coding = ToMppCoding(type);
     if (coding == MPP_VIDEO_CodingUnused) {
-        const auto cpu            = VideoDecoderCpu::Probe(type);
+        const auto cpu            = VideoDecoderCpu::ProbeCapability(type);
         capability.available      = cpu.available;
         capability.backend        = cpu.available ? "ffmpeg-software-fallback" : capability.backend;
         capability.implementation = cpu.available ? cpu.implementation : std::string{};
@@ -385,7 +385,7 @@ VideoDecoderCapability VideoDecoderRockchip::Probe(VideoCodecType type) {
         return capability;
     }
 
-    const auto cpu = VideoDecoderCpu::Probe(type);
+    const auto cpu = VideoDecoderCpu::ProbeCapability(type);
     if (cpu.available) {
         capability.available      = true;
         capability.backend        = "ffmpeg-software-fallback";
@@ -402,11 +402,17 @@ VideoDecoderCapability VideoDecoderRockchip::Probe(VideoCodecType type) {
 
 bool VideoDecoderRockchip::Open() {
     Close();
+    std::string error;
+    if ((codec_type_ == VideoCodecType::kH264 || codec_type_ == VideoCodecType::kH265) &&
+        !parameter_sets_.Configure(codec_type_, codec_extradata_, error)) {
+        LOG_WARN("{} decoder extradata rejected: {}", idx_name_, error);
+        return false;
+    }
     if (OpenMpp()) {
         return true;
     }
 
-    const auto cpu_capability = VideoDecoderCpu::Probe(codec_type_);
+    const auto cpu_capability = VideoDecoderCpu::ProbeCapability(codec_type_);
     if (!cpu_capability.available) {
         LOG_WARN("{} MPP decoder open failed and FFmpeg fallback is unavailable: {}", idx_name_,
                  cpu_capability.detail);
@@ -430,7 +436,7 @@ bool VideoDecoderRockchip::OpenMpp() {
         return false;
     }
 
-    const auto capability = Probe(codec_type_);
+    const auto capability = ProbeCapability(codec_type_);
     if (!capability.available || capability.implementation != "rockchip-mpp-vpu") {
         LOG_WARN("{} MPP decoder admission failed: {}", idx_name_, capability.detail);
         return false;
@@ -527,6 +533,10 @@ bool VideoDecoderRockchip::IsOpened() {
     return (fallback_ && fallback_->IsOpened()) || (state_ && state_->opened);
 }
 
+void VideoDecoderRockchip::SetCodecExtradata(const std::vector<uint8_t>& extradata) {
+    codec_extradata_ = extradata;
+}
+
 bool VideoDecoderRockchip::ReuseForStreamRestart(VideoCodecType type, int width, int height) {
     if (fallback_ || !state_ || !state_->opened || !state_->context || !state_->api || type != codec_type_ ||
         width <= 0 || height <= 0 || static_cast<size_t>(width) != width_ ||
@@ -540,14 +550,31 @@ bool VideoDecoderRockchip::ReuseForStreamRestart(VideoCodecType type, int width,
     // Codec parameter sets on the new keyframe update the decoder as needed;
     // ConfigureFrameGroup reuses the group when the requested buffer layout is
     // unchanged and reconfigures it when the layout really changes.
+    std::string error;
+    if (!parameter_sets_.Configure(type, codec_extradata_, error)) {
+        LOG_WARN("{} reconnect extradata rejected: {}", idx_name_, error);
+        return false;
+    }
     state_->pending.clear();
     state_->ready_frames.clear();
     return true;
 }
 
 bool VideoDecoderRockchip::SendPacket(const uint8_t* pkt, size_t len, int64_t frame_idx) {
+    const uint8_t* prepared = pkt;
+    size_t prepared_size    = len;
+    std::string header_error;
+    if ((codec_type_ == VideoCodecType::kH264 || codec_type_ == VideoCodecType::kH265) &&
+        !parameter_sets_.Prepare(pkt, len, prepared, prepared_size, header_error)) {
+        LOG_WARN("{} decoder packet rejected: {}", idx_name_, header_error);
+        GetPreviewPipelineMetrics().RecordMppDecode(false, 0);
+        return false;
+    }
     if (fallback_) {
-        return fallback_->SendPacket(pkt, len, frame_idx);
+        const bool accepted = fallback_->SendPacket(prepared, prepared_size, frame_idx);
+        if (accepted)
+            parameter_sets_.Commit();
+        return accepted;
     }
 
     const auto started = std::chrono::steady_clock::now();
@@ -560,12 +587,12 @@ bool VideoDecoderRockchip::SendPacket(const uint8_t* pkt, size_t len, int64_t fr
     }
 
     MppPacket packet = nullptr;
-    auto ret         = mpp_packet_init(&packet, const_cast<uint8_t*>(pkt), len);
+    auto ret         = mpp_packet_init(&packet, const_cast<uint8_t*>(prepared), prepared_size);
     if (ret != MPP_OK || !packet) {
         return fail();
     }
-    mpp_packet_set_pos(packet, const_cast<uint8_t*>(pkt));
-    mpp_packet_set_length(packet, len);
+    mpp_packet_set_pos(packet, const_cast<uint8_t*>(prepared));
+    mpp_packet_set_length(packet, prepared_size);
     mpp_packet_set_pts(packet, frame_idx);
     mpp_packet_set_dts(packet, frame_idx);
 
@@ -597,6 +624,11 @@ bool VideoDecoderRockchip::SendPacket(const uint8_t* pkt, size_t len, int64_t fr
         LOG_WARN("{} MPP decode_put_packet failed: {}", idx_name_, ret);
         return fail();
     }
+    if (prepared_size != len) {
+        LOG_INFO("{} MPP submitted out-of-band parameter sets: codec={} header_bytes={} frame={}", idx_name_,
+                 static_cast<int>(codec_type_), parameter_sets_.HeaderBytes(), frame_idx);
+    }
+    parameter_sets_.Commit();
 
     state_->pending.push_back({frame_idx});
     while (state_->pending.size() > kMaxPendingTimings) {

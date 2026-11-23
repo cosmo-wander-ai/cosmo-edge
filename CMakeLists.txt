@@ -141,7 +141,7 @@ endif()
 set(COSMO_TARGET_CHIP "" CACHE STRING "Target accelerator chip recorded in release packages")
 if(COSMO_TARGET_CHIP)
     string(TOLOWER "${COSMO_TARGET_CHIP}" COSMO_TARGET_CHIP_NORMALIZED)
-    if(NOT COSMO_TARGET_CHIP_NORMALIZED MATCHES "^(bm1688|cv186x|rk3576|rv1126b|unspecified)$")
+    if(NOT COSMO_TARGET_CHIP_NORMALIZED MATCHES "^(bm1688|cv186x|rk3576|rk3588|rv1126b|unspecified)$")
         message(FATAL_ERROR "Unsupported COSMO_TARGET_CHIP: ${COSMO_TARGET_CHIP}")
     endif()
 endif()
@@ -153,9 +153,9 @@ cosmo_configure_runtime_paths(
 message(STATUS "Cosmo mutable data root: ${COSMO_DEFAULT_DATA_DIR}")
 
 if(COSMO_NN_USE_RKNN_BACKEND)
-    if(NOT COSMO_TARGET_CHIP_NORMALIZED MATCHES "^(rk3576|rv1126b)$")
+    if(NOT COSMO_TARGET_CHIP_NORMALIZED MATCHES "^(rk3576|rk3588|rv1126b)$")
         message(FATAL_ERROR
-            "RKNN builds require COSMO_TARGET_CHIP=rk3576 or rv1126b")
+            "RKNN builds require COSMO_TARGET_CHIP=rk3576, rk3588, or rv1126b")
     endif()
     string(TOUPPER "${COSMO_TARGET_CHIP_NORMALIZED}" COSMO_TARGET_CHIP_LABEL)
     set(COSMO_PLATFORM_PROFILE
@@ -253,7 +253,7 @@ if(COSMO_NN_USE_SOPHON_BACKEND)
     set(COSMO_MODEL_GUARD_PLATFORM "sophon")
 elseif(COSMO_NN_USE_RKNN_BACKEND AND
        COSMO_MODEL_GUARD_BUILD_PROFILE STREQUAL "production-release" AND
-       COSMO_TARGET_CHIP_NORMALIZED STREQUAL "rk3576")
+       COSMO_TARGET_CHIP_NORMALIZED MATCHES "^(rk3576|rk3588)$")
     set(COSMO_MODEL_GUARD ON)
     set(COSMO_MODEL_GUARD_PLATFORM "rknn")
 endif()
@@ -362,28 +362,41 @@ if(COSMO_MODEL_GUARD AND COSMO_MODEL_GUARD_PLATFORM STREQUAL "rknn")
         message(FATAL_ERROR
             "The protected RKNN build requires Python 3 and target readelf/nm")
     endif()
-    set(COSMO_MODEL_GUARD_SDK_ROOT
-        "${CMAKE_SOURCE_DIR}/prebuild/model-guard-v2-rknn-abi1"
-        CACHE PATH "Verified Cosmo Model Guard v2.4 RKNN ABI 1 SDK root")
+    set(COSMO_MODEL_GUARD_SDK_ROOT "" CACHE PATH
+        "Verified Cosmo Model Guard RKNN ABI 1 SDK root")
+    if(NOT COSMO_MODEL_GUARD_SDK_ROOT)
+        set(COSMO_MODEL_GUARD_SDK_ROOT "${CMAKE_SOURCE_DIR}/prebuild/model-guard-v2.6.0-rknn-abi1")
+    endif()
     get_filename_component(COSMO_MODEL_GUARD_SDK_ROOT
         "${COSMO_MODEL_GUARD_SDK_ROOT}" ABSOLUTE)
+
+    set(COSMO_MODEL_GUARD_SDK_CHECKSUM_FILE "" CACHE FILEPATH
+        "Checksum list delivered with the production RKNN Guard SDK")
+    if(NOT COSMO_MODEL_GUARD_SDK_CHECKSUM_FILE)
+        set(COSMO_MODEL_GUARD_SDK_CHECKSUM_FILE "${COSMO_MODEL_GUARD_SDK_ROOT}/sdk-files.sha256")
+    endif()
+    set(COSMO_MODEL_GUARD_SDK_CHECKSUM_SHA256 "" CACHE STRING
+        "Approved SHA-256 of the production RKNN Guard SDK checksum list")
+    if(NOT COSMO_MODEL_GUARD_SDK_CHECKSUM_SHA256)
+        # Checksum list for the approved Model Guard v2.6.0 RKNN SDK.
+        set(COSMO_MODEL_GUARD_SDK_CHECKSUM_SHA256
+            "a67af6d23060a93d21d1b13167f75a77c9864608ddae5479908cf85c97ce9ae9")
+    endif()
+
     set(MODEL_GUARD_RKNN_V1_HEADER
         "${COSMO_MODEL_GUARD_SDK_ROOT}/include/cosmo_model_guard_rknn_v1.h")
-    set(MODEL_GUARD_RKNN_V1_LIBRARY
-        "${COSMO_MODEL_GUARD_SDK_ROOT}/lib/libcosmo_model_guard_rknn.so.1.0.0")
+    set(MODEL_GUARD_RKNN_V1_SONAME_LINK
+        "${COSMO_MODEL_GUARD_SDK_ROOT}/lib/libcosmo_model_guard_rknn.so.1")
     set(MODEL_GUARD_RKNN_V1_PROVISION_TOOL
         "${COSMO_MODEL_GUARD_SDK_ROOT}/bin/cosmo-model-provision")
     set(MODEL_GUARD_RKNN_V1_SDK_MANIFEST
         "${COSMO_MODEL_GUARD_SDK_ROOT}/SDK-MANIFEST.json")
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-        "${MODEL_GUARD_RKNN_V1_HEADER}"
-        "${MODEL_GUARD_RKNN_V1_LIBRARY}"
-        "${MODEL_GUARD_RKNN_V1_PROVISION_TOOL}"
-        "${MODEL_GUARD_RKNN_V1_SDK_MANIFEST}"
-        "${CMAKE_SOURCE_DIR}/scripts/verify_model_guard_rknn_v1_sdk.py")
     execute_process(
         COMMAND "${COSMO_PYTHON3_EXECUTABLE}" -I -B
                 "${CMAKE_SOURCE_DIR}/scripts/verify_model_guard_rknn_v1_sdk.py"
+                --target-chip "${COSMO_TARGET_CHIP_NORMALIZED}"
+                "--checksum-file=${COSMO_MODEL_GUARD_SDK_CHECKSUM_FILE}"
+                "--checksum-sha256=${COSMO_MODEL_GUARD_SDK_CHECKSUM_SHA256}"
                 --admission-profile "${COSMO_MODEL_GUARD_BUILD_PROFILE}"
                 --sdk-root "${COSMO_MODEL_GUARD_SDK_ROOT}"
                 --readelf "${CMAKE_READELF}"
@@ -395,8 +408,24 @@ if(COSMO_MODEL_GUARD AND COSMO_MODEL_GUARD_PLATFORM STREQUAL "rknn")
         ERROR_STRIP_TRAILING_WHITESPACE)
     if(NOT MODEL_GUARD_RKNN_V1_VERIFY_RESULT EQUAL 0)
         message(FATAL_ERROR
-            "RKNN production build requires a usable Model Guard SDK.\n"
+            "RKNN production build requires a usable Model Guard SDK at "
+            "${COSMO_MODEL_GUARD_SDK_ROOT}.\n"
             "${MODEL_GUARD_RKNN_V1_VERIFY_ERROR}")
+    endif()
+    file(READ_SYMLINK "${MODEL_GUARD_RKNN_V1_SONAME_LINK}" MODEL_GUARD_RKNN_V1_LIBRARY_NAME)
+    set(MODEL_GUARD_RKNN_V1_LIBRARY
+        "${COSMO_MODEL_GUARD_SDK_ROOT}/lib/${MODEL_GUARD_RKNN_V1_LIBRARY_NAME}")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        "${MODEL_GUARD_RKNN_V1_HEADER}"
+        "${MODEL_GUARD_RKNN_V1_LIBRARY}"
+        "${MODEL_GUARD_RKNN_V1_SONAME_LINK}"
+        "${MODEL_GUARD_RKNN_V1_PROVISION_TOOL}"
+        "${MODEL_GUARD_RKNN_V1_SDK_MANIFEST}"
+        "${COSMO_MODEL_GUARD_SDK_ROOT}/README.md"
+        "${CMAKE_SOURCE_DIR}/scripts/verify_model_guard_rknn_v1_sdk.py")
+    if(EXISTS "${COSMO_MODEL_GUARD_SDK_CHECKSUM_FILE}")
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+            "${COSMO_MODEL_GUARD_SDK_CHECKSUM_FILE}")
     endif()
     add_library(cosmo_model_guard_rknn_v1 SHARED IMPORTED GLOBAL)
     set_target_properties(cosmo_model_guard_rknn_v1 PROPERTIES
@@ -404,7 +433,7 @@ if(COSMO_MODEL_GUARD AND COSMO_MODEL_GUARD_PLATFORM STREQUAL "rknn")
         IMPORTED_SONAME "libcosmo_model_guard_rknn.so.1"
         INTERFACE_INCLUDE_DIRECTORIES "${COSMO_MODEL_GUARD_SDK_ROOT}/include")
     set(COSMO_MODEL_GUARD_LINK_TARGET cosmo_model_guard_rknn_v1)
-    message(STATUS "Verified Model Guard v2.4 RKNN SDK:\n${MODEL_GUARD_RKNN_V1_VERIFY_OUTPUT}")
+    message(STATUS "Verified Model Guard RKNN SDK:\n${MODEL_GUARD_RKNN_V1_VERIFY_OUTPUT}")
 endif()
 
 if(COSMO_MODEL_GUARD_BUILD_PROFILE STREQUAL "production-release")
@@ -708,7 +737,7 @@ if(BUILD_TESTS)
     add_dependencies(cosmo-tests third_build)
     target_compile_definitions(cosmo-tests PRIVATE CATCH_AMALGAMATED_CUSTOM_MAIN)
     # Fault injection is confined to tests; production always calls the real writer.
-    target_link_options(cosmo-tests PRIVATE "-Wl,--wrap=MP4WriteSample")
+    target_link_options(cosmo-tests PRIVATE "-Wl,--wrap=MP4WriteSample" "-Wl,--wrap=MP4AddTrackEdit")
     target_include_directories(cosmo-tests PRIVATE
         ${CMAKE_SOURCE_DIR}/src
         ${CMAKE_SOURCE_DIR}/test
@@ -894,6 +923,11 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/data/SOURCEHANSANSCN-REGULAR.OTF
 # Resource (models, algorithm, layout, etc. from external repository)
 if(DEFINED RESOURCE_DIR AND IS_DIRECTORY "${RESOURCE_DIR}")
     message(STATUS "Resource directory: ${RESOURCE_DIR}")
+    set(COSMO_RESOURCE_MODEL_BUNDLE_ARGS)
+    if(COSMO_PACKAGE_MODELS STREQUAL "preserve")
+        list(APPEND COSMO_RESOURCE_MODEL_BUNDLE_ARGS
+            PATTERN "model-bundle.json" EXCLUDE)
+    endif()
     install(DIRECTORY ${RESOURCE_DIR}/
         DESTINATION resource
         FILE_PERMISSIONS OWNER_WRITE OWNER_READ GROUP_WRITE GROUP_READ
@@ -901,11 +935,12 @@ if(DEFINED RESOURCE_DIR AND IS_DIRECTORY "${RESOURCE_DIR}")
         PATTERN "models" EXCLUDE
         PATTERN "model-artifacts" EXCLUDE
         PATTERN "laya_runtime" EXCLUDE
+        ${COSMO_RESOURCE_MODEL_BUNDLE_ARGS}
         PATTERN "__pycache__" EXCLUDE PATTERN "*.pyc" EXCLUDE PATTERN "*.pyo" EXCLUDE
     )
     if(DEFINED RESOURCE_OVERLAY_DIR AND IS_DIRECTORY "${RESOURCE_OVERLAY_DIR}")
         message(STATUS "Resource overlay directory: ${RESOURCE_OVERLAY_DIR}")
-        set(COSMO_RESOURCE_OVERLAY_MODEL_BUNDLE_ARGS)
+        set(COSMO_RESOURCE_OVERLAY_MODEL_BUNDLE_ARGS ${COSMO_RESOURCE_MODEL_BUNDLE_ARGS})
         if(COSMO_MODEL_GUARD_BUILD_PROFILE STREQUAL "production-release")
             list(APPEND COSMO_RESOURCE_OVERLAY_MODEL_BUNDLE_ARGS
                 PATTERN "model-bundle.json" EXCLUDE)
@@ -1133,7 +1168,7 @@ elseif(COSMO_MODEL_GUARD AND COSMO_MODEL_GUARD_PLATFORM STREQUAL "rknn")
     set(MODEL_GUARD_RKNN_V1_HASH_FILE
         "${CMAKE_CURRENT_BINARY_DIR}/model-guard-rknn-runtime.sha256")
     file(WRITE "${MODEL_GUARD_RKNN_V1_HASH_FILE}"
-        "${MODEL_GUARD_RKNN_V1_LIBRARY_SHA256}  lib/libcosmo_model_guard_rknn.so.1.0.0\n")
+        "${MODEL_GUARD_RKNN_V1_LIBRARY_SHA256}  lib/${MODEL_GUARD_RKNN_V1_LIBRARY_NAME}\n")
     install(FILES "${MODEL_GUARD_RKNN_V1_LIBRARY}"
         DESTINATION lib
         PERMISSIONS OWNER_WRITE OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE)
@@ -1153,9 +1188,9 @@ elseif(COSMO_MODEL_GUARD AND COSMO_MODEL_GUARD_PLATFORM STREQUAL "rknn")
     install(FILES "${COSMO_MODEL_GUARD_SDK_ROOT}/README.md"
         DESTINATION share/licenses/cosmo-model-guard RENAME ARTIFACT-TERMS.md
         PERMISSIONS OWNER_WRITE OWNER_READ GROUP_READ WORLD_READ)
-    install(CODE [[
+    string(CONFIGURE [[
         set(model_guard_lib_dir "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/lib")
-        file(CREATE_LINK libcosmo_model_guard_rknn.so.1.0.0
+        file(CREATE_LINK "@MODEL_GUARD_RKNN_V1_LIBRARY_NAME@"
              "${model_guard_lib_dir}/libcosmo_model_guard_rknn.so.1"
              SYMBOLIC RESULT model_guard_soname_link_result)
         if(NOT model_guard_soname_link_result STREQUAL "0")
@@ -1167,7 +1202,8 @@ elseif(COSMO_MODEL_GUARD AND COSMO_MODEL_GUARD_PLATFORM STREQUAL "rknn")
         if(NOT model_guard_link_result STREQUAL "0")
             message(FATAL_ERROR "Cannot create RKNN Model Guard linker alias")
         endif()
-    ]])
+    ]] MODEL_GUARD_RKNN_INSTALL_LINKS @ONLY)
+    install(CODE "${MODEL_GUARD_RKNN_INSTALL_LINKS}")
 else()
     # CPU-only development packages retain the historical empty directory.
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/lib")
