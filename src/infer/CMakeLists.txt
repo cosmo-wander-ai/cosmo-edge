@@ -35,6 +35,10 @@ if(COSMO_NN_USE_CPU_BACKEND)
     target_link_libraries(cosmo_infer PRIVATE onnxruntime)
 endif()
 
+if(COSMO_NN_USE_AXERA_BACKEND)
+    target_link_libraries(cosmo_infer PRIVATE axera_sys axera_engine)
+endif()
+
 if(COSMO_NN_USE_RKLLM_BACKEND)
     target_sources(cosmo_infer PRIVATE RkllmVlmBackend.cc RkllmVlmBackend.h VlmEvaluationImage.h)
     set_source_files_properties(RkllmVlmBackend.cc PROPERTIES COMPILE_OPTIONS "-ffp-contract=off")

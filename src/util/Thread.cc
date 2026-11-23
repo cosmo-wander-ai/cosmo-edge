@@ -32,12 +32,17 @@ bool Thread::start() {
     // before run() returns (guarded by stop() in dtor).
     auto name = thread_name_;
     auto uuid = registry_uuid_;
-    thread_   = std::thread([this, name, uuid] {
-        LOG_INFO("Thread {} Run", name);
-        run();
-        LOG_INFO("Thread {} Stopped", name);
-        UnregisterThread(uuid);
-    });
+    try {
+        thread_ = std::thread([this, name, uuid] {
+            LOG_INFO("Thread {} Run", name);
+            run();
+            LOG_INFO("Thread {} Stopped", name);
+            UnregisterThread(uuid);
+        });
+    } catch (...) {
+        UnregisterThread(registry_uuid_);
+        throw;
+    }
     return true;
 }
 
@@ -59,6 +64,11 @@ void Thread::stop() {
     } else {
         LOG_INFO("Thread {} Stop Cost {} ms", thread_name_, cost_ms);
     }
+}
+
+bool Thread::joinable() const {
+    std::lock_guard<std::mutex> lock(thread_lifecycle_mtx_);
+    return thread_.joinable();
 }
 
 const std::string& Thread::Name() const {

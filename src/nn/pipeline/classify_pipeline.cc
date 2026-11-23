@@ -2,6 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include "nn/pipeline/classify_input_groups.h"
 #include "nn/pipeline/pipeline_utils.h"
 
 namespace cosmo::nn {
@@ -12,18 +13,19 @@ Status ClassifyPipeline::Init(const PipelineConfig& config, const std::string& m
     model_info_.algorithmcode = config.algorithm_code;
     model_info_.reduce        = config.reduce;
     model_info_.type          = "classify";
-    share_crop_inputs_ = config.models.size() > 1 && (config.reduce == "mean" || config.reduce == "concat");
+    branch_batches_.clear();
+    all_single_crop_ = true;
 
     for (const auto& mc : config.models) {
         nlohmann::json p = pipeline_utils::ParseJsonObject(mc.params_json);
 
         ModelInfo model;
-        model.name           = mc.name;
-        model.filename       = mc.file_name;
-        model.file_md5       = mc.file_md5;
-        model.max_batch      = mc.max_batch;
-        max_batch_           = mc.max_batch;
-        model.input_contract = pipeline_utils::ReadString(p, "rknn_input_contract", std::string());
+        model.name      = mc.name;
+        model.filename  = mc.file_name;
+        model.file_md5  = mc.file_md5;
+        model.max_batch = mc.max_batch;
+        max_batch_      = mc.max_batch;
+        RETURN_ON_FAIL(pipeline_utils::ResolveInputContract(p, device_type, false, model.input_contract));
 
         std::vector<int> dsize = pipeline_utils::ReadIntArray(p, "input_size", {224, 224}, 2);
 
@@ -35,8 +37,9 @@ Status ClassifyPipeline::Init(const PipelineConfig& config, const std::string& m
         bool is_bgr             = pipeline_utils::ReadBool(p, "is_bgr", false);
 
         std::vector<std::unique_ptr<Op>> preprocess;
-        bool has_crop      = pipeline_utils::ReadBool(p, "crop", false);
-        share_crop_inputs_ = share_crop_inputs_ && has_crop && mc.inputs.size() == 1;
+        bool has_crop = pipeline_utils::ReadBool(p, "crop", false);
+        branch_batches_.push_back(mc.max_batch);
+        all_single_crop_ = all_single_crop_ && has_crop && mc.inputs.size() == 1;
         if (has_crop) {
             // Only new format supported: four directions each as a single float
             float top    = pipeline_utils::ReadFloat(p, "crop_h_top", 0.0f);
@@ -95,16 +98,8 @@ Status ClassifyPipeline::Init(const PipelineConfig& config, const std::string& m
 }
 
 Status ClassifyPipeline::Forward(std::initializer_list<std::vector<std::shared_ptr<Blob>>> inputs) {
-    if (share_crop_inputs_ && inputs.size() == 2) {
-        // Each branch crops the same frame and boxes to its own input size.
-        std::vector<std::vector<std::shared_ptr<Blob>>> branch_inputs;
-        branch_inputs.reserve(num_models_ * inputs.size());
-        for (int i = 0; i < num_models_; ++i) {
-            branch_inputs.insert(branch_inputs.end(), inputs);
-        }
-        return RunGraph(branch_inputs);
-    }
-    return RunGraph(inputs);
+    return RunClassifyInputGroups(inputs, model_info_.reduce, branch_batches_, all_single_crop_,
+                                  [this](auto& groups) { return RunGraph(groups); });
 }
 
 Status ClassifyPipeline::ParseClassifyOutput(std::vector<std::vector<ObjectInfoV1>>& outputs) {

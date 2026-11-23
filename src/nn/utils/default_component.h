@@ -44,6 +44,7 @@ public:
 
     Status PrepareText(const std::string& input, std::string& output);
     int GetMaxBatchSize() const;
+    std::string GetModelType() const;
 
     Status SetThreshold(int id, float threshold);
     Status SetThreshold(const std::string& label, float threshold);

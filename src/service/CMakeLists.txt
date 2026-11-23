@@ -24,3 +24,7 @@ endif()
 if(COSMO_NN_USE_RKNN_BACKEND)
     target_link_libraries(cosmo_service PRIVATE rknnrt)
 endif()
+
+if(COSMO_NN_USE_AXERA_BACKEND)
+    target_link_libraries(cosmo_service PRIVATE axera_engine axera_sys)
+endif()

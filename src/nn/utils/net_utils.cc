@@ -1,8 +1,12 @@
 #include "nn/utils/net_utils.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
+#include <cfloat>
+#include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <iterator>
 #include <limits>
 #include <sstream>
@@ -10,6 +14,10 @@
 #include <vector>
 
 #include "Eigen/Dense"
+
+#ifdef COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST
+#include "nn/device/axera/axera_face_diagnostics.h"
+#endif
 #ifdef COSMO_NN_USE_HOST_BACKEND
 #include "nn/device/cpu/cpu_dino_encode_node.h"
 #else
@@ -144,6 +152,9 @@ void NetUtils::SwapYUV_I420toYUV_NV12(const unsigned char* i420bytes, unsigned c
 }
 
 void NetUtils::NMS(std::vector<ObjectInfo>& input, std::vector<ObjectInfo>& output, float iou_threshold_) {
+#ifdef COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST
+    cosmo::nn::axera::diagnostics::RecordCpuNms();
+#endif
     std::sort(input.begin(), input.end(),
               [](const ObjectInfo& a, const ObjectInfo& b) { return a.confidence > b.confidence; });
     output.clear();
@@ -437,32 +448,116 @@ Status NetUtils::ParseDetectionOutput(const std::vector<std::shared_ptr<Blob>>& 
                                 selected_thresholds, selected_label, detects);
 }
 
+Status NetUtils::ParsePersonAttributesOutput(const std::vector<std::shared_ptr<Blob>>& blobs,
+                                             const std::vector<Size>& image_sizes, Size net_input_size,
+                                             float person_threshold, const std::string& person_label,
+                                             std::vector<std::vector<ObjectInfoV1>>& detects) {
+    detects.clear();
+    if (blobs.size() != 1 || !blobs[0] || !blobs[0]->GetHandle().base ||
+        blobs[0]->GetBlobDesc().data_type != DATA_TYPE_FLOAT ||
+        !UsesHostMemory(blobs[0]->GetBlobDesc().device_type) || net_input_size.width <= 0 ||
+        net_input_size.height <= 0 || !std::isfinite(person_threshold) || person_threshold < 0.f ||
+        person_threshold > 1.f || person_label.empty())
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid person-attribute parser input");
+    const auto& dims = blobs[0]->GetBlobDesc().dims;
+    if (dims.size() != 3 || dims[0] <= 0 || dims[1] <= 0 || dims[2] != 10 ||
+        image_sizes.size() > static_cast<size_t>(dims[0]) ||
+        static_cast<size_t>(dims[0]) > std::numeric_limits<int>::max() / 10u / dims[1])
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "Expected person-attribute output [B,N,10]");
+    if (std::any_of(image_sizes.begin(), image_sizes.end(),
+                    [](const Size& size) { return size.width <= 0 || size.height <= 0; }))
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid original image size");
+    static const std::array<const char*, 4> names = {"smoking", "sleep", "fall", "normal"};
+    const float* data                             = static_cast<const float*>(blobs[0]->GetHandle().base);
+    for (size_t batch = 0; batch < image_sizes.size(); ++batch) {
+        const Size image = image_sizes[batch];
+        // Match AdjustSize's intermediate size while checking its float-to-int
+        // conversions before they happen. No coordinates are clipped here.
+        const float old_aspect =
+            net_input_size.height / (static_cast<float>(net_input_size.width) + FLT_EPSILON);
+        const float new_aspect    = image.height / (static_cast<float>(image.width) + FLT_EPSILON);
+        const float mapped_width  = new_aspect > old_aspect ? image.height / old_aspect : image.width;
+        const float mapped_height = new_aspect > old_aspect ? image.height : image.width * old_aspect;
+        const double int_bound    = static_cast<double>(std::numeric_limits<int>::max()) - 256.;
+        if (!std::isfinite(mapped_width) || !std::isfinite(mapped_height) || mapped_width < 1.f ||
+            mapped_height < 1.f || mapped_width >= int_bound || mapped_height >= int_bound)
+            return Status(COSMO_NN_ERR_INVALID_INPUT, "Unrepresentable mapped image size");
+        const float scale_x = static_cast<int>(mapped_width) / static_cast<float>(net_input_size.width);
+        const float scale_y = static_cast<int>(mapped_height) / static_cast<float>(net_input_size.height);
+        std::vector<ObjectInfoV1> objects;
+        const float* rows = data + batch * static_cast<size_t>(dims[1]) * 10;
+        for (int row = 0; row < dims[1]; ++row) {
+            const float* p = rows + static_cast<size_t>(row) * 10;
+            bool valid     = std::isfinite(p[0]) && std::isfinite(p[1]) && std::isfinite(p[2]) &&
+                         std::isfinite(p[3]) && p[2] > 0.f && p[3] > 0.f && std::isfinite(p[4]) &&
+                         p[4] > 0.f && p[4] <= 1.f && p[4] >= person_threshold && p[5] == 0.f;
+            for (int k = 6; k < 10 && valid; ++k)
+                valid = std::isfinite(p[k]) && p[k] >= 0.f && p[k] <= 1.f;
+            if (!valid)
+                continue;
+            ObjectInfoV1 obj;
+            obj.x1 = p[0] - p[2] * 0.5f;
+            obj.y1 = p[1] - p[3] * 0.5f;
+            obj.x2 = p[0] + p[2] * 0.5f;
+            obj.y2 = p[1] + p[3] * 0.5f;
+            // AdjustSize converts scaled coordinates to int before clipping.
+            // Reject unrepresentable values before that conversion, preserving
+            // the existing mapping for all finite, representable boxes.
+            if (!std::isfinite(obj.x1) || !std::isfinite(obj.y1) || !std::isfinite(obj.x2) ||
+                !std::isfinite(obj.y2) || std::abs(static_cast<double>(obj.x1) * scale_x) >= int_bound ||
+                std::abs(static_cast<double>(obj.y1) * scale_y) >= int_bound ||
+                std::abs(static_cast<double>(obj.x2) * scale_x) >= int_bound ||
+                std::abs(static_cast<double>(obj.y2) * scale_y) >= int_bound)
+                continue;
+            obj.infos.push_back({p[4], 0, person_label});
+            for (int k = 0; k < 4; ++k)
+                obj.infos.push_back({p[6 + k], k, names[k]});
+            obj = AdjustSize(obj, net_input_size, image, 2);
+            objects.push_back(std::move(obj));
+        }
+        detects.push_back(std::move(objects));
+    }
+    return Status{COSMO_NN_OK};
+}
+
 Status NetUtils::ParseClassificationOutput(const std::vector<std::shared_ptr<Blob>>& blobs,
                                            std::vector<int>& selected_indcies,
                                            const std::vector<std::string>& selected_label,
                                            std::vector<std::vector<ObjectInfoV1>>& outputs) {
     auto blob_count = blobs.size();
-    if (blob_count != 1)
+    if (blob_count != 1 || !blobs[0])
         return Status(COSMO_NN_ERR_INVALID_INPUT, "Only support single output");
 
-    auto blob        = blobs.at(0);
-    auto blob_desc   = blob->GetBlobDesc();
+    auto blob          = blobs.at(0);
+    auto blob_desc     = blob->GetBlobDesc();
+    auto blob_dims     = blob_desc.dims;
+    const size_t n_dim = blob_dims.size();
+    if ((n_dim != 2 && n_dim != 3) || blob_desc.data_type != DATA_TYPE_FLOAT ||
+        std::any_of(blob_dims.begin(), blob_dims.end(), [](int dim) { return dim <= 0; }) ||
+        DimsVectorUtils::Count(blob_dims) <= 0 || (n_dim == 3 && blob_dims[1] != 2))
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid classification output shape or type");
+    if (selected_indcies.size() != selected_label.size() ||
+        std::any_of(selected_indcies.begin(), selected_indcies.end(), [](int index) { return index < 0; }))
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid classification labels");
+    if (n_dim == 2 && std::any_of(selected_indcies.begin(), selected_indcies.end(),
+                                  [&blob_dims](int index) { return index >= blob_dims[1]; }))
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "Classification label exceeds output size");
     auto blob_handle = blob->GetHandle();
-    auto blob_dims   = blob_desc.dims;
-
-    auto blob_ptr = reinterpret_cast<float*>(blob_handle.base);
-
-    const int current_batch = blob_dims.at(0);
-    const int n_dim         = blob_dims.size();
+    if (!blob_handle.base)
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "Classification output buffer is null");
+    const auto* blob_ptr    = reinterpret_cast<const float*>(blob_handle.base);
+    const int current_batch = blob_dims[0];
+    std::vector<std::vector<ObjectInfoV1>> staged;
+    staged.reserve(static_cast<size_t>(current_batch));
 
     if (n_dim == 2) {
         const int c = blob_dims.at(1);
         for (int i = 0; i < current_batch; i++) {
             ObjectInfoV1 obj_info;
-            for (int k = 0; k < selected_indcies.size(); k++) {
+            for (size_t k = 0; k < selected_indcies.size(); k++) {
                 auto selected_idx = selected_indcies.at(k);
-                if (selected_idx >= c)
-                    continue;
+                if (!std::isfinite(blob_ptr[selected_idx]))
+                    return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid classification confidence");
 
                 ClassifyInfo info;
                 info.class_id   = selected_idx;
@@ -475,7 +570,7 @@ Status NetUtils::ParseClassificationOutput(const std::vector<std::shared_ptr<Blo
             blob_ptr += c;
 
             std::vector<ObjectInfoV1> image_obj_infos = {obj_info};
-            outputs.push_back(image_obj_infos);
+            staged.push_back(std::move(image_obj_infos));
         }
     } else if (n_dim == 3) {  // split_arg_max
         const int c = blob_dims.at(2);
@@ -486,12 +581,19 @@ Status NetUtils::ParseClassificationOutput(const std::vector<std::shared_ptr<Blo
         for (int i = 0; i < current_batch; i++) {
             ObjectInfoV1 obj_info;
             for (int k = 0; k < c; k++) {
-                int index = blob_ptr[k];
+                const float raw_index = blob_ptr[k];
+                if (!std::isfinite(raw_index) || raw_index < 0 ||
+                    static_cast<double>(raw_index) > std::numeric_limits<int>::max() ||
+                    std::trunc(raw_index) != raw_index)
+                    return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid split classification index");
+                int index = static_cast<int>(raw_index);
                 auto iter = std::find(selected_indcies_begin, selected_indcies_end, index);
                 if (iter == selected_indcies_end)
                     continue;
 
                 float score = blob_ptr[k + c];
+                if (!std::isfinite(score))
+                    return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid classification confidence");
 
                 ClassifyInfo info;
                 info.class_id   = index;
@@ -504,41 +606,65 @@ Status NetUtils::ParseClassificationOutput(const std::vector<std::shared_ptr<Blo
             blob_ptr += h * c;
 
             std::vector<ObjectInfoV1> image_obj_infos = {obj_info};
-            outputs.push_back(image_obj_infos);
+            staged.push_back(std::move(image_obj_infos));
         }
-    } else {
-        return Status(COSMO_NN_ERR_INVALID_INPUT, "Unsupported blob shape");
     }
 
+    outputs.insert(outputs.end(), std::make_move_iterator(staged.begin()),
+                   std::make_move_iterator(staged.end()));
     return Status{COSMO_NN_OK};
 }
 
 Status NetUtils::ParseKeypointOutput(const std::vector<std::shared_ptr<Blob>>& blobs,
                                      const std::vector<Rect>& rects,
-                                     std::vector<std::vector<ObjectInfoV1>>& outputs) {
-    auto blob_count = blobs.size();
-    if (blob_count != 1)
-        return Status(COSMO_NN_ERR_INVALID_INPUT, "Only support single output");
+                                     std::vector<std::vector<ObjectInfoV1>>& outputs, size_t max_batch,
+                                     bool allow_fixed_padding) {
+    if (blobs.size() != 1 || !blobs[0])
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "Keypoints require a single output tensor");
+    const auto& desc = blobs[0]->GetBlobDesc();
+    if (desc.data_type != DATA_TYPE_FLOAT || desc.dims.size() < 2 || desc.dims[0] <= 0 || desc.dims[1] <= 0 ||
+        desc.dims[1] % 2 != 0 || DimsVectorUtils::Count(desc.dims) <= 0 ||
+        !std::all_of(desc.dims.begin() + 2, desc.dims.end(), [](int dim) { return dim == 1; }))
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid keypoints output shape or type");
+    const auto* data = static_cast<const unsigned char*>(blobs[0]->GetHandle().base);
+    if (!data)
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "Keypoints output buffer is null");
+    const auto physical_batch = static_cast<size_t>(desc.dims[0]);
+    const auto actual_batch   = rects.size();
+    if (!actual_batch || (physical_batch != actual_batch &&
+                          !(allow_fixed_padding && actual_batch < max_batch && physical_batch == max_batch)))
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "Keypoints output count does not match ROI count");
 
-    auto output_blob = blobs.at(0);
-    auto output_desc = output_blob->GetBlobDesc();
-
-    const int current_batch  = output_desc.dims.at(0);
-    const int keypoint_count = output_desc.dims.at(1) / 2;
-
-    auto data = reinterpret_cast<float*>(output_blob->GetHandle().base);
-    for (int i = 0; i < current_batch; i++) {
-        const auto* b_data = data + i * keypoint_count * 2;
-
-        ObjectInfoV1 obj_info;
-        for (int j = 0; j < keypoint_count; j++) {
-            float px = rects.at(i).x + b_data[j * 2] * rects.at(i).width;
-            float py = rects.at(i).y + b_data[j * 2 + 1] * rects.at(i).height;
-            obj_info.key_points.emplace_back(px, py);
+    const auto row_size = static_cast<size_t>(desc.dims[1]);
+    std::vector<std::vector<ObjectInfoV1>> staged;
+    staged.reserve(actual_batch);
+    for (size_t i = 0; i < actual_batch; ++i) {
+        const auto& rect = rects[i];
+        if (rect.width <= 0 || rect.height <= 0)
+            return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid keypoints ROI dimensions");
+        ObjectInfoV1 object;
+        const auto* row = data + i * row_size * sizeof(float);
+        for (size_t j = 0; j < row_size; j += 2) {
+            float coordinates[2];
+            std::memcpy(coordinates, row + j * sizeof(float), sizeof(coordinates));
+            if (!std::isfinite(coordinates[0]) || !std::isfinite(coordinates[1]))
+                return Status(COSMO_NN_ERR_INVALID_INPUT, "Nonfinite keypoints output");
+            // Preserve the existing float coordinate calculation while ensuring
+            // later conversion to integer pixels is defined.
+            const float px = rect.x + coordinates[0] * rect.width;
+            const float py = rect.y + coordinates[1] * rect.height;
+            if (!std::isfinite(px) || !std::isfinite(py) ||
+                static_cast<double>(px) < std::numeric_limits<int>::min() ||
+                static_cast<double>(px) > std::numeric_limits<int>::max() ||
+                static_cast<double>(py) < std::numeric_limits<int>::min() ||
+                static_cast<double>(py) > std::numeric_limits<int>::max())
+                return Status(COSMO_NN_ERR_INVALID_INPUT, "Keypoints coordinates exceed integer range");
+            object.key_points.emplace_back(px, py);
         }
-        std::vector<ObjectInfoV1> _obj_infos = {obj_info};
-        outputs.push_back(_obj_infos);
+        staged.push_back({std::move(object)});
     }
+    outputs.insert(outputs.end(), std::make_move_iterator(staged.begin()),
+                   std::make_move_iterator(staged.end()));
     return Status{COSMO_NN_OK};
 }
 

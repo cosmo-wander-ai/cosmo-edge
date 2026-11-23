@@ -16,6 +16,7 @@
 #include <set>
 
 #include "nn/core/blob_store.h"
+#include "nn/core/model_file_safety.h"
 #include "nn/node/copy_node.h"
 #include "nn/node/identity_node.h"
 #include "nn/node/input_node.h"
@@ -417,7 +418,8 @@ Status Graph::WireNetNode(const ModelInfo& model, const std::vector<std::string>
     bool has_host_post =
         std::any_of(output_node_infos.begin(), output_node_infos.end(), [](const OutputNodeInfo& o) {
             return o.op && (o.op->name == "yolov8_postprocess" || o.op->name == "yolo_postprocess" ||
-                            o.op->name == "yolo_e2e_postprocess");
+                            o.op->name == "yolo_e2e_postprocess" ||
+                            o.op->name == "yolo26_person_attributes_postprocess");
         });
 
     bool is_host_memory_device = UsesHostMemory(device_type_);
@@ -799,7 +801,8 @@ Status Graph::LoadWeight(const std::string& model_path) {
 #endif
 
     std::ifstream stream(authorized_model_path, std::ios::in | std::ios::binary);
-#if defined(COSMO_NN_USE_ONNX_BACKEND) || defined(COSMO_NN_USE_RKNN_BACKEND)
+#if defined(COSMO_NN_USE_ONNX_BACKEND) || defined(COSMO_NN_USE_RKNN_BACKEND) ||                              \
+    defined(COSMO_NN_USE_AXERA_BACKEND)
     if (stream.fail() && !std::filesystem::is_directory(authorized_model_path))
         return Status(COSMO_NN_ERR_LOAD_MODEL, "open model file failed");
 #else
@@ -807,7 +810,8 @@ Status Graph::LoadWeight(const std::string& model_path) {
         return Status(COSMO_NN_ERR_LOAD_MODEL, "open model file failed");
 #endif
 
-#if defined(COSMO_NN_USE_ONNX_BACKEND) || defined(COSMO_NN_USE_RKNN_BACKEND)
+#if defined(COSMO_NN_USE_ONNX_BACKEND) || defined(COSMO_NN_USE_RKNN_BACKEND) ||                              \
+    defined(COSMO_NN_USE_AXERA_BACKEND)
     stream.close();
 
     namespace fs = std::filesystem;
@@ -815,6 +819,9 @@ Status Graph::LoadWeight(const std::string& model_path) {
 #ifdef COSMO_NN_USE_RKNN_BACKEND
     constexpr const char* model_extension = ".rknn";
     constexpr const char* backend_name    = "RKNN";
+#elif defined(COSMO_NN_USE_AXERA_BACKEND)
+    constexpr const char* model_extension = ".axmodel";
+    constexpr const char* backend_name    = "AXERA";
 #else
     constexpr const char* model_extension = ".onnx";
     constexpr const char* backend_name    = "ONNX";
@@ -838,7 +845,8 @@ Status Graph::LoadWeight(const std::string& model_path) {
         } catch (const std::bad_alloc&) {
             return Status(COSMO_NN_ERR_OUT_OF_MEMORY, "not enough memory to load model");
         }
-        model_stream.read(model_data.get(), model_size);
+        if (!model_file_safety::ReadExactly(model_stream, model_data.get(), static_cast<size_t>(model_size)))
+            return Status(COSMO_NN_ERR_LOAD_MODEL, "model file read was incomplete");
 
         auto net_node = GetNodeByName("net_0");
         if (!net_node)
@@ -861,6 +869,40 @@ Status Graph::LoadWeight(const std::string& model_path) {
                       std::string(backend_name) + " graph net nodes (" + std::to_string(net_node_num) +
                           ") do not match config models (" + std::to_string(model_infos_.size()) + ")");
     }
+
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+    if (net_node_num > 1) {
+        std::vector<std::string> names;
+        names.reserve(model_infos_.size());
+        for (const auto& model : model_infos_)
+            names.push_back(model.filename);
+        if (!model_file_safety::ValidAxStageNames(names))
+            return Status(COSMO_NN_ERR_LOAD_MODEL,
+                          "AX multi-stage models require unique explicit safe filenames");
+#if defined(__unix__) || defined(__APPLE__)
+        model_file_safety::AxStageDirectory directory(base_path);
+        if (!directory.valid())
+            return Status(COSMO_NN_ERR_LOAD_MODEL, "failed to open AX multi-stage model directory");
+        std::set<std::pair<std::uintmax_t, std::uintmax_t>> identities;
+        for (int i = 0; i < net_node_num; ++i) {
+            std::vector<char> bytes;
+            model_file_safety::FileIdentity identity{};
+            if (!directory.Read(names[static_cast<size_t>(i)], bytes, identity))
+                return Status(COSMO_NN_ERR_LOAD_MODEL, "failed to safely read AX model stage");
+            if (!model_file_safety::InsertIdentity(identities, identity))
+                return Status(COSMO_NN_ERR_LOAD_MODEL, "AX model stages must be distinct files");
+            auto* node = GetNodeByName("net_" + std::to_string(i));
+            auto* net  = dynamic_cast<NetNode*>(node);
+            if (!net)
+                return Status(COSMO_NN_ERR_LOAD_MODEL, "failed to find AX model net node");
+            RETURN_ON_FAIL(net->LoadWeight(bytes.data(), bytes.size()));
+        }
+        return Status{COSMO_NN_OK};
+#else
+        return Status(COSMO_NN_ERR_LOAD_MODEL, "safe AX multi-stage model loading is unavailable");
+#endif
+    }
+#endif
 
     std::vector<fs::path> model_files;
     for (const auto& entry : fs::directory_iterator(base_path)) {
@@ -903,7 +945,8 @@ Status Graph::LoadWeight(const std::string& model_path) {
             return Status(COSMO_NN_ERR_OUT_OF_MEMORY,
                           "not enough memory to load " + std::string(backend_name) + " model");
         }
-        model_stream.read(model_data.get(), model_size);
+        if (!model_file_safety::ReadExactly(model_stream, model_data.get(), static_cast<size_t>(model_size)))
+            return Status(COSMO_NN_ERR_LOAD_MODEL, "model stage file read was incomplete");
 
         auto net_node = GetNodeByName("net_" + std::to_string(i));
         if (!net_node)

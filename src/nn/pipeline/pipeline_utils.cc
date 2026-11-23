@@ -5,6 +5,7 @@
 #include <nlohmann/json.hpp>
 #include <utility>
 
+#include "nn/core/model_input_contracts.h"
 #include "nn/node/yolo_obb_decode_node.h"
 #include "util/Log.h"
 
@@ -47,6 +48,66 @@ namespace pipeline_utils {
             LOG_WARN("Invalid JSON field '{}' conversion: {}; using default", key, e.what());
             return defaults;
         }
+    }
+
+    Status ResolveInputContract(const nlohmann::json& json, DeviceType device, bool detection,
+                                std::string& contract) {
+        if (device != DEVICE_AXERA) {
+            contract = ReadString(json, "rknn_input_contract", {});
+            return Status{COSMO_NN_OK};
+        }
+        contract.clear();
+        const auto field = json.find("axera_input_contract");
+        if (field == json.end() || field->is_null())
+            return Status{COSMO_NN_OK};
+        if (!field->is_string())
+            return Status(COSMO_NN_ERR_INVALID_CFG, "AX input contract must be a string");
+        contract = field->get<std::string>();
+        if (contract.empty())
+            return Status{COSMO_NN_OK};
+        if (contract != kAxeraRgbUint8InputContract)
+            return Status(COSMO_NN_ERR_INVALID_CFG, "unknown AX input contract");
+
+        const auto color       = json.find("is_bgr");
+        const bool default_bgr = detection;
+        if ((color != json.end() && !color->is_boolean()) ||
+            (color == json.end() ? default_bgr : color->get<bool>()))
+            return Status(COSMO_NN_ERR_INVALID_CFG, "AX RGB contract requires is_bgr=false");
+
+        const auto validate_array = [&](const char* name, float expected, bool allow_empty) {
+            const auto it = json.find(name);
+            if (it == json.end() || it->is_null())
+                return true;
+            if (!it->is_array() || (it->empty() && !allow_empty) || (!it->empty() && it->size() != 3))
+                return false;
+            for (const auto& value : *it) {
+                if (!value.is_number())
+                    return false;
+                const double number = value.get<double>();
+                if (!std::isfinite(number) || std::fabs(number - expected) > 1e-6)
+                    return false;
+            }
+            return true;
+        };
+        if (!validate_array("normalize_mean", 0.0f, false))
+            return Status(COSMO_NN_ERR_INVALID_CFG, "AX RGB contract requires zero normalization mean");
+
+        const auto stddev = json.find("normalize_std");
+        const bool has_std =
+            stddev != json.end() && !stddev->is_null() && stddev->is_array() && !stddev->empty();
+        if (stddev != json.end() && !stddev->is_null() && !stddev->is_array())
+            return Status(COSMO_NN_ERR_INVALID_CFG, "invalid AX normalization std");
+        if (has_std && (!detection || !validate_array("normalize_std", 255.0f, true)))
+            return Status(COSMO_NN_ERR_INVALID_CFG, "AX RGB contract requires normalization std 255");
+        if (!has_std) {
+            const auto scale   = json.find("normalize_scale");
+            const double value = scale == json.end() || scale->is_null() ? 0.00392157
+                                 : scale->is_number()                    ? scale->get<double>()
+                                                                         : -1.0;
+            if (!std::isfinite(value) || std::fabs(value - 1.0 / 255.0) > 1e-7)
+                return Status(COSMO_NN_ERR_INVALID_CFG, "AX RGB contract requires normalization scale 1/255");
+        }
+        return Status{COSMO_NN_OK};
     }
 
     int ReadInt(const nlohmann::json& json, const char* key, int defaults) {

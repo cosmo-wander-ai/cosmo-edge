@@ -146,6 +146,13 @@ public:
                                        const std::vector<std::string>& selected_label,
                                        std::vector<std::vector<ObjectInfoV1>>& detects);
 
+    // Input is host float [B,N,10]: center xywh, person score, class 0,
+    // and independent smoking/sleep/fall/normal scores, in that order.
+    static Status ParsePersonAttributesOutput(const std::vector<std::shared_ptr<Blob>>& blobs,
+                                              const std::vector<Size>& image_sizes, Size net_input_size,
+                                              float person_threshold, const std::string& person_label,
+                                              std::vector<std::vector<ObjectInfoV1>>& detects);
+
     static Status ParseClassificationOutput(const std::vector<std::shared_ptr<Blob>>& blobs,
                                             std::vector<int>& selected_indcies,
                                             const std::vector<std::string>& selected_label,
@@ -153,7 +160,8 @@ public:
 
     static Status ParseKeypointOutput(const std::vector<std::shared_ptr<Blob>>& blobs,
                                       const std::vector<Rect>& rects,
-                                      std::vector<std::vector<ObjectInfoV1>>& detects);
+                                      std::vector<std::vector<ObjectInfoV1>>& detects, size_t max_batch = 0,
+                                      bool allow_fixed_padding = false);
 
     static std::string TokenizerDecode(void* handle, std::vector<int>& ids);
 

@@ -47,7 +47,7 @@ bool AiClassifierBase::AiSdkInit() {
         return false;
     }
     LOG_INFO("{}cfgPath:{}, modelPath:{}", log_tag_, cfg_path, model_path);
-    classifier_ = std::make_shared<AiClassifierUnify>(alg_code_, cfg_path, model_path);
+    classifier_ = std::make_shared<AiClassifierUnify>(alg_code_, cfg_path, model_path, execution_counters_);
     auto ai_ret = classifier_->Init();
     if (util::ErrorEnum::Success != ai_ret) {
         classifier_.reset();
@@ -59,6 +59,22 @@ bool AiClassifierBase::AiSdkInit() {
     action_status = util::ErrorEnum::AI_INST_CREATED;
     LOG_INFO("{}[{} {} {}] Init Sdk", log_tag_, GetTaskId(), GetName(), uuid);
     return true;
+}
+
+void AiClassifierBase::QueueStatus(std::vector<AlgActionDataQueueStatus>& statuses,
+                                   unsigned int durationSec) {
+    const auto original_size = statuses.size();
+    AlgActionBase::QueueStatus(statuses, durationSec);
+    if (statuses.size() == original_size)
+        return;
+    auto& status                     = statuses.back();
+    status.flowActionId              = GetFlowActionId();
+    status.inferenceInstanceId       = uuid;
+    status.classifierForwardSuccess  = execution_counters_->forward_success.load(std::memory_order_relaxed);
+    status.classifierForwardFailure  = execution_counters_->forward_failure.load(std::memory_order_relaxed);
+    status.classifierEmptyCandidates = execution_counters_->empty_candidates.load(std::memory_order_relaxed);
+    status.classifierNonForwardFailure =
+        execution_counters_->non_forward_failure.load(std::memory_order_relaxed);
 }
 
 void AiClassifierBase::RecordHistory(AlgDataPtr dataPtr) {
@@ -137,35 +153,80 @@ void AiClassifierBase::SetProcQueSize() {
 }
 
 void AiClassifierBase::run() {
-    while (running) {
-        if (data_queue->RestSize() >= batch_count_) {
-            auto input_fps_val = input_fps_calc.FpsWithFrame();
-            handle_frame_cnt.store(input_fps_val.first, std::memory_order_relaxed);
-            in_fps.store(input_fps_val.second, std::memory_order_relaxed);
-            SetProcQueSize();
+    const auto run_loop = [this]() {
+        while (running) {
+            if (data_queue->RestSize() >= batch_count_) {
+                auto input_fps_val = input_fps_calc.FpsWithFrame();
+                handle_frame_cnt.store(input_fps_val.first, std::memory_order_relaxed);
+                in_fps.store(input_fps_val.second, std::memory_order_relaxed);
+                SetProcQueSize();
 
-            std::vector<AlgDataPtr> alg_datas;
-            for (size_t i = 0; i < batch_count_; i++) {
-                auto dec_data = data_queue->Pop();
-                if (CheckDataAvailable(dec_data)) {
-                    alg_datas.push_back(dec_data);
+                std::vector<AlgDataPtr> alg_datas;
+                for (size_t i = 0; i < batch_count_; i++) {
+                    auto dec_data = data_queue->Pop();
+                    if (CheckDataAvailable(dec_data)) {
+                        alg_datas.push_back(dec_data);
+                    }
                 }
-            }
 
-            if (!alg_datas.empty()) {
-                if (service::ServiceRegistry::Instance().Get<service::IConfigReadService>().GetActionSwitch(
-                        GetActionId())) {
-                    duration_stat.BeginSample();
-                    HandFramesEx(alg_datas);
-                    duration_stat.EndSample();
+                if (!alg_datas.empty()) {
+                    if (service::ServiceRegistry::Instance()
+                            .Get<service::IConfigReadService>()
+                            .GetActionSwitch(GetActionId())) {
+                        duration_stat.BeginSample();
+                        const auto before_success =
+                            execution_counters_->forward_success.load(std::memory_order_relaxed);
+                        const auto before_failure =
+                            execution_counters_->forward_failure.load(std::memory_order_relaxed);
+                        try {
+                            HandFramesEx(alg_datas);
+                        } catch (...) {
+                            execution_counters_->RecordProcessingOutcome(before_success, before_failure,
+                                                                         false);
+                            throw;
+                        }
+                        execution_counters_->RecordProcessingOutcome(
+                            before_success, before_failure,
+                            action_status == util::ErrorEnum::Success ||
+                                action_status == util::ErrorEnum::AI_INST_CREATED);
+                        duration_stat.EndSample();
+                    }
                 }
-            }
 
-        } else {
-            data_queue->WaitForData(10);
+            } else {
+                data_queue->WaitForData(10);
+            }
         }
+    };
+#ifdef COSMO_AXERA_HELMET_ROUTE_CANDIDATE
+    if (IsNativeHelmetCandidate()) {
+        struct WorkerGuard {
+            AiClassifierBase* owner;
+            ~WorkerGuard() {
+                owner->NativeHelmetWorkerStop();
+            }
+        } guard{this};
+        try {
+            if (NativeHelmetWorkerStart())
+                run_loop();
+            else {
+                action_status = util::ErrorEnum::AI_INST_NOTCREATED;
+                if (data_queue)
+                    data_queue->Stop();
+            }
+        } catch (...) {
+            // Thread::entry does not catch exceptions. Device-submission
+            // uncertainty is quarantined by the candidate executor first.
+            action_status = util::ErrorEnum::AI_FORWARD_FAILED;
+            if (data_queue)
+                data_queue->Stop();
+            LOG_ERRO("{}[{}] Native helmet worker stopped after exception", log_tag_, GetTaskId());
+        }
+    } else
+#endif
+    {
+        run_loop();
     }
-
     LOG_INFO("{}[{} {} {}] THREAD [{}] Stop ", log_tag_, GetTaskId(), GetName(), uuid, Name());
 }
 

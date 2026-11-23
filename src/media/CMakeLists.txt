@@ -3,6 +3,7 @@ set(MEDIA_COMMON_SRC
     Color.h
     EncodedImageInfo.cc           EncodedImageInfo.h
     FileDemuxStrategy.cc         FileDemuxStrategy.h
+    H264AnnexBColorParser.cc     H264AnnexBColorParser.h
     IDemuxStrategy.h
     NetworkDemuxStrategy.cc      NetworkDemuxStrategy.h
     IOsdTextRenderer.h
@@ -16,13 +17,16 @@ set(MEDIA_COMMON_SRC
     RtspDemuxStrategy.cc         RtspDemuxStrategy.h
     UsbDemuxStrategy.cc          UsbDemuxStrategy.h
     VideoCodecType.h
+    VideoColorProvenance.h
     VideoDecoder.cc              VideoDecoder.h
+    VideoDemuxColorEvidence.h
     VideoDemuxer.cc              VideoDemuxer.h
     VideoDemuxerStream.cc
     VideoEncoder.cc              VideoEncoder.h
     VideoFrame.cc                VideoFrame.h
     VideoFrameProcFactory.h
     VideoPacket.cc               VideoPacket.h
+    VideoPacketColorWitness.cc   VideoPacketColorWitness.h
     VideoUtil.cc                 VideoUtil.h
 )
 
@@ -67,12 +71,26 @@ set(MEDIA_ROCKCHIP_SRC
     VideoFrameProcRockchip.cc    VideoFrameProcRockchip.h
 )
 
+# AX650 VDEC uses the board SDK. Encoding and image processing remain the
+# explicit software implementations until their hardware paths are validated.
+set(MEDIA_AXERA_SRC
+    VideoDecoderCreateAxera.cc
+    VideoDecoderAxera.cc         VideoDecoderAxera.h
+    AxeraVideoFrameCopy.h
+    VideoEncoderCreateCpu.cc
+    VideoEncoderCpu.cc           VideoEncoderCpu.h
+    VideoFrameProcFactoryCpu.cc
+    VideoFrameProcCpu.cc         VideoFrameProcCpu.h
+)
+
 if(COSMO_MEDIA_USE_SOPHON_BACKEND)
     add_library(cosmo_media OBJECT ${MEDIA_COMMON_SRC} ${MEDIA_SOPHON_SRC})
 elseif(COSMO_MEDIA_USE_CPU_BACKEND)
     add_library(cosmo_media OBJECT ${MEDIA_COMMON_SRC} ${MEDIA_CPU_SRC})
 elseif(COSMO_MEDIA_USE_ROCKCHIP_BACKEND)
     add_library(cosmo_media OBJECT ${MEDIA_COMMON_SRC} ${MEDIA_ROCKCHIP_SRC})
+elseif(COSMO_MEDIA_USE_AXERA_BACKEND)
+    add_library(cosmo_media OBJECT ${MEDIA_COMMON_SRC} ${MEDIA_AXERA_SRC})
 else()
     message(FATAL_ERROR "No media backend selected")
 endif()
@@ -90,4 +108,6 @@ if(COSMO_MEDIA_USE_SOPHON_BACKEND)
     target_link_libraries(cosmo_media PRIVATE bmlib bmcv bmvd bmvenc)
 elseif(COSMO_MEDIA_USE_ROCKCHIP_BACKEND)
     target_link_libraries(cosmo_media PRIVATE rockchip_mpp rockchip_rga)
+elseif(COSMO_MEDIA_USE_AXERA_BACKEND)
+    target_link_libraries(cosmo_media PRIVATE axera_sys axera_vdec)
 endif()

@@ -312,9 +312,13 @@ util::ErrorEnum ModelImportExporter::ImportDirectoryArchive(const std::string& t
         if (!has_model) {
             has_model =
                 std::any_of(fs::directory_iterator(sub_dir), fs::directory_iterator(), [](const auto& f) {
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+                    return f.path().extension() == cosmo::util::kModelFileExt;
+#else
                     return f.path().extension() == cosmo::util::kModelFileExt ||
                            f.path().extension() == ".bmodel" || f.path().extension() == ".onnx" ||
                            f.path().extension() == ".rknn";
+#endif
                 });
         }
         if (!has_model) {
@@ -445,7 +449,11 @@ util::ErrorEnum ModelImportExporter::ImportModel(const std::string& archivePath)
             if (!f.is_regular_file())
                 continue;
             auto ext = f.path().extension().string();
-            if (ext == cosmo::util::kModelFileExt || ext == ".bmodel" || ext == ".onnx" || ext == ".rknn") {
+            if (ext == cosmo::util::kModelFileExt
+#ifndef COSMO_NN_USE_AXERA_BACKEND
+                || ext == ".bmodel" || ext == ".onnx" || ext == ".rknn"
+#endif
+            ) {
                 flat_structure = true;
                 break;
             }

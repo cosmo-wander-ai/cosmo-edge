@@ -14,3 +14,6 @@ target_link_libraries(cosmo_flow PRIVATE cosmo_common
     SQLiteCpp sqlite3 mp4v2
     ffmpeg_avcodec ffmpeg_avformat ffmpeg_avutil
 )
+if(COSMO_NN_USE_AXERA_BACKEND)
+    target_link_libraries(cosmo_flow PRIVATE axera_sys axera_engine cryptopp)
+endif()

@@ -6,6 +6,7 @@
 
 #include "infer/AiCommon.h"
 #include "infer/AiComponment.h"
+#include "infer/ClassifierExecutionCounters.h"
 #include "media/VideoFrame.h"
 #include "nn/utils/default_component.h"
 
@@ -13,7 +14,8 @@ namespace cosmo {
 class AiClassifierUnify {
 public:
     AiClassifierUnify(const std::string& atomic_code, const std::string& json_path,
-                      const std::string& model_path);
+                      const std::string& model_path,
+                      std::shared_ptr<ClassifierExecutionCounters> counters = nullptr);
     ~AiClassifierUnify();
 
     AiClassifierUnify(const AiClassifierUnify&)            = delete;
@@ -67,6 +69,7 @@ private:
     std::string cfg_path_;
     std::string model_path_;
     std::unique_ptr<cosmo::nn::DefaultComponent> classifier_;
+    std::shared_ptr<ClassifierExecutionCounters> counters_;
 };
 
 using AiClassifierUnifyPtr = std::shared_ptr<AiClassifierUnify>;

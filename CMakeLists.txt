@@ -103,18 +103,20 @@ endif()
 option(COSMO_NN_USE_SOPHON_BACKEND "Enable Sophon TPU backend" ON)
 option(COSMO_NN_USE_CPU_BACKEND "Enable CPU inference backend (ONNX Runtime)" OFF)
 option(COSMO_NN_USE_RKNN_BACKEND "Enable Rockchip RKNN backend" OFF)
+option(COSMO_NN_USE_AXERA_BACKEND "Enable AXERA AX650N inference backend" OFF)
 
 set(_cosmo_nn_backend_count 0)
 foreach(_nn_backend_option
         COSMO_NN_USE_SOPHON_BACKEND
         COSMO_NN_USE_CPU_BACKEND
-        COSMO_NN_USE_RKNN_BACKEND)
+        COSMO_NN_USE_RKNN_BACKEND
+        COSMO_NN_USE_AXERA_BACKEND)
     if(${_nn_backend_option})
         math(EXPR _cosmo_nn_backend_count "${_cosmo_nn_backend_count} + 1")
     endif()
 endforeach()
 if(NOT _cosmo_nn_backend_count EQUAL 1)
-    message(FATAL_ERROR "Exactly one NN backend must be enabled: Sophon, CPU, or RKNN")
+    message(FATAL_ERROR "Exactly one NN backend must be enabled: Sophon, CPU, RKNN, or AXERA")
 endif()
 
 # The selected inference backend is a build-wide compile contract. Business,
@@ -133,6 +135,11 @@ elseif(COSMO_NN_USE_RKNN_BACKEND)
         COSMO_NN_USE_RKNN_BACKEND
         COSMO_NN_USE_HOST_BACKEND
         COSMO_NN_USE_RAW_MODEL_BACKEND)
+elseif(COSMO_NN_USE_AXERA_BACKEND)
+    add_compile_definitions(
+        COSMO_NN_USE_AXERA_BACKEND
+        COSMO_NN_USE_HOST_BACKEND
+        COSMO_NN_USE_RAW_MODEL_BACKEND)
 endif()
 
 # A target package is always chip-specific even when several chips share one
@@ -141,8 +148,15 @@ endif()
 set(COSMO_TARGET_CHIP "" CACHE STRING "Target accelerator chip recorded in release packages")
 if(COSMO_TARGET_CHIP)
     string(TOLOWER "${COSMO_TARGET_CHIP}" COSMO_TARGET_CHIP_NORMALIZED)
-    if(NOT COSMO_TARGET_CHIP_NORMALIZED MATCHES "^(bm1688|cv186x|rk3576|rv1126b|unspecified)$")
+    if(NOT COSMO_TARGET_CHIP_NORMALIZED MATCHES "^(bm1688|cv186x|rk3576|rv1126b|ax650n|unspecified)$")
         message(FATAL_ERROR "Unsupported COSMO_TARGET_CHIP: ${COSMO_TARGET_CHIP}")
+    endif()
+endif()
+
+if(COSMO_NN_USE_AXERA_BACKEND)
+    if(NOT COSMO_TARGET_CHIP_NORMALIZED STREQUAL "ax650n" OR
+       NOT COSMO_TARGET_ARCH STREQUAL "aarch64")
+        message(FATAL_ERROR "AXERA builds require COSMO_TARGET_CHIP=ax650n and COSMO_TARGET_ARCH=aarch64")
     endif()
 endif()
 
@@ -191,18 +205,65 @@ option(COSMO_MEDIA_USE_CPU_BACKEND "Enable FFmpeg software media backend"
        ${_cosmo_media_cpu_default})
 option(COSMO_MEDIA_USE_ROCKCHIP_BACKEND "Enable Rockchip MPP/RGA hardware media backend"
        ${_cosmo_media_rockchip_default})
+option(COSMO_MEDIA_USE_AXERA_BACKEND "Enable AXERA AX650N hardware media backend" OFF)
+
+option(COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST "Enable the AX face path in an isolated device acceptance build only" OFF)
+if(COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST)
+    if(NOT BUILD_TESTS OR NOT COSMO_NN_USE_AXERA_BACKEND OR NOT COSMO_MEDIA_USE_AXERA_BACKEND)
+        message(FATAL_ERROR "Isolated AX face acceptance requires BUILD_TESTS and both AXERA backends")
+    endif()
+    message(WARNING "Building isolated AX face device acceptance binary; do not deploy as production")
+    add_compile_definitions(COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST)
+endif()
+
+# Native routes remain opt-in; model identities are supplied separately at runtime.
+option(COSMO_AXERA_NATIVE_ROUTES "Build the AX650N native media and inference routes" OFF)
+if(COSMO_AXERA_NATIVE_ROUTES)
+    if(NOT COSMO_NN_USE_AXERA_BACKEND OR NOT COSMO_MEDIA_USE_AXERA_BACKEND)
+        message(FATAL_ERROR "AX650N native routes require both AXERA backends")
+    endif()
+    if(COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST)
+        message(FATAL_ERROR "AX650N native routes cannot be combined with isolated face device acceptance")
+    endif()
+    add_compile_definitions(
+        COSMO_AXERA_PERSON_ROUTE_CANDIDATE
+        COSMO_AXERA_FIRE_ROUTE_CANDIDATE
+        COSMO_AXERA_VEHICLE_ROUTE_CANDIDATE
+        COSMO_AXERA_HS_ROUTE_CANDIDATE
+        COSMO_AXERA_HS_ROUTE_PRODUCTION
+        COSMO_AXERA_HELMET_ROUTE_CANDIDATE
+        COSMO_AXERA_MOUSE_ROUTE_CANDIDATE
+        COSMO_AXERA_MOUSE_ROUTE_PRODUCTION
+        COSMO_AXERA_FALL_ROUTE_CANDIDATE
+        COSMO_AXERA_FALL_ROUTE_PRODUCTION
+        COSMO_AXERA_SLEEP_ROUTE_CANDIDATE
+        COSMO_AXERA_SLEEP_ROUTE_PRODUCTION
+        COSMO_AXERA_PHONE_ROUTE_CANDIDATE
+        COSMO_AXERA_MASK_ROUTE_CANDIDATE
+        COSMO_AXERA_FACE_FEATURE_ROUTE_CANDIDATE
+        COSMO_AXERA_ELECTRIC_ROUTE_CANDIDATE
+        COSMO_AXERA_VEHICLECOLOR_ROUTE_CANDIDATE
+        COSMO_AXERA_HSHELMET_ROUTE_CANDIDATE
+        COSMO_AXERA_RUBBISH_ROUTE_CANDIDATE
+        COSMO_AXERA_RUBBISH_ROUTE_PRODUCTION
+        COSMO_AXERA_GARMENT_ROUTE_CANDIDATE
+        COSMO_AXERA_REID_ROUTE_CANDIDATE
+        COSMO_AXERA_FACEQUALITY_ROUTE_CANDIDATE
+        COSMO_AXERA_SCENARIOBENCH_CANDIDATE)
+endif()
 
 set(_cosmo_media_backend_count 0)
 foreach(_media_backend_option
         COSMO_MEDIA_USE_SOPHON_BACKEND
         COSMO_MEDIA_USE_CPU_BACKEND
-        COSMO_MEDIA_USE_ROCKCHIP_BACKEND)
+        COSMO_MEDIA_USE_ROCKCHIP_BACKEND
+        COSMO_MEDIA_USE_AXERA_BACKEND)
     if(${_media_backend_option})
         math(EXPR _cosmo_media_backend_count "${_cosmo_media_backend_count} + 1")
     endif()
 endforeach()
 if(NOT _cosmo_media_backend_count EQUAL 1)
-    message(FATAL_ERROR "Exactly one media backend must be enabled: Sophon, CPU, or Rockchip")
+    message(FATAL_ERROR "Exactly one media backend must be enabled: Sophon, CPU, Rockchip, or AXERA")
 endif()
 if(COSMO_MEDIA_USE_SOPHON_BACKEND AND NOT COSMO_NN_USE_SOPHON_BACKEND)
     message(FATAL_ERROR "Sophon media requires the Sophon device runtime")
@@ -210,11 +271,16 @@ endif()
 if(COSMO_MEDIA_USE_ROCKCHIP_BACKEND AND NOT COSMO_TARGET_ARCH STREQUAL "aarch64")
     message(FATAL_ERROR "Rockchip media requires an aarch64 target")
 endif()
+if(COSMO_MEDIA_USE_AXERA_BACKEND AND NOT COSMO_NN_USE_AXERA_BACKEND)
+    message(FATAL_ERROR "AXERA media requires the AXERA device runtime")
+endif()
 
 if(COSMO_MEDIA_USE_SOPHON_BACKEND)
     add_compile_definitions(COSMO_MEDIA_USE_SOPHON_BACKEND)
 elseif(COSMO_MEDIA_USE_ROCKCHIP_BACKEND)
     add_compile_definitions(COSMO_MEDIA_USE_ROCKCHIP_BACKEND)
+elseif(COSMO_MEDIA_USE_AXERA_BACKEND)
+    add_compile_definitions(COSMO_MEDIA_USE_AXERA_BACKEND)
 else()
     add_compile_definitions(COSMO_MEDIA_USE_CPU_BACKEND)
 endif()
@@ -479,6 +545,9 @@ if(COSMO_NN_USE_RKNN_BACKEND)
     include(cmake/rknn.cmake)
     include(cmake/rkllm.cmake)
 endif()
+if(COSMO_NN_USE_AXERA_BACKEND)
+    include(cmake/axera.cmake)
+endif()
 if(COSMO_MEDIA_USE_ROCKCHIP_BACKEND)
     include(cmake/rockchip_media.cmake)
 endif()
@@ -532,6 +601,15 @@ add_subdirectory(src/flow)
 
 #-- - Layer 3 : Interface -- -
 add_subdirectory(src/api)
+
+# The AX benchmark person adapter is included through infer/flow headers and
+# uses Crypto++ declarations.  The imported crypto target already supplies
+# this include path to the executable; object libraries need it at compile time.
+if(COSMO_NN_USE_AXERA_BACKEND)
+    foreach(_ax_crypto_consumer cosmo_nn cosmo_infer cosmo_flow cosmo_service)
+        target_include_directories(${_ax_crypto_consumer} SYSTEM PRIVATE "${CRYPTOPP_HEADERS}")
+    endforeach()
+endif()
 
 #-- - App Entry -- -
 file(GLOB_RECURSE APP_SRC CONFIGURE_DEPENDS "src/app/*.h" "src/app/*.cc")
@@ -596,6 +674,12 @@ endif()
 if(COSMO_NN_USE_RKNN_BACKEND)
     list(APPEND COMMON_LIBS rknnrt)
 endif()
+if(COSMO_NN_USE_AXERA_BACKEND)
+    list(APPEND COMMON_LIBS axera_sys axera_engine)
+endif()
+if(COSMO_MEDIA_USE_AXERA_BACKEND)
+    list(APPEND COMMON_LIBS axera_vdec axera_ivps)
+endif()
 if(COSMO_NN_USE_RKLLM_BACKEND)
     list(APPEND COMMON_LIBS rkllmrt)
 endif()
@@ -624,6 +708,11 @@ endif()
 if(COSMO_NN_USE_RKNN_BACKEND)
     set_target_properties(${EXECUTABLE_NAME} PROPERTIES
         BUILD_RPATH "${COSMO_RKNN_ROOT}/lib"
+        INSTALL_RPATH "$ORIGIN/../lib")
+endif()
+if(COSMO_NN_USE_AXERA_BACKEND)
+    set_target_properties(${EXECUTABLE_NAME} PROPERTIES
+        BUILD_RPATH "${COSMO_AXERA_ROOT}/lib"
         INSTALL_RPATH "$ORIGIN/../lib")
 endif()
 if(COSMO_MEDIA_USE_ROCKCHIP_BACKEND)
@@ -728,6 +817,10 @@ if(BUILD_TESTS)
     if(COSMO_NN_USE_RKNN_BACKEND)
         set_target_properties(cosmo-tests PROPERTIES
             BUILD_RPATH "${COSMO_RKNN_ROOT}/lib")
+    endif()
+    if(COSMO_NN_USE_AXERA_BACKEND)
+        set_target_properties(cosmo-tests PROPERTIES
+            BUILD_RPATH "${COSMO_AXERA_ROOT}/lib")
     endif()
     if(COSMO_MEDIA_USE_ROCKCHIP_BACKEND)
         set_property(TARGET cosmo-tests APPEND PROPERTY

@@ -11,11 +11,14 @@
 #include "flow/action/AlgActionBase.h"
 #include "flow/channel/AlgChannelDecode.h"
 #include "flow/channel/AlgChannelDemux.h"
+#include "flow/channel/NativeFaceReservation.h"
 #include "util/dto/CosmoFwd.h"
 
 namespace cosmo {
 
 class AlgChannel : public AlgActionBase {
+    friend class TaskBase;
+
 public:
     AlgChannel(const std::string& channel_id, const std::string& init_task_id, ActionNode& action,
                const std::string& url = "");
@@ -23,6 +26,13 @@ public:
 
     [[nodiscard]] bool Start() override;
     void Stop() override;
+
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    // Internal, task-lifetime reservation. It carries no model authority.
+    bool ReserveNativeFace(const std::shared_ptr<const void>& token, const std::string& expected_task_id);
+    bool ReleaseNativeFace(const std::shared_ptr<const void>& token);
+#endif
+    [[nodiscard]] bool IsStoppedForIdleCleanup() const;
 
     // dataType selects pre-decode (ChannelDataOrig: H.264/H.265) or post-decode data.
     bool RegistTaskQueue(AlgTaskUnit& param) override;
@@ -33,9 +43,9 @@ public:
                      unsigned int duration_sec = 30) override;
     void ActionInfo(std::vector<ActionRuntimeInfo>& action_info) override;
 
-    void AddViewerPacketQueue(std::shared_ptr<AsyncQueue<VideoPacketPtr>> async_packet_queue);
+    bool AddViewerPacketQueue(std::shared_ptr<AsyncQueue<VideoPacketPtr>> async_packet_queue);
     void RemoveViewerPacketQueue(std::shared_ptr<AsyncQueue<VideoPacketPtr>> async_packet_queue);
-    void AddViewerFrameQueue(const std::string& alg_id, AsyncQueue<VideoFramePtr>& async_frame_queue,
+    bool AddViewerFrameQueue(const std::string& alg_id, AsyncQueue<VideoFramePtr>& async_frame_queue,
                              std::function<bool()> prepare_frame = {});
     void RemoveViewerFrameQueue(const std::string& alg_id);
 
@@ -58,15 +68,16 @@ public:
     // Get stream fetch status.
     [[nodiscard]] util::ErrorEnum GetUrlStatus() const;
     [[nodiscard]] bool GetAttr(MsgCameraAttr& attr);
+    [[nodiscard]] bool GetPreviewAttr(MsgCameraAttr& attr);
 
     [[nodiscard]] VideoFramePtr CaptureImage(int timeout_ms = 3000);
 
     [[nodiscard]] bool GetFrameInfo(bool& is_live, int64_t& index, int64_t& pts, int64_t& frame_size,
                                     std::string& stream_url);
 
-    void AddTask(const std::string& new_task_id);
-    // Remove task and return true when no tasks remain (channel deletable).
-    bool RmvTask(const std::string& target_task_id);
+    bool AddTask(const std::string& new_task_id);
+    // Returns false if removal was rejected; empty reports whether channel can be deleted.
+    bool RmvTask(const std::string& target_task_id, bool& empty);
 
     [[nodiscard]] std::vector<std::string> GetTasks() const;
 
@@ -85,11 +96,28 @@ public:
     void Quit();
 
 private:
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    [[nodiscard]] bool IsReservedCameraMetadataTask(const std::string& task_id) const;
+#endif
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    bool MarkCameraOwnedTask(const std::string& task_id);
+#endif
     mutable std::shared_mutex mtx_;
+    // Serializes start/stop operations without holding mtx_ during worker joins.
+    std::mutex lifecycle_mtx_;
+    bool lifecycle_transition_{false};
+    std::atomic<bool> base_worker_stopped_{true};
+    std::atomic<bool> demux_worker_stopped_{true};
+    std::atomic<bool> decoder_worker_stopped_{true};
 
     std::string sub_channel_id_;  // Actual channel ID for polling tasks
     std::string url_;
     bool is_started_{false};
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    NativeFaceReservation native_face_reservation_;
+    std::string camera_owned_task_;
+    size_t active_capture_requests_{0};
+#endif
     std::vector<std::string> tasks_;
     AlgTaskUnit regist_task_;
     AlgChannelDemux demuxer_;   // FFmpeg demux

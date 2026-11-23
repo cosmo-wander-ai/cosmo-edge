@@ -2,6 +2,10 @@
 
 #include "nn/device/cpu/cpu_yolo_decode_node.h"
 
+#ifdef COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST
+#include "nn/device/axera/axera_face_diagnostics.h"
+#endif
+
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -63,6 +67,9 @@ void CpuYoloDecodeNPUNode::ResetTopBlob(std::shared_ptr<Blob> top_blob) {
 }
 
 std::vector<CpuYoloBox> CpuYoloDecodeNPUNode::NMS(std::vector<CpuYoloBox>& detections, float iou_threshold) {
+#ifdef COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST
+    cosmo::nn::axera::diagnostics::RecordCpuNms();
+#endif
     std::vector<CpuYoloBox> result;
     std::sort(detections.begin(), detections.end(),
               [](const CpuYoloBox& a, const CpuYoloBox& b) { return a.confidence > b.confidence; });

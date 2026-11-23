@@ -196,6 +196,13 @@ util::ErrorEnum ModelImportExporter::ValidateAddModelInputs(
     }
 #endif
 
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+    if (modelType != "yolov8_det" && modelType != "yolo26_person_attributes" && modelType != "classify") {
+        LOG_WARN("[AddModel] Unsupported AX650N model type: {}", modelType);
+        return util::ErrorEnum::InvalidParam;
+    }
+#endif
+
     resolved_model_code = reservedCode ? modelCode : generate_unique_model_code_();
     LOG_INFO("[AddModel] Using resolved model code: {} (request code: {})", resolved_model_code, modelCode);
     if (resolved_model_code.empty())
@@ -414,6 +421,19 @@ util::ErrorEnum ModelImportExporter::WriteNnFile(const std::string& modelType,
             convert_error = "Failed to copy RKNN model to " + model_file_path + ": " + ec.message();
         else
             LOG_INFO("[AddModel] RKNN: copied model file to {}", model_file_path);
+    }
+#elif defined(COSMO_NN_USE_AXERA_BACKEND)
+    std::string convert_error;
+    if (bmodel_paths.size() != 1) {
+        convert_error = "AX650N add-model requires exactly one model file";
+    } else {
+        const auto model_file_path = (fs::path(model_dir) / "model.axmodel").string();
+        std::error_code ec;
+        fs::copy_file(bmodel_paths[0], model_file_path, fs::copy_options::overwrite_existing, ec);
+        if (ec)
+            convert_error = "Failed to copy AX650N model to " + model_file_path + ": " + ec.message();
+        else
+            LOG_INFO("[AddModel] AX650N: copied model file to {}", model_file_path);
     }
 #elif defined(COSMO_NN_USE_ONNX_BACKEND)
     // CPU/x86: copy .onnx file directly; no Sophon wrapper needed.

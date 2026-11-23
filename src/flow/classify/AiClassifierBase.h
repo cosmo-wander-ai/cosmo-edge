@@ -23,6 +23,9 @@ public:
 
     bool AiSdkInit();
 
+    void QueueStatus(std::vector<AlgActionDataQueueStatus>& queStatus,
+                     unsigned int durationSec = 30) override;
+
     // Retrieve history records. from: start frame, to: end frame.
     std::vector<DataDetTrackClassify> GetHistory(const std::string& channelId, const std::string& taskId,
                                                  int64_t from, int64_t ts, int64_t to) override;
@@ -38,6 +41,16 @@ protected:
     // Thread entry point overridden from AlgActionBase.
     void run() override;
 
+#ifdef COSMO_AXERA_HELMET_ROUTE_CANDIDATE
+    virtual bool IsNativeHelmetCandidate() const noexcept {
+        return false;
+    }
+    virtual bool NativeHelmetWorkerStart() {
+        return false;
+    }
+    virtual void NativeHelmetWorkerStop() noexcept {}
+#endif
+
     virtual bool CheckDataAvailable(AlgDataPtr algData)         = 0;
     virtual void HandFramesEx(std::vector<AlgDataPtr> algDatas) = 0;
 
@@ -51,6 +64,8 @@ protected:
     std::string alg_code_;
     size_t batch_count_{8};            // Batch size
     AiClassifierUnifyPtr classifier_;  // Classifier instance
+    std::shared_ptr<ClassifierExecutionCounters> execution_counters_{
+        std::make_shared<ClassifierExecutionCounters>()};
     std::deque<DataDetTrackClassify> historys_;
     OverviewRecordAiRst overview_rec_inst_;
     TaskBaseArea task_area_;

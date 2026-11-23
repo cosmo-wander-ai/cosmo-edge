@@ -66,6 +66,26 @@ protected:
     void HandFrame(AlgDataPtr alg_data) override;
 
 private:
+#ifdef COSMO_AXERA_REID_ROUTE_CANDIDATE
+    friend class TaskBase;
+    bool ConfigureNativeBodyConsumer(const std::string& task) {
+        if (task.empty() || task != task_id || alg_params_.feature_input != FeatureInputType::Body)
+            return false;
+        native_body_feature_consumer_ = true;
+        return true;
+    }
+    bool native_body_feature_consumer_{false};
+#endif
+#ifdef COSMO_AXERA_FACE_FEATURE_ROUTE_CANDIDATE
+    friend class TaskBase;
+    bool ConfigureNativeFaceConsumer(const std::string& task) {
+        if (task.empty() || task != task_id || alg_params_.feature_input != FeatureInputType::Face)
+            return false;
+        native_face_feature_consumer_ = true;
+        return true;
+    }
+    bool native_face_feature_consumer_{false};
+#endif
     void HandFace(AlgDataPtr alg_data);
     bool GetRecodResult(bool compare_rst, size_t count, AiDetectMatchHighScoreInfo& match_info);
     std::shared_mutex mtx_;

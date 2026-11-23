@@ -250,6 +250,13 @@ void AiTracker::HandFrame(AlgDataPtr algData) {
 
     // Distribution queue
     RecordHistory(algOutData);
+#ifdef COSMO_AXERA_HELMET_ROUTE_CANDIDATE
+    if (algData->native_helmet_ticket) {
+        algOutData->native_helmet_ticket = std::move(algData->native_helmet_ticket);
+        distributor->DistributorHelmetData(std::move(algOutData));
+        return;
+    }
+#endif
     distributor->DistributorData(algOutData);
 }
 

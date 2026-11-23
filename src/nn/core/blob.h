@@ -10,6 +10,10 @@
 #include "nn/core/macros.h"
 #include "nn/utils/image_format_utils.h"
 
+namespace cosmo::media {
+struct NativeVideoBuffer;
+}
+
 namespace cosmo::nn {
 
 enum class NativeImageColorSpace {
@@ -66,6 +70,13 @@ struct PUBLIC BlobHandle {
     // Optional owned host fallback for an otherwise native image. The provider
     // must retain the image and synchronize/cache materialization across copies.
     std::function<void*()> host_data_provider;
+
+    // Retains the entire AX native frame descriptor and its decoder lease.
+    // This is not a DMA-BUF or a host view. The AX consumer must validate its
+    // metadata, completion and device visibility before using physical planes.
+    // Blob strips any host provider, host address and DMA-BUF from a handle
+    // carrying this field so it cannot silently fall back to CPU pixels.
+    std::shared_ptr<const media::NativeVideoBuffer> axera_native_frame;
 };
 
 class BlobImpl;
@@ -84,7 +95,7 @@ public:
 
     void SetBlobDesc(BlobDesc desc);
 
-    // Native-aware nodes can inspect DMA-BUF metadata without generating host pixels.
+    // Native-aware nodes can inspect device metadata without generating host pixels.
     BlobHandle GetHandle(bool materialize_host = true);
 
     void SetHandle(BlobHandle handle);

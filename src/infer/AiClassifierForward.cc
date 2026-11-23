@@ -20,7 +20,8 @@ util::ErrorEnum AiClassifierUnify::Classify(const VideoFramePtr& image_base, con
     auto image_base_blob = ConvertImageToBlob(image_base);
     auto image_blob      = ConvertImageToBlob(image);
 
-    auto status = classifier_->Forward({{image_base_blob}, {image_blob}});
+    auto do_forward = [&] { return classifier_->Forward({{image_base_blob}, {image_blob}}); };
+    auto status     = counters_ ? counters_->RunForward(do_forward) : do_forward();
     if (!bool(status)) {
         LOG_ERRO("Forward Failed.({})", status.description());
         return util::ErrorEnum::AI_FORWARD_FAILED;
@@ -87,7 +88,8 @@ util::ErrorEnum AiClassifierUnify::Classify(const std::vector<VideoFramePtr>& im
         return ret;
     }
 
-    auto status = classifier_->Forward({images_base_blobs, images_blobs});
+    auto do_forward = [&] { return classifier_->Forward({images_base_blobs, images_blobs}); };
+    auto status     = counters_ ? counters_->RunForward(do_forward) : do_forward();
     if (!bool(status)) {
         LOG_ERRO("Forward Failed.({})", status.description());
         return util::ErrorEnum::AI_FORWARD_FAILED;
@@ -154,7 +156,8 @@ util::ErrorEnum AiClassifierUnify::Forward(const std::vector<VideoFramePtr>& ima
         return ret;
     }
 
-    auto status = classifier_->Forward({image_blobs, data_blobs});
+    auto do_forward = [&] { return classifier_->Forward({image_blobs, data_blobs}); };
+    auto status     = counters_ ? counters_->RunForward(do_forward) : do_forward();
     if (!bool(status)) {
         LOG_ERRO("Forward Failed.({})", status.description());
         return util::ErrorEnum::AI_FORWARD_FAILED;

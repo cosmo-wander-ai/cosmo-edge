@@ -117,10 +117,18 @@ std::string AlgChannelDemux::StatusString(service::camera::AlgDemuxStatus status
     }
 }
 
+bool AlgChannelDemux::GetPreviewAttr(MsgCameraAttr& attr) {
+    const bool ready = GetAttr(attr);
+    // The processing pipeline retains a usable internal default even when
+    // no trustworthy source frame rate is available for API presentation.
+    attr.fps = demuxer_.GetFPS();
+    return ready;
+}
+
 bool AlgChannelDemux::GetAttr(MsgCameraAttr& attr) {
     attr.width  = demuxer_.GetWidth();
     attr.height = demuxer_.GetHeight();
-    attr.fps    = demuxer_.GetFPS();
+    attr.fps    = demuxer_.GetReportedFPS();
     auto codec  = demuxer_.GetEncodeType();
     if (media::VideoCodecType::kH265 == codec) {
         attr.codec = "H265";

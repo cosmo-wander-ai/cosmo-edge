@@ -1,10 +1,23 @@
 #include "nn/core/blob.h"
 
 #include <sstream>
+#include <utility>
 
 #include "nn/core/blob_impl.h"
 
 namespace cosmo::nn {
+
+namespace {
+    BlobHandle NormalizeNativeHandle(BlobHandle handle) {
+        if (handle.axera_native_frame) {
+            handle.base               = nullptr;
+            handle.phy                = 0;
+            handle.native_image       = {};
+            handle.host_data_provider = {};
+        }
+        return handle;
+    }
+}  // namespace
 
 std::string BlobDesc::description() {
     std::ostringstream os;
@@ -33,7 +46,7 @@ Blob::Blob(BlobDesc desc, bool alloc_memory) {
 }
 
 Blob::Blob(BlobDesc desc, BlobHandle handle) {
-    impl = std::make_unique<BlobImpl>(desc, handle);
+    impl = std::make_unique<BlobImpl>(desc, NormalizeNativeHandle(std::move(handle)));
 }
 
 Blob::~Blob() = default;
@@ -54,7 +67,7 @@ BlobHandle Blob::GetHandle(bool materialize_host) {
 }
 
 void Blob::SetHandle(BlobHandle handle) {
-    impl->SetHandle(handle);
+    impl->SetHandle(NormalizeNativeHandle(std::move(handle)));
 }
 
 void Blob::ClearHandle() {

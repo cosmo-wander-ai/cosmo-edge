@@ -99,6 +99,10 @@ Status DefaultComponent::GetCategoryInfo(const std::string& label, CategoryInfo&
     return pipeline_->GetCategoryInfo(label, info);
 }
 
+std::string DefaultComponent::GetModelType() const {
+    return pipeline_->GetModelType();
+}
+
 std::vector<float> DefaultComponent::GetScoreLevels() const {
     return pipeline_->GetScoreLevels();
 }

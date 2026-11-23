@@ -20,6 +20,9 @@
 #include "flow/alarm/TaskFaceAlarmMng.h"
 #include "flow/channel/AlgChannelMng.h"
 #include "flow/classify/AiClassifyAreaMng.h"
+#ifdef COSMO_AXERA_HELMET_ROUTE_CANDIDATE
+#include "util/HelmetLifecycleGate.h"
+#endif
 #include "flow/classify/AiClassifyAttrMng.h"
 #include "flow/classify/AiClassifyGroupMng.h"
 #include "flow/classify/AiClassifyMng.h"
@@ -63,13 +66,30 @@ struct TaskElement {
     // TaskServiceImpl serializes lifecycle transitions; atomic keeps read-only status
     // snapshots race-free without holding the lifecycle mutex for their full duration.
     std::atomic<bool> is_started{false};
-    std::string channelId;           // Channel ID
-    std::string channelName;         // Channel name
-    std::string taskId;              // Task ID globally unique
-    std::string flowActionId{"-1"};  // Flow action ID of the root action
-    std::deque<TaskAction> actions;  // Algorithm orchestration instances
-    MsgTaskConfig params;            // Algorithm parameters
-    ActionAlgPtr action_alg;         // Algorithm orchestration configuration
+    std::atomic<bool> deletion_pending{false};  // Graph teardown has started; never restart it.
+    std::string channelId;                      // Channel ID
+    std::string channelName;                    // Channel name
+    std::string taskId;                         // Task ID globally unique
+    std::string flowActionId{"-1"};             // Flow action ID of the root action
+    std::deque<TaskAction> actions;             // Algorithm orchestration instances
+    MsgTaskConfig params;                       // Algorithm parameters
+    ActionAlgPtr action_alg;                    // Algorithm orchestration configuration
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    // Internal exclusive channel reservation, never supplied by an API user.
+    std::shared_ptr<const void> native_face_reservation;
+    std::weak_ptr<AlgChannel> native_face_channel;
+    // A trusted camera-owned task skipped its self-queue for a strict channel.
+    bool native_camera_metadata_only{false};
+#endif
+
+#ifdef COSMO_AXERA_HELMET_ROUTE_CANDIDATE
+    // Candidate-only. A future trusted route must install both together.
+    // They are not API-configurable and are never created by this patch.
+    std::shared_ptr<helmet_candidate::LifecycleGate<helmet_candidate::TaskTag>> helmet_task_gate;
+    std::shared_ptr<helmet_candidate::LifecycleGate<helmet_candidate::ModelTag>> helmet_model_gate;
+    std::shared_ptr<const void> helmet_task_identity, helmet_model_identity;
+    std::shared_ptr<const NativeHelmetAdmission> helmet_admission;
+#endif
 
     // Convenience getter (from action_alg)
     std::string GetAlgName() const {
@@ -88,6 +108,8 @@ struct TaskElement {
 using TaskElementPtr = std::shared_ptr<TaskElement>;
 
 class TaskBase {
+    friend struct TaskBaseLifecycleTestAccess;
+
 public:
     TaskBase();
     ~TaskBase();
@@ -99,6 +121,9 @@ public:
 
     TaskElementPtr TaskCreate(const std::string& channelId, const std::string& channelName,
                               const std::string& taskId, ActionAlgPtr actionAlg);
+    // Internal camera-service path; the task identifier and graph are fixed
+    // here and are not accepted from an external request.
+    TaskElementPtr TaskCreateCameraChannel(const std::string& channelId, const std::string& channelName);
     bool TaskDelete(TaskElementPtr task);
     bool TaskStart(TaskElementPtr task);
     bool TaskStop(TaskElementPtr task);
@@ -119,6 +144,11 @@ public:
     void GetCameraInfo(std::vector<MsgCameraInfo>& cameraInfos);
 
 private:
+#ifdef COSMO_AXERA_HELMET_ROUTE_CANDIDATE
+    bool ConfigureNativeHelmetTask(TaskElementPtr task);
+    bool InstallNativeHelmetTask(TaskElementPtr task);
+    void ClearNativeHelmetTask(TaskElementPtr task) noexcept;
+#endif
     bool TaskRegist(TaskElementPtr task);
     void TaskUnRegist(TaskElementPtr task);
     void RegisterActionHandlers();

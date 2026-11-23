@@ -75,6 +75,17 @@ static constexpr bool kSupportsRkllm = false;
 static constexpr const char* kModelFileExt     = ".rknn";
 static constexpr const char* kSupportedChips[] = {COSMO_RKNN_TARGET_CHIP_LABEL};
 
+#elif defined(COSMO_NN_USE_AXERA_BACKEND)
+
+static constexpr const char* kPlatformDirPrefix = "prod_AX650N_";
+static constexpr const char* kNewDirPrefix      = "prod_AXERA_";
+static constexpr const char* kPlatformDirRegex  = "prod_[A-Z0-9]+_([0-9]+)_.*";
+static constexpr const char* kBackendType       = "AXERA";
+static constexpr const char* kEngineType        = "AX650N";
+static constexpr bool kSupportsRkllm            = false;
+static constexpr const char* kModelFileExt      = ".axmodel";
+static constexpr const char* kSupportedChips[]  = {"AX650N"};
+
 #elif defined(COSMO_NN_USE_CPU_BACKEND)
 
 /// Directory prefix for CPU/x86 backend model directories: "prod_X86_".
@@ -99,7 +110,7 @@ static constexpr const char* kModelFileExt = ".onnx";
 static constexpr const char* kSupportedChips[] = {"X86"};
 
 #else
-#error "A Sophon, CPU, or RKNN backend must be defined"
+#error "A Sophon, CPU, RKNN, or AXERA backend must be defined"
 #endif
 
 /// Case-insensitive check whether `chip` is a supported chip/platform type for the

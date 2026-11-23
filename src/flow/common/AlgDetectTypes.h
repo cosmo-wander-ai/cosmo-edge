@@ -16,6 +16,9 @@
 #include "util/VideoInfo.h"
 
 namespace cosmo {
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+class NativeFaceEnvelope;
+#endif
 
 struct AlgChannelDataOrig {
     float fps{0.0};
@@ -25,6 +28,9 @@ struct AlgChannelDataOrig {
 struct AlgChannelDataDec {
     VideoFramePtr frame;  // AI processed frame, might be YUV or BGR depending on platform
     media::NativeVideoBufferPtr native_buffer;  // Optional borrowed hardware inference source.
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+    std::shared_ptr<const NativeFaceEnvelope> native_face_envelope;
+#endif
     int64_t reportTimeStamp{0};
 };
 

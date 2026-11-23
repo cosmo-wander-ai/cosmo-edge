@@ -33,6 +33,11 @@ namespace media {
 
         virtual VideoPacketPtr SendYUVFrame(void*) = 0;
 
+        /// A permanent failure requires the owning preview/publisher to be recreated.
+        virtual bool IsPermanentlyFaulted() const noexcept {
+            return false;
+        }
+
         size_t GetWidth() const;
         size_t GetHeight() const;
 

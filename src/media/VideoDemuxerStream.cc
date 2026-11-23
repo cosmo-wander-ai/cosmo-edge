@@ -2,9 +2,17 @@
 // Split from VideoDemuxer.cc to reduce file size (DEBT-007).
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 #include <thread>
 
+#include "media/FrameRateReporting.h"
+#include "media/H264AnnexBColorParser.h"
+#include "media/NativeDemuxAdmission.h"
+#include "media/NativeRtspParameterSets.h"
+#include "media/VideoDemuxColorEvidence.h"
 #include "media/VideoDemuxer.h"
+#include "media/VideoPacketColorWitness.h"
 #include "util/Log.h"
 #include "util/RtspUrlUtil.h"
 #include "util/TimeUtil.h"
@@ -13,6 +21,28 @@ static constexpr const char* kTag = "[DEMUX] ";
 
 namespace cosmo {
 namespace media {
+
+    static NativeVideoColorSpace ContainerColorSpace(AVColorSpace value) {
+        switch (value) {
+            case AVCOL_SPC_BT709:
+                return NativeVideoColorSpace::Bt709;
+            case AVCOL_SPC_BT470BG:
+            case AVCOL_SPC_SMPTE170M:
+                return NativeVideoColorSpace::Bt601;
+            case AVCOL_SPC_UNSPECIFIED:
+                return NativeVideoColorSpace::Unspecified;
+            default:
+                return NativeVideoColorSpace::Unsupported;
+        }
+    }
+
+    static NativeVideoColorRange ContainerColorRange(AVColorRange value) {
+        if (value == AVCOL_RANGE_MPEG)
+            return NativeVideoColorRange::Limited;
+        if (value == AVCOL_RANGE_JPEG)
+            return NativeVideoColorRange::Full;
+        return NativeVideoColorRange::Unspecified;
+    }
 
     static std::string GetAvErr(int errorNo) {
         char buf[AV_ERROR_MAX_STRING_SIZE]{};
@@ -48,24 +78,67 @@ namespace media {
         // when its caller still carries a pending-repeat flag.
         if (ready_)
             return util::ErrorEnum::Success;
+        // The witnessed native AX route cannot permit libavformat to open a
+        // software video decoder during stream discovery. Container metadata
+        // must already be complete; missing fields fail closed. Other routes
+        // retain the existing probe and codec discovery behavior.
+        bool strict_native = false;
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+        strict_native = native_color_witness_enabled_;
+#endif
         int ret = 0;
-        if ((ret = avformat_find_stream_info(fmt_ctx_, nullptr)) < 0 || StopRequested()) {
+        if ((!strict_native && (ret = avformat_find_stream_info(fmt_ctx_, nullptr)) < 0) || StopRequested()) {
             CloseStream();
             LOG_WARN("{}FindStream {} failed.[{}]", kTag, util::RedactRtspUrl(filename_), GetAvErr(ret));
             return util::ErrorEnum::DemuxFindStreamFail;
         }
 
-        AVCodec* codec    = nullptr;
-        video_stream_idx_ = av_find_best_stream(fmt_ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, &codec, 0);
-        if (video_stream_idx_ < 0 || !codec) {
+        AVCodec* codec = nullptr;
+        video_stream_idx_ =
+            av_find_best_stream(fmt_ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, strict_native ? nullptr : &codec, 0);
+        if (video_stream_idx_ < 0 || (!strict_native && !codec)) {
             const int stream_error = video_stream_idx_ < 0 ? video_stream_idx_ : AVERROR_DECODER_NOT_FOUND;
             CloseStream();
             LOG_WARN("{}FindStream {} stream or codec error.[{}]", kTag, util::RedactRtspUrl(filename_),
                      GetAvErr(stream_error));
             return util::ErrorEnum::DemuxFindVideoStreamFail;
         }
-
-        std::string codec_name = codec->name;
+        // RTSP SDP can provide Annex-B SPS/PPS but no codecpar dimensions
+        // until stream probing. Recover only geometry from those compressed
+        // parameter sets; native AU/frame witness remains independently required.
+        if (strict_native && filename_.compare(0, 7, "rtsp://") == 0 &&
+            static_cast<unsigned>(video_stream_idx_) < fmt_ctx_->nb_streams &&
+            fmt_ctx_->streams[video_stream_idx_]) {
+            AVCodecParameters* params = fmt_ctx_->streams[video_stream_idx_]->codecpar;
+            if (params && params->codec_id == AV_CODEC_ID_H264 &&
+                (params->width <= 0 || params->height <= 0)) {
+                uint32_t width = 0, height = 0;
+                if (!H264AnnexBColorParser::ParseParameterSetGeometry(
+                        params->extradata,
+                        params->extradata_size > 0 ? static_cast<size_t>(params->extradata_size) : 0, width,
+                        height) ||
+                    (params->width > 0 && static_cast<uint32_t>(params->width) != width) ||
+                    (params->height > 0 && static_cast<uint32_t>(params->height) != height)) {
+                    CloseStream();
+                    return util::ErrorEnum::DemuxFindStreamFail;
+                }
+                params->width  = static_cast<int>(width);
+                params->height = static_cast<int>(height);
+            }
+        }
+        if (strict_native &&
+            !NativeDemuxMetadataReady(fmt_ctx_, video_stream_idx_,
+                                      strategy_ && strategy_->NeedsBsf(VideoCodecType::kH264))) {
+            CloseStream();
+            LOG_WARN("{}{} native stream metadata incomplete", kTag, util::RedactRtspUrl(filename_));
+            return util::ErrorEnum::DemuxFindStreamFail;
+        }
+        const AVCodecParameters* selected = fmt_ctx_->streams[video_stream_idx_]->codecpar;
+        if (!selected) {
+            CloseStream();
+            return util::ErrorEnum::DemuxFindStreamFail;
+        }
+        std::string codec_name = strict_native ? avcodec_get_name(selected->codec_id) : codec->name;
         VideoCodecType next_codec;
         if (codec_name == "h264" || codec_name == "h264_bm") {
             next_codec = VideoCodecType::kH264;
@@ -104,11 +177,35 @@ namespace media {
         width_.store(codecpar->width, std::memory_order_relaxed);
         height_.store(codecpar->height, std::memory_order_relaxed);
 
+        if (strict_native && !NativeDemuxForcedFpsReady(video_force_fps_)) {
+            CloseStream();
+            return util::ErrorEnum::DemuxFindStreamFail;
+        }
+        if (strict_native && strategy_ && strategy_->NeedsFpsControl() &&
+            !NativeDemuxFpsMetadataReady(stream)) {
+            CloseStream();
+            return util::ErrorEnum::DemuxFindStreamFail;
+        }
         fps_.store(SelectBestFps(avgFpsRat, codecFpsRat, streamFpsRat), std::memory_order_relaxed);
 
-        auto c_fps = fps_.load(std::memory_order_relaxed);
+        auto c_fps                  = fps_.load(std::memory_order_relaxed);
+        const bool has_fps_metadata = (avgFpsRat.num != 0 && avgFpsRat.den != 0) ||
+                                      (codecFpsRat.num != 0 && codecFpsRat.den != 0) ||
+                                      (streamFpsRat.num != 0 && streamFpsRat.den != 0);
+        // On native live streams, discovery intentionally avoids opening a
+        // software decoder. Do not present its internal 25 fps fallback as
+        // measured stream metadata when discovery found no usable rate.
+        reported_fps_unknown_.store(
+            NativeLiveFrameRateUnknown(strict_native, strategy_ && strategy_->IsLive(), has_fps_metadata,
+                                       c_fps),
+            std::memory_order_relaxed);
 
-        if (c_fps == 0 || c_fps > 1000) {
+        if ((strict_native && (!std::isfinite(c_fps) || c_fps <= 0 || c_fps > 1000)) ||
+            (!strict_native && (c_fps == 0 || c_fps > 1000))) {
+            if (strict_native && strategy_ && strategy_->NeedsFpsControl()) {
+                CloseStream();
+                return util::ErrorEnum::DemuxFindStreamFail;
+            }
             fps_.store(25.0f, std::memory_order_relaxed);
         }
 
@@ -126,6 +223,10 @@ namespace media {
             }
             // mp4 forced frame rate
             if (video_force_fps_ > 0.0f) {
+                if (strict_native && (!std::isfinite(video_force_fps_) || video_force_fps_ > 1000)) {
+                    CloseStream();
+                    return util::ErrorEnum::DemuxFindStreamFail;
+                }
                 fps_.store(video_force_fps_, std::memory_order_relaxed);
             }
         }
@@ -133,7 +234,7 @@ namespace media {
         LOG_INFO(
             "{}{} videoStreamIdx:{} codec:{} {}x{} fps_:{} avg[num:{} den:{}], codec[num:{} den:{}], "
             "stream[num:{}, den:{}]",
-            kTag, util::RedactRtspUrl(filename_), video_stream_idx_, codec->name, codecpar->width,
+            kTag, util::RedactRtspUrl(filename_), video_stream_idx_, codec_name, codecpar->width,
             codecpar->height, fps_, avgFpsRat.num, avgFpsRat.den, codecFpsRat.num, codecFpsRat.den,
             streamFpsRat.num, streamFpsRat.den);
 
@@ -146,10 +247,19 @@ namespace media {
 
     void VideoDemuxer::LocalFileFpsCtrl() {
         std::unique_lock<std::mutex> lockControl(mutex_);
-        // Used to control frame rate for local files
-        if (strategy_ && strategy_->NeedsFpsControl() && (fps_ > 0.0f)) {
+        // Used to control frame rate for local files. Use one rate snapshot
+        // for the check and calculation, even if another thread updates it.
+        const float rate = fps_.load(std::memory_order_relaxed);
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+        if (native_color_witness_enabled_ && strategy_ && strategy_->NeedsFpsControl() &&
+            !native_presentation::NativeFpsControlSafe(packet_index_, rate)) {
+            native_fps_control_fault_ = true;
+            return;
+        }
+#endif
+        if (strategy_ && strategy_->NeedsFpsControl() && rate > 0.0f) {
             std::chrono::milliseconds expectTime(
-                static_cast<int64_t>(static_cast<float>(packet_index_ * 1000) / fps_));
+                static_cast<int64_t>(static_cast<float>(packet_index_ * 1000) / rate));
             auto now      = std::chrono::steady_clock::now();
             auto diffTime = now - open_time_point_;
             if (diffTime < expectTime) {
@@ -291,6 +401,14 @@ namespace media {
     }
 
     ReadFrameStatus VideoDemuxer::Demux(VideoPacketPtr pkt) {
+        if (!pkt)
+            return ReadFrameStatus::EmptyFrame;
+        // Callers may reuse a packet object. Never retain a prior AU's proof or
+        // derived clock on a later failure/discontinuity.
+        pkt->presentation_time_valid   = false;
+        pkt->presentation_timestamp_ms = 0;
+        pkt->presentation_steady_ms    = 0;
+        pkt->color_witness.reset();
         if (StopRequested() || !ready_ || !fmt_ctx_) {
             return ReadFrameStatus::StreamNotOpen;
         }
@@ -298,6 +416,13 @@ namespace media {
             return ReadFrameStatus::StreamEnd;
         }
         LocalFileFpsCtrl();
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+        if (native_color_witness_enabled_ && native_fps_control_fault_) {
+            native_presentation_fault_ = true;
+            end_                       = true;
+            return ReadFrameStatus::StreamEnd;
+        }
+#endif
         if (StopRequested())
             return ReadFrameStatus::StreamNotOpen;
 
@@ -319,6 +444,21 @@ namespace media {
             return ReadFrameStatus::EmptyFrame;
         }
 
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+        // Drop initial RTSP packets without PTS before keyframe admission;
+        // do not mint a witness or infer a presentation timestamp.
+        if (native_color_witness_enabled_ && filename_.compare(0, 7, "rtsp://") == 0 &&
+            !native_presentation_ready_ && packet.pts == AV_NOPTS_VALUE) {
+            av_packet_unref(&packet);
+            return ReadFrameStatus::EmptyFrame;
+        }
+#endif
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+        const bool native_rtsp_h264_key_au =
+            native_color_witness_enabled_ && filename_.compare(0, 7, "rtsp://") == 0 &&
+            enc_type_ == VideoCodecType::kH264 && (packet.flags & AV_PKT_FLAG_KEY);
+        const bool first_native_rtsp_h264_au = native_rtsp_h264_key_au && !key_frame_detected_;
+#endif
         if (!key_frame_detected_) {
             key_frame_detected_ = packet.flags & AV_PKT_FLAG_KEY;
             if (!key_frame_detected_) {
@@ -328,17 +468,35 @@ namespace media {
             LOG_INFO("{}{} detected key frame.", kTag, util::RedactRtspUrl(filename_));
         }
 
-        // rtsp frame rate may be incorrect, calculate via pts_
+        // The legacy estimators subtract packet-order PTS in signed arithmetic
+        // and assume decode order is presentation order. On strict native
+        // streams use the inspected stream FPS and packet_index_ instead; the
+        // PTS mapper below validates arbitrary reorder and extreme values.
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+        if (!native_color_witness_enabled_) {
+            CalcFps(&packet);
+            CalcFrameIndex(&packet);
+        }
+#else
         CalcFps(&packet);
-        // Some streams have incorrect frame sequence
         CalcFrameIndex(&packet);
+#endif
         // Get stream fetching timestamp
         auto timestamp = util::GetMilliseconds();
         auto timePoint = std::chrono::steady_clock::now();
 
         // Save pts and keyframe flags before sending packet to bitstream filter (which resets/clears it)
-        const int64_t saved_pts     = packet.pts;
-        const bool saved_is_i_frame = static_cast<bool>(packet.flags & AV_PKT_FLAG_KEY);
+        const int64_t saved_pts            = packet.pts;
+        const bool saved_is_i_frame        = static_cast<bool>(packet.flags & AV_PKT_FLAG_KEY);
+        bool color_pts_correlated          = saved_pts != AV_NOPTS_VALUE;
+        bool color_parameter_change        = HasColorRelevantParameterChange(packet);
+        const auto* codecpar               = fmt_ctx_->streams[video_stream_idx_]->codecpar;
+        const bool container_color_present = codecpar && (codecpar->color_space != AVCOL_SPC_UNSPECIFIED ||
+                                                          codecpar->color_range != AVCOL_RANGE_UNSPECIFIED);
+        const auto container_space =
+            codecpar ? ContainerColorSpace(codecpar->color_space) : NativeVideoColorSpace::Unspecified;
+        const auto container_range =
+            codecpar ? ContainerColorRange(codecpar->color_range) : NativeVideoColorRange::Unspecified;
 
         // Video files convert to 0x00000001, rtsp does not
         if (strategy_ && strategy_->NeedsBsf(enc_type_)) {
@@ -348,6 +506,13 @@ namespace media {
                     LOG_WARN("{}{} av_bsf_send_packet failed: {}", kTag, util::RedactRtspUrl(filename_),
                              GetAvErr(ret));
                     av_packet_unref(&packet);
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+                    if (native_color_witness_enabled_) {
+                        native_presentation_fault_ = true;
+                        end_                       = true;
+                        return ReadFrameStatus::StreamEnd;
+                    }
+#endif
                     return ReadFrameStatus::EmptyFrame;
                 }
 
@@ -361,8 +526,19 @@ namespace media {
                     LOG_WARN("{}{} av_bsf_receive_packet failed: {}", kTag, util::RedactRtspUrl(filename_),
                              GetAvErr(ret));
                     av_packet_unref(&packet);
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+                    if (native_color_witness_enabled_) {
+                        native_presentation_fault_ = true;
+                        end_                       = true;
+                        return ReadFrameStatus::StreamEnd;
+                    }
+#endif
                     return ReadFrameStatus::EmptyFrame;
                 }
+
+                color_pts_correlated = color_pts_correlated && filtered_pkt.pts == saved_pts;
+                color_parameter_change =
+                    color_parameter_change || HasColorRelevantParameterChange(filtered_pkt);
 
                 // Diagnostic: log BSF result for first 3 packets per stream
                 if (abs_packet_index_ < 3 && filtered_pkt.size >= 5) {
@@ -377,6 +553,14 @@ namespace media {
                 pkt->data = std::vector<uint8_t>(filtered_pkt.data, filtered_pkt.data + filtered_pkt.size);
                 av_packet_unref(&filtered_pkt);
             } else {
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+                if (native_color_witness_enabled_) {
+                    native_presentation_fault_ = true;
+                    end_                       = true;
+                    av_packet_unref(&packet);
+                    return ReadFrameStatus::StreamEnd;
+                }
+#endif
                 LOG_WARN("{}{} bsf_ctx_ is NULL, skipping BSF", kTag, util::RedactRtspUrl(filename_));
                 pkt->data = std::vector<uint8_t>(packet.data, packet.data + packet.size);
             }
@@ -384,10 +568,41 @@ namespace media {
             pkt->data = std::vector<uint8_t>(packet.data, packet.data + packet.size);
         }
 
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+        // Include known SDP parameter sets on later keyframes too: a decoder
+        // recreated after a packet gap must be able to start at any keyframe.
+        const bool can_recover_from_sdp = codecpar && codecpar->extradata && codecpar->extradata_size > 0;
+        const bool prepared_native_parameters =
+            !native_rtsp_h264_key_au || (!first_native_rtsp_h264_au && !can_recover_from_sdp) ||
+            native_rtsp::AddMissingParameterSets(
+                codecpar ? codecpar->extradata : nullptr,
+                codecpar && codecpar->extradata_size > 0 ? static_cast<size_t>(codecpar->extradata_size) : 0,
+                pkt->data);
+        if (first_native_rtsp_h264_au && !prepared_native_parameters) {
+            LOG_WARN("{}{} native H264 parameter sets unavailable", kTag, util::RedactRtspUrl(filename_));
+            native_presentation_fault_ = true;
+            end_                       = true;
+            av_packet_unref(&packet);
+            return ReadFrameStatus::StreamEnd;
+        }
+#endif
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+        if (native_color_witness_enabled_ && (packet_index_ == std::numeric_limits<int64_t>::max() ||
+                                              abs_packet_index_ == std::numeric_limits<int64_t>::max())) {
+            native_presentation_fault_ = true;
+            av_packet_unref(&packet);
+            return ReadFrameStatus::StreamEnd;
+        }
+#endif
         packet_index_++;
         abs_packet_index_++;
-        pkt->pts       = saved_pts;
-        pkt->timestamp = timestamp;
+        pkt->pts                         = saved_pts;
+        pkt->color_packet_pts_correlated = color_pts_correlated;
+        pkt->color_parameter_change      = color_parameter_change;
+        pkt->color_container_present     = container_color_present;
+        pkt->container_color_space       = container_space;
+        pkt->container_color_range       = container_range;
+        pkt->timestamp                   = timestamp;
         pkt->timestamp_epoch =
             std::chrono::duration_cast<std::chrono::milliseconds>(timePoint.time_since_epoch()).count();
         pkt->time_point = timePoint;
@@ -399,6 +614,43 @@ namespace media {
         pkt->width      = static_cast<size_t>(width_.load());
         pkt->height     = static_cast<size_t>(height_.load());
         pkt->fps        = fps_;
+
+        // Arrival clocks remain untouched. For the opted-in native path, the
+        // presentation timeline is mapped from this AU's actual PTS using a
+        // single wall/steady anchor per stream generation. The ±30 s bound is
+        // conservative: unbounded drift/discontinuity is rejected, not clamped.
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+        if (native_color_witness_enabled_ && !native_presentation_fault_) {
+            const auto arrival_ms =
+                std::chrono::duration_cast<std::chrono::milliseconds>(timePoint.time_since_epoch()).count();
+            const auto tb = fmt_ctx_->streams[video_stream_idx_]->time_base;
+            if (!native_presentation_ready_) {
+                native_presentation_ready_ = native_presentation_clock_.Initialize(
+                    saved_pts, tb.num, tb.den, timestamp, arrival_ms, 30000);
+                native_presentation_timebase_num_ = tb.num;
+                native_presentation_timebase_den_ = tb.den;
+            }
+            const bool same_timebase =
+                tb.num == native_presentation_timebase_num_ && tb.den == native_presentation_timebase_den_;
+            const auto mapped = native_presentation_ready_ && same_timebase
+                                    ? native_presentation_clock_.Convert(saved_pts, arrival_ms)
+                                    : std::nullopt;
+            if (mapped) {
+                pkt->presentation_time_valid   = true;
+                pkt->presentation_timestamp_ms = mapped->wall_ms;
+                pkt->presentation_steady_ms    = mapped->steady_ms;
+            } else {
+                native_presentation_fault_ = true;
+            }
+        }
+        // Both arrival and derived presentation values are included in this
+        // demux-minted packet witness and checked against the retained AU.
+        pkt->color_witness = native_color_witness_enabled_ && pkt->presentation_time_valid
+                                 ? VideoPacketColorWitness::Create(*pkt)
+                                 : nullptr;
+#else
+        pkt->color_witness = native_color_witness_enabled_ ? VideoPacketColorWitness::Create(*pkt) : nullptr;
+#endif
 
         // NOTE: Intentionally ignoring dynamic resolution changes here to prevent pipeline crashes.
 

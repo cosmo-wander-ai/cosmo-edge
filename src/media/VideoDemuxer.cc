@@ -113,6 +113,12 @@ namespace media {
         ready_  = false;
         end_    = false;
         pts_    = 0;
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+        native_presentation_clock_.Reset();
+        native_presentation_ready_        = false;
+        native_presentation_fault_        = false;
+        native_presentation_timebase_num_ = native_presentation_timebase_den_ = 0;
+#endif
         stream_opened_cnt_ += 1;
         frame_index_      = 0;
         packet_index_     = 0;

@@ -1,6 +1,11 @@
 // Picture-detection task base — task creation, deletion, action init/destroy and param modification.
 
 #include "flow/task/PTaskBase.h"
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+#include "nn/device/axera/axera_jfif_face_contract.h"
+#include "nn/device/axera/axera_jfif_fire_contract.h"
+#include "nn/device/axera/axera_jfif_person_contract.h"
+#endif
 
 #include <algorithm>
 #include <filesystem>
@@ -125,6 +130,15 @@ bool PTaskBase::TaskDelete(PTaskElementPtr task) {
 }
 
 bool PTaskBase::TaskActionInit(PTaskElementPtr task) {
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+    if (task && (nn::axera::jfif_fire_contract::Scene(task->GetAlgId()) ||
+                 nn::axera::jfif_person_contract::Scene(task->GetAlgId()) ||
+                 nn::axera::jfif_face_contract::Scene(task->GetAlgId()))) {
+        task->is_started       = true;
+        task->startFailedCount = 0;
+        return true;
+    }
+#endif
     if (task->is_started) {
         LOG_INFO("[{} {}] Alread Started", task->taskId, task->GetAlgName());
         return true;
@@ -170,6 +184,14 @@ bool PTaskBase::TaskActionInit(PTaskElementPtr task) {
 }
 
 bool PTaskBase::TaskActionDestroy(PTaskElementPtr task) {
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+    if (task && (nn::axera::jfif_fire_contract::Scene(task->GetAlgId()) ||
+                 nn::axera::jfif_person_contract::Scene(task->GetAlgId()) ||
+                 nn::axera::jfif_face_contract::Scene(task->GetAlgId()))) {
+        task->is_started = false;
+        return true;
+    }
+#endif
     for (auto& taNode : task->actions) {
         LOG_DEBUG("[{} {}] {} root:{} task:{}", task->taskId, task->GetAlgName(), taNode.action.actionName,
                   task->flowActionId, taNode.action.flowActionId);

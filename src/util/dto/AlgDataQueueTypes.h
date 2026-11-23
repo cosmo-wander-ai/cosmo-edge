@@ -5,6 +5,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -50,6 +51,16 @@ struct AlgActionDataQueueStatus {
     std::vector<std::string> channelIds;
     std::vector<std::string> taskIds;
     std::string actionId;
+    std::string flowActionId;
+    std::string inferenceInstanceId;
+    std::optional<uint64_t> classifierForwardSuccess;
+    std::optional<uint64_t> classifierForwardFailure;
+    std::optional<uint64_t> classifierEmptyCandidates;
+    std::optional<uint64_t> classifierNonForwardFailure;
+    std::optional<uint64_t> faceOutputOverflowCount;
+    std::optional<uint64_t> faceOutputCapacity;
+    std::optional<uint64_t> personOutputOverflowCount;
+    std::optional<uint64_t> personOutputCapacity;
     size_t alarmCount{0};
     util::ErrorEnum actionStatus{util::ErrorEnum::Success};
     AlgDataQueueInfo queueStatus;

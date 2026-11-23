@@ -78,6 +78,11 @@ namespace pipeline_utils {
 
     std::string ReadString(const nlohmann::json& json, const char* key, std::string defaults = {});
 
+    // Resolve a backend-specific model input contract. AX byte input contracts
+    // are accepted only with matching RGB normalization in this pipeline.
+    Status ResolveInputContract(const nlohmann::json& json, DeviceType device, bool detection,
+                                std::string& contract);
+
     int ReadInt(const nlohmann::json& json, const char* key, int defaults = 0);
 
     size_t ReadSize(const nlohmann::json& json, const char* key, size_t defaults = 0);

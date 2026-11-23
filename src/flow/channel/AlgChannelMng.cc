@@ -26,7 +26,8 @@ AlgChannelPtr AlgChannelMng::GetInst(const std::string& channel_id, const std::s
     auto it = std::find_if(channels_.begin(), channels_.end(),
                            [&](const AlgChannelPtr& channel) { return channel->GetChannel() == channel_id; });
     if (it != channels_.end()) {
-        (*it)->AddTask(task_id);
+        if (!(*it)->AddTask(task_id))
+            return nullptr;
         return *it;
     }
     auto channel = std::make_shared<AlgChannel>(channel_id, task_id, action);
@@ -65,7 +66,10 @@ bool AlgChannelMng::DeleteInst(AlgChannelPtr inst, const std::string& task_id) {
         return channel->GetChannel() == inst->GetChannel();
     });
     if (it != channels_.end()) {
-        if ((*it)->RmvTask(task_id)) {
+        bool empty = false;
+        if (!(*it)->RmvTask(task_id, empty))
+            return false;
+        if (empty) {
             LOG_INFO("Delete Channel:{}", inst->GetChannel());
             channels_.erase(it);
         }

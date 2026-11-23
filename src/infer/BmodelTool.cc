@@ -29,6 +29,10 @@
 #include "nn/device/rknn/rknn_yolov8_adapter.h"
 #include "rknn_api.h"
 #endif
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+#include "ax_engine_api.h"
+#include "nn/device/axera/axera_net_node.h"
+#endif
 
 namespace fs = std::filesystem;
 
@@ -322,6 +326,121 @@ BmodelInfo BmodelTool::GetBmodelInfo(const std::string& bmodelPath) {
     info.networks.push_back(std::move(network));
     info.valid = true;
     LogBmodelInfo(info, "[BmodelTool][RKNN]");
+    return info;
+}
+
+#elif defined(COSMO_NN_USE_AXERA_BACKEND)
+
+BmodelInfo BmodelTool::GetBmodelInfo(const std::string& modelPath) {
+    BmodelInfo info;
+    info.file_path = modelPath;
+    std::error_code ec;
+    const auto size = fs::file_size(modelPath, ec);
+    if (ec || size == 0 || size > std::numeric_limits<AX_U32>::max()) {
+        info.error_msg = ec ? "AX model file is inaccessible: " + modelPath : "Invalid AX model size";
+        return info;
+    }
+    std::vector<unsigned char> bytes(static_cast<size_t>(size));
+    std::ifstream stream(modelPath, std::ios::binary);
+    if (!stream.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()))) {
+        info.error_msg = "Failed to read AX model file";
+        return info;
+    }
+
+    cosmo::nn::AxeraEngineLease engine;
+    const int initialized = engine.Acquire();
+    if (initialized != 0) {
+        info.error_msg = "AX engine initialization failed: " + std::to_string(initialized);
+        return info;
+    }
+    struct HandleGuard {
+        AX_ENGINE_HANDLE handle{nullptr};
+        ~HandleGuard() {
+            if (handle)
+                AX_ENGINE_DestroyHandle(handle);
+        }
+    } guard;
+    const int created =
+        AX_ENGINE_CreateHandle(&guard.handle, bytes.data(), static_cast<AX_U32>(bytes.size()));
+    if (created != 0 || !guard.handle) {
+        info.error_msg = "AX model handle creation failed: " + std::to_string(created);
+        return info;
+    }
+    AX_ENGINE_IO_INFO_T* metadata = nullptr;
+    const int queried             = AX_ENGINE_GetIOInfo(guard.handle, &metadata);
+    if (queried != 0 || !metadata || metadata->nInputSize != 1 || metadata->nOutputSize != 1 ||
+        !metadata->pInputs || !metadata->pOutputs) {
+        info.error_msg =
+            "Unsupported AX model inputs/outputs or metadata query failed: " + std::to_string(queried);
+        return info;
+    }
+    if (metadata->pInputs[0].eDataType == AX_ENGINE_DT_UINT8) {
+        info.error_msg =
+            "AX uint8 model import requires a verified preprocessing contract in a model archive";
+        return info;
+    }
+    if (metadata->pInputs[0].pExtraMeta && metadata->pInputs[0].pExtraMeta->eColorSpace != AX_ENGINE_CS_RGB &&
+        metadata->pInputs[0].pExtraMeta->eColorSpace != AX_ENGINE_CS_FEATUREMAP) {
+        info.error_msg = "AX model input color space is not RGB";
+        return info;
+    }
+    BmodelNetworkInfo network;
+    network.name = "axera_network";
+    auto append  = [&](const AX_ENGINE_IOMETA_T& tensor, bool input, unsigned index) -> bool {
+        if (!tensor.pShape || tensor.nShapeSize == 0 || tensor.nShapeSize > 8)
+            return false;
+        if (tensor.eDataType != AX_ENGINE_DT_FLOAT32)
+            return false;
+        size_t elements = 1;
+        for (size_t i = tensor.nShapeSize; i > 0; --i) {
+            const auto dim = tensor.pShape[i - 1];
+            if (dim <= 0 ||
+                (tensor.pStride &&
+                 (tensor.pStride[i - 1] <= 0 || static_cast<size_t>(tensor.pStride[i - 1]) != elements)) ||
+                elements > std::numeric_limits<size_t>::max() / static_cast<size_t>(dim))
+                return false;
+            elements *= static_cast<size_t>(dim);
+        }
+        if (elements > std::numeric_limits<size_t>::max() / sizeof(float) ||
+            elements * sizeof(float) != tensor.nSize)
+            return false;
+        if (input &&
+            (tensor.nShapeSize != 4 || tensor.pShape[0] != 1 ||
+             (tensor.eLayout != AX_ENGINE_TENSOR_LAYOUT_NHWC &&
+              tensor.eLayout != AX_ENGINE_TENSOR_LAYOUT_NCHW) ||
+             (tensor.eLayout == AX_ENGINE_TENSOR_LAYOUT_NHWC ? tensor.pShape[3] : tensor.pShape[1]) != 3))
+            return false;
+        BmodelNodeInfo node;
+        node.name = tensor.pName && *tensor.pName ? tensor.pName
+                                                   : (input ? "input_" : "output_") + std::to_string(index);
+        for (unsigned i = 0; i < tensor.nShapeSize; ++i) {
+            if (tensor.pShape[i] <= 0)
+                return false;
+            node.shape.push_back(tensor.pShape[i]);
+        }
+        node.data_type = 0;
+        if (input && tensor.eLayout == AX_ENGINE_TENSOR_LAYOUT_NHWC && node.shape.size() == 4)
+            node.shape = {node.shape[0], node.shape[3], node.shape[1], node.shape[2]};
+        if (input)
+            network.inputs.push_back(std::move(node));
+        else
+            network.outputs.push_back(std::move(node));
+        return true;
+    };
+    if (!append(metadata->pInputs[0], true, 0)) {
+        info.error_msg = "Unsupported AX input tensor";
+        return info;
+    }
+    for (AX_U32 i = 0; i < metadata->nOutputSize; ++i) {
+        if (!append(metadata->pOutputs[i], false, i)) {
+            info.error_msg = "Unsupported AX output tensor";
+            return info;
+        }
+    }
+    network.max_batch = 1;
+    info.networks.push_back(std::move(network));
+    info.valid = true;
+    LogBmodelInfo(info, "[BmodelTool][AXERA]");
     return info;
 }
 

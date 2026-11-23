@@ -2,7 +2,12 @@
 
 #include "media/VideoFrame.h"
 
+#ifdef COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST
+#include "nn/device/axera/axera_face_diagnostics.h"
+#endif
+
 #include <atomic>
+#include <cstdlib>
 #include <exception>
 #include <mutex>
 #include <thread>
@@ -55,6 +60,9 @@ namespace media {
             return;
         }
 
+#ifdef COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST
+        cosmo::nn::axera::diagnostics::RecordHostPixelAllocation();
+#endif
         frame_index_ = frameIndex;
         timestamp_   = ts;
         uuid_        = util::GenerateUUID();
@@ -76,6 +84,28 @@ namespace media {
         uuid_          = util::GenerateUUID();
         deferred_data_ = std::make_shared<DeferredData>(std::move(materializer));
         active_        = true;
+#ifdef COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST
+        cosmo::nn::axera::diagnostics::RecordMetadataFrameConstruct();
+#endif
+    }
+
+    VideoFrame::VideoFrame(int w, int h, PixelFormat fmt, uint64_t frameIndex, int64_t ts, MetadataOnlyTag) {
+        const auto frame_size = PixelFormatUtils::CalculateFrameSize(w, h, fmt);
+        if (!frame_size)
+            return;
+        pixel_fmt_     = fmt;
+        width_         = static_cast<size_t>(w);
+        height_        = static_cast<size_t>(h);
+        channel_       = PixelFormatUtils::PixelFormatChannels(fmt);
+        size_          = *frame_size;
+        frame_index_   = frameIndex;
+        timestamp_     = ts;
+        uuid_          = util::GenerateUUID();
+        metadata_only_ = true;
+        active_        = true;
+#ifdef COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST
+        cosmo::nn::axera::diagnostics::RecordMetadataFrameConstruct();
+#endif
     }
 
     VideoFrame& VideoFrame::operator=(VideoFrame&& data) noexcept {
@@ -85,16 +115,17 @@ namespace media {
                 block_ = nullptr;
             }
             Clear();
-            size_         = data.GetSize();
-            width_        = data.GetWidth();
-            height_       = data.GetHeight();
-            channel_      = data.GetChannel();
-            pixel_fmt_    = data.GetPixelFormat();
-            frame_index_  = data.GetFrameIndex();
-            timestamp_    = data.GetTimestamp();
-            stream_index_ = data.GetStreamIndex();
-            active_       = data.Active();
-            uuid_         = util::GenerateUUID();
+            size_          = data.GetSize();
+            width_         = data.GetWidth();
+            height_        = data.GetHeight();
+            channel_       = data.GetChannel();
+            pixel_fmt_     = data.GetPixelFormat();
+            frame_index_   = data.GetFrameIndex();
+            timestamp_     = data.GetTimestamp();
+            stream_index_  = data.GetStreamIndex();
+            active_        = data.Active();
+            metadata_only_ = data.metadata_only_;
+            uuid_          = util::GenerateUUID();
 
             block_           = data.block_;
             host_frame_data_ = data.host_frame_data_;
@@ -102,6 +133,7 @@ namespace media {
 
             data.block_           = nullptr;
             data.host_frame_data_ = nullptr;
+            data.metadata_only_   = false;
 
             data.Clear();
         }
@@ -109,12 +141,13 @@ namespace media {
     }
 
     void VideoFrame::Clear() {
-        active_      = false;
-        size_        = 0;
-        width_       = 0;
-        height_      = 0;
-        frame_index_ = 0;
-        timestamp_   = 0;
+        active_        = false;
+        metadata_only_ = false;
+        size_          = 0;
+        width_         = 0;
+        height_        = 0;
+        frame_index_   = 0;
+        timestamp_     = 0;
         deferred_data_.reset();
 
         if (host_frame_data_) {
@@ -196,25 +229,49 @@ namespace media {
         return deferred_data_ && !deferred_data_->completed.load(std::memory_order_acquire);
     }
 
+    bool VideoFrame::IsMetadataOnly() const {
+        return active_ && metadata_only_;
+    }
+
     std::string VideoFrame::GetName() const {
         return uuid_;
     }
 
     uint8_t* VideoFrame::GetHostData() {
+#ifdef COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST
+        cosmo::nn::axera::diagnostics::RecordGetHostData();
+#endif
         return host_frame_data_;
     }
 
     void VideoFrame::SetHostData(uint8_t* data) {
+#ifdef COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST
+        if (data)
+            cosmo::nn::axera::diagnostics::RecordHostDataBinding();
+#endif
+        if (metadata_only_ && data) {
+            std::free(data);
+            LOG_WARN("{}", "Cannot bind host pixels to a metadata-only frame");
+            return;
+        }
         host_frame_data_ = data;
     }
 
     uint8_t* VideoFrame::GetData() {
+#ifdef COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST
+        cosmo::nn::axera::diagnostics::RecordGetData();
+#endif
+        if (metadata_only_)
+            return nullptr;
         if (deferred_data_) {
             std::call_once(deferred_data_->once, [this]() {
                 // Consume the provider even on failure, so parallel consumers
                 // see the same result and never repeat a failed conversion.
                 auto materializer = std::move(deferred_data_->materializer);
                 try {
+#ifdef COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST
+                    cosmo::nn::axera::diagnostics::RecordMaterializer();
+#endif
                     auto frame = materializer();
                     if (frame && frame.get() != this && frame->Active() && frame->GetWidth() == width_ &&
                         frame->GetHeight() == height_ && frame->GetPixelFormat() == pixel_fmt_ &&
@@ -244,6 +301,12 @@ bool VideoFrameValid(VideoFramePtr frame, bool blog) {
     if (!frame) {
         if (blog)
             LOG_WARN("{}", "Frame Invalid");
+        return false;
+    }
+
+    if (frame->IsMetadataOnly()) {
+        if (blog)
+            LOG_WARN("{}", "Frame contains metadata only; pixels are unavailable");
         return false;
     }
 

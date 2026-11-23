@@ -33,7 +33,7 @@ if(COSMO_NN_USE_SOPHON_BACKEND)
         PROPERTIES COMPILE_OPTIONS "-ffp-contract=off")
 endif()
 
-if(COSMO_NN_USE_CPU_BACKEND OR COSMO_NN_USE_RKNN_BACKEND)
+if(COSMO_NN_USE_CPU_BACKEND OR COSMO_NN_USE_RKNN_BACKEND OR COSMO_NN_USE_AXERA_BACKEND)
     file(GLOB_RECURSE NN_CPU_SRC
         "${NN_DIR}/device/cpu/*.h" "${NN_DIR}/device/cpu/*.cc"
     )
@@ -41,6 +41,13 @@ if(COSMO_NN_USE_CPU_BACKEND OR COSMO_NN_USE_RKNN_BACKEND)
         "${NN_DIR}/device/host/*.h" "${NN_DIR}/device/host/*.cc"
     )
     list(APPEND NN_ALL_SRC ${NN_CPU_SRC} ${NN_HOST_SRC})
+endif()
+
+if(COSMO_NN_USE_AXERA_BACKEND)
+    file(GLOB_RECURSE NN_AXERA_SRC
+        "${NN_DIR}/device/axera/*.h" "${NN_DIR}/device/axera/*.cc"
+    )
+    list(APPEND NN_ALL_SRC ${NN_AXERA_SRC})
 endif()
 
 if(COSMO_NN_USE_RKNN_BACKEND)
@@ -86,6 +93,9 @@ if(COSMO_NN_USE_RKNN_BACKEND)
     if(COSMO_MEDIA_USE_ROCKCHIP_BACKEND)
         target_link_libraries(cosmo_nn PRIVATE rockchip_rga)
     endif()
+endif()
+if(COSMO_NN_USE_AXERA_BACKEND)
+    target_link_libraries(cosmo_nn PRIVATE axera_sys axera_engine cryptopp)
 endif()
 
 # Ensure all ExternalProject third-party targets are built before compiling NN

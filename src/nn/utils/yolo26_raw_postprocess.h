@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST
+#include "nn/device/axera/axera_face_diagnostics.h"
+#endif
+
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -24,6 +28,9 @@ inline std::vector<Yolo26RawDetection> DecodeYolo26RawHead(const float* channel_
                                                            std::size_t channel_count,
                                                            float confidence_threshold, float iou_threshold,
                                                            std::size_t max_detections) {
+#ifdef COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST
+    cosmo::nn::axera::diagnostics::RecordCpuNms();
+#endif
     std::vector<Yolo26RawDetection> candidates;
     if (!channel_major || channel_count <= 4 || candidate_count == 0 || max_detections == 0 ||
         !std::isfinite(confidence_threshold) || confidence_threshold < 0.f || confidence_threshold > 1.f ||

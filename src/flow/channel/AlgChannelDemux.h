@@ -45,8 +45,12 @@ public:
     // startFrameSeq: start frame sequence (output)
     bool RecordMp4(RecordParam& recordParam);
 
-    void Start();
-    void Stop();
+    bool Start();
+    bool Stop();
+
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    bool SetNativeFaceWitnessBeforeStart(bool enabled);
+#endif
 
     void QueueStatus(std::vector<AlgActionDataQueueStatus>& queStatus, unsigned int durationSec);
 
@@ -76,11 +80,15 @@ public:
     }
 
     bool GetAttr(MsgCameraAttr& attr);
+    bool GetPreviewAttr(MsgCameraAttr& attr);
 
     bool SetForStartTask();
 
     void AddViewerPacketQueue(std::shared_ptr<AsyncQueue<VideoPacketPtr>> asyncPacketQueue);
+    void AddIsolatedViewerPacketQueue(std::shared_ptr<AsyncQueue<VideoPacketPtr>> asyncPacketQueue);
     void RemoveViewerPacketQueue(std::shared_ptr<AsyncQueue<VideoPacketPtr>> asyncPacketQueue);
+    bool HasPacketViewers() const;
+    bool HasUnisolatedPacketViewers() const;
 
 protected:
     // Thread entry point override.
@@ -119,6 +127,7 @@ private:
     VideoPacketPtr last_frame_;
     mutable util::ErrorEnum action_status_{util::ErrorEnum::Success};
     std::vector<std::shared_ptr<AsyncQueue<VideoPacketPtr>>> async_packet_queues_;
+    std::vector<std::shared_ptr<AsyncQueue<VideoPacketPtr>>> isolated_packet_queues_;
     AlgChannelMp4Ptr recorder_;
     media::VideoDemuxer demuxer_;
     util::DurationStat duration_stat_;

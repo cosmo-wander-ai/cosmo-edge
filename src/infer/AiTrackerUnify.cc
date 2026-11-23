@@ -71,7 +71,7 @@ util::ErrorEnum AiTrackerUnify::Trace(std::vector<AiDetectRstEl>& input, std::ve
     std::vector<cosmo::nn::TrackingBox> track_output;
 
     auto ret = tracker_->Trace(track_input, track_output);
-    if (0 != ret) {
+    if (!bool(ret)) {
         return util::ErrorEnum::AI_TRACK_FAILED;
     }
 
@@ -105,7 +105,7 @@ util::ErrorEnum AiTrackerUnify::SetConfidence(std::vector<AiConfidence> confiden
         return util::ErrorEnum::Success;
     }
     auto ret = tracker_->SetTrackerConfig(track_config_);
-    if (0 != ret) {
+    if (!bool(ret)) {
         return util::ErrorEnum::AI_TRACK_FAILED;
     }
     return util::ErrorEnum::Success;
@@ -126,7 +126,7 @@ util::ErrorEnum AiTrackerUnify::SetConfidence(AiConfidence confidence) {
             track_config_.thresh[index]     = confidence.confidence;
             track_config_.thresh_low[index] = track_config_.thresh[index] * 0.7f;
             auto ret                        = tracker_->SetTrackerConfig(track_config_);
-            if (0 != ret) {
+            if (!bool(ret)) {
                 return util::ErrorEnum::AI_TRACK_FAILED;
             }
             break;
@@ -158,7 +158,7 @@ util::ErrorEnum AiTrackerUnify::SetConfig(float motion_iou, int motion_length, d
     LOG_INFO("Track SetTrackerConfig  motion_iou:{} motion_length:{} dynamic_match:{}", motion_iou,
              motion_length, dynamic_match);
     auto ret = tracker_->SetTrackerConfig(track_config_);
-    if (0 != ret) {
+    if (!bool(ret)) {
         return util::ErrorEnum::AI_TRACK_FAILED;
     }
     return util::ErrorEnum::Success;
@@ -220,6 +220,11 @@ std::vector<AiDetectRstEl> AiTrackerUnify::TrackEl2DetEl(const std::vector<cosmo
                     det_box_el.confidence.confidence == detection.confidence.confidence)
                     det_box_el.confidence.source = detection.confidence.source;
                 det_box_el.oriented_corners = detection.oriented_corners;
+                if (detection.hasJointPersonAttributes) {
+                    det_box_el.hasJointPersonAttributes = true;
+                    det_box_el.classifyRst              = detection.classifyRst;
+                    det_box_el.attrRst                  = detection.attrRst;
+                }
             } else {
                 det_box_el.targetId = util::GenerateUUID();
             }

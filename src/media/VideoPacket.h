@@ -5,9 +5,12 @@
 #include <memory>
 #include <vector>
 
+#include "media/NativeVideoBuffer.h"
 #include "media/VideoCodecType.h"
 
 namespace cosmo::media {
+
+class VideoPacketColorWitness;
 
 struct VideoPacket {
     VideoPacket() = default;
@@ -35,6 +38,20 @@ struct VideoPacket {
     int64_t pts             = 0;
     int64_t timestamp       = 0;
     int64_t timestamp_epoch = 0;
+    // The original fields above remain packet-arrival clocks. These separate
+    // fields are demux-derived presentation clocks, bound by color_witness.
+    bool presentation_time_valid      = false;
+    int64_t presentation_timestamp_ms = 0;
+    int64_t presentation_steady_ms    = 0;
+
+    // Container values are only conflict evidence, never sufficient by
+    // themselves to attest color for a decoded frame.
+    bool color_container_present                = false;
+    NativeVideoColorSpace container_color_space = NativeVideoColorSpace::Unspecified;
+    NativeVideoColorRange container_color_range = NativeVideoColorRange::Unspecified;
+    bool color_parameter_change                 = false;
+    bool color_packet_pts_correlated            = false;
+    std::shared_ptr<const VideoPacketColorWitness> color_witness;
 
     std::chrono::steady_clock::time_point time_point;
 

@@ -36,6 +36,7 @@ private:
     int top_k                = 300;
     bool raw_output_         = false;
     bool auto_detect_output_ = false;
+    bool person_attributes_  = false;
     bool valid_params_       = false;
     int top_col              = 6;
 

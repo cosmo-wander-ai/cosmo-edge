@@ -25,7 +25,10 @@ public:
     Status ParseFeatureOutput(std::vector<std::vector<float>>& outputs) override;
 
 private:
-    int max_batch_ = 1;
+    int max_batch_            = 1;
+    size_t expected_batch_    = 0;
+    bool allow_fixed_padding_ = false;
+    bool output_ready_        = false;
 };
 
 }  // namespace cosmo::nn

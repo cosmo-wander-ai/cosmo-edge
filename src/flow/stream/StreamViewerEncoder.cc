@@ -20,19 +20,27 @@ StreamViewerEncoder::~StreamViewerEncoder() {
 }
 
 StreamViewerEncoder::StreamViewerEncoder(media::VideoCodecType videoType, int width, int height,
-                                         RtmpStreamPusherPtr videoPusher, uint64_t timedPreviewToken)
+                                         RtmpStreamPusherPtr videoPusher, uint64_t timedPreviewToken,
+                                         std::atomic<bool>* ownerPermanentFailure)
     : video_type_(videoType),
       width_(width),
       height_(height),
       video_pusher_(videoPusher),
       timed_preview_token_(timedPreviewToken),
+      owner_permanent_failure_(ownerPermanentFailure),
       async_queue_("StreamViewerEncoderQueue", 8),
       duration_stat_("Encode") {
     if (!OpenEncoder()) {
         return;
     }
 
-    async_queue_.SetProcessor([this](VideoFramePtr&& data) { ProcFrame(std::move(data)); });
+    async_queue_.SetProcessor([this](VideoFramePtr&& data) {
+        try {
+            ProcFrame(std::move(data));
+        } catch (...) {
+            MarkPermanentFault();
+        }
+    });
     LOG_INFO("{}", "Encoder Create Success");
 }
 
@@ -51,7 +59,7 @@ bool StreamViewerEncoder::OpenEncoder() {
 }
 
 bool StreamViewerEncoder::HandFrame(VideoFramePtr frame) {
-    if (encoder_) {
+    if (IsOpened()) {
         debug_info_.recvFrames += 1;
         // Viewer prioritizes freshness: drop old queued frames when overloaded.
         return async_queue_.Insert(frame, true);
@@ -60,7 +68,7 @@ bool StreamViewerEncoder::HandFrame(VideoFramePtr frame) {
 }
 
 void StreamViewerEncoder::ProcFrame(VideoFramePtr frame) {
-    if (encoder_) {
+    if (IsOpened()) {
         if (frame && frame->GetPixelFormat() != media::PixelFormat::PIXEL_I420) {
             auto& transform = service::ServiceRegistry::Instance().Get<service::IVideoFrameTransform>();
             if (frame->GetPixelFormat() == media::PixelFormat::PIXEL_BGR8) {
@@ -87,6 +95,9 @@ void StreamViewerEncoder::ProcFrame(VideoFramePtr frame) {
         media::GetPreviewPipelineMetrics().RecordTimedEncode(timed_preview_token_,
                                                              static_cast<uint64_t>(encodeNanoseconds));
         if (!packet) {
+            if (encoder_->IsPermanentlyFaulted()) {
+                MarkPermanentFault();
+            }
             return;
         }
         if (video_pusher_) {
@@ -95,5 +106,12 @@ void StreamViewerEncoder::ProcFrame(VideoFramePtr frame) {
         }
     }
     return;
+}
+
+void StreamViewerEncoder::MarkPermanentFault() noexcept {
+    permanent_fault_.store(true, std::memory_order_release);
+    if (owner_permanent_failure_) {
+        owner_permanent_failure_->store(true, std::memory_order_release);
+    }
 }
 }  // namespace cosmo

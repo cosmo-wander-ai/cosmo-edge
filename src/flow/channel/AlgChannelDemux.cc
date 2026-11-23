@@ -4,6 +4,7 @@
 
 #include <algorithm>
 
+#include "flow/channel/NativeRawPreview.h"
 #include "flow/channel/VideoEofPolicy.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/event/IEventNotifier.h"
@@ -81,12 +82,32 @@ void AlgChannelDemux::AddViewerPacketQueue(std::shared_ptr<AsyncQueue<VideoPacke
     }
 }
 
+void AlgChannelDemux::AddIsolatedViewerPacketQueue(std::shared_ptr<AsyncQueue<VideoPacketPtr>> queue) {
+    std::lock_guard<std::shared_mutex> lock(demux_mtx_);
+    if (queue && std::find(isolated_packet_queues_.begin(), isolated_packet_queues_.end(), queue) ==
+                     isolated_packet_queues_.end())
+        isolated_packet_queues_.push_back(std::move(queue));
+}
+
 void AlgChannelDemux::RemoveViewerPacketQueue(
     std::shared_ptr<AsyncQueue<VideoPacketPtr>> async_packet_queue) {
     std::lock_guard<std::shared_mutex> lock(demux_mtx_);
     async_packet_queues_.erase(
         std::remove(async_packet_queues_.begin(), async_packet_queues_.end(), async_packet_queue),
         async_packet_queues_.end());
+    isolated_packet_queues_.erase(
+        std::remove(isolated_packet_queues_.begin(), isolated_packet_queues_.end(), async_packet_queue),
+        isolated_packet_queues_.end());
+}
+
+bool AlgChannelDemux::HasPacketViewers() const {
+    std::shared_lock<std::shared_mutex> lock(demux_mtx_);
+    return !async_packet_queues_.empty() || !isolated_packet_queues_.empty();
+}
+
+bool AlgChannelDemux::HasUnisolatedPacketViewers() const {
+    std::shared_lock<std::shared_mutex> lock(demux_mtx_);
+    return !async_packet_queues_.empty();
 }
 
 bool AlgChannelDemux::SetVideoFps(float fps) {
@@ -102,35 +123,52 @@ bool AlgChannelDemux::SetPollChannel(const std::string& channel_id) {
     return true;
 }
 
-void AlgChannelDemux::Start() {
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+bool AlgChannelDemux::SetNativeFaceWitnessBeforeStart(bool enabled) {
+    std::lock_guard<std::mutex> lock(lifecycle_mtx_);
+    return !is_running_.load() && demuxer_.SetNativeColorWitnessBeforeOpen(enabled);
+}
+#endif
+
+bool AlgChannelDemux::Start() {
     std::lock_guard<std::mutex> lock(lifecycle_mtx_);
     if (util::ProcessShutdown::Requested())
-        return;
+        return false;
     if (is_running_.exchange(true)) {
         LOG_INFO("{}:{} Already Running", kTag, channel_id_);
-        return;
+        return true;
     }
     ResetDistributor();
     demuxer_.ResetCancellation();
-    if (!start()) {
-        is_running_    = false;
+    bool started = false;
+    try {
+        started = start();
+    } catch (...) {
+        started = false;
+    }
+    if (!started) {
+        is_running_ = false;
+        demuxer_.RequestStop();
+        stop();
         action_status_ = util::ErrorEnum::ActionStop;
         LOG_ERRO("{}:{} Start failed: previous thread still joinable", kTag, channel_id_);
-        return;
+        return false;
     }
     action_status_ = util::ErrorEnum::ActionStart;
+    return true;
 }
 
-void AlgChannelDemux::Stop() {
+bool AlgChannelDemux::Stop() {
     std::lock_guard<std::mutex> lock(lifecycle_mtx_);
     LOG_INFO("{}:{} Wait To Stop", kTag, channel_id_);
-    if (!is_running_.exchange(false)) {
-        LOG_INFO("{}:{} Already Stopped", kTag, channel_id_);
-        return;
-    }
+    is_running_.store(false);
     // Interrupt FFmpeg before joining, without freeing its live context.
     demuxer_.RequestStop();
     stop();
+    // stop() refuses to join itself; keep the live demuxer until a later
+    // external stop joins its worker.
+    if (joinable())
+        return false;
     // Reset is_need_repeat_ before CloseStream. Otherwise
     // CloseStream → demuxer_.CloseStream(is_need_repeat_=true) skips closing the
     // FFmpeg context (repeat mode keeps it open for local files), causing the
@@ -140,6 +178,7 @@ void AlgChannelDemux::Stop() {
     CloseStream();
     ClearLastFrame();
     action_status_ = util::ErrorEnum::ActionStop;
+    return true;
 }
 
 bool AlgChannelDemux::OpenStream() {
@@ -315,6 +354,24 @@ void AlgChannelDemux::HandleStream() {
         for (const auto& async_packet_queue : async_packet_queues_) {
             if (async_packet_queue) {
                 async_packet_queue->Insert(frame_packet);
+            }
+        }
+        for (const auto& queue : isolated_packet_queues_) {
+            if (!queue)
+                continue;
+            if (!queue->CanAccept()) {
+                queue->RecordDiscard();
+                continue;
+            }
+            try {
+                auto snapshot = native_raw_preview::CopyPacket(frame_packet);
+                if (snapshot)
+                    queue->Insert(std::move(snapshot));
+                else
+                    queue->RecordDiscard();
+            } catch (const std::bad_alloc&) {
+                // Preview allocation failure must not interrupt inference.
+                queue->RecordDiscard();
             }
         }
     }

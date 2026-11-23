@@ -11,6 +11,8 @@
 #include <cctype>
 #include <string>
 
+#include "flow/detect/BenchDetectorPlacement.h"
+#include "flow/detect/BenchSharedPair.h"
 #include "service/detail/ServiceRegistry.h"
 #include "service/model/IModelPathMapping.h"
 #include "service/model/impl/ModelConfigParser.h"
@@ -99,6 +101,10 @@ AiDetectorPtr AiDetectMng::GetDetectorForChannel(const std::string& algCode, con
 
     std::lock_guard<std::shared_mutex> lock(m_mtx);
     auto& algInsts = m_insts[algCode];
+    // Native ScenarioBench registrations bind one detector to one task/queue.
+    // Reuse an exact existing task, but do not share it with another task.
+    const bool isolate_bench = IsScenarioBenchDetectorTask(action.atomicCode, channelId, task);
+    const bool cross_bench   = isolate_bench && BenchmarkCrossChannelEnabled();
 
     auto applyParams = [&action](const AiDetectorPtr& inst, const std::string& ch, const std::string& t) {
         if (!action.configObject.params.empty()) {
@@ -110,6 +116,16 @@ AiDetectorPtr AiDetectMng::GetDetectorForChannel(const std::string& algCode, con
     // inference and break history/overview/confidence activation, so fps budget never rejects it.
     for (size_t i = 0; i < algInsts.size(); ++i) {
         const auto& inst = algInsts[i];
+#ifdef COSMO_AXERA_SCENARIOBENCH_CANDIDATE
+        if (BenchmarkCrossChannelEnabled() && !isolate_bench && inst->HasOnlyBenchmarkBindings())
+            continue;
+        if (cross_bench && !inst->HasOnlyBenchmarkBindings())
+            continue;
+#endif
+        const auto sibling = isolate_bench ? BenchSibling(channelId, task) : std::string{};
+        if (isolate_bench && !inst->TaskExist(channelId, task) &&
+            (sibling.empty() || !inst->TaskExist(channelId, sibling)))
+            continue;
         if (inst->GetInputSize() == action.input_size && inst->ChannelExist(channelId)) {
             if (!inst->AddTask(channelId, task, requested_fps)) {
                 LOG_WARN("[{}] Channel:{} Task:{} Get {} Inst Failed", kTag, channelId, task, algCode);
@@ -127,7 +143,19 @@ AiDetectorPtr AiDetectMng::GetDetectorForChannel(const std::string& algCode, con
 
     // Rule 2: first existing instance that fits under both the dynamic channel cap and the fps budget.
     for (size_t i = 0; i < algInsts.size(); ++i) {
-        const auto& inst            = algInsts[i];
+        const auto& inst = algInsts[i];
+        if (isolate_bench && !inst->TaskExist(channelId, task)) {
+#ifdef COSMO_AXERA_SCENARIOBENCH_CANDIDATE
+            if (!cross_bench || !inst->HasOnlyBenchmarkBindings())
+                continue;
+#else
+            continue;
+#endif
+        }
+#ifdef COSMO_AXERA_SCENARIOBENCH_CANDIDATE
+        if (BenchmarkCrossChannelEnabled() && !isolate_bench && inst->HasOnlyBenchmarkBindings())
+            continue;
+#endif
         const float assigned_before = inst->AssignedFps();
         const float delta           = inst->DeltaFpsForTask(channelId, normalized_fps);
         if (inst->GetInputSize() == action.input_size && inst->CanAccept(channelId, requested_fps)) {

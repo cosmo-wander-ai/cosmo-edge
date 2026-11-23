@@ -1,5 +1,9 @@
 #pragma once
 
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+#include "media/NativePresentationClock.h"
+#endif
+
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -48,6 +52,17 @@ namespace media {
 
         void SetFile(const std::string&);
         void SetForceFps(float fps);
+        // Opt-in before opening a stream. This permits demux-origin AU
+        // witnessing; it does not itself attest color or enable inference.
+        bool SetNativeColorWitnessBeforeOpen(bool enabled) {
+            if (opened_)
+                return false;
+            native_color_witness_enabled_ = enabled;
+            return true;
+        }
+        bool EnableNativeColorWitness() {
+            return SetNativeColorWitnessBeforeOpen(true);
+        }
         void CloseStream(bool repeat = false);
         // RequestStop is safe from another thread. Reset only before starting
         // a new worker, after the previous one has joined. Close/Open/Demux
@@ -68,6 +83,11 @@ namespace media {
         }
         float GetFPS() const {
             return fps_.load(std::memory_order_relaxed);
+        }
+        // Presentation metadata may be unknown while the internal rate retains
+        // a fallback needed by existing processing paths.
+        float GetReportedFPS() const {
+            return reported_fps_unknown_.load(std::memory_order_relaxed) ? 0.0f : GetFPS();
         }
         VideoCodecType GetEncodeType() const {
             std::lock_guard<std::mutex> lock(metadata_mtx_);
@@ -121,6 +141,7 @@ namespace media {
         std::atomic<int> width_{0};
         std::atomic<int> height_{0};
         std::atomic<float> fps_{0};
+        std::atomic<bool> reported_fps_unknown_{false};
         float video_force_fps_{-1.0};  // Forced stream reading frame rate
         std::condition_variable cond_;
         int64_t duration_active_{-1};            // Frame duration used to calculate frame index
@@ -144,6 +165,14 @@ namespace media {
         std::vector<uint8_t> extradata_;    // Cached codec extradata (avcC/hevcC) from FindStream
         bool opened_{false};
         bool ready_{false};
+        bool native_color_witness_enabled_{false};
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+        native_presentation::PresentationClock native_presentation_clock_;
+        bool native_presentation_ready_{false};
+        bool native_presentation_fault_{false};
+        bool native_fps_control_fault_{false};
+        int native_presentation_timebase_num_{0}, native_presentation_timebase_den_{0};
+#endif
         bool end_{false};
 
         bool key_frame_detected_;

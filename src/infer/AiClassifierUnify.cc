@@ -6,13 +6,18 @@
 #include <iterator>
 #include <numeric>
 
+#include "infer/ClassifierResultContract.h"
 #include "util/Log.h"
 #include "util/UuidUtil.h"
 
 namespace cosmo {
 AiClassifierUnify::AiClassifierUnify(const std::string& atomic_code, const std::string& json_path,
-                                     const std::string& model_path)
-    : atomic_code_(atomic_code), cfg_path_(json_path), model_path_(model_path) {}
+                                     const std::string& model_path,
+                                     std::shared_ptr<ClassifierExecutionCounters> counters)
+    : atomic_code_(atomic_code),
+      cfg_path_(json_path),
+      model_path_(model_path),
+      counters_(std::move(counters)) {}
 
 AiClassifierUnify::~AiClassifierUnify() {
     LOG_INFO("{}", "AiClassifierUnify Delete");
@@ -43,7 +48,8 @@ util::ErrorEnum AiClassifierUnify::Classify(const VideoFramePtr& image, std::vec
 
     std::vector<VideoFramePtr> images;
     images.push_back(image);
-    for (auto& io_el : io_rst) {
+    auto staged = io_rst;
+    for (auto& io_el : staged) {
         std::vector<AiDetectRstEl> io_puts;
         io_puts.push_back(io_el);
         auto ret = Classify(images, io_puts, use_box);
@@ -54,6 +60,7 @@ util::ErrorEnum AiClassifierUnify::Classify(const VideoFramePtr& image, std::vec
         io_el = io_puts[0];
     }
 
+    io_rst = std::move(staged);
     return util::ErrorEnum::Success;
 }
 
@@ -131,7 +138,8 @@ util::ErrorEnum AiClassifierUnify::Classify(const std::vector<VideoFramePtr>& im
         return ret;
     }
 
-    auto status = classifier_->Forward({image_blobs, data_blobs});
+    auto do_forward = [&] { return classifier_->Forward({image_blobs, data_blobs}); };
+    auto status     = counters_ ? counters_->RunForward(do_forward) : do_forward();
     if (!bool(status)) {
         LOG_ERRO("Forward Failed.({})", status.description());
         return util::ErrorEnum::AI_FORWARD_FAILED;
@@ -140,6 +148,11 @@ util::ErrorEnum AiClassifierUnify::Classify(const std::vector<VideoFramePtr>& im
     status = classifier_->ParseOutput<cosmo::nn::ObjectInfoV1>(outputs);
     if (!bool(status)) {
         LOG_ERRO("ParseOutput Failed.({})", status.description());
+        return util::ErrorEnum::AI_PARSE_OUTPUT_FAILED;
+    }
+    if (!ValidateClassifierResults(outputs, io_rst.size(), max_batch_size_,
+                                   GetDeviceType() == cosmo::nn::DEVICE_SOPHON_TPU)) {
+        LOG_ERRO("Classification output count does not match input count");
         return util::ErrorEnum::AI_PARSE_OUTPUT_FAILED;
     }
 
@@ -163,16 +176,16 @@ util::ErrorEnum AiClassifierUnify::ClassifyMultSub(
         LOG_ERRO("{}", "Images Not Equal Rect Num");
         return util::ErrorEnum::InvalidParam;
     }
-    size_t i = 0;
-    for (i = 0; i < images.size(); i++) {
+    auto staged = io_rst;
+    for (size_t i = 0; i < images.size(); i++) {
         std::vector<VideoFramePtr> imageInputs;
         imageInputs.push_back(images[i]);
         std::vector<media::NativeVideoBufferPtr> nativeInputs;
         nativeInputs.push_back(i < native_buffers.size() ? native_buffers[i] : nullptr);
-        for (size_t j = 0; j < io_rst[i].size(); j++) {
-            for (size_t k = 0; k < io_rst[i][j].relatedEls.size(); k++) {
+        for (size_t j = 0; j < staged[i].size(); j++) {
+            for (size_t k = 0; k < staged[i][j].relatedEls.size(); k++) {
                 AiDetectRstEl el;
-                el.box = io_rst[i][j].relatedEls[k].box;
+                el.box = staged[i][j].relatedEls[k].box;
                 std::vector<AiDetectRstEl> io_puts;
                 io_puts.push_back(el);
 
@@ -181,14 +194,15 @@ util::ErrorEnum AiClassifierUnify::ClassifyMultSub(
                     LOG_INFO("{}", "Classify Fail");
                     return ret;
                 }
-                io_rst[i][j].classifyRst.insert(io_rst[i][j].classifyRst.begin(),
+                staged[i][j].classifyRst.insert(staged[i][j].classifyRst.begin(),
                                                 io_puts[0].classifyRst.begin(), io_puts[0].classifyRst.end());
-                io_rst[i][j].relatedEls[k].classifyRst.insert(io_rst[i][j].relatedEls[k].classifyRst.end(),
+                staged[i][j].relatedEls[k].classifyRst.insert(staged[i][j].relatedEls[k].classifyRst.end(),
                                                               io_puts[0].classifyRst.begin(),
                                                               io_puts[0].classifyRst.end());
             }
         }
     }
+    io_rst = std::move(staged);
     return util::ErrorEnum::Success;
 }
 
@@ -239,6 +253,9 @@ util::ErrorEnum AiClassifierUnify::Classify(const std::vector<VideoFramePtr>& im
     std::vector<media::NativeVideoBufferPtr> input_native_buffers;
     std::vector<std::vector<std::vector<int>>> input_datas;
     std::vector<std::pair<size_t, size_t>> indexes;
+    using Batch =
+        std::pair<std::vector<std::vector<cosmo::nn::ObjectInfoV1>>, std::vector<std::pair<size_t, size_t>>>;
+    std::vector<Batch> completed_batches;
     size_t total = std::accumulate(io_rst.begin(), io_rst.end(), size_t{0},
                                    [](size_t sum, const auto& v) { return sum + v.size(); });
     size_t count = 0;
@@ -265,7 +282,12 @@ util::ErrorEnum AiClassifierUnify::Classify(const std::vector<VideoFramePtr>& im
                     LOG_ERRO("Forward Failed. Ret:{}", ret);
                     return ret;
                 }
-                DispatchBatchResults(outputs, indexes, io_rst);
+                if (!ValidateClassifierResults(outputs, indexes.size(), max_batch_size_,
+                                               GetDeviceType() == cosmo::nn::DEVICE_SOPHON_TPU)) {
+                    LOG_ERRO("Classification output count does not match input count");
+                    return util::ErrorEnum::AI_PARSE_OUTPUT_FAILED;
+                }
+                completed_batches.emplace_back(std::move(outputs), std::move(indexes));
                 input_images.clear();
                 input_native_buffers.clear();
                 input_datas.clear();
@@ -278,6 +300,8 @@ util::ErrorEnum AiClassifierUnify::Classify(const std::vector<VideoFramePtr>& im
         }
     }
 
+    for (const auto& batch : completed_batches)
+        DispatchBatchResults(batch.first, batch.second, io_rst);
     return util::ErrorEnum::Success;
 }
 

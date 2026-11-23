@@ -16,6 +16,14 @@ util::ErrorEnum ConvertImagesToBlobs(const std::vector<VideoFramePtr>& images,
                                      const std::vector<media::NativeVideoBufferPtr>& native_buffers,
                                      std::vector<std::shared_ptr<cosmo::nn::Blob>>& blobs);
 
+namespace detail {
+    // The explicit backend argument permits CPU tests of backend-specific admission.
+    util::ErrorEnum ConvertImagesToBlobsForDevice(
+        const std::vector<VideoFramePtr>& images,
+        const std::vector<media::NativeVideoBufferPtr>& native_buffers,
+        std::vector<std::shared_ptr<cosmo::nn::Blob>>& blobs, cosmo::nn::DeviceType device_type);
+}  // namespace detail
+
 util::ErrorEnum ConvertDatasToBlobs(const std::vector<std::vector<int>>& datas,
                                     std::vector<std::shared_ptr<cosmo::nn::Blob>>& blobs);
 

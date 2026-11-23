@@ -147,6 +147,10 @@ void AiClassifierAttr::HandFramesEx(std::vector<AlgDataPtr> alg_datas) {
     }
 
     action_status = classifier_->Classify(in_images, io_puts);
+    if (action_status != util::ErrorEnum::Success) {
+        LOG_WARN("{}[{}] Classification failed; dropping this batch", log_tag_, GetTaskId());
+        return;
+    }
     for (size_t out = 0; out < io_puts.size(); out++) {
         auto classify_result = alg_out_datas[img_record[out]]->GetTaskResult(AlgDataType::TaskDataClassify);
         if (classify_result) {

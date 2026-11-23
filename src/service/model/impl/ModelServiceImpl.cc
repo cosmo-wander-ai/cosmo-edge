@@ -255,8 +255,12 @@ cosmo::util::ErrorEnum ModelServiceImpl::CheckModelValid(std::string un_zip_file
     bool decoded_json = false;
 
     for (const auto& file : files) {
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+        if (std::filesystem::path(file).extension() == cosmo::util::kModelFileExt) {
+#else
         if (file.find(cosmo::util::kModelFileExt) != std::string::npos ||
             file.find(".onnx") != std::string::npos || file.find(".rknn") != std::string::npos) {
+#endif
             found_model = true;
         }
         if (file.find(".json") != std::string::npos) {

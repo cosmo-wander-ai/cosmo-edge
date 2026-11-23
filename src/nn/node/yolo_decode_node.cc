@@ -4,6 +4,10 @@
 #include <cmath>
 
 #include "nn/node/node_type_utils.h"
+
+#ifdef COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST
+#include "nn/device/axera/axera_face_diagnostics.h"
+#endif
 #include "nn/utils/dims_vector_utils.h"
 #include "util/Log.h"
 
@@ -162,6 +166,9 @@ Status YoloDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blobs,
 
 void YoloDecodeNode::NMS(std::vector<std::tuple<int, float, int, bool>>& conf_list, float* bottom,
                          int bottom_col) {
+#ifdef COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST
+    cosmo::nn::axera::diagnostics::RecordCpuNms();
+#endif
     std::sort(conf_list.begin(), conf_list.end(),
               [](const std::tuple<int, float, int, bool>& a, const std::tuple<int, float, int, bool>& b) {
                   return std::get<1>(a) > std::get<1>(b);

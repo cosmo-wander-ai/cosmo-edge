@@ -61,6 +61,7 @@ bool AiClassifierGroup::SetArea(const std::string& /*channelId*/, const std::str
         SetAssoAreas(area.associatedAreas);
         group_area_datas_.push_back(area_data);
     }
+    ++group_state_generation_;
     return true;
 }
 
@@ -113,9 +114,10 @@ bool AiClassifierGroup::GenGroupEl(AiGroupEl& el) {
     return false;
 }
 
-std::vector<AiGroupEl> AiClassifierGroup::GenGroupEmements() {
+std::vector<AiGroupEl> AiClassifierGroup::GenGroupEmements(std::vector<GroupAreaData>& areas,
+                                                           int& next_group_id) {
     std::vector<AiGroupEl> group_targets;
-    for (auto& area_data : group_area_datas_) {
+    for (auto& area_data : areas) {
         AiGroupEl el;
         // Check if current and previous targets differ.
         auto sorted_new = area_data.targets;
@@ -124,7 +126,7 @@ std::vector<AiGroupEl> AiClassifierGroup::GenGroupEmements() {
         std::sort(sorted_old.begin(), sorted_old.end());
         if (sorted_new != sorted_old) {
             // Targets changed; assign a new group ID.
-            area_data.group_id        = group_id_++;
+            area_data.group_id        = next_group_id++;
             area_data.group_id_string = util::GenerateUUID();
         }
         area_data.last_targets = area_data.targets;
@@ -150,10 +152,9 @@ std::vector<AiGroupEl> AiClassifierGroup::GenGroupEmements() {
     return group_targets;
 }
 
-// Populate group_area_datas_ with targets from each area.
-void AiClassifierGroup::GenAreaSource(DataDetTrackClassifyPtr input) {
-    std::shared_lock<std::shared_mutex> lock(mtx);
-    for (auto& area_data : group_area_datas_) {
+// Populate the batch-local area state with targets from each area.
+void AiClassifierGroup::GenAreaSource(DataDetTrackClassifyPtr input, std::vector<GroupAreaData>& areas) {
+    for (auto& area_data : areas) {
         // Clear targets for each area.
         area_data.targets.clear();
         area_data.real_targets.clear();
@@ -216,6 +217,19 @@ void AiClassifierGroup::HandFramesEx(std::vector<AlgDataPtr> alg_datas) {
     std::vector<int> img_record;
     std::vector<AlgDataPtr> alg_out_datas;
 
+    // Keep identity updates local until every classification in the batch has
+    // succeeded. A concurrent SetArea invalidates the snapshot rather than
+    // being overwritten by a rollback or a stale commit.
+    std::vector<GroupAreaData> staged_areas;
+    int staged_group_id;
+    uint64_t snapshot_generation;
+    {
+        std::shared_lock<std::shared_mutex> lock(mtx);
+        staged_areas        = group_area_datas_;
+        staged_group_id     = group_id_;
+        snapshot_generation = group_state_generation_;
+    }
+
     size_t image_num = alg_datas.size();
     for (size_t i = 0; i < image_num; i++) {
         auto alg_data               = alg_datas[i];
@@ -247,10 +261,10 @@ void AiClassifierGroup::HandFramesEx(std::vector<AlgDataPtr> alg_datas) {
         result->bHaveShieldedArea = input->bHaveShieldedArea;
         alg_out_datas.push_back(alg_out_data);
         // Populate area-based target data.
-        GenAreaSource(input);
+        GenAreaSource(input, staged_areas);
 
         // Generate group classification targets.
-        auto group_targets   = GenGroupEmements();
+        auto group_targets   = GenGroupEmements(staged_areas, staged_group_id);
         result->groupTargets = group_targets;
         size_t box_nums      = group_targets.size();
         for (size_t j = 0; j < box_nums; j++) {
@@ -261,6 +275,10 @@ void AiClassifierGroup::HandFramesEx(std::vector<AlgDataPtr> alg_datas) {
 
             if ((in_images.size() == batch_count_) || ((i == (image_num - 1)) && (j == (box_nums - 1)))) {
                 action_status = classifier_->Classify(in_images, io_puts);
+                if (action_status != util::ErrorEnum::Success) {
+                    LOG_WARN("{}[{}] Classification failed; dropping this batch", log_tag_, GetTaskId());
+                    return;
+                }
                 for (size_t out = 0; out < io_puts.size(); out++) {
                     alg_out_datas[img_record[out]]
                         ->GetTaskResult(AlgDataType::TaskDataClassify)
@@ -275,6 +293,10 @@ void AiClassifierGroup::HandFramesEx(std::vector<AlgDataPtr> alg_datas) {
 
     if (!in_images.empty()) {
         action_status = classifier_->Classify(in_images, io_puts);
+        if (action_status != util::ErrorEnum::Success) {
+            LOG_WARN("{}[{}] Classification failed; dropping this batch", log_tag_, GetTaskId());
+            return;
+        }
         for (size_t out = 0; out < io_puts.size(); out++) {
             alg_out_datas[img_record[out]]
                 ->GetTaskResult(AlgDataType::TaskDataClassify)
@@ -283,6 +305,18 @@ void AiClassifierGroup::HandFramesEx(std::vector<AlgDataPtr> alg_datas) {
         in_images.clear();
         io_puts.clear();
         img_record.clear();
+    }
+
+    {
+        std::lock_guard<std::shared_mutex> lock(mtx);
+        if (group_state_generation_ != snapshot_generation) {
+            action_status = util::ErrorEnum::FlowDataInvalid;
+            LOG_WARN("{}[{}] Group area configuration changed; dropping this batch", log_tag_, GetTaskId());
+            return;
+        }
+        group_area_datas_ = std::move(staged_areas);
+        group_id_         = staged_group_id;
+        ++group_state_generation_;
     }
 
     for (size_t i = 0; i < alg_out_datas.size(); i++) {

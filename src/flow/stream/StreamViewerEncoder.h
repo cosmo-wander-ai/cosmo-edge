@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <list>
 #include <memory>
@@ -21,12 +22,13 @@ namespace cosmo {
 class StreamViewerEncoder {
 public:
     StreamViewerEncoder(media::VideoCodecType videoType, int width, int height,
-                        RtmpStreamPusherPtr videoPusher, uint64_t timedPreviewToken = 0);
+                        RtmpStreamPusherPtr videoPusher, uint64_t timedPreviewToken = 0,
+                        std::atomic<bool>* ownerPermanentFailure = nullptr);
     ~StreamViewerEncoder();
 
     bool HandFrame(VideoFramePtr frame);
     bool IsOpened() const {
-        return encoder_ != nullptr;
+        return encoder_ != nullptr && !permanent_fault_.load(std::memory_order_acquire);
     }
     MsgOverviewDebugInfo GetProcInfo() {
         return debug_info_;
@@ -38,6 +40,7 @@ public:
 private:
     bool OpenEncoder();
     void ProcFrame(VideoFramePtr frame);
+    void MarkPermanentFault() noexcept;
 
     std::mutex mtx_;
     MsgOverviewDebugInfo debug_info_;
@@ -47,6 +50,8 @@ private:
     std::shared_ptr<media::VideoEncoder> encoder_ = nullptr;
     RtmpStreamPusherPtr video_pusher_{nullptr};
     uint64_t timed_preview_token_{0};
+    std::atomic<bool> permanent_fault_{false};
+    std::atomic<bool>* owner_permanent_failure_{nullptr};
     AsyncQueue<VideoFramePtr> async_queue_;
     util::DurationStat duration_stat_;
 };

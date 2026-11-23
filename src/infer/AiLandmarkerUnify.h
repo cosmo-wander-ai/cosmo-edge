@@ -39,7 +39,7 @@ private:
 
     std::vector<int> CollectRectData(const AiDetectRstEl& ioEl);
     void DispatchLandmarkResults(const std::vector<std::vector<cosmo::nn::ObjectInfoV1>>& outputs,
-                                 const std::vector<std::pair<int, int>>& indexes,
+                                 const std::vector<std::pair<size_t, size_t>>& indexes,
                                  std::vector<std::vector<AiDetectRstEl>>& ioRst);
 
     size_t max_batch_size_{1};

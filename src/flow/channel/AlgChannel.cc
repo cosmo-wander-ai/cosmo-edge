@@ -2,6 +2,9 @@
 
 #include "flow/channel/AlgChannel.h"
 
+#include "flow/channel/ChannelStartTransaction.h"
+#include "flow/channel/ChannelStopTransaction.h"
+#include "flow/channel/NativeRawPreview.h"
 #include "util/Keys.h"
 #include "util/Log.h"
 #include "util/ProcessShutdown.h"
@@ -27,12 +30,58 @@ AlgChannel::AlgChannel(const std::string& channel_id, const std::string& init_ta
 }
 
 bool AlgChannel::RegistTaskQueue(AlgTaskUnit& param) {
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    std::shared_lock<std::shared_mutex> lock(mtx_);
+    if (!native_face_reservation_.AllowsTask(param.task_id))
+        return false;
+#endif
     if (AlgDataType::ChannelDataOrig == param.dataType) {
         return demuxer_.RegistProcQueue(param);
     }
 
     return decoder_.RegistProcQueue(param);
 }
+
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+bool AlgChannel::ReserveNativeFace(const std::shared_ptr<const void>& token,
+                                   const std::string& expected_task_id) {
+    std::lock_guard<std::shared_mutex> lock(mtx_);
+    const bool joining =
+        is_started_ && native_face_reservation_.CanJoin(expected_task_id, decoder_.NativeSourceIs1080p());
+    const bool stopped = !is_started_ && base_worker_stopped_.load() && demux_worker_stopped_.load() &&
+                         decoder_worker_stopped_.load() && decoder_.NativeFaceStoppedCleanly();
+    return !lifecycle_transition_ && (joining || stopped) && active_capture_requests_ == 0 &&
+           !demuxer_.HasUnisolatedPacketViewers() && !decoder_.HasNativeIncompatibleConsumers() &&
+           native_face_reservation_.Reserve(is_started_, tasks_, token, expected_task_id, camera_owned_task_);
+}
+
+bool AlgChannel::IsReservedCameraMetadataTask(const std::string& task_id) const {
+    std::shared_lock<std::shared_mutex> lock(mtx_);
+    return camera_owned_task_ == task_id && native_face_reservation_.IsCameraMetadataTask(task_id);
+}
+
+bool AlgChannel::MarkCameraOwnedTask(const std::string& camera_task_id) {
+    std::lock_guard<std::shared_mutex> lock(mtx_);
+    if (is_started_ || lifecycle_transition_ || native_face_reservation_.Active() ||
+        !camera_owned_task_.empty() || camera_task_id != channel + "-ChannelTask" ||
+        std::find(tasks_.begin(), tasks_.end(), camera_task_id) == tasks_.end())
+        return false;
+    camera_owned_task_ = camera_task_id;
+    return true;
+}
+
+bool AlgChannel::ReleaseNativeFace(const std::shared_ptr<const void>& token) {
+    std::lock_guard<std::shared_mutex> lock(mtx_);
+    // Keep the reservation if the channel is still running. Stop() alone does
+    // not join demux/decode; Quit() must complete first.
+    if (lifecycle_transition_)
+        return false;
+    if (native_face_reservation_.HasOther(token))
+        return native_face_reservation_.Release(is_started_, token);
+    return base_worker_stopped_.load() && demux_worker_stopped_.load() && decoder_worker_stopped_.load() &&
+           decoder_.NativeFaceStoppedCleanly() && native_face_reservation_.Release(is_started_, token);
+}
+#endif
 
 bool AlgChannel::RemoveTaskQueue(AlgTaskUnit& param) {
     if (AlgDataType::ChannelDataOrig == param.dataType) {
@@ -62,17 +111,39 @@ void AlgChannel::ActionInfo(std::vector<ActionRuntimeInfo>& action_info) {
     decoder_.ActionInfo(action_info);
 }
 
-void AlgChannel::AddViewerPacketQueue(std::shared_ptr<AsyncQueue<VideoPacketPtr>> async_packet_queue) {
+bool AlgChannel::AddViewerPacketQueue(std::shared_ptr<AsyncQueue<VideoPacketPtr>> async_packet_queue) {
+    std::unique_lock<std::shared_mutex> lock(mtx_);
+    if (!async_packet_queue)
+        return false;
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    if (native_face_reservation_.Active()) {
+        if (demuxer_.GetVideoCodecType() != media::VideoCodecType::kH264 ||
+            !native_raw_preview::IsBaselineConfig(demuxer_.GetCodecExtradata()))
+            return false;
+        async_packet_queue->SetMaxSize(native_raw_preview::kQueuePackets);
+        demuxer_.AddIsolatedViewerPacketQueue(async_packet_queue);
+        return true;
+    }
+#endif
     demuxer_.AddViewerPacketQueue(async_packet_queue);
+    return true;
 }
 
 void AlgChannel::RemoveViewerPacketQueue(std::shared_ptr<AsyncQueue<VideoPacketPtr>> async_packet_queue) {
     demuxer_.RemoveViewerPacketQueue(async_packet_queue);
 }
 
-void AlgChannel::AddViewerFrameQueue(const std::string& alg_id, AsyncQueue<VideoFramePtr>& async_frame_queue,
+bool AlgChannel::AddViewerFrameQueue(const std::string& alg_id, AsyncQueue<VideoFramePtr>& async_frame_queue,
                                      std::function<bool()> prepare_frame) {
+    std::unique_lock<std::shared_mutex> lock(mtx_);
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    // Native preview is admitted only after the inference task has started,
+    // and only with the bounded, filtered host-copy path.
+    if (native_face_reservation_.Active() && (alg_id.empty() || !prepare_frame))
+        return false;
+#endif
     decoder_.AddViewerFrameQueue(alg_id, async_frame_queue, std::move(prepare_frame));
+    return true;
 }
 
 void AlgChannel::RemoveViewerFrameQueue(const std::string& alg_id) {
@@ -136,8 +207,32 @@ bool AlgChannel::GetAttr(MsgCameraAttr& attr) {
     return demuxer_.GetAttr(attr);
 }
 
+bool AlgChannel::GetPreviewAttr(MsgCameraAttr& attr) {
+    return demuxer_.GetPreviewAttr(attr);
+}
+
 VideoFramePtr AlgChannel::CaptureImage(int timeout_ms) {
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    const bool native_capture = decoder_.HasE24NativeCapture();
+    {
+        std::lock_guard<std::shared_mutex> lock(mtx_);
+        if (lifecycle_transition_ || (native_face_reservation_.Active() && !native_capture))
+            return nullptr;
+        ++active_capture_requests_;
+    }
+    try {
+        auto result = decoder_.CaptureImage(timeout_ms);
+        std::lock_guard<std::shared_mutex> lock(mtx_);
+        --active_capture_requests_;
+        return result;
+    } catch (...) {
+        std::lock_guard<std::shared_mutex> lock(mtx_);
+        --active_capture_requests_;
+        throw;
+    }
+#else
     return decoder_.CaptureImage(timeout_ms);
+#endif
 }
 
 // Modify parameters incrementally on existing values.
@@ -178,79 +273,159 @@ bool AlgChannel::RecordMp4(RecordParam& record_param) {
 
 // Start channel: launch demuxer and decoder.
 bool AlgChannel::Start() {
-    std::lock_guard<std::shared_mutex> lock(mtx_);
-    if (util::ProcessShutdown::Requested())
+    std::unique_lock<std::mutex> lifecycle_lock(lifecycle_mtx_, std::try_to_lock);
+    if (!lifecycle_lock.owns_lock())
         return false;
-    // AlgChannel inherits AlgActionBase, but this Start() only manages demux/decode.
-    // If external code still writes to AlgChannel::GetQueue() (e.g. queue named "-flow-channel--1"),
-    // the base-class thread must be started to consume data_queue, otherwise queue fills up with Proc:0.
-    bool was_started = is_started_;
-    if (!AlgActionBase::Start()) {
-        return false;
+    bool was_started = false;
+    bool strict      = false;
+    {
+        std::lock_guard<std::shared_mutex> lock(mtx_);
+        if (util::ProcessShutdown::Requested() || lifecycle_transition_)
+            return false;
+        if (!is_started_ && (!base_worker_stopped_.load() || !demux_worker_stopped_.load() ||
+                             !decoder_worker_stopped_.load()))
+            return false;
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+        if (!native_face_reservation_.Exclusive(tasks_))
+            return false;
+        strict = native_face_reservation_.Active();
+#endif
+        was_started           = is_started_;
+        lifecycle_transition_ = true;
     }
+    bool success = false;
+    try {
+        ChannelStartOps ops;
+        ops.configure = [&]() {
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+            return demuxer_.SetNativeFaceWitnessBeforeStart(strict) &&
+                   decoder_.SetNativeFaceRequiredBeforeStart(strict);
+#else
+            return true;
+#endif
+        };
+        ops.start_base = [&]() {
+            base_worker_stopped_ = false;
+            return AlgActionBase::Start();
+        };
+        ops.register_queue = [&]() {
+            regist_task_.channel_id = channel;
+            regist_task_.task_id    = decoder_.GetName();
+            regist_task_.fps        = decoder_.GetRequiredFps();
+            regist_task_.que        = decoder_.GetQueue();
+            return demuxer_.RegistProcQueue(regist_task_);
+        };
+        ops.start_decoder = [&]() {
+            decoder_worker_stopped_ = false;
+            return decoder_.Start();
+        };
+        ops.start_demux = [&]() {
+            demux_worker_stopped_ = false;
+            return demuxer_.Start();
+        };
+        ops.resume_existing  = [&]() { return strict || demuxer_.SetForStartTask(); };
+        ops.stop_demux       = [&]() { demux_worker_stopped_ = demuxer_.Stop(); };
+        ops.stop_decoder     = [&]() { decoder_worker_stopped_ = decoder_.Stop(); };
+        ops.unregister_queue = [&]() { (void)demuxer_.RemoveProcQueue(regist_task_); };
+        ops.stop_base        = [&]() {
+            AlgActionBase::Stop();
+            stop();
+            base_worker_stopped_ = !joinable();
+        };
+        success = RunChannelStartTransaction(was_started, ops);
+    } catch (...) {
+        success = false;
+    }
+    {
+        std::lock_guard<std::shared_mutex> lock(mtx_);
+        if (success)
+            is_started_ = true;
+        lifecycle_transition_ = false;
+    }
+    return success;
+}
 
-    if (was_started) {
-        LOG_INFO("Channel:{} Already Started", channel);
-        // Restart VoD stream from the beginning.
-        demuxer_.SetForStartTask();
-        return true;
-    }
-    is_started_ = true;
-    LOG_INFO("Channel:{} Start", channel);
-    regist_task_.channel_id = channel;
-    regist_task_.task_id    = decoder_.GetName();
-    regist_task_.fps        = decoder_.GetRequiredFps();
-    regist_task_.que        = decoder_.GetQueue();
-    demuxer_.RegistProcQueue(regist_task_);
-    // Start decoder first (resume queue), then start demuxer;
-    // otherwise short video files may finish before queue Resume, dropping all frames.
-    decoder_.Start();
-    demuxer_.Start();
-    return true;
+bool AlgChannel::IsStoppedForIdleCleanup() const {
+    std::shared_lock<std::shared_mutex> lock(mtx_);
+    const bool stopped = !is_started_ && !lifecycle_transition_ && base_worker_stopped_.load() &&
+                         demux_worker_stopped_.load() && decoder_worker_stopped_.load();
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    return stopped && decoder_.NativeFaceStoppedCleanly();
+#else
+    return stopped;
+#endif
 }
 
 // Quit channel: stop demuxer and decoder completely.
 void AlgChannel::Quit() {
-    std::lock_guard<std::shared_mutex> lock(mtx_);
-    if (is_started_) {
-        LOG_INFO("Channel:{} Stop", channel);
-        is_started_ = false;
-        demuxer_.RemoveProcQueue(regist_task_);
-        decoder_.Stop();
-        demuxer_.Stop();
-    }
+    const auto may_stop = [&]() { return GetActiveTaskCount() <= 0; };
+    const bool needs_cleanup =
+        !base_worker_stopped_.load() || !demux_worker_stopped_.load() || !decoder_worker_stopped_.load();
+    const auto stop_workers = [&]() {
+        (void)demuxer_.RemoveProcQueue(regist_task_);
+        const bool demux_stopped   = demuxer_.Stop();
+        demux_worker_stopped_      = demux_stopped;
+        const bool decoder_stopped = decoder_.Stop();
+        decoder_worker_stopped_    = decoder_stopped;
+        if (!base_worker_stopped_.load()) {
+            AlgActionBase::Stop();
+            stop();
+            base_worker_stopped_ = !joinable();
+        }
+        return demux_stopped && decoder_stopped && base_worker_stopped_.load();
+    };
+    (void)RunChannelStopTransaction(lifecycle_mtx_, mtx_, is_started_, lifecycle_transition_, may_stop,
+                                    stop_workers, needs_cleanup);
 }
 // Stop action base consumer thread (task-level stop).
 void AlgChannel::Stop() {
     // Stop AlgActionBase consumer thread (if active).
     AlgActionBase::Stop();
+    stop();
+    base_worker_stopped_ = !joinable();
+    std::shared_lock<std::shared_mutex> lock(mtx_);
     if (is_started_) {
         LOG_INFO("Channel:{} Stop", channel);
     }
 }
 
-void AlgChannel::AddTask(const std::string& new_task_id) {
+bool AlgChannel::AddTask(const std::string& new_task_id) {
     std::lock_guard<std::shared_mutex> lock(mtx_);
     auto it = std::find_if(tasks_.begin(), tasks_.end(),
                            [&](const std::string& task) { return task == new_task_id; });
 
     if (it != tasks_.end()) {
-        return;  // Channel already exists for this task.
+        return true;  // Channel already exists for this task.
     }
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    if (native_face_reservation_.Active() && !native_face_reservation_.CanAttachTask(new_task_id))
+        return false;
+#endif
+    if (lifecycle_transition_)
+        return false;
     tasks_.push_back(new_task_id);
     LOG_INFO("Channel:{} Add Task {}", channel, new_task_id);
+    return true;
 }
 
-bool AlgChannel::RmvTask(const std::string& target_task_id) {
+bool AlgChannel::RmvTask(const std::string& target_task_id, bool& empty) {
     std::lock_guard<std::shared_mutex> lock(mtx_);
+    empty   = false;
     auto it = std::find_if(tasks_.begin(), tasks_.end(),
                            [&](const std::string& task) { return task == target_task_id; });
 
     if (it != tasks_.end()) {
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+        if (native_face_reservation_.Active() && !native_face_reservation_.CanDetachTask(target_task_id))
+            return false;
+        if (*it == camera_owned_task_)
+            camera_owned_task_.clear();
+#endif
         tasks_.erase(it);
 
         LOG_INFO("Channel:{} Rmv Task {}", channel, target_task_id);
-        return tasks_.empty();  // True when no tasks remain.
+        empty = tasks_.empty();
+        return true;
     }
     return false;
 }

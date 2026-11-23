@@ -23,11 +23,12 @@ void Sensitivity::AddTargetToAreaTarget(const std::string& areaId, AreaIdDataEl&
 
         // No area
         if (key::DEFAULT_AREA == areaId) {
-            if (m_haveClassify) {  // Has classification, need to judge logic result
-                if (target.bLogicResult) {
-                    areaData.bResult = true;
-                    areaData.targets.push_back(target);
-                }
+            // As with explicit areas, plain detection is already a positive
+            // result; a classification stage additionally requires its logic
+            // result to pass.
+            if (!m_haveClassify || target.bLogicResult) {
+                areaData.bResult = true;
+                areaData.targets.push_back(target);
             }
             continue;
         }

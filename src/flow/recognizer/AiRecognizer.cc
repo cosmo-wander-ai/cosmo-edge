@@ -1,8 +1,13 @@
 // AiRecognizer — AiRecognizer — Face/body recognition action with feature comparison.
 
 #include "flow/recognizer/AiRecognizer.h"
+#ifdef COSMO_AXERA_REID_ROUTE_CANDIDATE
+#include "flow/recognizer/NativeReidScore.h"
+#endif
 
 #include <unistd.h>
+
+#include <cstdlib>
 
 #include "flow/common/FlowTaskUtil.h"
 #include "service/ai/IInferPoolService.h"
@@ -289,9 +294,39 @@ void AiRecognizer::HandFace(AlgDataPtr alg_data) {
     }
 
     duration_stat_.BeginSample();
-    bool use_box  = (expected_type != AlgDataType::TaskDataLandmark);
-    action_status = inst_->Recognize(alg_data->chanDataDec.frame, input->targets, use_box);
+    bool use_box        = (expected_type != AlgDataType::TaskDataLandmark);
+    bool native_handled = false;
+#ifdef COSMO_AXERA_REID_ROUTE_CANDIDATE
+    const bool native_body = native_body_feature_consumer_ &&
+                             expected_type == AlgDataType::TaskDataClassify &&
+                             alg_data->native_body_feature_proof &&
+                             alg_data->native_body_feature_proof->Claim(task_id, alg_data->channelId, input);
+    if (!native_body && (native_body_feature_consumer_ || alg_data->native_body_feature_proof)) {
+        action_status = util::ErrorEnum::FlowDataInvalid;
+        duration_stat_.EndSample();
+        return;
+    }
+    native_handled = native_body;
+#endif
+#ifdef COSMO_AXERA_FACE_FEATURE_ROUTE_CANDIDATE
+    const bool native_face = native_face_feature_consumer_ &&
+                             expected_type == AlgDataType::TaskDataLandmark &&
+                             alg_data->native_face_feature_proof &&
+                             alg_data->native_face_feature_proof->Claim(task_id, alg_data->channelId, input);
+    if (!native_face && (native_face_feature_consumer_ || alg_data->native_face_feature_proof)) {
+        action_status = util::ErrorEnum::FlowDataInvalid;
+        duration_stat_.EndSample();
+        return;
+    }
+    native_handled = native_handled || native_face;
+#endif
+    if (native_handled)
+        action_status = util::ErrorEnum::Success;
+    else
+        action_status = inst_->Recognize(alg_data->chanDataDec.frame, input->targets, use_box);
     duration_stat_.EndSample();
+    if (action_status != util::ErrorEnum::Success)
+        return;
 
     alg_data->taskDataAlarm.alarmData = std::make_shared<DataAlarm>();
     if (!alg_data->taskDataAlarm.alarmData) {
@@ -314,8 +349,17 @@ void AiRecognizer::HandFace(AlgDataPtr alg_data) {
         // Body/Things comparison via IBodyLibService (cached)
         if (alg_params_.feature_input == FeatureInputType::Body ||
             alg_params_.feature_input == FeatureInputType::Things) {
-            auto compare_fn = [this](const AiFeature& f1, const AiFeature& f2) -> float {
-                return inst_->CompareFeature(f1, f2);
+            auto compare_fn = [this
+#ifdef COSMO_AXERA_REID_ROUTE_CANDIDATE
+                               ,
+                               native_body
+#endif
+            ](const AiFeature& f1, const AiFeature& f2) -> float {
+#ifdef COSMO_AXERA_REID_ROUTE_CANDIDATE
+                if (native_body)
+                    return reid_feature_task::CompareReference(f1, f2);
+#endif
+                return inst_ ? inst_->CompareFeature(f1, f2) : -1.f;
             };
             matched = service::ServiceRegistry::Instance().Get<service::IBodyLibService>().BodyCompare(
                 params_.face_set, input->targets[index].feature, match_info, alg_params_.limit_score,
@@ -326,6 +370,17 @@ void AiRecognizer::HandFace(AlgDataPtr alg_data) {
                 params_.face_set, input->targets[index].feature, match_info, alg_params_.limit_score);
         }
 
+#ifdef COSMO_AXERA_REID_ROUTE_CANDIDATE
+        // Optional isolated-test metadata binds a comparison to its actual target; no pixels or features.
+        if (native_body && std::getenv("COSMO_UNIFORM_DIAGNOSTIC")) {
+            const auto& box = input->targets[index].box;
+            LOG_INFO("Uniform comparison box={},{},{},{} matched={} refs={}", box.x, box.y, box.width,
+                     box.height, matched, match_info.setPicCount);
+        }
+        // An empty, invalid or dimension-mismatched gallery is unknown, not a non-match alarm.
+        if (native_body && match_info.setPicCount == 0)
+            continue;
+#endif
         if (!GetRecodResult(matched, params_.face_set.size(), match_info)) {
             continue;
         }
@@ -378,7 +433,33 @@ void AiRecognizer::HandFrame(AlgDataPtr alg_data) {
         action_status = util::ErrorEnum::FlowDataInvalid;
         return;
     }
-    if (!inst_) {
+#ifdef COSMO_AXERA_REID_ROUTE_CANDIDATE
+    if (alg_code_ == "1001007" && !native_body_feature_consumer_) {
+        action_status = util::ErrorEnum::FlowDataInvalid;
+        return;
+    }
+    const bool native_body_pending = native_body_feature_consumer_ && alg_data->native_body_feature_proof &&
+                                     alg_data->dataType == AlgDataType::TaskDataClassify &&
+                                     alg_params_.feature_input == FeatureInputType::Body;
+    if (native_body_feature_consumer_ && !native_body_pending) {
+        action_status = util::ErrorEnum::FlowDataInvalid;
+        return;
+    }
+#else
+    constexpr bool native_body_pending = false;
+#endif
+#ifdef COSMO_AXERA_FACE_FEATURE_ROUTE_CANDIDATE
+    const bool native_face_pending = native_face_feature_consumer_ && alg_data->native_face_feature_proof &&
+                                     alg_data->dataType == AlgDataType::TaskDataLandmark &&
+                                     alg_params_.feature_input == FeatureInputType::Face;
+    if (native_face_feature_consumer_ && !native_face_pending) {
+        action_status = util::ErrorEnum::FlowDataInvalid;
+        return;
+    }
+    if (!native_face_pending && !native_body_pending && !inst_) {
+#else
+    if (!native_body_pending && !inst_) {
+#endif
         action_status = util::ErrorEnum::AI_INST_NOTCREATED;
         std::lock_guard<std::shared_mutex> lock(mtx_);
         if (!inst_ && !AiSdkInit()) {

@@ -1,3 +1,6 @@
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+#include "media/NativePresentationOrder.h"
+#endif
 // AlgChannelDecode — video packet decoding, color conversion and frame distribution.
 
 #pragma once
@@ -20,6 +23,7 @@ extern "C" {
 #endif
 
 #include "flow/action/AlgActionBase.h"
+#include "flow/channel/FrameInfoIndex.h"
 #include "media/VideoDecoder.h"
 #include "util/AsyncQueue.h"
 #include "util/DurationStat.h"
@@ -28,12 +32,6 @@ extern "C" {
 
 namespace cosmo {
 class AlgChannel;
-struct AlgFrameInfo {
-    int64_t index{-1};
-    int64_t streamIndex{-1};
-    int64_t timestamp{-1};
-};
-
 struct ChannelTaskViewerQueue {
     std::string alg_id;
     AsyncQueue<VideoFramePtr>* async_frame_queue{nullptr};
@@ -45,8 +43,21 @@ public:
     AlgChannelDecode(AlgChannel& channelInst, const std::string& channelId);
     ~AlgChannelDecode();
 
-    void Start();
-    void Stop();
+    bool Start();
+    bool Stop();
+
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    // Only change before starting the decode thread or after it has joined.
+    bool SetNativeFaceRequiredBeforeStart(bool required);
+    bool NativeSourceIs1080p() const {
+        return native_source_dimensions_.load(std::memory_order_acquire) ==
+               ((std::uint64_t{1920} << 32) | 1080);
+    }
+    bool NativeFaceStoppedCleanly() const {
+        return native_face_stopped_cleanly_.load();
+    }
+    bool HasNativeIncompatibleConsumers() const;
+#endif
 
     void QueueStatus(std::vector<AlgActionDataQueueStatus>& queStatus, unsigned int durationSec = 30);
     void ActionInfo(std::vector<ActionRuntimeInfo>& actionInfo);
@@ -91,7 +102,7 @@ private:
     AlgDataPtr ColorConvert(AlgDataPtr demuxData, VideoFramePtr inData,
                             media::NativeVideoBufferPtr nativeBuffer = nullptr);
 
-    void FrameInfoSave(VideoPacketPtr packet);
+    void FrameInfoSave(const AlgDataPtr& data);
     AlgFrameInfo FrameInfoGet(int64_t index);
 
     // Image capture helpers.
@@ -103,6 +114,9 @@ private:
     ViewerDistributionPlan PrepareViewerDistribution();
     void DistributePreparedViewer(const ViewerDistributionPlan& plan, VideoFramePtr inData);
     bool NeedsHostFrame(int64_t streamIndex);
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    bool HasPendingCapture();
+#endif
 
 private:
     mutable std::mutex mtx_;
@@ -122,6 +136,11 @@ private:
     uint64_t decoder_stream_reuse_count_{0};
     int64_t cap_image_stream_index_{-1};
     std::atomic<bool> is_running_{false};
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    std::atomic<std::uint64_t> native_source_dimensions_{0};
+    std::atomic<bool> native_face_required_{false};
+    std::atomic<bool> native_face_stopped_cleanly_{true};
+#endif
     int64_t consecutive_decode_failures_{0};  // Consecutive decode failure count
     static constexpr int64_t kMaxConsecutiveDecodeFailures =
         10;  // Threshold to trigger automatic decoder rebuild.
@@ -133,6 +152,9 @@ private:
     util::DurationStat duration_stat_;
     std::vector<ChannelTaskViewerQueue> viewer_queue_;
     std::deque<AlgFrameInfo> frame_info_;
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    media::NativePresentationOrder native_presentation_order_;
+#endif
     std::shared_ptr<AlgDataQueue<AlgDataPtr>> dec_queue_;
 };
 }  // namespace cosmo

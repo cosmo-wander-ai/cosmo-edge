@@ -13,6 +13,11 @@
 #include "flow/qwen3vl/PQwen3VLWorker.h"
 #include "flow/recognizer/PRecognizer.h"
 #include "flow/task/PTaskBase.h"
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+#include "flow/task/NativeJfifFacePicture.h"
+#include "flow/task/NativeJfifFirePicture.h"
+#include "flow/task/NativeJfifPersonPicture.h"
+#endif
 #include "media/Color.h"
 #include "media/PixelFormat.h"
 #include "service/ai/VisualDecisionFence.h"
@@ -318,6 +323,14 @@ util::ErrorEnum PTaskBase::TaskDetectPic(PTaskElementPtr task, MsgPTaskDetectPic
         retData.resData.errorSide = "A";
         return util::ErrorEnum::PicturePairInputRequired;
     }
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+    if (nn::axera::jfif_fire_contract::Scene(task->GetAlgId()))
+        return native_jfif_picture::Detect(task, primary, inData, retData);
+    if (nn::axera::jfif_person_contract::Scene(task->GetAlgId()))
+        return native_jfif_person_picture::Detect(task, primary, inData, retData);
+    if (nn::axera::jfif_face_contract::Scene(task->GetAlgId()))
+        return native_jfif_face_picture::Detect(task, primary, inData, retData);
+#endif
     auto [status, frame] = DecodePictureInput(primary);
     if (status != util::ErrorEnum::Success) {
         if (paired)

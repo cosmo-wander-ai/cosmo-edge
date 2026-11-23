@@ -25,7 +25,10 @@ public:
     Status ParseKeypointsOutput(std::vector<std::vector<ObjectInfoV1>>& outputs) override;
 
 private:
-    int max_batch_ = 1;
+    int max_batch_            = 1;
+    bool allow_fixed_padding_ = false;
+    bool output_ready_        = false;
+    DimsVector declared_output_shape_;
 };
 
 }  // namespace cosmo::nn

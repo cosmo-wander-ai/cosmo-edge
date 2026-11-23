@@ -20,6 +20,8 @@ cosmo::nn::DeviceType GetDeviceType() {
     return cosmo::nn::DeviceType::DEVICE_CPU;
 #elif defined(COSMO_NN_USE_RKNN_BACKEND)
     return cosmo::nn::DeviceType::DEVICE_RKNN;
+#elif defined(COSMO_NN_USE_AXERA_BACKEND)
+    return cosmo::nn::DeviceType::DEVICE_AXERA;
 #else
     return cosmo::nn::DeviceType::DEVICE_SOPHON_TPU;
 #endif
@@ -40,9 +42,26 @@ util::ErrorEnum ConvertImagesToBlobs(const std::vector<VideoFramePtr>& images,
 util::ErrorEnum ConvertImagesToBlobs(const std::vector<VideoFramePtr>& images,
                                      const std::vector<media::NativeVideoBufferPtr>& native_buffers,
                                      std::vector<std::shared_ptr<cosmo::nn::Blob>>& blobs) {
+    return detail::ConvertImagesToBlobsForDevice(images, native_buffers, blobs, GetDeviceType());
+}
+
+util::ErrorEnum detail::ConvertImagesToBlobsForDevice(
+    const std::vector<VideoFramePtr>& images, const std::vector<media::NativeVideoBufferPtr>& native_buffers,
+    std::vector<std::shared_ptr<cosmo::nn::Blob>>& blobs, cosmo::nn::DeviceType device_type) {
     if (images.empty()) {
         LOG_INFO("{}", "Input Images Is Empty.");
         return util::ErrorEnum::InvalidParam;
+    }
+
+    // BlobHandle currently represents DMA-BUF only. An AX physical frame has
+    // no verified consumer contract here; do not silently materialize pixels.
+    // Check the whole batch before touching any frame or appending any blob.
+    if (device_type == cosmo::nn::DEVICE_AXERA &&
+        std::any_of(native_buffers.begin(), native_buffers.end(), [](const auto& native) {
+            return native && native->memory_kind == media::NativeVideoMemoryKind::AxeraPhysical;
+        })) {
+        LOG_ERRO("AX physical native image input is not supported by the inference graph");
+        return util::ErrorEnum::NotSupport;
     }
 
     for (size_t i = 0; i < images.size(); i++) {

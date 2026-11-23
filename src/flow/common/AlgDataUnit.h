@@ -7,10 +7,22 @@
 #include <unordered_map>
 
 #include "flow/common/AlarmPrivacySnapshot.h"
+#ifdef COSMO_AXERA_HELMET_ROUTE_CANDIDATE
+#include "flow/classify/NativeHelmetTicket.h"
+#endif
 #include "flow/common/AlgDetectTypes.h"
+#ifdef COSMO_AXERA_FACE_FEATURE_ROUTE_CANDIDATE
+#include "flow/classify/NativeFaceFeatureProof.h"
+#endif
+#ifdef COSMO_AXERA_REID_ROUTE_CANDIDATE
+#include "flow/classify/NativeBodyFeatureProof.h"
+#endif
 #include "util/Log.h"
 #include "util/dto/ClientMsgEvent.h"
 #include "util/dto/VlmResult.h"
+#ifdef COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST
+#include "nn/device/axera/axera_face_diagnostics.h"
+#endif
 
 namespace cosmo {
 
@@ -23,6 +35,20 @@ struct VisualDecisionAudit {
 // Note: AlgDataCopy
 struct AlgData {
     AlgDataType dataType{AlgDataType::Invalid};
+#ifdef COSMO_AXERA_REID_ROUTE_CANDIDATE
+    std::unique_ptr<NativeBodyFeatureProof> native_body_feature_proof;
+#endif
+#ifdef COSMO_AXERA_FACE_FEATURE_ROUTE_CANDIDATE
+    std::unique_ptr<NativeFaceFeatureProof> native_face_feature_proof;
+#endif
+#ifdef COSMO_AXERA_HELMET_ROUTE_CANDIDATE
+    // Explicit move-only task handoff; AlgDataCopy deliberately never copies it.
+    std::unique_ptr<NativeHelmetTicket> native_helmet_ticket;
+#endif
+#ifdef COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST
+    // Diagnostic-only provenance, never used as inference authority.
+    std::shared_ptr<const nn::axera::diagnostics::FrameKey> native_diagnostic_key;
+#endif
 
     std::string channelId;  // Channel data
     std::string taskId;

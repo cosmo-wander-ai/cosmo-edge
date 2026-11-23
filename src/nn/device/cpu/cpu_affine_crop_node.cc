@@ -5,8 +5,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <limits>
 
 #include "nn/node/node_type_utils.h"
+#include "nn/utils/affine_landmark_validation.h"
 #include "nn/utils/dims_vector_utils.h"
 #include "nn/utils/op.h"
 #include "nn/utils/rect.h"
@@ -58,6 +60,11 @@ size_t CpuAffineCropNode::GetBottomCount() {
 }
 
 Status CpuAffineCropNode::CalculateMatrix(float* landmark, std::vector<float>& matrix) {
+    if (!landmark || dst_width <= 0 || dst_height <= 0 || !std::isfinite(norm_ratio) || norm_ratio <= 0.f)
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid affine landmark parameters");
+    if (center_index.size() > 1 && std::any_of(center_index.begin(), center_index.end(),
+                                               [](int index) { return index < 0 || index >= 5; }))
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid affine landmark center index");
     Point_2f left_eye(landmark[0], landmark[1]);
     Point_2f right_eye(landmark[2], landmark[3]);
     Point_2f nose(landmark[4], landmark[5]);
@@ -137,8 +144,8 @@ Status CpuAffineCropNode::Forward(std::vector<std::shared_ptr<Blob>>& image_blob
     RETURN_ON_FAIL(CheckNodeInputOutput(image_blobs, top_blobs, false));
     RETURN_ON_FAIL(CheckNodeInputOutput(landmark_blobs, top_blobs, false));
 
-    if (image_blobs.empty() || landmark_blobs.empty())
-        return Status(COSMO_NN_ERR_INVALID_INPUT, "empty input blobs");
+    if (image_blobs.size() != 1 || landmark_blobs.size() != 1)
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "CPU affine supports one image per landmark group");
 
     auto img_blob  = image_blobs.at(0);
     auto img_dims  = img_blob->GetBlobDesc().dims;
@@ -148,12 +155,10 @@ Status CpuAffineCropNode::Forward(std::vector<std::shared_ptr<Blob>>& image_blob
     auto* src_data = static_cast<const uint8_t*>(img_blob->GetHandle().base);
 
     auto lm_blob = landmark_blobs.at(0);
-    auto lm_desc = lm_blob->GetBlobDesc();
-    if (lm_desc.data_type != DataType::DATA_TYPE_FLOAT)
-        return Status(COSMO_NN_ERR_INVALID_INPUT, "landmark data type must be float");
-
-    int n_landmarks = lm_desc.dims.at(0);
-    float* lm_data  = static_cast<float*>(lm_blob->GetHandle().base);
+    RETURN_ON_FAIL(ValidateAffineLandmarkBlob(lm_blob, max_batch));
+    auto lm_desc        = lm_blob->GetBlobDesc();
+    int n_landmarks     = lm_desc.dims.at(0);
+    const auto* lm_data = static_cast<const unsigned char*>(lm_blob->GetHandle().base);
 
     auto top_blob = top_blobs.at(0);
     auto top_desc = top_blob->GetBlobDesc();
@@ -167,7 +172,9 @@ Status CpuAffineCropNode::Forward(std::vector<std::shared_ptr<Blob>>& image_blob
 
     for (int i = 0; i < n_landmarks; i++) {
         std::vector<float> matrix;
-        RETURN_ON_FAIL(CalculateMatrix(lm_data + i * kLandmarkDataLen, matrix));
+        float landmark[kLandmarkDataLen];
+        std::memcpy(landmark, lm_data + static_cast<size_t>(i) * sizeof(landmark), sizeof(landmark));
+        RETURN_ON_FAIL(CalculateMatrix(landmark, matrix));
 
         // matrix = [a1, a2, tx, a3, a4, ty]
         // src_point = M * dst_point:
@@ -182,6 +189,13 @@ Status CpuAffineCropNode::Forward(std::vector<std::shared_ptr<Blob>>& image_blob
             for (int dx = 0; dx < dst_width; dx++) {
                 float src_xf = a1 * dx + a2 * dy + tx;
                 float src_yf = a3 * dx + a4 * dy + ty;
+
+                if (!std::isfinite(src_xf) || !std::isfinite(src_yf) ||
+                    static_cast<double>(src_xf) < std::numeric_limits<int>::min() ||
+                    static_cast<double>(src_xf) > std::numeric_limits<int>::max() ||
+                    static_cast<double>(src_yf) < std::numeric_limits<int>::min() ||
+                    static_cast<double>(src_yf) > std::numeric_limits<int>::max())
+                    return Status(COSMO_NN_ERR_INVALID_INPUT, "Affine coordinates exceed integer range");
 
                 int sx   = static_cast<int>(src_xf);
                 int sy   = static_cast<int>(src_yf);

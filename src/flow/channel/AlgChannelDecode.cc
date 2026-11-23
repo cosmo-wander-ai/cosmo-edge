@@ -5,9 +5,24 @@
 #include <cctype>
 #include <cstdlib>
 #include <filesystem>
+#include <system_error>
+#include <thread>
 
 #include "flow/channel/AlgChannel.h"
+#include "flow/channel/NativeLeaseWait.h"
 #include "media/VideoFrame.h"
+#ifdef COSMO_MEDIA_USE_AXERA_BACKEND
+#include "media/VideoDecoderAxera.h"
+#if defined(COSMO_NN_USE_AXERA_BACKEND)
+#include <limits>
+
+#include "ax_sys_api.h"
+#include "media/AxeraVideoFrameCopy.h"
+#endif
+#endif
+#if defined(COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+#include "nn/device/axera/axera_face_diagnostics.h"
+#endif
 #include "mem/IDeviceContext.h"
 #include "nn/core/inference_pipeline_metrics.h"
 #include "service/detail/ServiceRegistry.h"
@@ -28,6 +43,46 @@ namespace chrono = std::chrono;
 static constexpr const char* kTag = "ALGCHANNEL ";
 namespace cosmo {
 namespace {
+
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    // Called on the decoder thread while its VDEC frame lease is still live.
+    VideoFramePtr CopyNativePreview(const media::NativeVideoBufferPtr& native, int64_t timestamp,
+                                    int64_t stream_index) {
+        if (!native || !native->Valid() ||
+            native->memory_kind != media::NativeVideoMemoryKind::AxeraPhysical ||
+            native->format != media::NativeVideoBufferFormat::NV12 || native->crop_x || native->crop_y ||
+            !native->frame_witness || !native->frame_witness->Matches(*native) ||
+            native->planes[0].bytes > std::numeric_limits<AX_U32>::max() ||
+            native->planes[1].bytes > std::numeric_limits<AX_U32>::max())
+            return nullptr;
+        struct Mapping {
+            AX_VOID* ptr;
+            AX_U32 bytes;
+            ~Mapping() {
+                if (ptr && ptr != reinterpret_cast<AX_VOID*>(-1))
+                    AX_SYS_Munmap(ptr, bytes);
+            }
+        };
+        Mapping y{
+            AX_SYS_Mmap(native->planes[0].physical_address, static_cast<AX_U32>(native->planes[0].bytes)),
+            static_cast<AX_U32>(native->planes[0].bytes)};
+        Mapping uv{
+            AX_SYS_Mmap(native->planes[1].physical_address, static_cast<AX_U32>(native->planes[1].bytes)),
+            static_cast<AX_U32>(native->planes[1].bytes)};
+        if (!y.ptr || y.ptr == reinterpret_cast<AX_VOID*>(-1) || !uv.ptr ||
+            uv.ptr == reinterpret_cast<AX_VOID*>(-1))
+            return nullptr;
+        auto frame = std::make_shared<media::VideoFrame>(
+            native->width, native->height, media::PixelFormat::PIXEL_I420, native->frame_index, timestamp);
+        if (!frame->Active() || !media::CopyAxeraSemiplanarToI420(
+                                    static_cast<const uint8_t*>(y.ptr), y.bytes, native->planes[0].stride,
+                                    static_cast<const uint8_t*>(uv.ptr), uv.bytes, native->planes[1].stride,
+                                    native->width, native->height, false, frame->GetData(), frame->GetSize()))
+            return nullptr;
+        frame->SetStreamIndex(stream_index);
+        return frame;
+    }
+#endif
 
     bool NativeInferenceBufferEnabled() {
 #if defined(COSMO_NN_USE_RKNN_BACKEND) && defined(COSMO_MEDIA_USE_ROCKCHIP_BACKEND)
@@ -65,31 +120,76 @@ AlgChannelDecode::AlgChannelDecode(AlgChannel& channel_inst, const std::string& 
     LOG_INFO("ChannelDecode:{}/{} Init (decoder deferred)", channel_id_, uuid_);
 }
 
-void AlgChannelDecode::Start() {
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+bool AlgChannelDecode::SetNativeFaceRequiredBeforeStart(bool required) {
+    if (is_running_.load() || !native_face_stopped_cleanly_.load())
+        return false;
+    native_source_dimensions_.store(0, std::memory_order_release);
+    native_face_required_ = required;
+    return true;
+}
+#endif
+
+bool AlgChannelDecode::Start() {
     action_status_ = util::ErrorEnum::ActionStart;
     is_running_    = true;
     dec_queue_->Resume();  // Ensure queue is usable (marked unavailable after Quit/Stop).
     ResetDistributor();
     // Reset frame tracking state to prevent residual seq/stream from the
     // previous round from affecting frame validation and decoder lifecycle.
-    frame_index_                 = -1;
-    stream_index_                = -1;
+    frame_index_  = -1;
+    stream_index_ = -1;
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    native_presentation_order_.Reset();
+#endif
     decode_count_                = 0;
     codec_reset_sign_            = false;
     cap_image_stream_index_      = -1;
     consecutive_decode_failures_ = 0;
-    if (!start()) {
-        is_running_    = false;
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    if (native_face_required_)
+        native_face_stopped_cleanly_ = false;
+#endif
+    bool started                   = false;
+    bool creation_threw            = false;
+    const bool previously_joinable = joinable();
+    try {
+        started = start();
+    } catch (const std::system_error&) {
+        creation_threw = true;
+    } catch (...) {
+        // Unknown failure: keep native state quarantined.
+    }
+    if (!started) {
+        is_running_ = false;
+        dec_queue_->Stop();
+        stop();
         action_status_ = util::ErrorEnum::ActionStop;
         LOG_ERRO("ChannelDecode:{}/{} Start failed: previous thread still joinable", channel_id_, uuid_);
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+        if (native_face_required_ && creation_threw && !previously_joinable && !decoder_)
+            native_face_stopped_cleanly_ = true;
+#else
+        (void)creation_threw;
+        (void)previously_joinable;
+#endif
+        return false;
     }
+    return true;
 }
 
-void AlgChannelDecode::Stop() {
+bool AlgChannelDecode::Stop() {
     is_running_    = false;
     action_status_ = util::ErrorEnum::ActionStop;
     dec_queue_->Stop();
     stop();
+    if (joinable())
+        return false;
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    if (native_face_required_ && !native_face_stopped_cleanly_)
+        return false;
+#endif
+    return true;
 }
 
 void AlgChannelDecode::QueueStatus(std::vector<AlgActionDataQueueStatus>& que_status,
@@ -135,6 +235,15 @@ bool AlgChannelDecode::NeedsResize(VideoPacketPtr& video_frame) {
 }
 
 bool AlgChannelDecode::ValidateFrame(VideoPacketPtr& video_frame, bool just_need_i_frame) {
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    if (native_face_required_ && stream_index_ == video_frame->stream_idx && frame_index_ >= 0 &&
+        video_frame->index != frame_index_ + 1)
+        codec_reset_sign_ = true;
+    if (native_face_required_ && codec_reset_sign_ && !video_frame->IsIFrame()) {
+        dec_queue_->RecordDiscard();
+        return false;
+    }
+#endif
     if (!just_need_i_frame) {
         if ((frame_index_ < 0) || (stream_index_ > video_frame->stream_idx)) {
             if (!video_frame->IsIFrame()) {
@@ -169,12 +278,58 @@ void AlgChannelDecode::PrepareDecoder(VideoPacketPtr& video_frame) {
         LOG_INFO("{} Creating video decoder on demand (deviceId={})", decoder_name_, device_id_);
         auto* media_handle = service::ServiceRegistry::Instance().Get<mem::IDeviceContext>().GetMediaHandle();
         decoder_           = media::VideoDecoder::Create(static_cast<size_t>(device_id_), media_handle);
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+        if (native_face_required_) {
+            auto* ax = dynamic_cast<media::VideoDecoderAxera*>(decoder_.get());
+            if (!ax)
+                return;
+            ax->RequireNativeFrames();
+        }
+#endif
     }
+    if (!decoder_)
+        return;
+    const auto close_decoder = [this]() {
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+        if (native_face_required_) {
+            // Keep this packet and its keyframe while outstanding decoder
+            // leases return. Stop interrupts the bounded wait.
+            return WaitForNativeInput(
+                [&]() { return is_running_.load(); }, [&]() { return decoder_->Close(); },
+                []() { return chrono::steady_clock::now(); },
+                []() { std::this_thread::sleep_for(chrono::milliseconds(10)); }, chrono::seconds(2));
+        }
+#endif
+        return decoder_->Close();
+    };
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    auto* native_decoder =
+        native_face_required_ ? dynamic_cast<media::VideoDecoderAxera*>(decoder_.get()) : nullptr;
+    if (native_decoder && native_decoder->NativeClosing() && !close_decoder())
+        return;
+    if (native_face_required_ && codec_reset_sign_) {
+        // Reset poisons provenance on the old instance. Close successfully
+        // on the owner thread and create a new parser for this stream epoch.
+        if (!close_decoder())
+            return;
+        decoder_.reset();
+        auto* media_handle = service::ServiceRegistry::Instance().Get<mem::IDeviceContext>().GetMediaHandle();
+        decoder_           = media::VideoDecoder::Create(static_cast<size_t>(device_id_), media_handle);
+        auto* ax           = dynamic_cast<media::VideoDecoderAxera*>(decoder_.get());
+        if (!ax)
+            return;
+        ax->RequireNativeFrames();
+    }
+#endif
     const bool needs_resize = NeedsResize(video_frame);
     const int decoder_width = needs_resize ? media::kVideoDefaultWidth : static_cast<int>(video_frame->width);
     const int decoder_height =
         needs_resize ? media::kVideoDefaultHeight : static_cast<int>(video_frame->height);
     const bool stream_restarted = stream_index_ != video_frame->stream_idx;
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    if (native_face_required_ && stream_restarted)
+        native_source_dimensions_.store(0, std::memory_order_release);
+#endif
 
     // A backend may retain a compatible hardware context across a clean
     // keyframe boundary. CPU/Sophon keep their existing Close/Open behavior.
@@ -196,7 +351,13 @@ void AlgChannelDecode::PrepareDecoder(VideoPacketPtr& video_frame) {
     // Rebuild decoder on an incompatible stream restart or exception.
     if (stream_restarted || codec_reset_sign_) {
         if (decoder_->IsOpened()) {
-            decoder_->Close();
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+            if (native_face_required_) {
+                if (!close_decoder())
+                    return;
+            } else
+#endif
+                (void)close_decoder();
             LOG_INFO("{} Decoder Reset Last stream:{} New Stream:{} SuccessCount:{} codecResetSign:{} ",
                      decoder_name_, stream_index_, video_frame->stream_idx, decode_count_, codec_reset_sign_);
         }
@@ -236,6 +397,16 @@ void AlgChannelDecode::HandFrame(AlgDataPtr demux_data) {
     }
 
     bool just_need_i_frame = (GetMaxFps() < 1.0f) && (viewer_queue_.empty());
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    if (native_face_required_) {
+        // Decoding only I-frames breaks parser state and reordered VDEC tokens.
+        just_need_i_frame = false;
+        if (video_frame->codec_type != media::VideoCodecType::kH264) {
+            action_status_ = util::ErrorEnum::DecoderFrameFailed;
+            return;
+        }
+    }
+#endif
 
     if (!ValidateFrame(video_frame, just_need_i_frame)) {
         return;
@@ -247,7 +418,45 @@ void AlgChannelDecode::HandFrame(AlgDataPtr demux_data) {
     //     dec_queue_->RecordDiscard();
     // }
 
+#ifdef COSMO_MEDIA_USE_AXERA_BACKEND
+    const auto* ax_existing = dynamic_cast<media::VideoDecoderAxera*>(decoder_.get());
+    if (ax_existing && ax_existing->NativeOnly() &&
+        video_frame->codec_type == media::VideoCodecType::kMjpeg) {
+        action_status_ = util::ErrorEnum::DecoderFrameFailed;
+        LOG_WARN("{} AX native-only channel rejects MJPEG host decoding", decoder_name_);
+        return;
+    }
+#endif
     PrepareDecoder(video_frame);
+
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    auto* strict_decoder =
+        native_face_required_ ? dynamic_cast<media::VideoDecoderAxera*>(decoder_.get()) : nullptr;
+    // A close still waiting on an old lease is not a new-stream decoder
+    // failure. Never send the new epoch to that old decoder.
+    if (native_face_required_ && strict_decoder &&
+        (strict_decoder->NativeClosing() || stream_index_ != video_frame->stream_idx)) {
+        dec_queue_->RecordDiscard();
+        return;
+    }
+    if (native_face_required_ && (!strict_decoder || !strict_decoder->NativeOnly() ||
+                                  !strict_decoder->IsOpened() || codec_reset_sign_)) {
+        action_status_ = util::ErrorEnum::DecoderFrameFailed;
+        return;
+    }
+    if (native_face_required_) {
+        const bool ready = WaitForNativeInput(
+            [&]() { return is_running_.load(); }, [&]() { return strict_decoder->PrepareNativeInput(); },
+            []() { return chrono::steady_clock::now(); },
+            []() { std::this_thread::sleep_for(chrono::milliseconds(10)); }, chrono::seconds(2));
+        if (!ready) {
+            codec_reset_sign_ = true;
+            dec_queue_->RecordDiscard();
+            action_status_ = util::ErrorEnum::DecoderFrameFailed;
+            return;
+        }
+    }
+#endif
 
     if (just_need_i_frame) {
         if (!video_frame->IsIFrame()) {
@@ -261,9 +470,16 @@ void AlgChannelDecode::HandFrame(AlgDataPtr demux_data) {
 
     duration_stat_.BeginSample();
     bool is_decode_ret = false;
-    FrameInfoSave(video_frame);
+    FrameInfoSave(demux_data);
     media::DecodedVideoFrame decoded_frame;
 #ifdef TEST_NO_DECODER
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    if (native_face_required_) {
+        action_status_ = util::ErrorEnum::DecoderFrameFailed;
+        duration_stat_.EndSample();
+        return;
+    }
+#endif
     decoded_frame = media::DecodedVideoFrame(std::make_shared<media::VideoFrame>(1920, 1080));
     is_decode_ret = decoded_frame.HasFrame();
 #else
@@ -281,10 +497,17 @@ void AlgChannelDecode::HandFrame(AlgDataPtr demux_data) {
         decoded_frame = media::DecodedVideoFrame(std::move(frame_data));
     } else {
         try {
-            decoded_frame = decoder_->DecodeFrame(video_frame->data.data(), video_frame->data.size(),
-                                                  video_frame->index, is_decode_ret);
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+            if (native_face_required_)
+                decoded_frame = strict_decoder->DecodeNativePacket(*video_frame, is_decode_ret);
+            else
+#endif
+                decoded_frame = decoder_->DecodeFrame(video_frame->data.data(), video_frame->data.size(),
+                                                      video_frame->index, is_decode_ret);
         } catch (const std::exception& e) {
             codec_reset_sign_ = true;
+            action_status_    = util::ErrorEnum::DecoderFrameFailed;
+            duration_stat_.EndSample();
             LOG_ERRO("{} Last Frame is {} Have Decord Errors: {}", decoder_name_, frame_index_, e.what());
             return;
         }
@@ -315,14 +538,155 @@ void AlgChannelDecode::HandFrame(AlgDataPtr demux_data) {
     const auto frame_info          = FrameInfoGet(static_cast<int64_t>(decoded_frame_index));
     const bool matched_frame_info =
         frame_info.index >= 0 && static_cast<uint64_t>(frame_info.index) == decoded_frame_index;
-    const int64_t output_timestamp    = matched_frame_info ? frame_info.timestamp : util::GetMilliseconds();
+    int64_t output_timestamp          = matched_frame_info ? frame_info.timestamp : util::GetMilliseconds();
     const int64_t output_stream_index = matched_frame_info ? frame_info.streamIndex : video_frame->stream_idx;
 
+    AlgDataPtr output_data = demux_data;
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    if (native_face_required_) {
+        const auto presentation_time = frame_info.presentation_time_valid
+                                           ? media::NativeSteadyTimeFromMs(frame_info.presentation_steady_ms)
+                                           : std::nullopt;
+        if (!matched_frame_info || !presentation_time) {
+            decoded_frame.Discard();
+            duration_stat_.EndSample();
+            action_status_ = util::ErrorEnum::DecoderFrameFailed;
+            return;
+        }
+        // Scheduling and result routing must use the decoded output's own
+        // demux time, never the packet that happened to trigger this output.
+        output_data                   = std::make_shared<AlgData>();
+        output_data->dataType         = AlgDataType::ChannelDataOrig;
+        output_data->channelId        = channel_id_;
+        output_timestamp              = frame_info.presentation_timestamp_ms;
+        output_data->firstTimePoint   = *presentation_time;
+        output_data->chanDataOrig.fps = frame_info.fps;
+        if (video_frame->index == frame_info.index && video_frame->stream_idx == frame_info.streamIndex)
+            output_data->chanDataOrig.packet = video_frame;
+    }
+#endif
     AlgFrameDistributionPlan task_plan;
     const bool prepared_task_distribution = decoded_frame.IsDeferred();
-    if (prepared_task_distribution) {
-        task_plan = PrepareFrameDistribution(demux_data);
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    // Native presentation order must be validated before FPS/filter state is
+    // touched. The native branch prepares its plan after witness validation.
+    if (prepared_task_distribution && !native_face_required_)
+        task_plan = PrepareFrameDistribution(output_data);
+#else
+    if (prepared_task_distribution)
+        task_plan = PrepareFrameDistribution(output_data);
+#endif
+
+#ifdef COSMO_MEDIA_USE_AXERA_BACKEND
+    auto* ax_decoder = dynamic_cast<media::VideoDecoderAxera*>(decoder_.get());
+    if (ax_decoder && ax_decoder->NativeOnly()) {
+#ifdef COSMO_NN_USE_AXERA_BACKEND
+        // Keep failure paths on the native side. Viewers and admitted still
+        // captures use independent copies of the witnessed original frame.
+        const auto native = decoded_frame.ExportNativeBuffer();
+        const bool matched_witness =
+            matched_frame_info && native && native->Valid() && native->frame_witness &&
+            native->frame_witness->Matches(*native) && native->frame_index == decoded_frame_index &&
+            native->frame_witness->Generation() == static_cast<std::uint64_t>(output_stream_index) &&
+            native->frame_witness->SourceTimestamp() == output_timestamp &&
+            native->frame_witness->SourceArrivalTimestamp() == frame_info.timestamp &&
+            native->frame_witness->PresentationSteadyMs() == frame_info.presentation_steady_ms;
+        if (matched_witness)
+            native_source_dimensions_.store((static_cast<std::uint64_t>(native->width) << 32) |
+                                                static_cast<std::uint32_t>(native->height),
+                                            std::memory_order_release);
+        // Reject a reordered/duplicate presentation output for this generation;
+        // packet decode order itself is intentionally allowed to move backward.
+        if (matched_witness && !native_presentation_order_.Accept(
+                                   native->frame_witness->Generation(), native->frame_witness->SourcePts(),
+                                   output_timestamp, frame_info.presentation_steady_ms)) {
+            decoded_frame.Discard();
+            duration_stat_.EndSample();
+            action_status_ = util::ErrorEnum::DecoderFrameFailed;
+            return;
+        }
+        // Inspection is side-effect free: do not advance viewer/capture or
+        // task FPS state for an unsupported native consumer.
+        // Capture is still incompatible; admitted viewers receive independent host copies.
+        const bool capture_requested      = HasPendingCapture();
+        const bool native_capture         = capture_requested && HasE24NativeCapture();
+        const bool incompatible_consumers = capture_requested && !native_capture;
+        if (matched_witness && native_face_required_ && prepared_task_distribution && !incompatible_consumers)
+            task_plan = PrepareFrameDistribution(output_data, native->frame_witness->Generation());
+#ifdef COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST
+        if (matched_witness)
+            nn::axera::diagnostics::Trace(
+                nn::axera::diagnostics::Event::Decoded,
+                {channel_id_, native->frame_witness->Generation(), native->frame_index, output_timestamp});
+#endif
+        // Copy before handing the lease to inference, never queue the VDEC frame itself.
+        // Preview failure remains independent of inference delivery.
+        if (matched_witness && native_face_required_ && !incompatible_consumers) {
+            try {
+                const auto preview_plan = PrepareViewerDistribution();
+                if (native_capture || !preview_plan.empty()) {
+                    auto host = CopyNativePreview(native, output_timestamp, output_stream_index);
+                    if (host && native_capture)
+                        DoCaptureImage(host);
+                    if (host && !preview_plan.empty())
+                        DistributePreparedViewer(preview_plan, std::move(host));
+                }
+            } catch (...) {
+                LOG_WARN("{} AX native preview copy failed", decoder_name_);
+            }
+        }
+        if (task_plan.CanDiscardNativeFrame() && IsCurrentPlan(task_plan) && !incompatible_consumers) {
+            // No consumer selected this frame (FPS filter or a full queue).
+            // Discarding is not an inference success and is not a decode error.
+            decoded_frame.Discard();
+            duration_stat_.EndSample();
+            frame_index_ = video_frame->index;
+            ++decode_count_;
+            consecutive_decode_failures_ = 0;
+            action_status_               = util::ErrorEnum::Success;
+            return;
+        }
+        const bool ready = native_face_required_ && matched_frame_info &&
+                           task_plan.SupportsNativeInference() &&
+                           task_plan.native_destinations.size() == task_plan.queues.size() &&
+                           matched_witness && !NeedsResize(video_frame) && !incompatible_consumers;
+        if (ready && strict_decoder &&
+            !WaitForNativeInput([&]() { return is_running_.load(); },
+                                [&]() { return strict_decoder->PrepareNativeSelection(); },
+                                []() { return chrono::steady_clock::now(); },
+                                []() { std::this_thread::sleep_for(chrono::milliseconds(2)); },
+                                chrono::seconds(2))) {
+            decoded_frame.Discard();
+            duration_stat_.EndSample();
+            action_status_ = util::ErrorEnum::DecoderFrameFailed;
+            return;
+        }
+        const auto delivery = ready ? TryDistributorPreparedAxeraFaceFrame(
+                                          task_plan, output_data, native, output_timestamp,
+                                          output_stream_index, native->frame_witness->Generation())
+                                    : AxeraNativeDelivery::Rejected;
+        if (delivery == AxeraNativeDelivery::Rejected) {
+            decoded_frame.Discard();
+            duration_stat_.EndSample();
+            action_status_ = util::ErrorEnum::DecoderFrameFailed;
+            LOG_WARN("{} AX native face handoff rejected", decoder_name_);
+            return;
+        }
+        decoded_frame.Discard();
+        duration_stat_.EndSample();
+        frame_index_ = video_frame->index;
+        ++decode_count_;
+        consecutive_decode_failures_ = 0;
+        action_status_               = util::ErrorEnum::Success;
+        return;
+#else
+        decoded_frame.Discard();
+        duration_stat_.EndSample();
+        action_status_ = util::ErrorEnum::DecoderFrameFailed;
+        return;
+#endif
     }
+#endif
 
     media::NativeVideoBufferPtr native_inference_buffer;
     if (task_plan.SupportsNativeInference() && NativeInferenceBufferEnabled()) {
@@ -330,8 +694,8 @@ void AlgChannelDecode::HandFrame(AlgDataPtr demux_data) {
     }
 
     ViewerDistributionPlan viewer_plan;
-#ifdef COSMO_MEDIA_USE_ROCKCHIP_BACKEND
-    // Rockchip viewers move their existing FPS filter ahead of Copy-out. The
+#if defined(COSMO_MEDIA_USE_ROCKCHIP_BACKEND) || defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    // Viewers move their existing FPS filter ahead of Copy-out. The
     // callback also rejects a saturated preview queue before host allocation.
     viewer_plan                                 = PrepareViewerDistribution();
     constexpr bool prepared_viewer_distribution = true;
@@ -341,18 +705,35 @@ void AlgChannelDecode::HandFrame(AlgDataPtr demux_data) {
 
     const bool host_frame_required = !decoded_frame.IsDeferred() || !task_plan.Empty() ||
                                      !viewer_plan.empty() || NeedsHostFrame(output_stream_index);
-    if (!host_frame_required) {
+    const auto take_host_frame = [&]() -> VideoFramePtr {
+        if (host_frame_required)
+            return decoded_frame.Materialize();
         decoded_frame.Discard();
+        return {};
+    };
+#ifdef COSMO_MEDIA_USE_AXERA_BACKEND
+    VideoFramePtr frame_data;
+    try {
+        frame_data = take_host_frame();
+    } catch (const std::exception& e) {
+        codec_reset_sign_ = true;
+        action_status_    = util::ErrorEnum::DecoderFrameFailed;
         duration_stat_.EndSample();
+        LOG_WARN("{} decoded host frame failed at frame:{} stream:{}: {}", decoder_name_, decoded_frame_index,
+                 output_stream_index, e.what());
+        return;
+    }
+#else
+    auto frame_data = take_host_frame();
+#endif
+    duration_stat_.EndSample();
+    if (!host_frame_required) {
         frame_index_ = video_frame->index;
         decode_count_ += 1;
         consecutive_decode_failures_ = 0;
         action_status_               = util::ErrorEnum::Success;
         return;
     }
-
-    auto frame_data = decoded_frame.Materialize();
-    duration_stat_.EndSample();
     if (!frame_data || !frame_data->Active()) {
         action_status_ = util::ErrorEnum::DecoderFrameFailed;
         LOG_WARN("{} decoded frame materialization failed at frame:{} stream:{}", decoder_name_,
@@ -414,35 +795,33 @@ void AlgChannelDecode::HandFrame(AlgDataPtr demux_data) {
     }
 }
 
-void AlgChannelDecode::FrameInfoSave(VideoPacketPtr packet) {
-    if (!packet) {
+void AlgChannelDecode::FrameInfoSave(const AlgDataPtr& data) {
+    if (!data || !data->chanDataOrig.packet) {
         return;
     }
+    const auto& packet = data->chanDataOrig.packet;
     AlgFrameInfo info;
-    info.streamIndex = packet->stream_idx;
-    info.index       = packet->index;
-    info.timestamp   = packet->timestamp;
+    info.streamIndex               = packet->stream_idx;
+    info.index                     = packet->index;
+    info.timestamp                 = packet->timestamp;
+    info.presentation_time_valid   = packet->presentation_time_valid;
+    info.presentation_timestamp_ms = packet->presentation_timestamp_ms;
+    info.presentation_steady_ms    = packet->presentation_steady_ms;
+    info.firstTimePoint            = data->firstTimePoint;
+    info.fps                       = data->chanDataOrig.fps;
     frame_info_.push_back(info);
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    if (native_face_required_) {
+        // No output may arrive for malformed or heavily buffered streams.
+        // A later output whose record was evicted fails the strict match.
+        while (frame_info_.size() > 300)
+            frame_info_.pop_front();
+    }
+#endif
 }
 
 AlgFrameInfo AlgChannelDecode::FrameInfoGet(int64_t index) {
-    AlgFrameInfo info;
-    auto it = std::find_if(frame_info_.begin(), frame_info_.end(),
-                           [&](const AlgFrameInfo& info_el) { return index == info_el.index; });
-
-    // Check if the element was found.
-    if (it != frame_info_.end()) {
-        info.index       = index;
-        info.timestamp   = it->timestamp;
-        info.streamIndex = it->streamIndex;
-        frame_info_.erase(it);
-    }
-
-    while (frame_info_.size() > 300) {
-        frame_info_.pop_front();
-    }
-
-    return info;
+    return TakeFrameInfo(frame_info_, index);
 }
 
 // Image capture and viewer distribution — moved to AlgChannelDecodeCapture.cc
@@ -530,10 +909,32 @@ void AlgChannelDecode::run() {
 
 #ifndef TEST_NO_DECODER
     // Ensure decoder is destroyed in the same thread it was used/created to avoid VPU context corruption
+    bool decoder_closed = true;
     if (decoder_) {
-        decoder_->Close();
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+        if (native_face_required_) {
+            // is_running_ is already false, but downstream may still be
+            // dropping its final frame owners during shutdown.
+            decoder_closed = WaitForNativeInput(
+                []() { return true; }, [&]() { return decoder_->Close(); },
+                []() { return chrono::steady_clock::now(); },
+                []() { std::this_thread::sleep_for(chrono::milliseconds(10)); }, chrono::seconds(2));
+        } else
+#endif
+            decoder_closed = decoder_->Close();
         decoder_.reset();
     }
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    if (native_face_required_)
+        native_face_stopped_cleanly_ = decoder_closed;
+#else
+    (void)decoder_closed;
+#endif
+#else
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    if (native_face_required_)
+        native_face_stopped_cleanly_ = true;
+#endif
 #endif
 
     LOG_INFO("{} THREAD [{}] Stop ", decoder_name_, Name());

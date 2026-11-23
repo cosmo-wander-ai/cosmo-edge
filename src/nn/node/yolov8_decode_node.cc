@@ -5,6 +5,10 @@
 #include <cmath>
 
 #include "nn/core/inference_pipeline_metrics.h"
+
+#ifdef COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST
+#include "nn/device/axera/axera_face_diagnostics.h"
+#endif
 #include "nn/node/node_type_utils.h"
 #include "nn/utils/dims_vector_utils.h"
 #include "nn/utils/op.h"
@@ -361,6 +365,9 @@ Status YoloV8DecodeNode::ForwardDirectCandidates(std::shared_ptr<Blob>& top_blob
 }
 
 void YoloV8DecodeNode::NmsDirectCandidates(std::vector<Yolov8Candidate>& candidates) {
+#ifdef COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST
+    cosmo::nn::axera::diagnostics::RecordCpuNms();
+#endif
     for (size_t i = 0; i < candidates.size(); ++i) {
         auto& lhs = candidates[i];
         if (lhs.confidence < 0.0f)
@@ -379,6 +386,9 @@ void YoloV8DecodeNode::NmsDirectCandidates(std::vector<Yolov8Candidate>& candida
 
 void YoloV8DecodeNode::NMS(std::vector<std::tuple<int, float, int, bool>>& conf_list, float* bottom,
                            int num_features, int num_boxes, bool is_format1) {
+#ifdef COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST
+    cosmo::nn::axera::diagnostics::RecordCpuNms();
+#endif
     std::sort(conf_list.begin(), conf_list.end(),
               [](const std::tuple<int, float, int, bool>& a, const std::tuple<int, float, int, bool>& b) {
                   return std::get<1>(a) > std::get<1>(b);

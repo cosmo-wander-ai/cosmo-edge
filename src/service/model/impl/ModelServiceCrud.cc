@@ -132,6 +132,13 @@ void ModelServiceImpl::ValidateModelOutputFormat(const nlohmann::json& doc) {
                 "当前模型输出格式与 yolov8/yolov9/yolov11/yolov12 "
                 "检测模型不匹配，请确认选择的是检测模型而不是分类模型。添加不成功");
         }
+    } else if (model_type == "yolo26_person_attributes") {
+        const auto shape = outputs.size() == 1 ? get_shape(outputs[0]) : std::vector<int>{};
+        if (shape.size() != 3 || shape[0] <= 0 || shape[1] <= 0 || shape[2] != 10) {
+            throw cosmo::util::ErrorMessage(
+                cosmo::util::make_error_condition(cosmo::util::ErrorEnum::ParameterException),
+                "人体行为模型需要单输出 [batch, top_k, 10]");
+        }
     } else if (model_type == "yolo26_obb_det") {
         // End-to-end OBB: single output with shape [1, top_k, 7]
         bool reject = (outputs.size() != 1);

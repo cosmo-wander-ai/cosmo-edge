@@ -216,6 +216,13 @@ std::string ErrorCategory::message(int code) const {
         CaseStr(AI_TRACK_PARAM_INVALID, "AI追踪错误");
         CaseStr(AI_FORWARD_FAILED, "AI推理错误");
         CaseStr(AI_PARSE_OUTPUT_FAILED, "AI结果解析错误");
+        CaseStr(AI_FACE_OUTPUT_OVERFLOW, "人脸检测输出超出容量，本帧未产生检测结果");
+        CaseStr(AI_PERSON_OUTPUT_OVERFLOW, "行人检测输出超出容量，本帧未产生检测结果");
+        CaseStr(AI_HS_OUTPUT_OVERFLOW, "头肩检测输出超出容量，本帧未产生检测结果");
+        CaseStr(AI_MOUSE_OUTPUT_OVERFLOW, "鼠患检测输出超出容量，本帧未产生检测结果");
+        CaseStr(AI_RUBBISH_OUTPUT_OVERFLOW, "垃圾堆检测输出超出容量，本帧未产生检测结果");
+        CaseStr(AI_FIRE_OUTPUT_OVERFLOW, "火焰烟雾检测输出超出容量，本帧未产生检测结果");
+        CaseStr(AI_VEHICLE_OUTPUT_OVERFLOW, "车辆检测输出超出容量，本帧未产生检测结果");
 
         CaseStr(OperationNotSupport, "操作不支持");
         CaseStr(ExistedPersonSerialNumber, "人员编号重复");
@@ -412,6 +419,13 @@ std::string ErrorEnumName(ErrorEnum code) {
         CaseName(AI_TRACK_PARAM_INVALID);
         CaseName(AI_FORWARD_FAILED);
         CaseName(AI_PARSE_OUTPUT_FAILED);
+        CaseName(AI_FACE_OUTPUT_OVERFLOW);
+        CaseName(AI_PERSON_OUTPUT_OVERFLOW);
+        CaseName(AI_HS_OUTPUT_OVERFLOW);
+        CaseName(AI_MOUSE_OUTPUT_OVERFLOW);
+        CaseName(AI_RUBBISH_OUTPUT_OVERFLOW);
+        CaseName(AI_FIRE_OUTPUT_OVERFLOW);
+        CaseName(AI_VEHICLE_OUTPUT_OVERFLOW);
         CaseName(OperationNotSupport);
         CaseName(ExistedPersonSerialNumber);
         CaseName(PolygonIntersection);

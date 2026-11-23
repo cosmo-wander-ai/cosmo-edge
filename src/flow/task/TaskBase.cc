@@ -2,8 +2,14 @@
 
 #include "flow/task/TaskBase.h"
 
+#include "flow/task/ElectricRouteGuard.h"
+#include "flow/task/FaceQualityRouteGuard.h"
+#include "flow/task/GarmentRouteGuard.h"
+#include "flow/task/VehicleColorRouteGuard.h"
+#include "util/EnvUtil.h"
 #include "util/Keys.h"
 #include "util/Log.h"
+#include "util/PathUtil.h"
 #include "util/UuidUtil.h"
 #include "util/dto/ActionCodes.h"
 
@@ -176,6 +182,117 @@ TaskElementPtr TaskBase::TaskCreate(const std::string& channelId, const std::str
         return nullptr;
     }
 
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    if ((actionAlg->algorithmCode == "88118" || actionAlg->algorithmCode == "88120" ||
+         actionAlg->algorithmCode == "58" || actionAlg->algorithmCode == "32")) {
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND) &&                         \
+    defined(COSMO_AXERA_REID_ROUTE_CANDIDATE) && defined(COSMO_AXERA_HELMET_ROUTE_CANDIDATE)
+        const auto required = native_face::ParseRequiredCodes(
+            util::GetEnvOrDefault("COSMO_AXERA_NATIVE_FACE_REQUIRED_CODE", ""),
+            util::GetEnvOrDefault("COSMO_AXERA_NATIVE_REQUIRED_CODES", ""),
+            [](const std::string& code) { return path::IsSafePathComponent(code, 120); });
+        if (!required.valid ||
+            std::find(required.codes.begin(), required.codes.end(), "1001003") == required.codes.end())
+            return nullptr;
+        unsigned det = 0, cls = 0, rec = 0;
+        for (const auto& action : actionAlg->workFlow) {
+            if (action.actionId == "AA_00001") {
+                ++det;
+                if (action.atomicCode != "1001003")
+                    return nullptr;
+            }
+            if (action.actionId == "AA_00002") {
+                ++cls;
+                if (action.atomicCode != "1001007")
+                    return nullptr;
+            }
+            if (action.actionId == "AA_00005") {
+                ++rec;
+                if (action.atomicCode != "1001007")
+                    return nullptr;
+            }
+        }
+        if (det != 1 || cls != 1 || rec != 1)
+            return nullptr;
+#else
+        return nullptr;
+#endif
+    }
+
+    if (actionAlg->algorithmCode == "88119") {
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND) &&                         \
+    defined(COSMO_AXERA_FACEQUALITY_ROUTE_CANDIDATE)
+        constexpr bool quality_supported = true;
+#else
+        constexpr bool quality_supported = false;
+#endif
+        const auto required = native_face::ParseRequiredCodes(
+            util::GetEnvOrDefault("COSMO_AXERA_NATIVE_FACE_REQUIRED_CODE", ""),
+            util::GetEnvOrDefault("COSMO_AXERA_NATIVE_REQUIRED_CODES", ""),
+            [](const std::string& code) { return path::IsSafePathComponent(code, 120); });
+        if (!facequality_guard::CreateAllowed(actionAlg->algorithmCode, quality_supported, required,
+                                              actionAlg->workFlow)) {
+            LOG_ERRO("FaceQuality scene requires a strict native face/classifier route");
+            return nullptr;
+        }
+    }
+
+    if (actionAlg->algorithmCode == "88115" || actionAlg->algorithmCode == "88116") {
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND) &&                         \
+    defined(COSMO_AXERA_GARMENT_ROUTE_CANDIDATE)
+        constexpr bool electric_supported = true;
+#else
+        constexpr bool electric_supported = false;
+#endif
+        const auto required = native_face::ParseRequiredCodes(
+            util::GetEnvOrDefault("COSMO_AXERA_NATIVE_FACE_REQUIRED_CODE", ""),
+            util::GetEnvOrDefault("COSMO_AXERA_NATIVE_REQUIRED_CODES", ""),
+            [](const std::string& code) { return path::IsSafePathComponent(code, 120); });
+        if (!garment_guard::CreateAllowed(actionAlg->algorithmCode, electric_supported, required,
+                                          actionAlg->workFlow)) {
+            LOG_ERRO("Garment scene requires a strict native person/classifier route");
+            return nullptr;
+        }
+    }
+
+    if (actionAlg->algorithmCode == "88113" || actionAlg->algorithmCode == "88114") {
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND) &&                         \
+    defined(COSMO_AXERA_VEHICLECOLOR_ROUTE_CANDIDATE)
+        constexpr bool electric_supported = true;
+#else
+        constexpr bool electric_supported = false;
+#endif
+        const auto required = native_face::ParseRequiredCodes(
+            util::GetEnvOrDefault("COSMO_AXERA_NATIVE_FACE_REQUIRED_CODE", ""),
+            util::GetEnvOrDefault("COSMO_AXERA_NATIVE_REQUIRED_CODES", ""),
+            [](const std::string& code) { return path::IsSafePathComponent(code, 120); });
+        if (!vehiclecolor_guard::CreateAllowed(actionAlg->algorithmCode, electric_supported, required,
+                                               actionAlg->workFlow)) {
+            LOG_ERRO("VehicleColor scene requires a strict native vehicle/classifier route");
+            return nullptr;
+        }
+    }
+
+    if (actionAlg->algorithmCode == "88111") {
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND) &&                         \
+    defined(COSMO_AXERA_ELECTRIC_ROUTE_CANDIDATE)
+        constexpr bool electric_supported = true;
+#else
+        constexpr bool electric_supported = false;
+#endif
+        const auto required = native_face::ParseRequiredCodes(
+            util::GetEnvOrDefault("COSMO_AXERA_NATIVE_FACE_REQUIRED_CODE", ""),
+            util::GetEnvOrDefault("COSMO_AXERA_NATIVE_REQUIRED_CODES", ""),
+            [](const std::string& code) { return path::IsSafePathComponent(code, 120); });
+        if (!electric_guard::CreateAllowed(actionAlg->algorithmCode, electric_supported, required,
+                                           actionAlg->workFlow)) {
+            LOG_ERRO("Electric scene requires a strict native vehicle/classifier route");
+            return nullptr;
+        }
+    }
+
+#endif  // AX-specific scene admission
+
     TaskElementPtr task = std::make_shared<TaskElement>();
 
     task->channelId   = channelId;
@@ -206,6 +323,14 @@ TaskElementPtr TaskBase::TaskCreate(const std::string& channelId, const std::str
         } else {
             LOG_WARN("[{}-{} Create {}] Action: {}-{} Not Support", channelId, taskId,
                      actionAlg->algorithmName, actionNode.actionId, actionNode.actionName);
+            TaskDelete(task);
+            return nullptr;
+        }
+
+        if (!ta.actionInst) {
+            LOG_WARN("[{}-{} Create {}] Action: {} could not be created", channelId, taskId,
+                     actionAlg->algorithmName, actionNode.actionId);
+            TaskDelete(task);
             return nullptr;
         }
 
@@ -223,7 +348,11 @@ TaskElementPtr TaskBase::TaskCreate(const std::string& channelId, const std::str
         ta.action.actionId   = BAStreamChannel_Code;
         ta.action.actionName = BAStreamChannel_Name;
         auto channelInst     = channel_mng_.GetInst(channelId, taskId, ta.action);
-        ta.actionInst        = channelInst;
+        if (!channelInst) {
+            TaskDelete(task);
+            return nullptr;
+        }
+        ta.actionInst = channelInst;
         task->actions.push_back(ta);
     }
 
@@ -274,6 +403,25 @@ TaskElementPtr TaskBase::TaskCreate(const std::string& channelId, const std::str
     }
 
     LOG_INFO("[{}-{} Create {}] Ok", channelId, taskId, actionAlg->algorithmName);
+    return task;
+}
+
+TaskElementPtr TaskBase::TaskCreateCameraChannel(const std::string& channelId,
+                                                 const std::string& channelName) {
+    if (channelId.empty())
+        return nullptr;
+    auto algorithm           = std::make_shared<ActionAlg>();
+    algorithm->algorithmCode = "Channel";
+    auto task = TaskCreate(channelId, channelName, channelId + "-ChannelTask", std::move(algorithm));
+    if (!task)
+        return nullptr;
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    const auto channel = GetChannelInst(channelId);
+    if (!channel || !channel->MarkCameraOwnedTask(task->taskId)) {
+        TaskDelete(task);
+        return nullptr;
+    }
+#endif
     return task;
 }
 

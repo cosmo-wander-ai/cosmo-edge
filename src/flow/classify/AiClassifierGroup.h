@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <list>
 #include <memory>
 #include <string>
@@ -37,13 +38,15 @@ private:
     void SetAssoAreas(std::vector<MsgTaskArea>& areas);
 
     bool GenGroupEl(AiGroupEl& el);
-    std::vector<AiGroupEl> GenGroupEmements();
-    void GenAreaSource(DataDetTrackClassifyPtr input);
+    std::vector<AiGroupEl> GenGroupEmements(std::vector<GroupAreaData>& areas, int& next_group_id);
+    void GenAreaSource(DataDetTrackClassifyPtr input, std::vector<GroupAreaData>& areas);
 
     bool CheckDataAvailable(AlgDataPtr algData) override;
     void HandFramesEx(std::vector<AlgDataPtr> algDatas) override;
 
     int group_id_{0};
+    // Protected by mtx along with group_id_ and group_area_datas_.
+    uint64_t group_state_generation_{0};
     AAClassifyGroupParam params_;
     std::vector<GroupAreaData> group_area_datas_;
 };

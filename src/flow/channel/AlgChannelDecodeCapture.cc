@@ -28,6 +28,10 @@ void AlgChannelDecode::DoCaptureImage(VideoFramePtr in_data) {
 }
 
 VideoFramePtr AlgChannelDecode::CaptureImage(int timeout_ms) {
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+    if (native_face_required_ && !HasE24NativeCapture())
+        return nullptr;
+#endif
     auto timeout = std::chrono::milliseconds(timeout_ms);
     std::unique_lock<std::mutex> lock(mtx_);
     is_capturing_ = true;
@@ -37,6 +41,9 @@ VideoFramePtr AlgChannelDecode::CaptureImage(int timeout_ms) {
         cap_data_.reset();
         return res;
     }
+
+    // Do not leave a timed-out request marked active indefinitely.
+    is_capturing_ = false;
 
     return nullptr;
 }
@@ -128,5 +135,17 @@ bool AlgChannelDecode::NeedsHostFrame(int64_t stream_index) {
     std::lock_guard<std::mutex> lock(mtx_);
     return is_capturing_ || stream_index != cap_image_stream_index_;
 }
+
+#if defined(COSMO_NN_USE_AXERA_BACKEND) && defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+bool AlgChannelDecode::HasNativeIncompatibleConsumers() const {
+    std::lock_guard<std::mutex> lock(mtx_);
+    return is_capturing_ || !viewer_queue_.empty();
+}
+
+bool AlgChannelDecode::HasPendingCapture() {
+    std::lock_guard<std::mutex> lock(mtx_);
+    return is_capturing_;
+}
+#endif
 
 }  // namespace cosmo

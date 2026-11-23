@@ -28,13 +28,15 @@ typedef enum {
     DEVICE_SOPHON_TPU = 0x0007,
     DEVICE_CPU        = 0x0010,
     DEVICE_RKNN       = 0x0011,
+    DEVICE_AXERA      = 0x0012,
 } DeviceType;
 
 // Centralizes the graph's memory-boundary decision. New backends that consume
 // and produce host buffers extend this capability without duplicating CPU
 // checks throughout graph wiring and inference adapters.
 inline bool UsesHostMemory(DeviceType device_type) {
-    return device_type == DEVICE_NAIVE || device_type == DEVICE_CPU || device_type == DEVICE_RKNN;
+    return device_type == DEVICE_NAIVE || device_type == DEVICE_CPU || device_type == DEVICE_RKNN ||
+           device_type == DEVICE_AXERA;
 }
 
 struct PUBLIC BackendConfig {

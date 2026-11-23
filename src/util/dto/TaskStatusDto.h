@@ -61,6 +61,16 @@ struct AlgActionDataQueueStatusDto {
     std::vector<std::string> channelIds;
     std::vector<std::string> taskIds;
     std::string actionId;
+    std::string flowActionId;
+    std::string inferenceInstanceId;
+    std::optional<uint64_t> classifierForwardSuccess;
+    std::optional<uint64_t> classifierForwardFailure;
+    std::optional<uint64_t> classifierEmptyCandidates;
+    std::optional<uint64_t> classifierNonForwardFailure;
+    std::optional<uint64_t> faceOutputOverflowCount;
+    std::optional<uint64_t> faceOutputCapacity;
+    std::optional<uint64_t> personOutputOverflowCount;
+    std::optional<uint64_t> personOutputCapacity;
     size_t alarmCount{0};
     util::ErrorEnum actionStatus{util::ErrorEnum::Success};
     AlgDataQueueInfoDto queueStatus;
@@ -71,6 +81,16 @@ struct AlgActionDataQueueStatusDto {
         : channelIds(info.channelIds),
           taskIds(info.taskIds),
           actionId(info.actionId),
+          flowActionId(info.flowActionId),
+          inferenceInstanceId(info.inferenceInstanceId),
+          classifierForwardSuccess(info.classifierForwardSuccess),
+          classifierForwardFailure(info.classifierForwardFailure),
+          classifierEmptyCandidates(info.classifierEmptyCandidates),
+          classifierNonForwardFailure(info.classifierNonForwardFailure),
+          faceOutputOverflowCount(info.faceOutputOverflowCount),
+          faceOutputCapacity(info.faceOutputCapacity),
+          personOutputOverflowCount(info.personOutputOverflowCount),
+          personOutputCapacity(info.personOutputCapacity),
           alarmCount(info.alarmCount),
           actionStatus(info.actionStatus),
           queueStatus(AlgDataQueueInfoDto(info.queueStatus)),

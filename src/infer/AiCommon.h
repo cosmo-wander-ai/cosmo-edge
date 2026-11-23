@@ -56,6 +56,7 @@ struct AiDetectRstEl {
     AIFilterType filterType{AIFilterType::None};
     std::vector<AiConfidence> classifyRst;
     std::vector<AiTargetAnnotation> alarmAnnotations;  // Measured outputs of successful positive rule leaves.
+    bool hasJointPersonAttributes{false};              // Scores measured with the current person detection.
     std::vector<AiAttribute> attrRst;                  // Attribute results
     std::vector<AiOcrValue> ocrRst;                    // OCR results
     TargetAreaSign areaSign;

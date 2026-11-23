@@ -4,7 +4,9 @@
 #include <nlohmann/json.hpp>
 #include <vector>
 
+#include "nn/pipeline/feature_output.h"
 #include "nn/pipeline/pipeline_utils.h"
+#include "nn/utils/dims_vector_utils.h"
 
 namespace cosmo::nn {
 
@@ -12,6 +14,9 @@ Status FeaturePipeline::Init(const PipelineConfig& config, const std::string& mo
                              DeviceType device_type, int device_id, IProfiler* profiler,
                              const std::string& tokenizer_path, const std::string& word_table_path) {
     model_info_.algorithmcode = config.algorithm_code;
+    allow_fixed_padding_      = device_type == DEVICE_SOPHON_TPU;
+    expected_batch_           = 0;
+    output_ready_             = false;
     model_info_.reduce        = config.reduce.empty() ? "concat" : config.reduce;
     model_info_.type          = "feature";
 
@@ -119,6 +124,23 @@ Status FeaturePipeline::Forward(std::initializer_list<std::vector<std::shared_pt
     const std::string& red  = model_info_.reduce;
     const bool multi_branch = (red == "concat" || red == "mean");
 
+    expected_batch_ = 0;
+    output_ready_   = false;
+    size_t expected = 0;
+    if (n_groups == 2) {
+        const auto& aux = *(inputs.begin() + 1);
+        for (const auto& blob : aux) {
+            if (!blob || blob->GetBlobDesc().dims.empty() || blob->GetBlobDesc().dims[0] <= 0)
+                return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid feature ROI input batch");
+            const size_t rows = static_cast<size_t>(blob->GetBlobDesc().dims[0]);
+            if (max_batch_ <= 0 || rows > static_cast<size_t>(max_batch_) - expected)
+                return Status(COSMO_NN_ERR_INVALID_INPUT, "Feature ROI input exceeds max batch");
+            expected += rows;
+        }
+        if (expected == 0)
+            return Status(COSMO_NN_ERR_INVALID_INPUT, "Empty feature ROI input batch");
+    }
+
     if (n_models > 1 && n_groups == 2 && multi_branch) {
         auto it            = inputs.begin();
         const auto& images = *it;
@@ -129,38 +151,76 @@ Status FeaturePipeline::Forward(std::initializer_list<std::vector<std::shared_pt
             expanded.push_back(images);
             expanded.push_back(aux);
         }
-        return RunGraph(expanded);
+        auto status = RunGraph(expanded);
+        if (bool(status)) {
+            expected_batch_ = expected;
+            output_ready_   = true;
+        }
+        return status;
     }
 
-    return RunGraph(inputs);
+    auto status = RunGraph(inputs);
+    if (bool(status)) {
+        expected_batch_ = expected;
+        output_ready_   = true;
+    }
+    return status;
+}
+
+Status ParseFeatureOutputBlobs(const std::vector<std::shared_ptr<Blob>>& blobs,
+                               std::vector<std::vector<float>>& outputs, size_t expected_batch,
+                               size_t max_batch, bool allow_fixed_padding) {
+    outputs.clear();
+    if (blobs.size() != 1 || !blobs[0])
+        return Status(COSMO_NN_ERR_NET, "Feature model output size should be 1");
+
+    const auto& output_desc = blobs[0]->GetBlobDesc();
+    if (output_desc.data_type != DATA_TYPE_FLOAT || output_desc.dims.size() != 2 ||
+        output_desc.dims[0] <= 0 || output_desc.dims[1] <= 0 || DimsVectorUtils::Count(output_desc.dims) <= 0)
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid feature output shape or type");
+
+    const auto output_handle = blobs[0]->GetHandle();
+    if (!output_handle.base)
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "Feature output buffer is null");
+    const auto* data            = static_cast<const float*>(output_handle.base);
+    const size_t physical_batch = static_cast<size_t>(output_desc.dims[0]);
+    if (expected_batch != 0 && physical_batch != expected_batch &&
+        !(allow_fixed_padding && expected_batch < max_batch && physical_batch == max_batch))
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "Feature output count does not match ROI count");
+    const size_t batch    = expected_batch == 0 ? physical_batch : expected_batch;
+    const int feature_len = output_desc.dims[1];
+    std::vector<std::vector<float>> staged;
+    staged.reserve(batch);
+    for (size_t i = 0; i < batch; i++) {
+        const auto* b_data  = data + i * static_cast<size_t>(feature_len);
+        double norm_squared = 0;
+        for (int j = 0; j < feature_len; j++) {
+            if (!std::isfinite(b_data[j]))
+                return Status(COSMO_NN_ERR_INVALID_INPUT, "Nonfinite feature output");
+            const double value = b_data[j];
+            norm_squared += value * value;
+        }
+        if (!std::isfinite(norm_squared) || norm_squared <= 0)
+            return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid feature norm");
+        const double norm = std::sqrt(norm_squared);
+        std::vector<float> feature;
+        feature.reserve(static_cast<size_t>(feature_len));
+        for (int j = 0; j < feature_len; j++)
+            feature.push_back(static_cast<float>(b_data[j] / norm));
+        staged.push_back(std::move(feature));
+    }
+    outputs = std::move(staged);
+    return Status{COSMO_NN_OK};
 }
 
 Status FeaturePipeline::ParseFeatureOutput(std::vector<std::vector<float>>& outputs) {
-    outputs.clear();
-    auto output_blobs = GetGraphOutput();
-    if (output_blobs.size() != 1)
-        return Status(COSMO_NN_ERR_NET, "Feature model output size should be 1");
-
-    auto output_blob   = output_blobs.at(0);
-    auto output_desc   = output_blob->GetBlobDesc();
-    auto output_handle = output_blob->GetHandle();
-
-    const int batch       = output_desc.dims.at(0);
-    const int feature_len = output_desc.dims.at(1);
-    float* data           = reinterpret_cast<float*>(output_handle.base);
-
-    outputs.resize(batch);
-    for (int i = 0; i < batch; i++) {
-        float* b_data = data + i * feature_len;
-        float norm    = 0;
-        for (int j = 0; j < feature_len; j++)
-            norm += b_data[j] * b_data[j];
-        norm = std::sqrt(norm);
-        for (int j = 0; j < feature_len; j++)
-            b_data[j] /= norm;
-        outputs[i] = std::vector<float>(b_data, b_data + feature_len);
+    if (!output_ready_) {
+        outputs.clear();
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "No successful feature inference output");
     }
-    return Status{COSMO_NN_OK};
+    return ParseFeatureOutputBlobs(GetGraphOutput(), outputs, expected_batch_,
+                                   max_batch_ > 0 ? static_cast<size_t>(max_batch_) : 0,
+                                   allow_fixed_padding_);
 }
 
 REGISTER_MODEL_PIPELINE("feature", FeaturePipeline);

@@ -180,6 +180,10 @@ void AiClassifierArea::HandFramesEx(std::vector<AlgDataPtr> alg_datas) {
 
             if ((in_images.size() == batch_count_) || ((i == (image_num - 1)) && (j == (box_nums - 1)))) {
                 action_status = classifier_->Classify(in_images, io_puts);
+                if (action_status != util::ErrorEnum::Success) {
+                    LOG_WARN("{}[{}] Classification failed; dropping this batch", log_tag_, GetTaskId());
+                    return;
+                }
                 for (size_t out = 0; out < io_puts.size(); out++) {
                     alg_out_datas[img_record[out]]
                         ->GetTaskResult(AlgDataType::TaskDataClassify)
@@ -194,6 +198,10 @@ void AiClassifierArea::HandFramesEx(std::vector<AlgDataPtr> alg_datas) {
 
     if (!in_images.empty()) {
         action_status = classifier_->Classify(in_images, io_puts);
+        if (action_status != util::ErrorEnum::Success) {
+            LOG_WARN("{}[{}] Classification failed; dropping this batch", log_tag_, GetTaskId());
+            return;
+        }
         for (size_t out = 0; out < io_puts.size(); out++) {
             alg_out_datas[img_record[out]]
                 ->GetTaskResult(AlgDataType::TaskDataClassify)

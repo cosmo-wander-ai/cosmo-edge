@@ -21,6 +21,9 @@ public:
     // Start the worker thread. Returns false if a previous run is still joinable.
     virtual bool start();
 
+    // Snapshot for lifecycle owners that serialize start and stop.
+    bool joinable() const;
+
     // Block until the worker thread finishes (joins).
     void stop();
 
@@ -31,7 +34,7 @@ protected:
     virtual void run() = 0;
 
 private:
-    std::mutex thread_lifecycle_mtx_;
+    mutable std::mutex thread_lifecycle_mtx_;
     std::thread thread_;
     std::string registry_uuid_;
     std::string thread_name_;

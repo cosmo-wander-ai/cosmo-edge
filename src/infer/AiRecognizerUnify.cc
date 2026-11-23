@@ -38,7 +38,13 @@ util::ErrorEnum AiRecognizerUnify::Init() {
     }
     LOG_DEBUG("Recognizer {} Init", model_path_);
 
-    max_batch_size_ = static_cast<size_t>(recognizer_->GetMaxBatchSize());
+    const auto max_batch = recognizer_->GetMaxBatchSize();
+    if (max_batch <= 0) {
+        LOG_ERRO("Invalid recognizer maximum batch size");
+        recognizer_.reset();
+        return util::ErrorEnum::Failed;
+    }
+    max_batch_size_ = static_cast<size_t>(max_batch);
     LOG_DEBUG("Recognizer max_batch_size_ {}", max_batch_size_);
 
     return util::ErrorEnum::Success;
@@ -55,7 +61,8 @@ util::ErrorEnum AiRecognizerUnify::Extract(VideoFramePtr image, std::vector<AiDe
 
     std::vector<VideoFramePtr> images;
     images.push_back(image);
-    for (auto& io_el : io_rst) {
+    auto staged = io_rst;
+    for (auto& io_el : staged) {
         std::vector<AiDetectRstEl> io_puts;
         io_puts.push_back(io_el);
         auto ret = Extract(images, io_puts, use_box);
@@ -65,6 +72,7 @@ util::ErrorEnum AiRecognizerUnify::Extract(VideoFramePtr image, std::vector<AiDe
         }
         io_el = io_puts[0];
     }
+    io_rst = std::move(staged);
     return util::ErrorEnum::Success;
 }
 
@@ -143,6 +151,11 @@ util::ErrorEnum AiRecognizerUnify::Extract(const std::vector<VideoFramePtr>& ima
         return util::ErrorEnum::AI_PARSE_OUTPUT_FAILED;
     }
 
+    if (outputs.size() != io_rst.size()) {
+        LOG_ERRO("Feature output count does not match input count");
+        return util::ErrorEnum::AI_PARSE_OUTPUT_FAILED;
+    }
+
     for (size_t i = 0; i < outputs.size(); i++) {
         if ((io_rst[i].relatedEl.bActive)) {
             io_rst[i].feature.feature           = outputs[i];
@@ -169,9 +182,15 @@ util::ErrorEnum AiRecognizerUnify::Extract(const std::vector<VideoFramePtr>& ima
         return util::ErrorEnum::InvalidParam;
     }
 
+    if (max_batch_size_ == 0) {
+        LOG_ERRO("Invalid recognizer maximum batch size");
+        return util::ErrorEnum::InvalidParam;
+    }
+
     std::vector<VideoFramePtr> input_images;
     std::vector<std::vector<std::vector<int>>> input_datas;
     std::vector<std::pair<size_t, size_t>> indexes;
+    std::vector<std::pair<std::pair<size_t, size_t>, std::vector<float>>> staged_features;
     size_t total = 0;
     for (size_t i = 0; i < io_rst.size(); i++) {
         total += io_rst[i].size();
@@ -227,17 +246,13 @@ util::ErrorEnum AiRecognizerUnify::Extract(const std::vector<VideoFramePtr>& ima
                     LOG_ERRO("Forward Failed. Ret:{}", ret);
                     return ret;
                 }
-                size_t out = 0;
-                for (auto output : outputs) {
-                    size_t img_index = indexes[out].first;
-                    size_t box_index = indexes[out].second;
-                    if ((io_rst[img_index][box_index].relatedEl.bActive)) {
-                        io_rst[img_index][box_index].relatedEl.feature.feature = output;
-                    } else {
-                        io_rst[img_index][box_index].feature.feature = output;
-                    }
-                    out++;
+                if (outputs.size() != indexes.size()) {
+                    LOG_ERRO("Feature output count does not match input count");
+                    return util::ErrorEnum::AI_PARSE_OUTPUT_FAILED;
                 }
+                size_t out = 0;
+                for (auto& output : outputs)
+                    staged_features.emplace_back(indexes[out++], std::move(output));
                 input_images.clear();
                 input_datas.clear();
                 indexes.clear();
@@ -246,7 +261,16 @@ util::ErrorEnum AiRecognizerUnify::Extract(const std::vector<VideoFramePtr>& ima
         }
         if (!datas.empty()) {
             input_datas.push_back(datas);
+            datas.clear();
         }
+    }
+
+    for (auto& entry : staged_features) {
+        auto& result = io_rst[entry.first.first][entry.first.second];
+        if (result.relatedEl.bActive)
+            result.relatedEl.feature.feature = std::move(entry.second);
+        else
+            result.feature.feature = std::move(entry.second);
     }
 
     return util::ErrorEnum::Success;
@@ -255,6 +279,7 @@ util::ErrorEnum AiRecognizerUnify::Extract(const std::vector<VideoFramePtr>& ima
 util::ErrorEnum AiRecognizerUnify::Forward(const std::vector<VideoFramePtr>& images,
                                            const std::vector<std::vector<std::vector<int>>>& datas,
                                            std::vector<std::vector<float>>& features, bool use_box) {
+    features.clear();
     std::vector<std::shared_ptr<cosmo::nn::Blob>> image_blobs{};
     auto ret = ConvertImagesToBlobs(images, image_blobs);
     if (util::ErrorEnum::Success != ret) {
@@ -283,6 +308,14 @@ util::ErrorEnum AiRecognizerUnify::Forward(const std::vector<VideoFramePtr>& ima
     status = recognizer_->ParseOutput<float>(features);
     if (!bool(status)) {
         LOG_ERRO("ParseOutput Failed.({})", status.description());
+        return util::ErrorEnum::AI_PARSE_OUTPUT_FAILED;
+    }
+    size_t expected = 0;
+    for (const auto& group : datas)
+        expected += group.size();
+    if (features.size() != expected) {
+        features.clear();
+        LOG_ERRO("Feature output count does not match input count");
         return util::ErrorEnum::AI_PARSE_OUTPUT_FAILED;
     }
     return util::ErrorEnum::Success;

@@ -28,7 +28,7 @@ public:
 
     /// Detach from the channel, drain worker callbacks and close the RTMP
     /// publisher. Safe to call repeatedly from timeout/error/stop paths.
-    void Stop();
+    bool Stop();
 
     /// Mark the stream as externally ready after its first frame reaches SRS.
     /// The matching lifecycle metric is released exactly once by Stop().
@@ -48,18 +48,28 @@ public:
 
     /// Wait until the underlying RTMP stream is ready.
     bool WaitReady(std::chrono::milliseconds timeout) {
-        if (!stopped_.load() && video_pusher_) {
-            return video_pusher_->WaitReady(timeout);
+        if (!stopped_.load() && !admission_rejected_.load(std::memory_order_acquire) &&
+            !encoder_permanent_fault_.load(std::memory_order_acquire) && video_pusher_) {
+            return video_pusher_->WaitReady(timeout) && !stopped_.load() &&
+                   !encoder_permanent_fault_.load(std::memory_order_acquire) &&
+                   !admission_rejected_.load(std::memory_order_acquire);
         }
         return false;
     }
 
     [[nodiscard]] std::string LastPublishError() const {
+        if (admission_rejected_.load(std::memory_order_acquire))
+            return "preview unavailable while a native task owns the channel";
+        if (encoder_permanent_fault_.load(std::memory_order_acquire)) {
+            return "encoder permanently failed; recreate viewer and publisher";
+        }
         return video_pusher_ ? video_pusher_->LastError() : std::string{};
     }
 
     [[nodiscard]] bool IsPublishReady() const {
-        return !stopped_.load() && video_pusher_ && video_pusher_->IsReady();
+        return !stopped_.load() && !admission_rejected_.load(std::memory_order_acquire) &&
+               !encoder_permanent_fault_.load(std::memory_order_acquire) && video_pusher_ &&
+               video_pusher_->IsReady();
     }
 
     [[nodiscard]] bool IsStopped() const {
@@ -81,6 +91,23 @@ public:
     }
 
 private:
+    template <typename Cleanup>
+    bool StopOnce(Cleanup&& cleanup) noexcept {
+        std::lock_guard<std::mutex> lock(stop_mtx_);
+        if (stop_complete_)
+            return true;
+        if (stop_failed_)
+            return false;
+        stopped_.store(true, std::memory_order_release);
+        try {
+            cleanup();
+            stop_complete_ = true;
+            return true;
+        } catch (...) {
+            stop_failed_ = true;
+            return false;
+        }
+    }
     void HandlePacket(VideoPacketPtr Frame);
     void HandleFrame(VideoFramePtr Frame);
     bool PrepareFrameForDecode();
@@ -113,6 +140,9 @@ private:
 
     RtmpStreamPusherPtr video_pusher_{nullptr};
     StreamViewerOverviewPtr overviewer_{nullptr};
+    // Outlives encoder_: Stop drains its callback before the viewer is destroyed.
+    std::atomic<bool> encoder_permanent_fault_{false};
+    std::atomic<bool> admission_rejected_{false};
     StreamViewerEncoderPtr encoder_{nullptr};
 
     // H264 data
@@ -121,6 +151,9 @@ private:
     AsyncQueue<VideoFramePtr> async_frame_queue_;
 
     std::atomic<bool> stopped_{false};
+    std::mutex stop_mtx_;
+    bool stop_complete_{false};
+    bool stop_failed_{false};
     std::atomic<bool> preview_ready_{false};
     bool packet_queue_attached_{false};
     bool frame_queue_attached_{false};

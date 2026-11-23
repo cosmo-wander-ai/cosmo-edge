@@ -167,6 +167,15 @@ bool Sensitivity::ModifyParam(const std::string& /*channelId*/, const std::strin
     for (auto& param : params) {
         AnalysisKey(param, m_params);
     }
+#ifdef COSMO_AXERA_REID_ROUTE_CANDIDATE
+    // Scene 88120 emits an event only when a current frame becomes a new best.
+    if (action_alg && action_alg->algorithmCode == "88120") {
+        m_params.sensitivityType  = SensitivityType::kFixCount;
+        m_params.senHitCount      = 1;
+        m_params.senTotalCount    = 1;
+        m_params.sensitivityRatio = 1.0f;
+    }
+#endif
     LOG_INFO(
         "ModifyParam "
         "[{}] Set sensitivityType:{} durationMs:{}-{} trackDetCount:{} sensitivity:{} "
@@ -186,6 +195,15 @@ bool Sensitivity::SetParam(const std::string& /*channelId*/, const std::string& 
     for (auto& param : params) {
         AnalysisKey(param, m_params);
     }
+#ifdef COSMO_AXERA_REID_ROUTE_CANDIDATE
+    // Scene 88120 emits an event only when a current frame becomes a new best.
+    if (action_alg && action_alg->algorithmCode == "88120") {
+        m_params.sensitivityType  = SensitivityType::kFixCount;
+        m_params.senHitCount      = 1;
+        m_params.senTotalCount    = 1;
+        m_params.sensitivityRatio = 1.0f;
+    }
+#endif
     LOG_INFO(
         "ModifyParam "
         "[{}] Set sensitivityType:{} durationMs:{}-{} trackDetCount:{} sensitivity:{} "

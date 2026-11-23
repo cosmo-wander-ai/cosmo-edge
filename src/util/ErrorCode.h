@@ -183,19 +183,26 @@ enum class ErrorEnum : uint32_t {
     AuthServiceCountLimit,          // Insufficient authorization count
     AuthServiceFileAnalysisFailed,  // Authorization file analysis failed
 
-    AI_FAILED = 0x1000000,   // AI error code
-    AI_INST_CREATED,         // AI instance has been created
-    AI_INST_CREATEFAILED,    // AI instance creation failed
-    AI_INST_NOTCREATED,      // AI instance not created
-    AI_INIT_PARAMERR,        // AI initialization parameter error
-    AI_DETECT_FAILED,        // AI detection error
-    AI_CLASSIFY_FAILED,      // AI classification error
-    AI_LANDMARK_FAILED,      // AI landmark error
-    AI_FEATURE_FAILED,       // AI feature extraction error
-    AI_TRACK_FAILED,         // AI tracking error
-    AI_TRACK_PARAM_INVALID,  // AI tracking parameter error
-    AI_FORWARD_FAILED,       // AI inference error
-    AI_PARSE_OUTPUT_FAILED,  // AI result parsing error
+    AI_FAILED = 0x1000000,       // AI error code
+    AI_INST_CREATED,             // AI instance has been created
+    AI_INST_CREATEFAILED,        // AI instance creation failed
+    AI_INST_NOTCREATED,          // AI instance not created
+    AI_INIT_PARAMERR,            // AI initialization parameter error
+    AI_DETECT_FAILED,            // AI detection error
+    AI_CLASSIFY_FAILED,          // AI classification error
+    AI_LANDMARK_FAILED,          // AI landmark error
+    AI_FEATURE_FAILED,           // AI feature extraction error
+    AI_TRACK_FAILED,             // AI tracking error
+    AI_TRACK_PARAM_INVALID,      // AI tracking parameter error
+    AI_FORWARD_FAILED,           // AI inference error
+    AI_PARSE_OUTPUT_FAILED,      // AI result parsing error
+    AI_FACE_OUTPUT_OVERFLOW,     // AX face output capacity exceeded; the frame was rejected
+    AI_PERSON_OUTPUT_OVERFLOW,   // AX pedestrian output capacity exceeded; the frame was rejected
+    AI_FIRE_OUTPUT_OVERFLOW,     // AX fire/smoke output capacity exceeded; the frame was rejected
+    AI_VEHICLE_OUTPUT_OVERFLOW,  // AX vehicle output capacity exceeded; the frame was rejected
+    AI_HS_OUTPUT_OVERFLOW,       // AX head-shoulder output capacity exceeded; the frame was rejected
+    AI_MOUSE_OUTPUT_OVERFLOW,    // AX mouse output capacity exceeded; the frame was rejected
+    AI_RUBBISH_OUTPUT_OVERFLOW,  // AX rubbish output capacity exceeded; the frame was rejected
 
     // Error codes not yet public
     OperationNotSupport = 0x1312D01,  // Operation not supported (Original box 20000001)

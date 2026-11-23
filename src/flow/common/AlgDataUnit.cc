@@ -33,7 +33,10 @@ AlgDataPtr AlgDataCopy(AlgDataPtr input) {
 
     AlgDataPtr algData = std::make_shared<AlgData>();
 
-    algData->dataType         = input->dataType;
+    algData->dataType = input->dataType;
+#ifdef COSMO_AXERA_FACE_ISOLATED_DEVICE_TEST
+    algData->native_diagnostic_key = input->native_diagnostic_key;
+#endif
     algData->channelId        = input->channelId;
     algData->taskId           = input->taskId;
     algData->visualFrameId    = input->visualFrameId;

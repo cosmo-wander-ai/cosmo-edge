@@ -15,6 +15,8 @@ namespace media {
     class VideoFrame {
     public:
         using Materializer = std::function<std::shared_ptr<VideoFrame>()>;
+        // Identity and dimensions only: no pixel storage or materializer.
+        struct MetadataOnlyTag {};
 
         VideoFrame(int width, int height, PixelFormat format = PixelFormat::PIXEL_I420,
                    uint64_t frameIndex = 0, int64_t timestamp = 0);
@@ -23,6 +25,8 @@ namespace media {
         // provider retains its source and runs at most once, on first GetData().
         VideoFrame(int width, int height, PixelFormat format, uint64_t frameIndex, int64_t timestamp,
                    Materializer materializer);
+        VideoFrame(int width, int height, PixelFormat format, uint64_t frameIndex, int64_t timestamp,
+                   MetadataOnlyTag);
 
         VideoFrame& operator=(VideoFrame&& data) noexcept;
 
@@ -57,23 +61,26 @@ namespace media {
 
         bool Active() const;
         bool IsDeferred() const;
+        bool IsMetadataOnly() const;
 
         std::string GetName() const;
 
         uint8_t* GetData();
 
         uint8_t* GetHostData();
+        // Transfers ownership of malloc-allocated data, including on rejection.
         void SetHostData(uint8_t* data);
 
     private:
         void Clear();
 
     private:
-        bool active_    = false;
-        size_t size_    = 0;
-        size_t width_   = 0;
-        size_t height_  = 0;
-        size_t channel_ = 3;
+        bool active_        = false;
+        bool metadata_only_ = false;
+        size_t size_        = 0;
+        size_t width_       = 0;
+        size_t height_      = 0;
+        size_t channel_     = 3;
 
         std::string uuid_;
 

@@ -35,7 +35,7 @@ namespace {
 }  // namespace
 
 StreamViewer::~StreamViewer() {
-    Stop();
+    (void)Stop();
     LOG_INFO("{}/{} Delete", channel_id_, alg_id_);
 }
 
@@ -51,41 +51,39 @@ void StreamViewer::MarkReady(std::chrono::nanoseconds first_frame_latency) {
     }
 }
 
-void StreamViewer::Stop() {
-    if (stopped_.exchange(true)) {
-        return;
-    }
+bool StreamViewer::Stop() {
+    return StopOnce([this] {
+        // In-flight callbacks may still finish while queues drain; invalidate their
+        // token first so a stopped/replaced stream never publishes stale samples.
+        media::GetPreviewPipelineMetrics().EndTimedPreview(timed_preview_token_);
 
-    // In-flight callbacks may still finish while queues drain; invalidate their
-    // token first so a stopped/replaced stream never publishes stale samples.
-    media::GetPreviewPipelineMetrics().EndTimedPreview(timed_preview_token_);
+        LOG_INFO("{}/{} viewer stopping: viewers={} packet={} frame={}", channel_id_, alg_id_,
+                 viewer_num_.load(), packet_queue_attached_, frame_queue_attached_);
 
-    LOG_INFO("{}/{} viewer stopping: viewers={} packet={} frame={}", channel_id_, alg_id_, viewer_num_.load(),
-             packet_queue_attached_, frame_queue_attached_);
+        if (async_packet_queue_) {
+            async_packet_queue_->Stop();
+        }
+        async_frame_queue_.Stop();
 
-    if (async_packet_queue_) {
-        async_packet_queue_->Stop();
-    }
-    async_frame_queue_.Stop();
+        if (packet_queue_attached_ && channel_inst_) {
+            channel_inst_->RemoveViewerPacketQueue(async_packet_queue_);
+            packet_queue_attached_ = false;
+        }
+        if (frame_queue_attached_ && channel_inst_) {
+            channel_inst_->RemoveViewerFrameQueue(alg_id_);
+            frame_queue_attached_ = false;
+        }
 
-    if (packet_queue_attached_ && channel_inst_) {
-        channel_inst_->RemoveViewerPacketQueue(async_packet_queue_);
-        packet_queue_attached_ = false;
-    }
-    if (frame_queue_attached_ && channel_inst_) {
-        channel_inst_->RemoveViewerFrameQueue(alg_id_);
-        frame_queue_attached_ = false;
-    }
-
-    overviewer_.reset();
-    encoder_.reset();
-    if (video_pusher_) {
-        video_pusher_->Stop();
-    }
-    if (preview_ready_.exchange(false)) {
-        media::GetPreviewPipelineMetrics().PreviewStopped(!alg_id_.empty());
-    }
-    LOG_INFO("{}/{} viewer stopped: publisher released", channel_id_, alg_id_);
+        overviewer_.reset();
+        encoder_.reset();
+        if (video_pusher_) {
+            video_pusher_->Stop();
+        }
+        if (preview_ready_.exchange(false)) {
+            media::GetPreviewPipelineMetrics().PreviewStopped(!alg_id_.empty());
+        }
+        LOG_INFO("{}/{} viewer stopped: publisher released", channel_id_, alg_id_);
+    });
 }
 
 StreamViewer::StreamViewer(AlgChannelPtr channelInst, const std::string& channelId, const std::string& algId)
@@ -98,7 +96,7 @@ StreamViewer::StreamViewer(AlgChannelPtr channelInst, const std::string& channel
     LOG_INFO("{}/{} Init", channel_id_, alg_id_);
     heartbeat_timestamp_ = util::GetMilliseconds();
     MsgCameraAttr attr;
-    if (!channelInst->GetAttr(attr)) {
+    if (!channelInst->GetPreviewAttr(attr)) {
         LOG_WARN("{}/{} Init, But GetAttr Failed", channel_id_, alg_id_);
         return;
     }
@@ -166,10 +164,11 @@ StreamViewer::StreamViewer(AlgChannelPtr channelInst, const std::string& channel
         if ((attr.width * attr.height) > (media::kVideoDefaultWidth * media::kVideoDefaultHeight)) {
             encoder_ = std::make_shared<StreamViewerEncoder>(
                 media::VideoCodecType::kH264, media::kVideoDefaultWidth, media::kVideoDefaultHeight,
-                video_pusher_, timed_preview_token_);
+                video_pusher_, timed_preview_token_, &encoder_permanent_fault_);
         } else {
-            encoder_ = std::make_shared<StreamViewerEncoder>(
-                media::VideoCodecType::kH264, attr.width, attr.height, video_pusher_, timed_preview_token_);
+            encoder_ = std::make_shared<StreamViewerEncoder>(media::VideoCodecType::kH264, attr.width,
+                                                             attr.height, video_pusher_, timed_preview_token_,
+                                                             &encoder_permanent_fault_);
         }
     }
     async_packet_queue_->SetProcessor([this](VideoPacketPtr&& data) { HandlePacket(std::move(data)); });
@@ -179,37 +178,41 @@ StreamViewer::StreamViewer(AlgChannelPtr channelInst, const std::string& channel
     // Channel preview, no overlay
     if (algId.empty()) {
         if (attr.codec == "H264") {
-            data_packet_ = true;
-            channelInst->AddViewerPacketQueue(async_packet_queue_);
-            packet_queue_attached_ = true;
+            data_packet_           = true;
+            packet_queue_attached_ = channelInst->AddViewerPacketQueue(async_packet_queue_);
+            if (!packet_queue_attached_)
+                admission_rejected_.store(true, std::memory_order_release);
         } else {
-#ifdef COSMO_MEDIA_USE_ROCKCHIP_BACKEND
-            channelInst->AddViewerFrameQueue(alg_id_, async_frame_queue_,
-                                             [this]() { return PrepareFrameForDecode(); });
+#if defined(COSMO_MEDIA_USE_ROCKCHIP_BACKEND) || defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+            frame_queue_attached_ = channelInst->AddViewerFrameQueue(
+                alg_id_, async_frame_queue_, [this]() { return PrepareFrameForDecode(); });
 #else
-            channelInst->AddViewerFrameQueue(alg_id_, async_frame_queue_);
+            frame_queue_attached_ = channelInst->AddViewerFrameQueue(alg_id_, async_frame_queue_);
 #endif
-            frame_queue_attached_ = true;
+            if (!frame_queue_attached_)
+                admission_rejected_.store(true, std::memory_order_release);
         }
     } else  // Task preview, overlay
     {
         if (EncoderReady()) {
             data_overview_ = true;
             overviewer_ = std::make_shared<StreamViewerOverview>(channel_id_, alg_id_, timed_preview_token_);
-#ifdef COSMO_MEDIA_USE_ROCKCHIP_BACKEND
-            channelInst->AddViewerFrameQueue(alg_id_, async_frame_queue_,
-                                             [this]() { return PrepareFrameForDecode(); });
+#if defined(COSMO_MEDIA_USE_ROCKCHIP_BACKEND) || defined(COSMO_MEDIA_USE_AXERA_BACKEND)
+            frame_queue_attached_ = channelInst->AddViewerFrameQueue(
+                alg_id_, async_frame_queue_, [this]() { return PrepareFrameForDecode(); });
 #else
-            channelInst->AddViewerFrameQueue(alg_id_, async_frame_queue_);
+            frame_queue_attached_ = channelInst->AddViewerFrameQueue(alg_id_, async_frame_queue_);
 #endif
-            frame_queue_attached_ = true;
+            if (!frame_queue_attached_)
+                admission_rejected_.store(true, std::memory_order_release);
 #ifdef COSMO_MEDIA_USE_CPU_BACKEND
         } else if (attr.codec == "H264" && IsEnabledEnv("COSMO_CPU_OVERLAY_RAW_FALLBACK")) {
             LOG_WARN("{}/{} overlay encoder unavailable, fallback to raw H264 preview by env", channel_id_,
                      alg_id_);
-            data_packet_ = true;
-            channelInst->AddViewerPacketQueue(async_packet_queue_);
-            packet_queue_attached_ = true;
+            data_packet_           = true;
+            packet_queue_attached_ = channelInst->AddViewerPacketQueue(async_packet_queue_);
+            if (!packet_queue_attached_)
+                admission_rejected_.store(true, std::memory_order_release);
 #endif
         } else {
             LOG_WARN("{}/{} overlay encoder unavailable and codec {} cannot fallback to raw preview",
@@ -310,7 +313,7 @@ void StreamViewer::HandleFrame(VideoFramePtr frame) {
     if (stopped_.load()) {
         return;
     }
-#ifndef COSMO_MEDIA_USE_ROCKCHIP_BACKEND
+#if !defined(COSMO_MEDIA_USE_ROCKCHIP_BACKEND) && !defined(COSMO_MEDIA_USE_AXERA_BACKEND)
     in_fps_ = input_fps_calc_.Fps();
     data_index_++;
     UpdateCtrlFps();
@@ -318,7 +321,7 @@ void StreamViewer::HandleFrame(VideoFramePtr frame) {
     if (!VideoFrameValid(frame)) {
         return;
     }
-#ifndef COSMO_MEDIA_USE_ROCKCHIP_BACKEND
+#if !defined(COSMO_MEDIA_USE_ROCKCHIP_BACKEND) && !defined(COSMO_MEDIA_USE_AXERA_BACKEND)
     if (out_fps_ctl_.IsFilter(data_index_))  // Frame rate filtering
     {
         return;
