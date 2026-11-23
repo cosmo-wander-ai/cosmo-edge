@@ -253,7 +253,16 @@ void AreaAlarm::HandAreaTargetAlarm(AlgDataPtr algData, DataDetTrackClassifyPtr 
                      targetInShiledArea ? "INTO" : "OUT");
             idData.target_in_shielded_area = targetInShiledArea;
         }
-        if (break_area_type_ < BreakAreaType::kAreaMax) {
+        if (type_ == AreaAlarmType::kInArea) {
+            // Presence is a current-frame rule. A saved tripwire selector or a duration supplied
+            // by another node on the same channel must not gate this node's candidates.
+            for (const auto& area : task_area_.areas) {
+                if (idData.target_in_shielded_area || !TargetInArea(target, area.areaId))
+                    continue;
+                auto alarmUnit = BuildAlarmUnit(idData, area);
+                FillAlarmData(algData, alarmUnit);
+            }
+        } else if (break_area_type_ < BreakAreaType::kAreaMax) {
             // Handle area alarm — intrusion
             AreaTargetAlarmHandArea(algData, idData);
         } else if (break_area_type_ < BreakAreaType::kLineMax) {

@@ -11,6 +11,63 @@
 
 using namespace cosmo;
 
+TEST_CASE("Area presence uses the current frame while dwell uses its channel duration",
+          "[AreaAlarm][task-parameters][presence]") {
+    const auto parameter = [](const std::string& key, const std::string& value) {
+        const auto parts = util::Split(key, ".");
+        return MsgDynamicKeyValue{key, value, {parts.begin(), parts.end()}, {}};
+    };
+    MsgTaskArea area;
+    area.areaId = "main";
+    std::vector<MsgTaskArea> areas{area}, shieldedAreas;
+    std::vector<MsgDynamicKeyValue> channelParams{parameter("param.areaDuration", "20"),
+                                                  parameter("param.areaDurationTimeType", "1000")};
+    auto frame                   = std::make_shared<AlgData>();
+    frame->dataType              = AlgDataType::ChannelDataDetect;
+    frame->chanDataDetect.detRet = std::make_shared<DataDetTrackClassify>();
+    auto& targets                = frame->chanDataDetect.detRet->targets;
+    TargetAreaUnit inside;
+    inside.area_id = area.areaId;
+    targets.resize(4);
+    for (int index = 0; index < 4; ++index)
+        targets[index].trackId = index + 1;
+    targets[0].areaSign.areas.push_back(inside);
+    targets[1].areaSign.areas.push_back(inside);
+    targets[1].areaSign.shielded_areas.push_back(inside);
+    targets[2].areaSign.areas.push_back(inside);
+    targets[2].bFilter = true;
+
+    ActionNode action;
+    const auto applyFirstFrame = [&](AreaAlarm& alarm) {
+        alarm.ModifyParam("channel", "task", channelParams);
+        REQUIRE(alarm.SetArea("channel", "task", areas, shieldedAreas));
+        alarm.HandFrame(frame);
+    };
+
+    SECTION("presence ignores a persisted crossing selector and a channel-wide dwell time") {
+        action.configObject.params = {parameter("areaAlarmType", "5"), parameter("detectBreakAreaType", "0"),
+                                      parameter("breakAreaType", "101")};
+        AreaAlarm alarm("task", action);
+        applyFirstFrame(alarm);
+    }
+
+    SECTION("dwell still requires the configured time inside the area") {
+        action.configObject.params = {parameter("areaAlarmType", "4"),
+                                      parameter("durationBreakAreaType", "0")};
+        AreaAlarm alarm("task", action);
+        applyFirstFrame(alarm);
+        REQUIRE_FALSE(frame->taskDataAlarm.alarmData);
+        frame->firstTimePoint += std::chrono::seconds(21);
+        alarm.HandFrame(frame);
+    }
+
+    REQUIRE(frame->taskDataAlarm.alarmData);
+    const auto& alarms = frame->taskDataAlarm.alarmData->alarms;
+    REQUIRE(alarms.size() == 1);
+    CHECK(alarms.front().areaId == area.areaId);
+    CHECK(alarms.front().trackId == 1);
+}
+
 TEST_CASE("Area alarm manager uses concrete flow metadata for lookup and deletion", "[AreaAlarm]") {
     ActionNode action;
     action.flowActionId = "action-flow";

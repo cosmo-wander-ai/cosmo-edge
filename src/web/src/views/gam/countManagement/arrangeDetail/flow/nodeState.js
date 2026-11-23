@@ -1,3 +1,5 @@
+import { separateInactiveAreaRuleFields } from './areaRuleCompatibility.js'
+
 // Keep persisted fields and action templates separate from the editable config.
 // Config is JSON data; detach it from imported templates and other node instances.
 export const createEmptyNodeConfig = () => ({
@@ -59,14 +61,38 @@ export const collectNodeMetadata = nodes => {
   })
 }
 
-export const createNodeState = (flowItem = {}, action = {}) => {
+// Reapply a retired scene override only after its branch becomes active again.
+// The usual scene merge keeps current overrides and checks the original node schemas.
+export const getAreaRuleSceneFallbacks = (nodes, existing) => {
+  const present = new Set(existing.map(field => field.key))
+  const fallbacks = []
+  for (const { data } of nodes) {
+    if (data?.actionId !== 'BA_00005') continue
+    const web = data.configObject?.webConfig
+    const history = web?.inactiveAreaRule?.sceneParams
+    if (!Array.isArray(history) || !Array.isArray(web.metaDataParams)) continue
+    const active = new Set(web.metaDataParams.map(field => field.key))
+    for (const field of history) {
+      if (active.has(field.key) && !present.has(field.key)) {
+        present.add(field.key)
+        fallbacks.push(field)
+      }
+    }
+  }
+  return fallbacks
+}
+
+export const createNodeState = (flowItem = {}, action = {}, sceneParams = []) => {
   const { configObject, ...flowData } = flowItem
   const { configObject: unusedConfig, ...actionDetail } = action
-  return {
-    flowData,
-    actionDetail,
-    configObject: JSON.parse(JSON.stringify(configObject ?? createEmptyNodeConfig()))
+  let config = JSON.parse(JSON.stringify(configObject ?? createEmptyNodeConfig()))
+  // Re-saving a flow also repairs previously saved nodes that were never opened.
+  if (flowData.actionId === 'BA_00005' && typeof actionDetail.inputParamConfig === 'string') {
+    let definitions
+    try { definitions = JSON.parse(actionDetail.inputParamConfig) } catch { /* Preserve an unreadable catalog. */ }
+    if (Array.isArray(definitions)) config = separateInactiveAreaRuleFields(config, definitions, sceneParams)
   }
+  return { flowData, actionDetail, configObject: config }
 }
 
 export const updateNodeConfig = (nodes, nodeId, configObject) => {

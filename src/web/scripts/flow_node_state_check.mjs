@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import { h, ref, reactive, provide, inject, getCurrentInstance } from 'vue'
 import lodash from 'lodash'
+import { mergeTaskParamSchemasByKey } from '../src/utils/taskParamOwnership.js'
 import { mountComponent } from './helpers/mount_behavior_component.mjs'
-import { collectFlowData, collectMetaDataParams, createNodeState, updateAtomicList, updateNodeConfig } from '../src/views/gam/countManagement/arrangeDetail/flow/nodeState.js'
+import { collectFlowData, collectMetaDataParams, getAreaRuleSceneFallbacks, createNodeState, updateAtomicList, updateNodeConfig } from '../src/views/gam/countManagement/arrangeDetail/flow/nodeState.js'
 
 const plain = value => JSON.parse(JSON.stringify(value))
 const empty = { default: { render: () => null } }
@@ -571,6 +573,85 @@ for (const key of ['algs', 'strageAlgorithms']) {
     const saved = alarmForm.instance.submitForm().params.find(param => param.key === key)
     assert.deepEqual(JSON.parse(saved.value), savedSelection, 'saving preserves only channelId/algorithmId pairs')
   } finally { alarmForm.unmount() }
+}
+
+// Switch a real crowd-count template through the same panel and save paths
+// used by the editor. Its scene threshold differs from the catalog default.
+const resource = name => readFile(new URL('../../../data/resource/aiboxresource_x86/' + name, import.meta.url), 'utf8').then(JSON.parse)
+const areaAction = (await resource('layout/actions.json')).find(action => action.id === 'BA_00005')
+const crowd = await resource('algorithm_template/5_人员聚集_1759134672.json')
+const areaNode = JSON.parse(crowd.algorithmProcessdata).find(node => node.actionId === areaAction.id)
+const sceneFields = JSON.parse(crowd.algorithmMetadata).params
+const vendorField = { key: 'vendor.extension', value: 'untouched', extra: ['preserved'] }
+areaNode.configObject.vendorOptions = { edition: 'legacy' }
+areaNode.configObject.params.push(vendorField)
+areaNode.configObject.webConfig.metaDataParams.push(vendorField)
+const fieldValue = (fields, key) => fields.find(field => field.key === key)?.value
+const editArea = async (configObject, sceneParams, previous, next, edit) => {
+  const panel = await mountComponent('views/gam/countManagement/arrangeDetail/flow/DynamicForm.vue', {
+    props: { configObject, sceneParams, actionDetail: { ...areaAction, flowActionId: areaNode.flowActionId } },
+    mocks: {
+      './ConditionView.vue': empty, './TreeSelectMultiple.vue': empty, 'tree-transfer-vue3': empty,
+      uuid: { v4: () => 'fixture-id' }, lodash: { default: lodash },
+      '@element-plus/icons-vue': Object.fromEntries(['QuestionFilled', 'ArrowDown', 'ArrowRight', 'CirclePlus', 'CircleClose'].map(name => [name, empty.default]))
+    }
+  })
+  try {
+    const choose = (from, to) => panel.all(node => node.type === 'el-select' && node.props.modelValue === from)[0].props.activate(to)
+    if (next) choose(previous, next)
+    await panel.settle()
+    if (edit) { edit(choose); await panel.settle() }
+    return plain(panel.instance.submitForm())
+  } finally { panel.unmount() }
+}
+const presence = await editArea(areaNode.configObject, sceneFields, 'target-limit', 'presence')
+assert.equal(fieldValue(presence.params, 'areaAlarmType'), '5')
+assert.deepEqual(presence.webConfig.metaDataParams, [vendorField], 'presence has no built-in channel fields')
+assert.ok(presence.params.some(field => field.key === vendorField.key))
+assert.deepEqual(presence.vendorOptions, areaNode.configObject.vendorOptions)
+const threshold = 'param.areaLimitTargetCount'
+const restored = await editArea(presence, [], 'presence', 'target-limit')
+const restoredNode = { data: { actionId: 'BA_00005', configObject: restored } }
+const restoredScene = mergeTaskParamSchemasByKey(getAreaRuleSceneFallbacks([restoredNode], []), collectMetaDataParams([restoredNode]))
+const restoredThreshold = restoredScene.params.find(field => field.key === threshold)
+assert.deepEqual(getAreaRuleSceneFallbacks([restoredNode], sceneFields), [], 'live scene settings take precedence')
+assert.equal(fieldValue(restored.webConfig.metaDataParams, threshold), fieldValue(areaNode.configObject.webConfig.metaDataParams, threshold),
+  'scene overrides must not change the original node descriptor')
+assert.equal(restoredThreshold.value, fieldValue(sceneFields, threshold))
+assert.equal(restoredThreshold.defaultValue, sceneFields.find(field => field.key === threshold).defaultValue)
+assert.equal(restoredThreshold.name, sceneFields.find(field => field.key === threshold).name)
+
+const switched = await editArea(areaNode.configObject, sceneFields, 'target-limit', 'tripwire',
+  choose => { choose('101', '102'); choose('tripwire', 'presence') })
+assert.ok(!switched.params.some(field => field.key === 'breakAreaType'), 'inactive direction cannot override the active break-area alias at runtime')
+assert.equal(fieldValue(switched.params, 'detectBreakAreaType'), '0')
+const wire = await editArea(switched, [], 'presence', 'tripwire')
+assert.equal(fieldValue(wire.params, 'breakAreaType'), '102', 'a branch edit survives saving and reopening another rule')
+assert.ok(!wire.params.some(field => field.key === 'detectBreakAreaType'))
+
+const contaminated = plain(areaNode)
+contaminated.configObject.params.find(field => field.key === 'areaAlarmType').value = '5'
+contaminated.configObject.params.push({ key: 'detectBreakAreaType', value: '0' }, { key: 'breakAreaType', value: '102' })
+const unopened = { id: 'saved', data: { actionId: areaAction.id, ...createNodeState(contaminated, areaAction, sceneFields) } }
+assert.deepEqual(collectMetaDataParams([unopened]), [vendorField], 'saving an unopened node removes stale channel fields')
+assert.ok(!collectFlowData([unopened], []).items[0].configObject.params.some(field => field.key === 'breakAreaType'))
+assert.equal(fieldValue(contaminated.configObject.params, 'breakAreaType'), '102', 'loading does not mutate source templates')
+const legacy = plain(areaNode.configObject)
+legacy.params = [{ key: 'areaAlarmType', value: '6' }, { key: 'areaLimitTargetCount', value: '17' }, vendorField]
+const savedLegacy = await editArea(legacy, [], null, null)
+assert.equal(fieldValue(savedLegacy.params, 'areaAlarmType'), '6')
+assert.equal(fieldValue(savedLegacy.params, 'areaLimitTargetCount'), '17')
+assert.deepEqual(savedLegacy.webConfig.metaDataParams, [vendorField])
+for (const rule of ['99', '1']) {
+  // Type 1 without a recognized subtype and newer types must remain lossless.
+  const unknown = plain(contaminated.configObject)
+  unknown.params.find(field => field.key === 'areaAlarmType').value = rule
+  assert.deepEqual(await editArea(unknown, [], null, null), unknown)
+  const edited = await editArea(unknown, [], null, null, choose => choose('1', '2'))
+  const expected = plain(unknown)
+  expected.params.find(field => field.key === 'inputAreaType').value = '2'
+  assert.deepEqual(edited, expected, 'updating the shared region preserves the entire protected configuration')
+  assert.deepEqual(createNodeState({ ...areaNode, configObject: unknown }, areaAction).configObject, unknown)
 }
 
 console.log('Flow node state checks passed')

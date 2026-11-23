@@ -327,8 +327,8 @@ import {
   getAreaRuleOptionLabel,
   getAreaRulePurpose,
   inferAreaRuleUiType,
-  mergeMetaParamsPreservingUnknown,
-  mergeParamsPreservingUnknown
+  mergeParamsPreservingUnknown,
+  separateInactiveAreaRuleFields
 } from './areaRuleCompatibility.js'
 import {
   collectAlarmAlgorithms,
@@ -388,6 +388,9 @@ const originalAreaParams = isAreaAlarmAction.value
 const originalAreaWebConfig = isAreaAlarmAction.value
   ? _.cloneDeep(props.configObject?.webConfig || {})
   : {}
+const originalAreaHistory = originalAreaWebConfig.inactiveAreaRule || {}
+let areaHistory = originalAreaWebConfig.inactiveAreaRule
+const areaSceneFields = new Map(isAreaAlarmAction.value ? props.sceneParams.map(field => [field.key, field]) : [])
 const areaRuleUiType = ref(AREA_RULE_UI_TYPES.TARGET_LIMIT)
 const areaRulePurpose = ref('alarm')
 
@@ -592,7 +595,9 @@ onMounted(() => {
     const input = sceneDefault !== undefined && sceneDefault !== null && (isPairThreshold(item) || String(sceneDefault) !== '')
       ? { value: sceneDefault }
       : _.find(props.configObject?.params, { key: item.key }) ||
-        _.find(props.configObject?.webConfig?.metaDataParams, { key: item.key })
+        _.find(props.configObject?.webConfig?.metaDataParams, { key: item.key }) ||
+        _.find(originalAreaHistory.params, { key: item.key }) ||
+        _.find(originalAreaHistory.metaDataParams, { key: item.key })
     if (input) {
       paramConfigs.value.push({
         ...item,
@@ -612,7 +617,8 @@ onMounted(() => {
   })
 
   if (isAreaAlarmAction.value) {
-    areaRuleUiType.value = inferAreaRuleUiType(currentAreaParams.value)
+    const savedRule = originalAreaParams.some(field => field.key === 'areaAlarmType')
+    areaRuleUiType.value = inferAreaRuleUiType(savedRule ? originalAreaParams : currentAreaParams.value)
     areaRulePurpose.value = getAreaRulePurpose(areaRuleUiType.value)
   }
 
@@ -1390,6 +1396,17 @@ const mergeList = (obj) => {
 }
 
 const submitForm = () => {
+  if (isAreaAlarmAction.value && areaRuleUiType.value === AREA_RULE_UI_TYPES.UNKNOWN) {
+    // A newer rule can use these keys differently. Only update the shared region.
+    const saved = _.cloneDeep(props.configObject)
+    const region = paramConfigs.value.find(field => field.key === 'inputAreaType')
+    const previous = saved.params?.find(field => field.key === 'inputAreaType')
+    if (previous && region) previous.value = region.value
+    if (!previous && region && region.value !== region.defaultValue) {
+      saved.params.push({ key: region.key, value: region.value })
+    }
+    return saved
+  }
   const configObject = {
     webConfig: {
       labelList: [],
@@ -1631,9 +1648,14 @@ const submitForm = () => {
     }
   })
   if (isAreaAlarmAction.value) {
+    // A branch can be edited and then switched away before its first save.
+    const savedRuntimeKeys = new Set([...originalAreaParams, ...(originalAreaHistory.params || [])].map(field => field.key))
+    const branchEdits = paramConfigs.value
+      .filter(field => field.level !== '2' && field.dependsOn?.key === 'areaAlarmType' &&
+        (savedRuntimeKeys.has(field.key) || field.value !== field.defaultValue))
+      .map(({ key, value }) => ({ key, value }))
     configObject.params = mergeParamsPreservingUnknown(
-      originalAreaParams,
-      configObject.params
+      originalAreaParams, mergeParamsPreservingUnknown(branchEdits, configObject.params)
     )
     configObject.webConfig = {
       ...originalAreaWebConfig,
@@ -1646,11 +1668,17 @@ const submitForm = () => {
         configObject.webConfig.labelFilterList.length > 0
           ? configObject.webConfig.labelFilterList
           : originalAreaWebConfig.labelFilterList || [],
-      metaDataParams: mergeMetaParamsPreservingUnknown(
+      metaDataParams: mergeParamsPreservingUnknown(
         originalAreaWebConfig.metaDataParams,
         configObject.webConfig.metaDataParams
       )
     }
+    // Tab switches can remove a field from the scene before the final save.
+    props.sceneParams.forEach(field => areaSceneFields.set(field.key, field))
+    if (areaHistory) configObject.webConfig.inactiveAreaRule = areaHistory
+    const saved = separateInactiveAreaRuleFields({ ...props.configObject, ...configObject }, paramConfigs.value, [...areaSceneFields.values()])
+    areaHistory = saved.webConfig.inactiveAreaRule
+    return saved
   }
   if (String(props.actionDetail.actionId || props.actionDetail.id || '').startsWith('P')) {
     configObject.webConfig.metaDataParams = configObject.webConfig.metaDataParams.filter(item => !String(item.key).endsWith('.detPostion'))
