@@ -365,7 +365,7 @@ if(COSMO_MODEL_GUARD AND COSMO_MODEL_GUARD_PLATFORM STREQUAL "rknn")
     set(COSMO_MODEL_GUARD_SDK_ROOT "" CACHE PATH
         "Verified Cosmo Model Guard RKNN ABI 1 SDK root")
     if(NOT COSMO_MODEL_GUARD_SDK_ROOT)
-        set(COSMO_MODEL_GUARD_SDK_ROOT "/opt/cosmo/model-guard-rknn")
+        set(COSMO_MODEL_GUARD_SDK_ROOT "${CMAKE_SOURCE_DIR}/prebuild/model-guard-v2.6.0-rknn-abi1")
     endif()
     get_filename_component(COSMO_MODEL_GUARD_SDK_ROOT
         "${COSMO_MODEL_GUARD_SDK_ROOT}" ABSOLUTE)

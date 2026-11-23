@@ -334,10 +334,10 @@ Guard 设备证书和模型加密秘密仍是受控输入，不得写入公开�
 
 ### RK3576 Protected 构建
 
-RK3576 和 RK3588 的 Protected 构建共用 Model Guard v2.6.0 RKNN ABI 1 SDK。在 Linux
-x86_64 宿主机上准备获准使用的 SDK，将配套的 `sdk-files.sha256` 放在 SDK 根目录，并将该
-目录只读挂载到容器的 `/opt/cosmo/model-guard-rknn`。构建会核对清单的固定 SHA-256
-以及头文件、`libcosmo_model_guard_rknn.so.1.1.0`、授权工具等组件的哈希。
+RK3576 和 RK3588 的 Protected 构建默认使用仓库内
+`prebuild/model-guard-v2.6.0-rknn-abi1/` 中的 Model Guard v2.6.0 RKNN ABI 1 SDK。
+构建会核对 `sdk-files.sha256` 的固定 SHA-256，以及头文件、
+`libcosmo_model_guard_rknn.so.1.1.0`、授权工具等组件的哈希。
 
 下面是**保留设备已有模型、仅更新应用**的构建命令。该包部署后依赖设备已有的授权和模型；编译时无需连接设备：
 
@@ -345,8 +345,7 @@ x86_64 宿主机上准备获准使用的 SDK，将配套的 `sdk-files.sha256` �
 COSMO_TARGET_CHIP=rk3576 \
 COSMO_MODEL_GUARD_BUILD_PROFILE=production-release \
 COSMO_PACKAGE_MODELS=preserve \
-  ./scripts/docker-compose.sh -f docker-compose.rockchip.yml run --rm \
-    -v /ABS/model-guard-rknn:/opt/cosmo/model-guard-rknn:ro cosmo-rockchip-package
+  ./scripts/docker-compose.sh -f docker-compose.rockchip.yml run --rm cosmo-rockchip-package
 ```
 
 构建成功后校验，并从此目录取包：
@@ -366,7 +365,7 @@ cat build_output/production-release/rk3576/TARGET_CHIP
 
 ### RK3588 Protected 构建
 
-沿用上述 SDK 挂载及 `production-release` 配置，将 `COSMO_TARGET_CHIP` 设为 `rk3588`，
+沿用上述预置 SDK 及 `production-release` 配置，将 `COSMO_TARGET_CHIP` 设为 `rk3588`，
 通过 `COSMO_ROCKCHIP_BUILDER_IMAGE` 选择与 RK3588 锁文件匹配的镜像，并将目标设备
 ABI sysroot 只读挂载到 `COSMO_ABI_TARGET_SYSROOT` 指定的容器路径。产物和 ABI 审计报告
 位于 `build_output/production-release/rk3588/`。

@@ -98,7 +98,7 @@ ${INSTALLPATH}/scripts/run_start.sh start /data/cwaiuserdata/log/logs/INTE_RUN_c
 | --- | --- | --- |
 | `COSMO_TARGET_CHIP` | `rk3576` | `rk3576`、`rk3588` 或 `rv1126b`，由 Compose 传给 `--chip` |
 | `COSMO_MODEL_GUARD_BUILD_PROFILE` | `public-runtime` | Open，RK3576 和 RK3588 可选 `production-release` |
-| `COSMO_MODEL_GUARD_SDK_ROOT` | `/opt/cosmo/model-guard-rknn` | 容器内的 Model Guard v2.6.0 RKNN SDK 目录 |
+| `COSMO_MODEL_GUARD_SDK_ROOT` | `prebuild/model-guard-v2.6.0-rknn-abi1/` | Model Guard v2.6.0 RKNN SDK，覆盖路径须在容器内可访问 |
 | `COSMO_MODEL_GUARD_SDK_CHECKSUM_FILE` | SDK 根目录的 `sdk-files.sha256` | v2.6.0 SDK 的配套校验清单 |
 | `COSMO_MODEL_GUARD_SDK_CHECKSUM_SHA256` | 源码固定的清单 SHA-256 | 显式使用另一份获准 SDK 时提供其清单的已核准 SHA-256 |
 | `COSMO_PACKAGE_MODELS` | `include` | `include` 携带模型；`preserve` 保留设备已有模型，不用于空白设备初始化 |

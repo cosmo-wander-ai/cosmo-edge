@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Guard verifier regression against bundled ELF files and targeted negatives."""
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -23,7 +24,7 @@ class RealSdkChecks(unittest.TestCase):
         self.assertIsNotNone(nm, 'nm is required')
         return ['--readelf', readelf, '--nm', nm]
 
-    def verify(self, kind, root, success=True, *, target_chip=None):
+    def verify(self, kind, root, success=True, *, target_chip=None, checksum_sha256=None):
         script, profile = (('verify_model_guard_v2_sdk.py', 'public-runtime')
                            if kind == 'sophon' else
                            ('verify_model_guard_rknn_v1_sdk.py', 'production-release'))
@@ -31,6 +32,9 @@ class RealSdkChecks(unittest.TestCase):
                    '--sdk-root', str(root), '--admission-profile', profile, *self.tools()]
         if target_chip is not None:
             command.extend(('--target-chip', target_chip))
+        if checksum_sha256 is not None:
+            command.extend(('--checksum-file', str(root / 'sdk-files.sha256'),
+                            '--checksum-sha256', checksum_sha256))
         result = subprocess.run(command, text=True, capture_output=True)
         if success:
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -44,6 +48,17 @@ class RealSdkChecks(unittest.TestCase):
         self.verify('rknn', rknn_sdk)
         wrong_chip = self.verify('rknn', rknn_sdk, False, target_chip='rk3588')
         self.assertIn('unsupported Model Guard RKNN SDK runtime for rk3588', wrong_chip.stderr)
+
+    def test_bundled_v260_sdk_admission(self):
+        sdk = ROOT / 'prebuild/model-guard-v2.6.0-rknn-abi1'
+        checksum = hashlib.sha256((sdk / 'sdk-files.sha256').read_bytes()).hexdigest()
+        for chip in ('rk3576', 'rk3588'):
+            with self.subTest(chip=chip):
+                result = self.verify('rknn', sdk, target_chip=chip, checksum_sha256=checksum)
+                self.assertIn(f'sdk_profile=model-guard-v2.6.0-production-{chip}-rknn-abi1',
+                              result.stdout)
+        invalid = self.verify('rknn', sdk, False, target_chip='rk3576', checksum_sha256='0' * 64)
+        self.assertIn('checksum list does not match the approved SHA-256', invalid.stderr)
 
     def test_rknn_manifest_equivalent_format_and_rejecting_identity(self):
         with tempfile.TemporaryDirectory() as temporary:

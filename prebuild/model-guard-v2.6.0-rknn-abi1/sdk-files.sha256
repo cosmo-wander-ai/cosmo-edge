@@ -1,0 +1,5 @@
+3c25d95bef80af88da633c221cb91b5cfe6f1a84e8feb61abbb0634b74453bb3  ./README.md
+75dfc7e51a82ab1f7637e546e58028740da4dcac1bf2093c554c84aa486ce2fa  ./SDK-MANIFEST.json
+abf47534081b24fa07d3fccfb763123d45301c034c8cfd236d0d303f792d8752  ./bin/cosmo-model-provision
+3edac87e284f58d6c3737f8a30aad3777df65e3aaa2d25e83fd3936e61c7a9f8  ./include/cosmo_model_guard_rknn_v1.h
+d181be15db9bd105dfcc25fcb1dd69974c2829afb2b32f0a778df4ad43480898  ./lib/libcosmo_model_guard_rknn.so.1.1.0

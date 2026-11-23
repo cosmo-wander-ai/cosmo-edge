@@ -99,7 +99,7 @@ variables described by older guides. Diagnose GHCR pulls, npm-cache population, 
 | --- | --- | --- |
 | `COSMO_TARGET_CHIP` | `rk3576` | `rk3576`, `rk3588`, or `rv1126b`, passed to `--chip` by Compose |
 | `COSMO_MODEL_GUARD_BUILD_PROFILE` | `public-runtime` | Open by default. RK3576 and RK3588 also support `production-release`. |
-| `COSMO_MODEL_GUARD_SDK_ROOT` | `/opt/cosmo/model-guard-rknn` | Model Guard v2.6.0 RKNN SDK directory inside the container |
+| `COSMO_MODEL_GUARD_SDK_ROOT` | `prebuild/model-guard-v2.6.0-rknn-abi1/` | Model Guard v2.6.0 RKNN SDK. Override paths must be container-accessible. |
 | `COSMO_MODEL_GUARD_SDK_CHECKSUM_FILE` | `sdk-files.sha256` in the SDK root | Matching v2.6.0 SDK checksum list |
 | `COSMO_MODEL_GUARD_SDK_CHECKSUM_SHA256` | Checksum-list SHA-256 pinned in source | Approved checksum-list SHA-256 when selecting another authorized SDK |
 | `COSMO_PACKAGE_MODELS` | `include` | `include` carries models; `preserve` retains installed models and cannot initialize a blank device |

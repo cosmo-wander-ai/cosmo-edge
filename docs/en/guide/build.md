@@ -362,11 +362,10 @@ controlled inputs and must not enter the public repository.
 
 ### RK3576 Protected Build
 
-RK3576 and RK3588 Protected builds share the Model Guard v2.6.0 RKNN ABI 1 SDK. On the
-Linux x86_64 build host, place the matching `sdk-files.sha256` in the approved SDK's root
-and mount that directory read-only at `/opt/cosmo/model-guard-rknn` in the container.
-The build verifies the pinned checksum list and the hashes of its components, including
-the header, `libcosmo_model_guard_rknn.so.1.1.0`, and the provisioning tool.
+RK3576 and RK3588 Protected builds default to the Model Guard v2.6.0 RKNN ABI 1 SDK
+in `prebuild/model-guard-v2.6.0-rknn-abi1/`. The build verifies the pinned SHA-256 of
+`sdk-files.sha256` and the component hashes, including the header,
+`libcosmo_model_guard_rknn.so.1.1.0`, and the provisioning tool.
 
 This command **updates the application while retaining installed models**. Deployment relies on
 the device's existing authorization and models; compilation does not require a device connection:
@@ -375,8 +374,7 @@ the device's existing authorization and models; compilation does not require a d
 COSMO_TARGET_CHIP=rk3576 \
 COSMO_MODEL_GUARD_BUILD_PROFILE=production-release \
 COSMO_PACKAGE_MODELS=preserve \
-  ./scripts/docker-compose.sh -f docker-compose.rockchip.yml run --rm \
-    -v /ABS/model-guard-rknn:/opt/cosmo/model-guard-rknn:ro cosmo-rockchip-package
+  ./scripts/docker-compose.sh -f docker-compose.rockchip.yml run --rm cosmo-rockchip-package
 ```
 
 After success, verify and take the package from this directory:
@@ -399,7 +397,7 @@ The SDK's accompanying terms govern its use and distribution.
 
 ### RK3588 Protected Build
 
-Use the same SDK mount and `production-release` profile with `COSMO_TARGET_CHIP=rk3588`.
+Use the same bundled SDK and `production-release` profile with `COSMO_TARGET_CHIP=rk3588`.
 Set `COSMO_ROCKCHIP_BUILDER_IMAGE` to the builder image matching the RK3588 lock. Mount
 the target ABI sysroot read-only at the container path given by `COSMO_ABI_TARGET_SYSROOT`.
 The package and ABI report are in `build_output/production-release/rk3588/`.
