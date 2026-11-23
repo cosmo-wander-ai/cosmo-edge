@@ -38,14 +38,20 @@ public:
     camera::MsgAddVideoSend Handle(camera::MsgAddVideoRecv&& data, const RequestDispatchContext& context,
                                    std::error_condition& errc);
     camera::MsgGetPictureSend Handle(camera::MsgGetPictureRecv&& data, std::error_condition& errc);
+    camera::MsgGetPictureSend Handle(camera::MsgGetPictureRecv&& data, const RequestDispatchContext& context,
+                                     std::error_condition& errc);
     camera::MsgQueryUsbCameraListSend Handle(camera::MsgQueryUsbCameraListRecv&& data,
                                              std::error_condition& errc);
 
 private:
     // Phase 3: GetPicture helper methods (kept in Handler layer per design decision).
-    std::string CaptureLiveFrame(const std::string& channel_id, std::error_condition& errc);
+    std::string CaptureLiveFrame(const std::string& channel_id, std::error_condition& errc,
+                                 std::vector<uint8_t>* jpeg);
     void SaveChannelCache(const std::string& channel_id, const std::vector<uint8_t>& jpeg);
     std::string FallbackToCache(const std::string& channel_id, std::error_condition& errc);
+    std::vector<uint8_t> ReadChannelCache(const std::string& channel_id);
+    camera::MsgGetPictureSend GetPicture(const std::string& channel_id, bool include_image,
+                                         std::error_condition& errc);
 
     service::ICameraDeviceCrud& crud_;
     service::ICameraChannelQuery& query_;

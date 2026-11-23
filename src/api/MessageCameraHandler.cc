@@ -2,6 +2,10 @@
 
 #include "api/MessageCameraHandler.h"
 
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 #include <algorithm>
 #include <cctype>
 #include <cstdint>
@@ -16,9 +20,11 @@
 #include "service/detail/ServiceRegistry.h"
 #include "service/path/IUploadStagingService.h"
 #include "service/task/ITaskQuery.h"
+#include "util/CipherUtil.h"
 #include "util/ErrorCode.h"
 #include "util/FileUtil.h"
 #include "util/Log.h"
+#include "util/PathUtil.h"
 #include "util/TimeUtil.h"
 #include "util/UuidUtil.h"
 
@@ -174,8 +180,8 @@ camera::MsgBatchDeleteSend MessageCameraHandler::Handle(camera::MsgBatchDeleteRe
 
 // ── GetPicture helper methods ──────────────────────────────────────────────
 
-std::string MessageCameraHandler::CaptureLiveFrame(const std::string& channel_id,
-                                                   std::error_condition& errc) {
+std::string MessageCameraHandler::CaptureLiveFrame(const std::string& channel_id, std::error_condition& errc,
+                                                   std::vector<uint8_t>* jpeg) {
     auto picture = task_cfg_.CaptureImage(channel_id);
     if (!picture) {
         return {};
@@ -201,11 +207,15 @@ std::string MessageCameraHandler::CaptureLiveFrame(const std::string& channel_id
 
     // Also save a channel-named cache copy for fallback.
     SaveChannelCache(channel_id, pictureJpeg);
+    if (jpeg)
+        *jpeg = std::move(pictureJpeg);
 
     return (std::filesystem::path(query_.GetWebAccessPath(timestamp)) / fileName).string();
 }
 
 void MessageCameraHandler::SaveChannelCache(const std::string& channel_id, const std::vector<uint8_t>& jpeg) {
+    if (!path::IsSafePathComponent(channel_id))
+        return;
     auto channelFileName = channel_id + ".jpg";
     auto channelFilePath = (std::filesystem::path(query_.GetWebLocalPath()) / channelFileName).string();
     util::WriteFile(channelFilePath, reinterpret_cast<const std::uint8_t*>(jpeg.data()),
@@ -213,6 +223,10 @@ void MessageCameraHandler::SaveChannelCache(const std::string& channel_id, const
 }
 
 std::string MessageCameraHandler::FallbackToCache(const std::string& channel_id, std::error_condition& errc) {
+    if (!path::IsSafePathComponent(channel_id)) {
+        errc = util::ErrorEnum::ImageCatchFailed;
+        return {};
+    }
     auto channelFileName = channel_id + ".jpg";
     auto channelFilePath = (std::filesystem::path(query_.GetWebLocalPath()) / channelFileName).string();
     if (util::FileExist(channelFilePath)) {
@@ -222,20 +236,70 @@ std::string MessageCameraHandler::FallbackToCache(const std::string& channel_id,
     return {};
 }
 
-camera::MsgGetPictureSend MessageCameraHandler::Handle(camera::MsgGetPictureRecv&& data,
-                                                       std::error_condition& errc) {
+std::vector<uint8_t> MessageCameraHandler::ReadChannelCache(const std::string& channel_id) {
+    if (!path::IsSafePathComponent(channel_id))
+        return {};
+    const auto dir   = query_.GetWebLocalPath();
+    const int dir_fd = open(dir.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+    if (dir_fd < 0)
+        return {};
+    const auto name = channel_id + ".jpg";
+    const int fd    = openat(dir_fd, name.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+    close(dir_fd);
+    if (fd < 0)
+        return {};
+    struct stat info {};
+    if (fstat(fd, &info) != 0 || !S_ISREG(info.st_mode) || info.st_size <= 0 ||
+        info.st_size > 8 * 1024 * 1024) {
+        close(fd);
+        return {};
+    }
+    std::vector<uint8_t> jpeg(static_cast<size_t>(info.st_size));
+    size_t done = 0;
+    while (done < jpeg.size()) {
+        const auto count = read(fd, jpeg.data() + done, jpeg.size() - done);
+        if (count <= 0) {
+            jpeg.clear();
+            break;
+        }
+        done += static_cast<size_t>(count);
+    }
+    close(fd);
+    return jpeg;
+}
+
+camera::MsgGetPictureSend MessageCameraHandler::GetPicture(const std::string& channel_id, bool include_image,
+                                                           std::error_condition& errc) {
     camera::MsgGetPictureSend retData{};
+    std::vector<uint8_t> jpeg;
 
     // Always try to get real-time frame via CaptureImage (supports on-demand channel cold start)
-    auto url = CaptureLiveFrame(data.videoChannelId, errc);
+    auto url = CaptureLiveFrame(channel_id, errc, include_image ? &jpeg : nullptr);
     if (!url.empty()) {
         retData.resData.url = std::move(url);
     } else if (errc == util::ErrorEnum::Success) {
         // CaptureImage failed (e.g. timeout), fallback to local cached screenshot
-        retData.resData.url = FallbackToCache(data.videoChannelId, errc);
+        retData.resData.url = FallbackToCache(channel_id, errc);
+        if (include_image && !retData.resData.url.empty())
+            jpeg = ReadChannelCache(channel_id);
     }
 
+    if (!jpeg.empty())
+        retData.resData.dataUrl = "data:image/jpeg;base64," + util::EncBase64Ex(jpeg.data(), jpeg.size());
+
     return retData;
+}
+
+camera::MsgGetPictureSend MessageCameraHandler::Handle(camera::MsgGetPictureRecv&& data,
+                                                       std::error_condition& errc) {
+    return GetPicture(data.videoChannelId, false, errc);
+}
+
+camera::MsgGetPictureSend MessageCameraHandler::Handle(camera::MsgGetPictureRecv&& data,
+                                                       const RequestDispatchContext& context,
+                                                       std::error_condition& errc) {
+    return GetPicture(data.videoChannelId,
+                      context.transport == RequestTransport::kHttp && !context.principal.empty(), errc);
 }
 
 camera::MsgQueryUsbCameraListSend MessageCameraHandler::Handle(camera::MsgQueryUsbCameraListRecv&& data,

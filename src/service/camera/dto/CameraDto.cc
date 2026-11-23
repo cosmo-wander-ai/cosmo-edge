@@ -207,10 +207,13 @@ void to_json(nlohmann::json& j, const MsgBatchDeleteSend::ResData& v) {
 
 void from_json(const nlohmann::json& j, MsgGetPictureSend::ResData& v) {
     JSON_OPT(j, v, url);
+    JSON_OPT(j, v, dataUrl);
 }
 
 void to_json(nlohmann::json& j, const MsgGetPictureSend::ResData& v) {
     j["url"] = v.url;
+    if (!v.dataUrl.empty())
+        j["dataUrl"] = v.dataUrl;
 }
 
 void from_json(const nlohmann::json& j, MsgQueryUsbCameraListSend::ResData& v) {

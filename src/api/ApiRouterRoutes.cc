@@ -234,7 +234,7 @@ void ApiRouter::RegisterCameraRoutes() {
     ROUTE("/gtw/cwai/Camera/", kAuth, camera_handler_, camera, Delete);
     ROUTE("/gtw/cwai/Camera/", kAuth, camera_handler_, camera, BatchDelete);
     ROUTE_CONTEXT("/gtw/cwai/Camera/", kAuth, camera_handler_, camera, AddVideo);
-    ROUTE("/gtw/cwai/Camera/", kAuth, camera_handler_, camera, GetPicture);
+    ROUTE_CONTEXT("/gtw/cwai/Camera/", kAuth, camera_handler_, camera, GetPicture);
     ROUTE("/gtw/cwai/Camera/", kAuth, camera_handler_, camera, QueryUsbCameraList);
 }
 
