@@ -76,10 +76,11 @@ public:
     virtual void OSDDrawLines(std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> lines,
                               const cosmo::media::Color& color, int lineWidth) = 0;
 
-    /// Antialiased target strokes without the legacy dark outline.
+    /// Antialiased strokes blended at the requested opacity, without an automatic outline.
     virtual void OSDDrawLinesFine(std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> lines,
-                                  const cosmo::media::Color& color, int lineWidth) {
-        OSDDrawLines(std::move(lines), color, lineWidth);
+                                  const cosmo::media::Color& color, int lineWidth, uint8_t opacity = 255) {
+        if (opacity > 0)
+            OSDDrawLines(std::move(lines), color, lineWidth);
     }
     /// Composite a filled source-pixel rectangle in the current session.
     /// Implementations without filled-rectangle support may leave this as a no-op.

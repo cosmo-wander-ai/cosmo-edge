@@ -963,14 +963,14 @@ namespace media {
     }
 
     void VideoFrameProcCpu::OSDDrawLinesFine(std::vector<std::pair<util::Point, util::Point>> lines,
-                                             const Color& color, int lineWidth) {
-        if (!osd_frame_ || lineWidth <= 0 || lines.empty())
+                                             const Color& color, int lineWidth, uint8_t opacity) {
+        if (!osd_frame_ || lineWidth <= 0 || lines.empty() || opacity == 0)
             return;
         const int width   = static_cast<int>(osd_frame_->GetWidth());
         const int height  = static_cast<int>(osd_frame_->GetHeight());
         const auto format = osd_frame_->GetPixelFormat();
         auto* data        = osd_frame_->GetData();
-        const std::vector<OsdLineGroup> groups{{std::move(lines), color, lineWidth, true}};
+        const std::vector<OsdLineGroup> groups{{std::move(lines), color, lineWidth, true, opacity}};
         if (format == PixelFormat::PIXEL_I420) {
             const size_t ySize  = static_cast<size_t>(width) * height;
             const size_t uvSize = static_cast<size_t>(width / 2) * (height / 2);

@@ -29,7 +29,9 @@ enum class VideoOverviewAttrPriority {
     kAlarmReport = 0,  // alarm         red/large font   display 3s or update
     kAlarmFilter,      // alarm filtered blue/large font  display 3s or update
     kArea,             // area           lavender line    permanent display
+    kBoxEdge,          // subdued connectors between target corners
     kBox,              // target box     cyan line        display until next update
+    kBoxCorner,        // emphasized corners over the connecting edges
     kTrackId,          // track ID       white/small font display until next update
     kConfidence,       // confidence     white/small font display until next update
     kBoxSize,          // box size       white/small font display until next update
@@ -51,6 +53,7 @@ struct StreamOverviewTextEl {
         std::string label;
         std::optional<float> score;
         int trackId{-1};
+        bool jointAttribute{false};
     };
     VideoOverviewAttrPriority attrPriority{VideoOverviewAttrPriority::kOther};
     std::string text;
@@ -141,7 +144,8 @@ private:
     void AddTextToLocal(int64_t streamIndex, uint64_t index, int64_t timestamp, util::Point pos,
                         StreamOverviewTextEl& text, std::optional<util::Box> targetBox = std::nullopt,
                         int targetTrackId = -1);
-    void AddLineToLocal(int64_t streamIndex, uint64_t index, int64_t timestamp, StreamOverviewLine& line);
+    void AddLineToLocal(int64_t streamIndex, uint64_t index, int64_t timestamp,
+                        const StreamOverviewLine& line);
     void LiveDataHandTarget(int64_t streamIndex, uint64_t index, int64_t timestamp, MsgTarget& target);
 
     void ProcessPersonCountAlarm(const MsgRecAlarm& aiData);

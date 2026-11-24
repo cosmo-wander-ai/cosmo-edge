@@ -147,10 +147,10 @@ void VideoFrameServiceImpl::OSDDrawLines(std::vector<std::pair<cosmo::util::Poin
 
 void VideoFrameServiceImpl::OSDDrawLinesFine(
     std::vector<std::pair<cosmo::util::Point, cosmo::util::Point>> lines, const cosmo::media::Color& color,
-    int lineWidth) {
+    int lineWidth, uint8_t opacity) {
     std::lock_guard<std::recursive_mutex> lock(osd_session_mtx_);
     if (proc_ && osd_session_active_ && osd_session_owner_ == std::this_thread::get_id())
-        proc_->OSDDrawLinesFine(std::move(lines), color, lineWidth);
+        proc_->OSDDrawLinesFine(std::move(lines), color, lineWidth, opacity);
 }
 
 void VideoFrameServiceImpl::OSDDrawTextFine(int x, int y, const std::string& text,
