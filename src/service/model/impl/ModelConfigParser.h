@@ -3,6 +3,7 @@
 // between QueryModels() and QueryAtomicModels().
 #pragma once
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -37,6 +38,7 @@ struct ParsedModelConfig {
     ParsedIoShape output;
     std::vector<ParsedLabel> labels;
     InferenceInputSizes input_sizes;
+    std::vector<std::string> person_attributes;
     bool valid{false};  // True if algorithm_code was successfully parsed
 };
 
@@ -49,6 +51,9 @@ public:
     // Returns a ParsedModelConfig with `valid == false` if the file cannot be read
     // or algorithm_code is missing.
     static ParsedModelConfig Parse(const std::string& config_path);
+
+    // Validate the single decoded output and resolve its ordered attribute names.
+    static std::optional<std::vector<std::string>> ParsePersonAttributes(const nlohmann::json& doc);
 
     // Parse version string from the model directory name.
     // Supports new format "..._V1.0.3" and legacy "_v1003".

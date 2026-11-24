@@ -7,6 +7,7 @@
 #include "nn/node/node_type_utils.h"
 #include "nn/utils/dims_vector_utils.h"
 #include "nn/utils/op.h"
+#include "nn/utils/person_attribute_layout.h"
 #include "nn/utils/yolo26_output_layout.h"
 #include "nn/utils/yolo26_raw_postprocess.h"
 #include "util/Log.h"
@@ -46,14 +47,17 @@ void YoloE2EDecodeNode::LoadParam(Op* op) {
     if (!post)
         return;
 
+    person_attributes_  = post->name == "yolo26_person_attributes_postprocess";
+    top_col             = person_attributes_ ? post->person_attribute_columns : 6;
     top_k               = post->top_k;
     base_conf           = post->nms_detection_conf;
     nms_threshold_      = post->nms_threshold;
     raw_output_         = post->raw_output;
-    auto_detect_output_ = post->auto_detect_output;
+    auto_detect_output_ = !person_attributes_ && post->auto_detect_output;
     input_width_        = post->input_width;
     input_height_       = post->input_height;
     valid_params_       = top_k > 0 && std::isfinite(base_conf) && base_conf >= 0.f && base_conf <= 1.f &&
+                    (!person_attributes_ || (!raw_output_ && top_col > kPersonAttributeDetectionColumns)) &&
                     (auto_detect_output_ || !raw_output_ ||
                      (std::isfinite(nms_threshold_) && nms_threshold_ >= 0.f && nms_threshold_ <= 1.f));
 }
@@ -85,6 +89,13 @@ Status YoloE2EDecodeNode::InferTopShapesWithBottoms(std::vector<DimsVector> dims
 }
 
 Status YoloE2EDecodeNode::ValidateLayout(const DimsVector& dims, bool& raw_output) const {
+    if (person_attributes_) {
+        if (dims.size() != 3 || dims[0] <= 0 || dims[1] <= 0 || dims[2] != top_col)
+            return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid YOLO26 person attribute output layout");
+        raw_output = false;
+        return Status{COSMO_NN_OK};
+    }
+
     const auto override = auto_detect_output_ ? std::nullopt : std::optional<bool>(raw_output_);
     const auto layout   = ResolveYolo26OutputLayout(dims, override);
     if (layout == Yolo26OutputLayout::kInvalid)
@@ -152,7 +163,7 @@ Status YoloE2EDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blo
     }
 
     int box_num = bottom_dim.at(1);
-    int box_col = bottom_dim.at(2);  // should be 6 for decoded output
+    int box_col = bottom_dim.at(2);
 
     for (int b = 0; b < batch; b++) {
         const float* src = bottom_ptr + b * box_num * box_col;
@@ -160,7 +171,7 @@ Status YoloE2EDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blo
 
         // Auto-detect normalized coordinates from raw (x1,y1,x2,y2)
         bool is_normalized = false;
-        if (input_width_ > 0 && input_height_ > 0) {
+        if (!person_attributes_ && input_width_ > 0 && input_height_ > 0) {
             is_normalized   = true;
             int check_count = std::min(20, box_num);
             for (int i = 0; i < check_count && is_normalized; i++) {
@@ -192,8 +203,19 @@ Status YoloE2EDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blo
             float score    = src[i * box_col + 4];
             float class_id = src[i * box_col + 5];
 
-            if (std::isnan(score) || score < base_conf)
+            if (person_attributes_) {
+                bool valid = std::isfinite(x1) && std::isfinite(y1) && std::isfinite(x2) &&
+                             std::isfinite(y2) && x2 > x1 && y2 > y1 && std::isfinite(score) && score > 0.f &&
+                             score <= 1.f && score >= base_conf && class_id == 0.f;
+                for (int k = kPersonAttributeDetectionColumns; k < box_col && valid; ++k) {
+                    const float attribute = src[i * box_col + k];
+                    valid                 = std::isfinite(attribute) && attribute >= 0.f && attribute <= 1.f;
+                }
+                if (!valid)
+                    continue;
+            } else if (std::isnan(score) || score < base_conf) {
                 continue;
+            }
 
             // Denormalize if model outputs normalized coordinates
             if (is_normalized) {
@@ -209,12 +231,21 @@ Status YoloE2EDecodeNode::Forward(std::vector<std::shared_ptr<Blob>>& bottom_blo
             float w  = x2 - x1;
             float h  = y2 - y1;
 
+            if (person_attributes_ &&
+                (!std::isfinite(cx) || !std::isfinite(cy) || !std::isfinite(w) || !std::isfinite(h)))
+                continue;
+
             dst[valid_count * top_col + 0] = cx;
             dst[valid_count * top_col + 1] = cy;
             dst[valid_count * top_col + 2] = w;
             dst[valid_count * top_col + 3] = h;
             dst[valid_count * top_col + 4] = score;
             dst[valid_count * top_col + 5] = class_id;
+            if (person_attributes_) {
+                const auto* source_scores = src + i * box_col + kPersonAttributeDetectionColumns;
+                auto* target_scores       = dst + valid_count * top_col + kPersonAttributeDetectionColumns;
+                std::copy_n(source_scores, box_col - kPersonAttributeDetectionColumns, target_scores);
+            }
             valid_count++;
         }
     }

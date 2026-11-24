@@ -1,8 +1,9 @@
 <template>
   <div
     class="action-node"
+    :data-flow-stage="props.data?.stage"
     :class="{ selected: props.data?.selected }"
-    :style="{ width: `${FLOW_NODE_SIZE.width}px`, height: `${FLOW_NODE_SIZE.height}px` }"
+    :style="{ width: `${nodeSize.width}px`, height: `${nodeSize.height}px` }"
   >
     <button
       type="button"
@@ -19,7 +20,7 @@
 
     <div class="node-card" @click.stop="handleClick">
       <div class="node-icon-wrapper">
-        <FlowNodeIcon :kind="iconKey" />
+        <FlowNodeIcon :kind="iconKey" :scene="Boolean(editor?.sceneLayout)" />
       </div>
       <div class="node-name" :title="resolveResourceActionName(nodeActionDetail)">
         <span class="node-name-text">{{ resolveResourceActionName(nodeActionDetail) }}</span>
@@ -56,6 +57,7 @@ const nodeActionDetail = computed(() => props.data?.actionDetail)
 const iconKey = computed(() => getIconInfo(nodeActionDetail.value?.actionId).key)
 
 const editor = inject(flowEditorKey)
+const nodeSize = computed(() => editor?.sceneLayout?.value.node ?? FLOW_NODE_SIZE)
 let mounted = true
 onBeforeUnmount(() => { mounted = false })
 
@@ -122,12 +124,12 @@ const handleDelete = () => {
   flex-shrink: 0;
   border-radius: 8px;
   background: var(--flow-node-icon-bg);
-  color: var(--flow-node-text);
+  color: var(--flow-stage-accent, var(--flow-node-text));
   transition: color 0.2s;
 }
 
 .action-node.selected .node-icon-wrapper {
-  color: var(--flow-node-icon-selected);
+  color: var(--flow-stage-accent, var(--flow-node-icon-selected));
 }
 
 .node-name {

@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { h, ref, reactive, provide, inject, getCurrentInstance } from 'vue'
+import dagre from 'dagre'
 import lodash from 'lodash'
 import { mergeTaskParamSchemasByKey } from '../src/utils/taskParamOwnership.js'
 import { mountComponent } from './helpers/mount_behavior_component.mjs'
 import { collectFlowData, collectMetaDataParams, getAreaRuleSceneFallbacks, createNodeState, updateAtomicList, updateNodeConfig } from '../src/views/gam/countManagement/arrangeDetail/flow/nodeState.js'
+import { behaviorFilterOptions } from '../src/views/gam/countManagement/arrangeDetail/flow/behaviorFilter.js'
 
 const plain = value => JSON.parse(JSON.stringify(value))
 const empty = { default: { render: () => null } }
@@ -80,8 +82,8 @@ assert.deepEqual(collectMetaDataParams(libraryMetadataNodes), [
 ], 'saving excludes stale/irrelevant bindings, keeps the match-node values and preserves an explicitly cleared pair threshold')
 assert.deepEqual(libraryMetadataNodes, beforeCollection, 'metadata collection must not mutate editor state')
 
-// Render real node, edge, picker and detail-panel SFCs. Only the Vue Flow
-// renderer/geometry and Element Plus controls are substituted by the harness.
+// Render the real components and run Dagre layout. Vue Flow's DOM renderer
+// and Element Plus controls are substituted by the harness.
 for (const linkage of [false, true]) {
   const graphs = []
   const flowKey = Symbol('testFlow')
@@ -149,7 +151,7 @@ for (const linkage of [false, true]) {
     '@vue-flow/background': { Background: empty.default },
     '@vue-flow/controls': { Controls: empty.default },
     '@vue-flow/core/dist/style.css': {}, '@vue-flow/controls/dist/style.css': {},
-    dagre: { default: {} }, lodash: { default: lodash },
+    dagre: { default: dagre }, lodash: { default: lodash },
     uuid: { v4: () => `id-${++id}` },
     '@/components/eventBus.js': { default: {
       $on(name) { assert.ok(!/^(flow|edgeMenu):/.test(name), 'graph listeners must be canvas-scoped') },
@@ -173,7 +175,7 @@ for (const linkage of [false, true]) {
         ? h(component, { ...props, key: index, ref: value => { canvases[index] = value } }) : null))
     }),
     globals: {
-      requestAnimationFrame() {},
+      requestAnimationFrame(callback) { return Promise.resolve().then(callback) },
       document: {
         addEventListener(name, callback) { documentListeners.add(callback) },
         removeEventListener(name, callback) { documentListeners.delete(callback) }
@@ -217,6 +219,10 @@ for (const linkage of [false, true]) {
   }
   try {
     assert.equal(graphs.length, 2, 'each canvas owns a flow instance')
+    for (const graph of graphs) {
+      const actions = graph.nodes.filter(node => node.type === 'customForm')
+      assert.ok(actions[0].position.x < actions[1].position.x, 'successive actions occupy separate columns')
+    }
     assert.deepEqual(savedItems().map(item => item.configObject), [config, config], 'untouched node JSON round-trips')
     assert.equal(savedItems()[0].actionName, linkage ? 'Saved action' : 'Canonical action', 'page-specific action names are preserved')
     for (const node of graphs[0].nodes.filter(node => node.type === 'customForm')) {
@@ -574,6 +580,139 @@ for (const key of ['algs', 'strageAlgorithms']) {
     assert.deepEqual(JSON.parse(saved.value), savedSelection, 'saving preserves only channelId/algorithmId pairs')
   } finally { alarmForm.unmount() }
 }
+
+// Joint model scores must remain separate from the person class, and every
+// visible behavior selection must survive serialization and scenario overrides.
+const behaviorScores = [
+  { class_name: 'smoking', nameCN: '抽烟' },
+  { class_name: 'sleep', nameCN: '睡岗' },
+  { class_name: 'fall', nameCN: '跌倒' },
+  { class_name: 'normal', nameCN: '正常' }
+]
+const targetLabel = { atomicCode: 'joint-model', labelCode: 'person', labelName: 'person', sideMinIsEnable: '1' }
+const detector = { atomicCode: 'joint-model', atomicName: 'Joint Person Model', labelList: [{ label: '0', class_name: 'person', nameCN: 'person' }] }
+const mountBehaviorFilter = (atomicList, configObject, sceneParams = [], actionId = 'BA_00002') => mountComponent(
+  'views/gam/countManagement/arrangeDetail/flow/DynamicForm.vue', {
+    props: {
+      actionDetail: {
+        actionId, flowActionId: 'category-filter',
+        inputParamConfig: JSON.stringify([{ key: 'label', type: 'labelFilterList', name: 'Label', level: '1' }])
+      },
+      atomicList,
+      sceneParams,
+      configObject
+    },
+    mocks: {
+      './ConditionView.vue': empty, './TreeSelectMultiple.vue': empty,
+      uuid: { v4: () => 'fixture-id' }, lodash: { default: lodash },
+      '@element-plus/icons-vue': Object.fromEntries(['QuestionFilled', 'ArrowDown', 'ArrowRight', 'CirclePlus', 'CircleClose'].map(name => [name, empty.default])),
+      'tree-transfer-vue3': empty
+    }
+  }
+)
+const initialFilter = { params: [], webConfig: { labelFilterList: [targetLabel] } }
+const behaviorSelects = (form) => form.all(node => node.type === 'el-select' && Object.hasOwn(node.props, 'multiple'))
+const jointAtomicList = [{ ...detector, behaviorScores }]
+assert.deepEqual(behaviorFilterOptions(
+  [{ ...detector, position: 'detector', behaviorScores: behaviorScores.slice(0, 2) },
+    { ...detector, position: 'other-branch', behaviorScores: behaviorScores.slice(2) }],
+  [{ source: 'detector', target: 'tracker' }, { source: 'tracker', target: 'category-filter' }],
+  'category-filter'
+), behaviorScores.slice(0, 2), 'only upstream detectors provide behavior choices')
+const initialBehaviorForm = await mountBehaviorFilter(jointAtomicList, initialFilter)
+let savedBehaviorConfig
+try {
+  const [behaviorSelect] = behaviorSelects(initialBehaviorForm)
+  assert.deepEqual(initialBehaviorForm.all(node => node.type === 'el-option', behaviorSelect).map(node => node.props.value), ['smoking', 'sleep', 'fall', 'normal'])
+  behaviorSelect.props.activate(['smoking', 'fall'])
+  await initialBehaviorForm.settle()
+  savedBehaviorConfig = plain(initialBehaviorForm.instance.submitForm())
+  assert.deepEqual(savedBehaviorConfig.webConfig.labelFilterList.map(item => item.labelCode), ['person'])
+  assert.deepEqual(savedBehaviorConfig.params, [
+    { key: 'label', value: '' },
+    { key: 'filter.attr.smoking.confidence.min', value: '0.70' },
+    { key: 'filter.attr.fall.confidence.min', value: '0.70' }
+  ])
+  assert.deepEqual(savedBehaviorConfig.webConfig.metaDataParams.filter(param => param.key.startsWith('filter.attr.')).map(param => [param.key, param.defaultValue, param.level]), [
+    ['filter.attr.smoking.confidence.min', '0.70', '2'],
+    ['filter.attr.fall.confidence.min', '0.70', '2']
+  ])
+} finally { initialBehaviorForm.unmount() }
+
+const reopenedBehaviorForm = await mountBehaviorFilter(jointAtomicList, savedBehaviorConfig, [{ key: 'filter.attr.smoking.confidence.min', defaultValue: '0.83' }])
+try {
+  const [behaviorSelect] = behaviorSelects(reopenedBehaviorForm)
+  assert.deepEqual(plain(behaviorSelect.props.modelValue), ['smoking', 'fall'])
+  assert.equal(reopenedBehaviorForm.instance.submitForm().params.find(param => param.key === 'filter.attr.smoking.confidence.min').value, '0.83')
+  behaviorSelect.props.activate([])
+  await reopenedBehaviorForm.settle()
+  assert.equal(reopenedBehaviorForm.instance.submitForm().params.some(param => param.key.startsWith('filter.attr.')), false)
+} finally { reopenedBehaviorForm.unmount() }
+
+const sevenScores = [
+  ...behaviorScores.slice(0, 3),
+  { class_name: 'phone_call', nameCN: '打电话' },
+  { class_name: 'phone_use', nameCN: '玩手机' },
+  { class_name: 'climbing', nameCN: '攀爬' },
+  behaviorScores[3]
+]
+const sevenAtomicList = [{ ...detector, behaviorScores: sevenScores }]
+const sevenForm = await mountBehaviorFilter(sevenAtomicList, initialFilter)
+let sevenConfig
+try {
+  const [behaviorSelect] = behaviorSelects(sevenForm)
+  assert.deepEqual(sevenForm.all(node => node.type === 'el-option', behaviorSelect).map(node => node.props.value), sevenScores.map(score => score.class_name))
+  behaviorSelect.props.activate(['phone_call', 'phone_use', 'climbing'])
+  await sevenForm.settle()
+  sevenConfig = plain(sevenForm.instance.submitForm())
+  assert.deepEqual(sevenConfig.params.slice(1).map(({ key, value }) => [key, value]), [
+    ['filter.attr.phone_call.confidence.min', '0.70'],
+    ['filter.attr.phone_use.confidence.min', '0.70'],
+    ['filter.attr.climbing.confidence.min', '0.70']
+  ])
+} finally { sevenForm.unmount() }
+const sevenReopened = await mountBehaviorFilter(sevenAtomicList, sevenConfig, [{ key: 'filter.attr.phone_use.confidence.min', defaultValue: '0.80' }])
+try {
+  const [behaviorSelect] = behaviorSelects(sevenReopened)
+  assert.deepEqual(plain(behaviorSelect.props.modelValue), ['phone_call', 'phone_use', 'climbing'])
+  assert.equal(sevenReopened.instance.submitForm().params.find(param => param.key === 'filter.attr.phone_use.confidence.min').value, '0.80')
+} finally { sevenReopened.unmount() }
+
+const customScoreModel = [{ ...detector, behaviorScores: [
+  { class_name: 'visitor-badge', nameCN: '访客证' },
+  { class_name: 'Hands_Raised2', nameCN: '举手' },
+  { class_name: 'bad.key', nameCN: 'Invalid key' },
+  { class_name: 'person', nameCN: 'Detection label' }
+] }]
+const customFilter = {
+  ...initialFilter,
+  params: [
+    { key: 'filter.attr.visitor-badge.confidence.min', value: '0.82' },
+    { key: 'filter.attr.Hands_Raised2.confidence.min', value: '0.64' },
+    { key: 'filter.attr.bad.key.confidence.min', value: '0.99' },
+    { key: 'filter.attr.person.confidence.min', value: '0.99' }
+  ]
+}
+const customReopened = await mountBehaviorFilter(customScoreModel, customFilter)
+try {
+  const [behaviorSelect] = behaviorSelects(customReopened)
+  assert.deepEqual(customReopened.all(node => node.type === 'el-option', behaviorSelect).map(node => node.props.value), ['visitor-badge', 'Hands_Raised2'])
+  assert.deepEqual(plain(behaviorSelect.props.modelValue), ['visitor-badge', 'Hands_Raised2'])
+  const saved = plain(customReopened.instance.submitForm())
+  assert.deepEqual(saved.params.slice(1), customFilter.params.slice(0, 2))
+  assert.deepEqual(saved.webConfig.labelFilterList.map(item => item.labelCode), ['person'])
+} finally { customReopened.unmount() }
+
+const legacyFilterForm = await mountBehaviorFilter([detector], initialFilter)
+try {
+  assert.equal(behaviorSelects(legacyFilterForm).length, 0)
+  assert.equal(legacyFilterForm.instance.submitForm().params.some(param => param.key.startsWith('filter.attr.')), false)
+} finally { legacyFilterForm.unmount() }
+
+const pictureFilterForm = await mountBehaviorFilter(jointAtomicList, initialFilter, [], 'PB_00002')
+try {
+  assert.equal(behaviorSelects(pictureFilterForm).length, 0)
+} finally { pictureFilterForm.unmount() }
 
 // Switch a real crowd-count template through the same panel and save paths
 // used by the editor. Its scene threshold differs from the catalog default.

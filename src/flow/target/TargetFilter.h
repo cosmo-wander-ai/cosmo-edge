@@ -13,14 +13,15 @@
 namespace cosmo {
 enum class BAFilterType {
     kNone = 0,
-    kSizeMin,        // Minimum size limit
-    kSizeMax,        // Maximum size limit
-    kSideMin,        // Minimum side length for area calculation
-    kSideMax,        // Maximum side length for area calculation
-    kConfidenceMin,  // Minimum confidence filter
-    kConfidenceMax,  // Maximum confidence filter
-    kMotionMove,     // Motion state: moving filter
-    kMotionStatic,   // Motion state: static filter
+    kSizeMin,                // Minimum size limit
+    kSizeMax,                // Maximum size limit
+    kSideMin,                // Minimum side length for area calculation
+    kSideMax,                // Maximum side length for area calculation
+    kConfidenceMin,          // Minimum confidence filter
+    kConfidenceMax,          // Maximum confidence filter
+    kBehaviorConfidenceMin,  // Minimum confidence for a current joint person behavior
+    kMotionMove,             // Motion state: moving filter
+    kMotionStatic,           // Motion state: static filter
     kCount
 };
 

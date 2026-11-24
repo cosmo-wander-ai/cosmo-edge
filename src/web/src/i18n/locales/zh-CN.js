@@ -643,6 +643,7 @@ export default {
     switchOff: '关',
     simpleTip: '* 非常规组件默认值输入方式使用文本框',
     targetLabel: '目标标签',
+    behaviorAttributes: '行为属性',
     minSizeEnabled: '最小尺寸是否开启',
     confidenceAdjust: '置信度调整方式',
     positiveAdjust: '正向调整',

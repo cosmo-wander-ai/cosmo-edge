@@ -63,6 +63,7 @@ struct PUBLIC PipelineConfig {
     std::string extra_config_json;
     InferenceInputSizes input_sizes;
     std::optional<InferenceInputSize> requested_input_size;
+    std::vector<std::string> person_attributes;
 };
 
 // ─── Output Category ─────────────────────────────────────────────

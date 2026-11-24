@@ -1,6 +1,9 @@
+@use 'sass:color';
+
 // Palette shared by the orchestration editor, its detached dialog, and model IO.
 .flow-theme {
   --flow-canvas: var(--bg-secondary);
+  --flow-scene-canvas: #f7f9fc;
   --flow-grid: #dce2ea;
   --flow-node: #ffffff;
   --flow-node-border: #d2dbe7;
@@ -22,14 +25,7 @@
   --flow-icon-orange-text: #ea580c;
   --flow-icon-green-bg: #f0fdf4;
   --flow-icon-green-text: var(--success-color);
-  --flow-stage-input: var(--flow-node-text);
-  --flow-stage-input-line: var(--flow-node-border);
-  --flow-stage-model: var(--flow-node-text);
-  --flow-stage-model-line: var(--flow-node-border);
-  --flow-stage-rule: var(--flow-node-text);
-  --flow-stage-rule-line: var(--flow-node-border);
-  --flow-stage-output: var(--flow-node-text);
-  --flow-stage-output-line: var(--flow-node-border);
+  --flow-stage-label: var(--flow-node-text);
   --flow-delete-bg: #ffffff;
   --flow-delete-hover: #fef0f0;
   --flow-danger-button-bg: var(--danger-color);
@@ -47,6 +43,7 @@
 
 html[data-theme='dark'] .flow-theme {
   --flow-canvas: #1b1f27;
+  --flow-scene-canvas: var(--flow-canvas);
   --flow-grid: #333c49;
   --flow-node: #282f3b;
   --flow-node-border: var(--border-color);
@@ -66,14 +63,7 @@ html[data-theme='dark'] .flow-theme {
   --flow-icon-orange-text: #f5b572;
   --flow-icon-green-bg: #263b32;
   --flow-icon-green-text: #8bd6a8;
-  --flow-stage-input: var(--text-secondary);
-  --flow-stage-input-line: var(--border-color);
-  --flow-stage-model: var(--text-secondary);
-  --flow-stage-model-line: var(--border-color);
-  --flow-stage-rule: var(--text-secondary);
-  --flow-stage-rule-line: var(--border-color);
-  --flow-stage-output: var(--text-secondary);
-  --flow-stage-output-line: var(--border-color);
+  --flow-stage-label: var(--text-secondary);
   --flow-delete-bg: #332a34;
   --flow-delete-hover: #4a303a;
   --flow-danger-button-bg: #b94154;
@@ -87,4 +77,22 @@ html[data-theme='dark'] .flow-theme {
   --flow-warning-bg: #403322;
   --flow-io-header-bg: #20252e;
   --flow-mode-bg: #20252e;
+}
+
+// Use the same stage tone for the icon and the short marker above its cards.
+@each $stage, $light, $dark in (
+  input #3079c7 #82baff,
+  detect #7357cb #b4a2ff,
+  rule #b76f28 #f2b778,
+  output #16877e #73d4c5
+) {
+  .flow-theme [data-flow-stage='#{$stage}'] {
+    --flow-stage-accent: #{$light};
+    --flow-node-icon-bg: #{color.mix($light, #fff, 12%)};
+  }
+
+  html[data-theme='dark'] .flow-theme [data-flow-stage='#{$stage}'] {
+    --flow-stage-accent: #{$dark};
+    --flow-node-icon-bg: #{color.mix($dark, #282f3b, 12%)};
+  }
 }

@@ -255,6 +255,28 @@
           </div>
         </el-form-item>
 
+        <el-form-item
+          v-if="isVideoCategoryFilter && item.type === 'labelFilterList' && showFormItem(item) && (availableBehaviorFilters.length || selectedBehaviorFilters.length)"
+          :label="t('glossary.behaviorAttributes')"
+          label-width="90px"
+        >
+          <el-select
+            v-model="selectedBehaviorFilters"
+            class="form-content"
+            size="small"
+            multiple
+            clearable
+            :placeholder="t('validate.pleaseSelect', { name: '' })"
+          >
+            <el-option
+              v-for="behavior in availableBehaviorFilters"
+              :key="behavior.class_name"
+              :label="`${behavior.nameCN}（${behavior.class_name}）`"
+              :value="behavior.class_name"
+            />
+          </el-select>
+        </el-form-item>
+
         <!-- modelSelect 定制化组件  -->
         <div class="select-table-body" v-if="item.type.includes('modelSelect') && !['modelSelect_dino','modelSelect_ocr','modelSelect_sam2','modelSelect_qwen3vl','modelSelect_qwen3_5'].includes(item.type)">
           <div class="select-table-title">{{ t('glossary.selectLabel') }}</div>
@@ -334,6 +356,7 @@ import {
   collectAlarmAlgorithms,
   isAlarmAlgorithmsKey
 } from './linkageFormCompatibility.js'
+import { behaviorFilterOptions, buildBehaviorFilterParams, readBehaviorFilters } from './behaviorFilter.js'
 
 // Props
 const props = defineProps({
@@ -365,6 +388,7 @@ const isPictureLibraryMatch = computed(
 )
 const isPicturePairMatch = computed(() => (props.actionDetail?.actionId || props.actionDetail?.id) === 'PB_00007')
 const isPictureComparison = computed(() => isPictureLibraryMatch.value || isPicturePairMatch.value)
+const isVideoCategoryFilter = computed(() => (props.actionDetail?.actionId || props.actionDetail?.id) === 'BA_00002')
 const isPairThreshold = item => isPicturePairMatch.value && item.key === 'pair.threshold'
 const isPictureMatchLibrary = item => isPictureLibraryMatch.value &&
   (item.key === 'param.faceSet' || item.key === 'param.workClothesSet')
@@ -466,6 +490,10 @@ const selectedTrackAtomic = ref({})
 const labelFilterList = ref([])
 const labelList = ref([])
 const categoriesLabelList = ref([])
+const selectedBehaviorFilters = ref([])
+const availableBehaviorFilters = computed(() => behaviorFilterOptions(
+  props.atomicList, editor?.edges?.value, props.actionDetail.flowActionId
+))
 const targetLabelArr = ref([
   {
     atomicCode: '',
@@ -646,8 +674,11 @@ onMounted(() => {
   if (labelFilterListItem) {
     labelFilterListType.value = true
     labelFilterList.value = props.atomicList
+    if (isVideoCategoryFilter.value) {
+      selectedBehaviorFilters.value = readBehaviorFilters(props.configObject?.params)
+    }
     const targetLabelArrTemp = []
-    props.configObject?.webConfig?.labelFilterList.forEach(
+    props.configObject?.webConfig?.labelFilterList?.forEach(
       (item) => {
         targetLabelArrTemp.push({
           ...item,
@@ -1172,7 +1203,8 @@ const emitAtomicUpdate = () => {
       position,
       atomicCode,
       atomicName,
-      labelList: resultFilter
+      labelList: resultFilter,
+      behaviorScores: selectedAtomic.value?.behaviorScores
     })
   }
 }
@@ -1209,6 +1241,7 @@ watch(
     paramConfigs,
     inferenceInputSize,
     targetLabelArr,
+    selectedBehaviorFilters,
     targetLimitLabelArr,
     condition,
     labelList,
@@ -1514,6 +1547,9 @@ const submitForm = () => {
         position: props.actionDetail.flowActionId,
         labelList: resultFilter
       }
+      if (selectedAtomic.value.behaviorScores?.length) {
+        configObject.webConfig.atomic.behaviorScores = selectedAtomic.value.behaviorScores
+      }
       resultFilter.length &&
         (configObject.webConfig.atomic.categoriesLabelList =
           categoriesLabelList.value)
@@ -1581,6 +1617,17 @@ const submitForm = () => {
       }
     }
   } else if (labelFilterListType.value) {
+    for (const descriptor of buildBehaviorFilterParams(
+      selectedBehaviorFilters.value,
+      availableBehaviorFilters.value,
+      props.sceneParams,
+      props.configObject?.params || [],
+      t
+    )) {
+      const { key, value } = descriptor
+      configObject.params.push({ key, value })
+      configObject.webConfig.metaDataParams.push(descriptor)
+    }
     targetLabelArr.value.forEach((item) => {
       configObject.webConfig.labelFilterList.push({
         ...item

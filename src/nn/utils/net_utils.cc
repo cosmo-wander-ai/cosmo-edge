@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cfloat>
 #include <cstdio>
 #include <iterator>
 #include <limits>
@@ -16,6 +17,7 @@
 #include "nn/device/sophon/sophon_dino_encode_node.h"
 #endif
 #include "nn/utils/dims_vector_utils.h"
+#include "nn/utils/person_attribute_layout.h"
 #include "tokenizers_c.h"
 
 #ifdef COSMO_NN_USE_SOPHON_BACKEND
@@ -435,6 +437,84 @@ Status NetUtils::ParseDetectionOutput(const std::vector<std::shared_ptr<Blob>>& 
 
     return PickDetectionObjects(output_blob, image_sizes, net_input_size, selected_indcies,
                                 selected_thresholds, selected_label, detects);
+}
+
+Status NetUtils::ParsePersonAttributesOutput(const std::vector<std::shared_ptr<Blob>>& blobs,
+                                             const std::vector<Size>& image_sizes, Size net_input_size,
+                                             float person_threshold, const std::string& person_label,
+                                             std::vector<std::vector<ObjectInfoV1>>& detects,
+                                             const std::vector<std::string>& attribute_names) {
+    detects.clear();
+    if (blobs.size() != 1 || !blobs[0] || !blobs[0]->GetHandle().base ||
+        blobs[0]->GetBlobDesc().data_type != DATA_TYPE_FLOAT ||
+        !UsesHostMemory(blobs[0]->GetBlobDesc().device_type) || net_input_size.width <= 0 ||
+        net_input_size.height <= 0 || !std::isfinite(person_threshold) || person_threshold < 0.f ||
+        person_threshold > 1.f || person_label.empty())
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid person-attribute parser input");
+    const auto& dims        = blobs[0]->GetBlobDesc().dims;
+    const int row_width     = dims.size() == 3 ? dims[2] : 0;
+    const auto legacy_names = attribute_names.empty() ? ResolvePersonAttributeNames(row_width) : std::nullopt;
+    const auto& names       = legacy_names ? *legacy_names : attribute_names;
+    if (row_width <= kPersonAttributeDetectionColumns ||
+        names.size() != static_cast<size_t>(row_width - kPersonAttributeDetectionColumns) || dims[0] <= 0 ||
+        dims[1] <= 0 || image_sizes.size() > static_cast<size_t>(dims[0]) ||
+        static_cast<size_t>(dims[0]) >
+            std::numeric_limits<int>::max() / static_cast<size_t>(row_width) / dims[1])
+        return Status(COSMO_NN_ERR_INVALID_INPUT,
+                      "Expected [B,N,6+K] output matching person attribute names");
+    if (std::any_of(image_sizes.begin(), image_sizes.end(),
+                    [](const Size& size) { return size.width <= 0 || size.height <= 0; }))
+        return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid original image size");
+    const float* data = static_cast<const float*>(blobs[0]->GetHandle().base);
+    for (size_t batch = 0; batch < image_sizes.size(); ++batch) {
+        const Size image = image_sizes[batch];
+        // Match AdjustSize's intermediate size while checking its float-to-int
+        // conversions before they happen. No coordinates are clipped here.
+        const float old_aspect =
+            net_input_size.height / (static_cast<float>(net_input_size.width) + FLT_EPSILON);
+        const float new_aspect    = image.height / (static_cast<float>(image.width) + FLT_EPSILON);
+        const float mapped_width  = new_aspect > old_aspect ? image.height / old_aspect : image.width;
+        const float mapped_height = new_aspect > old_aspect ? image.height : image.width * old_aspect;
+        const double int_bound    = static_cast<double>(std::numeric_limits<int>::max()) - 256.;
+        if (!std::isfinite(mapped_width) || !std::isfinite(mapped_height) || mapped_width < 1.f ||
+            mapped_height < 1.f || mapped_width >= int_bound || mapped_height >= int_bound)
+            return Status(COSMO_NN_ERR_INVALID_INPUT, "Unrepresentable mapped image size");
+        const float scale_x = static_cast<int>(mapped_width) / static_cast<float>(net_input_size.width);
+        const float scale_y = static_cast<int>(mapped_height) / static_cast<float>(net_input_size.height);
+        std::vector<ObjectInfoV1> objects;
+        const float* rows = data + batch * static_cast<size_t>(dims[1]) * row_width;
+        for (int row = 0; row < dims[1]; ++row) {
+            const float* p = rows + static_cast<size_t>(row) * row_width;
+            bool valid     = std::isfinite(p[0]) && std::isfinite(p[1]) && std::isfinite(p[2]) &&
+                         std::isfinite(p[3]) && p[2] > 0.f && p[3] > 0.f && std::isfinite(p[4]) &&
+                         p[4] > 0.f && p[4] <= 1.f && p[4] >= person_threshold && p[5] == 0.f;
+            for (int k = kPersonAttributeDetectionColumns; k < row_width && valid; ++k)
+                valid = std::isfinite(p[k]) && p[k] >= 0.f && p[k] <= 1.f;
+            if (!valid)
+                continue;
+            ObjectInfoV1 obj;
+            obj.x1 = p[0] - p[2] * 0.5f;
+            obj.y1 = p[1] - p[3] * 0.5f;
+            obj.x2 = p[0] + p[2] * 0.5f;
+            obj.y2 = p[1] + p[3] * 0.5f;
+            // AdjustSize converts scaled coordinates to int before clipping.
+            // Reject unrepresentable values before that conversion, preserving
+            // the existing mapping for all finite, representable boxes.
+            if (!std::isfinite(obj.x1) || !std::isfinite(obj.y1) || !std::isfinite(obj.x2) ||
+                !std::isfinite(obj.y2) || std::abs(static_cast<double>(obj.x1) * scale_x) >= int_bound ||
+                std::abs(static_cast<double>(obj.y1) * scale_y) >= int_bound ||
+                std::abs(static_cast<double>(obj.x2) * scale_x) >= int_bound ||
+                std::abs(static_cast<double>(obj.y2) * scale_y) >= int_bound)
+                continue;
+            obj.infos.push_back({p[4], 0, person_label});
+            for (size_t k = 0; k < names.size(); ++k)
+                obj.infos.push_back({p[kPersonAttributeDetectionColumns + k], static_cast<int>(k), names[k]});
+            obj = AdjustSize(obj, net_input_size, image, 2);
+            objects.push_back(std::move(obj));
+        }
+        detects.push_back(std::move(objects));
+    }
+    return Status{COSMO_NN_OK};
 }
 
 Status NetUtils::ParseClassificationOutput(const std::vector<std::shared_ptr<Blob>>& blobs,

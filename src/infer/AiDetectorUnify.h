@@ -37,7 +37,8 @@ private:
                             const std::vector<media::NativeVideoBufferPtr>& native_buffers,
                             std::vector<std::vector<AiDetectRstEl>>& results);
 
-    size_t max_batch_size_ = 1;
+    size_t max_batch_size_        = 1;
+    bool joint_person_attributes_ = false;
     std::string atomic_code_;
     std::string cfg_path_;
     std::string model_path_;

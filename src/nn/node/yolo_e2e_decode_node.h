@@ -14,6 +14,8 @@ namespace cosmo::nn {
  * decoded rows when the last dimension is six. Output: [batch, top_k, 6]
  * with (cx, cy, w, h, score, class_id) in xywh-center format,
  *         compatible with the framework's PickDetectionObjects / AdjustSize.
+ * The person-attribute pipeline uses decoded pixel rows with six detection columns plus configured scores.
+ * The independent attribute scores following class_id pass through unchanged.
  */
 class YoloE2EDecodeNode : public Node {
 public:
@@ -36,6 +38,7 @@ private:
     int top_k                = 300;
     bool raw_output_         = false;
     bool auto_detect_output_ = false;
+    bool person_attributes_  = false;
     bool valid_params_       = false;
     int top_col              = 6;
 

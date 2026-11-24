@@ -40,7 +40,7 @@ NodeType NodeTypeUtils::NodeTypeFromStr(std::string name) {
         return NODE_YOLO_NPU_DECODE;
     if (name == "yolov8_postprocess")
         return NODE_YOLOV8_DECODE;
-    if (name == "yolo_e2e_postprocess")
+    if (name == "yolo_e2e_postprocess" || name == "yolo26_person_attributes_postprocess")
         return NODE_YOLO_E2E_DECODE;
     if (name == "yolo_obb_postprocess")
         return NODE_YOLO_OBB_DECODE;

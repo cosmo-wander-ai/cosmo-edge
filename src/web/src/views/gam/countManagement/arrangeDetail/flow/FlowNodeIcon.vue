@@ -6,7 +6,32 @@
     aria-hidden="true"
     focusable="false"
   >
-    <g v-if="kind === 'video'">
+    <!-- Scene glyphs are from Lucide 1.17.0. See public/licenses/lucide.txt. -->
+    <g v-if="scene && kind === 'video'">
+      <path d="M15.033 9.44a.647.647 0 0 1 0 1.12l-4.065 2.352a.645.645 0 0 1-.968-.56V7.648a.645.645 0 0 1 .967-.56z" />
+      <path d="M12 17v4" />
+      <path d="M8 21h8" />
+      <rect x="2" y="3" width="20" height="14" rx="2" />
+    </g>
+    <g v-else-if="scene && kind === 'target'">
+      <path d="M3 7V5a2 2 0 0 1 2-2h2" />
+      <path d="M17 3h2a2 2 0 0 1 2 2v2" />
+      <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
+      <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+    </g>
+    <g v-else-if="scene && kind === 'tracking'">
+      <circle cx="6" cy="19" r="3" />
+      <path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15" />
+      <circle cx="18" cy="5" r="3" />
+    </g>
+    <path v-else-if="scene && kind === 'filter'" d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z" />
+    <path v-else-if="scene && kind === 'judge'" d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z" />
+    <g v-else-if="scene && kind === 'send'">
+      <path d="M12 3v12" />
+      <path d="m17 8-5-5-5 5" />
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    </g>
+    <g v-else-if="kind === 'video'">
       <rect x="3" y="4" width="18" height="13" rx="1.5" />
       <path d="m10 8 5 3-5 3ZM12 17v4M8 21h8" />
     </g>
@@ -90,7 +115,8 @@
 
 <script setup>
 defineProps({
-  kind: { type: String, default: 'default' }
+  kind: { type: String, default: 'default' },
+  scene: Boolean
 })
 </script>
 

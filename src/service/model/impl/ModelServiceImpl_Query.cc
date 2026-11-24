@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
+#include <map>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -197,7 +198,8 @@ std::vector<cosmo::Model::MsgAtomicModel> ModelServiceImpl::QueryAtomicModels(co
                                [](unsigned char c) { return std::tolower(c); });
                 bool type_match = false;
                 if (dtLower == "detector")
-                    type_match = (mt_lower.find("_det") != std::string::npos || mt_lower == "detector");
+                    type_match = (mt_lower.find("_det") != std::string::npos || mt_lower == "detector" ||
+                                  mt_lower == "yolo26_person_attributes");
                 else if (dtLower == "classify")
                     type_match = (mt_lower.find("classify") != std::string::npos || mt_lower == "classify");
                 else
@@ -217,6 +219,17 @@ std::vector<cosmo::Model::MsgAtomicModel> ModelServiceImpl::QueryAtomicModels(co
                 label.used       = false;
                 label.nameCN     = pl.class_name;
                 model.labelList.push_back(std::move(label));
+            }
+
+            if (!cfg.person_attributes.empty()) {
+                static const std::map<std::string, std::string> names = {
+                    {"smoking", "抽烟"},      {"sleep", "睡岗"},       {"fall", "跌倒"},
+                    {"phone_call", "打电话"}, {"phone_use", "玩手机"}, {"climbing", "攀爬"},
+                    {"normal", "正常"}};
+                for (const auto& code : cfg.person_attributes) {
+                    const auto name = names.find(code);
+                    model.behaviorScores.push_back({code, name != names.end() ? name->second : code});
+                }
             }
 
             // Serialize labelList to JSON string for frontend

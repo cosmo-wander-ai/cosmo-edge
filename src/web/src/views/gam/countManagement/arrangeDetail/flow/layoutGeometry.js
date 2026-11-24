@@ -6,6 +6,26 @@ export const DETAIL_PANEL_SIZE = Object.freeze({ width: 360, height: 350 })
 export const ALARM_DETAIL_PANEL_SIZE = Object.freeze({ width: 760, height: 430 })
 export const DETAIL_PANEL_GAP = 12
 
+// Six action columns and two narrower terminals form the reference row.
+// Shorter and branched workflows use the same card size; long rows can pan.
+export const getSceneFlowLayout = (canvasWidth, viewportWidth) => {
+  const inset = viewportWidth <= 730 ? 8 : 12
+  const gap = Math.min(26, Math.max(16, viewportWidth * 0.0255))
+  const rowWidth = Math.max(668, canvasWidth - 2 * inset)
+  const width = (rowWidth - 7 * gap) / (6 + 2 * 0.76)
+  const tileSize = Math.min(37, Math.max(29, viewportWidth * 0.035))
+  const fontSize = Math.min(13, Math.max(11, viewportWidth * 0.0126))
+  const contentHeight = tileSize + 5 + fontSize * 1.35 + 2 * (4 + 1)
+  return {
+    node: { width, height: Math.max(contentHeight, width * FLOW_NODE_SIZE.height / FLOW_NODE_SIZE.width) },
+    terminal: { width: 0.76 * width, height: 29 },
+    gap,
+    inset,
+    tileSize,
+    fontSize
+  }
+}
+
 // Reading is the default. Long flows start at the left and stay at 100%; an
 // explicit overview action can still fit every branch into the available area.
 export const getFlowReadingViewport = (bounds, viewport, padding = 56) => {
@@ -32,19 +52,20 @@ export const getDockedPanelSize = (actionId, viewport) => {
   }
 }
 
-export const getReadingFloatingPanelSize = (actionId, viewport, zoom = 1) => {
+export const getReadingFloatingPanelSize = (actionId, viewport, zoom = 1, nodeWidth = FLOW_NODE_SIZE.width) => {
   const size = isAlarmDataAction(actionId) ? ALARM_DETAIL_PANEL_SIZE : DETAIL_PANEL_SIZE
   const width = Math.max(1, Number(viewport?.width) || size.width + 240)
   const height = Math.max(1, Number(viewport?.height) || size.height + 32)
   return {
     // Reserve the rendered card width plus its reading margins.
-    width: Math.max(1, Math.min(size.width, width - FLOW_NODE_SIZE.width * Math.max(1, zoom) - 144)),
+    width: Math.max(1, Math.min(size.width, width - nodeWidth * Math.max(1, zoom) - 144)),
     height: Math.max(1, Math.min(size.height, height - 32))
   }
 }
 
-export const getFlowNodeDimensions = (node) => ({
-  ...(node?.type === 'start' || node?.type === 'end' ? FLOW_TERMINAL_SIZE : FLOW_NODE_SIZE)
+// Dagre writes x/y onto each label, so return a fresh object for every node.
+export const getFlowNodeDimensions = (node, { node: card = FLOW_NODE_SIZE, terminal = FLOW_TERMINAL_SIZE } = {}) => ({
+  ...(node?.type === 'start' || node?.type === 'end' ? terminal : card)
 })
 
 export const getFlowBounds = (

@@ -5,6 +5,7 @@
 #include "flow/common/AlgDataRecord.h"
 #include "flow/common/AlgDataUnit.h"
 #include "flow/common/AreaLineUtil.h"
+#include "flow/target/TargetFilter.h"
 #include "mem/AllocatorCpu.h"
 #include "mem/MemoryPoolMng.h"
 
@@ -395,5 +396,123 @@ TEST_CASE("GenRandomDetBoxs: Generates non-empty targets", "[AlgDataUnit]") {
         REQUIRE(target.box.height >= 32);
         REQUIRE_FALSE(target.areaSign.areas.empty());
         REQUIRE(target.bFilter == false);
+    }
+}
+
+TEST_CASE("Category filter gates only current person behavior scores", "[target-filter][person-attributes]") {
+    class TestableTargetFilter final : public TargetFilter {
+    public:
+        using AlgActionBase::HandFrame;
+        using TargetFilter::TargetFilter;
+    };
+
+    MsgDynamicKeyValue smoking;
+    smoking.key   = "filter.attr.smoking.confidence.min";
+    smoking.value = "0.70";
+    smoking.keys  = {"filter", "attr", "smoking", "confidence", "min"};
+    MsgDynamicKeyValue sleep;
+    sleep.key   = "filter.attr.sleep.confidence.min";
+    sleep.value = "0.80";
+    sleep.keys  = {"filter", "attr", "sleep", "confidence", "min"};
+    ActionNode action;
+    action.flowActionId        = "category-filter";
+    action.configObject.params = {smoking, sleep};
+    TestableTargetFilter filter("person-behavior-test", action);
+    auto algorithm = std::make_shared<ActionAlg>();
+    algorithm->workFlow.push_back(action);
+    filter.SetActionAlg(algorithm);
+
+    const auto person = [](float smoking, float sleep) {
+        AiDetectRstEl target;
+        target.box                      = util::Box(20, 30, 50, 70);
+        target.confidence               = {"person", "joint-model", 0.92f, AiAnnotationSource::Detection};
+        target.trackId                  = 42;
+        target.trackStatus              = AITrackingStatus::TRACKING;
+        target.hasJointPersonAttributes = true;
+        target.classifyRst = {{"smoking", "joint-model", smoking, AiAnnotationSource::Classification},
+                              {"sleep", "joint-model", sleep, AiAnnotationSource::Classification}};
+        return target;
+    };
+
+    const auto run = [&](AiDetectRstEl target) {
+        auto frame   = std::make_shared<AlgData>();
+        auto results = std::make_shared<DataDetTrackClassify>();
+        results->targets.push_back(std::move(target));
+        frame->dataType = AlgDataType::TaskDataTrack;
+        frame->SetTaskResult(AlgDataType::TaskDataTrack, results);
+        filter.HandFrame(frame);
+        return results->targets.front();
+    };
+
+    SECTION("Each selected behavior has an independent minimum, with OR matching") {
+        CHECK(run(person(0.69f, 0.79f)).bFilter);
+        const auto smoking_match = run(person(0.70f, 0.01f));
+        CHECK_FALSE(smoking_match.bFilter);
+        CHECK(smoking_match.confidence.label == "person");
+        CHECK(smoking_match.confidence.confidence == Catch::Approx(0.92f));
+        CHECK(smoking_match.trackId == 42);
+        REQUIRE(smoking_match.alarmAnnotations.size() == 1);
+        CHECK(smoking_match.alarmAnnotations.front().label == "smoking");
+        REQUIRE(smoking_match.alarmAnnotations.front().score.has_value());
+        CHECK(*smoking_match.alarmAnnotations.front().score == Catch::Approx(0.70f));
+        const auto sleep_match = run(person(0.10f, 0.80f));
+        CHECK_FALSE(sleep_match.bFilter);
+        REQUIRE(sleep_match.alarmAnnotations.size() == 1);
+        CHECK(sleep_match.alarmAnnotations.front().label == "sleep");
+        CHECK(run(person(0.76f, 0.81f)).alarmAnnotations.size() == 2);
+    }
+
+    SECTION("Lost tracks and scores from another model never satisfy the filter") {
+        auto lost        = person(0.95f, 0.0f);
+        lost.trackStatus = AITrackingStatus::LOSS;
+        CHECK(run(lost).bFilter);
+        auto unrelated                            = person(0.95f, 0.0f);
+        unrelated.classifyRst.front().atomic_code = "different-model";
+        CHECK(run(unrelated).bFilter);
+        auto no_current_measurement                     = person(0.95f, 0.0f);
+        no_current_measurement.hasJointPersonAttributes = false;
+        CHECK(run(no_current_measurement).bFilter);
+    }
+
+    SECTION("Scenario overrides can tune only the behavior gates declared on this node") {
+        MsgDynamicKeyValue fall;
+        fall.key      = "filter.attr.fall.confidence.min";
+        fall.value    = "0.60";
+        fall.keys     = {"filter", "attr", "fall", "confidence", "min"};
+        smoking.value = "0.65";
+        std::vector<MsgDynamicKeyValue> overrides{fall, smoking};
+        filter.ModifyParam("camera", "task", overrides);
+
+        auto candidate = person(0.62f, 0.0f);
+        candidate.classifyRst.push_back({"fall", "joint-model", 0.95f, AiAnnotationSource::Classification});
+        CHECK(run(candidate).bFilter);
+        CHECK_FALSE(run(person(0.66f, 0.0f)).bFilter);
+        const auto& saved = algorithm->workFlow.front().configObject.params;
+        REQUIRE(saved.size() == 2);
+        CHECK(saved.front().value.ToString() == "0.70");
+    }
+
+    SECTION("Behavior parameters survive updates and remain separate from legacy label filters") {
+        MsgDynamicKeyValue size;
+        size.key   = "filter.person.side.min";
+        size.value = "60";
+        size.keys  = {"filter", "person", "side", "min"};
+        std::vector<MsgDynamicKeyValue> update{size};
+        filter.ModifyParam("camera", "task", update);
+        CHECK(run(person(0.90f, 0.0f)).bFilter);
+        const auto& saved = algorithm->workFlow.front().configObject.params;
+        REQUIRE(saved.size() == 3);
+        CHECK(saved[0].key.ToString() == smoking.key.ToString());
+        CHECK(saved[0].keys == smoking.keys);
+        CHECK(saved[1].key.ToString() == sleep.key.ToString());
+
+        size.value = "40";
+        std::vector<MsgDynamicKeyValue> legacy_only{size};
+        filter.SetParam("camera", "task", legacy_only);
+        auto ordinary                     = person(0.0f, 0.0f);
+        ordinary.hasJointPersonAttributes = false;
+        ordinary.classifyRst.clear();
+        CHECK_FALSE(run(ordinary).bFilter);
+        CHECK(run(ordinary).alarmAnnotations.empty());
     }
 }

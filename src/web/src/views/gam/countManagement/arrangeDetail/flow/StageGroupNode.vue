@@ -1,15 +1,16 @@
 <template>
   <div
     class="stage-bracket"
+    :data-flow-stage="data.stage"
     :style="{
       width: `${data.width}px`,
       height: `${data.height}px`
     }"
   >
-    <div class="bracket-label" :style="{ color: data.color }">
+    <div class="bracket-label">
       {{ data.titleKey ? t(data.titleKey) : data.title }}
     </div>
-    <div class="bracket-line" :style="{ borderColor: data.stroke }"></div>
+    <div class="bracket-line"></div>
   </div>
 </template>
 
@@ -36,10 +37,11 @@ defineProps({
   top: 0;
   left: 0;
   width: 100%;
+  color: var(--flow-stage-label);
   text-align: center;
   font-size: 12px;
-  font-weight: 500;
-  line-height: 18px;
+  font-weight: 550;
+  line-height: 1.45;
   white-space: nowrap;
 }
 
@@ -49,7 +51,7 @@ defineProps({
   left: 0;
   right: 0;
   height: 0;
-  border-top: 1px solid;
+  border-top: 1px solid var(--flow-node-border);
   pointer-events: none;
 }
 
@@ -58,10 +60,10 @@ defineProps({
   position: absolute;
   top: -1px;
   left: 50%;
-  width: 22px;
+  width: 18px;
   height: 2px;
   transform: translateX(-50%);
-  background: var(--primary-color);
+  background: var(--flow-stage-accent);
   border-radius: 1px;
 }
 </style>

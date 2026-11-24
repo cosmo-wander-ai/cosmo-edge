@@ -11,6 +11,7 @@ import {
   getDetailPanelScreenPosition,
   getDetailPanelSize,
   getFlowLayoutSpacing,
+  getSceneFlowLayout,
   getFlowFitZoom,
   getFlowReadingViewport,
   getDockedPanelSize,
@@ -22,6 +23,26 @@ import {
 const spacing = getFlowLayoutSpacing(FLOW_NODE_SIZE)
 assert.ok(FLOW_NODE_SIZE.width > 0 && FLOW_NODE_SIZE.height > 0)
 assert.ok(spacing.nodesep >= 0 && spacing.ranksep >= 0)
+
+// The scene editor and Dagre must agree on the full row and on the minimum
+// height needed for a tile and a one-line label in a narrow viewport.
+for (const [viewportWidth, canvasWidth, expectedRow] of [[1024, 946, 922], [736, 640, 668], [1505, 1393, 1369]]) {
+  const scene = getSceneFlowLayout(canvasWidth, viewportWidth)
+  const row = scene.node.width * 6 + scene.terminal.width * 2 + scene.gap * 7
+  assert.ok(Math.abs(row - expectedRow) < 0.01)
+  assert.equal(scene.terminal.width, scene.node.width * 0.76)
+  for (const type of ['customForm', 'start', 'end']) {
+    const label = getFlowNodeDimensions({ type }, scene)
+    label.x = 42
+    assert.equal(getFlowNodeDimensions({ type }, scene).x, undefined)
+  }
+  assert.ok(scene.node.height >= scene.tileSize + scene.fontSize * 1.35 + 15)
+  if (canvasWidth < expectedRow) {
+    assert.ok(scene.node.height > scene.node.width * 108 / 136)
+  } else {
+    assert.equal(scene.node.height, scene.node.width * 108 / 136)
+  }
+}
 
 // The wider reading cards still leave a three-node flow within a 480px region.
 // Keep this budget below half of the 1040px desktop canvas used below.

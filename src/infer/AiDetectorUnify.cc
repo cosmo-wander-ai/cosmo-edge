@@ -62,7 +62,8 @@ util::ErrorEnum AiDetectorUnify::Init(std::optional<InferenceInputSize> input_si
     max_batch_size_ = static_cast<size_t>(detector_->GetMaxBatchSize());
     LOG_DEBUG("{} Detector Max Batch Size {}", model_path_, max_batch_size_);
 
-    labels_ = detector_->GetSelectedClassnames();
+    labels_                  = detector_->GetSelectedClassnames();
+    joint_person_attributes_ = detector_->GetModelType() == "yolo26_person_attributes";
 
     return util::ErrorEnum::Success;
 }
@@ -240,7 +241,22 @@ util::ErrorEnum AiDetectorUnify::Forward(const std::vector<VideoFramePtr>& image
             el.confidence.source      = AiAnnotationSource::Detection;
             el.classId                = obj.infos.at(0).class_id + 1;
             el.targetId               = util::GenerateUUID();
-            result.push_back(el);
+            if (joint_person_attributes_) {
+                if (obj.infos.size() < 2 || obj.infos.front().class_id != 0 ||
+                    obj.infos.front().class_name != "person") {
+                    LOG_ERRO("Unexpected person and attribute output from {}", model_path_);
+                    return util::ErrorEnum::AI_PARSE_OUTPUT_FAILED;
+                }
+                el.hasJointPersonAttributes = true;
+                for (auto it = std::next(obj.infos.begin()); it != obj.infos.end(); ++it) {
+                    AiConfidence score{it->class_name, atomic_code_, it->confidence,
+                                       AiAnnotationSource::Classification, util::GenerateUUID()};
+                    el.attrRst.push_back({score.label, score.label, score.atomic_code, score.confidence,
+                                          score.source, score.measurementId});
+                    el.classifyRst.push_back(std::move(score));
+                }
+            }
+            result.push_back(std::move(el));
         }
         results.push_back(result);
     }

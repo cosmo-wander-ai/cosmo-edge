@@ -61,6 +61,16 @@ void ModelServiceImpl::ValidateModelOutputFormat(const nlohmann::json& doc) {
     if (doc.contains("model_type") && doc["model_type"].is_string())
         model_type = doc["model_type"].get<std::string>();
 
+    if (model_type == "yolo26_person_attributes") {
+        if (!detail::ModelConfigParser::ParsePersonAttributes(doc)) {
+            throw cosmo::util::ErrorMessage(
+                cosmo::util::make_error_condition(cosmo::util::ErrorEnum::ParameterException),
+                "人体行为模型需要单输出 [batch, top_k, 6 + 属性数]，attributes "
+                "必须按输出顺序提供唯一且匹配的名称");
+        }
+        return;
+    }
+
     if (!doc.contains("models") || !doc["models"].is_array() || doc["models"].empty())
         return;
 
