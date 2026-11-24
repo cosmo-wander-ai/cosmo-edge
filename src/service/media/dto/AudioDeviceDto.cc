@@ -23,6 +23,17 @@ void to_json(nlohmann::json& j, const AlarmAudioInfo& v) {
     j["timestamp"] = v.timestamp;
 }
 
+void to_json(nlohmann::json& j, const LocalAudioOutState& v) {
+    j = {{"available", v.available}, {"reason", v.reason}, {"enabled", v.enabled}, {"fileId", v.fileId}};
+}
+
+void from_json(const nlohmann::json& j, LocalAudioOutState& v) {
+    j.at("available").get_to(v.available);
+    j.at("reason").get_to(v.reason);
+    j.at("enabled").get_to(v.enabled);
+    j.at("fileId").get_to(v.fileId);
+}
+
 void from_json(const nlohmann::json& j, AudioDeviceInfo& v) {
     JSON_OPT(j, v, name);
     JSON_OPT(j, v, id);

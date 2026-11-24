@@ -16,6 +16,32 @@ MessageAudioHandler::MessageAudioHandler(service::IAudioService& audio_svc,
                                          service::ILinkageService& linkage_svc)
     : audio_svc_(audio_svc), linkage_svc_(linkage_svc) {}
 
+Audio::MsgQueryLocalAudioOutSend MessageAudioHandler::Handle(Audio::MsgQueryLocalAudioOutRecv&&,
+                                                             std::error_condition&) {
+    Audio::MsgQueryLocalAudioOutSend result;
+    result.resData = audio_svc_.QueryLocalAudioOut();
+    return result;
+}
+
+Audio::MsgSetLocalAudioOutSend MessageAudioHandler::Handle(Audio::MsgSetLocalAudioOutRecv&& data,
+                                                           std::error_condition& errc) {
+    Audio::MsgSetLocalAudioOutSend result;
+    if (data.fileId.empty()) {
+        errc = util::ErrorEnum::InvalidParam;
+        return result;
+    }
+    std::string reason;
+    if (!audio_svc_.SetLocalAudioOut(data.enabled, data.fileId, reason)) {
+        errc = util::ErrorEnum::Failed;
+        MsgResBase message;
+        message.msgCode    = std::to_string(errc.value());
+        message.msgText    = reason;
+        message.messageKey = "localAudioOut.reasons." + reason;
+        result.resMsg.push_back(std::move(message));
+    }
+    return result;
+}
+
 // Audio file query
 Audio::MsgQueryAudioFileSend MessageAudioHandler::Handle(Audio::MsgQueryAudioFileRecv&& data,
                                                          std::error_condition& /*errc*/) {

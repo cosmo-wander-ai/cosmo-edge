@@ -6,8 +6,10 @@
 #include <filesystem>
 #include <fstream>
 #include <nlohmann/json.hpp>
+#include <utility>
 
 #include "service/detail/ServiceRegistry.h"
+#include "service/media/impl/LocalAudioPlayer.h"
 #include "service/network/IHttpClient.h"
 #include "util/JsonFileUtil.h"
 #include "util/LimitedTypeJson.h"
@@ -21,8 +23,12 @@ namespace fs = std::filesystem;
 
 static constexpr const char* kTag = "AudioServiceImpl";
 
-AudioServiceImpl::AudioServiceImpl()
+AudioServiceImpl::AudioServiceImpl() : AudioServiceImpl(nullptr) {}
+
+AudioServiceImpl::AudioServiceImpl(std::unique_ptr<LocalAudioPlayer> local_audio_player)
     : audio_db_file_(cosmo::path::GetCfgPath() + "/audioMng.json"),
+      local_audio_player_(local_audio_player ? std::move(local_audio_player)
+                                             : std::make_unique<LocalAudioPlayer>()),
       device_db_file_(cosmo::path::GetCfgPath() + "/AudioDeviceMng.json") {
     default_audio_file_name_ = cosmo::path::GetAppBaseDir() + "/files/Audio/beep.ogg";
     audio_file_path_         = cosmo::path::GetBaseDir() + audio_relative_path_;
@@ -43,6 +49,7 @@ AudioServiceImpl::AudioServiceImpl()
     if (!find_default) {
         AddDefaultAudio();
     }
+    LoadLocalAudioOut();
     LOG_INFO("{}", "AudioServiceImpl Init Ok");
 }
 
@@ -171,6 +178,10 @@ bool AudioServiceImpl::RemoveAudioFile(const std::string& id, std::string& msg) 
         if (iter_find != audio_info_list_.end()) {
             if (iter_find->name == default_audio_name_) {
                 msg = "Default audio cannot be deleted";
+                return false;
+            }
+            if (id == local_audio_file_id_) {
+                msg = "localAudioFileInUse";
                 return false;
             }
             std::error_code err;

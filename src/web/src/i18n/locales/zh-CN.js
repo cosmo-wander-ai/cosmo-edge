@@ -1010,6 +1010,31 @@ export default {
     networkError: '网络错误',
     unknownError: '未知错误'
   },
+  localAudioOut: {
+    title: '本机 Audio Out 告警播报',
+    enabled: '启用播报',
+    recording: '告警录音',
+    ready: '音频输出就绪',
+    unavailable: '音频输出不可用',
+    loadFailed: '读取本机播报设置失败',
+    libraryUnavailable: '读取可选录音失败',
+    missingRecording: '原选录音不可用',
+    browserPreview: '浏览器试听',
+    reasons: {
+      unsupportedBoard: '此设备未提供受支持的本机音频输出',
+      playbackToolUnavailable: '设备上的音频播放器不可用',
+      decoderUnavailable: '设备上的音频解码工具不可用',
+      audioDeviceUnavailable: '板载音频输出设备不可访问',
+      invalidAudioFile: '请选择有效的音频库录音',
+      fileNotFound: '找不到所选录音，请重新选择',
+      cacheUnavailable: '无法读写播报音频缓存',
+      insufficientSpace: '设备剩余空间不足以准备这段录音',
+      conversionFailed: '录音转换失败，请检查文件或选择其他录音',
+      configWriteFailed: '无法保存本机播报设置',
+      configInvalid: '已保存的播报设置无效，请重新设置',
+      localAudioFileInUse: '本机告警播报正在使用此录音。请改选其他录音并保存后再删除。'
+    }
+  },
   status: {
     online: '在线',
     offline: '离线',

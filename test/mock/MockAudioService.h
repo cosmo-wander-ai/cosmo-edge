@@ -22,6 +22,10 @@ public:
     MAKE_MOCK1(AddAudioFile, bool(const std::string&), override);
     MAKE_CONST_MOCK0(AudioFileCount, size_t(), override);
     MAKE_CONST_MOCK0(AudioFileMaxCount, size_t(), override);
+    MAKE_MOCK0(QueryLocalAudioOut, cosmo::LocalAudioOutState(), override);
+    MAKE_MOCK3(SetLocalAudioOut, bool(bool, const std::string&, std::string&), override);
+    MAKE_MOCK0(QueueLocalAlarm, void(), override);
+    MAKE_MOCK0(StopLocalAudioOut, void(), override);
     MAKE_MOCK4(AddAudioDevice, bool(const std::string&, const std::string&, const std::string&, std::string&),
                override);
     MAKE_MOCK4(ModifyAudioDevice,

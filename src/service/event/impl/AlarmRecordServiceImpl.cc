@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <set>
 #include <thread>
+#include <utility>
 
 #include "db/TransactionGuard.h"
 #include "service/detail/ServiceRegistry.h"
@@ -132,8 +133,9 @@ cosmo::service::FlowQueryResult ToDto(cosmo::db::PassengerFlowResult&& dao) {
 
 namespace cosmo::service {
 
-AlarmRecordServiceImpl::AlarmRecordServiceImpl()
-    : db_event_(std::make_shared<cosmo::db::TaskEventDao>(
+AlarmRecordServiceImpl::AlarmRecordServiceImpl(std::function<void()> on_alarm_recorded)
+    : on_alarm_recorded_(std::move(on_alarm_recorded)),
+      db_event_(std::make_shared<cosmo::db::TaskEventDao>(
           *service::ServiceRegistry::Instance().Get<service::IDbService>().GetDb())) {
     db_event_->CreateTable();
 
@@ -228,25 +230,37 @@ bool AlarmRecordServiceImpl::Insert(cosmo::AlarmRecordUnit& unit) {
     auto data = AlarmDataToEventData(unit);
     const std::vector<std::string> audits(uniqueAudits.begin(), uniqueAudits.end());
     const auto insert = [&] {
+        // A concurrent insert must not join another alarm's audit savepoint.
+        std::lock_guard<std::mutex> lock(event_write_mtx_);
         return audits.empty() ? db_event_writer_->Insert(data) : db_event_writer_->Insert(data, audits);
     };
+    bool inserted = false;
     try {
-        return insert();
+        inserted = insert();
     } catch (const SQLite::Exception&) {
         std::this_thread::sleep_for(timing::kSlowPollInterval);
         try {
-            return insert();
+            inserted = insert();
         } catch (const SQLite::Exception& e) {
             LOG_WARN("Insert:{} catch error:{}", unit.id, e.what());
         }
     }
-    if (typed) {
+    if (inserted && on_alarm_recorded_ && (unit.category == "2" || unit.category == "3")) {
+        try {
+            on_alarm_recorded_();
+        } catch (const std::exception& e) {
+            LOG_ERRO("Local audio notification failed for recorded alarm {}: {}", unit.id, e.what());
+        } catch (...) {
+            LOG_ERRO("Local audio notification failed for recorded alarm {}", unit.id);
+        }
+    }
+    if (!inserted && typed) {
         for (auto& record : property["visualJudgments"])
             if (record.contains("audit"))
                 record["audit"]["alarm_record"] = "failed";
         unit.property = property.dump();
     }
-    return false;
+    return inserted;
 }
 
 bool AlarmRecordServiceImpl::InsertFace(cosmo::AlarmRecordUnit& unit) {

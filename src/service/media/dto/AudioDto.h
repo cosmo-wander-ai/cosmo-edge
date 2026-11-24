@@ -4,6 +4,7 @@
 
 #include <system_error>
 
+#include "service/media/dto/AudioDeviceDto.h"
 #include "service/media/dto/DetectMsgTypes.h"
 #include "util/dto/EventMsgTypes.h"
 #include "util/dto/ServerMsgTypes.h"
@@ -11,6 +12,21 @@
 namespace cosmo {
 
 namespace Audio {
+    struct MsgQueryLocalAudioOutRecv : public MsgRecvHead {};
+
+    struct MsgQueryLocalAudioOutSend : public MsgSendHead {
+        LocalAudioOutState resData;
+    };
+    void to_json(nlohmann::json& j, const MsgQueryLocalAudioOutSend& v);
+
+    struct MsgSetLocalAudioOutRecv : public MsgRecvHead {
+        bool enabled{false};
+        std::string fileId;
+    };
+    void from_json(const nlohmann::json& j, MsgSetLocalAudioOutRecv& v);
+
+    struct MsgSetLocalAudioOutSend : public MsgSendHead {};
+
     // Audio file query
     struct MsgQueryAudioFileRecv : public MsgRecvHead {
         int pageNum{1};

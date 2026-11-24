@@ -1,6 +1,7 @@
 <template>
   <div class="ui-admin-page">
     <header class="ui-page-heading"><h1>{{ t('nav.audioManagement') }}</h1></header>
+    <LocalAudioOutSettings ref="outputSettings" :file-label="resolveAudioName" @saved-file="setOutputFile" />
     <TopBar ref="topBarRef" :dataSouce="topBarData" :formData="formData" :labelWidth="60" @search="searchList" />
 
     <div class="table-container">
@@ -8,7 +9,7 @@
         <div>{{ t('boxOther.audioList') }}</div>
         <div class="table-tools">
           <el-button v-if="runMode  != 1" type="primary" size="small" @click="handleAdd">{{ t('action.add') }}</el-button>
-          <el-button v-if="runMode  != 1" type="primary" size="small" @click="handleBatchDelete" :disabled="multipleSelections.length === 0" class="ui-secondary-button">{{ t('action.bulkDelete') }}</el-button>
+          <el-button v-if="runMode  != 1" type="primary" size="small" @click="deleteAudio(multipleSelections)" :disabled="multipleSelections.length === 0" class="ui-secondary-button">{{ t('action.bulkDelete') }}</el-button>
         </div>
       </div>
 
@@ -29,12 +30,14 @@
             <span>{{ formatDate(scope.row.timestamp) }}</span>
           </template>
         </el-table-column>
-        <el-table-column width="240px" :label="t('field.actions')">
+        <el-table-column width="280" :label="t('field.actions')">
           <template #default="scope">
             <div class="operation-tools">
-              <el-button link class="span-right10 primary-text ui-action ui-action-play" @click="playAudio(scope.row)">{{ t('action.play') }}</el-button>
+              <el-button link class="span-right10 primary-text ui-action ui-action-play" @click="playAudio(scope.row)">{{ t('localAudioOut.browserPreview') }}</el-button>
               <el-button link class="span-right10 primary-text ui-action ui-action-download" @click="downloadAudio(scope.row)">{{ t('action.download') }}</el-button>
-              <el-button v-if="runMode != 1" link class="span-right10 danger-text ui-action ui-action-delete" @click="deleteAudio(scope.row)" :disabled="scope.row.fileId == '1234567890'">{{ t('action.delete') }}</el-button>
+              <el-button v-if="runMode != 1" link class="span-right10 danger-text ui-action ui-action-delete"
+                @click="deleteAudio([scope.row.fileId])" :disabled="!selectable(scope.row)"
+                :title="scope.row.fileId !== defaultAudioId && scope.row.fileId === outputFileId ? t('localAudioOut.reasons.localAudioFileInUse') : undefined">{{ t('action.delete') }}</el-button>
             </div>
           </template>
         </el-table-column>
@@ -78,6 +81,7 @@
 import { ref, reactive, computed, onMounted, getCurrentInstance } from 'vue'
 import { WarningFilled } from '@element-plus/icons-vue'
 import TopBar from '@/components/TopBar.vue'
+import LocalAudioOutSettings from './LocalAudioOutSettings.vue'
 import moment from 'moment'
 import { t, localeColon, currentLocale } from '@/i18n'
 import { uploadFileInChunks, UploadPurpose } from '@/utils/chunkUpload'
@@ -86,6 +90,7 @@ import { uploadFileInChunks, UploadPurpose } from '@/utils/chunkUpload'
 const AUDIO_NAME_MAP = {
   '默认': 'boxOther.defaultAudio'
 }
+const defaultAudioId = '1234567890'
 const resolveAudioName = (row) => {
   const name = row.fileName || row.name || ''
   const key = AUDIO_NAME_MAP[name]
@@ -104,6 +109,8 @@ const topBarRef = ref(null)
 const multipleTable = ref(null)
 const audioRef = ref(null)
 const audio = ref(null)
+const outputSettings = ref(null)
+const outputFileId = ref('')
 
 // Reactive data
 const runMode = ref(0) // 0 单机版 1 联网版
@@ -156,7 +163,7 @@ function searchList() {
 }
 
 function handleSelectionChange(val) {
-  multipleSelections.value = val.map((item) => item.fileId)
+  multipleSelections.value = val.filter(selectable).map((item) => item.fileId)
 }
 
 function handleSizeChange(val) {
@@ -170,9 +177,15 @@ function handleCurrentChange(val) {
 }
 
 function selectable(row) {
-  if (row.fileId != '1234567890') {
-    return true
-  }
+  return row.fileId !== defaultAudioId && row.fileId !== outputFileId.value
+}
+
+function setOutputFile(fileId) {
+  outputFileId.value = fileId
+  if (!multipleSelections.value.includes(fileId)) return
+  multipleSelections.value = multipleSelections.value.filter(id => id !== fileId)
+  const row = tableData.value.find(file => file.fileId === fileId)
+  if (row) multipleTable.value?.toggleRowSelection(row, false)
 }
 
 function handleChange(file, fileList) {
@@ -220,6 +233,7 @@ async function saveAudio() {
     })
     proxy.$message.success(t('validate.uploadSucceeded'))
     searchList()
+    outputSettings.value?.refreshFiles()
     addDialogVisible.value = false
   } catch (_) {
     if (stagedUpload?.uploadId) {
@@ -258,28 +272,39 @@ function downloadAudio(item) {
   }
 }
 
-function deleteAudio(item) {
-  proxy.$confirm(t('boxOther.deleteAudioConfirm'), t('common.notice'), {
-    type: 'warning'
-  }).then(() => {
-    sureDeleteAudio([item.fileId])
-  })
-}
-
-function sureDeleteAudio(deleteIds) {
-  const params = {
-    fileIdList: deleteIds
+async function deleteAudio(fileIdList) {
+  try {
+    await proxy.$confirm(t('boxOther.deleteAudioConfirm'), t('common.notice'), { type: 'warning' })
+  } catch {
+    return
   }
-  proxy.$API.deleteAudioFile(params).then((res) => {
-    const { resData } = res
-    if (resData?.failedList.length != 0) {
+  if (fileIdList.includes(outputFileId.value)) {
+    proxy.$message.error(t('localAudioOut.reasons.localAudioFileInUse'))
+    return
+  }
+  let refreshOutput = false
+  try {
+    const { resData } = await proxy.$API.deleteAudioFile({ fileIdList })
+    const failed = resData?.failedList
+    if (!Array.isArray(failed)) {
+      proxy.$message.error(t('validate.deleteFailed'))
+    } else if (failed.some(item => item.resMsg === 'localAudioFileInUse')) {
+      refreshOutput = true
+      proxy.$message.error(t('localAudioOut.reasons.localAudioFileInUse'))
+    } else if (failed.some(item => item.resMsg === 'File In Using')) {
       proxy.$message.error(t('boxOther.audioLinkedError'))
+    } else if (failed.length) {
+      proxy.$message.error(t('validate.deleteFailed'))
     } else {
-      searchList()
       proxy.$message.success(t('common.operationSucceeded'))
-      multipleSelections.value = []
     }
-  })
+  } catch (error) {
+    if (!error?.response && error?.resCode === undefined) proxy.$message.error(t('api.networkError'))
+  }
+  multipleTable.value?.clearSelection()
+  searchList()
+  if (refreshOutput) outputSettings.value?.refresh()
+  else outputSettings.value?.refreshFiles()
 }
 
 function handleAdd() {
@@ -292,14 +317,6 @@ function closeAdd() {
   audioRef.value?.clearFiles?.()
   audioFile.value = null
   fileNameString.value = ''
-}
-
-function handleBatchDelete() {
-  proxy.$confirm(t('boxOther.deleteAudioConfirm'), t('common.notice'), {
-    type: 'warning'
-  }).then(() => {
-    sureDeleteAudio(multipleSelections.value)
-  })
 }
 
 // Lifecycle
