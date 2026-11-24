@@ -75,10 +75,10 @@ static Status DetectionParseOutput(const std::vector<std::shared_ptr<Blob>>& out
                                    const std::vector<Size>& image_sizes, const Size& net_input_size,
                                    const std::vector<int>& indices, const std::vector<float>& thresholds,
                                    const std::vector<std::string>& classnames,
-                                   std::vector<std::vector<ObjectInfoV1>>& outputs) {
+                                   std::vector<std::vector<ObjectInfoV1>>& outputs, const Resize* resize) {
     outputs.clear();
     return NetUtils::ParseDetectionOutput(output_blobs, image_sizes, net_input_size, indices, thresholds,
-                                          classnames, outputs);
+                                          classnames, outputs, resize);
 }
 
 // ============================= YOLOv5 =====================================
@@ -170,7 +170,7 @@ Status YoloV5DetPipeline::Forward(std::initializer_list<std::vector<std::shared_
 
 Status YoloV5DetPipeline::ParseDetectionOutput(std::vector<std::vector<ObjectInfoV1>>& outputs) {
     return DetectionParseOutput(GetGraphOutput(), image_sizes_, net_input_size_, selected_indices_,
-                                selected_thresholds_, selected_classnames_, outputs);
+                                selected_thresholds_, selected_classnames_, outputs, GetRknnOutputResize());
 }
 
 // ============================= YOLOv8 =====================================
@@ -249,7 +249,7 @@ Status YoloV8DetPipeline::Forward(std::initializer_list<std::vector<std::shared_
 
 Status YoloV8DetPipeline::ParseDetectionOutput(std::vector<std::vector<ObjectInfoV1>>& outputs) {
     return DetectionParseOutput(GetGraphOutput(), image_sizes_, net_input_size_, selected_indices_,
-                                selected_thresholds_, selected_classnames_, outputs);
+                                selected_thresholds_, selected_classnames_, outputs, GetRknnOutputResize());
 }
 
 // ============================= YOLO26 (End-to-End) =======================
@@ -276,11 +276,12 @@ Status Yolo26DetPipeline::Init(const PipelineConfig& config, const std::string& 
         if (mc.outputs.size() != 1)
             return Status(COSMO_NN_ERR_INVALID_CFG, "YOLO26 detection expects one output");
         ModelInfo model;
-        model.name      = mc.name;
-        model.filename  = mc.file_name;
-        model.file_md5  = mc.file_md5;
-        model.max_batch = mc.max_batch;
-        max_batch_      = mc.max_batch;
+        model.name           = mc.name;
+        model.filename       = mc.file_name;
+        model.file_md5       = mc.file_md5;
+        model.input_contract = pipeline_utils::ReadString(p, "rknn_input_contract", std::string());
+        model.max_batch      = mc.max_batch;
+        max_batch_           = mc.max_batch;
         if (has_sizes) {
             model.input_sizes         = config.input_sizes.sizes;
             model.selected_input_size = selected;
@@ -349,7 +350,7 @@ Status Yolo26DetPipeline::Forward(std::initializer_list<std::vector<std::shared_
 
 Status Yolo26DetPipeline::ParseDetectionOutput(std::vector<std::vector<ObjectInfoV1>>& outputs) {
     return DetectionParseOutput(GetGraphOutput(), image_sizes_, net_input_size_, selected_indices_,
-                                selected_thresholds_, selected_classnames_, outputs);
+                                selected_thresholds_, selected_classnames_, outputs, GetRknnOutputResize());
 }
 
 // The single detection label is distinct from the attribute names.
@@ -392,11 +393,12 @@ Status Yolo26PersonAttributesPipeline::Init(const PipelineConfig& config, const 
     model_info_.reduce        = config.reduce;
     model_info_.type          = "yolo26_person_attributes";
     ModelInfo model;
-    model.name      = mc.name;
-    model.filename  = mc.file_name;
-    model.file_md5  = mc.file_md5;
-    model.max_batch = mc.max_batch;
-    max_batch_      = mc.max_batch;
+    model.name           = mc.name;
+    model.filename       = mc.file_name;
+    model.file_md5       = mc.file_md5;
+    model.input_contract = pipeline_utils::ReadString(p, "rknn_input_contract", std::string());
+    model.max_batch      = mc.max_batch;
+    max_batch_           = mc.max_batch;
     InputNodeInfo input;
     input.name      = mc.inputs[0].name;
     input.shape     = mc.inputs[0].shape;
@@ -434,7 +436,7 @@ Status Yolo26PersonAttributesPipeline::ParseDetectionOutput(std::vector<std::vec
         return Status(COSMO_NN_ERR_INVALID_CFG, "Invalid person detection label configuration");
     return NetUtils::ParsePersonAttributesOutput(GetGraphOutput(), image_sizes_, net_input_size_,
                                                  selected_thresholds_[0], selected_classnames_[0], outputs,
-                                                 attribute_names_);
+                                                 attribute_names_, GetRknnOutputResize());
 }
 
 // ============================= YOLO26 OBB (End-to-End) ====================
@@ -488,10 +490,11 @@ Status Yolo26ObbPipeline::Init(const PipelineConfig& config, const std::string& 
     net_input_size_           = Size(input_size[1], input_size[0]);
 
     ModelInfo model;
-    model.name      = mc.name;
-    model.filename  = mc.file_name;
-    model.file_md5  = mc.file_md5;
-    model.max_batch = mc.max_batch;
+    model.name           = mc.name;
+    model.filename       = mc.file_name;
+    model.file_md5       = mc.file_md5;
+    model.input_contract = pipeline_utils::ReadString(p, "rknn_input_contract", std::string());
+    model.max_batch      = mc.max_batch;
     InputNodeInfo input;
     input.name      = in_def.name;
     input.shape     = in_def.shape;
@@ -560,11 +563,12 @@ Status GenericDetectorPipeline::Init(const PipelineConfig& config, const std::st
     for (const auto& mc : config.models) {
         nlohmann::json p = pipeline_utils::ParseJsonObject(mc.params_json);
         ModelInfo model;
-        model.name      = mc.name;
-        model.filename  = mc.file_name;
-        model.file_md5  = mc.file_md5;
-        model.max_batch = mc.max_batch;
-        max_batch_      = mc.max_batch;
+        model.name           = mc.name;
+        model.filename       = mc.file_name;
+        model.file_md5       = mc.file_md5;
+        model.input_contract = pipeline_utils::ReadString(p, "rknn_input_contract", std::string());
+        model.max_batch      = mc.max_batch;
+        max_batch_           = mc.max_batch;
 
         for (const auto& in_def : mc.inputs) {
             InputNodeInfo input;
@@ -645,7 +649,7 @@ Status GenericDetectorPipeline::Forward(std::initializer_list<std::vector<std::s
 
 Status GenericDetectorPipeline::ParseDetectionOutput(std::vector<std::vector<ObjectInfoV1>>& outputs) {
     return DetectionParseOutput(GetGraphOutput(), image_sizes_, net_input_size_, selected_indices_,
-                                selected_thresholds_, selected_classnames_, outputs);
+                                selected_thresholds_, selected_classnames_, outputs, GetRknnOutputResize());
 }
 
 // ===================== Auto-Registration ==================================

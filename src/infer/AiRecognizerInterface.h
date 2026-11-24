@@ -13,7 +13,8 @@ public:
     ~AiRecognizerInterface();
 
     util::ErrorEnum Recognize(VideoFramePtr images, std::vector<AiDetectRstEl>& io_puts,
-                              bool use_box = false);  // False use landmark, true use box.
+                              bool use_box = false,  // False uses landmarks, true uses boxes.
+                              const media::NativeVideoBufferPtr& native_buffer = {});
 
     util::ErrorEnum ComparePairFeatures(const AiFeature& left, const AiFeature& right, bool face,
                                         double& score);

@@ -126,6 +126,10 @@ int main(int argc, char** argv) {
             Check(rknn_query(context.Get(), RKNN_QUERY_INPUT_ATTR, &attr, sizeof(attr)),
                   "RKNN_QUERY_INPUT_ATTR[" + std::to_string(index) + ']');
             PrintTensor("input", attr);
+            rknn_tensor_attr native{};
+            native.index = index;
+            if (rknn_query(context.Get(), RKNN_QUERY_NATIVE_INPUT_ATTR, &native, sizeof(native)) == RKNN_SUCC)
+                PrintTensor("native_input", native);
 
             input_buffers[index].resize(attr.size, 0);
             inputs[index].index        = index;

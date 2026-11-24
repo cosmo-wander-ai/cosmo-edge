@@ -58,6 +58,8 @@ struct InferencePipelineMetricsSnapshot {
     uint64_t rknn_preprocess_fast_hits{0};
     uint64_t rknn_rga_fill_calls{0};
     uint64_t rknn_rga_fill_nanoseconds{0};
+    uint64_t rknn_cpu_host_padding_calls{0};
+    uint64_t rknn_cpu_host_padding_nanoseconds{0};
     uint64_t rknn_rga_resize_color_calls{0};
     uint64_t rknn_rga_resize_color_nanoseconds{0};
     uint64_t rknn_rga_small_frame_resize_calls{0};
@@ -149,6 +151,7 @@ public:
     void RecordRknnMutexWait(uint64_t nanoseconds, RknnModelScope scope = RknnModelScope::Other);
     void RecordRknnPreprocessFastHit();
     void RecordRknnRgaFill(uint64_t nanoseconds);
+    void RecordRknnCpuHostPadding(uint64_t nanoseconds);
     void RecordRknnRgaResizeColor(uint64_t nanoseconds);
     void RecordRknnRgaSmallFrameResize(uint64_t nanoseconds);
     void RecordRknnRgaSmallFrameCsc(uint64_t nanoseconds);
@@ -234,6 +237,8 @@ private:
     std::atomic<uint64_t> rknn_preprocess_fast_hits_{0};
     std::atomic<uint64_t> rknn_rga_fill_calls_{0};
     std::atomic<uint64_t> rknn_rga_fill_nanoseconds_{0};
+    std::atomic<uint64_t> rknn_cpu_host_padding_calls_{0};
+    std::atomic<uint64_t> rknn_cpu_host_padding_nanoseconds_{0};
     std::atomic<uint64_t> rknn_rga_resize_color_calls_{0};
     std::atomic<uint64_t> rknn_rga_resize_color_nanoseconds_{0};
     std::atomic<uint64_t> rknn_rga_small_frame_resize_calls_{0};

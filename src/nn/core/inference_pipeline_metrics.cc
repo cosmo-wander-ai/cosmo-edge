@@ -92,6 +92,10 @@ void InferencePipelineMetrics::RecordRknnRgaFill(uint64_t nanoseconds) {
     RecordStage(rknn_rga_fill_calls_, rknn_rga_fill_nanoseconds_, 1, nanoseconds);
 }
 
+void InferencePipelineMetrics::RecordRknnCpuHostPadding(uint64_t nanoseconds) {
+    RecordStage(rknn_cpu_host_padding_calls_, rknn_cpu_host_padding_nanoseconds_, 1, nanoseconds);
+}
+
 void InferencePipelineMetrics::RecordRknnRgaResizeColor(uint64_t nanoseconds) {
     RecordStage(rknn_rga_resize_color_calls_, rknn_rga_resize_color_nanoseconds_, 1, nanoseconds);
 }
@@ -306,6 +310,8 @@ InferencePipelineMetricsSnapshot InferencePipelineMetrics::Snapshot() const {
     SNAPSHOT_FIELD(rknn_preprocess_fast_hits);
     SNAPSHOT_FIELD(rknn_rga_fill_calls);
     SNAPSHOT_FIELD(rknn_rga_fill_nanoseconds);
+    SNAPSHOT_FIELD(rknn_cpu_host_padding_calls);
+    SNAPSHOT_FIELD(rknn_cpu_host_padding_nanoseconds);
     SNAPSHOT_FIELD(rknn_rga_resize_color_calls);
     SNAPSHOT_FIELD(rknn_rga_resize_color_nanoseconds);
     SNAPSHOT_FIELD(rknn_rga_small_frame_resize_calls);

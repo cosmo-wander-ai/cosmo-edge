@@ -127,6 +127,8 @@ public:
     Yolov8DirectPostprocessConfig yolov8_direct_postprocess{};
     Yolov8CandidateBatch yolov8_candidate_batch{};
 
+    // The input sidecar is shared by the graph, so it requires a single network input.
+    bool rknn_rga_binding_allowed{true};
     RknnBoundInputProvider* rknn_bound_input_provider{nullptr};
     RknnBoundInputTarget rknn_bound_input_target{};
     // Set by the graph's normalize node after shape inference. Producers may

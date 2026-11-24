@@ -3,6 +3,7 @@
 #ifdef COSMO_NN_USE_HOST_BACKEND
 
 #include "nn/node/node.h"
+#include "nn/utils/rect.h"
 
 namespace cosmo::nn {
 
@@ -33,12 +34,14 @@ public:
 
 protected:
     Status PrepareRect(std::shared_ptr<Blob> host_rect, int image_w, int image_h);
+    void ResizeCropOnCpu(const uint8_t* source, int source_width, const Rect& crop, const Rect& region,
+                         uint8_t* output, bool swap_red_blue = false) const;
 
     static void BilinearResize(const uint8_t* src, int src_w, int src_h, int channels, uint8_t* dst,
                                int dst_w, int dst_h);
     static void BilinearResizeStrided(const uint8_t* src, int src_w, int src_h, int channels,
                                       size_t src_stride, uint8_t* dst, int dst_w, int dst_h,
-                                      size_t dst_stride);
+                                      size_t dst_stride, bool swap_red_blue = false);
 
     std::string type;
     std::vector<float> h_top_crop;

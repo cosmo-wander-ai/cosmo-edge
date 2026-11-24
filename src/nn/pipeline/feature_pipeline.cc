@@ -19,11 +19,12 @@ Status FeaturePipeline::Init(const PipelineConfig& config, const std::string& mo
         nlohmann::json p = pipeline_utils::ParseJsonObject(mc.params_json);
 
         ModelInfo model;
-        model.name      = mc.name;
-        model.filename  = mc.file_name;
-        model.file_md5  = mc.file_md5;
-        model.max_batch = mc.max_batch;
-        max_batch_      = mc.max_batch;
+        model.name           = mc.name;
+        model.filename       = mc.file_name;
+        model.file_md5       = mc.file_md5;
+        model.input_contract = pipeline_utils::ReadString(p, "rknn_input_contract", std::string());
+        model.max_batch      = mc.max_batch;
+        max_batch_           = mc.max_batch;
 
         std::vector<std::unique_ptr<Op>> preprocess;
         bool use_affine = false;
@@ -111,28 +112,7 @@ Status FeaturePipeline::Init(const PipelineConfig& config, const std::string& mo
 }
 
 Status FeaturePipeline::Forward(std::initializer_list<std::vector<std::shared_ptr<Blob>>> inputs) {
-    // AiRecognizerUnify passes { imageBlobs, landmarkBlobs } once. For fused feature graphs
-    // (reduce=concat/mean) each sub-model's affine_crop is a first_calculate_node with 2 inputs,
-    // so the graph expects 2 * N param groups. Repeat the same image + aux for each branch.
-    const size_t n_groups   = inputs.size();
-    const size_t n_models   = num_models_;
-    const std::string& red  = model_info_.reduce;
-    const bool multi_branch = (red == "concat" || red == "mean");
-
-    if (n_models > 1 && n_groups == 2 && multi_branch) {
-        auto it            = inputs.begin();
-        const auto& images = *it;
-        const auto& aux    = *(++it);
-        std::vector<std::vector<std::shared_ptr<Blob>>> expanded;
-        expanded.reserve(n_models * 2);
-        for (size_t i = 0; i < n_models; ++i) {
-            expanded.push_back(images);
-            expanded.push_back(aux);
-        }
-        return RunGraph(expanded);
-    }
-
-    return RunGraph(inputs);
+    return RunImageGraph(inputs);
 }
 
 Status FeaturePipeline::ParseFeatureOutput(std::vector<std::vector<float>>& outputs) {

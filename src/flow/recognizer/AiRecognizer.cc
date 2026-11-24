@@ -290,7 +290,8 @@ void AiRecognizer::HandFace(AlgDataPtr alg_data) {
 
     duration_stat_.BeginSample();
     bool use_box  = (expected_type != AlgDataType::TaskDataLandmark);
-    action_status = inst_->Recognize(alg_data->chanDataDec.frame, input->targets, use_box);
+    action_status = inst_->Recognize(alg_data->chanDataDec.frame, input->targets, use_box,
+                                     alg_data->chanDataDec.native_buffer);
     duration_stat_.EndSample();
 
     alg_data->taskDataAlarm.alarmData = std::make_shared<DataAlarm>();

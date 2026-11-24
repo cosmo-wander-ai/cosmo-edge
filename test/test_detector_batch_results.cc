@@ -1,3 +1,5 @@
+#include <array>
+
 #include "catch_amalgamated.hpp"
 #include "infer/AiCommon.h"
 #include "infer/DetectorBatchResults.h"
@@ -75,6 +77,33 @@ TEST_CASE("Detection parser trims static padded batches before strict result val
     REQUIRE(infer_detail::AppendCompleteDetectorBatch(1, std::move(parsed), complete));
     REQUIRE(complete.size() == 1);
     CHECK(complete[0].size() == (hasTarget ? 1 : 0));
+}
+
+TEST_CASE("Rockchip detection boxes undo the actual resize geometry", "[infer][detector][resize]") {
+    const int gravity = GENERATE(0, 1, 2);
+    // A 320x181 source letterboxed to 320x224 has 43 extra rows. The
+    // centered mode puts 21 above the image and 22 below it.
+    const float model_y = gravity == 0 ? 50.f * 224 / 181 : (gravity == 1 ? 71.f : 50.f);
+    const float model_h = gravity == 0 ? 20.f * 224 / 181 : 20.f;
+    std::array<float, 6> values{60.f, model_y, 20.f, model_h, .9f, 0.f};
+    nn::BlobDesc desc;
+    desc.dims = {1, 1, 6};
+    nn::BlobHandle handle;
+    handle.base = values.data();
+    auto blob   = std::make_shared<nn::Blob>(desc, handle);
+    nn::Resize resize;
+    resize.dsize   = {224, 320};
+    resize.gravity = gravity;
+    std::vector<std::vector<nn::ObjectInfoV1>> parsed;
+    REQUIRE(bool(
+        nn::NetUtils::ParseDetectionOutput({blob}, {{320, 181}}, {320, 224}, {}, {}, {}, parsed, &resize)));
+    REQUIRE(parsed.size() == 1);
+    REQUIRE(parsed.front().size() == 1);
+    const auto& box = parsed.front().front();
+    CHECK(box.x1 == Catch::Approx(50.f));
+    CHECK(box.x2 == Catch::Approx(70.f));
+    CHECK(box.y1 == Catch::Approx(40.f));
+    CHECK(box.y2 == Catch::Approx(60.f));
 }
 
 }  // namespace cosmo

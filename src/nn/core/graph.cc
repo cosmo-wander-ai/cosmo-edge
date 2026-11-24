@@ -68,6 +68,8 @@ Status Graph::Init(CombinedModelInfo& info, const std::string& model_path, Devic
 
     if (!tokenizer_path.empty())
         shared_resource->tokenizer_path = tokenizer_path;
+    shared_resource->rknn_rga_binding_allowed =
+        info.models.size() == 1 && info.models.front().input_node_infos.size() == 1;
 
     RETURN_ON_FAIL(MakeUp(info));
 
@@ -1098,6 +1100,79 @@ void Graph::AddNodeTopBlobs(Node* node, int top_blob_count) {
 Status Graph::Forward(std::initializer_list<std::vector<std::shared_ptr<Blob>>> params) {
     std::vector<std::vector<std::shared_ptr<Blob>>> params_(params);
     return Forward(params_);
+}
+
+bool Graph::NeedsImageAuxiliary() const {
+    return std::any_of(nodes.begin(), nodes.end(), [](const auto& node) {
+        return node->first_calculate_node && !NodeTypeUtils::IsInputNode(node.get()) &&
+               node->GetBottomCount() > 1;
+    });
+}
+
+const Resize* Graph::GetRknnOutputResize() const {
+    if (device_type_ != DEVICE_RKNN || model_infos_.empty())
+        return nullptr;
+    const Resize* resize = nullptr;
+    for (const auto& model : model_infos_) {
+        if (model.input_node_infos.empty() || model.input_node_infos.front().ops.empty())
+            return nullptr;
+        const auto* op = dynamic_cast<const Resize*>(model.input_node_infos.front().ops.front().get());
+        if (!op || op->dsize.size() < 2 ||
+            (resize && (op->dsize != resize->dsize || op->gravity != resize->gravity)))
+            return nullptr;
+        resize = op;
+    }
+    return resize;
+}
+
+Status Graph::ForwardImageInputs(std::initializer_list<std::vector<std::shared_ptr<Blob>>> params) {
+    if (params.size() == 0 || params.size() > 2)
+        return Forward(params);
+    const auto& images    = *params.begin();
+    const auto* auxiliary = params.size() == 2 ? params.begin() + 1 : nullptr;
+    // Some classification callers already supply two distinct image groups.
+    if (auxiliary &&
+        (auxiliary->empty() || !auxiliary->front() || auxiliary->front()->GetBlobDesc().dims.size() != 2))
+        return Forward(params);
+
+    std::vector<NodeType> input_types;
+    for (const auto& node : nodes) {
+        if (!node->first_calculate_node || NodeTypeUtils::IsInputNode(node.get()))
+            continue;
+        const auto type = node->GetNodeType();
+        if (type != NODE_RESIZE && type != NODE_CROP_RESIZE && type != NODE_AFFINE_CROP)
+            return Forward(params);
+        input_types.push_back(type);
+    }
+
+    std::vector<std::shared_ptr<Blob>> full_images;
+    if (auxiliary && std::find(input_types.begin(), input_types.end(), NODE_RESIZE) != input_types.end()) {
+        if (auxiliary->size() != images.size())
+            return Status(COSMO_NN_ERR_INVALID_INPUT, "Image and region group counts differ");
+        for (size_t index = 0; index < images.size(); ++index) {
+            const auto& regions = auxiliary->at(index);
+            if (!regions || regions->GetBlobDesc().dims.size() != 2 || regions->GetBlobDesc().dims[0] < 0)
+                return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid region group");
+            const auto count = static_cast<size_t>(regions->GetBlobDesc().dims[0]);
+            if (count > static_cast<size_t>(max_batch_size) - full_images.size())
+                return Status(COSMO_NN_ERR_INVALID_INPUT, "Image batch is too large");
+            // An image-only branch returns one result for each requested ROI.
+            full_images.insert(full_images.end(), count, images[index]);
+        }
+    }
+
+    std::vector<std::vector<std::shared_ptr<Blob>>> inputs;
+    for (const auto type : input_types) {
+        if (type == NODE_RESIZE) {
+            inputs.push_back(auxiliary ? full_images : images);
+        } else {
+            if (!auxiliary)
+                return Status(COSMO_NN_ERR_INVALID_INPUT, "Crop input requires its region group");
+            inputs.push_back(images);
+            inputs.push_back(*auxiliary);
+        }
+    }
+    return Forward(inputs);
 }
 
 Status Graph::Forward(std::vector<std::vector<std::shared_ptr<Blob>>>& params_) {

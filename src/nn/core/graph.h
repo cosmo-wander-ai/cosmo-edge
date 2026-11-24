@@ -48,6 +48,9 @@ public:
      *  combined models need repeated (image, aux) groups per sub-network.
      *  Non-const: Node::Forward requires mutable blob vectors. */
     Status Forward(std::vector<std::vector<std::shared_ptr<Blob>>>& params);
+    Status ForwardImageInputs(std::initializer_list<std::vector<std::shared_ptr<Blob>>> params);
+    bool NeedsImageAuxiliary() const;
+    const Resize* GetRknnOutputResize() const;
 
     std::vector<std::shared_ptr<Blob>> Output();
 

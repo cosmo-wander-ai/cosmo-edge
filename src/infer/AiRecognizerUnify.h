@@ -21,13 +21,16 @@ public:
 
     util::ErrorEnum Init();
 
-    util::ErrorEnum Extract(VideoFramePtr image, std::vector<AiDetectRstEl>& io_rst, bool use_box = false);
+    util::ErrorEnum Extract(VideoFramePtr image, std::vector<AiDetectRstEl>& io_rst, bool use_box = false,
+                            const media::NativeVideoBufferPtr& native_buffer = {});
 
     util::ErrorEnum Extract(const std::vector<VideoFramePtr>& images, std::vector<AiDetectRstEl>& io_rst,
-                            bool use_box = false);
+                            bool use_box                                                   = false,
+                            const std::vector<media::NativeVideoBufferPtr>& native_buffers = {});
 
     util::ErrorEnum Extract(const std::vector<VideoFramePtr>& images,
-                            std::vector<std::vector<AiDetectRstEl>>& io_rst, bool use_box = false);
+                            std::vector<std::vector<AiDetectRstEl>>& io_rst, bool use_box = false,
+                            const std::vector<media::NativeVideoBufferPtr>& native_buffers = {});
 
     std::vector<float> GetScoreLevel();
 
@@ -38,7 +41,8 @@ public:
 private:
     util::ErrorEnum Forward(const std::vector<VideoFramePtr>& images,
                             const std::vector<std::vector<std::vector<int>>>& datas,
-                            std::vector<std::vector<float>>& features, bool use_box);
+                            std::vector<std::vector<float>>& features, bool use_box,
+                            const std::vector<media::NativeVideoBufferPtr>& native_buffers);
 
 private:
     size_t max_batch_size_ = 1;
