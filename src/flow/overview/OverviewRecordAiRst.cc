@@ -211,10 +211,13 @@ MsgAiDetFrame OverviewRecordAiRst::SrcData2MsgData(const DataDetTrackClassifyPtr
 
         for (const auto& target_history : target.classifyRst) {
             MsgAiConfidence confidence;
-            confidence.label         = target_history.label;
-            confidence.confidence    = target_history.confidence;
-            const auto annotation    = MeasuredAnnotation(target_history);
-            confidence.scoreMeasured = annotation && annotation->score.has_value();
+            confidence.label          = target_history.label;
+            confidence.confidence     = target_history.confidence;
+            const auto annotation     = MeasuredAnnotation(target_history);
+            confidence.scoreMeasured  = annotation && annotation->score.has_value();
+            confidence.jointAttribute = target.hasJointPersonAttributes && rec_target.groupEls.empty() &&
+                                        target_history.source == AiAnnotationSource::Classification &&
+                                        target_history.atomic_code == target.confidence.atomic_code;
             if (!confidence.label.empty())
                 rec_target.confidence.push_back(confidence);
         }

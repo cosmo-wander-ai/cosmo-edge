@@ -74,6 +74,31 @@ TEST_CASE("CPU I420 OSD covers original geometry across segment directions", "[m
     }
 }
 
+TEST_CASE("Fine line opacity blends with the video in RGB and I420", "[media][osd][cpu-lines]") {
+    OsdLineGroup line{{{{2, 8}, {13, 8}}}, {110, 236, 239}, 3, true};
+    TestI420 opaque(16, 16);
+    opaque.Draw({line});
+    std::vector<uint8_t> solid(16 * 16 * 3, 128);
+    cosmo::media::RasterizeOsdLinesRgb(solid.data(), 16, 16, false, {line});
+    const auto opacity = GENERATE(0, 128);
+    line.opacity       = static_cast<uint8_t>(opacity);
+    TestI420 blended(16, 16);
+    blended.Draw({line});
+    std::vector<uint8_t> rgb(16 * 16 * 3, 128);
+    cosmo::media::RasterizeOsdLinesRgb(rgb.data(), 16, 16, false, {line});
+    const auto check = [opacity](int actual, int opaquePixel) {
+        CHECK(actual == Catch::Approx(128.0 + (opaquePixel - 128) * opacity / 255.0).margin(1.0));
+    };
+    check(blended.Y(8, 8), opaque.Y(8, 8));
+    const int chroma = (8 / 2) * 8 + 8 / 2;
+    check(blended.u[chroma], opaque.u[chroma]);
+    check(blended.v[chroma], opaque.v[chroma]);
+    for (int channel = 0; channel < 3; ++channel) {
+        const int index = (8 * 16 + 8) * 3 + channel;
+        check(rgb[index], solid[index]);
+    }
+}
+
 TEST_CASE("CPU I420 OSD clips extreme segments without inventing border geometry",
           "[media][osd][cpu-lines]") {
     TestI420 image(64, 48);

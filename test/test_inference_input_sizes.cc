@@ -42,6 +42,28 @@ TEST_CASE("Inference sizes preserve H/W and reject undeclared selections", "[nn]
         CHECK_FALSE(ParseInferenceInputSize(value, selected));
 }
 
+TEST_CASE("YOLO26 accepts exported profiles whose input heights are not stride aligned",
+          "[nn][input-sizes]") {
+    auto root                      = ProfileConfig();
+    const auto* type               = GENERATE("yolo26_det", "yolo26_person_attributes");
+    root["model_type"]             = type;
+    auto& model                    = root["models"][0];
+    model["inputs"][0]["shape"]    = {1, 3, 720, 1280};
+    model["params"]["input_size"]  = {720, 1280};
+    model["params"]["input_sizes"] = {{720, 1280}, {540, 960}, {360, 640}};
+    if (root["model_type"] == "yolo26_person_attributes") {
+        model["outputs"][0]["shape"] = {1, 300, 10};
+        root["attributes"]           = {"smoking", "sleep", "fall", "climbing"};
+    }
+
+    nn::PipelineConfig config;
+    REQUIRE(bool(nn::pipeline_utils::ParsePipelineConfig(root.dump(), config)));
+    REQUIRE(config.input_sizes.sizes.size() == 3);
+    CHECK(config.input_sizes.default_size == InferenceInputSize{1280, 720});
+    CHECK(config.input_sizes.sizes[1] == InferenceInputSize{960, 540});
+    CHECK(config.input_sizes.sizes[2] == InferenceInputSize{640, 360});
+}
+
 TEST_CASE("Invalid model size declarations fail pipeline parsing", "[nn][input-sizes]") {
     auto root          = ProfileConfig();
     const auto invalid = GENERATE(0, 1, 2, 3, 4, 5, 6, 7, 8);
@@ -51,7 +73,7 @@ TEST_CASE("Invalid model size declarations fail pipeline parsing", "[nn][input-s
     if (invalid == 1)
         model["params"]["input_sizes"][0] = {640, 640};
     if (invalid == 2)
-        model["params"]["input_sizes"][0] = {321, 320};
+        model["params"]["input_sizes"][0] = {0, 320};
     if (invalid == 3)
         model["params"]["input_size"] = {512, 512};
     if (invalid == 4)

@@ -49,6 +49,10 @@ bool ParseInferenceInputSize(const std::string& value, InferenceInputSize& size)
     return true;
 }
 
+bool SupportsInferenceInputSizes(std::string_view model_type) {
+    return model_type == "yolo26_det" || model_type == "yolo26_person_attributes";
+}
+
 bool ReadInferenceInputSizes(const nlohmann::json& config, InferenceInputSizes& sizes, std::string& error) {
     sizes = {};
     error.clear();
@@ -71,8 +75,9 @@ bool ReadInferenceInputSizes(const nlohmann::json& config, InferenceInputSizes& 
         error = reason;
         return false;
     };
-    if (!config.contains("model_type") || !config["model_type"].is_string() ||
-        config["model_type"] != "yolo26_det" || config["models"].size() != 1 ||
+    const auto type = config.find("model_type");
+    if (type == config.end() || !type->is_string() ||
+        !SupportsInferenceInputSizes(type->get_ref<const std::string&>()) || config["models"].size() != 1 ||
         (model.contains("max_batch") &&
          (!model["max_batch"].is_number_integer() || model["max_batch"] != 1)) ||
         !model.contains("inputs") || !model["inputs"].is_array() || model["inputs"].size() != 1 ||
@@ -84,10 +89,11 @@ bool ReadInferenceInputSizes(const nlohmann::json& config, InferenceInputSizes& 
         return fail("input_sizes must contain exactly three [height, width] pairs");
     for (const auto& value : values) {
         InferenceInputSize size;
-        if (!ReadSize(value, size) || size.width % 32 != 0 || size.height % 32 != 0 ||
+        // The compiled profile defines the external shape. A model can pad it internally.
+        if (!ReadSize(value, size) ||
             static_cast<uint64_t>(size.width) * size.height * 3 > std::numeric_limits<int>::max() ||
             std::find(sizes.sizes.begin(), sizes.sizes.end(), size) != sizes.sizes.end())
-            return fail("input_sizes must be distinct positive stride-32 image sizes within tensor capacity");
+            return fail("input_sizes must be distinct positive image sizes within tensor capacity");
         sizes.sizes.push_back(size);
     }
     if (std::find(sizes.sizes.begin(), sizes.sizes.end(), sizes.default_size) == sizes.sizes.end())

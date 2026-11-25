@@ -62,7 +62,8 @@ void to_json(nlohmann::json& j, const MsgTaskFaceSetConfig& v) {
 void from_json(const nlohmann::json& j, MsgAiConfidence& v) {
     // Source provenance is never present in the wire format; do not retain a
     // previously measured value when a DTO instance is reused for decoding.
-    v.scoreMeasured = false;
+    v.scoreMeasured  = false;
+    v.jointAttribute = false;
     JSON_OPT(j, v, label);
     JSON_OPT(j, v, confidence);
 }

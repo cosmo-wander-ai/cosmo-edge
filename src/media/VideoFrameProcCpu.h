@@ -65,7 +65,7 @@ namespace media {
         void OSDDrawLines(std::vector<std::pair<util::Point, util::Point>> lines, const Color& color,
                           int lineWidth) override;
         void OSDDrawLinesFine(std::vector<std::pair<util::Point, util::Point>> lines, const Color& color,
-                              int lineWidth) override;
+                              int lineWidth, uint8_t opacity = 255) override;
         void OSDDrawTextFine(int x, int y, const std::string& text, const Color& color,
                              int pixelHeight) override;
         void OSDDrawRoundedRect(const util::Box& rect, const Color& color, uint8_t opacity,

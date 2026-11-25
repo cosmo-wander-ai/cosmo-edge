@@ -375,7 +375,14 @@ Status Yolo26PersonAttributesPipeline::Init(const PipelineConfig& config, const 
     const auto& names = legacy_names ? *legacy_names : config.person_attributes;
     if (!IsValidPersonAttributeNames(row_width, names))
         return Status(COSMO_NN_ERR_INVALID_CFG, "Invalid person attribute names for output shape");
-    const auto p = pipeline_utils::ParseJsonObject(mc.params_json);
+    InferenceInputSize selected;
+    std::string size_error;
+    if (!ResolveInferenceInputSize(config.input_sizes, config.requested_input_size, selected, size_error))
+        return Status(COSMO_NN_ERR_INVALID_CFG, size_error);
+    const bool has_sizes = !config.input_sizes.sizes.empty();
+    auto p               = pipeline_utils::ParseJsonObject(mc.params_json);
+    if (has_sizes)
+        p["input_size"] = {selected.height, selected.width};
     if (p.contains("raw_output") && (!p["raw_output"].is_boolean() || p["raw_output"].get<bool>()))
         return Status(COSMO_NN_ERR_INVALID_CFG, "Person-attribute model requires decoded pixel rows");
     if ((p.contains("confidence_threshold") && !p["confidence_threshold"].is_number()) ||
@@ -399,9 +406,15 @@ Status Yolo26PersonAttributesPipeline::Init(const PipelineConfig& config, const 
     model.input_contract = pipeline_utils::ReadString(p, "rknn_input_contract", std::string());
     model.max_batch      = mc.max_batch;
     max_batch_           = mc.max_batch;
+    if (has_sizes) {
+        model.input_sizes         = config.input_sizes.sizes;
+        model.selected_input_size = selected;
+    }
     InputNodeInfo input;
-    input.name      = mc.inputs[0].name;
-    input.shape     = mc.inputs[0].shape;
+    input.name  = mc.inputs[0].name;
+    input.shape = mc.inputs[0].shape;
+    if (has_sizes)
+        input.shape = {1, 3, selected.height, selected.width};
     input.data_type = mc.inputs[0].data_type;
     input.ops       = MakeDetPreprocess(p);
     model.input_node_infos.push_back(std::move(input));
