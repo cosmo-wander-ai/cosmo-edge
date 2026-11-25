@@ -2,6 +2,7 @@
 
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "nlohmann/json_fwd.hpp"
@@ -24,6 +25,7 @@ struct InferenceInputSizes {
 
 // Persisted node values use WxH; model arrays use [H, W].
 bool ParseInferenceInputSize(const std::string& value, InferenceInputSize& size);
+bool SupportsInferenceInputSizes(std::string_view model_type);
 bool ReadInferenceInputSizes(const nlohmann::json& config, InferenceInputSizes& sizes, std::string& error);
 bool ResolveInferenceInputSize(const InferenceInputSizes& sizes,
                                const std::optional<InferenceInputSize>& requested,
