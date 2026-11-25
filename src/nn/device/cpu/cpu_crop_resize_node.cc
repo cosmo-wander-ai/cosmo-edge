@@ -9,6 +9,7 @@
 #include "nn/node/node_type_utils.h"
 #include "nn/utils/dims_vector_utils.h"
 #include "nn/utils/op.h"
+#include "nn/utils/resize_geometry.h"
 
 namespace cosmo::nn {
 
@@ -62,14 +63,16 @@ size_t CpuCropResizeNode::GetBottomCount() {
 Status CpuCropResizeNode::PrepareRect(std::shared_ptr<Blob> host_rect, int image_w, int image_h) {
     calculated_rects.clear();
 
+    if (!host_rect)
+        return Status(COSMO_NN_ERR_NULL_PARAM, "crop rectangles are missing");
     auto desc   = host_rect->GetBlobDesc();
     auto handle = host_rect->GetHandle();
 
     if (desc.data_type != DataType::DATA_TYPE_INT32)
         return Status(COSMO_NN_ERR_INVALID_INPUT, "rect data type must be int32.");
 
-    auto dims = desc.dims;
-    if (dims.at(1) != 4)
+    const auto& dims = desc.dims;
+    if (dims.size() != 2 || dims[0] < 0 || dims[1] != 4 || (dims[0] > 0 && !handle.base))
         return Status(COSMO_NN_ERR_INVALID_INPUT, "rect shape must be [n, 4].");
 
     size_t n                = dims.at(0);
@@ -136,7 +139,7 @@ void CpuCropResizeNode::BilinearResize(const uint8_t* src, int src_w, int src_h,
 
 void CpuCropResizeNode::BilinearResizeStrided(const uint8_t* src, int src_w, int src_h, int channels,
                                               size_t src_stride, uint8_t* dst, int dst_w, int dst_h,
-                                              size_t dst_stride) {
+                                              size_t dst_stride, bool swap_red_blue) {
     const float x_ratio = static_cast<float>(src_w) / dst_w;
     const float y_ratio = static_cast<float>(src_h) / dst_h;
     struct HorizontalSample {
@@ -181,10 +184,11 @@ void CpuCropResizeNode::BilinearResizeStrided(const uint8_t* src, int src_w, int
             }
 
             for (int c = 0; c < channels; c++) {
-                float v00 = src[static_cast<size_t>(sy) * src_stride + sx * channels + c];
-                float v01 = src[static_cast<size_t>(sy) * src_stride + sx1 * channels + c];
-                float v10 = src[static_cast<size_t>(sy1) * src_stride + sx * channels + c];
-                float v11 = src[static_cast<size_t>(sy1) * src_stride + sx1 * channels + c];
+                const int channel = swap_red_blue ? 2 - c : c;
+                float v00         = src[static_cast<size_t>(sy) * src_stride + sx * channels + channel];
+                float v01         = src[static_cast<size_t>(sy) * src_stride + sx1 * channels + channel];
+                float v10         = src[static_cast<size_t>(sy1) * src_stride + sx * channels + channel];
+                float v11         = src[static_cast<size_t>(sy1) * src_stride + sx1 * channels + channel];
 
                 float val = v00 * (1 - frac_x) * (1 - frac_y) + v01 * frac_x * (1 - frac_y) +
                             v10 * (1 - frac_x) * frac_y + v11 * frac_x * frac_y;
@@ -194,6 +198,25 @@ void CpuCropResizeNode::BilinearResizeStrided(const uint8_t* src, int src_w, int
             }
         }
     }
+}
+
+void CpuCropResizeNode::ResizeCropOnCpu(const uint8_t* source, int source_width, const Rect& crop,
+                                        const Rect& region, uint8_t* output, bool swap_red_blue) const {
+    const size_t output_stride = static_cast<size_t>(dst_width) * 3;
+    if (region.width != dst_width || region.height != dst_height) {
+        const uint8_t padding = color.empty() ? 114 : static_cast<uint8_t>(color.front());
+        std::memset(output, padding, static_cast<size_t>(dst_height) * output_stride);
+    }
+    if (region.empty())
+        return;
+
+    const size_t source_stride = static_cast<size_t>(source_width) * 3;
+    const auto* pixels =
+        source + static_cast<size_t>(crop.y) * source_stride + static_cast<size_t>(crop.x) * 3;
+    auto* destination =
+        output + static_cast<size_t>(region.y) * output_stride + static_cast<size_t>(region.x) * 3;
+    BilinearResizeStrided(pixels, crop.width, crop.height, 3, source_stride, destination, region.width,
+                          region.height, output_stride, swap_red_blue);
 }
 
 Status CpuCropResizeNode::Forward(std::vector<std::shared_ptr<Blob>>& image_blobs,
@@ -246,36 +269,8 @@ Status CpuCropResizeNode::Forward(std::vector<std::shared_ptr<Blob>>& image_blob
 
             if (rw <= 0 || rh <= 0 || rx < 0 || ry < 0 || rx > src_w - rw || ry > src_h - rh)
                 return Status(COSMO_NN_ERR_INVALID_INPUT, "crop region is outside the image");
-            // Read the exact crop from the original packed image using its
-            // row stride. This preserves sampling and rounding while avoiding
-            // a crop allocation and copy for every detected object.
-            const size_t source_stride = static_cast<size_t>(src_w) * channels;
-            const auto* crop           = src_data + static_cast<size_t>(ry) * source_stride + rx * channels;
-
-            // Resize crop to destination
-            uint8_t* dst_ptr = top_data + processed * single_size;
-
-            if (gravity == 0) {
-                BilinearResizeStrided(crop, rw, rh, channels, source_stride, dst_ptr, dst_width, dst_height,
-                                      static_cast<size_t>(dst_width) * channels);
-            } else {
-                // Letterbox: keep aspect ratio
-                float scale =
-                    std::min(static_cast<float>(dst_width) / rw, static_cast<float>(dst_height) / rh);
-                int new_w = static_cast<int>(rw * scale);
-                int new_h = static_cast<int>(rh * scale);
-
-                uint8_t pad_val = color.empty() ? 114 : static_cast<uint8_t>(color.at(0));
-                std::memset(dst_ptr, pad_val, single_size);
-
-                int pad_x = (gravity == 1) ? (dst_width - new_w) / 2 : 0;
-                int pad_y = (gravity == 1) ? (dst_height - new_h) / 2 : 0;
-                if (new_w > 0 && new_h > 0) {
-                    auto* image_out = dst_ptr + (static_cast<size_t>(pad_y) * dst_width + pad_x) * channels;
-                    BilinearResizeStrided(crop, rw, rh, channels, source_stride, image_out, new_w, new_h,
-                                          static_cast<size_t>(dst_width) * channels);
-                }
-            }
+            const auto region = CalculateResizeRegion(rw, rh, dst_width, dst_height, gravity);
+            ResizeCropOnCpu(src_data, src_w, {rx, ry, rw, rh}, region, top_data + processed * single_size);
             processed++;
         }
     }

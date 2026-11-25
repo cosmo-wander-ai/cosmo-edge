@@ -110,7 +110,7 @@ TEST_CASE("AlgDataQueueDistributor plans before host frame materialization", "[D
     CHECK(status.status.discardCount >= 1);
 }
 
-TEST_CASE("Only regular detector queue plans advertise native inference", "[Distributor]") {
+TEST_CASE("Eligible detection, classification and recognition queues share native frames", "[Distributor]") {
     AlgDataQueueDistributor detector_dist("native_detector_dist");
     auto detector = makeTask("ch1", "detector", std::string(AADetect_Code), -1.0f);
     REQUIRE(detector_dist.RegistProcQueue(detector));
@@ -121,12 +121,17 @@ TEST_CASE("Only regular detector queue plans advertise native inference", "[Dist
     CHECK(detector_plan.SupportsNativeInference());
 
     AlgDataQueueDistributor mixed_dist("native_mixed_dist");
-    auto non_detector = makeTask("ch1", "classifier", std::string(AAClassify_Code), -1.0f);
-    REQUIRE(mixed_dist.RegistProcQueue(detector));
+    const auto code   = GENERATE(AAClassify_Code, AARecognizer_Code);
+    auto non_detector = makeTask("ch1", "inference", std::string(code), -1.0f);
     REQUIRE(mixed_dist.RegistProcQueue(non_detector));
     input->firstTimePoint = std::chrono::steady_clock::now();
+    CHECK(mixed_dist.PrepareFrameDistribution(input).SupportsNativeInference());
+    REQUIRE(mixed_dist.RegistProcQueue(detector));
+    auto unrelated = makeTask("ch1", "other", std::string(AAVideoDiagnosis_Code), -1.0f);
+    REQUIRE(mixed_dist.RegistProcQueue(unrelated));
+    input->firstTimePoint = std::chrono::steady_clock::now();
     const auto mixed_plan = mixed_dist.PrepareFrameDistribution(input);
-    CHECK_FALSE(mixed_plan.SupportsNativeInference());
+    CHECK(mixed_plan.SupportsNativeInference());
 }
 
 TEST_CASE("Native inference descriptors are isolated across detector queues", "[Distributor]") {

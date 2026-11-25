@@ -25,7 +25,8 @@ AiRecognizerInterface::~AiRecognizerInterface() {
 }
 
 util::ErrorEnum AiRecognizerInterface::Recognize(VideoFramePtr image, std::vector<AiDetectRstEl>& io_puts,
-                                                 bool use_box) {
+                                                 bool use_box,
+                                                 const media::NativeVideoBufferPtr& native_buffer) {
     if (!reuse_obj_) {
         LOG_WARN("{}", "AiRecognizerInterface instance is nullptr");
         return util::ErrorEnum::SysErr;
@@ -37,7 +38,7 @@ util::ErrorEnum AiRecognizerInterface::Recognize(VideoFramePtr image, std::vecto
         return util::ErrorEnum::NotInit;
     }
 
-    auto ret = inst->Extract(image, io_puts, use_box);
+    auto ret = inst->Extract(image, io_puts, use_box, native_buffer);
     reuse_obj_->ReturnInst(inst);
 
     return ret;

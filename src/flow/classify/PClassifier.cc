@@ -156,7 +156,8 @@ util::ErrorEnum PClassifier::HandPic(AlgDataPtr algData) {
 
     m_durationStat.BeginSample();
     const auto result =
-        instance->Classify(algData->chanDataDec.frame, algData->chanDataDetect.detRet->targets);
+        instance->Classify(algData->chanDataDec.frame, algData->chanDataDetect.detRet->targets, true,
+                           algData->chanDataDec.native_buffer);
     m_durationStat.EndSample();
     {
         std::lock_guard<std::shared_mutex> lock(m_mtx);

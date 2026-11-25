@@ -22,7 +22,7 @@ public:
     util::ErrorEnum Init();
 
     util::ErrorEnum Classify(const VideoFramePtr& image, std::vector<AiDetectRstEl>& io_rst,
-                             bool use_box = true);
+                             bool use_box = true, const media::NativeVideoBufferPtr& native_buffer = {});
 
     util::ErrorEnum Classify(const std::vector<VideoFramePtr>& images, std::vector<AiDetectRstEl>& io_rst,
                              bool use_box                                                   = true,

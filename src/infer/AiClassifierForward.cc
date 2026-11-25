@@ -144,17 +144,17 @@ util::ErrorEnum AiClassifierUnify::Forward(const std::vector<VideoFramePtr>& ima
     }
 
     std::vector<std::shared_ptr<cosmo::nn::Blob>> data_blobs{};
-    if (use_box) {
-        ret = ConvertDatasToBlobs(datas, data_blobs);
-    } else {
-        ret = ConvertDatasToBlobsFloat(datas, data_blobs);
-    }
-    if (util::ErrorEnum::Success != ret) {
-        LOG_ERRO("ConvertDatasToBlobs Failed. Ret:{}", ret);
-        return ret;
+    const bool needs_auxiliary = classifier_->NeedsImageAuxiliary();
+    if (needs_auxiliary) {
+        ret = use_box ? ConvertDatasToBlobs(datas, data_blobs) : ConvertDatasToBlobsFloat(datas, data_blobs);
+        if (util::ErrorEnum::Success != ret) {
+            LOG_ERRO("ConvertDatasToBlobs Failed. Ret:{}", ret);
+            return ret;
+        }
     }
 
-    auto status = classifier_->Forward({image_blobs, data_blobs});
+    auto status = needs_auxiliary ? classifier_->Forward({image_blobs, data_blobs})
+                                  : classifier_->Forward({image_blobs});
     if (!bool(status)) {
         LOG_ERRO("Forward Failed.({})", status.description());
         return util::ErrorEnum::AI_FORWARD_FAILED;

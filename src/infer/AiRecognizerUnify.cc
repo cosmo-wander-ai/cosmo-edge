@@ -45,8 +45,8 @@ util::ErrorEnum AiRecognizerUnify::Init() {
 }
 
 util::ErrorEnum AiRecognizerUnify::Extract(VideoFramePtr image, std::vector<AiDetectRstEl>& io_rst,
-                                           bool use_box) {
-    if (!VideoFrameValid(image) || !image->GetData()) {
+                                           bool use_box, const media::NativeVideoBufferPtr& native_buffer) {
+    if (!image || !image->Active() || ((!native_buffer || !native_buffer->Valid()) && !image->GetData())) {
         return util::ErrorEnum::FrameDataInvalid;
     }
     if (io_rst.empty()) {
@@ -58,7 +58,7 @@ util::ErrorEnum AiRecognizerUnify::Extract(VideoFramePtr image, std::vector<AiDe
     for (auto& io_el : io_rst) {
         std::vector<AiDetectRstEl> io_puts;
         io_puts.push_back(io_el);
-        auto ret = Extract(images, io_puts, use_box);
+        auto ret = Extract(images, io_puts, use_box, {native_buffer});
         if (util::ErrorEnum::Success != ret) {
             LOG_WARN("Extract feature failed. Ret:{}", ret);
             return ret;
@@ -69,7 +69,8 @@ util::ErrorEnum AiRecognizerUnify::Extract(VideoFramePtr image, std::vector<AiDe
 }
 
 util::ErrorEnum AiRecognizerUnify::Extract(const std::vector<VideoFramePtr>& images,
-                                           std::vector<AiDetectRstEl>& io_rst, bool use_box) {
+                                           std::vector<AiDetectRstEl>& io_rst, bool use_box,
+                                           const std::vector<media::NativeVideoBufferPtr>& native_buffers) {
     if (!recognizer_) {
         LOG_WARN("{}", "SDK Classifier Not Init");
         return util::ErrorEnum::NotInit;
@@ -83,105 +84,18 @@ util::ErrorEnum AiRecognizerUnify::Extract(const std::vector<VideoFramePtr>& ima
     }
 
     std::vector<std::shared_ptr<cosmo::nn::Blob>> image_blobs{};
-    auto ret = ConvertImagesToBlobs(images, image_blobs);
+    auto ret = ConvertImagesToBlobs(images, native_buffers, image_blobs);
     if (util::ErrorEnum::Success != ret) {
         LOG_ERRO("ConvertImagesToBlobs Failed. Ret:{}", ret);
         return ret;
     }
 
-    std::vector<std::vector<int>> datas;
-    for (auto& io_el : io_rst) {
-        std::vector<int> data;
-        if (use_box) {
-            if (io_el.relatedEl.bActive) {
-                data.push_back(io_el.relatedEl.box.x);
-                data.push_back(io_el.relatedEl.box.y);
-                data.push_back(io_el.relatedEl.box.width);
-                data.push_back(io_el.relatedEl.box.height);
-            } else {
-                data.push_back(io_el.box.x);
-                data.push_back(io_el.box.y);
-                data.push_back(io_el.box.width);
-                data.push_back(io_el.box.height);
-            }
-        } else {
-            if (io_el.relatedEl.bActive) {
-                for (auto point : io_el.relatedEl.landmark.landmark) {
-                    data.push_back(point.x);
-                    data.push_back(point.y);
-                }
-            } else {
-                for (auto point : io_el.landmark.landmark) {
-                    data.push_back(point.x);
-                    data.push_back(point.y);
-                }
-            }
-        }
-        datas.push_back(data);
-    }
-
-    std::vector<std::shared_ptr<cosmo::nn::Blob>> data_blobs{};
-    if (use_box) {
-        ret = ConvertDatasToBlobs(datas, data_blobs);
-    } else {
-        ret = ConvertDatasToBlobsFloat(datas, data_blobs);
-    }
-    if (util::ErrorEnum::Success != ret) {
-        LOG_ERRO("ConvertDatasToBlobs Failed. Ret:{}", ret);
-        return ret;
-    }
-
-    auto status = recognizer_->Forward({image_blobs, data_blobs});
-    if (!bool(status)) {
-        LOG_ERRO("Forward Failed.({})", status.description());
-        return util::ErrorEnum::AI_FORWARD_FAILED;
-    }
-    std::vector<std::vector<float>> outputs{};
-    status = recognizer_->ParseOutput<float>(outputs);
-    if (!bool(status)) {
-        LOG_ERRO("ParseOutput Failed.({})", status.description());
-        return util::ErrorEnum::AI_PARSE_OUTPUT_FAILED;
-    }
-
-    for (size_t i = 0; i < outputs.size(); i++) {
-        if ((io_rst[i].relatedEl.bActive)) {
-            io_rst[i].feature.feature           = outputs[i];
-            io_rst[i].relatedEl.feature.feature = outputs[i];
-        } else {
-            io_rst[i].feature.feature = outputs[i];
-        }
-    }
-
-    return util::ErrorEnum::Success;
-}
-
-util::ErrorEnum AiRecognizerUnify::Extract(const std::vector<VideoFramePtr>& images,
-                                           std::vector<std::vector<AiDetectRstEl>>& io_rst, bool use_box) {
-    if (!recognizer_) {
-        LOG_WARN("{}", "SDK Classifier Not Init");
-        return util::ErrorEnum::NotInit;
-    }
-    if (images.empty() || io_rst.empty()) {
-        return util::ErrorEnum::Success;
-    }
-    if (images.size() != io_rst.size()) {
-        LOG_ERRO("Input Datas Not Match, Images:{} io_rst:{}", images.size(), io_rst.size());
-        return util::ErrorEnum::InvalidParam;
-    }
-
-    std::vector<VideoFramePtr> input_images;
-    std::vector<std::vector<std::vector<int>>> input_datas;
-    std::vector<std::pair<size_t, size_t>> indexes;
-    size_t total = 0;
-    for (size_t i = 0; i < io_rst.size(); i++) {
-        total += io_rst[i].size();
-    }
-    size_t count = 0;
-    for (size_t i = 0; i < io_rst.size(); i++) {
+    const bool needs_auxiliary = recognizer_->NeedsImageAuxiliary();
+    std::vector<std::shared_ptr<cosmo::nn::Blob>> data_blobs;
+    if (needs_auxiliary) {
         std::vector<std::vector<int>> datas;
-        for (size_t j = 0; j < io_rst[i].size(); j++) {
+        for (auto& io_el : io_rst) {
             std::vector<int> data;
-            auto& io_el = io_rst[i][j];
             if (use_box) {
                 if (io_el.relatedEl.bActive) {
                     data.push_back(io_el.relatedEl.box.x);
@@ -207,26 +121,129 @@ util::ErrorEnum AiRecognizerUnify::Extract(const std::vector<VideoFramePtr>& ima
                     }
                 }
             }
-
             datas.push_back(data);
+        }
+
+        if (use_box) {
+            ret = ConvertDatasToBlobs(datas, data_blobs);
+        } else {
+            ret = ConvertDatasToBlobsFloat(datas, data_blobs);
+        }
+        if (util::ErrorEnum::Success != ret) {
+            LOG_ERRO("ConvertDatasToBlobs Failed. Ret:{}", ret);
+            return ret;
+        }
+    }
+
+    auto status = needs_auxiliary ? recognizer_->Forward({image_blobs, data_blobs})
+                                  : recognizer_->Forward({image_blobs});
+    if (!bool(status)) {
+        LOG_ERRO("Forward Failed.({})", status.description());
+        return util::ErrorEnum::AI_FORWARD_FAILED;
+    }
+    std::vector<std::vector<float>> outputs{};
+    status = recognizer_->ParseOutput<float>(outputs);
+    if (!bool(status)) {
+        LOG_ERRO("ParseOutput Failed.({})", status.description());
+        return util::ErrorEnum::AI_PARSE_OUTPUT_FAILED;
+    }
+
+    if (outputs.size() != io_rst.size())
+        return util::ErrorEnum::AI_PARSE_OUTPUT_FAILED;
+    for (size_t i = 0; i < outputs.size(); i++) {
+        if ((io_rst[i].relatedEl.bActive)) {
+            io_rst[i].feature.feature           = outputs[i];
+            io_rst[i].relatedEl.feature.feature = outputs[i];
+        } else {
+            io_rst[i].feature.feature = outputs[i];
+        }
+    }
+
+    return util::ErrorEnum::Success;
+}
+
+util::ErrorEnum AiRecognizerUnify::Extract(const std::vector<VideoFramePtr>& images,
+                                           std::vector<std::vector<AiDetectRstEl>>& io_rst, bool use_box,
+                                           const std::vector<media::NativeVideoBufferPtr>& native_buffers) {
+    if (!recognizer_) {
+        LOG_WARN("{}", "SDK Classifier Not Init");
+        return util::ErrorEnum::NotInit;
+    }
+    if (images.empty() || io_rst.empty()) {
+        return util::ErrorEnum::Success;
+    }
+    if (images.size() != io_rst.size()) {
+        LOG_ERRO("Input Datas Not Match, Images:{} io_rst:{}", images.size(), io_rst.size());
+        return util::ErrorEnum::InvalidParam;
+    }
+
+    const bool needs_auxiliary = recognizer_->NeedsImageAuxiliary();
+    std::vector<VideoFramePtr> input_images;
+    std::vector<media::NativeVideoBufferPtr> input_native_buffers;
+    std::vector<std::vector<std::vector<int>>> input_datas;
+    std::vector<std::pair<size_t, size_t>> indexes;
+    size_t total = 0;
+    for (size_t i = 0; i < io_rst.size(); i++) {
+        total += io_rst[i].size();
+    }
+    size_t count = 0;
+    for (size_t i = 0; i < io_rst.size(); i++) {
+        std::vector<std::vector<int>> datas;
+        for (size_t j = 0; j < io_rst[i].size(); j++) {
+            if (needs_auxiliary) {
+                std::vector<int> data;
+                auto& io_el = io_rst[i][j];
+                if (use_box) {
+                    if (io_el.relatedEl.bActive) {
+                        data.push_back(io_el.relatedEl.box.x);
+                        data.push_back(io_el.relatedEl.box.y);
+                        data.push_back(io_el.relatedEl.box.width);
+                        data.push_back(io_el.relatedEl.box.height);
+                    } else {
+                        data.push_back(io_el.box.x);
+                        data.push_back(io_el.box.y);
+                        data.push_back(io_el.box.width);
+                        data.push_back(io_el.box.height);
+                    }
+                } else {
+                    if (io_el.relatedEl.bActive) {
+                        for (auto point : io_el.relatedEl.landmark.landmark) {
+                            data.push_back(point.x);
+                            data.push_back(point.y);
+                        }
+                    } else {
+                        for (auto point : io_el.landmark.landmark) {
+                            data.push_back(point.x);
+                            data.push_back(point.y);
+                        }
+                    }
+                }
+
+                datas.push_back(data);
+            }
             indexes.push_back(std::make_pair(i, j));
             count++;
             if ((count % max_batch_size_ == 0) || (count == total)) {
-                input_datas.push_back(datas);
+                if (needs_auxiliary)
+                    input_datas.push_back(datas);
                 size_t img = static_cast<size_t>(-1);
                 for (size_t k = 0; k < indexes.size(); k++) {
                     auto index = indexes[k];
-                    if (img != index.first) {
+                    if (!needs_auxiliary || img != index.first) {
                         img = index.first;
                         input_images.push_back(images[img]);
+                        input_native_buffers.push_back(img < native_buffers.size() ? native_buffers[img]
+                                                                                   : nullptr);
                     }
                 }
                 std::vector<std::vector<float>> outputs;
-                auto ret = Forward(input_images, input_datas, outputs, use_box);
+                auto ret = Forward(input_images, input_datas, outputs, use_box, input_native_buffers);
                 if (util::ErrorEnum::Success != ret) {
                     LOG_ERRO("Forward Failed. Ret:{}", ret);
                     return ret;
                 }
+                if (outputs.size() != indexes.size())
+                    return util::ErrorEnum::AI_PARSE_OUTPUT_FAILED;
                 size_t out = 0;
                 for (auto output : outputs) {
                     size_t img_index = indexes[out].first;
@@ -239,6 +256,7 @@ util::ErrorEnum AiRecognizerUnify::Extract(const std::vector<VideoFramePtr>& ima
                     out++;
                 }
                 input_images.clear();
+                input_native_buffers.clear();
                 input_datas.clear();
                 indexes.clear();
                 datas.clear();
@@ -254,27 +272,27 @@ util::ErrorEnum AiRecognizerUnify::Extract(const std::vector<VideoFramePtr>& ima
 
 util::ErrorEnum AiRecognizerUnify::Forward(const std::vector<VideoFramePtr>& images,
                                            const std::vector<std::vector<std::vector<int>>>& datas,
-                                           std::vector<std::vector<float>>& features, bool use_box) {
+                                           std::vector<std::vector<float>>& features, bool use_box,
+                                           const std::vector<media::NativeVideoBufferPtr>& native_buffers) {
     std::vector<std::shared_ptr<cosmo::nn::Blob>> image_blobs{};
-    auto ret = ConvertImagesToBlobs(images, image_blobs);
+    auto ret = ConvertImagesToBlobs(images, native_buffers, image_blobs);
     if (util::ErrorEnum::Success != ret) {
         LOG_ERRO("ConvertImagesToBlobs Failed. Ret:{}", ret);
         return ret;
     }
 
     std::vector<std::shared_ptr<cosmo::nn::Blob>> data_blobs{};
-    if (use_box) {
-        ret = ConvertDatasToBlobs(datas, data_blobs);
-    } else {
-        ret = ConvertDatasToBlobsFloat(datas, data_blobs);
+    const bool needs_auxiliary = recognizer_->NeedsImageAuxiliary();
+    if (needs_auxiliary) {
+        ret = use_box ? ConvertDatasToBlobs(datas, data_blobs) : ConvertDatasToBlobsFloat(datas, data_blobs);
+        if (util::ErrorEnum::Success != ret) {
+            LOG_ERRO("ConvertDatasToBlobs Failed. Ret:{}", ret);
+            return ret;
+        }
     }
 
-    if (util::ErrorEnum::Success != ret) {
-        LOG_ERRO("ConvertDatasToBlobs Failed. Ret:{}", ret);
-        return ret;
-    }
-
-    auto status = recognizer_->Forward({image_blobs, data_blobs});
+    auto status = needs_auxiliary ? recognizer_->Forward({image_blobs, data_blobs})
+                                  : recognizer_->Forward({image_blobs});
     if (!bool(status)) {
         LOG_ERRO("Forward Failed.({})", status.description());
         return util::ErrorEnum::AI_FORWARD_FAILED;

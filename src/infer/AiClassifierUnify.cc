@@ -36,8 +36,9 @@ util::ErrorEnum AiClassifierUnify::Init() {
 }
 
 util::ErrorEnum AiClassifierUnify::Classify(const VideoFramePtr& image, std::vector<AiDetectRstEl>& io_rst,
-                                            bool use_box) {
-    if (!image->GetData() || io_rst.empty()) {
+                                            bool use_box, const media::NativeVideoBufferPtr& native_buffer) {
+    if (!image || !image->Active() || ((!native_buffer || !native_buffer->Valid()) && !image->GetData()) ||
+        io_rst.empty()) {
         return util::ErrorEnum::Success;
     }
 
@@ -46,7 +47,7 @@ util::ErrorEnum AiClassifierUnify::Classify(const VideoFramePtr& image, std::vec
     for (auto& io_el : io_rst) {
         std::vector<AiDetectRstEl> io_puts;
         io_puts.push_back(io_el);
-        auto ret = Classify(images, io_puts, use_box);
+        auto ret = Classify(images, io_puts, use_box, {native_buffer});
         if (util::ErrorEnum::Success != ret) {
             LOG_INFO("{}", "Classify Fail");
             return ret;
@@ -119,19 +120,23 @@ util::ErrorEnum AiClassifierUnify::Classify(const std::vector<VideoFramePtr>& im
         return ret;
     }
 
-    std::vector<std::vector<int>> datas;
-    datas.reserve(io_rst.size());
-    std::transform(io_rst.begin(), io_rst.end(), std::back_inserter(datas),
-                   [this, use_box](const auto& io_el) { return CollectBoxOrLandmarkData(io_el, use_box); });
-
+    const bool needs_auxiliary = classifier_->NeedsImageAuxiliary();
     std::vector<std::shared_ptr<cosmo::nn::Blob>> data_blobs{};
-    ret = use_box ? ConvertDatasToBlobs(datas, data_blobs) : ConvertDatasToBlobsFloat(datas, data_blobs);
-    if (util::ErrorEnum::Success != ret) {
-        LOG_ERRO("ConvertDatasToBlobs Failed. Ret:{}", ret);
-        return ret;
+    if (needs_auxiliary) {
+        std::vector<std::vector<int>> datas;
+        datas.reserve(io_rst.size());
+        std::transform(
+            io_rst.begin(), io_rst.end(), std::back_inserter(datas),
+            [this, use_box](const auto& io_el) { return CollectBoxOrLandmarkData(io_el, use_box); });
+        ret = use_box ? ConvertDatasToBlobs(datas, data_blobs) : ConvertDatasToBlobsFloat(datas, data_blobs);
+        if (util::ErrorEnum::Success != ret) {
+            LOG_ERRO("ConvertDatasToBlobs Failed. Ret:{}", ret);
+            return ret;
+        }
     }
 
-    auto status = classifier_->Forward({image_blobs, data_blobs});
+    auto status = needs_auxiliary ? classifier_->Forward({image_blobs, data_blobs})
+                                  : classifier_->Forward({image_blobs});
     if (!bool(status)) {
         LOG_ERRO("Forward Failed.({})", status.description());
         return util::ErrorEnum::AI_FORWARD_FAILED;
@@ -235,6 +240,7 @@ util::ErrorEnum AiClassifierUnify::Classify(const std::vector<VideoFramePtr>& im
         return util::ErrorEnum::InvalidParam;
     }
 
+    const bool needs_auxiliary = classifier_->NeedsImageAuxiliary();
     std::vector<VideoFramePtr> input_images;
     std::vector<media::NativeVideoBufferPtr> input_native_buffers;
     std::vector<std::vector<std::vector<int>>> input_datas;
@@ -245,14 +251,16 @@ util::ErrorEnum AiClassifierUnify::Classify(const std::vector<VideoFramePtr>& im
     for (size_t i = 0; i < io_rst.size(); i++) {
         std::vector<std::vector<int>> datas;
         for (size_t j = 0; j < io_rst[i].size(); j++) {
-            datas.push_back(CollectBoxOrLandmarkData(io_rst[i][j], use_box));
+            if (needs_auxiliary)
+                datas.push_back(CollectBoxOrLandmarkData(io_rst[i][j], use_box));
             indexes.push_back(std::make_pair(i, j));
             count++;
             if ((count % max_batch_size_ == 0) || (count == total)) {
-                input_datas.push_back(datas);
+                if (needs_auxiliary)
+                    input_datas.push_back(datas);
                 size_t img = static_cast<size_t>(-1);
                 for (size_t k = 0; k < indexes.size(); k++) {
-                    if (img != indexes[k].first) {
+                    if (!needs_auxiliary || img != indexes[k].first) {
                         img = indexes[k].first;
                         input_images.push_back(images[img]);
                         input_native_buffers.push_back(img < native_buffers.size() ? native_buffers[img]

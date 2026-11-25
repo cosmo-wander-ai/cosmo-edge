@@ -92,6 +92,7 @@ public:
     virtual int GetMaxBatchSize() const              = 0;
     virtual std::string GetModelType() const         = 0;
     virtual OutputCategory GetOutputCategory() const = 0;
+    bool NeedsImageAuxiliary() const;
 
     // Typed output parsing — subclasses override as needed, default returns UNSUPPORTED
     virtual Status ParseDetectionOutput(std::vector<std::vector<ObjectInfoV1>>& outputs);
@@ -128,9 +129,11 @@ protected:
     // Run the inference graph
     Status RunGraph(std::initializer_list<std::vector<std::shared_ptr<Blob>>> inputs);
     Status RunGraph(std::vector<std::vector<std::shared_ptr<Blob>>>& inputs);
+    Status RunImageGraph(std::initializer_list<std::vector<std::shared_ptr<Blob>>> inputs);
 
     // Get inference graph output
     std::vector<std::shared_ptr<Blob>> GetGraphOutput();
+    const Resize* GetRknnOutputResize() const;
 
     // Get Graph's SharedResource (used by DINO and models that need a tokenizer)
     void* GetSharedResource();

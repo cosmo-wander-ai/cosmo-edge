@@ -25,8 +25,7 @@ public:
     Status ParseClassifyOutput(std::vector<std::vector<ObjectInfoV1>>& outputs) override;
 
 private:
-    int max_batch_          = 1;
-    bool share_crop_inputs_ = false;
+    int max_batch_ = 1;
 };
 
 }  // namespace cosmo::nn

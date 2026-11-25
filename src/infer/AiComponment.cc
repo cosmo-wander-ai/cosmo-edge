@@ -113,10 +113,14 @@ util::ErrorEnum ConvertImagesToBlobs(const std::vector<VideoFramePtr>& images,
         auto blob         = std::make_shared<cosmo::nn::Blob>(desc);
         desc.data_format  = GetDataFormatType();
         desc.image_format = GetImageFormatType();
-        desc.data_type    = cosmo::nn::DataType::DATA_TYPE_UINT8;
-        desc.dims         = {1, static_cast<int>(image->GetHeight()), static_cast<int>(image->GetWidth()),
-                             static_cast<int>(cosmo::nn::ImageFormatChannels(desc.image_format))};
-        desc.device_type  = GetDeviceType();
+#ifdef COSMO_NN_USE_RKNN_BACKEND
+        if (image->GetPixelFormat() == media::PixelFormat::PIXEL_RGB8)
+            desc.image_format = cosmo::nn::IMAGE_RGB;
+#endif
+        desc.data_type   = cosmo::nn::DataType::DATA_TYPE_UINT8;
+        desc.dims        = {1, static_cast<int>(image->GetHeight()), static_cast<int>(image->GetWidth()),
+                            static_cast<int>(cosmo::nn::ImageFormatChannels(desc.image_format))};
+        desc.device_type = GetDeviceType();
         cosmo::nn::BlobHandle handle;
         if (i < native_buffers.size() && native_buffers[i] && native_buffers[i]->Valid() &&
             native_buffers[i]->width == static_cast<int>(image->GetWidth()) &&
@@ -229,10 +233,14 @@ std::shared_ptr<cosmo::nn::Blob> ConvertImageToBlob(VideoFramePtr image) {
     auto blob         = std::make_shared<cosmo::nn::Blob>(desc);
     desc.data_format  = GetDataFormatType();
     desc.image_format = GetImageFormatType();
-    desc.data_type    = cosmo::nn::DataType::DATA_TYPE_UINT8;
-    desc.dims         = {1, static_cast<int>(image->GetHeight()), static_cast<int>(image->GetWidth()),
-                         static_cast<int>(cosmo::nn::ImageFormatChannels(desc.image_format))};
-    desc.device_type  = GetDeviceType();
+#ifdef COSMO_NN_USE_RKNN_BACKEND
+    if (image->GetPixelFormat() == media::PixelFormat::PIXEL_RGB8)
+        desc.image_format = cosmo::nn::IMAGE_RGB;
+#endif
+    desc.data_type   = cosmo::nn::DataType::DATA_TYPE_UINT8;
+    desc.dims        = {1, static_cast<int>(image->GetHeight()), static_cast<int>(image->GetWidth()),
+                        static_cast<int>(cosmo::nn::ImageFormatChannels(desc.image_format))};
+    desc.device_type = GetDeviceType();
     cosmo::nn::BlobHandle handle;
     handle.base = image->GetData();
     if (!handle.base)

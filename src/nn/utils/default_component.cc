@@ -105,6 +105,10 @@ std::string DefaultComponent::GetModelType() const {
     return pipeline_->GetModelType();
 }
 
+bool DefaultComponent::NeedsImageAuxiliary() const {
+    return pipeline_->NeedsImageAuxiliary();
+}
+
 std::vector<float> DefaultComponent::GetScoreLevels() const {
     return pipeline_->GetScoreLevels();
 }

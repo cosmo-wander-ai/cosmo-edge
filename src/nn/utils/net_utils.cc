@@ -18,6 +18,7 @@
 #endif
 #include "nn/utils/dims_vector_utils.h"
 #include "nn/utils/person_attribute_layout.h"
+#include "nn/utils/resize_geometry.h"
 #include "tokenizers_c.h"
 
 #ifdef COSMO_NN_USE_SOPHON_BACKEND
@@ -199,11 +200,36 @@ void NetUtils::NMS(std::vector<ObjectInfo>& input, std::vector<ObjectInfo>& outp
     }
 }
 
-Status NetUtils::PickDetectionObjects(std::shared_ptr<Blob>& blob, const std::vector<Size>& input_sizes,
-                                      Size net_input_size, std::vector<int> selected_indcies,
-                                      const std::vector<float>& selected_thresholds,
-                                      const std::vector<std::string>& selected_label,
-                                      std::vector<std::vector<ObjectInfoV1>>& detects) {
+static Rect DetectorResizeRegion(Size source, const Resize& resize) {
+    if (resize.dsize.size() < 2)
+        return {};
+    return CalculateResizeRegion(source.width, source.height, resize.dsize[1], resize.dsize[0],
+                                 resize.gravity);
+}
+
+static ObjectInfoV1 UndoDetectorResize(ObjectInfoV1 obj, Size source, const Rect& region) {
+    const float scale_x = static_cast<float>(source.width) / region.width;
+    const float scale_y = static_cast<float>(source.height) / region.height;
+    const auto map_x    = [&](float value) {
+        return std::clamp((value - region.x) * scale_x, 0.f, static_cast<float>(source.width - 1));
+    };
+    const auto map_y = [&](float value) {
+        return std::clamp((value - region.y) * scale_y, 0.f, static_cast<float>(source.height - 1));
+    };
+    obj.x1 = map_x(obj.x1);
+    obj.x2 = map_x(obj.x2);
+    obj.y1 = map_y(obj.y1);
+    obj.y2 = map_y(obj.y2);
+    return obj;
+}
+
+static Status PickDetectionObjectsWithResize(std::shared_ptr<Blob>& blob,
+                                             const std::vector<Size>& input_sizes, Size net_input_size,
+                                             const std::vector<int>& selected_indcies,
+                                             const std::vector<float>& selected_thresholds,
+                                             const std::vector<std::string>& selected_label,
+                                             std::vector<std::vector<ObjectInfoV1>>& detects,
+                                             const Resize* resize) {
     auto desc   = blob->GetBlobDesc();
     auto dims   = desc.dims;
     auto handle = blob->GetHandle();
@@ -224,6 +250,10 @@ Status NetUtils::PickDetectionObjects(std::shared_ptr<Blob>& blob, const std::ve
     bool use_fallback             = selected_indcies.empty();
 
     for (int b = 0; b < actual_batch; b++) {
+        const auto image  = input_sizes.at(b);
+        const auto region = resize ? DetectorResizeRegion(image, *resize) : Rect{};
+        if (resize && region.empty())
+            return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid detection resize region");
         float* b_data = data + b * row * col;
         std::vector<ObjectInfoV1> extracted_objs;
         for (int i = 0; i < row; i++) {
@@ -259,6 +289,9 @@ Status NetUtils::PickDetectionObjects(std::shared_ptr<Blob>& blob, const std::ve
             float y1 = y - h / 2;
             float x2 = x + w / 2;
             float y2 = y + h / 2;
+            if (resize &&
+                (!std::isfinite(x1) || !std::isfinite(y1) || !std::isfinite(x2) || !std::isfinite(y2)))
+                continue;
 
             ObjectInfoV1 obj_info;
             obj_info.x1 = x1;
@@ -282,14 +315,25 @@ Status NetUtils::PickDetectionObjects(std::shared_ptr<Blob>& blob, const std::ve
             extracted_objs.emplace_back(obj_info);
         }
 
-        std::transform(
-            extracted_objs.begin(), extracted_objs.end(), extracted_objs.begin(),
-            [&](const ObjectInfoV1& obj) { return AdjustSize(obj, net_input_size, input_sizes.at(b), 2); });
+        std::transform(extracted_objs.begin(), extracted_objs.end(), extracted_objs.begin(),
+                       [&](const ObjectInfoV1& obj) {
+                           return resize ? UndoDetectorResize(obj, image, region)
+                                         : NetUtils::AdjustSize(obj, net_input_size, image, 2);
+                       });
 
         detects.push_back(extracted_objs);
     }
 
     return Status{COSMO_NN_OK};
+}
+
+Status NetUtils::PickDetectionObjects(std::shared_ptr<Blob>& blob, const std::vector<Size>& input_sizes,
+                                      Size net_input_size, std::vector<int> selected_indcies,
+                                      const std::vector<float>& selected_thresholds,
+                                      const std::vector<std::string>& selected_label,
+                                      std::vector<std::vector<ObjectInfoV1>>& detects) {
+    return PickDetectionObjectsWithResize(blob, input_sizes, net_input_size, selected_indcies,
+                                          selected_thresholds, selected_label, detects, nullptr);
 }
 
 ObjectInfo NetUtils::AdjustSize(const ObjectInfo& info, Size old_, Size new_, int gravity) {
@@ -429,14 +473,24 @@ Status NetUtils::ParseDetectionOutput(const std::vector<std::shared_ptr<Blob>>& 
                                       const std::vector<float>& selected_thresholds,
                                       const std::vector<std::string>& selected_label,
                                       std::vector<std::vector<ObjectInfoV1>>& detects) {
+    return ParseDetectionOutput(blobs, image_sizes, net_input_size, selected_indcies, selected_thresholds,
+                                selected_label, detects, nullptr);
+}
+
+Status NetUtils::ParseDetectionOutput(const std::vector<std::shared_ptr<Blob>>& blobs,
+                                      const std::vector<Size>& image_sizes, Size net_input_size,
+                                      const std::vector<int>& selected_indcies,
+                                      const std::vector<float>& selected_thresholds,
+                                      const std::vector<std::string>& selected_label,
+                                      std::vector<std::vector<ObjectInfoV1>>& detects, const Resize* resize) {
     auto blob_count = blobs.size();
     if (blob_count != 1)
         return Status(COSMO_NN_ERR_INVALID_INPUT, "Only support single output");
 
     auto output_blob = blobs.at(0);
 
-    return PickDetectionObjects(output_blob, image_sizes, net_input_size, selected_indcies,
-                                selected_thresholds, selected_label, detects);
+    return PickDetectionObjectsWithResize(output_blob, image_sizes, net_input_size, selected_indcies,
+                                          selected_thresholds, selected_label, detects, resize);
 }
 
 Status NetUtils::ParsePersonAttributesOutput(const std::vector<std::shared_ptr<Blob>>& blobs,
@@ -444,6 +498,16 @@ Status NetUtils::ParsePersonAttributesOutput(const std::vector<std::shared_ptr<B
                                              float person_threshold, const std::string& person_label,
                                              std::vector<std::vector<ObjectInfoV1>>& detects,
                                              const std::vector<std::string>& attribute_names) {
+    return ParsePersonAttributesOutput(blobs, image_sizes, net_input_size, person_threshold, person_label,
+                                       detects, attribute_names, nullptr);
+}
+
+Status NetUtils::ParsePersonAttributesOutput(const std::vector<std::shared_ptr<Blob>>& blobs,
+                                             const std::vector<Size>& image_sizes, Size net_input_size,
+                                             float person_threshold, const std::string& person_label,
+                                             std::vector<std::vector<ObjectInfoV1>>& detects,
+                                             const std::vector<std::string>& attribute_names,
+                                             const Resize* resize) {
     detects.clear();
     if (blobs.size() != 1 || !blobs[0] || !blobs[0]->GetHandle().base ||
         blobs[0]->GetBlobDesc().data_type != DATA_TYPE_FLOAT ||
@@ -467,7 +531,10 @@ Status NetUtils::ParsePersonAttributesOutput(const std::vector<std::shared_ptr<B
         return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid original image size");
     const float* data = static_cast<const float*>(blobs[0]->GetHandle().base);
     for (size_t batch = 0; batch < image_sizes.size(); ++batch) {
-        const Size image = image_sizes[batch];
+        const Size image  = image_sizes[batch];
+        const auto region = resize ? DetectorResizeRegion(image, *resize) : Rect{};
+        if (resize && region.empty())
+            return Status(COSMO_NN_ERR_INVALID_INPUT, "Invalid person attribute resize region");
         // Match AdjustSize's intermediate size while checking its float-to-int
         // conversions before they happen. No coordinates are clipped here.
         const float old_aspect =
@@ -509,7 +576,8 @@ Status NetUtils::ParsePersonAttributesOutput(const std::vector<std::shared_ptr<B
             obj.infos.push_back({p[4], 0, person_label});
             for (size_t k = 0; k < names.size(); ++k)
                 obj.infos.push_back({p[kPersonAttributeDetectionColumns + k], static_cast<int>(k), names[k]});
-            obj = AdjustSize(obj, net_input_size, image, 2);
+            obj = resize ? UndoDetectorResize(std::move(obj), image, region)
+                         : AdjustSize(obj, net_input_size, image, 2);
             objects.push_back(std::move(obj));
         }
         detects.push_back(std::move(objects));

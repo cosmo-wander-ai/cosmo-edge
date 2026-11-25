@@ -165,10 +165,27 @@ Status ModelPipeline::RunGraph(std::vector<std::vector<std::shared_ptr<Blob>>>& 
     return graph_->Forward(inputs);
 }
 
+Status ModelPipeline::RunImageGraph(std::initializer_list<std::vector<std::shared_ptr<Blob>>> inputs) {
+    if (!graph_)
+        return Status(COSMO_NN_ERR_GRAPH_NOT_INIT, "Graph is not initialized");
+    if (num_models_ == 1 || model_info_.reduce == "mean" || model_info_.reduce == "concat")
+        return graph_->ForwardImageInputs(inputs);
+    return graph_->Forward(inputs);
+}
+
+bool ModelPipeline::NeedsImageAuxiliary() const {
+    // Pipelines without a graph keep the caller-supplied auxiliary inputs.
+    return !graph_ || graph_->NeedsImageAuxiliary();
+}
+
 std::vector<std::shared_ptr<Blob>> ModelPipeline::GetGraphOutput() {
     if (!graph_)
         return {};
     return graph_->Output();
+}
+
+const Resize* ModelPipeline::GetRknnOutputResize() const {
+    return graph_ ? graph_->GetRknnOutputResize() : nullptr;
 }
 
 void* ModelPipeline::GetSharedResource() {

@@ -145,6 +145,12 @@ public:
                                        const std::vector<float>& selected_thresholds,
                                        const std::vector<std::string>& selected_label,
                                        std::vector<std::vector<ObjectInfoV1>>& detects);
+    static Status ParseDetectionOutput(const std::vector<std::shared_ptr<Blob>>& blobs,
+                                       const std::vector<Size>& image_sizes, Size net_input_size,
+                                       const std::vector<int>& selected_indcies,
+                                       const std::vector<float>& selected_thresholds,
+                                       const std::vector<std::string>& selected_label,
+                                       std::vector<std::vector<ObjectInfoV1>>& detects, const Resize* resize);
 
     // Input is host float [B,N,6+K]: center xywh, person score, class 0 and
     // K scores in attribute_names order. Empty names select a known legacy layout.
@@ -153,6 +159,12 @@ public:
                                               float person_threshold, const std::string& person_label,
                                               std::vector<std::vector<ObjectInfoV1>>& detects,
                                               const std::vector<std::string>& attribute_names = {});
+    static Status ParsePersonAttributesOutput(const std::vector<std::shared_ptr<Blob>>& blobs,
+                                              const std::vector<Size>& image_sizes, Size net_input_size,
+                                              float person_threshold, const std::string& person_label,
+                                              std::vector<std::vector<ObjectInfoV1>>& detects,
+                                              const std::vector<std::string>& attribute_names,
+                                              const Resize* resize);
 
     static Status ParseClassificationOutput(const std::vector<std::shared_ptr<Blob>>& blobs,
                                             std::vector<int>& selected_indcies,

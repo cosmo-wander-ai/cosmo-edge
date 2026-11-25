@@ -60,11 +60,8 @@ cosmo::nn::BlobDesc PackedImageDesc(int height, int width, cosmo::nn::ImageForma
 
 }  // namespace
 
-TEST_CASE("RKNN detector fast preprocessing contracts are exact", "[nn][rknn][fast-preprocess]") {
+TEST_CASE("RKNN native normalization is independent of model size", "[nn][rknn][fast-preprocess]") {
     using namespace cosmo::nn;
-    CHECK(IsRknnDetectorResizeContract(640, 640, 1, {114, 114, 114}));
-    CHECK_FALSE(IsRknnDetectorResizeContract(640, 640, 0, {114, 114, 114}));
-    CHECK_FALSE(IsRknnDetectorResizeContract(224, 224, 1, {114, 114, 114}));
     CHECK(IsRknnNativeNormalizeContract({0.0f, 0.0f, 0.0f}, {}, 0.00392157f, {1, 640, 640, 3}));
     CHECK_FALSE(IsRknnNativeNormalizeContract({1.0f, 0.0f, 0.0f}, {}, 0.00392157f, {1, 640, 640, 3}));
     CHECK(IsRknnNativeNormalizeContract({0.0f, 0.0f, 0.0f}, {}, 0.00392157f, {1, 224, 224, 3}));
@@ -168,6 +165,14 @@ TEST_CASE("RKNN RGA bound input validates the native tensor and DMA-BUF target s
     incompatible.zp   = 0;
     CHECK_FALSE(IsRknnRgaBoundInputCompatible(incompatible, 2, 2, &reason));
     CHECK(reason.find("quantization") != std::string::npos);
+    auto native_uint8 = attr;
+    native_uint8.type = RKNN_TENSOR_UINT8;
+    CHECK_FALSE(IsRknnRgaBoundInputCompatible(native_uint8, 2, 2, &reason));
+    native_uint8.zp = 0;
+    CHECK(IsRknnRgaBoundInputCompatible(native_uint8, 2, 2, &reason));
+    CHECK_FALSE(IsRknnRgaBoundInputCompatible(native_uint8, 4, 2, &reason));
+    native_uint8.scale = 1.f;
+    CHECK_FALSE(IsRknnRgaBoundInputCompatible(native_uint8, 2, 2, &reason));
 
     StubBoundInputProvider provider;
     uint8_t storage[24]{};
@@ -545,7 +550,8 @@ TEST_CASE("RKNN RGA preprocessing performs centered RGB letterbox on host buffer
     std::vector<std::shared_ptr<Blob>> tops{top};
     REQUIRE(bool(node.Forward(bottoms, tops)));
     const auto after = GetInferencePipelineMetrics().Snapshot();
-    CHECK(after.rknn_rga_fill_calls == before.rknn_rga_fill_calls + 1);
+    CHECK(after.rknn_rga_fill_calls + after.rknn_cpu_host_padding_calls ==
+          before.rknn_rga_fill_calls + before.rknn_cpu_host_padding_calls + 1);
     CHECK(after.rknn_rga_resize_color_calls == before.rknn_rga_resize_color_calls + 1);
     CHECK(after.rknn_rga_failures == before.rknn_rga_failures);
     CHECK(after.rknn_cpu_resize_fallback_calls == before.rknn_cpu_resize_fallback_calls);
@@ -578,9 +584,10 @@ TEST_CASE("RKNN classifier crop-resize stages extreme scaling in RGA and emits p
     node.LoadParam(&crop);
     REQUIRE(bool(node.InferTopShapes()));
 
-    auto image   = std::make_shared<Blob>(PackedImageDesc(8, 8, IMAGE_BGR), true);
+    // Keep the crop and both outputs large enough for RK3588 RGA3.
+    auto image   = std::make_shared<Blob>(PackedImageDesc(128, 2048, IMAGE_BGR), true);
     auto* pixels = static_cast<uint8_t*>(image->GetHandle().base);
-    for (size_t pixel = 0; pixel < 64; ++pixel) {
+    for (size_t pixel = 0; pixel < 128 * 2048; ++pixel) {
         pixels[pixel * 3]     = 10;
         pixels[pixel * 3 + 1] = 20;
         pixels[pixel * 3 + 2] = 30;
@@ -591,7 +598,7 @@ TEST_CASE("RKNN classifier crop-resize stages extreme scaling in RGA and emits p
     rect_desc.dims        = {1, 4};
     auto rect             = std::make_shared<Blob>(rect_desc, true);
     auto* rect_data       = static_cast<int32_t*>(rect->GetHandle().base);
-    const std::array<int32_t, 4> crop_rect{2, 2, 4, 4};
+    const std::array<int32_t, 4> crop_rect{64, 0, 1920, 128};
     std::copy(crop_rect.begin(), crop_rect.end(), rect_data);
 
     BlobDesc top_desc;
@@ -615,6 +622,192 @@ TEST_CASE("RKNN classifier crop-resize stages extreme scaling in RGA and emits p
     CHECK(output[0] == 30);
     CHECK(output[1] == 20);
     CHECK(output[2] == 10);
+}
+
+TEST_CASE("RKNN packed resize runs RGA across model sizes and padding modes", "[nn][rknn][rga][resize]") {
+    using namespace cosmo::nn;
+    ScopedEnvironment force_fail("COSMO_RKNN_RGA_FORCE_FAIL", "0");
+    const auto width  = GENERATE(112, 224, 320, 640);
+    const int height  = width == 640 ? GENERATE(384, 640) : width;
+    const int gravity = GENERATE(0, 1, 2);
+    const auto format = GENERATE(IMAGE_BGR, IMAGE_RGB);
+    CAPTURE(width, height, gravity, format);
+
+    Resize resize;
+    resize.dsize   = {height, width};
+    resize.gravity = gravity;
+    resize.color   = {10, 20, 30};
+    SharedResource resource;
+    RknnResizeNode node;
+    node.SetSharedResource(&resource);
+    node.LoadParam(&resize);
+    REQUIRE(bool(node.InferTopShapes()));
+    auto source  = std::make_shared<Blob>(PackedImageDesc(320, 640, format), true);
+    auto target  = std::make_shared<Blob>(PackedImageDesc(height, width, IMAGE_UNKNOWN), true);
+    auto* pixels = static_cast<uint8_t*>(source->GetHandle().base);
+    const std::array<uint8_t, 3> color =
+        format == IMAGE_RGB ? std::array<uint8_t, 3>{30, 20, 10} : std::array<uint8_t, 3>{10, 20, 30};
+    for (size_t pixel = 0; pixel < 640 * 320; ++pixel)
+        std::copy(color.begin(), color.end(), pixels + pixel * 3);
+    std::vector<std::shared_ptr<Blob>> inputs{source}, outputs{target};
+    const auto before = GetInferencePipelineMetrics().Snapshot();
+    REQUIRE(bool(node.Forward(inputs, outputs)));
+    const auto after = GetInferencePipelineMetrics().Snapshot();
+    CHECK(after.rknn_rga_resize_color_calls == before.rknn_rga_resize_color_calls + 1);
+    CHECK(after.rknn_rga_failures == before.rknn_rga_failures);
+    CHECK(after.rknn_cpu_resize_fallback_calls == before.rknn_cpu_resize_fallback_calls);
+    CHECK(after.rknn_rga_fill_calls + after.rknn_cpu_host_padding_calls ==
+          before.rknn_rga_fill_calls + before.rknn_cpu_host_padding_calls + (gravity == 0 ? 0 : 1));
+    CHECK(target->GetBlobDesc().image_format == IMAGE_RGB);
+    const auto* output     = static_cast<const uint8_t*>(target->GetHandle().base);
+    const int start_row    = gravity == 1 ? (height - width / 2) / 2 : 0;
+    const int image_height = gravity == 0 ? height : width / 2;
+    const auto check_row   = [&](int row, std::array<uint8_t, 3> expected) {
+        const auto offset = (static_cast<size_t>(row) * width + width / 2) * 3;
+        CHECK(std::equal(expected.begin(), expected.end(), output + offset));
+    };
+    check_row(start_row, {30, 20, 10});
+    check_row(start_row + image_height - 1, {30, 20, 10});
+    if (gravity == 1)
+        check_row(start_row - 1, {10, 10, 10});
+    if (gravity != 0)
+        check_row(start_row + image_height, {10, 10, 10});
+}
+
+TEST_CASE("RKNN crop falls back for one unaligned source and continues in order",
+          "[nn][rknn][rga][crop-resize]") {
+    using namespace cosmo::nn;
+    ScopedEnvironment force_fail("COSMO_RKNN_RGA_FORCE_FAIL", "0");
+    CropResize crop;
+    crop.dsize      = {112, 112};
+    crop.h_top_crop = crop.h_bottom_crop = crop.w_left_crop = crop.w_right_crop = {0.f};
+    SharedResource resource;
+    RknnCropResizeNode node;
+    node.SetSharedResource(&resource);
+    node.SetMaxBatch(3);
+    node.LoadParam(&crop);
+    REQUIRE(bool(node.InferTopShapes()));
+
+    std::vector<std::shared_ptr<Blob>> images;
+    std::vector<std::shared_ptr<Blob>> rects;
+    for (const int width : {256, 129, 256}) {
+        auto image   = std::make_shared<Blob>(PackedImageDesc(128, width, IMAGE_BGR), true);
+        auto* pixels = static_cast<uint8_t*>(image->GetHandle().base);
+        for (size_t pixel = 0; pixel < static_cast<size_t>(width) * 128; ++pixel) {
+            pixels[pixel * 3]     = 40;
+            pixels[pixel * 3 + 1] = 50;
+            pixels[pixel * 3 + 2] = 60 + 10 * images.size();
+        }
+        images.push_back(image);
+        BlobDesc desc;
+        desc.data_type = DATA_TYPE_INT32;
+        desc.dims      = {1, 4};
+        auto rect      = std::make_shared<Blob>(desc, true);
+        const std::array<int32_t, 4> roi{0, 0, 128, 128};
+        std::copy(roi.begin(), roi.end(), static_cast<int32_t*>(rect->GetHandle().base));
+        rects.push_back(rect);
+    }
+
+    auto desc    = PackedImageDesc(112, 112, IMAGE_UNKNOWN);
+    desc.dims[0] = 3;
+    auto output  = std::make_shared<Blob>(desc, true);
+    std::vector<std::shared_ptr<Blob>> outputs{output};
+    const auto before = GetInferencePipelineMetrics().Snapshot();
+    REQUIRE(bool(node.Forward(images, rects, outputs)));
+    const auto after = GetInferencePipelineMetrics().Snapshot();
+    CHECK(after.rknn_rga_crop_resize_calls == before.rknn_rga_crop_resize_calls + 2);
+    CHECK(after.rknn_cpu_crop_resize_fallback_calls == before.rknn_cpu_crop_resize_fallback_calls + 1);
+    CHECK(output->GetBlobDesc().image_format == IMAGE_RGB);
+    const auto* bytes = static_cast<const uint8_t*>(output->GetHandle().base);
+    for (size_t roi = 0; roi < images.size(); ++roi) {
+        const auto* first = bytes + roi * 112 * 112 * 3;
+        CHECK(first[0] == 60 + 10 * roi);
+        CHECK(first[1] == 50);
+        CHECK(first[2] == 40);
+    }
+}
+
+TEST_CASE("RKNN resize keeps Full HD downscaling to classification or feature sizes on RGA",
+          "[nn][rknn][rga][resize]") {
+    using namespace cosmo::nn;
+    ScopedEnvironment force_fail("COSMO_RKNN_RGA_FORCE_FAIL", "0");
+    const int size = GENERATE(112, 224);
+    Resize resize;
+    resize.dsize = {size, size};
+    SharedResource resource;
+    RknnResizeNode node;
+    node.SetSharedResource(&resource);
+    node.LoadParam(&resize);
+    REQUIRE(bool(node.InferTopShapes()));
+    auto source = std::make_shared<Blob>(PackedImageDesc(1080, 1920, IMAGE_BGR), true);
+    auto target = std::make_shared<Blob>(PackedImageDesc(size, size, IMAGE_UNKNOWN), true);
+    std::fill_n(static_cast<uint8_t*>(source->GetHandle().base), 1920 * 1080 * 3, 77);
+    std::vector<std::shared_ptr<Blob>> inputs{source}, outputs{target};
+
+    const auto before = GetInferencePipelineMetrics().Snapshot();
+    REQUIRE(bool(node.Forward(inputs, outputs)));
+    const auto after = GetInferencePipelineMetrics().Snapshot();
+    CHECK(after.rknn_rga_resize_color_calls > before.rknn_rga_resize_color_calls);
+    CHECK(after.rknn_cpu_resize_fallback_calls == before.rknn_cpu_resize_fallback_calls);
+    const auto* output = static_cast<const uint8_t*>(target->GetHandle().base);
+    CHECK(std::all_of(output, output + size * size * 3, [](uint8_t value) { return value == 77; }));
+}
+
+TEST_CASE("RKNN rejects a bad bound target and retries the same frame into RGB",
+          "[nn][rknn][rga][bound-input]") {
+    using namespace cosmo::nn;
+    ScopedEnvironment force_fail("COSMO_RKNN_RGA_FORCE_FAIL", "0");
+    ScopedEnvironment binding("COSMO_RKNN_RGA_BOUND_INPUT", "1");
+    struct TestBuffer {
+        MppBufferGroup group{nullptr};
+        MppBuffer buffer{nullptr};
+        ~TestBuffer() {
+            if (buffer)
+                mpp_buffer_put(buffer);
+            if (group)
+                mpp_buffer_group_put(group);
+        }
+    } dma;
+    const uint32_t stride = 321;
+    const size_t bytes    = stride * 320 * 3;
+    REQUIRE(mpp_buffer_group_get_internal(&dma.group, MPP_BUFFER_TYPE_DRM) == MPP_OK);
+    REQUIRE(mpp_buffer_get(dma.group, &dma.buffer, bytes) == MPP_OK);
+
+    StubBoundInputProvider provider;
+    SharedResource resource;
+    resource.rknn_bound_input_provider              = &provider;
+    resource.rknn_bound_input_preprocess_compatible = true;
+    auto& bound                                     = resource.rknn_bound_input_target;
+    bound.owner                                     = &provider;
+    bound.virtual_address                           = mpp_buffer_get_ptr(dma.buffer);
+    bound.fd                                        = mpp_buffer_get_fd(dma.buffer);
+    bound.bytes                                     = bytes;
+    bound.height = bound.width = 320;
+    bound.channels             = 3;
+    bound.width_stride         = stride;
+    bound.generation           = 1;
+    bound.frame_ready          = true;
+    REQUIRE(bound.Matches(320, 320));
+
+    Resize resize;
+    resize.dsize = {320, 320};
+    RknnResizeNode node;
+    node.SetSharedResource(&resource);
+    node.LoadParam(&resize);
+    REQUIRE(bool(node.InferTopShapes()));
+    auto image  = std::make_shared<Blob>(PackedImageDesc(320, 640, IMAGE_RGB), true);
+    auto output = std::make_shared<Blob>(PackedImageDesc(320, 320, IMAGE_RGB), true);
+    std::vector<std::shared_ptr<Blob>> inputs{image}, outputs{output};
+    const auto before = GetInferencePipelineMetrics().Snapshot();
+    for (const uint8_t value : {59, 131}) {
+        std::fill_n(static_cast<uint8_t*>(image->GetHandle().base), 640 * 320 * 3, value);
+        REQUIRE(bool(node.Forward(inputs, outputs)));
+        CHECK_FALSE(bound.frame_ready);
+        CHECK(static_cast<const uint8_t*>(output->GetHandle().base)[0] == value);
+    }
+    const auto after = GetInferencePipelineMetrics().Snapshot();
+    CHECK(after.rknn_cpu_resize_fallback_calls == before.rknn_cpu_resize_fallback_calls);
+    CHECK(after.rknn_rga_resize_color_calls >= before.rknn_rga_resize_color_calls + 2);
 }
 
 TEST_CASE("RKNN classifier crop-resize keeps an exact CPU fallback", "[nn][rknn][rga][crop-resize]") {
@@ -678,11 +871,11 @@ TEST_CASE("RKNN classifier crop-resize keeps an exact CPU fallback", "[nn][rknn]
     CHECK(repeated.rknn_rga_crop_resize_failures == after.rknn_rga_crop_resize_failures);
     CHECK(repeated.rknn_cpu_crop_resize_fallback_calls == after.rknn_cpu_crop_resize_fallback_calls + 5);
     CHECK(top->GetBlobDesc().data_format == DATA_FORMAT_NHWC);
-    CHECK(top->GetBlobDesc().image_format == IMAGE_BGR);
+    CHECK(top->GetBlobDesc().image_format == IMAGE_RGB);
     const auto* output = static_cast<const uint8_t*>(top->GetHandle().base);
-    CHECK(output[0] == 10);
+    CHECK(output[0] == 30);
     CHECK(output[1] == 20);
-    CHECK(output[2] == 30);
+    CHECK(output[2] == 10);
 }
 
 TEST_CASE("RKNN native input failure is bounded while host RGA keeps processing frames",

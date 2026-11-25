@@ -76,6 +76,7 @@ private:
         None = 0,
         NativeInt8,
         RgaNativeInt8,
+        RgaNativeUint8,
     };
 
     Status QueryTensorAttributes();
@@ -88,6 +89,7 @@ private:
     bool TryBindNativeInputMemory(const BlobDesc& desc, std::string& reason);
     bool TryBindRgaInputMemory(int height, int width, std::string& reason);
     bool AllocateAndBindInputMemory(rknn_tensor_attr attr, BoundInputMode mode, std::string& reason);
+    bool HasRgaBoundInput() const;
     void PublishRgaBoundInputTarget();
     void ClearRgaBoundInputTarget();
     void DestroyContext();

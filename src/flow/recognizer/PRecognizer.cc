@@ -111,7 +111,8 @@ util::ErrorEnum PRecognizer::HandPic(AlgDataPtr alg_data) {
 
     duration_stat_.BeginSample();
     action_status_pr_ =
-        inst_->Recognize(alg_data->chanDataDec.frame, alg_data->chanDataDetect.detRet->targets, use_box);
+        inst_->Recognize(alg_data->chanDataDec.frame, alg_data->chanDataDetect.detRet->targets, use_box,
+                         alg_data->chanDataDec.native_buffer);
     duration_stat_.EndSample();
 
     if (action_status_pr_ != util::ErrorEnum::Success) {

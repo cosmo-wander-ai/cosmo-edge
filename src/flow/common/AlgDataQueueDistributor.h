@@ -28,7 +28,7 @@ struct AlgDataTask {
 
 struct AlgFrameDistributionPlan {
     std::vector<std::shared_ptr<AlgDataQueue<AlgDataPtr>>> queues;
-    bool native_inference_eligible{true};
+    bool native_inference_eligible{false};
 
     [[nodiscard]] bool Empty() const {
         return queues.empty();
