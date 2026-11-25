@@ -195,6 +195,7 @@ util::ErrorEnum ModelImportExporter::ImportFlatArchive(const std::string& temp_d
         std::string size_error;
         if (!ReadInferenceInputSizes(doc, sizes, size_error)) {
             LOG_WARN("Invalid imported input sizes: {}", size_error);
+            fs::remove_all(temp_dir, ec);
             return util::ErrorEnum::InvalidParam;
         }
         if (HasInvalidPersonAttributeOutput(doc)) {
