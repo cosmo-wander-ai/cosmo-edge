@@ -102,6 +102,9 @@ void from_json(const nlohmann::json& j, MsgRecAlarm& v) {
     JSON_OPT(j, v, filterPosition);
     JSON_OPT(j, v, filterLlmReview);
     JSON_OPT(j, v, alarm);
+    JSON_OPT(j, v, hasPassFlowData);
+    JSON_OPT(j, v, enterTotalCount);
+    JSON_OPT(j, v, leaveTotalCount);
     JSON_OPT(j, v, trackId);
     JSON_OPT(j, v, areaId);
 }
@@ -109,6 +112,9 @@ void from_json(const nlohmann::json& j, MsgRecAlarm& v) {
 void to_json(nlohmann::json& j, const MsgRecAlarm& v) {
     j["streamIndex"]               = v.streamIndex;
     j["index"]                     = v.index;
+    j["hasPassFlowData"]           = v.hasPassFlowData;
+    j["enterTotalCount"]           = v.enterTotalCount;
+    j["leaveTotalCount"]           = v.leaveTotalCount;
     j["filterAlarmInterval"]       = v.filterAlarmInterval;
     j["filterTargetAlarmCount"]    = v.filterTargetAlarmCount;
     j["filterTargetAlarmInterval"] = v.filterTargetAlarmInterval;

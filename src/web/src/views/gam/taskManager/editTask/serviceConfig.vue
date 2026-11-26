@@ -39,10 +39,10 @@
                 </div>
                 <div class="service-name">{{ resolvedAlgorithmName }}</div>
                 <div class="serve-config-header-btns">
-                  <el-button type="danger" plain v-if="taskEnableStatus == 1" @click="boxSwitchTask(0)" size="small">{{ t('action.disableService') }}</el-button>
-                  <el-button type="primary" v-if="taskEnableStatus == 0" @click="boxSwitchTask(1)" size="small" class="ui-secondary-button">{{ t('action.enableService') }}</el-button>
-                  <el-button type="danger" plain @click="handleDelServe()" size="small">{{ t('action.deleteService') }}</el-button>
-                  <el-button id="onboarding-save-service" class="mv-el-button" type="primary" @click="clickSaveServe()" :disabled="!configReady" size="small">{{ t('action.save') }}</el-button>
+                  <el-button type="danger" plain v-if="taskEnableStatus == 1" @click="boxSwitchTask(0)" :disabled="serviceSubmitting" size="small">{{ t('action.disableService') }}</el-button>
+                  <el-button type="primary" v-if="taskEnableStatus == 0" @click="submitService(true)" :disabled="!canRunServiceAction" :title="serviceActionTitle" size="small" class="ui-secondary-button">{{ t('action.enableService') }}</el-button>
+                  <el-button type="danger" plain @click="handleDelServe()" :disabled="!canRunServiceAction" :title="serviceActionTitle" size="small">{{ t('action.deleteService') }}</el-button>
+                  <el-button id="onboarding-save-service" class="mv-el-button" type="primary" @click="submitService()" :disabled="!canRunServiceAction" :title="serviceActionTitle" size="small">{{ t('action.save') }}</el-button>
                 </div>
               </div>
             </template>
@@ -224,6 +224,7 @@ const colors = ['24,144,255', '255,115,24', '24,255,89', '255,239,24']
 const loading = ref(false)
 const configLoading = ref(false)
 const configReady = ref(false)
+const serviceSubmitting = ref(false)
 let configRequestId = 0
 const privacyConfig = ref(createAlarmPrivacyDefaults())
 const privacyLabels = ref([])
@@ -260,6 +261,46 @@ const algorithmCategoryGroups = computed(() => [
 const warningVisible = ref(false)
 const warningContentKey = ref('validate.addDetectionAreaFirst')
 const warningContent = computed(() => t(warningContentKey.value))
+const requiresDetectionArea = computed(() => {
+  const regionType = String(config.value.regionType || '')
+  return (
+    (Array.isArray(config.value.taskAreaHeader) && config.value.taskAreaHeader.length > 0) ||
+    regionType === 'cordon' ||
+    regionType === 'oneWayCordon'
+  )
+})
+const hasDetectionArea = computed(() =>
+  (config.value.taskAreaRows || []).some(
+    (area) =>
+      (Array.isArray(area?.points) && area.points.length > 0) ||
+      (Array.isArray(area?.linePoints) && area.linePoints.length > 0)
+  )
+)
+const hasRequiredDetectionArea = computed(
+  () => !requiresDetectionArea.value || hasDetectionArea.value
+)
+const canRunServiceAction = computed(
+  () => configReady.value && !serviceSubmitting.value && hasRequiredDetectionArea.value
+)
+const serviceActionTitle = computed(() =>
+  hasRequiredDetectionArea.value
+    ? ''
+    : t(
+        config.value.regionType === 'cordon' || config.value.regionType === 'oneWayCordon'
+          ? 'validate.addDetectionLineFirst'
+          : 'validate.addDetectionAreaFirst'
+      )
+)
+const ensureDetectionArea = () => {
+  if (hasRequiredDetectionArea.value) return true
+  activeName.value = 'area'
+  warningContentKey.value =
+    config.value.regionType === 'cordon' || config.value.regionType === 'oneWayCordon'
+      ? 'validate.addDetectionLineFirst'
+      : 'validate.addDetectionAreaFirst'
+  warningVisible.value = true
+  return false
+}
 
 const tree = ref(null)
 const selectedAlgorithm = computed(() => {
@@ -778,6 +819,7 @@ const boxSwitchTask = (status) => {
 }
 
 const handleDelServe = () => {
+  if (!ensureDetectionArea()) return
   confirmDialogVisible.value = true
 }
 
@@ -794,35 +836,48 @@ const deleteServe = () => {
   confirmDialogVisible.value = false
 }
 
-const clickSaveServe = () => {
-  if (!configReady.value) return
+const submitService = async (enable = false) => {
+  if (!configReady.value || serviceSubmitting.value) return
+  if (!ensureDetectionArea()) return
   if (areaSettingRef.value?.isDrawingLine)
     return proxy.$message.warning(t('validate.completeDrawingFirst'))
-  const result = areaSettingRef.value.$refs.canvasRef.submit()
-  config.value.taskAreaRows.forEach((item, index) => {
+  if (!enable && timer.value)
+    return proxy.$message.error(t('validate.waitBeforeSave'))
+
+  const result = areaSettingRef.value?.$refs?.canvasRef?.submit()
+  const { taskAreaRows, shieldAreaRows } = config.value
+  if (!result || result.length < Math.max(taskAreaRows.length, shieldAreaRows.length))
+    return proxy.$message.warning(t('validate.canvasMissing'))
+
+  taskAreaRows.forEach((item, index) => {
     item.points = result[index].points
     item.associatedAreas = result[index].associatedAreas
     item.linePoints = result[index].linePoints
     item.directionType = result[index].directionType
   })
 
-  config.value.shieldAreaRows.forEach((item, index) => {
+  shieldAreaRows.forEach((item, index) => {
     item.shieldPoints = result[index].shieldPoints
   })
 
-  clearTimeout(timer.value)
-  if (!timer.value) {
-    newSave()
-  } else {
-    proxy.$message.error(t('validate.waitBeforeSave'))
+  if (!enable) {
+    timer.value = setTimeout(() => {
+      timer.value = null
+    }, 3000)
   }
-  timer.value = setTimeout(() => {
-    timer.value = null
-  }, 3000)
+  serviceSubmitting.value = true
+  try {
+    await newSave({ enable })
+  } catch {
+    // The request handler reports the error. Keep the draft available to retry.
+  } finally {
+    serviceSubmitting.value = false
+  }
 }
 
-const newSave = async (skipRefresh = false) => {
+const newSave = async ({ skipRefresh = false, enable = false } = {}) => {
   if (!configReady.value) return false
+  if (!ensureDetectionArea()) return false
   const editingConfig = config.value
   const editingRequestId = configRequestId
   const editingAlgorithmId = algorithmId.value
@@ -850,6 +905,7 @@ const newSave = async (skipRefresh = false) => {
     channelName: config.value.channelName,
     algorithmId: algorithmId.value,
     custId: localStorage.getItem('currentCustId') || '',
+    preserveEnableState: !enable,
     category: category.value,
     taskConfig: {
       areas: [],
@@ -1015,13 +1071,13 @@ const newSave = async (skipRefresh = false) => {
   )
   parameterData.value = params
 
-  return proxy.$API.saveOrUpdate(params).then((res) => {
-    proxy.$message.success(t('common.saveSucceeded'))
-    if (!skipRefresh) {
-      getServeTypes()
-    }
-    return true
-  })
+  await proxy.$API.saveOrUpdate(params)
+  proxy.$message.success(t(enable ? 'common.operationSucceeded' : 'common.saveSucceeded'))
+  if (!skipRefresh && editingRequestId === configRequestId) {
+    if (enable) taskEnableStatus.value = 1
+    getServeTypes()
+  }
+  return true
 }
 
 const handleVideoRepeatInput = (val) => {
@@ -1056,7 +1112,7 @@ const batch = () => {
 
 const BatchConfirm = async (data) => {
   try {
-    if (await newSave(true) !== true) return
+    if (await newSave({ skipRefresh: true }) !== true) return
   } catch (e) {
     return
   }

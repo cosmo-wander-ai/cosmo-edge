@@ -351,8 +351,9 @@ bool TaskAlarm::FillAlarmData(AlgDataPtr algData) {
 
     const auto makeRecAlarmData = [&](const DataAlarmUnit& alarmUnit) {
         MsgRecAlarm recAlarmData;
-        recAlarmData.type        = m_propertyType;
-        recAlarmData.targetCount = alarmUnit.boxs.size();
+        recAlarmData.type            = m_propertyType;
+        recAlarmData.targetCount     = alarmUnit.boxs.size();
+        recAlarmData.hasPassFlowData = alarmUnit.hasPassFlowData;
         if (algData->chanDataDec.frame) {
             recAlarmData.index       = algData->chanDataDec.frame->GetFrameIndex();
             recAlarmData.streamIndex = algData->chanDataDec.frame->GetStreamIndex();

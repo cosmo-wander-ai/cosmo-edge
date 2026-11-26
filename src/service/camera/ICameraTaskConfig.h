@@ -31,6 +31,12 @@ public:
 
     // ── Task Parameter Management ──
 
+    /// Save configuration while retaining the current enabled state; new tasks are disabled.
+    virtual cosmo::util::ErrorEnum SaveTaskPreservingState(const std::string&, const std::string&,
+                                                           const cosmo::MsgTaskConfig&, const std::string&) {
+        return cosmo::util::ErrorEnum::InvalidParam;
+    }
+
     /// Modify dynamic parameters for a camera–algorithm task.
     /// @param cameraId    Camera identifier.
     /// @param algorithmId Algorithm identifier.

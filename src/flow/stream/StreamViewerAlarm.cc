@@ -145,7 +145,11 @@ void StreamViewerOverview::LiveDataAlarmToLocal(std::vector<MsgRecAlarm>& aiData
             aiData.type == OnEventsPropertyType::CountNumber) {
             ProcessPersonCountAlarm(aiData);
         } else if (aiData.type == OnEventsPropertyType::People || aiData.type == OnEventsPropertyType::Car) {
-            ProcessPassFlowAlarm(aiData);
+            // Ordinary People/Car alarms carry default-zero pass-flow totals. They must not
+            // reset the preview baseline or overwrite the pass-flow OSD.
+            if (aiData.hasPassFlowData) {
+                ProcessPassFlowAlarm(aiData);
+            }
         } else {
             ProcessOtherAlarm(aiData);
         }

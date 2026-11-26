@@ -167,6 +167,7 @@ namespace VideoTask {
 
     struct MsgSaveOrUpdateRecv : public MsgRecvHead, public MsgChannelTask {
         MsgTaskConfig taskConfig;
+        bool preserveEnableState{false};
         std::string scheduleId{std::string(kDefaultScheduleId)};  // Default 24/7
     };
 

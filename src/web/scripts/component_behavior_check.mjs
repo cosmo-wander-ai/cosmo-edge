@@ -231,6 +231,7 @@ for (const scenario of [
     if (scenario.valid) {
       assert.equal(saved[0].channelId, 'channel-submission')
       assert.equal(saved[0].algorithmId, 'algorithm-submission')
+      assert.equal(saved[0].preserveEnableState, true)
       assert.deepEqual(saved[0].taskConfig.params, [
         { key: 'mode', value: '0' },
         { key: 'inactive', value: 'kept' },

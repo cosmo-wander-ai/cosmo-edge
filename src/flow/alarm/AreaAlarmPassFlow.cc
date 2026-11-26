@@ -186,6 +186,7 @@ void AreaAlarm::HandPassFlowReport(AlgDataPtr algData) {
         alarmUnit.passFlowData.leaveTotalNum = pair.second.leave_total_num;
         alarmUnit.passFlowData.time          = std::to_string(pair.second.hour);
         alarmUnit.passFlowData.timeSec       = std::to_string(sendTime);
+        alarmUnit.hasPassFlowData            = true;
 
         pair.second.enter_org_num = 0;
         pair.second.leave_org_num = 0;

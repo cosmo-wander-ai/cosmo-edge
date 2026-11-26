@@ -56,6 +56,7 @@ struct MsgRecAlarm {
     int trackId{-1};
     std::string areaId;
     int64_t targetCount{0};
+    bool hasPassFlowData{false};  // True only for a pass-flow report with valid cumulative totals
     int64_t enterTotalCount{0};
     int64_t leaveTotalCount{0};
     OnEventsPropertyType type{OnEventsPropertyType::None};

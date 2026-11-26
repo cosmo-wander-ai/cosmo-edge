@@ -101,6 +101,13 @@ util::ErrorEnum CameraServiceImpl::SaveOrUpdateTask(const std::string& cameraId,
     return SaveTask(cameraId, algorithmId, params, scheduleId, true);
 }
 
+util::ErrorEnum CameraServiceImpl::SaveTaskPreservingState(const std::string& cameraId,
+                                                           const std::string& algorithmId,
+                                                           const MsgTaskConfig& params,
+                                                           const std::string& scheduleId) {
+    return SaveTask(cameraId, algorithmId, params, scheduleId, false, true);
+}
+
 util::ErrorEnum CameraServiceImpl::PrepareTask(const std::string& cameraId, const std::string& algorithmId,
                                                const MsgTaskConfig& params, const std::string& scheduleId) {
     return SaveTask(cameraId, algorithmId, params, scheduleId, false);
@@ -108,7 +115,7 @@ util::ErrorEnum CameraServiceImpl::PrepareTask(const std::string& cameraId, cons
 
 util::ErrorEnum CameraServiceImpl::SaveTask(const std::string& cameraId, const std::string& algorithmId,
                                             const MsgTaskConfig& params, const std::string& scheduleId,
-                                            bool enable) {
+                                            bool enable, bool preserve_state) {
     if (ContainsDuplicateRequestParamKeys(params)) {
         LOG_WARN("[{}/{}] SaveOrUpdate rejected duplicate parameter keys", cameraId, algorithmId);
         return util::ErrorEnum::InvalidParam;
@@ -131,11 +138,15 @@ util::ErrorEnum CameraServiceImpl::SaveTask(const std::string& cameraId, const s
         return util::ErrorEnum::TimeTemplateNotExist;
     }
 
-    bool needs_enable = enable;
+    bool needs_enable = false;
     {
         std::shared_lock<std::shared_mutex> lock(camera->task_mtx_);
         auto it = std::find_if(camera->tasks_.begin(), camera->tasks_.end(),
                                [&](const CameraTaskPtr& cfg) { return cfg->algorithm_code_ == algorithmId; });
+        if (preserve_state) {
+            enable = it != camera->tasks_.end() && (*it)->is_enabled_.load(std::memory_order_acquire);
+        }
+        needs_enable = enable;
         if (it != camera->tasks_.end()) {
             if (!(*it)->task_ || !(*it)->task_->IsReady()) {
                 LOG_WARN("[{}/{}] SaveOrUpdate skipped because task unit is not ready", cameraId,

@@ -77,7 +77,7 @@
     <div class="content">
       <div class="left-panel">
         <!-- 摄像机列表 -->
-        <div ref="selectAreaEl" class="select-area" :class="{ 'expanded': cameraDrawerVisible }">
+        <div class="select-area" :class="{ 'expanded': cameraDrawerVisible }">
           <div v-if="cameraDrawerVisible" class="camera-list-wrap">
             <div class="title">
               <span>{{ t('event.channelList') }}</span>
@@ -92,7 +92,7 @@
               <div class="tree-body">
                 <el-tree id="onboarding-camera-tree" ref="tree" class="filter-tree" :data="camearList" :highlight-current="true" node-key="id" default-expand-all :filter-node-method="filterNode">
                   <template #default="{ data }">
-                    <div class="custom-tree-node" :class="{ 'is-assigned': visiblePreviewWindows[data.id]?.length, 'is-active-preview': data.id && data.id === playedCameraList[currentSelectedIndex]?.id }" @dblclick="handleCameraNodeClick(data)">
+                    <div class="custom-tree-node" :class="{ 'is-assigned': visiblePreviewChannelIds.has(String(data.id)), 'is-active-preview': data.id && data.id === playedCameraList[currentSelectedIndex]?.id }" @dblclick="handleCameraNodeClick(data)">
                       <div v-if="data.labelI18nKey === 'common.all'" class="channel-group">
                         <span>{{ nodeLabel(data) }}</span>
                         <span class="channel-count">{{ data.children?.length || 0 }}</span>
@@ -108,10 +108,6 @@
                             </div>
                           </div>
                         </div>
-                        <span v-if="visiblePreviewWindows[data.id]?.length" class="channel-window" :title="t('event.previewWindows', { windows: visiblePreviewWindows[data.id].join(' / ') })" :aria-label="t('event.previewWindows', { windows: visiblePreviewWindows[data.id].join(' / ') })">
-                          <el-icon aria-hidden="true"><Monitor /></el-icon>
-                          <span aria-hidden="true">{{ visiblePreviewWindows[data.id].join('/') }}</span>
-                        </span>
                       </template>
                     </div>
                   </template>
@@ -137,7 +133,7 @@
               </div>
             </div>
             <!-- 当screenType为4时，渲染所有四个窗口 -->
-            <div v-else v-for="(n,cameraIndex) in screenType" :key="n" class="video-item" :class="{'video-active': cameraIndex === currentSelectedIndex, 'video-one': (cameraIndex === currentSelectedIndex) && (isVideoFullScreen !== null)}" @click="currentSelectedIndex = cameraIndex">
+            <div v-else v-for="(n,cameraIndex) in screenType" :key="n" class="video-item" :class="{'video-active': cameraIndex === currentSelectedIndex, 'video-one': (cameraIndex === currentSelectedIndex) && (isVideoFullScreen !== null)}" @click="selectWindow(cameraIndex)">
               <flv v-if="playedCameraList[cameraIndex].id" v-model:fitMode="windowFitModes[cameraIndex]" :channelId="playedCameraList[cameraIndex].id" :runAlgorithmId="playedCameraList[cameraIndex].runAlgorithmId" :taskList="playedCameraList[cameraIndex].taskList" :cameraName="playedCameraList[cameraIndex].name" :index="cameraIndex" :isFullScreen="(cameraIndex === currentSelectedIndex) ? isVideoFullScreen : null" @refresh-tasks="refreshCameraList" @runAlgorithmIdChange="handleRunAlgorithmIdChange" @stop="handleCameraClose" @fullScreen="handleVideoFullScreen(cameraIndex)"></flv>
               <div class="no-camera" v-else>
                 <el-icon class="empty-camera-icon" aria-hidden="true"><VideoCamera /></el-icon>
@@ -271,7 +267,7 @@
 <script setup>
 import { computed, ref, watch, onMounted, onBeforeUnmount, getCurrentInstance } from 'vue'
 import beepOgg from '@/assets/beep.ogg'
-import { Search, Setting, FullScreen, Back, Refresh, ArrowLeft, ArrowRight, VideoCamera, Monitor, Bell } from '@element-plus/icons-vue'
+import { Search, Setting, FullScreen, Back, Refresh, ArrowLeft, ArrowRight, VideoCamera, Bell } from '@element-plus/icons-vue'
 import flv from '../components/flvVideo.vue'
 import ThemeSwitcher from '@/components/ThemeSwitcher.vue'
 import DetailDialog from '../components/detailDialog.vue'
@@ -290,7 +286,6 @@ const contentBox = ref(null)
 const tree = ref(null)
 const settingFormRef = ref(null)
 const audio = ref(null)
-const selectAreaEl = ref(null)
 
 // Data
 const currentTime = ref('')
@@ -312,6 +307,7 @@ const emptyWindow = () => ({
 })
 const playedCameraList = ref(Array.from({ length: 4 }, emptyWindow))
 let layoutRestored = false
+let initialFourScreenSelection = null
 let refreshingCameras = false
 let cameraRefreshTimer = null
 const currentSelectedIndex = ref(0)
@@ -421,17 +417,11 @@ const nodeLabel = (data) => {
   return data?.labelI18nKey ? t(data.labelI18nKey) : data?.label
 }
 
-// Window badges describe the visible layout, not transport or decoder health.
-const visiblePreviewWindows = computed(() => {
-  const windows = Object.create(null)
-  playedCameraList.value.forEach((camera, index) => {
-    if (!camera.id || (screenType.value === 1 && index !== currentSelectedIndex.value)) return
-    const id = String(camera.id)
-    if (!windows[id]) windows[id] = []
-    windows[id].push(index + 1)
-  })
-  return windows
-})
+const visiblePreviewChannelIds = computed(() => new Set(
+  playedCameraList.value
+    .filter((camera, index) => camera.id && (screenType.value !== 1 || index === currentSelectedIndex.value))
+    .map(camera => String(camera.id))
+))
 
 // Presentation only: retain the existing channel-open eligibility checks.
 const channelDisplayStatus = (channel) => {
@@ -520,13 +510,6 @@ const toggleCameraDrawer = () => {
   cameraDrawerVisible.value = !cameraDrawerVisible.value
 }
 
-// 点击通道列表以外的区域时自动收起
-const handleClickOutside = (e) => {
-  if (cameraDrawerVisible.value && selectAreaEl.value && !selectAreaEl.value.contains(e.target)) {
-    cameraDrawerVisible.value = false
-  }
-}
-
 const updateTime = () => {
   const now = new Date()
   const year = now.getFullYear()
@@ -538,10 +521,17 @@ const updateTime = () => {
   currentTime.value = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
 }
 
+const selectWindow = (index) => {
+  initialFourScreenSelection = null
+  currentSelectedIndex.value = index
+}
+
 const switchScreen = (type) => {
-  const prevSelectedIndex = currentSelectedIndex.value
+  initialFourScreenSelection = null
+  if (type === 4 && screenType.value !== 4 && !playedCameraList.value.some(slot => slot.id)) {
+    currentSelectedIndex.value = 0
+  }
   screenType.value = type
-  currentSelectedIndex.value = prevSelectedIndex
   localStorage.setItem(
     'screenStatus',
     JSON.stringify({
@@ -579,7 +569,6 @@ const handleCameraNodeClick = (node) => {
   if (node.labelI18nKey === 'common.all' || node.label === '全部') return
   if (node.channelType == 0 && node.status == 0)
     return proxy.$message.error(t('event.cameraOffline'))
-  cameraDrawerVisible.value = false
   playedCameraList.value[currentSelectedIndex.value] = {
     id: node.id,
     name: node.label,
@@ -637,7 +626,7 @@ const getInitialAssignments = (camerasById) => {
   const channelId = single(query.channelId)
   if (channelId && camerasById.has(String(channelId))) {
     assignments[0] = { id: channelId, runAlgorithmId: single(query.algorithmId) }
-    currentSelectedIndex.value = 0
+    selectWindow(0)
   }
   return assignments
 }
@@ -658,7 +647,8 @@ const refreshCameraList = async () => {
     camearList.value = [{ id: -1, labelI18nKey: 'common.all', children: cameras }]
     const camerasById = new Map(cameras.map(camera => [String(camera.id), camera]))
     // Reconcile the current layout on later requests, including edits made during the fetch.
-    const assignments = layoutRestored ? playedCameraList.value : getInitialAssignments(camerasById)
+    const restoringLayout = !layoutRestored
+    const assignments = restoringLayout ? getInitialAssignments(camerasById) : playedCameraList.value
     layoutRestored = true
     playedCameraList.value = playedCameraList.value.map((slot, index) => {
       const assignment = assignments[index]
@@ -676,6 +666,12 @@ const refreshCameraList = async () => {
         runAlgorithmId: enabled ? selected : ''
       }
     })
+    if (restoringLayout && initialFourScreenSelection !== null) {
+      if (playedCameraList.value.some(slot => slot.id)) {
+        currentSelectedIndex.value = initialFourScreenSelection
+      }
+      initialFourScreenSelection = null
+    }
   } catch (error) {
     console.warn('[Live display] Could not refresh channels', error)
   } finally {
@@ -932,7 +928,13 @@ onMounted(() => {
   if (screen && [1, 4].includes(screen.screenType)) {
     screenType.value = screen.screenType
     const index = Number(screen.currentSelectedIndex)
-    currentSelectedIndex.value = Number.isInteger(index) && index >= 0 && index < 4 ? index : 0
+    const savedIndex = Number.isInteger(index) && index >= 0 && index < 4 ? index : 0
+    if (screenType.value === 4) {
+      // Wait for the saved channels to be validated before restoring their selection.
+      initialFourScreenSelection = savedIndex
+    } else {
+      currentSelectedIndex.value = savedIndex
+    }
   }
   void refreshCameraList()
   cameraRefreshTimer = setInterval(refreshVisibleCameras, 30000)
@@ -952,9 +954,6 @@ onMounted(() => {
   // Unlock audio on the first user interaction so WebSocket callbacks can play it.
   document.addEventListener('click', unlockAudio)
   document.addEventListener('touchstart', unlockAudio)
-
-  // 点击通道列表外部时自动收起
-  document.addEventListener('click', handleClickOutside)
 })
 
 onBeforeUnmount(() => {
@@ -985,7 +984,6 @@ onBeforeUnmount(() => {
   )
   document.removeEventListener('click', unlockAudio)
   document.removeEventListener('touchstart', unlockAudio)
-  document.removeEventListener('click', handleClickOutside)
 })
 </script>
 
@@ -1238,7 +1236,6 @@ button:focus-visible {
   .is-online .status-dot { background: var(--success-color); }
   .is-warning .status-dot { background: var(--warning-color); }
   .is-local .status-dot { background: transparent; box-shadow: inset 0 0 0 1px var(--text-muted); }
-  .channel-window { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 3px; padding: 0 4px; border: 1px solid var(--screen-border); border-radius: 3px; background: var(--bg-primary); color: var(--screen-muted); white-space: nowrap; font-size: 10px; line-height: 14px; font-variant-numeric: tabular-nums; }
   &.is-assigned .channel-symbol { color: var(--screen-accent); }
   &.is-assigned .channel-name { font-weight: 600; }
   &.is-active-preview { background: var(--primary-soft-bg); }
@@ -1283,7 +1280,20 @@ button:focus-visible {
   font-size: 13px;
 }
 
-.video-active { border-color: var(--screen-accent); }
+.video-active {
+  border-color: var(--screen-accent);
+
+  // Add to the existing 1px border without resizing the player.
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border: 2px solid var(--screen-accent);
+    border-radius: 4px;
+    pointer-events: none;
+  }
+}
 
 .video-one {
   position: absolute;

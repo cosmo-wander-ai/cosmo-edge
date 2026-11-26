@@ -29,6 +29,40 @@ static constexpr int kActionDurationWindowMs = 5000;
 // Maximum page size for camera query when listing channels.
 static constexpr int kMaxChannelQueryPageSize = 10000;
 
+namespace {
+
+    bool HasDetectionGeometry(const std::vector<MsgTaskArea>& areas) {
+        return std::any_of(areas.begin(), areas.end(), [](const MsgTaskArea& area) {
+            return !area.points.empty() || !area.linePoints.empty();
+        });
+    }
+
+    bool RequiresDetectionArea(service::IAlgorithmQuery& algorithm_query, const std::string& algorithmId) {
+        const auto metadata = nlohmann::json::parse(algorithm_query.GetMetaData(algorithmId), nullptr, false);
+        if (metadata.is_discarded() || !metadata.is_object()) {
+            return false;
+        }
+        if (metadata.contains("region") && metadata["region"].is_object()) {
+            const auto& heads = metadata["region"].value("heads", nlohmann::json::array());
+            if (heads.is_array() && !heads.empty()) {
+                return true;
+            }
+        }
+        const auto region_type = metadata.value("regionType", std::string{});
+        return region_type == "cordon" || region_type == "oneWayCordon";
+    }
+
+    util::ErrorEnum ValidateDetectionArea(service::IAlgorithmQuery& algorithm_query,
+                                          const std::string& algorithmId,
+                                          const std::vector<MsgTaskArea>& areas) {
+        if (HasDetectionGeometry(areas) || !RequiresDetectionArea(algorithm_query, algorithmId)) {
+            return util::ErrorEnum::Success;
+        }
+        return util::ErrorEnum::InvalidParam;
+    }
+
+}  // namespace
+
 MessageVideoTaskHandler::MessageVideoTaskHandler(service::ICameraTaskConfig& task_config,
                                                  service::IAlgorithmQuery& algorithm_query,
                                                  service::ICameraDeviceCrud& camera_crud,
@@ -55,7 +89,10 @@ VideoTask::MsgQueryParamSend MessageVideoTaskHandler::Handle(VideoTask::MsgQuery
 VideoTask::MsgModifyAreaSend MessageVideoTaskHandler::Handle(VideoTask::MsgModifyAreaRecv&& data,
                                                              std::error_condition& errc) {
     VideoTask::MsgModifyAreaSend retData{};
-    errc = task_config_.ModifyTaskArea(data.channelId, data.algorithmId, data.areas, data.shieldedAreas);
+    errc = ValidateDetectionArea(algorithm_query_, data.algorithmId, data.areas);
+    if (errc == util::ErrorEnum::Success) {
+        errc = task_config_.ModifyTaskArea(data.channelId, data.algorithmId, data.areas, data.shieldedAreas);
+    }
     return retData;
 }
 
@@ -84,7 +121,18 @@ VideoTask::MsgQueryStrategySend MessageVideoTaskHandler::Handle(VideoTask::MsgQu
 VideoTask::MsgSwitchTaskSend MessageVideoTaskHandler::Handle(VideoTask::MsgSwitchTaskRecv&& data,
                                                              std::error_condition& errc) {
     VideoTask::MsgSwitchTaskSend retData{};
-    errc = task_config_.SwitchTask(data.channelId, data.algorithmId, data.enable);
+    errc = util::ErrorEnum::Success;
+    if (data.enable) {
+        std::vector<MsgTaskArea> areas;
+        std::vector<MsgTaskArea> shieldedAreas;
+        errc = task_config_.QueryTaskArea(data.channelId, data.algorithmId, areas, shieldedAreas);
+        if (errc == util::ErrorEnum::Success) {
+            errc = ValidateDetectionArea(algorithm_query_, data.algorithmId, areas);
+        }
+    }
+    if (errc == util::ErrorEnum::Success) {
+        errc = task_config_.SwitchTask(data.channelId, data.algorithmId, data.enable);
+    }
     return retData;
 }
 
@@ -92,7 +140,18 @@ VideoTask::MsgBatchSwitchTaskSend MessageVideoTaskHandler::Handle(VideoTask::Msg
                                                                   std::error_condition& /*errc*/) {
     VideoTask::MsgBatchSwitchTaskSend retData{};
     for (auto& task : data.tasks) {
-        std::error_condition ret = task_config_.SwitchTask(task.channelId, task.algorithmId, task.enable);
+        std::error_condition ret = util::ErrorEnum::Success;
+        if (task.enable) {
+            std::vector<MsgTaskArea> areas;
+            std::vector<MsgTaskArea> shieldedAreas;
+            ret = task_config_.QueryTaskArea(task.channelId, task.algorithmId, areas, shieldedAreas);
+            if (ret == util::ErrorEnum::Success) {
+                ret = ValidateDetectionArea(algorithm_query_, task.algorithmId, areas);
+            }
+        }
+        if (ret == util::ErrorEnum::Success) {
+            ret = task_config_.SwitchTask(task.channelId, task.algorithmId, task.enable);
+        }
         if (util::ErrorEnum::Success != ret) {
             MsgResultInfo failedEl;
             failedEl.id      = task.id;
@@ -116,7 +175,14 @@ VideoTask::MsgQuerySwitchSend MessageVideoTaskHandler::Handle(VideoTask::MsgQuer
 VideoTask::MsgSaveOrUpdateSend MessageVideoTaskHandler::Handle(VideoTask::MsgSaveOrUpdateRecv&& data,
                                                                std::error_condition& errc) {
     VideoTask::MsgSaveOrUpdateSend retData{};
-    errc = task_config_.SaveOrUpdateTask(data.channelId, data.algorithmId, data.taskConfig, data.scheduleId);
+    errc = ValidateDetectionArea(algorithm_query_, data.algorithmId, data.taskConfig.areas);
+    if (errc == util::ErrorEnum::Success) {
+        errc = data.preserveEnableState
+                   ? task_config_.SaveTaskPreservingState(data.channelId, data.algorithmId, data.taskConfig,
+                                                          data.scheduleId)
+                   : task_config_.SaveOrUpdateTask(data.channelId, data.algorithmId, data.taskConfig,
+                                                   data.scheduleId);
+    }
     return retData;
 }
 
@@ -166,7 +232,15 @@ VideoTask::MsgSelectConfigByAlgorithmIdSend MessageVideoTaskHandler::Handle(
 VideoTask::MsgDeleteSend MessageVideoTaskHandler::Handle(VideoTask::MsgDeleteRecv&& data,
                                                          std::error_condition& errc) {
     VideoTask::MsgDeleteSend retData{};
-    errc = task_config_.DeleteTask(data.channelId, data.algorithmId);
+    std::vector<MsgTaskArea> areas;
+    std::vector<MsgTaskArea> shieldedAreas;
+    errc = task_config_.QueryTaskArea(data.channelId, data.algorithmId, areas, shieldedAreas);
+    if (errc == util::ErrorEnum::Success) {
+        errc = ValidateDetectionArea(algorithm_query_, data.algorithmId, areas);
+    }
+    if (errc == util::ErrorEnum::Success) {
+        errc = task_config_.DeleteTask(data.channelId, data.algorithmId);
+    }
     return retData;
 }
 
@@ -174,7 +248,16 @@ VideoTask::MsgBatchDeleteSend MessageVideoTaskHandler::Handle(VideoTask::MsgBatc
                                                               std::error_condition& /*errc*/) {
     VideoTask::MsgBatchDeleteSend retData{};
     for (auto& task : data.tasks) {
-        std::error_condition ret = task_config_.DeleteTask(task.channelId, task.algorithmId);
+        std::vector<MsgTaskArea> areas;
+        std::vector<MsgTaskArea> shieldedAreas;
+        std::error_condition ret =
+            task_config_.QueryTaskArea(task.channelId, task.algorithmId, areas, shieldedAreas);
+        if (ret == util::ErrorEnum::Success) {
+            ret = ValidateDetectionArea(algorithm_query_, task.algorithmId, areas);
+        }
+        if (ret == util::ErrorEnum::Success) {
+            ret = task_config_.DeleteTask(task.channelId, task.algorithmId);
+        }
         if (util::ErrorEnum::Success != ret) {
             MsgResultInfo failedEl;
             failedEl.id      = task.id;
@@ -267,6 +350,9 @@ VideoTask::MsgApplyParamsBatchSend MessageVideoTaskHandler::Handle(VideoTask::Ms
         targetConfig.shieldedAreas.clear();
         std::error_condition ret = task_config_.QueryTaskArea(channelId, data.algorithmId, targetConfig.areas,
                                                               targetConfig.shieldedAreas);
+        if (util::ErrorEnum::Success == ret) {
+            ret = ValidateDetectionArea(algorithm_query_, data.algorithmId, targetConfig.areas);
+        }
         if (util::ErrorEnum::Success == ret) {
             ret = task_config_.SaveOrUpdateTask(channelId, data.algorithmId, targetConfig, data.scheduleId);
         }

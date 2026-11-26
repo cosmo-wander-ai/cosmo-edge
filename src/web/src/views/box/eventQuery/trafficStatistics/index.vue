@@ -123,7 +123,7 @@
         </div>
         <div class="stat-info">
           <div class="stat-label">{{ t('event.totalEnterFlow') }}</div>
-          <div class="stat-value">{{ totalEnter }} <span class="stat-unit">{{ t('event.personUnit') }}</span></div>
+          <div class="stat-value">{{ totalEnter }}</div>
         </div>
       </div>
       <div class="stat-card leave-card">
@@ -132,7 +132,7 @@
         </div>
         <div class="stat-info">
           <div class="stat-label">{{ t('event.totalLeaveFlow') }}</div>
-          <div class="stat-value">{{ totalLeave }} <span class="stat-unit">{{ t('event.personUnit') }}</span></div>
+          <div class="stat-value">{{ totalLeave }}</div>
         </div>
       </div>
       <div class="stat-card net-card">
@@ -141,7 +141,7 @@
         </div>
         <div class="stat-info">
           <div class="stat-label">{{ t('event.netInflowCount') }}</div>
-          <div class="stat-value">{{ totalNet }} <span class="stat-unit">{{ t('event.personUnit') }}</span></div>
+          <div class="stat-value">{{ totalNet }}</div>
         </div>
       </div>
     </div>
@@ -781,13 +781,7 @@ onMounted(() => {
         font-weight: 600;
         color: var(--text-primary);
         line-height: 1;
-        
-        .stat-unit {
-          font-size: 14px;
-          color: var(--text-secondary);
-          font-weight: normal;
-          margin-left: 2px;
-        }
+
       }
     }
   }

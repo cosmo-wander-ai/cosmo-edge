@@ -1283,9 +1283,10 @@ TEST_CASE("Pass-flow preview rebases both counters after task restart", "[stream
     test::ScopedServiceOverride<service::ITaskQuery> registration(tasks);
     StreamViewerOverview viewer("camera", "algorithm");
     MsgRecAlarm record;
-    record.type       = GENERATE(OnEventsPropertyType::People, OnEventsPropertyType::Car);
-    record.alarm      = true;
-    const auto report = [&](int64_t enter, int64_t leave, const std::string& expectedIn,
+    record.type            = GENERATE(OnEventsPropertyType::People, OnEventsPropertyType::Car);
+    record.alarm           = true;
+    record.hasPassFlowData = true;
+    const auto report      = [&](int64_t enter, int64_t leave, const std::string& expectedIn,
                             const std::string& expectedOut) {
         record.enterTotalCount = enter;
         record.leaveTotalCount = leave;
@@ -1324,6 +1325,41 @@ TEST_CASE("Pass-flow preview rebases both counters after task restart", "[stream
     }
 }
 
+TEST_CASE("Ordinary People alarms do not overwrite pass-flow OSD", "[stream][osd][pass-flow][regression]") {
+    test::MockTaskService tasks;
+    ALLOW_CALL(tasks, GetTaskFrameInfo(trompeloeil::_, trompeloeil::_, trompeloeil::_, trompeloeil::_,
+                                       trompeloeil::_, trompeloeil::_))
+        .RETURN(true);
+    test::ScopedServiceOverride<service::ITaskQuery> registration(tasks);
+    StreamViewerOverview viewer("camera", "algorithm");
+
+    MsgRecAlarm flow;
+    flow.type            = OnEventsPropertyType::People;
+    flow.alarm           = true;
+    flow.hasPassFlowData = true;
+    flow.enterTotalCount = 5;
+    flow.leaveTotalCount = 4;
+    std::vector<MsgRecAlarm> records{flow};
+    viewer.LiveDataAlarmToLocal(records);
+
+    flow.enterTotalCount = 6;
+    flow.leaveTotalCount = 5;
+    records              = {flow};
+    viewer.LiveDataAlarmToLocal(records);
+    REQUIRE(viewer.infos_.passFlowOverviews.size() == 1);
+    CHECK(viewer.infos_.passFlowOverviews.front().text.posTexts[0].text == "IN : 1");
+    CHECK(viewer.infos_.passFlowOverviews.front().text.posTexts[1].text == "OUT: 1");
+
+    MsgRecAlarm ordinaryPeopleAlarm;
+    ordinaryPeopleAlarm.type  = OnEventsPropertyType::People;
+    ordinaryPeopleAlarm.alarm = true;
+    records                   = {ordinaryPeopleAlarm};
+    viewer.LiveDataAlarmToLocal(records);
+    REQUIRE(viewer.infos_.passFlowOverviews.size() == 1);
+    CHECK(viewer.infos_.passFlowOverviews.front().text.posTexts[0].text == "IN : 1");
+    CHECK(viewer.infos_.passFlowOverviews.front().text.posTexts[1].text == "OUT: 1");
+}
+
 TEST_CASE("Pass-flow preview records a zero initial baseline before the first entry",
           "[stream][osd][pass-flow]") {
     test::MockTaskService tasks;
@@ -1333,8 +1369,9 @@ TEST_CASE("Pass-flow preview records a zero initial baseline before the first en
     test::ScopedServiceOverride<service::ITaskQuery> registration(tasks);
     StreamViewerOverview viewer("camera", "algorithm");
     std::vector<MsgRecAlarm> records(1);
-    records[0].type  = OnEventsPropertyType::People;
-    records[0].alarm = true;
+    records[0].type            = OnEventsPropertyType::People;
+    records[0].alarm           = true;
+    records[0].hasPassFlowData = true;
     viewer.LiveDataAlarmToLocal(records);
     REQUIRE(viewer.infos_.passFlowOverviews.size() == 1);
     CHECK(viewer.infos_.passFlowOverviews.front().text.posTexts[0].text == "IN : 0");

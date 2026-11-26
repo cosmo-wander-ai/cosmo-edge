@@ -156,16 +156,26 @@ for (const platform of platforms) {
   let configRef
   let enabled = 0
   const pollingId = 'legacy-polling'
+  const oldPoints = [{ xRatio: 0.1, yRatio: 0.1 }, { xRatio: 0.3, yRatio: 0.1 }, { xRatio: 0.2, yRatio: 0.3 }]
+  const newPoints = [{ xRatio: 0.5, yRatio: 0.5 }, { xRatio: 0.8, yRatio: 0.5 }, { xRatio: 0.7, yRatio: 0.8 }]
+  let canvasPoints = oldPoints
+  let savedAreas = [{ areaId: 'area-1', name: 'Area 1', points: oldPoints, params: [] }]
+  let rejectSave = false
   const timers = []
   const calls = { save: [], switch: [], delete: [] }
   const warnings = []
   let validation = async () => ({ valid: true, params: configRef.taskParam })
   const paramStub = { methods: { validateAndCollect: () => validation() }, render: () => null }
+  let areaView
   const areaStub = {
     props: ['config'],
+    data: () => ({ isDrawingLine: false }),
     render() {
+      areaView = this
       configRef = this.config
-      return h({ methods: { submit: () => [] }, render: () => null }, { ref: 'canvasRef' })
+      return h({ methods: { submit: () => [{
+        points: canvasPoints, associatedAreas: [], linePoints: [], directionType: '0'
+      }] }, render: () => null }, { ref: 'canvasRef' })
     }
   }
   const service = await mountComponent('views/gam/taskManager/editTask/serviceConfig.vue', {
@@ -182,13 +192,19 @@ for (const platform of platforms) {
       queryTimeTemplatePage: async () => ({ resData: { rows: [{ scheduleId: 'schedule-1', scheduleName: 'Custom schedule' }] } }),
       selectConfigByAlgorithmId: async () => ({ resData: {
         category: 1, pollingId, scheduleId: 'schedule-1', taskEnableStatus: enabled,
-        algorithmMetadata: JSON.stringify({ regionType: 'polygon', scheduleSupport: 1, params: [
+        algorithmMetadata: JSON.stringify({ regionType: 'polygon', region: { heads: [{ key: 'name', name: 'Name' }] }, scheduleSupport: 1, params: [
           { key: 'editable', type: 'text', name: 'Editable', value: 'scene', channelEditable: true, senior: 2 },
           { key: 'sceneOnly', type: 'text', name: 'Scene', value: 'scene-value', channelEditable: false, senior: 2 }
         ] }),
-        taskConfig: { areas: [], shieldedAreas: [], params: [{ key: 'editable', value: 'channel-value' }, { key: 'sceneOnly', value: 'stale-override' }] }
+        taskConfig: { areas: savedAreas, shieldedAreas: [], params: [{ key: 'editable', value: 'channel-value' }, { key: 'sceneOnly', value: 'stale-override' }] }
       } }),
-      saveOrUpdate: async data => { calls.save.push(plain(data)); return { resCode: 1 } },
+      saveOrUpdate: async data => {
+        calls.save.push(plain(data))
+        if (rejectSave) throw new Error('service save rejected')
+        savedAreas = plain(data.taskConfig.areas)
+        if (!data.preserveEnableState) enabled = 1
+        return { resCode: 1 }
+      },
       boxSwitchTask: async data => { calls.switch.push(plain(data)); enabled = data.switch; return { resCode: 1 } },
       boxDeleteTask: async data => { calls.delete.push(plain(data)); return { resCode: 1 } }
     }
@@ -216,11 +232,48 @@ for (const platform of platforms) {
       { key: 'param.privacyLabels', value: '*' },
       { key: 'param.privacyStrength', value: '2' }
     ], 'legacy services save explicit disabled privacy defaults without altering platform-owned fields')
+    assert.equal(calls.save[0].preserveEnableState, true)
+    assert.deepEqual(calls.save[0].taskConfig.areas[0].points, oldPoints)
+
+    // The canvas draft has moved, while the last saved region still has the old points.
+    canvasPoints = newPoints
+    assert.deepEqual(plain(configRef.taskAreaRows[0].points), oldPoints)
     button(service, 'action.enableService').props.onClick()
     await settle(service)
+    assert.equal(calls.save.length, 2, 'explicit enable submits the canvas before it can be reloaded')
+    assert.equal(calls.save[1].preserveEnableState, false)
+    assert.equal(calls.save[1].taskConfig.areas[0].areaId, 'area-1')
+    assert.deepEqual(calls.save[1].taskConfig.areas[0].points, newPoints)
+    assert.deepEqual(plain(configRef.taskAreaRows[0].points), newPoints, 'redrawn region survives the reload')
+    assert.equal(calls.switch.length, 0, 'a separate start request could use the old region')
+
     button(service, 'action.disableService').props.onClick()
     await settle(service)
-    assert.deepEqual(calls.switch, [1, 0].map(value => ({ channelId: 'channel-1', algorithmId: 'algorithm-1', switch: value })))
+    assert.deepEqual(calls.switch, [{ channelId: 'channel-1', algorithmId: 'algorithm-1', switch: 0 }])
+    areaView.isDrawingLine = true
+    await button(service, 'action.enableService').props.onClick()
+    assert.ok(warnings.includes('validate.completeDrawingFirst'))
+    assert.equal(calls.save.length, 2, 'unfinished drawing must block enable')
+    assert.equal(enabled, 0)
+    areaView.isDrawingLine = false
+
+    validation = async () => ({ valid: false, params: [] })
+    await button(service, 'action.enableService').props.onClick()
+    await settle(service)
+    assert.equal(calls.save.length, 2, 'invalid configuration must block enable')
+    assert.equal(enabled, 0)
+
+    validation = async () => ({ valid: true, params: configRef.taskParam })
+    rejectSave = true
+    canvasPoints = oldPoints
+    await button(service, 'action.enableService').props.onClick()
+    await settle(service)
+    assert.equal(calls.save.length, 3)
+    assert.equal(enabled, 0, 'a failed save must leave the service stopped')
+    assert.deepEqual(plain(configRef.taskAreaRows[0].points), oldPoints, 'a rejected save keeps the draft')
+    assert.equal(calls.switch.length, 1)
+    rejectSave = false
+    const savesBeforeDelete = calls.save.length
     button(service, 'action.deleteService').props.onClick()
     await settle(service)
     const confirm = service.all(n => n.type === 'el-dialog' && n.props.modelValue === true)[0]
@@ -231,12 +284,12 @@ for (const platform of platforms) {
     validation = async () => ({ valid: false, params: [] })
     button(service, 'action.save').props.onClick()
     await settle(service)
-    assert.equal(calls.save.length, 1, 'failed asynchronous validation prevents saving')
+    assert.equal(calls.save.length, savesBeforeDelete, 'failed asynchronous validation prevents saving')
     validation = async () => { throw new Error('validation unavailable') }
     timers.forEach(callback => callback())
     button(service, 'action.save').props.onClick()
     await settle(service)
-    assert.equal(calls.save.length, 1, 'rejected validation prevents saving')
+    assert.equal(calls.save.length, savesBeforeDelete, 'rejected validation prevents saving')
     validation = () => new Promise(resolve => { finishValidation = resolve })
     timers.forEach(callback => callback())
     button(service, 'action.save').props.onClick()
@@ -244,7 +297,7 @@ for (const platform of platforms) {
     configRef.channelId = 'replacement-channel'
     finishValidation({ valid: true, params: configRef.taskParam })
     await settle(service)
-    assert.equal(calls.save.length, 1, 'late validation cannot save to a replacement channel')
+    assert.equal(calls.save.length, savesBeforeDelete, 'late validation cannot save to a replacement channel')
     configRef.channelId = 'channel-1'
     validation = async () => ({ valid: true, params: configRef.taskParam })
     // The existing legacy polling validation remains part of save semantics.
@@ -252,8 +305,26 @@ for (const platform of platforms) {
     configRef.pollingId = ''
     button(service, 'action.save').props.onClick()
     await settle(service)
-    assert.equal(calls.save.length, 1)
+    assert.equal(calls.save.length, savesBeforeDelete)
     assert.ok(warnings.includes('validate.selectPollingStrategy'))
+
+    const deletesBeforeEmptyArea = calls.delete.length
+    const savesBeforeEmptyArea = calls.save.length
+    configRef.taskAreaRows = []
+    await settle(service)
+    const saveWithoutArea = button(service, 'action.save')
+    const startWithoutArea = button(service, 'action.enableService')
+    const deleteWithoutArea = button(service, 'action.deleteService')
+    assert.equal(saveWithoutArea.props.disabled, true, 'save is disabled without a detection area')
+    assert.equal(startWithoutArea.props.disabled, true, 'start is disabled without a detection area')
+    assert.equal(deleteWithoutArea.props.disabled, true, 'delete is disabled without a detection area')
+    saveWithoutArea.props.onClick()
+    await startWithoutArea.props.onClick()
+    deleteWithoutArea.props.onClick()
+    await settle(service)
+    assert.equal(calls.save.length, savesBeforeEmptyArea, 'empty area cannot be saved')
+    assert.equal(calls.delete.length, deletesBeforeEmptyArea, 'empty area cannot be deleted')
+    assert.equal(saveWithoutArea.props.title, 'validate.addDetectionAreaFirst')
     assertNoPlatformAccess(storage)
   } finally { service.unmount() }
 }

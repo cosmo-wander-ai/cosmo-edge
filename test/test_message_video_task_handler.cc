@@ -13,6 +13,7 @@
 #include "mock/MockCameraService.h"
 #include "mock/MockModelService.h"
 #include "mock/MockTaskService.h"
+#include "support/MockDefaults.h"
 #include "support/ScopedServiceOverride.h"
 #include "util/ErrorCode.h"
 
@@ -26,13 +27,16 @@ struct VideoTaskHandlerMocks {
 
 struct TestFixture {
     VideoTaskHandlerMocks mocks;
+    cosmo::test::NamedExpectations expectations;
     cosmo::MessageVideoTaskHandler handler;
 
     TestFixture()
         : handler(static_cast<cosmo::service::ICameraTaskConfig&>(mocks.cameraSvc),
                   static_cast<cosmo::service::IAlgorithmQuery&>(mocks.algSvc),
                   static_cast<cosmo::service::ICameraDeviceCrud&>(mocks.cameraSvc),
-                  static_cast<cosmo::service::ITaskQuery&>(mocks.taskSvc)) {}
+                  static_cast<cosmo::service::ITaskQuery&>(mocks.taskSvc)) {
+        cosmo::test::AllowAlgorithmLookupDefaults(mocks.algSvc, expectations);
+    }
 };
 
 }  // namespace
@@ -216,6 +220,8 @@ TEST_CASE("VideoTaskHandler: SwitchTask success", "[video-task-handler]") {
     recv.algorithmId = "alg1";
     recv.enable      = 1;
 
+    REQUIRE_CALL(f.mocks.cameraSvc, QueryTaskArea("ch1", "alg1", trompeloeil::_, trompeloeil::_))
+        .RETURN(cosmo::util::ErrorEnum::Success);
     REQUIRE_CALL(f.mocks.cameraSvc, SwitchTask(trompeloeil::_, trompeloeil::_, trompeloeil::_))
         .RETURN(cosmo::util::ErrorEnum::Success);
     f.handler.Handle(std::move(recv), errc);
@@ -247,10 +253,32 @@ TEST_CASE("VideoTaskHandler: BatchSwitchTask all success", "[video-task-handler]
     t1.enable      = 1;
     recv.tasks.push_back(t1);
 
+    REQUIRE_CALL(f.mocks.cameraSvc, QueryTaskArea("ch1", "alg1", trompeloeil::_, trompeloeil::_))
+        .RETURN(cosmo::util::ErrorEnum::Success);
     REQUIRE_CALL(f.mocks.cameraSvc, SwitchTask(trompeloeil::_, trompeloeil::_, trompeloeil::_))
         .RETURN(cosmo::util::ErrorEnum::Success);
     auto ret = f.handler.Handle(std::move(recv), errc);
     REQUIRE(ret.resData.failedList.empty());
+}
+
+TEST_CASE("VideoTaskHandler: SwitchTask rejects required algorithm without geometry",
+          "[video-task-handler]") {
+    TestFixture f;
+    std::error_condition errc;
+    cosmo::VideoTask::MsgSwitchTaskRecv recv;
+    recv.channelId   = "ch1";
+    recv.algorithmId = "area-alg";
+    recv.enable      = 1;
+    const std::string metadata =
+        R"({"regionType":"polygon","region":{"heads":[{"key":"name"}]},"params":[]})";
+
+    REQUIRE_CALL(f.mocks.cameraSvc, QueryTaskArea("ch1", "area-alg", trompeloeil::_, trompeloeil::_))
+        .RETURN(cosmo::util::ErrorEnum::Success);
+    REQUIRE_CALL(f.mocks.algSvc, GetMetaData("area-alg")).RETURN(metadata);
+    FORBID_CALL(f.mocks.cameraSvc, SwitchTask(trompeloeil::_, trompeloeil::_, trompeloeil::_));
+
+    f.handler.Handle(std::move(recv), errc);
+    REQUIRE(errc == cosmo::util::ErrorEnum::InvalidParam);
 }
 
 TEST_CASE("VideoTaskHandler: BatchSwitchTask partial failure", "[video-task-handler]") {
@@ -270,6 +298,8 @@ TEST_CASE("VideoTaskHandler: BatchSwitchTask partial failure", "[video-task-hand
     recv.tasks.push_back(t1);
     recv.tasks.push_back(t2);
 
+    REQUIRE_CALL(f.mocks.cameraSvc, QueryTaskArea("ch1", "alg1", trompeloeil::_, trompeloeil::_))
+        .RETURN(cosmo::util::ErrorEnum::Success);
     REQUIRE_CALL(f.mocks.cameraSvc,
                  SwitchTask(trompeloeil::eq(std::string("ch1")), trompeloeil::_, trompeloeil::_))
         .RETURN(cosmo::util::ErrorEnum::Success);
@@ -326,6 +356,40 @@ TEST_CASE("VideoTaskHandler: SaveOrUpdate success", "[video-task-handler]") {
         .RETURN(cosmo::util::ErrorEnum::Success);
     f.handler.Handle(std::move(recv), errc);
     REQUIRE(errc == cosmo::util::ErrorEnum::Success);
+}
+
+TEST_CASE("VideoTaskHandler: SaveOrUpdate rejects required algorithm without geometry",
+          "[video-task-handler]") {
+    TestFixture f;
+    std::error_condition errc;
+    cosmo::VideoTask::MsgSaveOrUpdateRecv recv;
+    recv.channelId   = "ch1";
+    recv.algorithmId = "area-alg";
+    const std::string metadata =
+        R"({"regionType":"polygon","region":{"heads":[{"key":"name"}]},"params":[]})";
+
+    REQUIRE_CALL(f.mocks.algSvc, GetMetaData("area-alg")).RETURN(metadata);
+    FORBID_CALL(f.mocks.cameraSvc,
+                SaveOrUpdateTask(trompeloeil::_, trompeloeil::_, trompeloeil::_, trompeloeil::_));
+
+    f.handler.Handle(std::move(recv), errc);
+    REQUIRE(errc == cosmo::util::ErrorEnum::InvalidParam);
+}
+
+TEST_CASE("VideoTaskHandler: save preserves service state when requested", "[video-task-handler]") {
+    TestFixture f;
+    std::error_condition errc;
+    auto recv = nlohmann::json{{"channelId", "ch1"}, {"algorithmId", "alg1"}, {"preserveEnableState", true}}
+                    .get<cosmo::VideoTask::MsgSaveOrUpdateRecv>();
+    REQUIRE(recv.preserveEnableState);
+    REQUIRE_CALL(f.mocks.cameraSvc, SaveTaskPreservingState("ch1", "alg1", trompeloeil::_, trompeloeil::_))
+        .RETURN(cosmo::util::ErrorEnum::Success);
+    f.handler.Handle(std::move(recv), errc);
+    REQUIRE(errc == cosmo::util::ErrorEnum::Success);
+
+    const auto legacy = nlohmann::json{{"channelId", "ch1"}, {"algorithmId", "alg1"}}
+                            .get<cosmo::VideoTask::MsgSaveOrUpdateRecv>();
+    REQUIRE_FALSE(legacy.preserveEnableState);
 }
 
 TEST_CASE("VideoTaskHandler: SaveOrUpdate resource rejection is a single atomic call",
@@ -633,17 +697,41 @@ TEST_CASE("VideoTaskHandler: Delete success", "[video-task-handler]") {
     recv.channelId   = "ch1";
     recv.algorithmId = "alg1";
 
+    REQUIRE_CALL(f.mocks.cameraSvc, QueryTaskArea("ch1", "alg1", trompeloeil::_, trompeloeil::_))
+        .RETURN(cosmo::util::ErrorEnum::Success);
     REQUIRE_CALL(f.mocks.cameraSvc, DeleteTask(trompeloeil::_, trompeloeil::_))
         .RETURN(cosmo::util::ErrorEnum::Success);
     f.handler.Handle(std::move(recv), errc);
     REQUIRE(errc == cosmo::util::ErrorEnum::Success);
 }
 
+TEST_CASE("VideoTaskHandler: Delete rejects required algorithm without geometry", "[video-task-handler]") {
+    TestFixture f;
+    std::error_condition errc;
+    cosmo::VideoTask::MsgDeleteRecv recv;
+    recv.channelId   = "ch1";
+    recv.algorithmId = "area-alg";
+    const std::string metadata =
+        R"({"regionType":"polygon","region":{"heads":[{"key":"name"}]},"params":[]})";
+
+    REQUIRE_CALL(f.mocks.cameraSvc, QueryTaskArea("ch1", "area-alg", trompeloeil::_, trompeloeil::_))
+        .RETURN(cosmo::util::ErrorEnum::Success);
+    REQUIRE_CALL(f.mocks.algSvc, GetMetaData("area-alg")).RETURN(metadata);
+    FORBID_CALL(f.mocks.cameraSvc, DeleteTask(trompeloeil::_, trompeloeil::_));
+
+    f.handler.Handle(std::move(recv), errc);
+    REQUIRE(errc == cosmo::util::ErrorEnum::InvalidParam);
+}
+
 TEST_CASE("VideoTaskHandler: Delete error", "[video-task-handler]") {
     TestFixture f;
     std::error_condition errc;
     cosmo::VideoTask::MsgDeleteRecv recv;
+    recv.channelId   = "ch1";
+    recv.algorithmId = "alg1";
 
+    REQUIRE_CALL(f.mocks.cameraSvc, QueryTaskArea("ch1", "alg1", trompeloeil::_, trompeloeil::_))
+        .RETURN(cosmo::util::ErrorEnum::Success);
     REQUIRE_CALL(f.mocks.cameraSvc, DeleteTask(trompeloeil::_, trompeloeil::_))
         .RETURN(cosmo::util::ErrorEnum::CameraNotExist);
     f.handler.Handle(std::move(recv), errc);
@@ -663,6 +751,8 @@ TEST_CASE("VideoTaskHandler: BatchDelete all success", "[video-task-handler]") {
     t1.algorithmId = "alg1";
     recv.tasks.push_back(t1);
 
+    REQUIRE_CALL(f.mocks.cameraSvc, QueryTaskArea("ch1", "alg1", trompeloeil::_, trompeloeil::_))
+        .RETURN(cosmo::util::ErrorEnum::Success);
     REQUIRE_CALL(f.mocks.cameraSvc, DeleteTask(trompeloeil::_, trompeloeil::_))
         .RETURN(cosmo::util::ErrorEnum::Success);
     auto ret = f.handler.Handle(std::move(recv), errc);
@@ -684,6 +774,10 @@ TEST_CASE("VideoTaskHandler: BatchDelete all fail", "[video-task-handler]") {
     recv.tasks.push_back(t1);
     recv.tasks.push_back(t2);
 
+    REQUIRE_CALL(f.mocks.cameraSvc,
+                 QueryTaskArea(trompeloeil::_, trompeloeil::_, trompeloeil::_, trompeloeil::_))
+        .TIMES(2)
+        .RETURN(cosmo::util::ErrorEnum::Success);
     REQUIRE_CALL(f.mocks.cameraSvc, DeleteTask(trompeloeil::_, trompeloeil::_))
         .TIMES(2)
         .RETURN(cosmo::util::ErrorEnum::CameraNotExist);

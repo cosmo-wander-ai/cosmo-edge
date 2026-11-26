@@ -909,6 +909,7 @@ watch(() => addDialogVisible.value, (newVal) => {
     console.log('对话框打开时的addAreaDialogConfig:', JSON.parse(JSON.stringify(addAreaDialogConfig.value)))
   }
 })
+defineExpose({ isDrawingLine, retroDirectType })
 </script>
 
 <style lang="scss" scoped>

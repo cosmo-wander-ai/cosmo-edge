@@ -159,6 +159,7 @@ struct DataAlarmUnit {
     std::vector<AiDetectBestEl> bestInfos;
     std::vector<DataAlarmTargetConfidence> targetHistory;  // Target confidence during sensitivity calculation
     RetroDirect retroDirect{RetroDirect::RetroDirectNone};  // No direction
+    bool hasPassFlowData{false};     // Distinguishes flow reports from ordinary People/Car alarms
     DataAlarmPassFlow passFlowData;  // Effective for OnEventsPropertyTypePeople and OnEventsPropertyTypeCar
 
     OnEventsReportType reportType{OnEventsReportType::Trigger};

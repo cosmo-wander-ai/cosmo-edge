@@ -180,11 +180,24 @@ const noContent = { default: { render: () => null } }
 const wallTimers = new Map()
 let wallTimerId = 0
 const scheduleWall = (callback, delay) => { const id = ++wallTimerId; wallTimers.set(id, { callback, delay }); return id }
-const wall = await mountComponent('views/box/bigScreen/warnningScreen/index.vue', {
+const mountWall = () => mountComponent('views/box/bigScreen/warnningScreen/index.vue', {
+  wrap: component => ({
+    ...component,
+    components: {
+      ...component.components,
+      'el-tree': {
+        props: ['data'],
+        methods: { setCurrentKey() {}, filter() {} },
+        render() {
+          return Vue.h('fixture-tree', this.data[0].children.map(data => this.$slots.default({ data })))
+        }
+      }
+    }
+  }),
   mocks: {
     '@/assets/beep.ogg': { default: '' },
     '@/assets/error-image.png': { default: '' },
-    '@element-plus/icons-vue': Object.fromEntries(['Search', 'Setting', 'FullScreen', 'Back', 'Refresh', 'ArrowLeft', 'ArrowRight', 'VideoCamera', 'Monitor', 'Bell'].map(name => [name, name])),
+    '@element-plus/icons-vue': Object.fromEntries(['Search', 'Setting', 'FullScreen', 'Back', 'Refresh', 'ArrowLeft', 'ArrowRight', 'VideoCamera', 'Bell'].map(name => [name, name])),
     '../components/flvVideo.vue': { default: {
       props: ['fitMode', 'index', 'isFullScreen', 'taskList', 'channelId', 'runAlgorithmId'], emits: ['update:fitMode', 'fullScreen', 'refresh-tasks', 'runAlgorithmIdChange', 'stop'],
       setup(props, { emit }) {
@@ -226,6 +239,7 @@ const wall = await mountComponent('views/box/bigScreen/warnningScreen/index.vue'
     bigScreenWs: () => 'ws://fixture.invalid/events'
   }
 })
+const wall = await mountWall()
 const previews = () => wall.all(node => node.type === 'fixture-preview')
 const wallFits = () => previews().map(node => node.props.fitMode)
 try {
@@ -302,4 +316,82 @@ await wall.settle()
 assert.equal(storage.get('playedCameraList'), layoutAfterExit, 'a late response cannot rewrite a closed wall')
 assert.equal(listeners.has('visibilitychange'), false)
 assert.equal(wallTimers.size, 0, 'wall cleanup clears its timers')
+deferQuery = false
+for (const { assignments, expected } of [
+  { assignments: [], expected: 0 },
+  { assignments: [{ id: 'removed-channel' }], expected: 0 },
+  { assignments: savedWindows, expected: 3 }
+]) {
+  storage.set('screenStatus', JSON.stringify({ screenType: 4, currentSelectedIndex: 3 }))
+  storage.set('playedCameraList', JSON.stringify(assignments))
+  const display = await mountWall()
+  const slots = () => display.all(node => hasClass(node, 'video-item'))
+  const selectedSlot = () => slots().findIndex(node => hasClass(node, 'video-active'))
+  const screenButtons = () => display.all(node => hasClass(node, 'screen-btn'))
+  try {
+    await display.settle()
+    assert.equal(selectedSlot(), expected, 'restore selection only when an assigned preview still exists')
+
+    slots()[2].props.onClick()
+    await display.settle()
+    assert.equal(selectedSlot(), 2, 'an empty wall still accepts explicit selection')
+    screenButtons()[0].props.onClick()
+    await display.settle()
+    screenButtons()[1].props.onClick()
+    await display.settle()
+    const next = expected === 0 ? 0 : 2
+    assert.equal(selectedSlot(), next, 'switching back to an empty wall selects the first slot')
+    assert.equal(JSON.parse(storage.get('screenStatus')).currentSelectedIndex, next)
+  } finally {
+    display.unmount()
+  }
+}
+for (const screenType of [1, 4]) {
+  storage.set('screenStatus', JSON.stringify({ screenType, currentSelectedIndex: 0 }))
+  storage.set('playedCameraList', '[]')
+  const display = await mountWall()
+  const cameraToggle = () => display.all(node => node.props.id === 'onboarding-camera-toggle')[0]
+  const channelRows = () => display.all(node => hasClass(node, 'custom-tree-node'))
+  const openOrCloseDrawer = () => cameraToggle().props.onClick({ stopPropagation() {} })
+  try {
+    await display.settle()
+    openOrCloseDrawer()
+    await display.settle()
+    assert.equal(cameraToggle().props['aria-expanded'], true)
+    channelRows()[0].props.onDblclick()
+    await display.settle()
+    assert.equal(display.all(node => node.type === 'fixture-preview')[0].props.channelId, channels[0].videoChannelId)
+    assert.equal(cameraToggle().props['aria-expanded'], true, 'opening a preview keeps the channel list open')
+    channelRows()[1].props.onDblclick()
+    await display.settle()
+    const previews = display.all(node => node.type === 'fixture-preview')
+    const expected = screenType === 1 ? channels.slice(1, 2) : channels.slice(0, 2)
+    assert.deepEqual(previews.map(node => node.props.channelId), expected.map(channel => channel.videoChannelId))
+    const audio = display.all(node => node.type === 'audio')[0]
+    audio.play = async () => {}
+    audio.pause = () => {}
+    const drawer = display.all(node => hasClass(node, 'select-area'))[0]
+    drawer.contains = target => display.all(node => node === target, drawer).length > 0
+
+    const lastPreview = previews.at(-1)
+    lastPreview.props.close()
+    listeners.get('click')?.({ target: lastPreview })
+    await display.settle()
+    assert.equal(display.all(node => node.type === 'fixture-preview').length, previews.length - 1)
+    assert.equal(cameraToggle().props['aria-expanded'], true, 'closing a preview keeps the drawer open')
+    listeners.get('click')?.({ target: display.root })
+    await display.settle()
+    assert.equal(cameraToggle().props['aria-expanded'], true, 'clicking elsewhere keeps the drawer open')
+
+    channelRows()[1].props.onDblclick()
+    await display.settle()
+    assert.equal(display.all(node => hasClass(node, 'channel-window')).length, 0, 'playing channels show no window badge')
+    assert.ok(hasClass(channelRows()[1], 'is-assigned'), 'playing channels retain their row styling')
+    openOrCloseDrawer()
+    await display.settle()
+    assert.equal(cameraToggle().props['aria-expanded'], false, 'the drawer still closes from its toggle')
+  } finally {
+    display.unmount()
+  }
+}
 console.log('Realtime display checks passed: full-frame defaults in the real player and wall, independent fit modes, retained video/FLV/WebRTC viewers and heartbeat, single/four/fullscreen presentation, normal cleanup. Transports are controlled; device layout remains a separate check.')

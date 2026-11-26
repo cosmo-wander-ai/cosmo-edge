@@ -108,6 +108,9 @@ public:
                                     MsgTaskConfig& params) override;
     util::ErrorEnum SaveOrUpdateTask(const std::string& cameraId, const std::string& algorithmId,
                                      const MsgTaskConfig& params, const std::string& scheduleId) override;
+    util::ErrorEnum SaveTaskPreservingState(const std::string& cameraId, const std::string& algorithmId,
+                                            const MsgTaskConfig& params,
+                                            const std::string& scheduleId) override;
     util::ErrorEnum QueryTaskParam(const std::string& cameraId, const std::string& algorithmId,
                                    std::vector<MsgDynamicKeyValue>& params) override;
     util::ErrorEnum ModifyTaskArea(const std::string& cameraId, const std::string& algorithmId,
@@ -202,7 +205,8 @@ private:
     void LoadCameraTaskList(CameraEntityPtr camera);
     bool SaveCameraTaskList(const CameraEntityPtr& camera);
     util::ErrorEnum SaveTask(const std::string& cameraId, const std::string& algorithmId,
-                             const MsgTaskConfig& params, const std::string& scheduleId, bool enable);
+                             const MsgTaskConfig& params, const std::string& scheduleId, bool enable,
+                             bool preserve_state = false);
     util::ErrorEnum MakeCameraTask(const CameraEntityPtr& camera, CameraTaskPtr task);
     util::ErrorEnum CheckTaskStartResource() const;
     void PrepareCameraTaskOverview(const CameraEntityPtr& camera, CameraTaskPtr task);

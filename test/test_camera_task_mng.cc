@@ -706,6 +706,45 @@ TEST_CASE("CameraServiceImpl concurrent task operations", "[CameraServiceImpl][c
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }
 
+TEST_CASE("CameraServiceImpl saves without changing service state", "[CameraServiceImpl][service-save]") {
+    std::filesystem::remove_all(CameraConfigRoot() / "test_camera_save_state");
+    TestFixture fx("test_camera_save_state", "rtsp://127.0.0.1:1/test");
+    ALLOW_CALL(fx.mocks.scheduleSvc, Exist2("sched1", _)).LR_SIDE_EFFECT(_2 = "Schedule 1").RETURN(true);
+    size_t starts = 0;
+    ALLOW_CALL(fx.mocks.taskSvc, TaskStart(_, _)).LR_SIDE_EFFECT(starts += 1).RETURN(true);
+    MsgTaskConfig params;
+    params.params.push_back(MakeParam("param.threshold", "10"));
+
+    // A first save creates a disabled service; repeated saves leave it disabled.
+    REQUIRE(fx.svc.SaveTaskPreservingState(fx.cameraId, "test_alg", params, "sched1") ==
+            util::ErrorEnum::Success);
+    REQUIRE_FALSE(fx.svc.GetTasks(fx.cameraId).at(0).enable);
+    REQUIRE(fx.svc.SaveTaskPreservingState(fx.cameraId, "test_alg", params, "sched1") ==
+            util::ErrorEnum::Success);
+    REQUIRE_FALSE(fx.svc.GetTasks(fx.cameraId).at(0).enable);
+
+    DrainSwitchThreads(fx.svc);
+    REQUIRE(starts == 0);
+
+    // Explicit activation remains active when its configuration is saved.
+    REQUIRE(fx.svc.SaveOrUpdateTask(fx.cameraId, "test_alg", params, "sched1") == util::ErrorEnum::Success);
+    DrainSwitchThreads(fx.svc);
+    REQUIRE(fx.svc.SaveTaskPreservingState(fx.cameraId, "test_alg", params, "sched1") ==
+            util::ErrorEnum::Success);
+    REQUIRE(fx.svc.GetTasks(fx.cameraId).at(0).enable);
+
+    const auto starts_after_activation = starts;
+
+    // A save after deletion must not resurrect an enabled service.
+    REQUIRE(fx.svc.DeleteTask(fx.cameraId, "test_alg") == util::ErrorEnum::Success);
+    DrainSwitchThreads(fx.svc);
+    REQUIRE(fx.svc.SaveTaskPreservingState(fx.cameraId, "test_alg", params, "sched1") ==
+            util::ErrorEnum::Success);
+    REQUIRE_FALSE(fx.svc.GetTasks(fx.cameraId).at(0).enable);
+    DrainSwitchThreads(fx.svc);
+    REQUIRE(starts == starts_after_activation);
+}
+
 TEST_CASE("CameraServiceImpl prepares a durable task without enabling it",
           "[CameraServiceImpl][management]") {
     std::filesystem::remove_all(CameraConfigRoot() / "test_camera_managed_prepare");
