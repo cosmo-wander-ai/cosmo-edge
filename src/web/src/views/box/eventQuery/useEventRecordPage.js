@@ -1,7 +1,7 @@
 import { computed, nextTick, ref } from 'vue'
-import { t } from '@/i18n'
+import { currentLocale, t } from '@/i18n'
 
-// Shared only by the three event pages that support deleting local records.
+// Shared by the alarm, face/body, and vehicle record pages.
 export function useEventRecordPage({ proxy, pageData, tableData, buildQuery, isGrid = () => false, onRemoved }) {
   const eventTableRef = ref(null)
   const selectedIds = ref([])
@@ -88,6 +88,46 @@ export function useEventRecordPage({ proxy, pageData, tableData, buildQuery, isG
     init()
   }
 
+  const handleExport = async () => {
+    let result
+    try {
+      result = await proxy.$API.boxExportAlarm({
+        ...buildQuery(),
+        pageNum: 1,
+        pageSize: 0,
+        language: currentLocale.value
+      })
+    } catch {
+      // The API client reports request errors.
+      return
+    }
+    const fileUrl = result.resData?.fileUrl
+    if (!fileUrl) {
+      proxy.$message.error(t('event.fileExpired'))
+      return
+    }
+
+    try {
+      const response = await fetch(fileUrl)
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.style.display = 'none'
+      link.href = url
+      link.download = fileUrl.split('/').pop() || t('event.alarmRecordCsv')
+      document.body.appendChild(link)
+      try {
+        link.click()
+      } finally {
+        link.remove()
+        window.URL.revokeObjectURL(url)
+      }
+    } catch {
+      proxy.$message.error(t('event.fileFetchFailed'))
+    }
+  }
+
   const deleteRecords = async values => {
     const ids = [...new Set(values)]
     if (!ids.length || deleting.value) return
@@ -142,5 +182,5 @@ export function useEventRecordPage({ proxy, pageData, tableData, buildQuery, isG
   const getIndex = index => (pageData.pageNum - 1) * pageData.pageSize + index + 1
   return { eventTableRef, selectedIds, deleting, allGridSelected, someGridSelected, clearSelection, init,
     handleSelectionChange, handleGridSelect, handleGridSelectAll, handleSizeChange, handleCurrentChange,
-    searchList, handleDelete, handleBatchDelete, getIndex }
+    searchList, handleExport, handleDelete, handleBatchDelete, getIndex }
 }

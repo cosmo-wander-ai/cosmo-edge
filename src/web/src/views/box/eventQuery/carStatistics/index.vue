@@ -172,7 +172,7 @@ import TopBar from '@/components/TopBar.vue'
 import moment from 'moment'
 import videoFrequency from '@/components/videoPlaying265.vue'
 import CarDetailDialog from '../components/carDetailDialog.vue'
-import { t, currentLocale } from '@/i18n'
+import { t } from '@/i18n'
 import { useEventRecordPage } from '../useEventRecordPage'
 
 const { proxy } = getCurrentInstance()
@@ -334,7 +334,7 @@ const getChannelList = () => {
 }
 
 const { eventTableRef, selectedIds: multipleSelections, deleting, init, handleSelectionChange,
-  handleSizeChange, handleCurrentChange, searchList, handleDelete, handleBatchDelete, getIndex } = useEventRecordPage({
+  handleSizeChange, handleCurrentChange, searchList, handleExport, handleDelete, handleBatchDelete, getIndex } = useEventRecordPage({
   proxy,
   pageData,
   tableData,
@@ -362,48 +362,6 @@ const { eventTableRef, selectedIds: multipleSelections, deleting, init, handleSe
 const handleDetail = (row) => {
   detailData.value = row
   detailDialogVisible.value = true
-}
-
-const handleExport = () => {
-  const params = {
-    timeBegin: moment(formData.times[0]).valueOf(),
-    timeEnd: moment(formData.times[1]).valueOf(),
-    pageNum: 1,
-    pageSize: 0,
-    algorithmCodes: formData.algorithmCode ? [formData.algorithmCode] : [],
-    categorys: ['10'],
-    videoChannelName: formData.videoChannelName || undefined,
-    propStr: formData.propStr,
-    propColor: formData.propColor,
-    propRelatedColor: formData.propRelatedColor,
-    propType: formData.propType,
-    propDirection: formData.propDirection,
-    reportStatus: formData.reportStatus === '' ? undefined : formData.reportStatus,
-    language: currentLocale.value
-  }
-  proxy.$API.boxExportAlarm(params).then(async (res) => {
-    const { resData } = res
-    if (resData && resData.fileUrl) {
-      downloadFile(resData.fileUrl)
-    } else {
-      proxy.$message.error(t('event.fileExpired'))
-    }
-  })
-}
-
-const downloadFile = async (fileUrl) => {
-  const response = await fetch(fileUrl)
-  if (!response.ok) throw new Error(t('event.fileFetchFailed'))
-  const blob = await response.blob()
-  const url = window.URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.style.display = 'none'
-  link.href = url
-  link.download = fileUrl.split('/').pop() || t('event.alarmRecordCsv')
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  window.URL.revokeObjectURL(url)
 }
 
 const onCheckVideo = (detail, type) => {

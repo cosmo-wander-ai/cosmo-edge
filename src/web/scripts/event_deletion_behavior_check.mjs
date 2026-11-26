@@ -3,7 +3,10 @@ import * as Vue from 'vue'
 import { loadBehaviorModule } from './helpers/load_behavior_module.mjs'
 
 const { useEventRecordPage } = await loadBehaviorModule('views/box/eventQuery/useEventRecordPage.js', {
-  mocks: { vue: Vue, '@/i18n': { t: (key, values) => `${key}:${JSON.stringify(values || {})}` } }
+  mocks: {
+    vue: Vue,
+    '@/i18n': { currentLocale: Vue.ref('zh-CN'), t: (key, values) => `${key}:${JSON.stringify(values || {})}` }
+  }
 })
 const plain = value => JSON.parse(JSON.stringify(value))
 
