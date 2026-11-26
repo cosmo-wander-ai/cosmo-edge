@@ -6,7 +6,9 @@
 
 #pragma once
 
+#include <functional>
 #include <memory>
+#include <mutex>
 
 #include "db/FaceTaskEventDao.h"
 #include "db/PassengerFlowDao.h"
@@ -17,7 +19,7 @@ namespace cosmo::service {
 
 class AlarmRecordServiceImpl : public IAlarmRecordService {
 public:
-    AlarmRecordServiceImpl();
+    explicit AlarmRecordServiceImpl(std::function<void()> on_alarm_recorded = {});
     ~AlarmRecordServiceImpl() override;
 
     std::vector<cosmo::MsgEventUnit> QueryEvents(cosmo::MsgConditionEvent& condition,
@@ -47,6 +49,8 @@ private:
 
     cosmo::db::FaceTaskEventData AlarmDataToFaceEventData(cosmo::AlarmRecordUnit& unit);
 
+    std::function<void()> on_alarm_recorded_;
+    std::mutex event_write_mtx_;
     std::shared_ptr<SQLite::Database> event_write_database_;
     std::shared_ptr<cosmo::db::TaskEventDao> db_event_writer_;
     std::shared_ptr<cosmo::db::TaskEventDao> db_event_{nullptr};

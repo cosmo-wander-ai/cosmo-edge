@@ -18,6 +18,8 @@ const cases = [
   ['boxSwitchTask', '/gtw/cwai/Task/SwitchTask'],
   ['boxDeleteTask', '/gtw/cwai/task/delete'],
   ['boxDeleteEvent', '/gtw/cwai/event/delete', { silentError: true }],
+  ['queryLocalAudioOut', '/gtw/cwai/Audio/QueryLocalAudioOut', { silentError: true }],
+  ['setLocalAudioOut', '/gtw/cwai/Audio/SetLocalAudioOut', { silentError: true }],
   ['queryTimeTemplatePage', '/gtw/cwai/schedule/Page'],
   ['boxRecaptureImage', '/gtw/cwai/Camera/GetPicture'],
   ['queryThingsLibInfo', '/gtw/cwai/ThingsLibrary/QueryThingsLibInfo'],

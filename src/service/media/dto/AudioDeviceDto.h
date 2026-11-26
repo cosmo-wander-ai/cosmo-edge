@@ -18,6 +18,15 @@ struct AlarmAudioInfo {
     friend void from_json(const nlohmann::json& j, AlarmAudioInfo& v);
 };
 
+struct LocalAudioOutState {
+    bool available{false};
+    std::string reason;
+    bool enabled{false};
+    std::string fileId;
+    friend void to_json(nlohmann::json& j, const LocalAudioOutState& v);
+    friend void from_json(const nlohmann::json& j, LocalAudioOutState& v);
+};
+
 enum class AudioDevicePlayType {
     AudioDevicePlayTypeNone      = 0,
     AudioDevicePlayTypeAudioPlay = 1,

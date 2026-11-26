@@ -1010,6 +1010,31 @@ export default {
     networkError: 'Network error',
     unknownError: 'Unknown error'
   },
+  localAudioOut: {
+    title: 'Alarm playback on device Audio Out',
+    enabled: 'Enable playback',
+    recording: 'Alarm recording',
+    ready: 'Audio output ready',
+    unavailable: 'Audio output unavailable',
+    loadFailed: 'Could not read the device playback settings',
+    libraryUnavailable: 'Could not load recordings',
+    missingRecording: 'Selected recording unavailable',
+    browserPreview: 'Preview in browser',
+    reasons: {
+      unsupportedBoard: 'This device has no supported local audio output',
+      playbackToolUnavailable: 'The audio player is unavailable on this device',
+      decoderUnavailable: 'The audio decoder is unavailable on this device',
+      audioDeviceUnavailable: 'The onboard audio output is inaccessible',
+      invalidAudioFile: 'Choose a valid recording from the audio library',
+      fileNotFound: 'The selected recording is missing. Choose another recording.',
+      cacheUnavailable: 'The device cannot access its playback cache',
+      insufficientSpace: 'The device needs more free space to prepare this recording',
+      conversionFailed: 'Audio conversion failed. Check the file or choose another recording.',
+      configWriteFailed: 'Could not save the device playback settings',
+      configInvalid: 'The saved playback settings are invalid. Configure playback again.',
+      localAudioFileInUse: 'Device alarm playback uses this recording. Select and save another recording before deleting it.'
+    }
+  },
   status: {
     online: 'Online',
     offline: 'Offline',

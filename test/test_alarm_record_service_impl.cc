@@ -9,6 +9,7 @@
 #include <SQLiteCpp/SQLiteCpp.h>
 
 #include <memory>
+#include <stdexcept>
 #include <thread>
 
 #include "mock/MockDbService.h"
@@ -88,6 +89,51 @@ TEST_CASE("AlarmRecordServiceImpl: Insert and QueryAlarmRecords", "[AlarmRecordS
         auto result = sut.QueryAlarmRecords(cond, 0);
         REQUIRE(result.totalCount >= 1);
     }
+}
+
+TEST_CASE("Alarm record playback follows newly committed detection records",
+          "[AlarmRecordService][local-audio]") {
+    auto db = MakeMemoryDb();
+    DbDependency mocks;
+    ALLOW_CALL(mocks.dbSvc, GetDb()).RETURN(db);
+
+    int notifications = 0;
+    AlarmRecordServiceImpl sut([&] { ++notifications; });
+    auto alarm     = MakeAlarmUnit("alarm-2");
+    alarm.category = "2";
+    REQUIRE(sut.Insert(alarm));
+    REQUIRE(sut.UpdateAlarmReportStatus(alarm.id, true));
+    CHECK_FALSE(sut.Insert(alarm));
+    CHECK(notifications == 1);
+
+    alarm.id       = "alarm-3";
+    alarm.category = "3";
+    REQUIRE(sut.Insert(alarm));
+    for (const auto* category : {"1", "8", "9", "10", "11"}) {
+        alarm.category = category;
+        alarm.id       = "other-" + alarm.category;
+        REQUIRE(sut.Insert(alarm));
+    }
+    CHECK(notifications == 2);
+
+    // The event insert succeeds inside the savepoint, but the missing audit rolls it back.
+    alarm.category = "3";
+    alarm.id       = "uncommitted";
+    alarm.property =
+        R"({"visualJudgments":[{"audit":{"begin":"stored","schema":1,"request_id":"missing"},"request":{"request_id":"missing"}}]})";
+    CHECK_FALSE(sut.Insert(alarm));
+    CHECK(notifications == 2);
+}
+
+TEST_CASE("Audio notification failure preserves the committed alarm", "[AlarmRecordService][local-audio]") {
+    auto db = MakeMemoryDb();
+    DbDependency mocks;
+    ALLOW_CALL(mocks.dbSvc, GetDb()).RETURN(db);
+    AlarmRecordServiceImpl sut([] { throw std::runtime_error("audio stopped"); });
+    auto alarm     = MakeAlarmUnit("one-record");
+    alarm.category = "2";
+    REQUIRE(sut.Insert(alarm));
+    CHECK(db->execAndGet("SELECT count(*) FROM t_commonEvent").getInt() == 1);
 }
 
 TEST_CASE("AlarmRecordServiceImpl: UpdateAlarmReportStatus", "[AlarmRecordService]") {

@@ -9,6 +9,16 @@
 
 // Auto-generated JSON serialization
 namespace cosmo::Audio {
+void to_json(nlohmann::json& j, const MsgQueryLocalAudioOutSend& v) {
+    to_json(j, static_cast<const MsgSendHead&>(v));
+    j["resData"] = v.resData;
+}
+
+void from_json(const nlohmann::json& j, MsgSetLocalAudioOutRecv& v) {
+    j.at("enabled").get_to(v.enabled);
+    j.at("fileId").get_to(v.fileId);
+}
+
 void to_json(nlohmann::json& j, const MsgQueryAudioFileRecv& v) {
     to_json(j, static_cast<const MsgRecvHead&>(v));
     j["pageNum"]       = v.pageNum;

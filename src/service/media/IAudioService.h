@@ -61,6 +61,13 @@ public:
     /// Get the maximum allowed number of audio files.
     virtual size_t AudioFileMaxCount() const = 0;
 
+    virtual cosmo::LocalAudioOutState QueryLocalAudioOut()                                       = 0;
+    virtual bool SetLocalAudioOut(bool enabled, const std::string& file_id, std::string& reason) = 0;
+
+    /// Register one newly committed alarm for local playback.
+    virtual void QueueLocalAlarm()   = 0;
+    virtual void StopLocalAudioOut() = 0;
+
     // ── Audio Device Management ──
 
     /// Add a new network audio device (IP speaker).

@@ -277,6 +277,8 @@ void ApiRouter::RegisterFileRoutes() {
 
 void ApiRouter::RegisterAudioRoutes() {
     // ── Audio ──────────────────────────────────────────────────────────
+    ROUTE("/gtw/cwai/Audio/", kAuth, audio_handler_, Audio, QueryLocalAudioOut);
+    ROUTE("/gtw/cwai/Audio/", kAuth, audio_handler_, Audio, SetLocalAudioOut);
     ROUTE("/gtw/cwai/Audio/", kAuth, audio_handler_, Audio, QueryAudioFile);
     ROUTE("/gtw/cwai/Audio/", kAuth, audio_handler_, Audio, DeleteAudioFile);
     ROUTE("/gtw/cwai/Audio/", kAuth, audio_handler_, Audio, ModifyAudioDevice);

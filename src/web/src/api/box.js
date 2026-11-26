@@ -344,6 +344,12 @@ const system = {
 }
 
 const audio = {
+  queryLocalAudioOut(data = {}) {
+    return request({ url: '/gtw/cwai/Audio/QueryLocalAudioOut', method: 'post', data, silentError: true })
+  },
+  setLocalAudioOut(data) {
+    return request({ url: '/gtw/cwai/Audio/SetLocalAudioOut', method: 'post', data, silentError: true })
+  },
   // 查询音频文件列表
   queryAudioFile(data) {
     return request({

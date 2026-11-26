@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <shared_mutex>
 #include <string>
 #include <vector>
@@ -9,9 +10,12 @@
 
 namespace cosmo::service {
 
+class LocalAudioPlayer;
+
 class AudioServiceImpl : public IAudioService {
 public:
     AudioServiceImpl();
+    explicit AudioServiceImpl(std::unique_ptr<LocalAudioPlayer> local_audio_player);
     ~AudioServiceImpl() override;
 
     // ── Audio file management ──
@@ -24,6 +28,11 @@ public:
     bool AddAudioFile(const std::string& fileName) override;
     size_t AudioFileCount() const override;
     size_t AudioFileMaxCount() const override;
+
+    cosmo::LocalAudioOutState QueryLocalAudioOut() override;
+    bool SetLocalAudioOut(bool enabled, const std::string& file_id, std::string& reason) override;
+    void QueueLocalAlarm() override;
+    void StopLocalAudioOut() override;
 
     // ── Audio column device management ──
     bool AddAudioDevice(const std::string& devName, const std::string& ip, const std::string& ethName,
@@ -38,6 +47,8 @@ public:
 
 private:
     bool LoadAudio();
+    void LoadLocalAudioOut();
+    bool ResolveLocalAudioSource(const std::string& file_id, std::string& source, std::string& reason) const;
     bool AudioNameExist(const std::string& name);
     bool AudioIdExist(const std::string& id);
 
@@ -77,6 +88,12 @@ private:
     std::string default_audio_id_    = "1234567890";  // Default audio ID
     std::string default_audio_file_name_;             // Packaged default audio file
     std::string default_audio_web_file_ = "/audioMng/beep.ogg";
+
+    // Settings and file selection share the audio library lock. Enqueue only touches the player.
+    std::unique_ptr<LocalAudioPlayer> local_audio_player_;
+    bool local_audio_enabled_{false};
+    std::string local_audio_file_id_{default_audio_id_};
+    std::string local_audio_error_;
 
     // :: AudioDevice state
     mutable std::shared_mutex device_mtx_;

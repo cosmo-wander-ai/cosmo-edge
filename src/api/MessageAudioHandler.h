@@ -13,6 +13,9 @@ namespace cosmo {
 class MessageAudioHandler {
 public:
     MessageAudioHandler(service::IAudioService& audio_svc, service::ILinkageService& linkage_svc);
+    Audio::MsgQueryLocalAudioOutSend Handle(Audio::MsgQueryLocalAudioOutRecv&& data,
+                                            std::error_condition& errc);
+    Audio::MsgSetLocalAudioOutSend Handle(Audio::MsgSetLocalAudioOutRecv&& data, std::error_condition& errc);
     Audio::MsgQueryAudioFileSend Handle(Audio::MsgQueryAudioFileRecv&& data, std::error_condition& errc);
     Audio::MsgDeleteAudioFileSend Handle(Audio::MsgDeleteAudioFileRecv&& data, std::error_condition& errc);
     Audio::MsgModifyAudioDeviceSend Handle(Audio::MsgModifyAudioDeviceRecv&& data,

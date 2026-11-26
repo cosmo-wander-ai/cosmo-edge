@@ -278,7 +278,8 @@ static void RegisterBusinessServices() {
         static_cast<cosmo::service::IModelPathMapping*>(&modelImpl));
 
     registry.Register<cosmo::service::IAlarmRecordService>(
-        std::make_unique<cosmo::service::AlarmRecordServiceImpl>());
+        std::make_unique<cosmo::service::AlarmRecordServiceImpl>(
+            [&audio = registry.Get<cosmo::service::IAudioService>()]() { audio.QueueLocalAlarm(); }));
 
     registry.Register<cosmo::service::IVisualAuditService>(
         std::make_unique<cosmo::service::VisualAuditServiceImpl>(cosmo::path::GetDbPath() + "/ied.db"));
@@ -499,6 +500,10 @@ static void StopExternalComponents() {
     }
     if (registry.Has<cosmo::service::ITaskLifecycle>()) {
         stop("task workers", [&registry]() { registry.Get<cosmo::service::ITaskLifecycle>().Shutdown(); });
+    }
+    if (registry.Has<cosmo::service::IAudioService>()) {
+        stop("local audio playback",
+             [&registry]() { registry.Get<cosmo::service::IAudioService>().StopLocalAudioOut(); });
     }
     if (registry.Has<cosmo::service::ILinkageService>()) {
         stop("linkage workers", [&registry]() { registry.Get<cosmo::service::ILinkageService>().Stop(); });

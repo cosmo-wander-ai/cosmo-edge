@@ -359,6 +359,46 @@ TEST_CASE("ApiRouter: alarm deletion is authenticated and returns per-event resu
     }
 }
 
+TEST_CASE("Local Audio Out routes require an authenticated session and explicit settings",
+          "[ApiRouter][local-audio]") {
+    test::ApiRouterTestDependencies mocks;
+    ApiRouter router(MessageFromType::MessageFromHttp);
+    const std::string query = "/gtw/cwai/Audio/QueryLocalAudioOut";
+    const std::string set   = "/gtw/cwai/Audio/SetLocalAudioOut";
+    ALLOW_CALL(mocks.authSvc, IsValidToken("valid")).RETURN(true);
+    ALLOW_CALL(mocks.authSvc, IsValidToken("invalid")).RETURN(false);
+    std::string response;
+    REQUIRE_FALSE(router.DispatchRequest(query, "invalid", "{}", response));
+    REQUIRE_FALSE(router.DispatchRequest(set, "invalid", R"({"enabled":true,"fileId":"clip"})", response));
+
+    SECTION("Query returns device readiness and configured selection") {
+        LocalAudioOutState state;
+        state.available = true;
+        state.fileId    = "clip";
+        REQUIRE_CALL(mocks.audioSvc, QueryLocalAudioOut()).RETURN(state);
+        REQUIRE(router.DispatchRequest(query, "valid", "{}", response));
+        const auto body = nlohmann::json::parse(response);
+        CHECK(body.at("resData") == nlohmann::json(state));
+    }
+    SECTION("Missing or malformed fields do not change existing settings") {
+        for (const auto* payload :
+             {"", "{}", R"({"fileId":"clip"})", R"({"enabled":"false","fileId":"clip"})",
+              R"({"enabled":true,"fileId":""})"}) {
+            REQUIRE(router.DispatchRequest(set, "valid", payload, response));
+            CHECK(nlohmann::json::parse(response).at("resCode") == kServerRspFailed);
+        }
+    }
+    SECTION("Set returns the specific reason when configuration fails") {
+        REQUIRE_CALL(mocks.audioSvc, SetLocalAudioOut(true, "clip", trompeloeil::_))
+            .LR_SIDE_EFFECT(_3 = "invalidAudioFile")
+            .RETURN(false);
+        REQUIRE(router.DispatchRequest(set, "valid", R"({"enabled":true,"fileId":"clip"})", response));
+        const auto body = nlohmann::json::parse(response);
+        CHECK(body.at("resCode") == kServerRspFailed);
+        CHECK(body.at("resMsg").at(0).at("messageKey") == "localAudioOut.reasons.invalidAudioFile");
+    }
+}
+
 TEST_CASE("ApiRouter: Wi-Fi management requires the HTTP session", "[ApiRouter][wifi-handler]") {
     cosmo::test::ApiRouterTestDependencies mocks;
     ApiRouter http_router(MessageFromType::MessageFromHttp);

@@ -8,6 +8,7 @@ const longTimeoutApi = [
   '/gtw/cwai/System/Upgrade',
   '/gtw/cwai/System/CheckUpgradeSpace',
   '/gtw/cwai/File/ImportFile',
+  '/gtw/cwai/Audio/SetLocalAudioOut',
   '/gtw/cwai/Camera/AddVideo',
   '/gtw/cwai/atomic/model/uploadTemp',
   '/gtw/cwai/atomic/model/upload',
