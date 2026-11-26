@@ -340,66 +340,30 @@ const switchTypeTab = (val) => {
   pageData.pageNum = 1
 }
 
-// ── 模型类型映射 ──
-// 通过对每个子类型调用 atomicModelList 来建立可靠映射
-const modelTypeMap = ref({})       // modelCode → subType (e.g. 'classify', 'yolov8_det')
-const modelMainTypeMap = ref({})   // modelCode → mainType (e.g. 'detect', 'classify')
-const allModelsByType = ref({})    // mainType → [model, model, ...]
-const allModelsCount = ref(0)
+const foundationModelIcons = new Map([
+  ['dino', 'text-detection'],
+  ['sam2', 'segmentation'],
+  ['qwen3vl', 'multimodal'],
+  ['qwen3_5', 'multimodal'],
+  ['laya_v', 'multimodal']
+])
 
-// 子类型 → 主类型的映射表
-const subTypeToMain = {
-  yolov5_det: 'detect', yolov8_det: 'detect', yolov9_det: 'detect',
-  yolov11_det: 'detect', yolov12_det: 'detect', yolo26_det: 'detect',
-  yolo26_obb_det: 'detect', yolo26_person_attributes: 'detect',
-  classify: 'classify', keypoints: 'keypoints', feature: 'feature', ocr: 'ocr',
-  dino: 'foundation', sam2: 'foundation', qwen3vl: 'foundation', qwen3_5: 'foundation', laya_v: 'foundation'
+const getModelType = (model) => model.modelType?.trim().toLowerCase() || ''
+
+const getModelTypeCategory = (type) => {
+  if (type.includes('classify')) return 'classify'
+  if (type.includes('_det') || type === 'detector' || type === 'yolo26_person_attributes') return 'detect'
+  if (type === 'keypoints' || type === 'feature' || type === 'ocr') return type
+  if (foundationModelIcons.has(type)) return 'foundation'
+  return ''
 }
 
-const loadModelTypes = () => {
-  const subTypes = Object.keys(subTypeToMain)
-  const filePath = ''
-  const byType = { detect: [], classify: [], keypoints: [], feature: [], ocr: [], foundation: [] }
-  const seen = new Set()
-
-  const promises = subTypes.map(st =>
-    proxy.$API.atomicModelList({ modelName: '', modelType: st, filePath }).then(res => {
-      const list = res?.resData?.list || []
-      const mainType = subTypeToMain[st]
-      list.forEach(item => {
-        const code = item.atomicCode || item.modelCode || ''
-        if (!code || seen.has(code)) return
-        seen.add(code)
-        modelTypeMap.value[code] = st
-        modelMainTypeMap.value[code] = mainType
-        byType[mainType].push({
-          ...item,
-          modelCode: code,
-          modelName: item.atomicName || item.modelName || '',
-          _mainType: mainType,
-          _subType: st
-        })
-      })
-    }).catch(() => {})
-  )
-
-  Promise.all(promises).then(() => {
-    allModelsByType.value = byType
-    allModelsCount.value = seen.size
-  })
-}
-
-// 获取模型的主类型
 const getModelMainType = (model) => {
-  // 优先用已建立的映射
-  const mapped = modelMainTypeMap.value[model.modelCode]
-  if (mapped) return mapped
+  const category = getModelTypeCategory(getModelType(model))
+  if (category) return category
 
-  // fallback：名称推断
-  const name = (model.modelName || '').toLowerCase()
-  if (/dino/i.test(name)) return 'foundation'
-  if (/sam2/i.test(name)) return 'foundation'
-  if (/qwen/i.test(name)) return 'foundation'
+  const name = model.modelName || ''
+  if (/dino|sam2|qwen/i.test(name)) return 'foundation'
   if (/yolo|det/i.test(name)) return 'detect'
   if (/classif/i.test(name)) return 'classify'
   if (/keypoint|pose/i.test(name)) return 'keypoints'
@@ -407,7 +371,6 @@ const getModelMainType = (model) => {
   return 'other'
 }
 
-// All views use complete model records; the type endpoint only supplies membership.
 const matchingModels = computed(() => {
   const keyword = searchKeyword.value.trim().toLowerCase()
   return allModels.value.filter(model => {
@@ -422,32 +385,24 @@ const filteredModels = computed(() => {
   return matchingModels.value.slice(start, start + pageData.pageSize)
 })
 
-// 类型 Tab 计数：使用按类型查询的精确结果
 const modelTypeTabs = computed(() => {
-  const byType = allModelsByType.value
+  const counts = { detect: 0, classify: 0, keypoints: 0, feature: 0, ocr: 0, foundation: 0, other: 0 }
+  for (const model of allModels.value) counts[getModelMainType(model)] += 1
   return [
-    { label: t('common.all'), value: '', count: allModelsCount.value || allModels.value.length },
-    { label: t('glossary.modelTypeDetect'), value: 'detect', count: (byType.detect || []).length },
-    { label: t('glossary.modelTypeClassify'), value: 'classify', count: (byType.classify || []).length },
-    { label: t('glossary.modelTypeKeypoints'), value: 'keypoints', count: (byType.keypoints || []).length },
-    { label: t('glossary.modelTypeFeature'), value: 'feature', count: (byType.feature || []).length },
-    { label: t('glossary.modelTypeOcr'), value: 'ocr', count: (byType.ocr || []).length },
-    { label: t('glossary.modelTypeFoundation'), value: 'foundation', count: (byType.foundation || []).length }
+    { label: t('common.all'), value: '', count: allModels.value.length },
+    { label: t('glossary.modelTypeDetect'), value: 'detect', count: counts.detect },
+    { label: t('glossary.modelTypeClassify'), value: 'classify', count: counts.classify },
+    { label: t('glossary.modelTypeKeypoints'), value: 'keypoints', count: counts.keypoints },
+    { label: t('glossary.modelTypeFeature'), value: 'feature', count: counts.feature },
+    { label: t('glossary.modelTypeOcr'), value: 'ocr', count: counts.ocr },
+    { label: t('glossary.modelTypeFoundation'), value: 'foundation', count: counts.foundation }
   ]
 })
 
-// ── 模型类型视觉映射 ──
-const getModelTypeLabel = (model) => {
-  return modelTypeMap.value[model?.modelCode] || model?._subType || getModelMainType(model) || 'unknown'
-}
-// Use the subtype returned by the existing typed queries, never the model name.
-// A neutral package symbol covers the initial load before metadata is available.
+const getModelTypeLabel = (model) => getModelType(model) || getModelMainType(model)
 const getModelIconType = (model) => {
-  const subtype = modelTypeMap.value[model?.modelCode] || model?._subType
-  if (subtype === 'dino') return 'text-detection'
-  if (subtype === 'sam2') return 'segmentation'
-  if (['qwen3vl', 'qwen3_5', 'laya_v'].includes(subtype)) return 'multimodal'
-  return modelMainTypeMap.value[model?.modelCode] || model?._mainType || subTypeToMain[subtype] || 'other'
+  const type = getModelType(model)
+  return foundationModelIcons.get(type) || getModelTypeCategory(type) || 'other'
 }
 
 // ── 模型使用状态（通过 algorithmInquire 获取算法列表中的 models 字段关联） ──
@@ -821,7 +776,6 @@ onUnmounted(() => { repositoryRequest += 1 })
 
 const refreshModelRepository = () => {
   init()
-  loadModelTypes()
   loadAlgUsage()
 }
 
@@ -1426,9 +1380,7 @@ onMounted(() => {
       isRkllm.value = rkllmAvailableItem?.value?.toLowerCase() === 'true'
     }).catch(() => {})
   }
-  loadModelTypes()
-  loadAlgUsage()
-  init()
+  refreshModelRepository()
 })
 
 

@@ -36,6 +36,7 @@ namespace Model {
         std::string id;
         std::string modelName;
         std::string modelCode;
+        std::string modelType;
         std::string gpuCode;
         std::string updateTime;
         std::string version;

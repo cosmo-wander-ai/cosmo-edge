@@ -336,6 +336,7 @@ void from_json(const nlohmann::json& j, MsgModel& v) {
     JSON_OPT(j, v, id);
     JSON_OPT(j, v, modelName);
     JSON_OPT(j, v, modelCode);
+    JSON_OPT(j, v, modelType);
     JSON_OPT(j, v, gpuCode);
     JSON_OPT(j, v, updateTime);
     JSON_OPT(j, v, version);
@@ -358,6 +359,7 @@ void to_json(nlohmann::json& j, const MsgModel& v) {
     j["id"]             = v.id;
     j["modelName"]      = v.modelName;
     j["modelCode"]      = v.modelCode;
+    j["modelType"]      = v.modelType;
     j["gpuCode"]        = v.gpuCode;
     j["updateTime"]     = v.updateTime;
     j["version"]        = v.version;

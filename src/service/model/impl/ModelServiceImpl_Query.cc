@@ -49,6 +49,7 @@ void ModelServiceImpl::QueryModels(const std::string& modelName, const std::stri
             model.modelCode = cfg.algorithm_code;
             model.id        = cfg.algorithm_code;
             model.modelName = cfg.model_name;
+            model.modelType = cfg.model_type;
 
             // I/O shapes
             model.inputCount  = cfg.input.count;

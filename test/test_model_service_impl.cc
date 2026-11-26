@@ -256,6 +256,19 @@ TEST_CASE("ModelServiceImpl: 模型服务核心逻辑", "[model-service]") {
             REQUIRE(rows[0].modelCode == "test_model_001");
             REQUIRE(rows[0].modelName == "TestModel");
             REQUIRE(rows[0].isExportable);
+            CHECK(nlohmann::json(rows[0]).at("modelType") == "yolov8_det");
+        }
+
+        SECTION("QueryModels supports configs without a model type") {
+            std::ofstream(userModelDir + "/config.json")
+                << R"({"algorithm_code":"test_model_001","models":[{"name":"TestModel"}]})";
+
+            int total = 0;
+            std::vector<cosmo::Model::MsgModel> rows;
+            sut.QueryModels("", "", 1, 10, total, rows);
+            REQUIRE(total == 1);
+            REQUIRE(rows.size() == 1);
+            CHECK(nlohmann::json(rows[0]).at("modelType") == "");
         }
 
         SECTION("QueryAtomicModels 流程") {
