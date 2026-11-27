@@ -5,29 +5,8 @@ set(SRS_DOWNLOAD_COMMAND
     ${CMAKE_COMMAND} -E rm -rf <SOURCE_DIR>
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${SRS_ORIGINAL_SOURCE_DIR} <SOURCE_DIR>
 )
-set(SRS_GB28181_PATCH_COMMAND
-    ${CMAKE_COMMAND}
-        "-DSRS_SOURCE_DIR=<SOURCE_DIR>"
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181.cmake
-    COMMAND ${CMAKE_COMMAND}
-        "-DSRS_SOURCE_DIR=<SOURCE_DIR>"
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181_managed.cmake
-    COMMAND ${CMAKE_COMMAND}
-        "-DSRS_SOURCE_DIR=<SOURCE_DIR>"
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181_queue.cmake
-    COMMAND ${CMAKE_COMMAND}
-        "-DSRS_SOURCE_DIR=<SOURCE_DIR>"
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181_loss.cmake
-    COMMAND ${CMAKE_COMMAND}
-        "-DSRS_SOURCE_DIR=<SOURCE_DIR>"
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181_audio.cmake
-    COMMAND ${CMAKE_COMMAND}
-        "-DSRS_SOURCE_DIR=<SOURCE_DIR>"
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181_frames.cmake
-    COMMAND ${CMAKE_COMMAND}
-        "-DSRS_SOURCE_DIR=<SOURCE_DIR>"
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181_rtmp_control.cmake
-)
+set(SRS_GB28181_PATCH_MANIFEST "${CMAKE_CURRENT_LIST_DIR}/srs_gb28181_patches.cmake")
+include("${SRS_GB28181_PATCH_MANIFEST}")
 
 if(COSMO_TARGET_ARCH STREQUAL "aarch64")
     set(SRS_CONFIGURE_ARCH_ARGS
@@ -61,7 +40,8 @@ ExternalProject_Add(
     SOURCE_DIR ${SRS_SOURCE_DIR}
     DOWNLOAD_COMMAND ${SRS_DOWNLOAD_COMMAND}
 
-    PATCH_COMMAND ${SRS_GB28181_PATCH_COMMAND}
+    PATCH_COMMAND ${CMAKE_COMMAND} "-DSRS_SOURCE_DIR=<SOURCE_DIR>"
+        -P "${SRS_GB28181_PATCH_MANIFEST}"
 
     CONFIGURE_COMMAND <SOURCE_DIR>/configure
         --prefix=${SRS_INSTALL_DIR}
@@ -96,10 +76,10 @@ ExternalProject_Add(
     LOG_OUTPUT_ON_FAILURE ON
 )
 
-# Reapply versioned fixes when their scripts change in an existing build.
+# Reapply the chain when its order or any patch script changes.
 ExternalProject_Add_StepDependencies(srs_external patch
-    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181_frames.cmake
-    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_srs_gb28181_rtmp_control.cmake)
+    "${SRS_GB28181_PATCH_MANIFEST}"
+    ${SRS_GB28181_PATCH_SCRIPTS})
 
 add_dependencies(third_build srs_external)
 

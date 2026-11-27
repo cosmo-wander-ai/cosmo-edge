@@ -615,6 +615,26 @@ endforeach()
         if hashes(v1) != expected:
             raise AssertionError(f"V1 upgrade/reapply {attempt} differs from fresh V2")
 
+    # Build the legacy tree with the full manifest and only the historical
+    # RTMP script substituted. Run the current chain against that build copy.
+    manifest = project / "cmake/srs_gb28181_patches.cmake"
+    legacy_scripts = Path(temporary) / "legacy-cmake"
+    shutil.copytree(manifest.parent, legacy_scripts, dirs_exist_ok=True)
+    shutil.copyfile(v1_script, legacy_scripts / patch.name)
+    legacy_chain = Path(temporary) / "legacy-chain"
+    fresh_chain = Path(temporary) / "fresh-chain"
+    copy_source(original, legacy_chain)
+    copy_source(original, fresh_chain)
+    apply(legacy_chain, legacy_scripts / manifest.name)
+    apply(fresh_chain, manifest)
+    if any("COSMO_GB_RTMP_CONTROL_V1" not in (legacy_chain / "src" / name).read_text()
+           for name in names):
+        raise AssertionError("Legacy chain did not apply RTMP control V1")
+    for attempt in range(2):
+        apply(legacy_chain, manifest)
+        if hashes(legacy_chain) != hashes(fresh_chain):
+            raise AssertionError(f"V1 chain upgrade/reapply {attempt} differs from the fresh chain")
+
     cases = ["unexpected-anchor", "partial-v1", "partial-v2", "unknown-version",
              "unknown-complete-v2", "mixed-versions", "broken-v1-upgrade-anchor"]
     for case in cases:
@@ -641,7 +661,7 @@ endforeach()
         apply(root, success=False)
         if hashes(root) != before:
             raise AssertionError(f"Patch wrote source files before rejecting {case}")
-    print("GB RTMP patch: fresh/V1 upgrade convergence, V2 idempotence, "
+    print("GB RTMP patch and full chain: fresh/V1 upgrade convergence, V2 idempotence, "
           "unknown/partial/mismatched-source no-write guards PASS")
 
 
