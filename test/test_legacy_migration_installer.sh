@@ -2,8 +2,17 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "$0")/.." && pwd -P)"
+interface_docs="$repo/src/web/public/staticfile"
 root="$(mktemp -d)"
 trap 'rm -rf -- "$root"' EXIT
+
+stage_interface_docs() {
+    local install_root="$1"
+    cp -R "$interface_docs" "$install_root/web/staticfile"
+    cp -R "$interface_docs/i18n" "$install_root/files/Interface/"
+    cp "$interface_docs/httpInterface.html" "$install_root/files/Interface/ai-box-interface_v1.0.html"
+    cp "$interface_docs/mqttInterface.html" "$install_root/files/Interface/mqtt_v1.0.html"
+}
 
 payload="$root/payload"
 active="$root/appfs/cosmo_wander/cwai_data"
@@ -17,8 +26,7 @@ printf '#!/bin/sh\ntouch "$COSMO_MIGRATION_TEST_ROOT/stop.called"\n' >"$payload/
 printf '#!/bin/sh\n' >"$payload/scripts/start.sh"
 printf '#!/bin/sh\n' >"$payload/scripts/inte_run_start.sh"
 chmod +x "$payload/scripts/"*.sh
-printf 'http\n' >"$payload/files/Interface/ai-box-interface_v1.0.html"
-printf 'mqtt\n' >"$payload/files/Interface/mqtt_v1.0.html"
+stage_interface_docs "$payload"
 printf 'old\n' >"$active/bin/cosmo-engine"
 printf 'existing-model\n' >"$active/resource/models/model.nn"
 printf 'preserved\n' >"$active/resource/device-local.conf"
@@ -39,8 +47,15 @@ test ! -e "$root/appfs/cosmo_wander/.cosmo-migration-backup"
 test -f "$root/stop.called"
 test ! -e "$active/scripts/install.sh"
 test -d "$active/bin/nginx_conf/logs"
-test -L "$active/web/staticfile/httpInterface.html"
-test -L "$active/web/staticfile/mqttInterface.html"
+test "$(readlink "$active/web/staticfile/httpInterface.html")" = \
+    "$active/files/Interface/ai-box-interface_v1.0.html"
+test "$(readlink "$active/web/staticfile/mqttInterface.html")" = \
+    "$active/files/Interface/mqtt_v1.0.html"
+cmp "$interface_docs/httpInterface.html" "$active/web/staticfile/httpInterface.html"
+cmp "$interface_docs/mqttInterface.html" "$active/web/staticfile/mqttInterface.html"
+grep -Fq '"targets": [' "$active/web/staticfile/httpInterface.html"
+diff -r "$interface_docs/i18n" "$active/web/staticfile/i18n"
+diff -r "$interface_docs/i18n" "$active/files/Interface/i18n"
 test -f "$root/data/cwaiuserdata/mqttUpgradeApp"
 service="$root/etc/systemd/system/cosmo.service"
 test -f "$service"
@@ -125,8 +140,7 @@ printf '#!/bin/sh\n' >"$rk_payload/scripts/stop.sh"
 printf '#!/bin/sh\n' >"$rk_payload/scripts/start.sh"
 printf '#!/bin/sh\n' >"$rk_payload/scripts/inte_run_start.sh"
 chmod +x "$rk_payload/scripts/"*.sh
-printf 'http\n' >"$rk_payload/files/Interface/ai-box-interface_v1.0.html"
-printf 'mqtt\n' >"$rk_payload/files/Interface/mqtt_v1.0.html"
+stage_interface_docs "$rk_payload"
 printf '%s\n' \
     'COSMO_PACKAGE_DATA_DIR=/userdata/cwaiuserdata' \
     'COSMO_PACKAGE_APP_DATA_DIR=/appfs/cosmo_wander/cwai_data' \

@@ -894,6 +894,21 @@ install(DIRECTORY ${WEB_BUILD_DIR}/web_unified/dist/
     FILE_PERMISSIONS OWNER_WRITE OWNER_READ GROUP_WRITE GROUP_READ
 )
 
+# Keep the legacy installation names in sync with the Web entry points.
+set(INTERFACE_DOCS_DIR "${WEB_SRC_DIR}/public/staticfile")
+install(FILES "${INTERFACE_DOCS_DIR}/httpInterface.html"
+    DESTINATION files/Interface RENAME ai-box-interface_v1.0.html
+    PERMISSIONS OWNER_WRITE OWNER_READ GROUP_WRITE GROUP_READ
+)
+install(FILES "${INTERFACE_DOCS_DIR}/mqttInterface.html"
+    DESTINATION files/Interface RENAME mqtt_v1.0.html
+    PERMISSIONS OWNER_WRITE OWNER_READ GROUP_WRITE GROUP_READ
+)
+install(DIRECTORY "${INTERFACE_DOCS_DIR}/i18n"
+    DESTINATION files/Interface
+    FILE_PERMISSIONS OWNER_WRITE OWNER_READ GROUP_WRITE GROUP_READ
+)
+
 # Data
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/
     DESTINATION files

@@ -205,8 +205,8 @@ InitializeWebSocket("0.0.0.0", kDefaultWebSocketPort)
 The repository still keeps the runtime-accessible HTML API documents:
 
 ```text
-data/Interface/ai-box-interface_v1.0.html
-data/Interface/mqtt_v1.0.html
+src/web/public/staticfile/httpInterface.html
+src/web/public/staticfile/mqttInterface.html
 ```
 
 After installation, static entries are generated:

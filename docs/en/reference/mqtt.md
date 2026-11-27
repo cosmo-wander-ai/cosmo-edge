@@ -18,11 +18,7 @@ src/network/mqtt
 src/service/network/impl/MqttLifecycleServiceImpl.cc
 ```
 
-The HTML reference packaged at runtime is located at:
-
-```text
-data/Interface/mqtt_v1.0.html
-```
+The packaged HTML reference uses `src/web/public/staticfile/mqttInterface.html` as its source.
 
 ## Topics
 

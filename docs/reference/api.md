@@ -203,8 +203,8 @@ InitializeWebSocket("0.0.0.0", kDefaultWebSocketPort)
 当前仓库仍保留运行时可访问的 HTML 接口文档：
 
 ```text
-data/Interface/ai-box-interface_v1.0.html
-data/Interface/mqtt_v1.0.html
+src/web/public/staticfile/httpInterface.html
+src/web/public/staticfile/mqttInterface.html
 ```
 
 安装后会生成静态入口：

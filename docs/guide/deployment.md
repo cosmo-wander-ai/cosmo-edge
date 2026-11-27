@@ -389,12 +389,9 @@ ExecStart=/appfs/cosmo_wander/cwai_data/scripts/inte_run_start.sh
 
 ## 接口文档静态链接
 
-打包接口文件：
+接口文档从前端源码打包。x86 镜像和旧版迁移安装会把 Web 入口链接到兼容安装路径。
 
-- `data/Interface/ai-box-interface_v1.0.html`
-- `data/Interface/mqtt_v1.0.html`
-
-运行时会链接到：
-
-- `web/staticfile/httpInterface.html`
-- `web/staticfile/mqttInterface.html`
+| 源码 | 兼容安装路径 | Web 入口 |
+| --- | --- | --- |
+| `src/web/public/staticfile/httpInterface.html` | `files/Interface/ai-box-interface_v1.0.html` | `/staticfile/httpInterface.html` |
+| `src/web/public/staticfile/mqttInterface.html` | `files/Interface/mqtt_v1.0.html` | `/staticfile/mqttInterface.html` |

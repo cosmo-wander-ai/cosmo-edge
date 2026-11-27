@@ -33,7 +33,10 @@
   /* ── page name from URL ─────────────────────────────── */
   function getPageName() {
     var m = location.pathname.match(/\/([^\/]+)\.html$/);
-    return m ? m[1] : '';
+    var page = m ? m[1] : '';
+    if (page === 'ai-box-interface_v1.0') return 'httpInterface';
+    if (page === 'mqtt_v1.0') return 'mqttInterface';
+    return page;
   }
 
   /* ── fetch locale JSON ──────────────────────────────── */
