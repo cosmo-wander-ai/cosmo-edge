@@ -18,11 +18,7 @@ src/network/mqtt
 src/service/network/impl/MqttLifecycleServiceImpl.cc
 ```
 
-运行时打包的 HTML 参考位于：
-
-```text
-data/Interface/mqtt_v1.0.html
-```
+打包的 HTML 参考文档源码位于 `src/web/public/staticfile/mqttInterface.html`。
 
 ## Topic
 

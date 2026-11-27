@@ -151,7 +151,7 @@ CosmoEdge 支持将告警/事件通过 HTTP 推送到外部平台。当前推送
 当前仓库保留：
 
 ```text
-data/Interface/ai-box-interface_v1.0.html
+src/web/public/staticfile/httpInterface.html
 ```
 
 安装后入口：

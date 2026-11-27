@@ -434,12 +434,9 @@ Do not apply broad recursive `chmod` or `chown` operations to the complete `<DAT
 
 ## Interface Documentation Static Links
 
-Packaged interface files:
+Packages use the frontend sources for the interface documentation. The x86 image and legacy migration installer link the web entry points to the legacy paths.
 
-- `data/Interface/ai-box-interface_v1.0.html`
-- `data/Interface/mqtt_v1.0.html`
-
-Linked at runtime to:
-
-- `web/staticfile/httpInterface.html`
-- `web/staticfile/mqttInterface.html`
+| Source | Legacy install path | Web entry point |
+| --- | --- | --- |
+| `src/web/public/staticfile/httpInterface.html` | `files/Interface/ai-box-interface_v1.0.html` | `/staticfile/httpInterface.html` |
+| `src/web/public/staticfile/mqttInterface.html` | `files/Interface/mqtt_v1.0.html` | `/staticfile/mqttInterface.html` |

@@ -151,7 +151,7 @@ Additional sub-objects may appear alongside the main categories:
 The repository currently retains:
 
 ```text
-data/Interface/ai-box-interface_v1.0.html
+src/web/public/staticfile/httpInterface.html
 ```
 
 After installation, the entry point is:
